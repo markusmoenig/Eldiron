@@ -1,0 +1,15 @@
+[package]
+name = "eldiron"
+version = "0.1.0"
+edition = "2021"
+authors = ["Markus Moenig"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+env_logger = "0.9"
+log = "0.4"
+pixels = "0.9.0"
+winit = "0.26"
+winit_input_helper = "0.11"
+png = "0.17.2"
