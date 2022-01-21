@@ -1,6 +1,8 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+mod tileset;
+
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
@@ -9,8 +11,6 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 //use pixels::wgpu::Color;
-
-use std::fs::File;
 
 const WIDTH: u32 = 320;
 const HEIGHT: u32 = 240;
@@ -39,18 +39,8 @@ fn main() -> Result<(), Error> {
             .unwrap()
     };
 
-    let decoder = png::Decoder::new(File::open("assets/U4B.png").unwrap());
-    let mut reader = decoder.read_info().unwrap();
-    // Allocate the output buffer.
-    let mut buf = vec![0; reader.output_buffer_size()];
-    // Read the next frame. An APNG might contain multiple frames.
-    let info = reader.next_frame(&mut buf).unwrap();
-    // Grab the bytes of the image.
-    //let bytes = &buf[..info.buffer_size()];
-    // Inspect more details of the last read frame.
-    //let in_animation = reader.info().frame_control.is_some();
-
-    println!("{}", info.width);
+    // Load the tile sets
+    let tile_set = tileset::TileSet::new();
 
     let mut pixels = {
         let window_size = window.inner_size();
@@ -62,7 +52,7 @@ fn main() -> Result<(), Error> {
     event_loop.run(move |event, _, control_flow| {
         // Draw the current frame
         if let Event::RedrawRequested(_) = event {
-            world.draw(pixels.get_frame(), &mut buf[..info.buffer_size()]);
+            world.draw(pixels.get_frame(), &tile_set.ts1);
             if pixels
                 .render()
                 .map_err(|e| error!("pixels.render() failed: {}", e))
@@ -120,7 +110,7 @@ impl World {
     /// Draw the `World` state to the frame buffer.
     ///
     /// Assumes the default texture format: `wgpu::TextureFormat::Rgba8UnormSrgb`
-    fn draw(&self, frame: &mut [u8], u4b: &mut [u8]) {
+    fn draw(&self, frame: &mut [u8], u4b: &Vec<u8>) {
 
         for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
             let x = (i % WIDTH as usize) as usize;
