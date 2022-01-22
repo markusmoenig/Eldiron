@@ -12,16 +12,25 @@ use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 //use pixels::wgpu::Color;
 
-const WIDTH: u32 = 320;
-const HEIGHT: u32 = 240;
+use std::time::{SystemTime, Duration, UNIX_EPOCH};
+
+const WIDTH: u32 = 80 * 16;
+const HEIGHT: u32 = 50 * 16;
 const BOX_SIZE: i16 = 64;
 
-/// Representation of the application state. In this example, a box will bounce around the screen.
-struct World {
+/// The main Game struct
+struct Game {
     box_x: i16,
     box_y: i16,
     velocity_x: i16,
     velocity_y: i16,
+}
+
+fn get_time() -> u128 {
+    let stop = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");    
+    stop.as_millis()
 }
 
 fn main() -> Result<(), Error> {
@@ -47,7 +56,9 @@ fn main() -> Result<(), Error> {
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         Pixels::new(WIDTH, HEIGHT, surface_texture)?
     };
-    let mut world = World::new();
+    let mut world = Game::new();
+
+    let mut timer : u128 = 0;
 
     event_loop.run(move |event, _, control_flow| {
         // Draw the current frame
@@ -74,16 +85,21 @@ fn main() -> Result<(), Error> {
             // Resize the window
             if let Some(size) = input.window_resized() {
                 pixels.resize_surface(size.width, size.height);
+                window.request_redraw();
             }
 
-            // Update internal state and request a redraw
-            world.update();
-            window.request_redraw();
+            let curr_time = get_time();
+
+            if curr_time > timer + 200 {
+                world.update();
+                window.request_redraw();
+                timer = curr_time;
+            }
         }
     });
 }
 
-impl World {
+impl Game {
     /// Create a new `World` instance that can draw a moving box.
     fn new() -> Self {
         Self {
@@ -112,6 +128,10 @@ impl World {
     /// Assumes the default texture format: `wgpu::TextureFormat::Rgba8UnormSrgb`
     fn draw(&self, frame: &mut [u8], u4b: &Vec<u8>) {
 
+        let start = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+
         for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
             let x = (i % WIDTH as usize) as usize;
             let y = (i / WIDTH as usize) as usize;
@@ -127,14 +147,20 @@ impl World {
             } else {
                 [0x48, 0xb2, 0xe8, 0xff]
             };*/
-
+            
             let mut rgba = [0,0,0,0];
-            if x < 256 {
+            if x < 256 && y < 200 {
                 let off = x * 4 + y * 256 * 4;
                 rgba = [u4b[off], u4b[off + 1], u4b[off + 2], 255];
             }
 
             pixel.copy_from_slice(&rgba);
         }
+
+        let stop = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
+
+        println!("{:?}", stop - start);
     }
 }
