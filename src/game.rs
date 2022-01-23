@@ -16,7 +16,7 @@ pub fn get_time() -> u128 {
 
 /// The main Game struct
 pub struct Game {
-    tile_set        : tileset::TileSet,
+    tileset                 : tileset::TileSet,
     // box_x: i16,
     // box_y: i16,
     // velocity_x: i16,
@@ -28,7 +28,7 @@ impl Game {
     pub fn new() -> Self {
 
         Self {
-            tile_set: tileset::TileSet::new()
+            tileset         : tileset::TileSet::new()
             // box_x: 24,
             // box_y: 16,
             // velocity_x: 1,
@@ -87,13 +87,15 @@ impl Game {
         }*/
 
 
-        self.draw_rect(frame, &[10, 10, WIDTH as usize - 20, HEIGHT as usize - 20], [255, 0, 0, 255]);
+        self.draw_rect(frame, &[0, 0, WIDTH as usize, HEIGHT as usize], [0, 0, 0, 255]);
+        self.draw_tilemap(frame, &[0, 0], &self.tileset.maps[&0]);
 
         let stop = get_time();
 
         println!("{:?}", stop - start);
     }
 
+    /// Draws the given rectangle
     pub fn draw_rect(&self, frame: &mut [u8], rect: &[usize; 4], color: [u8; 4]) {
         for y in rect[1]..rect[1]+rect[3] {
             for x in rect[0]..rect[0]+rect[2] {
@@ -103,5 +105,26 @@ impl Game {
                 frame[i..i + 4].copy_from_slice(&color);
             }
         }
+    }
+
+    /// Draws the given tilemap
+    pub fn draw_tilemap(&self,  frame: &mut [u8], pos: &[usize; 2], map: &tileset::TileMap) {
+        let pixels = &map.pixels;
+
+        for y in 0..map.height {
+            for x in 0..map.width {
+
+                let d = (x as usize + pos[0] as usize) * 4 + (y as usize + pos[1] as usize) * (WIDTH as usize) * 4;
+                let s = (x as usize) * 4 + (y as usize) * (map.width as usize) * 4;
+
+                frame[d..d + 4].copy_from_slice(&[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]]);
+            }
+        }
+        /*
+        let mut rgba = [0,0,0,0];
+        if x < 256 && y < 300 {
+            let off = x * 4 + y * 256 * 4;
+            rgba = [u4b[off], u4b[off + 1], u4b[off + 2], 255];
+        }*/
     }
 }

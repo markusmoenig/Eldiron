@@ -32,13 +32,15 @@ pub struct TileMapSettings {
 pub struct TileMap {
     pub pixels          : Vec<u8>,
     pub file_name       : String,
+    pub width           : u32,
+    pub height          : u32,
     pub settings        : TileMapSettings,
 }
 
 impl TileMap {
     fn new(file_name: &str) -> TileMap {
 
-        fn load(file_name: &str) -> Vec<u8> {
+        fn load(file_name: &str) -> (Vec<u8>, u32, u32) {
 
             let decoder = png::Decoder::new(File::open(file_name).unwrap());
             let mut reader = decoder.read_info().unwrap();
@@ -46,11 +48,11 @@ impl TileMap {
             let info = reader.next_frame(&mut buf).unwrap();
             let bytes = &buf[..info.buffer_size()];
     
-            bytes.to_vec()
+            (bytes.to_vec(), info.width, info.height)
         }
 
         // Load the atlas pixels
-        let pixels = load(file_name);
+        let info = load(file_name);
 
         // Gets the content of the settings file
         let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
@@ -63,8 +65,10 @@ impl TileMap {
             .unwrap_or(TileMapSettings { grid_size: 16, tiles: vec!() } );
 
         TileMap {
-            pixels,
-            file_name: file_name.to_string(),
+            pixels          : info.0,
+            file_name       : file_name.to_string(),
+            width           : info.1,
+            height          : info.2,
             settings
         }
     }
