@@ -3,8 +3,9 @@ mod tileset;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::prelude::*;
+//use crate::editor::*;
 
-// pub const TILE_SIZE: i16    = 64;
+use rusttype::{point, Font, Scale};
 
 /// Gets the current time in milliseconds
 pub fn get_time() -> u128 {
@@ -14,47 +15,44 @@ pub fn get_time() -> u128 {
     stop.as_millis()
 }
 
-/// The main Game struct
-pub struct Game {
-    tileset                 : tileset::TileSet,
-    // box_x: i16,
-    // box_y: i16,
-    // velocity_x: i16,
-    // velocity_y: i16,
+/// Which window do we show currently
+enum GameWindow {
+    Game,
+    Editor
 }
 
-impl Game {
-    /// Create a new `World` instance that can draw a moving box.
+/// The main Game struct
+pub struct Game<'a> {
+    window                  : GameWindow,
+    tileset                 : tileset::TileSet,
+    gohu_font_11            : Font<'a>,
+    //gohu_font_14            : Font<'a>,
+
+}
+
+impl Game<'_>  {
+    
     pub fn new() -> Self {
-
         Self {
-            tileset         : tileset::TileSet::new()
-            // box_x: 24,
-            // box_y: 16,
-            // velocity_x: 1,
-            // velocity_y: 1,
+            window          : GameWindow::Editor,
+            tileset         : tileset::TileSet::new(),
+            gohu_font_11    : Font::try_from_bytes(include_bytes!("../assets/fonts/gohufont-uni-11.ttf") as &[u8]).expect("Error constructing Font"),
+            //gohu_font_14    : Font::try_from_bytes(include_bytes!("../assets/fonts/gohufont-uni-14.ttf") as &[u8]).expect("Error constructing Font")
         }
     }
 
-    /// Update the `World` internal state; bounce the box around the screen.
+    /// Update the game state
     pub fn update(&mut self) {
-        /* 
-        if self.box_x <= 0 || self.box_x + BOX_SIZE > WIDTH as i16 {
-            self.velocity_x *= -1;
-        }
-        if self.box_y <= 0 || self.box_y + BOX_SIZE > HEIGHT as i16 {
-            self.velocity_y *= -1;
-        }
-
-        self.box_x += self.velocity_x;
-        self.box_y += self.velocity_y;
-        */
     }
 
-    /// Draw the `World` state to the frame buffer.
-    ///
     /// Assumes the default texture format: `wgpu::TextureFormat::Rgba8UnormSrgb`
     pub fn draw(&self, frame: &mut [u8]) {
+
+        // Draw the current window
+        match self.window {
+            GameWindow::Game => println!("{}", 1),
+            GameWindow::Editor => println!("{}", 1),
+        }
 
         let start = get_time();
 
@@ -89,6 +87,7 @@ impl Game {
 
         self.draw_rect(frame, &[0, 0, WIDTH as usize, HEIGHT as usize], [0, 0, 0, 255]);
         self.draw_tilemap(frame, &[0, 0], &self.tileset.maps[&0]);
+        self.draw_text(frame, &[100, 100]);
 
         let stop = get_time();
 
@@ -126,5 +125,55 @@ impl Game {
             let off = x * 4 + y * 256 * 4;
             rgba = [u4b[off], u4b[off + 1], u4b[off + 2], 255];
         }*/
+    }
+
+    pub fn draw_text(&self,  frame: &mut [u8], pos: &[usize; 2]) {
+
+        let font = &self.gohu_font_11;
+
+        // The font size to use
+        let scale = Scale::uniform(16.0);
+
+        // The text to render
+        let text = "This is RustType rendered into a png!";
+
+        // Use a dark red colour
+        //let colour = (150, 0, 0);
+
+        let v_metrics = font.v_metrics(scale);
+
+        // layout the glyphs in a line with 20 pixels padding
+        let glyphs: Vec<_> = font
+            .layout(text, scale, point(0.0, 0.0 + v_metrics.ascent))
+            .collect();
+
+        // work out the layout size
+        
+        /*
+        let glyphs_height = (v_metrics.ascent - v_metrics.descent).ceil() as u32;
+        let glyphs_width = {
+            let min_x = glyphs
+                .first()
+                .map(|g| g.pixel_bounding_box().unwrap().min.x)
+                .unwrap();
+            let max_x = glyphs
+                .last()
+                .map(|g| g.pixel_bounding_box().unwrap().max.x)
+                .unwrap();
+            (max_x - min_x) as u32
+        };*/
+
+        // Loop through the glyphs in the text, positing each one on a line
+        for glyph in glyphs {
+            if let Some(bounding_box) = glyph.pixel_bounding_box() {
+                // Draw the glyph into the image per-pixel by using the draw closure
+                glyph.draw(|x, y, v| {
+
+                    let d = ((x + bounding_box.min.x as u32) as usize + pos[0] as usize) * 4 + ((y + bounding_box.min.y as u32) as usize + pos[1] as usize) * (WIDTH as usize) * 4;
+
+                    frame[d..d + 4].copy_from_slice(&[255, 255, 255, (v * 255.0) as u8]);
+                });
+            }
+        }
     }
 }

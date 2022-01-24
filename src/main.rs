@@ -2,9 +2,12 @@
 #![forbid(unsafe_code)]
 
 mod game;
+mod editor;
 
 mod prelude {
     pub const TICK_IN_MS        : u128 = 200;
+
+    //pub const TILE_SIZE         : u32  = 16;
 
     pub const WIDTH             : u32 = 60 * 16;
     pub const HEIGHT            : u32 = 40 * 16;
@@ -19,7 +22,6 @@ use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
-//use pixels::wgpu::Color;
 
 fn main() -> Result<(), Error> {
     env_logger::init();
@@ -43,14 +45,14 @@ fn main() -> Result<(), Error> {
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         Pixels::new(WIDTH, HEIGHT, surface_texture)?
     };
-    let mut world = game::Game::new();
 
+    let mut game = game::Game::new();
     let mut timer : u128 = 0;
 
     event_loop.run(move |event, _, control_flow| {
         // Draw the current frame
         if let Event::RedrawRequested(_) = event {
-            world.draw(pixels.get_frame());
+            game.draw(pixels.get_frame());
             if pixels
                 .render()
                 .map_err(|e| error!("pixels.render() failed: {}", e))
@@ -78,7 +80,7 @@ fn main() -> Result<(), Error> {
             let curr_time = game::get_time();
 
             if curr_time > timer + TICK_IN_MS {
-                world.update();
+                game.update();
                 window.request_redraw();
                 timer = curr_time;
             }
