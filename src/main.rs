@@ -3,6 +3,8 @@
 
 mod game;
 mod editor;
+mod widget;
+mod asset;
 
 mod prelude {
     pub const TICK_IN_MS        : u128 = 200;
@@ -14,6 +16,10 @@ mod prelude {
 }
 
 use prelude::*;
+
+use crate::game::*;
+use crate::widget::*;
+use crate::editor::*;
 
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
@@ -46,13 +52,17 @@ fn main() -> Result<(), Error> {
         Pixels::new(WIDTH, HEIGHT, surface_texture)?
     };
 
-    let mut game = game::Game::new();
+    let game : Box<dyn ScreenWidget> = Box::new(Game::new());
+    let editor : Box<dyn ScreenWidget> = Box::new(Editor::new());
+
+    let mut curr_screen = editor;
+
     let mut timer : u128 = 0;
 
     event_loop.run(move |event, _, control_flow| {
-        // Draw the current frame
+
         if let Event::RedrawRequested(_) = event {
-            game.draw(pixels.get_frame());
+            curr_screen.draw(pixels.get_frame());
             if pixels
                 .render()
                 .map_err(|e| error!("pixels.render() failed: {}", e))
@@ -80,7 +90,7 @@ fn main() -> Result<(), Error> {
             let curr_time = game::get_time();
 
             if curr_time > timer + TICK_IN_MS {
-                game.update();
+                curr_screen.update();
                 window.request_redraw();
                 timer = curr_time;
             }

@@ -1,2 +1,2 @@
-## Eldiron - Old style RPG creation
+### Eldiron - Classic RPG creation
 

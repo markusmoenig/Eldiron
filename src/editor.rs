@@ -1,28 +1,56 @@
 
-/// Which window do we show currently
+use crate::widget:: {ScreenWidget, Widget };
+use crate::widget::text::TextWidget;
+
+use crate::prelude::*;
+use crate::asset::Asset;
+
+/// Which Window do we show currently
 enum EditorState {
     TileSet,
     Tiles,
 }
 
 /// The Editor struct
-pub struct Editor {
-    state                  : EditorState,
+pub struct Editor<'a> {
+    state                   : EditorState,
+    asset                   : Asset<'a>,
+    widgets                 : Vec<Box<dyn Widget>>
 }
 
-impl Editor  {
+impl ScreenWidget for Editor<'_>  {
     
-    pub fn new() -> Self {
+    fn new() -> Self where Self: Sized {
+
+        let mut widgets = vec!();
+
+        let text : Box<dyn Widget> = Box::new(TextWidget::new("Hallo".to_string(), [0,0, WIDTH, HEIGHT]));
+        widgets.push(text);
+
         Self {
             state           : EditorState::TileSet,
+            asset           : Asset::new(),
+            widgets
         }
     }
 
     /// Update the editor
-    pub fn update(&mut self) {
+    fn update(&mut self) {
     }
 
-    pub fn draw(&self, frame: &mut [u8]) {
+    fn draw(&self, frame: &mut [u8]) {
+        for w in &self.widgets {
+            w.draw(frame, &self.asset);
+        }
+    }
 
+    /// Returns the asset structure
+    fn get_asset(&self) -> &Asset {
+        &self.asset
+    }
+
+    /// Returns the current widgets
+    fn get_widgets(&self) -> &Vec<Box<dyn Widget>> {
+        &self.widgets
     }
 }
