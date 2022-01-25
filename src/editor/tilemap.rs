@@ -28,6 +28,7 @@ impl Widget for TileMapEditor {
 
     fn draw(&self, frame: &mut [u8], asset: &Asset) {
 
+        let scale = 2_u32;
         let map = asset.get_map_of_id(0);
 
         let x_tiles = map.width / map.settings.grid_size;
@@ -35,8 +36,8 @@ impl Widget for TileMapEditor {
 
         //let total_tiles = x_tiles * y_tiles;
 
-        let screen_x = WIDTH / map.settings.grid_size;
-        //let screen_y = HEIGHT / map.settings.grid_size;
+        let screen_x = WIDTH / (map.settings.grid_size * scale);
+        let screen_y = HEIGHT / (map.settings.grid_size * scale);
 
         let mut x_off = 0_u32;
         let mut y_off = 0_u32;
@@ -44,14 +45,20 @@ impl Widget for TileMapEditor {
 
         for y in 0..y_tiles {
             for x in 0..x_tiles {
-                asset.draw_tile(frame, &(x_off * map.settings.grid_size, y_off * map.settings.grid_size), 0_u32,&(x, y));
+                asset.draw_tile(frame, &(x_off * map.settings.grid_size * scale, y_off * map.settings.grid_size * scale), 0_u32, &(x, y), scale);
                 x_off += 1;
 
                 if x_off >= screen_x {
                     x_off = 0;
                     y_off += 1;
+                    if y_off >= screen_y {
+                        break;
+                    }
                 }
             }
+            if y_off >= screen_y {
+                break;
+            }            
         }
     }
 
