@@ -10,9 +10,11 @@ use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
 enum TileBrand {
-    Env,
-    EnvBlocking,
-    Water
+    Unused,
+    Environment,
+    EnvironmentBlocking,
+    Water,
+    Harmful,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -27,6 +29,7 @@ pub struct Tile {
 pub struct TileMapSettings {
     pub grid_size       : u32,
     pub tiles           : Vec<Tile>,
+    pub id              : u32,
 }
 
 pub struct TileMap {
@@ -62,7 +65,7 @@ impl TileMap {
 
         // Construct the json settings
         let settings = serde_json::from_str(&contents)
-            .unwrap_or(TileMapSettings { grid_size: 16, tiles: vec!() } );
+            .unwrap_or(TileMapSettings { grid_size: 16, tiles: vec!(), id: 0 } );
 
         TileMap {
             pixels          : info.0,
@@ -95,7 +98,9 @@ impl TileSet {
     pub fn new() -> TileSet {
 
         let mut maps : HashMap<u32, TileMap> = HashMap::new();
-        maps.insert(0, TileMap::new("assets/ts1b.png"));
+
+        let ts1b = TileMap::new("assets/ts1b.png");
+        maps.insert(ts1b.settings.id, ts1b);
 
         maps[&0].save_settings();
 

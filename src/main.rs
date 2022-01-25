@@ -9,8 +9,6 @@ mod asset;
 mod prelude {
     pub const TICK_IN_MS        : u128 = 200;
 
-    //pub const TILE_SIZE         : u32  = 16;
-
     pub const WIDTH             : u32 = 60 * 16;
     pub const HEIGHT            : u32 = 40 * 16;
 }
@@ -100,7 +98,7 @@ fn main() -> Result<(), Error> {
                 window.request_redraw();
             }
 
-            let curr_time = game::get_time();
+            let curr_time = game.get_time();
 
             if curr_time > timer + TICK_IN_MS {
                 curr_screen.update();

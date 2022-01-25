@@ -1,17 +1,6 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
-use crate::prelude::*;
 use crate::asset::Asset;
 
 use crate::widget:: {ScreenWidget, Widget};
-
-/// Gets the current time in milliseconds
-pub fn get_time() -> u128 {
-    let stop = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");    
-    stop.as_millis()
-}
 
 /// Which window do we show currently
 enum GameState {
@@ -47,7 +36,7 @@ impl ScreenWidget for Game<'_>  {
             GameState::StartMenu => println!("{}", 1),
         }
 
-        let start = get_time();
+        let start = self.get_time();
 
         /*
         let u4b = &self.tile_set.ts1;
@@ -82,7 +71,7 @@ impl ScreenWidget for Game<'_>  {
         //self.asset.draw_tilemap(frame, &[0, 0], &self.asset.tileset.maps[&0]);
         //self.asset.draw_text(frame, &[100, 100]);
 
-        let stop = get_time();
+        let stop = self.get_time();
 
         println!("{:?}", stop - start);
     }

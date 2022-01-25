@@ -1,21 +1,17 @@
 
 use crate::widget:: {ScreenWidget, Widget };
-use crate::widget::text::TextWidget;
 
 use crate::prelude::*;
 use crate::asset::Asset;
 
-/// Which Window do we show currently
-enum EditorState {
-    TileSet,
-    Tiles,
-}
+mod tilemap;
+use tilemap::TileMapEditor;
 
 /// The Editor struct
 pub struct Editor<'a> {
-    state                   : EditorState,
     asset                   : Asset<'a>,
-    widgets                 : Vec<Box<dyn Widget>>
+    widgets                 : Vec<Box<dyn Widget>>,
+    curr_index              : u32,
 }
 
 impl ScreenWidget for Editor<'_>  {
@@ -24,13 +20,17 @@ impl ScreenWidget for Editor<'_>  {
 
         let mut widgets = vec!();
 
-        let text : Box<dyn Widget> = Box::new(TextWidget::new("Hallo".to_string(), (0,0, WIDTH, HEIGHT)));
-        widgets.push(text);
+        //let text : Box<dyn Widget> = Box::new(TextWidget::new("Hallo".to_string(), (0,0, WIDTH, HEIGHT)));
+
+        let tilemap_editor : Box<dyn Widget> = Box::new(TileMapEditor::new("TileMap Editor".to_string(), (0,0, WIDTH, HEIGHT)));
+        widgets.push(tilemap_editor);
+
+        //let mut curr_screen = editor;
 
         Self {
-            state           : EditorState::TileSet,
             asset           : Asset::new(),
-            widgets
+            widgets,
+            curr_index      : 0
         }
     }
 
@@ -39,9 +39,13 @@ impl ScreenWidget for Editor<'_>  {
     }
 
     fn draw(&self, frame: &mut [u8]) {
-        for w in &self.widgets {
-            w.draw(frame, &self.asset);
-        }
+        let start = self.get_time();
+
+        self.widgets[self.curr_index as usize].draw(frame, &self.asset);
+
+        let stop = self.get_time();
+
+        println!("{:?}", stop - start);
     }
 
     /// Returns the asset structure
@@ -52,5 +56,13 @@ impl ScreenWidget for Editor<'_>  {
     /// Returns the current widgets
     fn get_widgets(&self) -> &Vec<Box<dyn Widget>> {
         &self.widgets
+    }
+
+    fn mouse_down(&self, pos: (u32, u32)) {
+        self.widgets[self.curr_index as usize].mouse_down(pos);
+    }
+
+    fn mouse_up(&self, pos: (u32, u32)) {
+        self.widgets[self.curr_index as usize].mouse_up(pos);
     }
 }

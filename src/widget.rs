@@ -1,10 +1,6 @@
+use std::time::{SystemTime, UNIX_EPOCH};
 
-
-use crate::asset::*;
-
-// trait DrawWidget {
-//     fn drawWidgets(&self, frame: &mut [u8]);
-// }
+use crate::asset::Asset;
 
 pub trait ScreenWidget {
 
@@ -21,24 +17,22 @@ pub trait ScreenWidget {
         }
     }
 
-    fn mouse_up(&self, pos: (u32, u32)) {
+    fn mouse_up(&self, _pos: (u32, u32)) {
     }
 
     fn get_asset(&self) -> &Asset;
     fn get_widgets(&self) -> &Vec<Box<dyn Widget>>;
 
-    //fn draw_rect(&self, frame: &mut [u8], rect: &[usize; 4], color: [u8; 4]);
-    //fn draw_tilemap(&self,  frame: &mut [u8], pos: &[usize; 2], map: &tileset::TileMap);
-    //fn draw_text(&self,  frame: &mut [u8], pos: &[usize; 2]);
+    /// Gets the current time in milliseconds
+    fn get_time(&self) -> u128 {
+        let stop = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");    
+            stop.as_millis()
+    }
 }
 
-// impl<T> DrawWidget for T where T: ScreenWidget {
-//     fn drawWidgets(&self, frame: &mut [u8]) {
-//         //println!("The {} said {}", self.animal_type(), self.noise());
-//         println!("{}", "here")
-//     }
-// }
-
+// General purpose widgets
 pub mod text;
 
 pub trait Widget {
@@ -48,7 +42,11 @@ pub trait Widget {
     fn update(&mut self);
     fn draw(&self, frame: &mut [u8], asset: &Asset);
 
-    fn mouse_down(&self, pos: (u32, u32));
+    fn mouse_down(&self, _pos: (u32, u32)) {
+    }
+
+    fn mouse_up(&self, _pos: (u32, u32)) {
+    }
 
     fn contains(&self, pos: (u32, u32)) -> bool {
         let rect = self.get_rect();
@@ -60,10 +58,5 @@ pub trait Widget {
         }
     }
 
-
     fn get_rect(&self) -> &(u32, u32, u32, u32);
-
-    //fn draw_rect(&self, frame: &mut [u8], rect: &[usize; 4], color: [u8; 4]);
-    //fn draw_tilemap(&self,  frame: &mut [u8], pos: &[usize; 2], map: &tileset::TileMap);
-    //fn draw_text(&self,  frame: &mut [u8], pos: &[usize; 2]);
 }
