@@ -52,6 +52,8 @@ fn main() -> Result<(), Error> {
         Pixels::new(WIDTH, HEIGHT, surface_texture)?
     };
 
+    let scale_factor = window.scale_factor() as u32;
+
     let game : Box<dyn ScreenWidget> = Box::new(Game::new());
     let editor : Box<dyn ScreenWidget> = Box::new(Editor::new());
 
@@ -79,6 +81,17 @@ fn main() -> Result<(), Error> {
             if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
                 *control_flow = ControlFlow::Exit;
                 return;
+            }
+
+            if input.mouse_pressed(0) {
+                let coords =  input.mouse().unwrap();
+                curr_screen.mouse_down((coords.0 as u32 / scale_factor, coords.1 as u32 / scale_factor))
+            }
+
+            if input.mouse_released(0) {
+                let coords =  input.mouse().unwrap();
+                curr_screen.mouse_up((coords.0 as u32 / scale_factor, coords.1 as u32 / scale_factor))
+
             }
 
             // Resize the window

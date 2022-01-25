@@ -9,7 +9,7 @@ use tileset::*;
 pub struct Asset<'a> {
     tileset                 : TileSet,
     //gohu_font_11            : Font<'a>,
-    gohu_font_14          : Font<'a>,
+    gohu_font_14            : Font<'a>,
 }
 
 impl Asset<'_>  {
@@ -55,7 +55,7 @@ impl Asset<'_>  {
         }*/
     }
 
-    pub fn draw_text(&self,  frame: &mut [u8], pos: &[usize; 2],  text: &String, color: [u8; 3]) {
+    pub fn draw_text(&self,  frame: &mut [u8], pos: &(u32, u32),  text: &String, color: [u8; 3]) {
 
         let font = &self.gohu_font_14;
 
@@ -97,7 +97,7 @@ impl Asset<'_>  {
                 // Draw the glyph into the image per-pixel by using the draw closure
                 glyph.draw(|x, y, v| {
 
-                    let d = ((x + bounding_box.min.x as u32) as usize + pos[0] as usize) * 4 + ((y + bounding_box.min.y as u32) as usize + pos[1] as usize) * (WIDTH as usize) * 4;
+                    let d = ((x + bounding_box.min.x as u32) as usize + pos.0 as usize) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1 as usize) * (WIDTH as usize) * 4;
 
                     frame[d..d + 4].copy_from_slice(&[color[0], color[1], color[2], (v * 255.0) as u8]);
                 });

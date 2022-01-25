@@ -24,7 +24,7 @@ impl ScreenWidget for Editor<'_>  {
 
         let mut widgets = vec!();
 
-        let text : Box<dyn Widget> = Box::new(TextWidget::new("Hallo".to_string(), [0,0, WIDTH, HEIGHT]));
+        let text : Box<dyn Widget> = Box::new(TextWidget::new("Hallo".to_string(), (0,0, WIDTH, HEIGHT)));
         widgets.push(text);
 
         Self {
