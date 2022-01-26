@@ -32,7 +32,7 @@ impl Widget for TileMapEditor {
 
         self.tab_widget.set_pagination(2);
 
-        let scale = 2_u32;
+        let scale = 2_f32;
         let map = asset.get_map_of_id(0);
 
         let x_tiles = map.width / map.settings.grid_size;
@@ -40,8 +40,8 @@ impl Widget for TileMapEditor {
 
         //let total_tiles = x_tiles * y_tiles;
 
-        let screen_x = WIDTH / (map.settings.grid_size * scale);
-        let screen_y = self.tab_widget.get_content_rect().3 / (map.settings.grid_size * scale);
+        let screen_x = WIDTH / (map.settings.grid_size as f32 * scale) as u32;
+        let screen_y = self.tab_widget.get_content_rect().3 / (map.settings.grid_size as f32 * scale) as u32;
 
         let mut x_off = 0_u32;
         let mut y_off = 0_u32;
@@ -49,7 +49,11 @@ impl Widget for TileMapEditor {
 
         for y in 0..y_tiles {
             for x in 0..x_tiles {
-                asset.draw_tile(frame, &(x_off * map.settings.grid_size * scale, y_off * map.settings.grid_size * scale), 0_u32, &(x, y), scale);
+
+                let x_step = (x_off as f32 * map.settings.grid_size as f32 * scale) as u32;
+                let y_step = (y_off as f32 * map.settings.grid_size as f32 * scale) as u32;
+
+                asset.draw_tile(frame, &(x_step, y_step), 0_u32, &(x, y), scale);
                 x_off += 1;
 
                 if x_off >= screen_x {

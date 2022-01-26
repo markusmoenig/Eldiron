@@ -70,4 +70,20 @@ pub trait Widget {
 
     fn set_pagination(&self, _pages: u32) {
     }
+
+    fn get_color_background(&self) -> [u8; 4] {
+        [43, 43, 43, 255]
+    }
+
+    fn get_color_selection(&self) -> [u8; 4] {
+        [73, 73, 73, 255]
+    }
+
+    fn get_color_selection_blue(&self) -> [u8; 4] {
+        [59, 70, 90, 255]
+    }
+
+    fn get_color_text(&self) -> [u8; 4] {
+        [255, 255, 255, 255]
+    }
 }

@@ -60,24 +60,24 @@ impl Asset<'_>  {
     }
 
     /// Draws the given tilemap
-    pub fn draw_tile(&self,  frame: &mut [u8], pos: &(u32, u32), tilemap_id: u32, grid_pos: &(u32, u32), scale: u32) {
+    pub fn draw_tile(&self,  frame: &mut [u8], pos: &(u32, u32), tilemap_id: u32, grid_pos: &(u32, u32), scale: f32) {
         let map = self.get_map_of_id(tilemap_id);
         let pixels = &map.pixels;
 
+        let new_size = ((map.settings.grid_size as f32 * scale) as u32, (map.settings.grid_size as f32 * scale) as u32);
+
         let g_pos = (grid_pos.0 * map.settings.grid_size, grid_pos.1 * map.settings.grid_size);
 
-        for y in 0..map.settings.grid_size {
-            for x in 0..map.settings.grid_size {
+        for sy in 0..new_size.0 {
+            let y = (sy as f32 / scale) as u32;
+            for sx in 0..new_size.1 {
 
-                for sy in 0..scale {
-                    let mut d = pos.0 as usize * 4 + (x as usize) * 4 * scale as usize + ((y) as usize) * (WIDTH as usize) * 4 * scale as usize + (sy + pos.1) as usize * WIDTH as usize * 4;
-                    let s = (x as usize + g_pos.0 as usize) * 4 + (y as usize + g_pos.1 as usize) * (map.width as usize) * 4;
+                let x = (sx as f32 / scale) as u32;
 
-                    for _ in 0..scale {
-                        frame[d..d + 4].copy_from_slice(&[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]]);
-                        d += 4;
-                    }
-                }
+                let d = pos.0 as usize * 4 + (sx as usize) * 4 + (sy as usize + pos.1 as usize) * (WIDTH as usize) * 4;
+                let s = (x as usize + g_pos.0 as usize) * 4 + (y as usize + g_pos.1 as usize) * (map.width as usize) * 4;
+
+                frame[d..d + 4].copy_from_slice(&[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]]);
             }
         }
     }

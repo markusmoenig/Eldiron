@@ -38,11 +38,11 @@ impl Widget for TabWidget {
 
             for p in 0..pages {
                 let r: (u32,u32,u32,u32) = (self.rect.0 + page_width * p, self.rect.1 + self.rect.3 - asset.get_text_element_height(), page_width, asset.get_text_element_height());
-                let mut background = [128, 128, 128, 255];
+                let mut background = self.get_color_background();
                 if p == self.curr_page.get() {
-                    background = [64, 64, 64, 255];
+                    background = self.get_color_selection_blue();
                 }
-                asset.draw_text_rect(frame, &r, &format!("Page {}", p + 1),[255, 255, 255, 255], background, TextAlignment::Center);            
+                asset.draw_text_rect(frame, &r, &format!("Page {}", p + 1),self.get_color_text(), background, TextAlignment::Center);            
             }
         }
     }
