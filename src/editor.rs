@@ -1,5 +1,5 @@
 
-use crate::widget:: {ScreenWidget, Widget };
+use crate::widget:: {ScreenWidget, Widget};
 
 use crate::prelude::*;
 use crate::asset::Asset;

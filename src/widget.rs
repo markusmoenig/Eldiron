@@ -34,6 +34,7 @@ pub trait ScreenWidget {
 
 // General purpose widgets
 pub mod text;
+pub mod tab;
 
 pub trait Widget {
 
@@ -59,4 +60,14 @@ pub trait Widget {
     }
 
     fn get_rect(&self) -> &(u32, u32, u32, u32);
+
+    fn get_content_rect(&self) -> (u32, u32, u32, u32) {
+        let r = self.get_rect();
+        (r.0, r.1, r.2, r.3)
+    }
+
+    // The following are widget specific and optional
+
+    fn set_pagination(&self, _pages: u32) {
+    }
 }

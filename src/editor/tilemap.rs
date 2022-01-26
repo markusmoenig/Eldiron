@@ -1,24 +1,26 @@
 
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::prelude::*;
 
 use crate::widget::*;
-use crate::asset::Asset;
 
-//use rusttype::{point, Font, Scale};
+use crate::tab::TabWidget;
+use crate::asset::Asset;
 
 pub struct TileMapEditor {
     title           : String,
-    rect            : (u32, u32, u32, u32)
+    rect            : (u32, u32, u32, u32),
+    tab_widget      : Box<dyn Widget>
 }
 
 impl Widget for TileMapEditor {
     
     fn new(title: String, rect: (u32, u32, u32, u32)) -> Self where Self: Sized {
+
         Self {
-            title   : title,
-            rect
+            title           : title,
+            rect,
+            tab_widget      : Box::new(TabWidget::new("TabWidget".to_string(), (0,0, WIDTH, HEIGHT / 2)))
         }
     }
 
@@ -27,6 +29,8 @@ impl Widget for TileMapEditor {
     }
 
     fn draw(&self, frame: &mut [u8], asset: &Asset) {
+
+        self.tab_widget.set_pagination(2);
 
         let scale = 2_u32;
         let map = asset.get_map_of_id(0);
@@ -37,7 +41,7 @@ impl Widget for TileMapEditor {
         //let total_tiles = x_tiles * y_tiles;
 
         let screen_x = WIDTH / (map.settings.grid_size * scale);
-        let screen_y = HEIGHT / (map.settings.grid_size * scale);
+        let screen_y = self.tab_widget.get_content_rect().3 / (map.settings.grid_size * scale);
 
         let mut x_off = 0_u32;
         let mut y_off = 0_u32;
@@ -60,6 +64,8 @@ impl Widget for TileMapEditor {
                 break;
             }            
         }
+
+        self.tab_widget.draw(frame, asset);
     }
 
     fn mouse_down(&self, pos: (u32, u32)) {
