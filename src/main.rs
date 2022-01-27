@@ -50,8 +50,6 @@ fn main() -> Result<(), Error> {
         Pixels::new(WIDTH, HEIGHT, surface_texture)?
     };
 
-    let scale_factor = window.scale_factor() as u32;
-
     let game : Box<dyn ScreenWidget> = Box::new(Game::new());
     let editor : Box<dyn ScreenWidget> = Box::new(Editor::new());
 
@@ -81,17 +79,22 @@ fn main() -> Result<(), Error> {
                 return;
             }
 
-            if input.mouse_pressed(0) {
+            if input.mouse_pressed(0) {                
                 let coords =  input.mouse().unwrap();
-                if curr_screen.mouse_down((coords.0 as u32 / scale_factor, coords.1 as u32 / scale_factor)) {
+                let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
+                    .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+
+                if curr_screen.mouse_down((pixel_pos.0 as u32, pixel_pos.1 as u32)) {
                     window.request_redraw();
                 }
             }
 
-            if input.mouse_released(0) {
+            if input.mouse_released(0) {                
                 let coords =  input.mouse().unwrap();
-                curr_screen.mouse_up((coords.0 as u32 / scale_factor, coords.1 as u32 / scale_factor))
+                let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
+                    .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
+                curr_screen.mouse_up((pixel_pos.0 as u32, pixel_pos.1 as u32));
             }
 
             // Resize the window

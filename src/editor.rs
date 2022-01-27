@@ -39,13 +39,13 @@ impl ScreenWidget for Editor<'_>  {
     }
 
     fn draw(&self, frame: &mut [u8]) {
-        let start = self.get_time();
+        //let start = self.get_time();
 
         self.widgets[self.curr_index as usize].draw(frame, &self.asset);
 
-        let stop = self.get_time();
+        //let stop = self.get_time();
 
-        println!("{:?}", stop - start);
+        //println!("{:?}", stop - start);
     }
 
     /// Returns the asset structure
