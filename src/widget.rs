@@ -9,12 +9,16 @@ pub trait ScreenWidget {
     fn update(&mut self);
     fn draw(&self, frame: &mut [u8]);
 
-    fn mouse_down(&self, pos: (u32, u32)) {
+    fn mouse_down(&self, pos: (u32, u32)) -> bool {
+        let mut changed = false;
         for w in self.get_widgets() {
-            if w.contains(pos) {
-                w.mouse_down(pos)
+            if w.contains_pos(pos) {
+                if w.mouse_down(pos) {
+                    changed = true;
+                }
             }
         }
+        changed 
     }
 
     fn mouse_up(&self, _pos: (u32, u32)) {
@@ -38,20 +42,29 @@ pub mod tab;
 
 pub trait Widget {
 
-    fn new(title: String, rect: (u32, u32, u32, u32)) -> Self where Self: Sized;
+    fn new(rect: (u32, u32, u32, u32)) -> Self where Self: Sized;
 
     fn update(&mut self);
     fn draw(&self, frame: &mut [u8], asset: &Asset);
 
-    fn mouse_down(&self, _pos: (u32, u32)) {
+    fn mouse_down(&self, _pos: (u32, u32)) -> bool {
+        false
     }
 
     fn mouse_up(&self, _pos: (u32, u32)) {
     }
 
-    fn contains(&self, pos: (u32, u32)) -> bool {
+    fn contains_pos(&self, pos: (u32, u32)) -> bool {
         let rect = self.get_rect();
 
+        if pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3 {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn contains_pos_for(&self, pos: (u32, u32), rect: (u32, u32, u32, u32)) -> bool {
         if pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3 {
             true
         } else {
@@ -66,10 +79,25 @@ pub trait Widget {
         (r.0, r.1, r.2, r.3)
     }
 
+    fn get_default_element_height(&self) -> u32 {
+        24
+    }
+
+    fn get_default_element_margin(&self) -> u32 {
+        4
+    }
+
     // The following are widget specific and optional
 
+    // TabWidget
     fn set_pagination(&self, _pages: u32) {
     }
+
+    fn get_page_rect(&self, _page: u32) -> (u32, u32, u32, u32) {
+        (0,0,0,0)
+    }
+
+    // Default colors
 
     fn get_color_background(&self) -> [u8; 4] {
         [43, 43, 43, 255]

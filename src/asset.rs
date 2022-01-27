@@ -10,7 +10,7 @@ use tileset::*;
 pub enum TextAlignment {
     Left,
     Center,
-    Right
+    //Right
 }
 
 pub struct Asset<'a> {
@@ -55,7 +55,7 @@ impl Asset<'_>  {
         if align == TextAlignment::Center {
             let size = self.get_text_size(text);
             let left_center =  rect.0 + (rect.2 - size.0) / 2;
-            self.draw_text(frame, &(left_center, rect.1 + 2), text, color, background);
+            self.draw_text(frame, &(left_center, rect.1 + 4), text, color, background);
         }
     }
 

@@ -83,7 +83,9 @@ fn main() -> Result<(), Error> {
 
             if input.mouse_pressed(0) {
                 let coords =  input.mouse().unwrap();
-                curr_screen.mouse_down((coords.0 as u32 / scale_factor, coords.1 as u32 / scale_factor))
+                if curr_screen.mouse_down((coords.0 as u32 / scale_factor, coords.1 as u32 / scale_factor)) {
+                    window.request_redraw();
+                }
             }
 
             if input.mouse_released(0) {

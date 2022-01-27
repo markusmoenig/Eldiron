@@ -6,18 +6,16 @@ use core::cell::Cell;
 
 
 pub struct TabWidget {
-    title           : String,
     rect            : (u32, u32, u32, u32),
     content_rect    : Cell<(u32, u32, u32, u32)>,
     pages           : Cell<u32>,
-    curr_page       : Cell<u32>
+    pub curr_page   : Cell<u32>
 }
 
 impl Widget for TabWidget {
     
-    fn new(title: String, rect: (u32, u32, u32, u32)) -> Self where Self: Sized {
+    fn new(rect: (u32, u32, u32, u32)) -> Self where Self: Sized {
         Self {
-            title           : title,
             rect,
             content_rect    : Cell::new((0,0,0,0)),
             pages           : Cell::new(1),
@@ -30,25 +28,44 @@ impl Widget for TabWidget {
     }
 
     fn draw(&self, frame: &mut [u8], asset: &Asset) {
-        if self.pages.get() > 1 {
+        //if self.pages.get() > 1 {
             self.content_rect.set((self.rect.0, self.rect.1, self.rect.2, self.rect.3 - asset.get_text_element_height()));
 
             let pages = self.pages.get();
-            let page_width = self.rect.2 / pages;
 
             for p in 0..pages {
-                let r: (u32,u32,u32,u32) = (self.rect.0 + page_width * p, self.rect.1 + self.rect.3 - asset.get_text_element_height(), page_width, asset.get_text_element_height());
+                let r: (u32,u32,u32,u32) = self.get_page_rect(p);
                 let mut background = self.get_color_background();
                 if p == self.curr_page.get() {
                     background = self.get_color_selection_blue();
                 }
                 asset.draw_text_rect(frame, &r, &format!("Page {}", p + 1),self.get_color_text(), background, TextAlignment::Center);            
             }
-        }
+        //}
     }
 
-    fn mouse_down(&self, pos: (u32, u32)) {
-        println!("text {:?}", pos);
+    fn get_page_rect(&self, page: u32) -> (u32, u32, u32, u32) {
+
+        let pages = self.pages.get();
+        let page_width = self.rect.2 / pages;
+
+        (self.rect.0 + page_width * page, self.rect.1 + self.rect.3 - self.get_default_element_height(), page_width, self.get_default_element_height())
+    }
+
+    fn mouse_down(&self, pos: (u32, u32)) -> bool {
+        if self.pages.get() > 1 {
+
+            let pages = self.pages.get();
+
+            for p in 0..pages {
+                let r: (u32,u32,u32,u32) = self.get_page_rect(p);
+                if self.contains_pos_for(pos, r) {
+                    self.curr_page.set(p);
+                    return true;
+                }
+            }
+        }        
+        false
     }
 
     fn get_rect(&self) -> &(u32, u32, u32, u32) {
@@ -63,10 +80,7 @@ impl Widget for TabWidget {
     fn set_pagination(&self, pages: u32) {
         self.pages.set(pages);
 
-        if pages == 1 {
-            self.content_rect.set((self.rect.0, self.rect.1, self.rect.2, self.rect.3));
-        } else {
-            self.content_rect.set((self.rect.0, self.rect.1, self.rect.2, self.rect.3 - 20));
-        }
+        self.content_rect.set((self.rect.0, self.rect.1, self.rect.2, self.rect.3 - self.get_default_element_height()));
+        self.content_rect.set((self.rect.0, self.rect.1, self.rect.2, self.rect.3 - self.get_default_element_height()));
     }
 }

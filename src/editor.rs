@@ -22,7 +22,7 @@ impl ScreenWidget for Editor<'_>  {
 
         //let text : Box<dyn Widget> = Box::new(TextWidget::new("Hallo".to_string(), (0,0, WIDTH, HEIGHT)));
 
-        let tilemap_editor : Box<dyn Widget> = Box::new(TileMapEditor::new("TileMap Editor".to_string(), (0,0, WIDTH, HEIGHT)));
+        let tilemap_editor : Box<dyn Widget> = Box::new(TileMapEditor::new((0,0, WIDTH, HEIGHT)));
         widgets.push(tilemap_editor);
 
         //let mut curr_screen = editor;
@@ -58,8 +58,8 @@ impl ScreenWidget for Editor<'_>  {
         &self.widgets
     }
 
-    fn mouse_down(&self, pos: (u32, u32)) {
-        self.widgets[self.curr_index as usize].mouse_down(pos);
+    fn mouse_down(&self, pos: (u32, u32)) -> bool {
+        self.widgets[self.curr_index as usize].mouse_down(pos)
     }
 
     fn mouse_up(&self, pos: (u32, u32)) {
