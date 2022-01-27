@@ -27,6 +27,8 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 
+use std::time::Duration;
+
 fn main() -> Result<(), Error> {
     env_logger::init();
 
@@ -109,6 +111,9 @@ fn main() -> Result<(), Error> {
                 curr_screen.update();
                 window.request_redraw();
                 timer = curr_time;
+            } else {
+                let t = (timer + TICK_IN_MS - curr_time) as u64;
+                std::thread::sleep(Duration::from_millis(t / 2)); 
             }
         }
     });
