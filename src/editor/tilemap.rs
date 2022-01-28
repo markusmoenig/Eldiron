@@ -12,7 +12,8 @@ use core::cell::Cell;
 
 pub struct TileMapEditor {
     rect                    : (u32, u32, u32, u32),
-    selected                : Cell<Option<(u32, u32)>>,
+    upper_selected          : Cell<Option<(u32, u32)>>,
+    upper_start             : Cell<(u32, u32)>,
     curr_grid_size          : Cell<u32>,  
     tab_widget              : TabWidget,//Box<dyn Widget>
 }
@@ -23,9 +24,10 @@ impl Widget for TileMapEditor {
 
         Self {
             rect,
-            selected        : Cell::new(None),
-            curr_grid_size  : Cell::new(0),
-            tab_widget      : TabWidget::new((0, UI_ELEMENT_HEIGHT, WIDTH, HEIGHT / 2 - UI_ELEMENT_HEIGHT))
+            upper_selected      : Cell::new(None),
+            upper_start         : Cell::new((0, 0)),
+            curr_grid_size      : Cell::new(0),
+            tab_widget          : TabWidget::new((0, UI_ELEMENT_HEIGHT, WIDTH, HEIGHT / 2 - UI_ELEMENT_HEIGHT))
         }
     }
 
@@ -52,8 +54,6 @@ impl Widget for TileMapEditor {
         let screen_y = (self.tab_widget.get_rect().3 - UI_ELEMENT_HEIGHT) / scaled_grid_size;
 
         let tiles_per_page = screen_x * screen_y;
-
-        //println!("{} {}", total_tiles, total_tiles_scaled);
         let pages = max( (total_tiles as f32 / tiles_per_page as f32).ceil() as u32, 1);
 
         //println!("{}", pages);
@@ -66,6 +66,10 @@ impl Widget for TileMapEditor {
         let mut y_off = 0_u32;
 
         let offset = page * tiles_per_page;
+
+        self.upper_start.set((offset % x_tiles, offset / x_tiles));
+
+        //println!("start {} {}", offset, x_tiles);//offset % x_tiles, offset / x_tiles);
 
         // Draw the tiles of the current page
         for tile in 0..tiles_per_page {
@@ -96,14 +100,14 @@ impl Widget for TileMapEditor {
         self.tab_widget.draw(frame, asset);
 
         // Draw the selection
-        if let Some(s) = self.selected.get() {
+        if let Some(s) = self.upper_selected.get() {
             
             let index = s.0 + s.1 * screen_x;
 
             // Make sure the selected tile is in the current page
             if index >= offset && index < offset + tiles_per_page {
-                let x = s.0 * scaled_grid_size;
-                let y = s.1 * scaled_grid_size;
+                let x = (s.0 - self.upper_start.get().0) * scaled_grid_size;
+                let y = (s.1 - self.upper_start.get().1) * scaled_grid_size;
 
                 asset.draw_rect_outline(frame, &(x, y + UI_ELEMENT_HEIGHT, scaled_grid_size, scaled_grid_size), self.get_color_text());
             }
@@ -123,18 +127,20 @@ impl Widget for TileMapEditor {
             consumed = true;
         }
 
-        // Tile content area
+        // Upper tile content area
         if consumed == false {
             if self.tab_widget.contains_pos_for(pos, self.tab_widget.get_content_rect()) {
 
                 let scaled_grid_size = self.curr_grid_size.get();
 
-                let x = pos.0 / scaled_grid_size;
-                let y = (pos.1 - self.tab_widget.get_rect().1) / scaled_grid_size;
+                let x = pos.0 / scaled_grid_size + self.upper_start.get().0;
+                let y = (pos.1 - self.tab_widget.get_rect().1) / scaled_grid_size + self.upper_start.get().1;
 
-                println!("{} {}", x, y);
+                println!("selected {} {}", x, y);
 
-                self.selected.set(Some((x, y)));
+                self.upper_selected.set(Some((x, y)));
+
+                consumed = true
             }
         }
 
@@ -143,6 +149,10 @@ impl Widget for TileMapEditor {
 
     fn mouse_up(&self, _pos: (u32, u32)) {
         //println!("text {:?}", pos);
+    }
+
+    fn mouse_dragged(&self, pos: (u32, u32)) {
+        println!("dragged {:?}", pos);
     }
 
     fn get_rect(&self) -> &(u32, u32, u32, u32) {

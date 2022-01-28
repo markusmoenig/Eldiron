@@ -24,6 +24,9 @@ pub trait ScreenWidget {
     fn mouse_up(&self, _pos: (u32, u32)) {
     }
 
+    fn mouse_dragged(&self, _pos: (u32, u32)) {
+    }
+
     fn get_asset(&self) -> &Asset;
     fn get_widgets(&self) -> &Vec<Box<dyn Widget>>;
 
@@ -52,6 +55,9 @@ pub trait Widget {
     }
 
     fn mouse_up(&self, _pos: (u32, u32)) {
+    }
+
+    fn mouse_dragged(&self, _pos: (u32, u32)) {
     }
 
     fn contains_pos(&self, pos: (u32, u32)) -> bool {

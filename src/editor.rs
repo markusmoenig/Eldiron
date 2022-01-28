@@ -65,4 +65,8 @@ impl ScreenWidget for Editor<'_>  {
     fn mouse_up(&self, pos: (u32, u32)) {
         self.widgets[self.curr_index as usize].mouse_up(pos);
     }
+
+    fn mouse_dragged(&self, pos: (u32, u32)) {
+        self.widgets[self.curr_index as usize].mouse_dragged(pos);
+    }
 }

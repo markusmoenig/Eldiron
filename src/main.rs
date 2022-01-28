@@ -102,6 +102,18 @@ fn main() -> Result<(), Error> {
                 curr_screen.mouse_up((pixel_pos.0 as u32, pixel_pos.1 as u32));
             }
 
+            if input.mouse_held(0) {
+                let diff =  input.mouse_diff();
+                if diff.0 != 0.0 && diff.1 != 0.0 {
+                    let coords =  input.mouse().unwrap();
+                    let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
+                        .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+
+                    curr_screen.mouse_dragged((pixel_pos.0 as u32, pixel_pos.1 as u32));
+                }         
+            }
+
+
             // Resize the window
             if let Some(size) = input.window_resized() {
                 pixels.resize_surface(size.width, size.height);
