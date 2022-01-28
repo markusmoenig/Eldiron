@@ -46,16 +46,38 @@ impl Asset<'_>  {
         }
     }
 
+    /// Draws the outline of a given rectangle
+    pub fn draw_rect_outline(&self, frame: &mut [u8], rect: &(u32, u32, u32, u32), color: [u8; 4]) {
+
+        let y = rect.1;
+        for x in rect.0..rect.0+rect.2 {
+            let mut i = x as usize * 4 + y as usize * (WIDTH as usize) * 4;
+            frame[i..i + 4].copy_from_slice(&color);
+
+            i = x as usize * 4 + (y + rect.2 - 1) as usize * (WIDTH as usize) * 4;
+            frame[i..i + 4].copy_from_slice(&color);
+        }
+
+        let x = rect.0;
+        for y in rect.1..rect.1+rect.3 {
+            let mut i = x as usize * 4 + y as usize * (WIDTH as usize) * 4;
+            frame[i..i + 4].copy_from_slice(&color);
+
+            i = (x + rect.2 - 1) as usize * 4 + y as usize * (WIDTH as usize) * 4;
+            frame[i..i + 4].copy_from_slice(&color);
+        }
+    }
+
     /// Draws a rect with a text
     pub fn draw_text_rect(&self, frame: &mut [u8], rect: &(u32, u32, u32, u32), text: &str, color: [u8; 4], background: [u8;4], align: TextAlignment) {
         self.draw_rect(frame, rect, background);
         if align == TextAlignment::Left {
-            self.draw_text(frame, &(rect.0 + 2, rect.1 + 2), text, color, background);
+            self.draw_text(frame, &(rect.0 + UI_ELEMENT_MARGIN, rect.1 + UI_ELEMENT_MARGIN), text, color, background);
         } else
         if align == TextAlignment::Center {
             let size = self.get_text_size(text);
             let left_center =  rect.0 + (rect.2 - size.0) / 2;
-            self.draw_text(frame, &(left_center, rect.1 + 4), text, color, background);
+            self.draw_text(frame, &(left_center, rect.1 + UI_ELEMENT_MARGIN), text, color, background);
         }
     }
 

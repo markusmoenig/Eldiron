@@ -1,4 +1,5 @@
 
+use crate::prelude::UI_ELEMENT_HEIGHT;
 use crate::widget::*;
 use crate::asset::TextAlignment;
 
@@ -49,7 +50,7 @@ impl Widget for TabWidget {
         let pages = self.pages.get();
         let page_width = self.rect.2 / pages;
 
-        (self.rect.0 + page_width * page, self.rect.1 + self.rect.3 - self.get_default_element_height(), page_width, self.get_default_element_height())
+        (self.rect.0 + page_width * page, self.rect.1 + self.rect.3 - UI_ELEMENT_HEIGHT, page_width, UI_ELEMENT_HEIGHT)
     }
 
     fn mouse_down(&self, pos: (u32, u32)) -> bool {
@@ -80,7 +81,7 @@ impl Widget for TabWidget {
     fn set_pagination(&self, pages: u32) {
         self.pages.set(pages);
 
-        self.content_rect.set((self.rect.0, self.rect.1, self.rect.2, self.rect.3 - self.get_default_element_height()));
-        self.content_rect.set((self.rect.0, self.rect.1, self.rect.2, self.rect.3 - self.get_default_element_height()));
+        self.content_rect.set((self.rect.0, self.rect.1, self.rect.2, self.rect.3 - UI_ELEMENT_HEIGHT));
+        self.content_rect.set((self.rect.0, self.rect.1, self.rect.2, self.rect.3 - UI_ELEMENT_HEIGHT));
     }
 }

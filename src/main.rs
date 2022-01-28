@@ -7,10 +7,13 @@ mod widget;
 mod asset;
 
 mod prelude {
-    pub const TICK_IN_MS        : u128 = 200;
+    pub const TICK_IN_MS            : u128 = 200;
 
-    pub const WIDTH             : u32 = 60 * 16;
-    pub const HEIGHT            : u32 = 40 * 16;
+    pub const WIDTH                 : u32 = 60 * 16;
+    pub const HEIGHT                : u32 = 40 * 16;
+
+    pub const UI_ELEMENT_HEIGHT     : u32 = 24;
+    pub const UI_ELEMENT_MARGIN     : u32 = 4;
 }
 
 use prelude::*;

@@ -79,14 +79,6 @@ pub trait Widget {
         (r.0, r.1, r.2, r.3)
     }
 
-    fn get_default_element_height(&self) -> u32 {
-        24
-    }
-
-    fn get_default_element_margin(&self) -> u32 {
-        4
-    }
-
     // The following are widget specific and optional
 
     // TabWidget
