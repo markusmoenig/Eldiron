@@ -21,7 +21,16 @@ pub trait ScreenWidget {
         changed 
     }
 
-    fn mouse_up(&self, _pos: (u32, u32)) {
+    fn mouse_up(&self, pos: (u32, u32)) -> bool {
+        let mut changed = false;
+        for w in self.get_widgets() {
+            if w.contains_pos(pos) {
+                if w.mouse_up(pos) {
+                    changed = true;
+                }
+            }
+        }
+        changed 
     }
 
     fn mouse_dragged(&self, _pos: (u32, u32)) {
@@ -63,11 +72,19 @@ pub trait Widget {
         false
     }
 
-    fn mouse_up(&self, _pos: (u32, u32)) {
+    fn mouse_up(&self, _pos: (u32, u32)) -> bool {
+        false
     }
 
     fn mouse_dragged(&self, _pos: (u32, u32)) {
     }
+
+    //fn set_cb(&mut self) {
+    //}
+
+    //fn set_cb<T: FnMut()>(&mut self, f: T) {
+        // { self.f = Some(Box::new(f)//); }
+    //}
 
     fn contains_pos(&self, pos: (u32, u32)) -> bool {
         let rect = self.get_rect();

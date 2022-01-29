@@ -18,7 +18,7 @@ pub struct TileMapEditor {
     curr_grid_size          : Cell<u32>,  
     tab_widget              : TabWidget,
     //add_tiles_button        : ButtonWidget,
-    button_widgets          : Vec<ButtonWidget>
+    button_widgets          : Vec<ButtonWidget>,
 }
 
 impl Widget for TileMapEditor {
@@ -33,7 +33,7 @@ impl Widget for TileMapEditor {
             upper_start         : Cell::new((0, 0)),
             curr_grid_size      : Cell::new(0),
             tab_widget          : TabWidget::new(vec!(),(0, UI_ELEMENT_HEIGHT, WIDTH, HEIGHT / 2 - UI_ELEMENT_HEIGHT)),
-            button_widgets      : vec![add_tiles_button]
+            button_widgets      : vec![add_tiles_button],
         }
     }
 
@@ -160,11 +160,30 @@ impl Widget for TileMapEditor {
             }
         }
 
+        if consumed == false {
+            for b in &self.button_widgets {
+                if b.mouse_down(pos) {
+                    consumed =true;
+                    if self.button_widgets[0].clicked.get() == true {
+                        // Add tiles
+                        println!("{}", "add tiles");
+                        self.button_widgets[0].clicked.set(false);
+                    }
+                }
+            }
+        }
+
         consumed
     }
 
-    fn mouse_up(&self, _pos: (u32, u32)) {
-        //println!("text {:?}", pos);
+    fn mouse_up(&self, pos: (u32, u32)) -> bool {
+        let mut consumed = false;
+        for b in &self.button_widgets {
+            if b.mouse_up(pos) {
+                consumed = true
+            }
+        }
+        consumed
     }
 
     fn mouse_dragged(&self, pos: (u32, u32)) {
