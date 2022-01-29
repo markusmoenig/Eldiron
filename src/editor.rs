@@ -22,7 +22,7 @@ impl ScreenWidget for Editor<'_>  {
 
         //let text : Box<dyn Widget> = Box::new(TextWidget::new("Hallo".to_string(), (0,0, WIDTH, HEIGHT)));
 
-        let tilemap_editor : Box<dyn Widget> = Box::new(TileMapEditor::new((0,0, WIDTH, HEIGHT)));
+        let tilemap_editor : Box<dyn Widget> = Box::new(TileMapEditor::new(vec!(), (0,0, WIDTH, HEIGHT)));
         widgets.push(tilemap_editor);
 
         //let mut curr_screen = editor;

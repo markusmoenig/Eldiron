@@ -40,12 +40,21 @@ pub trait ScreenWidget {
 }
 
 // General purpose widgets
-pub mod text;
+pub mod button;
 pub mod tab;
+
+/// The widget state
+
+//#[derive(PartialEq)]
+// pub enum WidgetState {
+//     Disabled,
+//     Normal,
+//     //Right
+// }
 
 pub trait Widget {
 
-    fn new(rect: (u32, u32, u32, u32)) -> Self where Self: Sized;
+    fn new(text: Vec<String>, rect: (u32, u32, u32, u32)) -> Self where Self: Sized;
 
     fn update(&mut self);
     fn draw(&self, frame: &mut [u8], asset: &Asset);
@@ -85,6 +94,10 @@ pub trait Widget {
         (r.0, r.1, r.2, r.3)
     }
 
+    /// Set the current state of the widget
+    fn set_state(&self, _state: u32) {
+    }
+
     // The following are widget specific and optional
 
     // TabWidget
@@ -99,6 +112,10 @@ pub trait Widget {
 
     fn get_color_background(&self) -> [u8; 4] {
         [43, 43, 43, 255]
+    }
+
+    fn get_color_disabled(&self) -> [u8; 4] {
+        [43 / 2, 43 / 2, 43 / 2, 255]
     }
 
     fn get_color_selection(&self) -> [u8; 4] {

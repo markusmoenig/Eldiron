@@ -5,6 +5,7 @@ use crate::prelude::*;
 use crate::widget::*;
 
 use crate::tab::TabWidget;
+use crate::button::ButtonWidget;
 use crate::asset::Asset;
 
 use core::cmp::max;
@@ -15,19 +16,24 @@ pub struct TileMapEditor {
     upper_selected          : Cell<Option<(u32, u32)>>,
     upper_start             : Cell<(u32, u32)>,
     curr_grid_size          : Cell<u32>,  
-    tab_widget              : TabWidget,//Box<dyn Widget>
+    tab_widget              : TabWidget,
+    //add_tiles_button        : ButtonWidget,
+    button_widgets          : Vec<ButtonWidget>
 }
 
 impl Widget for TileMapEditor {
     
-    fn new(rect: (u32, u32, u32, u32)) -> Self where Self: Sized {
+    fn new(_text: Vec<String>, rect: (u32, u32, u32, u32)) -> Self where Self: Sized {
+
+        let add_tiles_button = ButtonWidget::new(vec!["Add Tile(s)".to_string()], (20, HEIGHT / 2 + 10, 120,  UI_ELEMENT_HEIGHT));
 
         Self {
             rect,
             upper_selected      : Cell::new(None),
             upper_start         : Cell::new((0, 0)),
             curr_grid_size      : Cell::new(0),
-            tab_widget          : TabWidget::new((0, UI_ELEMENT_HEIGHT, WIDTH, HEIGHT / 2 - UI_ELEMENT_HEIGHT))
+            tab_widget          : TabWidget::new(vec!(),(0, UI_ELEMENT_HEIGHT, WIDTH, HEIGHT / 2 - UI_ELEMENT_HEIGHT)),
+            button_widgets      : vec![add_tiles_button]
         }
     }
 
@@ -111,6 +117,16 @@ impl Widget for TileMapEditor {
 
                 asset.draw_rect_outline(frame, &(x, y + UI_ELEMENT_HEIGHT, scaled_grid_size, scaled_grid_size), self.get_color_text());
             }
+
+            self.button_widgets[0].set_state(1);
+        } else {
+            self.button_widgets[0].set_state(0);
+        }
+
+        // Draw the lower half
+
+        for b in &self.button_widgets {
+            b.draw(frame, asset);
         }
 
         // Toolbar

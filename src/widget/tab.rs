@@ -15,7 +15,7 @@ pub struct TabWidget {
 
 impl Widget for TabWidget {
     
-    fn new(rect: (u32, u32, u32, u32)) -> Self where Self: Sized {
+    fn new(_text: Vec<String>, rect: (u32, u32, u32, u32)) -> Self where Self: Sized {
         Self {
             rect,
             content_rect    : Cell::new((0,0,0,0)),
