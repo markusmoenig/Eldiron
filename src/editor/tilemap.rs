@@ -212,17 +212,18 @@ impl Widget for TileMapEditor {
                 if self.options_grid.clicked.get() == true {
                     let index = self.options_grid.selected_index.get();
 
-                    let map = &mut asset.tileset.maps.get_mut(&0).unwrap();        
+                    if let Some(map)= asset.tileset.maps.get_mut(&0) {
 
-                    let mut tile = map.get_tile(self.map_selected.get().unwrap());
+                        let mut tile = map.get_tile(self.map_selected.get().unwrap());
 
-                    if index == 0 {
-                        tile.usage = TileUsage::Unused;
+                        if index == 0 {
+                            tile.usage = TileUsage::Unused;
+                        }
+
+                        map.set_tile(self.map_selected.get().unwrap(), tile);
+
+                        println!("option {}", index);
                     }
-
-                    map.set_tile(self.map_selected.get().unwrap(), tile);
-
-                     println!("option {}", index);
                 }
                 //     // Add tiles
                 //     println!("{}", "option");

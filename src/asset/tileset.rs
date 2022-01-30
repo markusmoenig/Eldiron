@@ -87,10 +87,8 @@ impl TileMap {
     }
 
     /// Set the tile for the given id
-    pub fn set_tile(&mut self, tile_id: (u32, u32), tile_settings: Tile) {
-        //self.settings.tiles[&tile_id] = tile_settings;
-        self.settings.tiles.insert(tile_id, tile_settings);
-        //let t = &self.settings.tiles[&tile_id];
+    pub fn set_tile(&mut self, tile_id: (u32, u32), tile: Tile) {
+        self.settings.tiles.insert(tile_id, tile);
     }
 
     /// Save the TileMapSettings to file
