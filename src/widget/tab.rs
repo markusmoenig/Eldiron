@@ -53,7 +53,7 @@ impl Widget for TabWidget {
         (self.rect.0 + page_width * page, self.rect.1 + self.rect.3 - UI_ELEMENT_HEIGHT, page_width, UI_ELEMENT_HEIGHT)
     }
 
-    fn mouse_down(&self, pos: (u32, u32)) -> bool {
+    fn mouse_down(&self, pos: (u32, u32), _asset: &mut Asset) -> bool {
         if self.pages.get() > 1 {
 
             let pages = self.pages.get();

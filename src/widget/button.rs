@@ -47,7 +47,7 @@ impl Widget for ButtonWidget {
         //asset.draw_text_rect(frame, &self.rect, self.text[0].as_str(), self.get_color_disabled(), self.get_color_background(), crate::asset::TextAlignment::Center);
     }
 
-    fn mouse_down(&self, pos: (u32, u32)) -> bool {
+    fn mouse_down(&self, pos: (u32, u32), _asset: &mut Asset) -> bool {
         if self.contains_pos(pos) {
             self.state.set(2);
             self.clicked.set(true);
@@ -56,7 +56,7 @@ impl Widget for ButtonWidget {
         false
     }
 
-    fn mouse_up(&self, _pos: (u32, u32)) -> bool {
+    fn mouse_up(&self, _pos: (u32, u32), _asset: &Asset) -> bool {
         if self.state.get() == 2 {
             self.state.set(1);
             return true;

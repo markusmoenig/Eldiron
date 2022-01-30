@@ -9,23 +9,25 @@ pub trait ScreenWidget {
     fn update(&mut self);
     fn draw(&self, frame: &mut [u8]);
 
-    fn mouse_down(&self, pos: (u32, u32)) -> bool {
+    fn mouse_down(&mut self, _pos: (u32, u32)) -> bool {
+        /*
         let mut changed = false;
         for w in self.get_widgets() {
             if w.contains_pos(pos) {
-                if w.mouse_down(pos) {
+                if w.mouse_down(pos, self.get_asset()) {
                     changed = true;
                 }
             }
         }
-        changed 
+        changed*/
+        false 
     }
 
     fn mouse_up(&self, pos: (u32, u32)) -> bool {
         let mut changed = false;
         for w in self.get_widgets() {
             if w.contains_pos(pos) {
-                if w.mouse_up(pos) {
+                if w.mouse_up(pos, self.get_asset()) {
                     changed = true;
                 }
             }
@@ -51,7 +53,7 @@ pub trait ScreenWidget {
 // General purpose widgets
 pub mod button;
 pub mod tab;
-pub mod menu;
+pub mod optionsgrid;
 
 /// The widget state
 
@@ -69,15 +71,15 @@ pub trait Widget {
     fn update(&mut self);
     fn draw(&self, frame: &mut [u8], asset: &Asset);
 
-    fn mouse_down(&self, _pos: (u32, u32)) -> bool {
+    fn mouse_down(&self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         false
     }
 
-    fn mouse_up(&self, _pos: (u32, u32)) -> bool {
+    fn mouse_up(&self, _pos: (u32, u32), _asset: &Asset) -> bool {
         false
     }
 
-    fn mouse_dragged(&self, _pos: (u32, u32)) {
+    fn mouse_dragged(&self, _pos: (u32, u32), _asset: &Asset) {
     }
 
     //fn set_cb(&mut self) {

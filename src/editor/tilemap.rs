@@ -6,7 +6,9 @@ use crate::widget::*;
 
 use crate::tab::TabWidget;
 use crate::button::ButtonWidget;
+use crate::optionsgrid::OptionsGridWidget;
 use crate::asset::Asset;
+use crate::asset::tileset::TileUsage;
 
 use core::cmp::max;
 use core::cell::Cell;
@@ -20,6 +22,7 @@ pub struct TileMapEditor {
     curr_map_tiles          : Cell<(u32, u32)>,  
     tab_widget              : TabWidget,
     //add_tiles_button        : ButtonWidget,
+    options_grid            : OptionsGridWidget,
     button_widgets          : Vec<ButtonWidget>,
 }
 
@@ -38,6 +41,8 @@ impl Widget for TileMapEditor {
             curr_map_tiles          : Cell::new((0,0)),
             tab_widget              : TabWidget::new(vec!(),(0, UI_ELEMENT_HEIGHT, WIDTH, HEIGHT / 2 - UI_ELEMENT_HEIGHT)),
             button_widgets          : vec![add_tiles_button],
+            options_grid            : OptionsGridWidget::new(vec!["Unused".to_string(), "Environment".to_string(), "EnvBlocking".to_string(), "Character".to_string(), "Water".to_string(), "Harmful".to_string()], 
+            (10, HEIGHT / 2 + 10, WIDTH - 20, HEIGHT / 2 - 20))
         }
     }
 
@@ -124,16 +129,21 @@ impl Widget for TileMapEditor {
                 asset.draw_rect_outline(frame, &(x, y + UI_ELEMENT_HEIGHT, scaled_grid_size, scaled_grid_size), self.get_color_text());
             }
 
+            self.options_grid.set_state(1);
+
             self.button_widgets[0].set_state(1);
         } else {
             self.button_widgets[0].set_state(0);
+            self.options_grid.set_state(0);
         }
 
         // Draw the lower half
 
-        for b in &self.button_widgets {
-            b.draw(frame, asset);
-        }
+        //for b in &self.button_widgets {
+        //    b.draw(frame, asset);
+        //}
+
+        self.options_grid.draw(frame, asset);
 
         // Toolbar
         asset.draw_rect(frame, &(0, 0, WIDTH, UI_ELEMENT_HEIGHT), self.get_color_background());
@@ -141,11 +151,11 @@ impl Widget for TileMapEditor {
         self.curr_grid_size.set(scaled_grid_size);
     }
 
-    fn mouse_down(&self, pos: (u32, u32)) -> bool {
+    fn mouse_down(&self, pos: (u32, u32), asset: &mut Asset) -> bool {
         let mut consumed = false;
 
         // Pages
-        if self.tab_widget.mouse_down(pos) {
+        if self.tab_widget.mouse_down(pos, asset) {
             consumed = true;
         }
 
@@ -172,10 +182,20 @@ impl Widget for TileMapEditor {
 
                     //println!("selected {} {}", x, y);
 
+                    // Select the right option
+                    let map = asset.get_map_of_id(0);
+
                     let map_x = tile_offset % map_tiles.0; 
                     let map_y = tile_offset / map_tiles.0; 
 
                     self.map_selected.set(Some((map_x, map_y)));
+
+                    let tile = map.get_tile((map_x, map_y));
+
+                    if tile.usage == TileUsage::Unused {
+
+                    }
+
                 } else {
                     self.screen_selected.set(None);
                     self.map_selected.set(None);
@@ -185,6 +205,40 @@ impl Widget for TileMapEditor {
             }
         }
 
+        if consumed == false {
+            if self.options_grid.mouse_down(pos, asset) {
+                consumed =true;
+
+                if self.options_grid.clicked.get() == true {
+                    let index = self.options_grid.selected_index.get();
+
+                    let map = &mut asset.tileset.maps.get_mut(&0).unwrap();        
+
+                    let mut tile = map.get_tile(self.map_selected.get().unwrap());
+
+                    if index == 0 {
+                        tile.usage = TileUsage::Unused;
+                    }
+
+                    map.set_tile(self.map_selected.get().unwrap(), tile);
+
+                     println!("option {}", index);
+                }
+                //     // Add tiles
+                //     println!("{}", "option");
+                //     self.button_widgets[0].clicked.set(false);
+                // }
+
+                // if self.button_widgets[0].clicked.get() == true {
+                //     // Add tiles
+                //     println!("{}", "option");
+                //     self.button_widgets[0].clicked.set(false);
+                // }
+            }        
+        }
+
+
+        /*
         if consumed == false {
             for b in &self.button_widgets {
                 if b.mouse_down(pos) {
@@ -196,22 +250,22 @@ impl Widget for TileMapEditor {
                     }
                 }
             }
-        }
+        }*/
 
         consumed
     }
 
-    fn mouse_up(&self, pos: (u32, u32)) -> bool {
+    fn mouse_up(&self, pos: (u32, u32), asset: &Asset) -> bool {
         let mut consumed = false;
         for b in &self.button_widgets {
-            if b.mouse_up(pos) {
+            if b.mouse_up(pos, asset) {
                 consumed = true
             }
         }
         consumed
     }
 
-    fn mouse_dragged(&self, pos: (u32, u32)) {
+    fn mouse_dragged(&self, pos: (u32, u32), _asset: &Asset) {
         println!("dragged {:?}", pos);
     }
 

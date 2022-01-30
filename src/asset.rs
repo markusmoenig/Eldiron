@@ -14,7 +14,7 @@ pub enum TextAlignment {
 }
 
 pub struct Asset<'a> {
-    tileset                 : TileSet,
+    pub tileset                 : TileSet,
     //gohu_font_11            : Font<'a>,
     gohu_font_14            : Font<'a>,
 }

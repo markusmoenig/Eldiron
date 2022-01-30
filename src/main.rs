@@ -84,7 +84,7 @@ fn main() -> Result<(), Error> {
                 return;
             }
 
-            if input.mouse_pressed(0) {                
+            if input.mouse_pressed(0) {         
                 let coords =  input.mouse().unwrap();
                 let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
                     .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
