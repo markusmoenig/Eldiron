@@ -51,6 +51,7 @@ pub trait ScreenWidget {
 // General purpose widgets
 pub mod button;
 pub mod tab;
+pub mod menu;
 
 /// The widget state
 

@@ -13,9 +13,11 @@ use core::cell::Cell;
 
 pub struct TileMapEditor {
     rect                    : (u32, u32, u32, u32),
-    upper_selected          : Cell<Option<(u32, u32)>>,
-    upper_start             : Cell<(u32, u32)>,
+    screen_selected         : Cell<Option<(u32, u32)>>,
+    map_selected            : Cell<Option<(u32, u32)>>,
+    screen_start            : Cell<(u32, u32)>,
     curr_grid_size          : Cell<u32>,  
+    curr_map_tiles          : Cell<(u32, u32)>,  
     tab_widget              : TabWidget,
     //add_tiles_button        : ButtonWidget,
     button_widgets          : Vec<ButtonWidget>,
@@ -29,11 +31,13 @@ impl Widget for TileMapEditor {
 
         Self {
             rect,
-            upper_selected      : Cell::new(None),
-            upper_start         : Cell::new((0, 0)),
-            curr_grid_size      : Cell::new(0),
-            tab_widget          : TabWidget::new(vec!(),(0, UI_ELEMENT_HEIGHT, WIDTH, HEIGHT / 2 - UI_ELEMENT_HEIGHT)),
-            button_widgets      : vec![add_tiles_button],
+            screen_selected         : Cell::new(None),
+            map_selected            : Cell::new(None),
+            screen_start            : Cell::new((0, 0)),
+            curr_grid_size          : Cell::new(0),
+            curr_map_tiles          : Cell::new((0,0)),
+            tab_widget              : TabWidget::new(vec!(),(0, UI_ELEMENT_HEIGHT, WIDTH, HEIGHT / 2 - UI_ELEMENT_HEIGHT)),
+            button_widgets          : vec![add_tiles_button],
         }
     }
 
@@ -52,6 +56,8 @@ impl Widget for TileMapEditor {
 
         let x_tiles = map.width / map.settings.grid_size;
         let y_tiles = map.height / map.settings.grid_size;
+
+        self.curr_map_tiles.set((x_tiles, y_tiles));
 
         let total_tiles = x_tiles * y_tiles;
         //let total_tiles_scaled = ((total_tiles) as f32 * scale) as u32;
@@ -73,9 +79,9 @@ impl Widget for TileMapEditor {
 
         let offset = page * tiles_per_page;
 
-        self.upper_start.set((offset % x_tiles, offset / x_tiles));
+        self.screen_start.set((offset % x_tiles, offset / screen_x));
 
-        //println!("start {} {}", offset, x_tiles);//offset % x_tiles, offset / x_tiles);
+        //println!("start {:?}", self.screen_start.get());
 
         // Draw the tiles of the current page
         for tile in 0..tiles_per_page {
@@ -106,14 +112,14 @@ impl Widget for TileMapEditor {
         self.tab_widget.draw(frame, asset);
 
         // Draw the selection
-        if let Some(s) = self.upper_selected.get() {
+        if let Some(s) = self.screen_selected.get() {
             
             let index = s.0 + s.1 * screen_x;
 
             // Make sure the selected tile is in the current page
             if index >= offset && index < offset + tiles_per_page {
-                let x = (s.0 - self.upper_start.get().0) * scaled_grid_size;
-                let y = (s.1 - self.upper_start.get().1) * scaled_grid_size;
+                let x = (s.0 - self.screen_start.get().0) * scaled_grid_size;
+                let y = (s.1 - self.screen_start.get().1) * scaled_grid_size;
 
                 asset.draw_rect_outline(frame, &(x, y + UI_ELEMENT_HEIGHT, scaled_grid_size, scaled_grid_size), self.get_color_text());
             }
@@ -149,12 +155,31 @@ impl Widget for TileMapEditor {
 
                 let scaled_grid_size = self.curr_grid_size.get();
 
-                let x = pos.0 / scaled_grid_size + self.upper_start.get().0;
-                let y = (pos.1 - self.tab_widget.get_rect().1) / scaled_grid_size + self.upper_start.get().1;
+                let x = pos.0 / scaled_grid_size + self.screen_start.get().0;
+                let y = (pos.1 - self.tab_widget.get_rect().1) / scaled_grid_size + self.screen_start.get().1;
 
-                println!("selected {} {}", x, y);
+                // convert screen position to map position
 
-                self.upper_selected.set(Some((x, y)));
+                let screen_tiles_x = WIDTH / scaled_grid_size;
+                let tile_offset = x + y * screen_tiles_x;
+                
+                let map_tiles =  self.curr_map_tiles.get();
+
+                let total_tiles = map_tiles.0 * map_tiles.1;
+
+                if tile_offset < total_tiles {
+                    self.screen_selected.set(Some((x, y)));
+
+                    //println!("selected {} {}", x, y);
+
+                    let map_x = tile_offset % map_tiles.0; 
+                    let map_y = tile_offset / map_tiles.0; 
+
+                    self.map_selected.set(Some((map_x, map_y)));
+                } else {
+                    self.screen_selected.set(None);
+                    self.map_selected.set(None);
+                }
 
                 consumed = true
             }
