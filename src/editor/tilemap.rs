@@ -24,7 +24,9 @@ pub struct TileMapEditor {
     tab_widget              : TabWidget,
     options_grid            : OptionsGridWidget,
     set_anim_button         : ButtonWidget,
-    clear_anim_button        : ButtonWidget,
+    clear_anim_button       : ButtonWidget,
+
+    scale                   : f32,
 }
 
 impl Widget for TileMapEditor {
@@ -46,7 +48,8 @@ impl Widget for TileMapEditor {
             set_anim_button,
             clear_anim_button,
             options_grid            : OptionsGridWidget::new(vec!["Unused".to_string(), "Environment".to_string(), "EnvBlocking".to_string(), "Character".to_string(), "UtilityChar".to_string(), "Water".to_string(), "Harmful".to_string()], 
-            (20 + 100 + 40, HEIGHT / 2 + 20, WIDTH - 40 - 100 - 40, 2 * UI_ELEMENT_HEIGHT + 16))
+            (20 + 100 + 40, HEIGHT / 2 + 20, WIDTH - 40 - 100 - 40, 2 * UI_ELEMENT_HEIGHT + 16)),
+            scale                   : 2_f32
         }
     }
 
@@ -58,7 +61,7 @@ impl Widget for TileMapEditor {
 
         asset.draw_rect(frame, &self.tab_widget.get_content_rect(), [0,0,0,255]);
 
-        let scale = 2_f32;
+        let scale = self.scale;
         let map = asset.get_map_of_id(0);
 
         let scaled_grid_size = (map.settings.grid_size as f32 * scale) as u32;
@@ -90,8 +93,6 @@ impl Widget for TileMapEditor {
 
         self.screen_start.set((offset % x_tiles, offset / screen_x));
 
-        //println!("start {:?}", self.screen_start.get());
-
         // Draw the tiles of the current page
         for tile in 0..tiles_per_page {
 
@@ -107,6 +108,9 @@ impl Widget for TileMapEditor {
 
             let tile = map.get_tile((x, y));
 
+            if tile.anim_tiles.len() > 0 {
+                //println!("anim at {:?}", (x,y));
+            } else
             if tile.usage == TileUsage::Unused {
                 asset.draw_tile_mixed(frame, &(x_step, y_step + self.tab_widget.get_rect().1), 0_u32, &(x, y), [128, 128, 128, 255], scale);
             } else {
@@ -220,9 +224,6 @@ impl Widget for TileMapEditor {
     fn mouse_down(&self, pos: (u32, u32), asset: &mut Asset) -> bool {
         let mut consumed = false;
 
-        // On mouse down set the end selection point to None
-        self.screen_end_selected.set(None);
-
         // Pages
         if self.tab_widget.mouse_down(pos, asset) {
             consumed = true;
@@ -231,6 +232,9 @@ impl Widget for TileMapEditor {
         // Upper tile content area
         if consumed == false {
             if self.tab_widget.contains_pos_for(pos, self.tab_widget.get_content_rect()) {
+
+                // On mouse down set the end selection point to None
+                self.screen_end_selected.set(None);
 
                 let scaled_grid_size = self.curr_grid_size.get();
 
@@ -330,12 +334,95 @@ impl Widget for TileMapEditor {
             }        
         }
 
-        // Check 
+        // Check anim button
         if self.set_anim_button.mouse_down(pos, asset) {
             consumed =true;
 
-            if self.set_anim_button.clicked.get() == true {
-                println!("{}", "here");
+            // Returns the selected range between the start and end selection points
+            fn get_selected_range(start: Option<(u32, u32)>, end: Option<(u32, u32)>, screen_x: u32) -> Vec<(u32, u32)> {
+                let mut v = Vec::<(u32, u32)>::new();
+                //println!("get_selected_range {:?} {:?}", start, end );
+
+                if let Some(s) = start {
+        
+                    if let Some(e) = end {
+        
+                        let mut smaller = s;
+                        let mut bigger = e;
+        
+                        if smaller.1 > bigger.1 || (smaller.1 == bigger.1 && smaller.0 > bigger.0) {
+                            let t = smaller;
+                            smaller = bigger;
+                            bigger = t;
+                        }
+
+                        // Iterate between the two selection points
+                        loop {
+                            v.push(smaller);
+                            if smaller.0 == bigger.0 && smaller.1 == bigger.1 {
+                                break;
+                            }
+
+                            smaller.0 += 1;
+
+                            if smaller.0 >= screen_x {
+                                smaller.0 = 0;
+                                smaller.1 += 1;
+                            }
+                        }
+        
+                    } else {
+                        v.push(s);
+                    }
+                }
+                v
+            } 
+
+            let scale = self.scale;
+            if let Some(map)= asset.tileset.maps.get_mut(&0) {
+        
+                let scaled_grid_size = (map.settings.grid_size as f32 * scale) as u32;        
+                let screen_x = WIDTH / scaled_grid_size;
+
+                if self.set_anim_button.clicked.get() == true {
+                    if let Some(screen_start) = self.screen_selected.get() {
+
+                        let tile_offset = screen_start.0 + screen_start.1 * screen_x;                
+                        let map_tiles = self.curr_map_tiles.get();
+                        let total_tiles = map_tiles.0 * map_tiles.1;
+        
+                        if tile_offset < total_tiles {
+        
+                            let start = (tile_offset % map_tiles.0, tile_offset / map_tiles.0);
+
+                            let range = get_selected_range(self.screen_selected.get(), self.screen_end_selected.get(), screen_x);
+
+                            //println!("rr {:?}", start);
+
+                            if range.len() > 1 {
+
+                                let mut tile = map.get_tile(start);
+
+                                tile.anim_tiles = vec![];
+
+                                for s in range {
+                    
+                                    let tile_offset = s.0 + s.1 * screen_x;                
+
+                                    let map_x = tile_offset % map_tiles.0; 
+                                    let map_y = tile_offset / map_tiles.0; 
+
+                                    if map_x != start.0 || map_y != start.1 {
+                                        tile.anim_tiles.push((map_x, map_y));
+                                    }
+                                }
+
+                                map.set_tile(start, tile);
+                                map.save_settings();                        
+                            }
+                        }
+                    }
+                }
             }
         }
 
