@@ -41,8 +41,8 @@ impl Widget for TileMapEditor {
             curr_map_tiles          : Cell::new((0,0)),
             tab_widget              : TabWidget::new(vec!(),(0, UI_ELEMENT_HEIGHT, WIDTH, HEIGHT / 2 - UI_ELEMENT_HEIGHT)),
             button_widgets          : vec![add_tiles_button],
-            options_grid            : OptionsGridWidget::new(vec!["Unused".to_string(), "Environment".to_string(), "EnvBlocking".to_string(), "Character".to_string(), "Water".to_string(), "Harmful".to_string()], 
-            (10, HEIGHT / 2 + 10, WIDTH - 20, HEIGHT / 2 - 20))
+            options_grid            : OptionsGridWidget::new(vec!["Unused".to_string(), "Environment".to_string(), "EnvBlocking".to_string(), "Character".to_string(), "UtilityChar".to_string(), "Water".to_string(), "Harmful".to_string()], 
+            (20 + 100 + 40, HEIGHT / 2 + 20, WIDTH - 40 - 100 - 40, 2 * UI_ELEMENT_HEIGHT + 16))
         }
     }
 
@@ -132,7 +132,12 @@ impl Widget for TileMapEditor {
             self.options_grid.set_state(1);
 
             self.button_widgets[0].set_state(1);
+
+            asset.draw_tile(frame, &(20, HEIGHT / 2 + 20), 0_u32, &self.map_selected.get().unwrap(), 100.0 / map.settings.grid_size as f32);
         } else {
+
+            asset.draw_rect(frame, &(20, HEIGHT / 2 + 20, 100, 100), self.get_color_background());
+
             self.button_widgets[0].set_state(0);
             self.options_grid.set_state(0);
         }
@@ -193,8 +198,26 @@ impl Widget for TileMapEditor {
                     let tile = map.get_tile((map_x, map_y));
 
                     if tile.usage == TileUsage::Unused {
-
-                    }
+                        self.options_grid.selected_index.set(0);
+                    } else
+                    if tile.usage == TileUsage::Environment {
+                        self.options_grid.selected_index.set(1);
+                    } else
+                    if tile.usage == TileUsage::EnvBlocking {
+                        self.options_grid.selected_index.set(2);
+                    } else
+                    if tile.usage == TileUsage::Character {
+                        self.options_grid.selected_index.set(3);
+                    } else
+                    if tile.usage == TileUsage::UtilityChar {
+                        self.options_grid.selected_index.set(4);
+                    } else
+                    if tile.usage == TileUsage::Water {
+                        self.options_grid.selected_index.set(5);
+                    } else   
+                    if tile.usage == TileUsage::Harmful {
+                        self.options_grid.selected_index.set(6);
+                    }                                      
 
                 } else {
                     self.screen_selected.set(None);
@@ -218,11 +241,28 @@ impl Widget for TileMapEditor {
 
                         if index == 0 {
                             tile.usage = TileUsage::Unused;
-                        }
+                        } else
+                        if index == 1 {
+                            tile.usage = TileUsage::Environment;
+                        } else
+                        if index == 2 {
+                            tile.usage = TileUsage::EnvBlocking;
+                        } else
+                        if index == 3 {
+                            tile.usage = TileUsage::Character;
+                        } else
+                        if index == 4 {
+                            tile.usage = TileUsage::UtilityChar;
+                        }  else
+                        if index == 5 {
+                            tile.usage = TileUsage::Water;
+                        }  else 
+                        if index == 6 {
+                            tile.usage = TileUsage::Harmful;
+                        }                                                                                                                
 
                         map.set_tile(self.map_selected.get().unwrap(), tile);
-
-                        println!("option {}", index);
+                        map.save_settings();
                     }
                 }
                 //     // Add tiles

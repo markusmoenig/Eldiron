@@ -49,7 +49,7 @@ impl Widget for OptionsGridWidget {
 
             x += 120 + self.spacing;
 
-            if x > self.rect.2 {
+            if x >= self.rect.2 {
                 x = self.rect.0;
                 y += UI_ELEMENT_HEIGHT + self.spacing;
             }

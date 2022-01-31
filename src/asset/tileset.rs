@@ -14,6 +14,7 @@ pub enum TileUsage {
     Environment,
     EnvBlocking,
     Character,
+    UtilityChar,
     Water,
     Harmful,
 }
@@ -29,6 +30,7 @@ pub struct Tile {
 #[derive(Serialize, Deserialize)]
 pub struct TileMapSettings {
     pub grid_size       : u32,
+    #[serde(with = "vectorize")]
     pub tiles           : HashMap<(u32, u32), Tile>,
     pub id              : u32,
 }

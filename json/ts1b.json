@@ -1,1 +1,1 @@
-{"grid_size":16,"tiles":{},"id":0}
+{"grid_size":16,"tiles":[[[2,2],{"usage":"UtilityChar","anim_tiles":[]}],[[6,8],{"usage":"EnvBlocking","anim_tiles":[]}],[[0,2],{"usage":"UtilityChar","anim_tiles":[]}],[[1,2],{"usage":"UtilityChar","anim_tiles":[]}],[[5,0],{"usage":"Water","anim_tiles":[]}],[[3,2],{"usage":"UtilityChar","anim_tiles":[]}],[[4,2],{"usage":"UtilityChar","anim_tiles":[]}],[[0,0],{"usage":"Unused","anim_tiles":[]}],[[5,2],{"usage":"UtilityChar","anim_tiles":[]}],[[3,0],{"usage":"Unused","anim_tiles":[]}],[[6,0],{"usage":"Water","anim_tiles":[]}]],"id":0}
