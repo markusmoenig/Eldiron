@@ -111,7 +111,9 @@ fn main() -> Result<(), Error> {
                     let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
                         .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                    curr_screen.mouse_dragged((pixel_pos.0 as u32, pixel_pos.1 as u32));
+                    if curr_screen.mouse_dragged((pixel_pos.0 as u32, pixel_pos.1 as u32)) {
+                        window.request_redraw();
+                    }
                 }         
             }
 

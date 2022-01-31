@@ -81,7 +81,7 @@ impl Asset<'_>  {
         }
     }
 
-    /// Draws the given tilemap
+    /// Draws the given tile
     pub fn draw_tile(&self,  frame: &mut [u8], pos: &(u32, u32), tilemap_id: u32, grid_pos: &(u32, u32), scale: f32) {
         let map = self.get_map_of_id(tilemap_id);
         let pixels = &map.pixels;
@@ -104,6 +104,31 @@ impl Asset<'_>  {
         }
     }
 
+        /// Draws the given tile mixed with a given color
+        pub fn draw_tile_mixed(&self,  frame: &mut [u8], pos: &(u32, u32), tilemap_id: u32, grid_pos: &(u32, u32), color: [u8; 4], scale: f32) {
+            let map = self.get_map_of_id(tilemap_id);
+            let pixels = &map.pixels;
+    
+            let new_size = ((map.settings.grid_size as f32 * scale) as u32, (map.settings.grid_size as f32 * scale) as u32);
+    
+            let g_pos = (grid_pos.0 * map.settings.grid_size, grid_pos.1 * map.settings.grid_size);
+    
+            for sy in 0..new_size.0 {
+                let y = (sy as f32 / scale) as u32;
+                for sx in 0..new_size.1 {
+    
+                    let x = (sx as f32 / scale) as u32;
+    
+                    let d = pos.0 as usize * 4 + (sx as usize) * 4 + (sy as usize + pos.1 as usize) * (WIDTH as usize) * 4;
+                    let s = (x as usize + g_pos.0 as usize) * 4 + (y as usize + g_pos.1 as usize) * (map.width as usize) * 4;
+    
+                    let mixed_color = self.mix(&[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]], &color, 0.5);
+
+                    frame[d..d + 4].copy_from_slice(&mixed_color);
+                }
+            }
+        }
+
     /// Draws the given tilemap
     // pub fn draw_texture(&self,  frame: &mut [u8], pos: &[usize; 2], map: &tileset::TileMap) {
     //     let pixels = &map.pixels;
@@ -119,6 +144,7 @@ impl Asset<'_>  {
     //     }
     // }
 
+    /// Draws the given text
     pub fn draw_text(&self,  frame: &mut [u8], pos: &(u32, u32), text: &str, color: [u8; 4], background: [u8; 4]) {
 
         let def = self.get_default_font();

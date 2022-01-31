@@ -38,7 +38,7 @@ impl Widget for OptionsGridWidget {
         for (i, text) in self.text.iter().enumerate() {
 
             if self.state.get() == 0 {
-                asset.draw_text_rect(frame, &(x, y, 120, UI_ELEMENT_HEIGHT), text, self.get_color_disabled(), self.get_color_background(), crate::asset::TextAlignment::Center);
+                asset.draw_text_rect(frame, &(x, y, 120, UI_ELEMENT_HEIGHT), text, self.get_color_text_disabled(), self.get_color_background(), crate::asset::TextAlignment::Center);
             } else {
                 if index == i as u32 {
                     asset.draw_text_rect(frame, &(x, y, 120, UI_ELEMENT_HEIGHT), text, self.get_color_text(), self.get_color_selection_blue(), crate::asset::TextAlignment::Center);
@@ -114,7 +114,7 @@ impl Widget for OptionsGridWidget {
         false
     }
 
-    fn mouse_up(&self, _pos: (u32, u32), _asset: &Asset) -> bool {
+    fn mouse_up(&self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         if self.state.get() == 2 {
             self.state.set(1);
             return true;

@@ -16,31 +16,35 @@ use core::cell::Cell;
 pub struct TileMapEditor {
     rect                    : (u32, u32, u32, u32),
     screen_selected         : Cell<Option<(u32, u32)>>,
+    screen_end_selected     : Cell<Option<(u32, u32)>>,
     map_selected            : Cell<Option<(u32, u32)>>,
     screen_start            : Cell<(u32, u32)>,
     curr_grid_size          : Cell<u32>,  
     curr_map_tiles          : Cell<(u32, u32)>,  
     tab_widget              : TabWidget,
-    //add_tiles_button        : ButtonWidget,
     options_grid            : OptionsGridWidget,
-    button_widgets          : Vec<ButtonWidget>,
+    set_anim_button         : ButtonWidget,
+    clear_anim_button        : ButtonWidget,
 }
 
 impl Widget for TileMapEditor {
     
     fn new(_text: Vec<String>, rect: (u32, u32, u32, u32)) -> Self where Self: Sized {
 
-        let add_tiles_button = ButtonWidget::new(vec!["Add Tile(s)".to_string()], (20, HEIGHT / 2 + 10, 120,  UI_ELEMENT_HEIGHT));
+        let set_anim_button = ButtonWidget::new(vec!["Set Anim".to_string()], (20 + 100 + 40, HEIGHT / 2 + 96, 120,  UI_ELEMENT_HEIGHT));
+        let clear_anim_button = ButtonWidget::new(vec!["Clear Anim".to_string()], (20 + 100 + 40 + 120 + 8, HEIGHT / 2 + 96, 120,  UI_ELEMENT_HEIGHT));
 
         Self {
             rect,
             screen_selected         : Cell::new(None),
+            screen_end_selected     : Cell::new(None),
             map_selected            : Cell::new(None),
             screen_start            : Cell::new((0, 0)),
             curr_grid_size          : Cell::new(0),
             curr_map_tiles          : Cell::new((0,0)),
             tab_widget              : TabWidget::new(vec!(),(0, UI_ELEMENT_HEIGHT, WIDTH, HEIGHT / 2 - UI_ELEMENT_HEIGHT)),
-            button_widgets          : vec![add_tiles_button],
+            set_anim_button,
+            clear_anim_button,
             options_grid            : OptionsGridWidget::new(vec!["Unused".to_string(), "Environment".to_string(), "EnvBlocking".to_string(), "Character".to_string(), "UtilityChar".to_string(), "Water".to_string(), "Harmful".to_string()], 
             (20 + 100 + 40, HEIGHT / 2 + 20, WIDTH - 40 - 100 - 40, 2 * UI_ELEMENT_HEIGHT + 16))
         }
@@ -101,7 +105,14 @@ impl Widget for TileMapEditor {
             let x = (tile+offset) % x_tiles;
             let y = (tile+offset) / x_tiles;
 
-            asset.draw_tile(frame, &(x_step, y_step + self.tab_widget.get_rect().1), 0_u32, &(x, y), scale);
+            let tile = map.get_tile((x, y));
+
+            if tile.usage == TileUsage::Unused {
+                asset.draw_tile_mixed(frame, &(x_step, y_step + self.tab_widget.get_rect().1), 0_u32, &(x, y), [128, 128, 128, 255], scale);
+            } else {
+                asset.draw_tile(frame, &(x_step, y_step + self.tab_widget.get_rect().1), 0_u32, &(x, y), scale);
+            }
+
             x_off += 1;
 
             if x_off >= screen_x {
@@ -116,39 +127,89 @@ impl Widget for TileMapEditor {
         // Draw the tab widget
         self.tab_widget.draw(frame, asset);
 
+        // Returns the selected range between the start and end selection points
+        fn get_selected_range(start: Option<(u32, u32)>, end: Option<(u32, u32)>, screen_x: u32) -> Vec<(u32, u32)> {
+            let mut v = Vec::<(u32, u32)>::new();
+            //println!("get_selected_range {:?} {:?}", start, end );
+
+            if let Some(s) = start {
+    
+                if let Some(e) = end {
+    
+                    let mut smaller = s;
+                    let mut bigger = e;
+    
+                    if smaller.1 > bigger.1 || (smaller.1 == bigger.1 && smaller.0 > bigger.0) {
+                        let t = smaller;
+                        smaller = bigger;
+                        bigger = t;
+                    }
+
+                    // Iterate between the two selection points
+                    loop {
+                        v.push(smaller);
+                        if smaller.0 == bigger.0 && smaller.1 == bigger.1 {
+                            break;
+                        }
+
+                        smaller.0 += 1;
+
+                        if smaller.0 >= screen_x {
+                            smaller.0 = 0;
+                            smaller.1 += 1;
+                        }
+                    }
+    
+                } else {
+                    v.push(s);
+                }
+            }
+            v
+        }
+
         // Draw the selection
-        if let Some(s) = self.screen_selected.get() {
+        if let Some(_s) = self.screen_selected.get() {
             
-            let index = s.0 + s.1 * screen_x;
+            let range = get_selected_range(self.screen_selected.get(), self.screen_end_selected.get(), screen_x);
 
-            // Make sure the selected tile is in the current page
-            if index >= offset && index < offset + tiles_per_page {
-                let x = (s.0 - self.screen_start.get().0) * scaled_grid_size;
-                let y = (s.1 - self.screen_start.get().1) * scaled_grid_size;
+            if range.len() > 1 {
+                self.set_anim_button.set_state(1);
+            } else {
+                self.set_anim_button.set_state(0);
+            }
 
-                asset.draw_rect_outline(frame, &(x, y + UI_ELEMENT_HEIGHT, scaled_grid_size, scaled_grid_size), self.get_color_text());
+            for s in range {
+                let index = s.0 + s.1 * screen_x;
+
+                // Make sure the selected tile is in the current page
+                if index >= offset && index < offset + tiles_per_page {
+                    let x = (s.0 - self.screen_start.get().0) * scaled_grid_size;
+                    let y = (s.1 - self.screen_start.get().1) * scaled_grid_size;
+
+                    asset.draw_rect_outline(frame, &(x, y + UI_ELEMENT_HEIGHT, scaled_grid_size, scaled_grid_size), self.get_color_text());
+                }
             }
 
             self.options_grid.set_state(1);
 
-            self.button_widgets[0].set_state(1);
-
-            asset.draw_tile(frame, &(20, HEIGHT / 2 + 20), 0_u32, &self.map_selected.get().unwrap(), 100.0 / map.settings.grid_size as f32);
+            if let Some(map_selected) = &self.map_selected.get() {
+                // Draw selected tile as 100x100
+                asset.draw_tile(frame, &(20, HEIGHT / 2 + 20), 0_u32, map_selected, 100.0 / map.settings.grid_size as f32);
+                // Draw selection text
+                asset.draw_text_rect(frame, &(20, HEIGHT / 2 + 125, 100, UI_ELEMENT_HEIGHT), &format!("({},{})", map_selected.0, map_selected.1), self.get_color_text(), [0,0,0,255], crate::asset::TextAlignment::Center);
+            }
         } else {
-
             asset.draw_rect(frame, &(20, HEIGHT / 2 + 20, 100, 100), self.get_color_background());
 
-            self.button_widgets[0].set_state(0);
+            self.set_anim_button.set_state(0);
             self.options_grid.set_state(0);
         }
 
         // Draw the lower half
 
-        //for b in &self.button_widgets {
-        //    b.draw(frame, asset);
-        //}
-
         self.options_grid.draw(frame, asset);
+        self.set_anim_button.draw(frame, asset);
+        self.clear_anim_button.draw(frame, asset);
 
         // Toolbar
         asset.draw_rect(frame, &(0, 0, WIDTH, UI_ELEMENT_HEIGHT), self.get_color_background());
@@ -158,6 +219,9 @@ impl Widget for TileMapEditor {
 
     fn mouse_down(&self, pos: (u32, u32), asset: &mut Asset) -> bool {
         let mut consumed = false;
+
+        // On mouse down set the end selection point to None
+        self.screen_end_selected.set(None);
 
         // Pages
         if self.tab_widget.mouse_down(pos, asset) {
@@ -178,14 +242,12 @@ impl Widget for TileMapEditor {
                 let screen_tiles_x = WIDTH / scaled_grid_size;
                 let tile_offset = x + y * screen_tiles_x;
                 
-                let map_tiles =  self.curr_map_tiles.get();
+                let map_tiles = self.curr_map_tiles.get();
 
                 let total_tiles = map_tiles.0 * map_tiles.1;
 
                 if tile_offset < total_tiles {
                     self.screen_selected.set(Some((x, y)));
-
-                    //println!("selected {} {}", x, y);
 
                     // Select the right option
                     let map = asset.get_map_of_id(0);
@@ -217,8 +279,7 @@ impl Widget for TileMapEditor {
                     } else   
                     if tile.usage == TileUsage::Harmful {
                         self.options_grid.selected_index.set(6);
-                    }                                      
-
+                    }
                 } else {
                     self.screen_selected.set(None);
                     self.map_selected.set(None);
@@ -228,6 +289,7 @@ impl Widget for TileMapEditor {
             }
         }
 
+        // Check options grid for click
         if consumed == false {
             if self.options_grid.mouse_down(pos, asset) {
                 consumed =true;
@@ -265,49 +327,55 @@ impl Widget for TileMapEditor {
                         map.save_settings();
                     }
                 }
-                //     // Add tiles
-                //     println!("{}", "option");
-                //     self.button_widgets[0].clicked.set(false);
-                // }
-
-                // if self.button_widgets[0].clicked.get() == true {
-                //     // Add tiles
-                //     println!("{}", "option");
-                //     self.button_widgets[0].clicked.set(false);
-                // }
             }        
         }
 
+        // Check 
+        if self.set_anim_button.mouse_down(pos, asset) {
+            consumed =true;
 
-        /*
-        if consumed == false {
-            for b in &self.button_widgets {
-                if b.mouse_down(pos) {
-                    consumed =true;
-                    if self.button_widgets[0].clicked.get() == true {
-                        // Add tiles
-                        println!("{}", "add tiles");
-                        self.button_widgets[0].clicked.set(false);
+            if self.set_anim_button.clicked.get() == true {
+                println!("{}", "here");
+            }
+        }
+
+        consumed
+    }
+
+    fn mouse_up(&self, pos: (u32, u32), asset: &mut Asset) -> bool {
+        let mut consumed = false;
+
+        if self.set_anim_button.mouse_up(pos, asset) {
+                consumed = true
+            }
+        consumed
+    }
+
+    /// Set the screen_end_selected point
+    fn mouse_dragged(&self, pos: (u32, u32), _asset: &mut Asset) -> bool {
+        if self.tab_widget.contains_pos_for(pos, self.tab_widget.get_content_rect()) {
+            if let Some(selected) = self.screen_selected.get() {
+                let scaled_grid_size = self.curr_grid_size.get();
+
+                let x = pos.0 / scaled_grid_size + self.screen_start.get().0;
+                let y = (pos.1 - self.tab_widget.get_rect().1) / scaled_grid_size + self.screen_start.get().1;
+
+                let screen_tiles_x = WIDTH / scaled_grid_size;
+                let tile_offset = x + y * screen_tiles_x;
+                
+                let map_tiles = self.curr_map_tiles.get();
+
+                let total_tiles = map_tiles.0 * map_tiles.1;
+
+                if tile_offset < total_tiles {
+                    if selected.0 != x || selected.1 != y {
+                        self.screen_end_selected.set(Some((x, y)));
+                        return true;
                     }
                 }
             }
-        }*/
-
-        consumed
-    }
-
-    fn mouse_up(&self, pos: (u32, u32), asset: &Asset) -> bool {
-        let mut consumed = false;
-        for b in &self.button_widgets {
-            if b.mouse_up(pos, asset) {
-                consumed = true
-            }
         }
-        consumed
-    }
-
-    fn mouse_dragged(&self, pos: (u32, u32), _asset: &Asset) {
-        println!("dragged {:?}", pos);
+        false
     }
 
     fn get_rect(&self) -> &(u32, u32, u32, u32) {

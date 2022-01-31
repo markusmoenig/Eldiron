@@ -10,32 +10,15 @@ pub trait ScreenWidget {
     fn draw(&self, frame: &mut [u8]);
 
     fn mouse_down(&mut self, _pos: (u32, u32)) -> bool {
-        /*
-        let mut changed = false;
-        for w in self.get_widgets() {
-            if w.contains_pos(pos) {
-                if w.mouse_down(pos, self.get_asset()) {
-                    changed = true;
-                }
-            }
-        }
-        changed*/
         false 
     }
 
-    fn mouse_up(&self, pos: (u32, u32)) -> bool {
-        let mut changed = false;
-        for w in self.get_widgets() {
-            if w.contains_pos(pos) {
-                if w.mouse_up(pos, self.get_asset()) {
-                    changed = true;
-                }
-            }
-        }
-        changed 
+    fn mouse_up(&mut self, _pos: (u32, u32)) -> bool {
+        false
     }
 
-    fn mouse_dragged(&self, _pos: (u32, u32)) {
+    fn mouse_dragged(&mut self, _pos: (u32, u32)) -> bool {
+        false
     }
 
     fn get_asset(&self) -> &Asset;
@@ -75,11 +58,12 @@ pub trait Widget {
         false
     }
 
-    fn mouse_up(&self, _pos: (u32, u32), _asset: &Asset) -> bool {
+    fn mouse_up(&self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         false
     }
 
-    fn mouse_dragged(&self, _pos: (u32, u32), _asset: &Asset) {
+    fn mouse_dragged(&self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
+        false
     }
 
     //fn set_cb(&mut self) {
@@ -128,14 +112,15 @@ pub trait Widget {
         (0,0,0,0)
     }
 
+    // TileMapWidget
+    // fn get_selected_range(start: Option<(u32, u32)>, end: Option<(u32, u32)>) -> Vec<(u32, u32)> {
+    //     vec![]
+    // }
+
     // Default colors
 
     fn get_color_background(&self) -> [u8; 4] {
         [43, 43, 43, 255]
-    }
-
-    fn get_color_disabled(&self) -> [u8; 4] {
-        [43 / 2, 43 / 2, 43 / 2, 255]
     }
 
     fn get_color_selection(&self) -> [u8; 4] {
@@ -148,5 +133,9 @@ pub trait Widget {
 
     fn get_color_text(&self) -> [u8; 4] {
         [255, 255, 255, 255]
+    }
+
+    fn get_color_text_disabled(&self) -> [u8; 4] {
+        [128, 128, 128, 255]
     }
 }
