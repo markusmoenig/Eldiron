@@ -7,7 +7,7 @@ mod widget;
 mod asset;
 
 mod prelude {
-    pub const TICK_IN_MS            : u128 = 200;
+    pub const TICK_IN_MS            : u128 = 250;
 
     pub const WIDTH                 : u32 = 60 * 16;
     pub const HEIGHT                : u32 = 40 * 16;
@@ -60,12 +60,13 @@ fn main() -> Result<(), Error> {
 
     let mut curr_screen = editor;
 
+    let mut anim_counter : u32 = 0;
     let mut timer : u128 = 0;
 
     event_loop.run(move |event, _, control_flow| {
 
         if let Event::RedrawRequested(_) = event {
-            curr_screen.draw(pixels.get_frame());
+            curr_screen.draw(pixels.get_frame(), anim_counter);
             if pixels
                 .render()
                 .map_err(|e| error!("pixels.render() failed: {}", e))
@@ -130,6 +131,7 @@ fn main() -> Result<(), Error> {
                 curr_screen.update();
                 window.request_redraw();
                 timer = curr_time;
+                anim_counter = anim_counter.wrapping_add(1);
             } else {
                 let t = (timer + TICK_IN_MS - curr_time) as u64;
                 std::thread::sleep(Duration::from_millis(t / 2)); 

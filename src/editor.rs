@@ -38,10 +38,10 @@ impl ScreenWidget for Editor<'_>  {
     fn update(&mut self) {
     }
 
-    fn draw(&self, frame: &mut [u8]) {
+    fn draw(&self, frame: &mut [u8], anim_counter: u32) {
         //let start = self.get_time();
 
-        self.widgets[self.curr_index as usize].draw(frame, &self.asset);
+        self.widgets[self.curr_index as usize].draw(frame, anim_counter, &self.asset);
 
         //let stop = self.get_time();
 
