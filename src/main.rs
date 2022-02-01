@@ -22,6 +22,8 @@ use crate::game::*;
 use crate::widget::*;
 use crate::editor::*;
 
+use crate::asset::*;
+
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
@@ -55,6 +57,8 @@ fn main() -> Result<(), Error> {
         Pixels::new(WIDTH, HEIGHT, surface_texture)?
     };
 
+    let mut asset = Asset::new();
+
     let game : Box<dyn ScreenWidget> = Box::new(Game::new());
     let editor : Box<dyn ScreenWidget> = Box::new(Editor::new());
 
@@ -66,7 +70,7 @@ fn main() -> Result<(), Error> {
     event_loop.run(move |event, _, control_flow| {
 
         if let Event::RedrawRequested(_) = event {
-            curr_screen.draw(pixels.get_frame(), anim_counter);
+            curr_screen.draw(pixels.get_frame(), anim_counter, &mut asset);
             if pixels
                 .render()
                 .map_err(|e| error!("pixels.render() failed: {}", e))
@@ -90,7 +94,7 @@ fn main() -> Result<(), Error> {
                 let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
                     .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                if curr_screen.mouse_down((pixel_pos.0 as u32, pixel_pos.1 as u32)) {
+                if curr_screen.mouse_down((pixel_pos.0 as u32, pixel_pos.1 as u32), &mut asset) {
                     window.request_redraw();
                 }
             }
@@ -100,7 +104,7 @@ fn main() -> Result<(), Error> {
                 let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
                     .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                if curr_screen.mouse_up((pixel_pos.0 as u32, pixel_pos.1 as u32)) {
+                if curr_screen.mouse_up((pixel_pos.0 as u32, pixel_pos.1 as u32), &mut asset) {
                     window.request_redraw();
                 }
             }
@@ -112,7 +116,7 @@ fn main() -> Result<(), Error> {
                     let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
                         .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                    if curr_screen.mouse_dragged((pixel_pos.0 as u32, pixel_pos.1 as u32)) {
+                    if curr_screen.mouse_dragged((pixel_pos.0 as u32, pixel_pos.1 as u32), &mut asset) {
                         window.request_redraw();
                     }
                 }         

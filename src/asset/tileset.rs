@@ -5,6 +5,7 @@ use std::fs::File;
 use std::path;
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 // Tile implementation
 
@@ -37,16 +38,16 @@ pub struct TileMapSettings {
 
 pub struct TileMap {
     pub pixels          : Vec<u8>,
-    pub file_name       : String,
+    pub file_path       : PathBuf,
     pub width           : u32,
     pub height          : u32,
     pub settings        : TileMapSettings,
 }
 
 impl TileMap {
-    fn new(file_name: &str) -> TileMap {
+    fn new(file_name: &PathBuf) -> TileMap {
 
-        fn load(file_name: &str) -> (Vec<u8>, u32, u32) {
+        fn load(file_name: &PathBuf) -> (Vec<u8>, u32, u32) {
 
             let decoder = png::Decoder::new(File::open(file_name).unwrap());
             let mut reader = decoder.read_info().unwrap();
@@ -62,7 +63,7 @@ impl TileMap {
 
         // Gets the content of the settings file
         let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
-        let json_path = path::Path::new("json").join( format!("{}{}", name, ".json"));
+        let json_path = path::Path::new("assets").join("json").join( format!("{}{}", name, ".json"));
         let contents = fs::read_to_string( json_path )
             .unwrap_or("".to_string());
 
@@ -72,7 +73,7 @@ impl TileMap {
 
         TileMap {
             pixels          : info.0,
-            file_name       : file_name.to_string(),
+            file_path       : file_name.to_path_buf(),
             width           : info.1,
             height          : info.2,
             settings
@@ -96,8 +97,8 @@ impl TileMap {
     /// Save the TileMapSettings to file
     pub fn save_settings(&self) {
 
-        let name = path::Path::new(&self.file_name).file_stem().unwrap().to_str().unwrap();
-        let json_path = path::Path::new("json").join( format!("{}{}", name, ".json"));
+        let name = path::Path::new(&self.file_path).file_stem().unwrap().to_str().unwrap();
+        let json_path = path::Path::new("assets").join("json").join( format!("{}{}", name, ".json"));
 
         let json = serde_json::to_string(&self.settings).unwrap();
         fs::write(json_path, json)
@@ -116,20 +117,38 @@ impl TileSet {
 
         let mut maps : HashMap<u32, TileMap> = HashMap::new();
 
-        let ts1b = TileMap::new("assets/ts1b.png");
+        let tilemaps_path = path::Path::new("assets").join("tilemaps");
+        let paths = fs::read_dir(tilemaps_path).unwrap();
 
-        maps.insert(ts1b.settings.id, ts1b);
+        for path in paths {
 
-        maps[&0].save_settings();
+            // Generate the tile map for this dir element
+            let mut tile_map = TileMap::new(&path.unwrap().path());
+
+            // Make sure we create a unique id (check if the id already exists in the set)
+            let mut has_id_already = true;
+            while has_id_already {
+
+                has_id_already = false;
+                for (key, _value) in &maps {
+                    if key == &tile_map.settings.id {
+                        has_id_already = true;
+                    }
+                }
+
+                if has_id_already {
+                    tile_map.settings.id += 1;
+                }
+            }
+
+            // Insert the tilemap
+            maps.insert(tile_map.settings.id, tile_map);
+
+            //println!("Tilemap: {}, {}", tile_map.file_path.display(), tile_map.settings.id);
+        }
 
         TileSet {
             maps
         }
     }
-
-    /*
-    pub fn set_tile(&mut self, map_id: u32, tile_id: (u32, u32), tile: Tile) {
-        let map = &mut self.maps.get_mut(&map_id).unwrap();        
-        map.set_tile(tile_id, tile);
-    }*/
 }

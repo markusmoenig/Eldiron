@@ -24,7 +24,7 @@ impl Widget for ButtonWidget {
     fn update(&mut self) {
     }
 
-    fn draw(&self, frame: &mut [u8], _anim_counter: u32, asset: &Asset) {
+    fn draw(&self, frame: &mut [u8], _anim_counter: u32, asset: &mut Asset) {
 
         asset.draw_rect(frame, &self.rect, [255, 255, 255, 255]);
 

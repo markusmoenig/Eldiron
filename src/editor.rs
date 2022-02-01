@@ -8,13 +8,12 @@ mod tilemap;
 use tilemap::TileMapEditor;
 
 /// The Editor struct
-pub struct Editor<'a> {
-    asset                   : Asset<'a>,
+pub struct Editor {
     widgets                 : Vec<Box<dyn Widget>>,
     curr_index              : u32,
 }
 
-impl ScreenWidget for Editor<'_>  {
+impl ScreenWidget for Editor {
     
     fn new() -> Self where Self: Sized {
 
@@ -28,7 +27,6 @@ impl ScreenWidget for Editor<'_>  {
         //let mut curr_screen = editor;
 
         Self {
-            asset           : Asset::new(),
             widgets,
             curr_index      : 0
         }
@@ -38,19 +36,14 @@ impl ScreenWidget for Editor<'_>  {
     fn update(&mut self) {
     }
 
-    fn draw(&self, frame: &mut [u8], anim_counter: u32) {
+    fn draw(&self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset) {
         //let start = self.get_time();
 
-        self.widgets[self.curr_index as usize].draw(frame, anim_counter, &self.asset);
+        self.widgets[self.curr_index as usize].draw(frame, anim_counter, asset);
 
         //let stop = self.get_time();
 
         //println!("{:?}", stop - start);
-    }
-
-    /// Returns the asset structure
-    fn get_asset(&self) -> &Asset {
-        &self.asset
     }
 
     /// Returns the current widgets
@@ -58,15 +51,15 @@ impl ScreenWidget for Editor<'_>  {
         &self.widgets
     }
 
-    fn mouse_down(&mut self, pos: (u32, u32)) -> bool {
-        self.widgets[self.curr_index as usize].mouse_down(pos, &mut self.asset)
+    fn mouse_down(&mut self, pos: (u32, u32), asset: &mut Asset) -> bool {
+        self.widgets[self.curr_index as usize].mouse_down(pos, asset)
     }
 
-    fn mouse_up(&mut self, pos: (u32, u32)) -> bool {
-        self.widgets[self.curr_index as usize].mouse_up(pos, &mut self.asset)
+    fn mouse_up(&mut self, pos: (u32, u32), asset: &mut Asset) -> bool {
+        self.widgets[self.curr_index as usize].mouse_up(pos, asset)
     }
 
-    fn mouse_dragged(&mut self, pos: (u32, u32)) -> bool {
-        self.widgets[self.curr_index as usize].mouse_dragged(pos, &mut self.asset)
+    fn mouse_dragged(&mut self, pos: (u32, u32), asset: &mut Asset) -> bool {
+        self.widgets[self.curr_index as usize].mouse_dragged(pos, asset)
     }
 }

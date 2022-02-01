@@ -51,7 +51,7 @@ impl Widget for TileMapEditor {
             options_grid            : OptionsGridWidget::new(vec!["Unused".to_string(), "Environment".to_string(), "EnvBlocking".to_string(), "Character".to_string(), "UtilityChar".to_string(), "Water".to_string(), "Harmful".to_string()], 
             (20 + 100 + 40, HEIGHT / 2 + 20, WIDTH - 40 - 100 - 40, 2 * UI_ELEMENT_HEIGHT + 16)),
             scale                   : 2_f32,
-            curr_map_id             : 0
+            curr_map_id             : 1
         }
     }
 
@@ -59,12 +59,12 @@ impl Widget for TileMapEditor {
     fn update(&mut self) {
     }
 
-    fn draw(&self, frame: &mut [u8], anim_counter: u32, asset: &Asset) {
+    fn draw(&self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset) {
 
         asset.draw_rect(frame, &self.get_content_rect(), [0,0,0,255]);
 
         let scale = self.scale;
-        let map = asset.get_map_of_id(0);
+        let map = asset.get_map_of_id(self.curr_map_id);
 
         let scaled_grid_size = (map.settings.grid_size as f32 * scale) as u32;
 
@@ -74,7 +74,6 @@ impl Widget for TileMapEditor {
         self.curr_map_tiles.set((x_tiles, y_tiles));
 
         let total_tiles = x_tiles * y_tiles;
-        //let total_tiles_scaled = ((total_tiles) as f32 * scale) as u32;
 
         let screen_x = WIDTH / scaled_grid_size;
         let screen_y = (self.tab_widget.get_rect().3 - UI_ELEMENT_HEIGHT) / scaled_grid_size;
@@ -114,12 +113,12 @@ impl Widget for TileMapEditor {
                 let index = anim_counter % tile.anim_tiles.len() as u32;
 
                 let p = tile.anim_tiles[index as usize];
-                asset.draw_tile(frame, &(x_step, y_step + self.tab_widget.get_rect().1), 0_u32, &(p.0, p.1), scale);
+                asset.draw_tile(frame, &(x_step, y_step + self.tab_widget.get_rect().1), self.curr_map_id, &(p.0, p.1), scale);
             } else
             if tile.usage == TileUsage::Unused {
-                asset.draw_tile_mixed(frame, &(x_step, y_step + self.tab_widget.get_rect().1), 0_u32, &(x, y), [128, 128, 128, 255], scale);
+                asset.draw_tile_mixed(frame, &(x_step, y_step + self.tab_widget.get_rect().1), self.curr_map_id, &(x, y), [128, 128, 128, 255], scale);
             } else {
-                asset.draw_tile(frame, &(x_step, y_step + self.tab_widget.get_rect().1), 0_u32, &(x, y), scale);
+                asset.draw_tile(frame, &(x_step, y_step + self.tab_widget.get_rect().1), self.curr_map_id, &(x, y), scale);
             }
 
             x_off += 1;
@@ -132,9 +131,6 @@ impl Widget for TileMapEditor {
                 }
             }
         }
-
-        // Draw the tab widget
-        self.tab_widget.draw(frame, anim_counter, asset);
 
         // Returns the selected range between the start and end selection points
         fn get_selected_range(start: Option<(u32, u32)>, end: Option<(u32, u32)>, screen_x: u32) -> Vec<(u32, u32)> {
@@ -211,9 +207,9 @@ impl Widget for TileMapEditor {
                 if tile.anim_tiles.len() > 0 {
                     let index = anim_counter % tile.anim_tiles.len() as u32;
                     let p = tile.anim_tiles[index as usize];
-                    asset.draw_tile(frame, &(20, HEIGHT / 2 + 20), 0_u32, &(p.0, p.1), 100.0 / map.settings.grid_size as f32);
+                    asset.draw_tile(frame, &(20, HEIGHT / 2 + 20), self.curr_map_id, &(p.0, p.1), 100.0 / map.settings.grid_size as f32);
                 } else {
-                    asset.draw_tile(frame, &(20, HEIGHT / 2 + 20), 0_u32, map_selected, 100.0 / map.settings.grid_size as f32);
+                    asset.draw_tile(frame, &(20, HEIGHT / 2 + 20), self.curr_map_id, map_selected, 100.0 / map.settings.grid_size as f32);
                 }
                 // Draw selection text
                 asset.draw_text_rect(frame, &(20, HEIGHT / 2 + 125, 100, UI_ELEMENT_HEIGHT), &format!("({},{})", map_selected.0, map_selected.1), self.get_color_text(), [0,0,0,255], crate::asset::TextAlignment::Center);
@@ -226,8 +222,10 @@ impl Widget for TileMapEditor {
             self.options_grid.set_state(0);
         }
 
-        // Draw the lower half
+        // Draw the tab widget
+        self.tab_widget.draw(frame, anim_counter, asset);
 
+        // Draw the lower half
         self.options_grid.draw(frame, anim_counter, asset);
         self.set_anim_button.draw(frame, anim_counter, asset);
         self.clear_anim_button.draw(frame, anim_counter, asset);
@@ -289,7 +287,7 @@ impl Widget for TileMapEditor {
                     self.screen_selected.set(Some((x, y)));
 
                     // Select the right option
-                    let map = asset.get_map_of_id(0);
+                    let map = asset.get_map_of_id(self.curr_map_id);
 
                     let map_pos = screen_to_map(map, (x,y));
 

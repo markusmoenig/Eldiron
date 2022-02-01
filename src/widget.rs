@@ -7,21 +7,20 @@ pub trait ScreenWidget {
     fn new() -> Self where Self: Sized;
 
     fn update(&mut self);
-    fn draw(&self, frame: &mut [u8], anim_counter: u32);
+    fn draw(&self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset);
 
-    fn mouse_down(&mut self, _pos: (u32, u32)) -> bool {
+    fn mouse_down(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         false 
     }
 
-    fn mouse_up(&mut self, _pos: (u32, u32)) -> bool {
+    fn mouse_up(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         false
     }
 
-    fn mouse_dragged(&mut self, _pos: (u32, u32)) -> bool {
+    fn mouse_dragged(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         false
     }
 
-    fn get_asset(&self) -> &Asset;
     fn get_widgets(&self) -> &Vec<Box<dyn Widget>>;
 
     /// Gets the current time in milliseconds
@@ -52,7 +51,7 @@ pub trait Widget {
     fn new(text: Vec<String>, rect: (u32, u32, u32, u32)) -> Self where Self: Sized;
 
     fn update(&mut self);
-    fn draw(&self, frame: &mut [u8], anim_counter: u32, asset: &Asset);
+    fn draw(&self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset);
 
     fn mouse_down(&self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         false
