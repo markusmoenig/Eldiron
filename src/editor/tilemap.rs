@@ -7,6 +7,7 @@ use crate::button::ButtonWidget;
 use crate::optionsgrid::OptionsGridWidget;
 use crate::asset::Asset;
 use crate::asset::tileset::TileUsage;
+use crate::menu::MenuWidget;
 
 use crate::asset::tileset::TileMap;
 
@@ -25,17 +26,23 @@ pub struct TileMapEditor {
     options_grid            : OptionsGridWidget,
     set_anim_button         : ButtonWidget,
     clear_anim_button       : ButtonWidget,
-
-    curr_map_id             : u32,
+    tilemap_menu            : MenuWidget,
     scale                   : f32,
 }
 
 impl Widget for TileMapEditor {
     
-    fn new(_text: Vec<String>, rect: (u32, u32, u32, u32)) -> Self where Self: Sized {
+    fn new(_text: Vec<String>, rect: (u32, u32, u32, u32), asset: &Asset) -> Self where Self: Sized {
 
-        let set_anim_button = ButtonWidget::new(vec!["Set Anim".to_string()], (20 + 100 + 40, HEIGHT / 2 + 96, 120,  UI_ELEMENT_HEIGHT));
-        let clear_anim_button = ButtonWidget::new(vec!["Clear Anim".to_string()], (20 + 100 + 40 + 120 + 8, HEIGHT / 2 + 96, 120,  UI_ELEMENT_HEIGHT));
+        let set_anim_button = ButtonWidget::new(vec!["Set Anim".to_string()], (20 + 100 + 40, HEIGHT / 2 + 96, 120,  UI_ELEMENT_HEIGHT), asset);
+        let clear_anim_button = ButtonWidget::new(vec!["Clear Anim".to_string()], (20 + 100 + 40 + 120 + 8, HEIGHT / 2 + 96, 120,  UI_ELEMENT_HEIGHT), asset);
+
+        let mut names : Vec<String> = vec![];
+        for tm in &asset.tileset.maps_names {
+            names.push(tm.to_string());
+        }
+
+        let tilemap_menu = MenuWidget::new(names, (10, 0, 120,  UI_ELEMENT_HEIGHT), asset);
 
         Self {
             rect,
@@ -45,13 +52,13 @@ impl Widget for TileMapEditor {
             screen_start            : Cell::new((0, 0)),
             curr_grid_size          : Cell::new(0),
             curr_map_tiles          : Cell::new((0,0)),
-            tab_widget              : TabWidget::new(vec!(),(0, UI_ELEMENT_HEIGHT, WIDTH, HEIGHT / 2 - UI_ELEMENT_HEIGHT)),
+            tab_widget              : TabWidget::new(vec!(),(0, UI_ELEMENT_HEIGHT, WIDTH, HEIGHT / 2 - UI_ELEMENT_HEIGHT), asset),
             set_anim_button,
             clear_anim_button,
+            tilemap_menu,
             options_grid            : OptionsGridWidget::new(vec!["Unused".to_string(), "Environment".to_string(), "EnvBlocking".to_string(), "Character".to_string(), "UtilityChar".to_string(), "Water".to_string(), "Harmful".to_string()], 
-            (20 + 100 + 40, HEIGHT / 2 + 20, WIDTH - 40 - 100 - 40, 2 * UI_ELEMENT_HEIGHT + 16)),
-            scale                   : 2_f32,
-            curr_map_id             : 1
+            (20 + 100 + 40, HEIGHT / 2 + 20, WIDTH - 40 - 100 - 40, 2 * UI_ELEMENT_HEIGHT + 16), asset),
+            scale                   : 2_f32
         }
     }
 
@@ -64,7 +71,9 @@ impl Widget for TileMapEditor {
         asset.draw_rect(frame, &self.get_content_rect(), [0,0,0,255]);
 
         let scale = self.scale;
-        let map = asset.get_map_of_id(self.curr_map_id);
+    
+        let curr_map_id = self.tilemap_menu.selected_index.get();
+        let map = asset.get_map_of_id(curr_map_id);
 
         let scaled_grid_size = (map.settings.grid_size as f32 * scale) as u32;
 
@@ -113,12 +122,12 @@ impl Widget for TileMapEditor {
                 let index = anim_counter % tile.anim_tiles.len() as u32;
 
                 let p = tile.anim_tiles[index as usize];
-                asset.draw_tile(frame, &(x_step, y_step + self.tab_widget.get_rect().1), self.curr_map_id, &(p.0, p.1), scale);
+                asset.draw_tile(frame, &(x_step, y_step + self.tab_widget.get_rect().1), curr_map_id, &(p.0, p.1), scale);
             } else
             if tile.usage == TileUsage::Unused {
-                asset.draw_tile_mixed(frame, &(x_step, y_step + self.tab_widget.get_rect().1), self.curr_map_id, &(x, y), [128, 128, 128, 255], scale);
+                asset.draw_tile_mixed(frame, &(x_step, y_step + self.tab_widget.get_rect().1), curr_map_id, &(x, y), [128, 128, 128, 255], scale);
             } else {
-                asset.draw_tile(frame, &(x_step, y_step + self.tab_widget.get_rect().1), self.curr_map_id, &(x, y), scale);
+                asset.draw_tile(frame, &(x_step, y_step + self.tab_widget.get_rect().1), curr_map_id, &(x, y), scale);
             }
 
             x_off += 1;
@@ -207,9 +216,9 @@ impl Widget for TileMapEditor {
                 if tile.anim_tiles.len() > 0 {
                     let index = anim_counter % tile.anim_tiles.len() as u32;
                     let p = tile.anim_tiles[index as usize];
-                    asset.draw_tile(frame, &(20, HEIGHT / 2 + 20), self.curr_map_id, &(p.0, p.1), 100.0 / map.settings.grid_size as f32);
+                    asset.draw_tile(frame, &(20, HEIGHT / 2 + 20), curr_map_id, &(p.0, p.1), 100.0 / map.settings.grid_size as f32);
                 } else {
-                    asset.draw_tile(frame, &(20, HEIGHT / 2 + 20), self.curr_map_id, map_selected, 100.0 / map.settings.grid_size as f32);
+                    asset.draw_tile(frame, &(20, HEIGHT / 2 + 20), curr_map_id, map_selected, 100.0 / map.settings.grid_size as f32);
                 }
                 // Draw selection text
                 asset.draw_text_rect(frame, &(20, HEIGHT / 2 + 125, 100, UI_ELEMENT_HEIGHT), &format!("({},{})", map_selected.0, map_selected.1), self.get_color_text(), [0,0,0,255], crate::asset::TextAlignment::Center);
@@ -232,12 +241,15 @@ impl Widget for TileMapEditor {
 
         // Toolbar
         asset.draw_rect(frame, &(0, 0, WIDTH, UI_ELEMENT_HEIGHT), self.get_color_background());
+        self.tilemap_menu.draw(frame, anim_counter, asset);
 
         self.curr_grid_size.set(scaled_grid_size);
     }
 
     fn mouse_down(&self, pos: (u32, u32), asset: &mut Asset) -> bool {
         let mut consumed = false;
+
+        let curr_map_id = self.tilemap_menu.selected_index.get();
 
         // Convert a screen position to the map position
         let screen_to_map = |map: &TileMap, screen_pos: (u32, u32)| -> (u32, u32) {
@@ -287,7 +299,7 @@ impl Widget for TileMapEditor {
                     self.screen_selected.set(Some((x, y)));
 
                     // Select the right option
-                    let map = asset.get_map_of_id(self.curr_map_id);
+                    let map = asset.get_map_of_id(curr_map_id);
 
                     let map_pos = screen_to_map(map, (x,y));
 
@@ -333,7 +345,7 @@ impl Widget for TileMapEditor {
                 if self.options_grid.clicked.get() == true {
                     let index = self.options_grid.selected_index.get();
 
-                    if let Some(map)= asset.tileset.maps.get_mut(&self.curr_map_id) {
+                    if let Some(map)= asset.tileset.maps.get_mut(&curr_map_id) {
 
                         let mut tile = map.get_tile(self.map_selected.get().unwrap());
 
@@ -412,7 +424,7 @@ impl Widget for TileMapEditor {
             } 
 
             let scale = self.scale;
-            if let Some(map)= asset.tileset.maps.get_mut(&self.curr_map_id) {
+            if let Some(map)= asset.tileset.maps.get_mut(&curr_map_id) {
         
                 let scaled_grid_size = (map.settings.grid_size as f32 * scale) as u32;        
                 let screen_x = WIDTH / scaled_grid_size;
@@ -457,7 +469,7 @@ impl Widget for TileMapEditor {
 
             if self.clear_anim_button.clicked.get() == true {
 
-                if let Some(map)= asset.tileset.maps.get_mut(&self.curr_map_id) {
+                if let Some(map)= asset.tileset.maps.get_mut(&curr_map_id) {
 
                     if let Some(selected) = self.screen_selected.get() {
                         let map_pos = screen_to_map(map, selected);
@@ -477,6 +489,10 @@ impl Widget for TileMapEditor {
             }
         }
 
+        // Tilemap Menu
+        if consumed == false && self.tilemap_menu.mouse_down(pos, asset) {
+        }
+
         consumed
     }
 
@@ -484,13 +500,27 @@ impl Widget for TileMapEditor {
         let mut consumed = false;
 
         if self.set_anim_button.mouse_up(pos, asset) {
-                consumed = true
-            }
+            consumed = true;
+        }
+        if self.clear_anim_button.mouse_up(pos, asset) {
+            consumed = true;
+        }      
+        if self.tilemap_menu.mouse_up(pos, asset) {
+            consumed = true;
+
+            self.screen_selected.set(None);
+            self.screen_end_selected.set(None);
+        }           
         consumed
     }
 
     /// Set the screen_end_selected point
-    fn mouse_dragged(&self, pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_dragged(&self, pos: (u32, u32), asset: &mut Asset) -> bool {
+
+        if self.tilemap_menu.mouse_dragged(pos, asset) {
+            return true
+        }
+
         if self.tab_widget.contains_pos_for(pos, self.tab_widget.get_content_rect()) {
             if let Some(selected) = self.screen_selected.get() {
                 let scaled_grid_size = self.curr_grid_size.get();

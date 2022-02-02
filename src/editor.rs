@@ -15,13 +15,13 @@ pub struct Editor {
 
 impl ScreenWidget for Editor {
     
-    fn new() -> Self where Self: Sized {
+    fn new(asset: &Asset) -> Self where Self: Sized {
 
         let mut widgets = vec!();
 
         //let text : Box<dyn Widget> = Box::new(TextWidget::new("Hallo".to_string(), (0,0, WIDTH, HEIGHT)));
 
-        let tilemap_editor : Box<dyn Widget> = Box::new(TileMapEditor::new(vec!(), (0,0, WIDTH, HEIGHT)));
+        let tilemap_editor : Box<dyn Widget> = Box::new(TileMapEditor::new(vec!(), (0,0, WIDTH, HEIGHT), asset));
         widgets.push(tilemap_editor);
 
         //let mut curr_screen = editor;

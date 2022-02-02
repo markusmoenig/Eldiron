@@ -94,6 +94,11 @@ impl TileMap {
         self.settings.tiles.insert(tile_id, tile);
     }
 
+    /// Returns the name of the tilemap
+    pub fn get_name(&self) -> String {
+        path::Path::new(&self.file_path).file_stem().unwrap().to_str().unwrap().to_string()
+    }
+
     /// Save the TileMapSettings to file
     pub fn save_settings(&self) {
 
@@ -108,8 +113,8 @@ impl TileMap {
 
 /// The TileSet struct consists of several TileMaps, each representing one atlas and it's tiles.
 pub struct TileSet {
-
     pub maps            : HashMap<u32, TileMap>,
+    pub maps_names      : Vec<String>
 }
 
 impl TileSet {
@@ -120,10 +125,13 @@ impl TileSet {
         let tilemaps_path = path::Path::new("assets").join("tilemaps");
         let paths = fs::read_dir(tilemaps_path).unwrap();
 
+        let mut maps_names : Vec<String> = vec![];
+
         for path in paths {
 
             // Generate the tile map for this dir element
             let mut tile_map = TileMap::new(&path.unwrap().path());
+            maps_names.push(tile_map.get_name());
 
             // Make sure we create a unique id (check if the id already exists in the set)
             let mut has_id_already = true;
@@ -148,7 +156,8 @@ impl TileSet {
         }
 
         TileSet {
-            maps
+            maps,
+            maps_names,
         }
     }
 }

@@ -4,7 +4,7 @@ use crate::asset::Asset;
 
 pub trait ScreenWidget {
 
-    fn new() -> Self where Self: Sized;
+    fn new(asset: &Asset) -> Self where Self: Sized;
 
     fn update(&mut self);
     fn draw(&self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset);
@@ -36,6 +36,7 @@ pub trait ScreenWidget {
 pub mod button;
 pub mod tab;
 pub mod optionsgrid;
+pub mod menu;
 
 /// The widget state
 
@@ -48,7 +49,7 @@ pub mod optionsgrid;
 
 pub trait Widget {
 
-    fn new(text: Vec<String>, rect: (u32, u32, u32, u32)) -> Self where Self: Sized;
+    fn new(text: Vec<String>, rect: (u32, u32, u32, u32), asset: &Asset) -> Self where Self: Sized;
 
     fn update(&mut self);
     fn draw(&self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset);

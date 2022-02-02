@@ -11,7 +11,7 @@ pub struct ButtonWidget {
 
 impl Widget for ButtonWidget {
     
-    fn new(text: Vec<String>, rect: (u32, u32, u32, u32)) -> Self where Self: Sized {
+    fn new(text: Vec<String>, rect: (u32, u32, u32, u32), _asset: &Asset) -> Self where Self: Sized {
         Self {
             rect,
             text,
