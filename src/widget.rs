@@ -37,6 +37,7 @@ pub mod button;
 pub mod tab;
 pub mod optionsgrid;
 pub mod menu;
+pub mod intslider;
 
 /// The widget state
 

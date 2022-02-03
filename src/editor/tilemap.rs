@@ -8,6 +8,7 @@ use crate::optionsgrid::OptionsGridWidget;
 use crate::asset::Asset;
 use crate::asset::tileset::TileUsage;
 use crate::menu::MenuWidget;
+use crate::intslider::IntSliderWidget;
 
 use crate::asset::tileset::TileMap;
 
@@ -27,6 +28,7 @@ pub struct TileMapEditor {
     set_anim_button         : ButtonWidget,
     clear_anim_button       : ButtonWidget,
     tilemap_menu            : MenuWidget,
+    scale_button            : IntSliderWidget,
     scale                   : f32,
 }
 
@@ -37,12 +39,14 @@ impl Widget for TileMapEditor {
         let set_anim_button = ButtonWidget::new(vec!["Set Anim".to_string()], (20 + 100 + 40, HEIGHT / 2 + 96, 120,  UI_ELEMENT_HEIGHT), asset);
         let clear_anim_button = ButtonWidget::new(vec!["Clear Anim".to_string()], (20 + 100 + 40 + 120 + 8, HEIGHT / 2 + 96, 120,  UI_ELEMENT_HEIGHT), asset);
 
+        let scale_button = IntSliderWidget::new(vec!["Scale".to_string()], (WIDTH - 240 - 20, 0, 120,  UI_ELEMENT_HEIGHT), asset);
+
         let mut names : Vec<String> = vec![];
         for tm in &asset.tileset.maps_names {
             names.push(tm.to_string());
         }
 
-        let tilemap_menu = MenuWidget::new(names, (10, 0, 120,  UI_ELEMENT_HEIGHT), asset);
+        let tilemap_menu = MenuWidget::new(names, (WIDTH - 120 - 10, 0, 120,  UI_ELEMENT_HEIGHT), asset);
 
         Self {
             rect,
@@ -56,6 +60,7 @@ impl Widget for TileMapEditor {
             set_anim_button,
             clear_anim_button,
             tilemap_menu,
+            scale_button,
             options_grid            : OptionsGridWidget::new(vec!["Unused".to_string(), "Environment".to_string(), "EnvBlocking".to_string(), "Character".to_string(), "UtilityChar".to_string(), "Water".to_string(), "Harmful".to_string()], 
             (20 + 100 + 40, HEIGHT / 2 + 20, WIDTH - 40 - 100 - 40, 2 * UI_ELEMENT_HEIGHT + 16), asset),
             scale                   : 2_f32
@@ -67,8 +72,6 @@ impl Widget for TileMapEditor {
     }
 
     fn draw(&self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset) {
-
-        asset.draw_rect(frame, &self.get_content_rect(), [0,0,0,255]);
 
         let scale = self.scale;
     
@@ -240,8 +243,8 @@ impl Widget for TileMapEditor {
         self.clear_anim_button.draw(frame, anim_counter, asset);
 
         // Toolbar
-        asset.draw_rect(frame, &(0, 0, WIDTH, UI_ELEMENT_HEIGHT), self.get_color_background());
         self.tilemap_menu.draw(frame, anim_counter, asset);
+        self.scale_button.draw(frame, anim_counter, asset);
 
         self.curr_grid_size.set(scaled_grid_size);
     }
@@ -491,6 +494,7 @@ impl Widget for TileMapEditor {
 
         // Tilemap Menu
         if consumed == false && self.tilemap_menu.mouse_down(pos, asset) {
+            consumed = true
         }
 
         consumed

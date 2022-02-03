@@ -37,12 +37,7 @@ impl Widget for MenuWidget {
         } else {
             asset.draw_text_rect(frame, &self.rect, self.text[self.selected_index.get() as usize].as_str(), self.get_color_text(), self.get_color_background(), crate::asset::TextAlignment::Center);
         } 
-        /* 
-        else
-        if state == 2 {
-            asset.draw_text_rect(frame, &self.rect, self.text[0].as_str(), self.get_color_text(), self.get_color_selection_blue(), crate::asset::TextAlignment::Center);
-        }   */
-        
+
         // Is open
         if state == 2 {
 
@@ -57,6 +52,8 @@ impl Widget for MenuWidget {
                 } else {
                     asset.draw_text_rect(frame, &r, text.as_str(), self.get_color_text(), self.get_color_background(), crate::asset::TextAlignment::Center);
                 }
+
+                //asset.draw_rect_outline(frame, &r, self.get_color_text_disabled());
 
                 r.1 += UI_ELEMENT_HEIGHT;
             }
