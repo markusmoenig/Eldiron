@@ -29,7 +29,7 @@ pub struct TileMapEditor {
     clear_anim_button       : ButtonWidget,
     tilemap_menu            : MenuWidget,
     scale_button            : IntSliderWidget,
-    scale                   : f32,
+    scale                   : Cell<f32>,
 }
 
 impl Widget for TileMapEditor {
@@ -40,6 +40,8 @@ impl Widget for TileMapEditor {
         let clear_anim_button = ButtonWidget::new(vec!["Clear Anim".to_string()], (20 + 100 + 40 + 120 + 8, HEIGHT / 2 + 96, 120,  UI_ELEMENT_HEIGHT), asset);
 
         let scale_button = IntSliderWidget::new(vec!["Scale".to_string()], (WIDTH - 240 - 20, 0, 120,  UI_ELEMENT_HEIGHT), asset);
+        scale_button.set_range((1.0, 4.0));
+        scale_button.set_value(2.0);
 
         let mut names : Vec<String> = vec![];
         for tm in &asset.tileset.maps_names {
@@ -63,7 +65,7 @@ impl Widget for TileMapEditor {
             scale_button,
             options_grid            : OptionsGridWidget::new(vec!["Unused".to_string(), "Environment".to_string(), "EnvBlocking".to_string(), "Character".to_string(), "UtilityChar".to_string(), "Water".to_string(), "Harmful".to_string()], 
             (20 + 100 + 40, HEIGHT / 2 + 20, WIDTH - 40 - 100 - 40, 2 * UI_ELEMENT_HEIGHT + 16), asset),
-            scale                   : 2_f32
+            scale                   : Cell::new(2_f32)
         }
     }
 
@@ -73,7 +75,7 @@ impl Widget for TileMapEditor {
 
     fn draw(&self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset) {
 
-        let scale = self.scale;
+        let scale = self.scale.get();
     
         let curr_map_id = self.tilemap_menu.selected_index.get();
         let map = asset.get_map_of_id(curr_map_id);
@@ -256,7 +258,7 @@ impl Widget for TileMapEditor {
 
         // Convert a screen position to the map position
         let screen_to_map = |map: &TileMap, screen_pos: (u32, u32)| -> (u32, u32) {
-            let scale = self.scale;
+            let scale = self.scale.get();
             let scaled_grid_size = (map.settings.grid_size as f32 * scale) as u32;        
             let screen_x = WIDTH / scaled_grid_size;
 
@@ -426,7 +428,7 @@ impl Widget for TileMapEditor {
                 v
             } 
 
-            let scale = self.scale;
+            let scale = self.scale.get();
             if let Some(map)= asset.tileset.maps.get_mut(&curr_map_id) {
         
                 let scaled_grid_size = (map.settings.grid_size as f32 * scale) as u32;        
@@ -497,6 +499,11 @@ impl Widget for TileMapEditor {
             consumed = true
         }
 
+        if consumed == false && self.scale_button.mouse_down(pos, asset) {
+            self.scale.set(self.scale_button.value.get() as f32);
+            consumed = true
+        }
+
         consumed
     }
 
@@ -523,6 +530,11 @@ impl Widget for TileMapEditor {
 
         if self.tilemap_menu.mouse_dragged(pos, asset) {
             return true
+        }
+
+        if self.scale_button.mouse_down(pos, asset) {
+            self.scale.set(self.scale_button.value.get() as f32);
+            return true;
         }
 
         if self.tab_widget.contains_pos_for(pos, self.tab_widget.get_content_rect()) {

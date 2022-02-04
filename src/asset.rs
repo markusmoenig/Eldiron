@@ -81,6 +81,18 @@ impl Asset<'_>  {
         }
     }
 
+    /// Draws a rect with a text blended with the background
+    pub fn draw_text_rect_blend(&self, frame: &mut [u8], rect: &(u32, u32, u32, u32), text: &str, color: [u8; 4], align: TextAlignment) {
+        if align == TextAlignment::Left {
+            self.draw_text_blend(frame, &(rect.0 + UI_ELEMENT_MARGIN, rect.1 + UI_ELEMENT_MARGIN), text, color);
+        } else
+        if align == TextAlignment::Center {
+            let size = self.get_text_size(text);
+            let left_center =  rect.0 + (rect.2 - size.0) / 2;
+            self.draw_text_blend(frame, &(left_center, rect.1 + UI_ELEMENT_MARGIN), text, color);
+        }
+    }
+
     /// Draws the given tile
     pub fn draw_tile(&self,  frame: &mut [u8], pos: &(u32, u32), tilemap_id: u32, grid_pos: &(u32, u32), scale: f32) {
         let map = self.get_map_of_id(tilemap_id);
@@ -163,6 +175,33 @@ impl Asset<'_>  {
                 glyph.draw(|x, y, v| {
                     let d = ((x + bounding_box.min.x as u32) as usize + pos.0 as usize) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1 as usize) * (WIDTH as usize) * 4;
                     if v > 0.0 {
+                        frame[d..d + 4].copy_from_slice(&self.mix(&background, &color, v));
+                    }
+                });
+            }
+        }
+    }
+
+    /// Draws the given text
+    pub fn draw_text_blend(&self,  frame: &mut [u8], pos: &(u32, u32), text: &str, color: [u8; 4]) {
+
+        let def = self.get_default_font();
+
+        let font = def.0;
+        let scale = Scale::uniform(def.1);
+
+        let v_metrics = font.v_metrics(scale);
+
+        let glyphs: Vec<_> = font
+            .layout( text, scale, point(0.0, 0.0 + v_metrics.ascent))
+            .collect();
+
+        for glyph in glyphs {
+            if let Some(bounding_box) = glyph.pixel_bounding_box() {
+                glyph.draw(|x, y, v| {
+                    let d = ((x + bounding_box.min.x as u32) as usize + pos.0 as usize) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1 as usize) * (WIDTH as usize) * 4;
+                    if v > 0.0 {
+                        let background = &[frame[d], frame[d+1], frame[d+2], frame[d]+3];
                         frame[d..d + 4].copy_from_slice(&self.mix(&background, &color, v));
                     }
                 });

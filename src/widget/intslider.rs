@@ -7,6 +7,7 @@ pub struct IntSliderWidget {
     text            : Vec<String>,
     state           : Cell<u32>,
     pub value       : Cell<i32>,
+    range           : Cell<(i32, i32)>
 }
 
 impl Widget for IntSliderWidget {
@@ -16,7 +17,8 @@ impl Widget for IntSliderWidget {
             rect,
             text,
             state               : Cell::new(1),
-            value               : Cell::new(0)
+            value               : Cell::new(0),
+            range               : Cell::new((1, 4))
         }
     }
 
@@ -26,26 +28,50 @@ impl Widget for IntSliderWidget {
 
     fn draw(&self, frame: &mut [u8], _anim_counter: u32, asset: &mut Asset) {
 
-        asset.draw_rect(frame, &self.rect, [255, 255, 255, 255]);
+        asset.draw_rect(frame, &self.rect, self.get_color_selection());
+
+        let width = (self.rect.2 as i32 / self.range.get().1) * self.value.get();
+
+        asset.draw_rect(frame, &(self.rect.0, self.rect.1, width as u32, self.rect.3), self.get_color_selection_blue());
 
         let text = format!("{}: {}", self.text[0], self.value.get());
-
         let state = self.state.get();
 
         if state == 0 {
-            asset.draw_text_rect(frame, &self.rect, &text.to_string(), self.get_color_text_disabled(), self.get_color_background(), crate::asset::TextAlignment::Center);
-        } else 
-        if state == 1 {
-            asset.draw_text_rect(frame, &self.rect, &text.to_string(), self.get_color_text(), self.get_color_background(), crate::asset::TextAlignment::Center);
+            asset.draw_text_rect_blend(frame, &self.rect, &text.to_string(), self.get_color_text_disabled(), crate::asset::TextAlignment::Center);
         } else
-        if state == 2 {
-            asset.draw_text_rect(frame, &self.rect, &text.to_string(), self.get_color_text(), self.get_color_selection_blue(), crate::asset::TextAlignment::Center);
-        }        
+        if state == 1 {
+            asset.draw_text_rect_blend(frame, &self.rect, &text.to_string(), self.get_color_text(), crate::asset::TextAlignment::Center);
+        } 
     }
 
     fn mouse_down(&self, pos: (u32, u32), _asset: &mut Asset) -> bool {
         if self.contains_pos(pos) {
-            self.state.set(2);
+            //self.state.set(2);
+
+            let step = self.rect.2 as i32 / self.range.get().1;
+            let v = self.range.get().0 + (pos.0 as i32 - self.rect.0 as i32 ) / step;
+
+            println!("value {}", v);
+
+            self.value.set(v);
+
+            return true;
+        }
+        false
+    }
+
+    fn mouse_dragged(&self, pos: (u32, u32), _asset: &mut Asset) -> bool {
+        if self.contains_pos(pos) {
+            //self.state.set(2);
+
+            let step = self.rect.2 as i32 / self.range.get().1;
+            let v = self.range.get().0 + (pos.0 as i32 - self.rect.0 as i32 ) / step;
+
+            println!("value {}", v);
+
+            self.value.set(v);
+
             return true;
         }
         false
@@ -64,6 +90,14 @@ impl Widget for IntSliderWidget {
             return;
         }
         self.state.set(state);
+    }
+
+    fn set_range(&self, range: (f32, f32)) {
+        self.range.set((range.0 as i32, range.1 as i32));
+    }
+
+    fn set_value(&self, value: f32) {
+        self.value.set(value as i32);
     }
 
     fn get_rect(&self) -> &(u32, u32, u32, u32) {

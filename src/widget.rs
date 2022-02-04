@@ -113,6 +113,13 @@ pub trait Widget {
         (0,0,0,0)
     }
 
+    // Sliders
+    fn set_range(&self, _range: (f32, f32)) {
+    }
+
+    fn set_value(&self, _value: f32) {
+    }
+
     // TileMapWidget
     // fn get_selected_range(start: Option<(u32, u32)>, end: Option<(u32, u32)>) -> Vec<(u32, u32)> {
     //     vec![]
