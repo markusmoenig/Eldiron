@@ -106,7 +106,7 @@ impl Widget for TileMapEditor {
 
         let offset = page * tiles_per_page;
 
-        self.screen_start.set((offset % x_tiles, offset / screen_x));
+        self.screen_start.set((offset % screen_x, offset / screen_x));
 
         // Draw the tiles of the current page
         for tile in 0..tiles_per_page {
