@@ -38,6 +38,7 @@ pub mod tab;
 pub mod optionsgrid;
 pub mod menu;
 pub mod intslider;
+pub mod tileselector;
 
 /// The widget state
 

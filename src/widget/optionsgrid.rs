@@ -17,7 +17,7 @@ impl Widget for OptionsGridWidget {
         Self {
             rect,
             text,
-            state               : Cell::new(0),
+            state               : Cell::new(1),
             clicked             : Cell::new(false),
             spacing             : 8,
             selected_index      : Cell::new(0)

@@ -95,8 +95,6 @@ impl Widget for TileMapEditor {
         let tiles_per_page = screen_x * screen_y;
         let pages = max( (total_tiles as f32 / tiles_per_page as f32).ceil() as u32, 1);
 
-        //println!("{}", pages);
-
         self.tab_widget.set_pagination(pages);
 
         let page = self.tab_widget.curr_page.get();
@@ -256,7 +254,6 @@ impl Widget for TileMapEditor {
             // Returns the selected range between the start and end selection points
             fn get_selected_range(start: Option<(u32, u32)>, end: Option<(u32, u32)>, screen_x: u32) -> Vec<(u32, u32)> {
                 let mut v = Vec::<(u32, u32)>::new();
-                //println!("get_selected_range {:?} {:?}", start, end );
 
                 if let Some(s) = start {
         
@@ -487,9 +484,6 @@ impl Widget for TileMapEditor {
 
                     if let Some(selected) = self.screen_selected.get() {
                         let map_pos = screen_to_map(map, selected);
-
-                        //println!("clear {:?}", map_pos);
-
                         let mut tile = map.get_tile(map_pos);
 
                         tile.anim_tiles = vec![];
@@ -557,14 +551,14 @@ impl Widget for TileMapEditor {
                 let tile_offset = x + y * screen_tiles_x;
                 
                 let map_tiles = self.curr_map_tiles.get();
-
                 let total_tiles = map_tiles.0 * map_tiles.1;
 
                 if tile_offset < total_tiles {
                     if y > selected.1 || (selected.1 == y && x > selected.0) {
-
                         self.screen_end_selected.set(Some((x, y)));
                         return true;
+                    } else {
+                        self.screen_end_selected.set(None);
                     }
                 }
             }
