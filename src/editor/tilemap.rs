@@ -252,6 +252,47 @@ impl Widget for TileMapEditor {
     }
 
     fn mouse_down(&self, pos: (u32, u32), asset: &mut Asset) -> bool {
+
+            // Returns the selected range between the start and end selection points
+            fn get_selected_range(start: Option<(u32, u32)>, end: Option<(u32, u32)>, screen_x: u32) -> Vec<(u32, u32)> {
+                let mut v = Vec::<(u32, u32)>::new();
+                //println!("get_selected_range {:?} {:?}", start, end );
+
+                if let Some(s) = start {
+        
+                    if let Some(e) = end {
+        
+                        let mut smaller = s;
+                        let mut bigger = e;
+        
+                        if smaller.1 > bigger.1 || (smaller.1 == bigger.1 && smaller.0 > bigger.0) {
+                            let t = smaller;
+                            smaller = bigger;
+                            bigger = t;
+                        }
+
+                        // Iterate between the two selection points
+                        loop {
+                            v.push(smaller);
+                            if smaller.0 == bigger.0 && smaller.1 == bigger.1 {
+                                break;
+                            }
+
+                            smaller.0 += 1;
+
+                            if smaller.0 >= screen_x {
+                                smaller.0 = 0;
+                                smaller.1 += 1;
+                            }
+                        }
+        
+                    } else {
+                        v.push(s);
+                    }
+                }
+                v
+            } 
+
         let mut consumed = false;
 
         let curr_map_id = self.tilemap_menu.selected_index.get();
@@ -352,31 +393,41 @@ impl Widget for TileMapEditor {
 
                     if let Some(map)= asset.tileset.maps.get_mut(&curr_map_id) {
 
-                        let mut tile = map.get_tile(self.map_selected.get().unwrap());
+                        let scale = self.scale.get();                    
+                        let scaled_grid_size = (map.settings.grid_size as f32 * scale) as u32;        
+                        let screen_x = WIDTH / scaled_grid_size;
 
-                        if index == 0 {
-                            tile.usage = TileUsage::Unused;
-                        } else
-                        if index == 1 {
-                            tile.usage = TileUsage::Environment;
-                        } else
-                        if index == 2 {
-                            tile.usage = TileUsage::EnvBlocking;
-                        } else
-                        if index == 3 {
-                            tile.usage = TileUsage::Character;
-                        } else
-                        if index == 4 {
-                            tile.usage = TileUsage::UtilityChar;
-                        }  else
-                        if index == 5 {
-                            tile.usage = TileUsage::Water;
-                        }  else 
-                        if index == 6 {
-                            tile.usage = TileUsage::Harmful;
-                        }                                                                                                                
+                        let range = get_selected_range(self.screen_selected.get(), self.screen_end_selected.get(), screen_x);
 
-                        map.set_tile(self.map_selected.get().unwrap(), tile);
+                        for s in range {
+                            let map_pos = screen_to_map(map, s);
+
+                            let mut tile = map.get_tile(map_pos);
+
+                            if index == 0 {
+                                tile.usage = TileUsage::Unused;
+                            } else
+                            if index == 1 {
+                                tile.usage = TileUsage::Environment;
+                            } else
+                            if index == 2 {
+                                tile.usage = TileUsage::EnvBlocking;
+                            } else
+                            if index == 3 {
+                                tile.usage = TileUsage::Character;
+                            } else
+                            if index == 4 {
+                                tile.usage = TileUsage::UtilityChar;
+                            }  else
+                            if index == 5 {
+                                tile.usage = TileUsage::Water;
+                            }  else 
+                            if index == 6 {
+                                tile.usage = TileUsage::Harmful;
+                            }                                                                                                                
+
+                            map.set_tile(map_pos, tile);
+                        }
                         map.save_settings();
                     }
                     self.options_grid.clicked.set(false);
@@ -388,49 +439,9 @@ impl Widget for TileMapEditor {
         if consumed == false && self.set_anim_button.mouse_down(pos, asset) {
             consumed =true;
 
-            // Returns the selected range between the start and end selection points
-            fn get_selected_range(start: Option<(u32, u32)>, end: Option<(u32, u32)>, screen_x: u32) -> Vec<(u32, u32)> {
-                let mut v = Vec::<(u32, u32)>::new();
-                //println!("get_selected_range {:?} {:?}", start, end );
-
-                if let Some(s) = start {
-        
-                    if let Some(e) = end {
-        
-                        let mut smaller = s;
-                        let mut bigger = e;
-        
-                        if smaller.1 > bigger.1 || (smaller.1 == bigger.1 && smaller.0 > bigger.0) {
-                            let t = smaller;
-                            smaller = bigger;
-                            bigger = t;
-                        }
-
-                        // Iterate between the two selection points
-                        loop {
-                            v.push(smaller);
-                            if smaller.0 == bigger.0 && smaller.1 == bigger.1 {
-                                break;
-                            }
-
-                            smaller.0 += 1;
-
-                            if smaller.0 >= screen_x {
-                                smaller.0 = 0;
-                                smaller.1 += 1;
-                            }
-                        }
-        
-                    } else {
-                        v.push(s);
-                    }
-                }
-                v
-            } 
-
-            let scale = self.scale.get();
             if let Some(map)= asset.tileset.maps.get_mut(&curr_map_id) {
         
+                let scale = self.scale.get();
                 let scaled_grid_size = (map.settings.grid_size as f32 * scale) as u32;        
                 let screen_x = WIDTH / scaled_grid_size;
 
@@ -439,8 +450,6 @@ impl Widget for TileMapEditor {
         
                         let start = screen_to_map(map, screen_start);
                         let range = get_selected_range(self.screen_selected.get(), self.screen_end_selected.get(), screen_x);
-
-                        //println!("rr {:?}", start);
 
                         if range.len() > 1 {
 

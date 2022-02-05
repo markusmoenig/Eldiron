@@ -52,7 +52,7 @@ impl Widget for IntSliderWidget {
             let step = self.rect.2 as i32 / self.range.get().1;
             let v = self.range.get().0 + (pos.0 as i32 - self.rect.0 as i32 ) / step;
 
-            println!("value {}", v);
+            //println!("value {}", v);
 
             self.value.set(v);
 

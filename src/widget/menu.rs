@@ -46,16 +46,15 @@ impl Widget for MenuWidget {
             r.1 += UI_ELEMENT_HEIGHT;
 
             for (index, text) in self.text.iter().enumerate() {
-
+                
                 if index as u32 == self.selected_index.get() {
                     asset.draw_text_rect(frame, &r, text.as_str(), self.get_color_text(), self.get_color_selection(), crate::asset::TextAlignment::Center);
                 } else {
                     asset.draw_text_rect(frame, &r, text.as_str(), self.get_color_text(), self.get_color_background(), crate::asset::TextAlignment::Center);
                 }
+                asset.draw_rect_outline(frame, &r, self.get_color_text_disabled());
 
-                //asset.draw_rect_outline(frame, &r, self.get_color_text_disabled());
-
-                r.1 += UI_ELEMENT_HEIGHT;
+                r.1 += UI_ELEMENT_HEIGHT - 1;
             }
         }
     }
@@ -79,7 +78,6 @@ impl Widget for MenuWidget {
 
     fn mouse_dragged(&self, pos: (u32, u32), _asset: &mut Asset) -> bool {
         if self.state.get() == 2 {
-
             if pos.1 > self.rect.1 + UI_ELEMENT_HEIGHT {
                 let y = pos.1 - self.rect.1 - UI_ELEMENT_HEIGHT;
 

@@ -54,7 +54,7 @@ impl Asset<'_>  {
             let mut i = x as usize * 4 + y as usize * (WIDTH as usize) * 4;
             frame[i..i + 4].copy_from_slice(&color);
 
-            i = x as usize * 4 + (y + rect.2 - 1) as usize * (WIDTH as usize) * 4;
+            i = x as usize * 4 + (y + rect.3- 1) as usize * (WIDTH as usize) * 4;
             frame[i..i + 4].copy_from_slice(&color);
         }
 
