@@ -3,18 +3,18 @@
 use crate::widget::*;
 use crate::Asset;
 
-use crate::tileselector::TileSetWidget;
+use crate::tileselector::TileSelectorWidget;
 
 pub struct WorldEditor {
     rect                    : (u32, u32, u32, u32),
-    tileselector_widget     : TileSetWidget
+    tileselector_widget     : TileSelectorWidget
 }
 
 impl Widget for WorldEditor {
     
     fn new(_text: Vec<String>, rect: (u32, u32, u32, u32), asset: &Asset) -> Self where Self: Sized {
 
-        let tileselector_widget = TileSetWidget::new(vec![], (rect.0, rect.1 + rect.3 - rect.3 / 3, rect.2, rect.3 / 3), asset);
+        let tileselector_widget = TileSelectorWidget::new(vec![], (rect.0, rect.1 + rect.3 - rect.3 / 3, rect.2, rect.3 / 3), asset);
 
         Self {
             rect,

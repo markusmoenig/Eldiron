@@ -175,4 +175,13 @@ impl TileSet {
             maps_names,
         }
     }
+
+    /*
+    /// Returns the tile of the given map id
+    pub fn get_tile(&self, map_id: (u32, u32, u32)) -> Option<Tile> {
+        if let Some(map) = self.maps.get(&map_id.0) {
+            return Some(map.get_tile((map_id.1, map_id.2)));
+        }
+        None
+    }*/
 }
