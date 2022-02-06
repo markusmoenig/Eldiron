@@ -26,11 +26,11 @@ impl Widget for WorldEditor {
     fn update(&mut self) {
     }
 
-    fn draw(&self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset) {
+    fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset) {
         self.tileselector_widget.draw(frame, anim_counter, asset);
     }
 
-    fn mouse_down(&self, pos: (u32, u32), asset: &mut Asset) -> bool {
+    fn mouse_down(&mut self, pos: (u32, u32), asset: &mut Asset) -> bool {
         let mut consumed = false;
         if self.tileselector_widget.mouse_down(pos, asset) {
             consumed = true;
@@ -38,7 +38,7 @@ impl Widget for WorldEditor {
         consumed
     }
 
-    fn mouse_up(&self, pos: (u32, u32), asset: &mut Asset) -> bool {
+    fn mouse_up(&mut self, pos: (u32, u32), asset: &mut Asset) -> bool {
         let mut consumed = false;
         if self.tileselector_widget.mouse_up(pos, asset) {
             consumed = true;
@@ -47,7 +47,7 @@ impl Widget for WorldEditor {
     }
 
     /// Set the screen_end_selected point
-    fn mouse_dragged(&self, pos: (u32, u32), asset: &mut Asset) -> bool {
+    fn mouse_dragged(&mut self, pos: (u32, u32), asset: &mut Asset) -> bool {
         let mut consumed = false;
         if self.tileselector_widget.mouse_dragged(pos, asset) {
             consumed = true;

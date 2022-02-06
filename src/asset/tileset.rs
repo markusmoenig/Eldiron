@@ -109,6 +109,16 @@ impl TileMap {
         fs::write(json_path, json)
            .expect("Unable to write file");
     }
+
+    /// Returns the amount of tiles for this tilemap
+    pub fn max_tiles(&self) -> u32 {
+        (self.width / self.settings.grid_size) * (self.height / self.settings.grid_size)
+    }
+
+    /// Returns the amount of tiles for this tilemap
+    pub fn offset_to_id(&self, offset: u32) -> (u32, u32) {
+        (offset % (self.width / self.settings.grid_size), offset / (self.width / self.settings.grid_size))
+    }
 }
 
 /// The TileSet struct consists of several TileMaps, each representing one atlas and it's tiles.
@@ -147,6 +157,11 @@ impl TileSet {
                 if has_id_already {
                     tile_map.settings.id += 1;
                 }
+            }
+
+            // If the tilemap has no tiles we assume it's new and we save the settings
+            if tile_map.settings.tiles.len() == 0 {
+                tile_map.save_settings();
             }
 
             // Insert the tilemap

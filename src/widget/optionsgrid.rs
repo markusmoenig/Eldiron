@@ -8,7 +8,7 @@ pub struct OptionsGridWidget {
     state               : Cell<u32>,
     pub clicked         : Cell<bool>,
     spacing             : u32,
-    pub selected_index  : Cell<u32>
+    pub selected_index  : u32
 }
 
 impl Widget for OptionsGridWidget {
@@ -20,7 +20,7 @@ impl Widget for OptionsGridWidget {
             state               : Cell::new(1),
             clicked             : Cell::new(false),
             spacing             : 8,
-            selected_index      : Cell::new(0)
+            selected_index      : 0
         }
     }
 
@@ -28,12 +28,12 @@ impl Widget for OptionsGridWidget {
     fn update(&mut self) {
     }
 
-    fn draw(&self, frame: &mut [u8], _anim_counter: u32, asset: &mut Asset) {
+    fn draw(&mut self, frame: &mut [u8], _anim_counter: u32, asset: &mut Asset) {
 
         let mut x = self.rect.0;
         let mut y = self.rect.1;
 
-        let index = self.selected_index.get();
+        let index = self.selected_index;
 
         for (i, text) in self.text.iter().enumerate() {
 
@@ -84,7 +84,7 @@ impl Widget for OptionsGridWidget {
         */
     }
 
-    fn mouse_down(&self, pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_down(&mut self, pos: (u32, u32), _asset: &mut Asset) -> bool {
 
         if self.state.get() == 0 {
             return false;
@@ -98,7 +98,7 @@ impl Widget for OptionsGridWidget {
             for (i, _text) in self.text.iter().enumerate() {
 
                 if self.contains_pos_for(pos, (x, y, 120, UI_ELEMENT_HEIGHT)) {
-                    self.selected_index.set(i as u32);
+                    self.selected_index = i as u32;
                     self.clicked.set(true);
                     return true;
                 }
@@ -114,7 +114,7 @@ impl Widget for OptionsGridWidget {
         false
     }
 
-    fn mouse_up(&self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_up(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         if self.state.get() == 2 {
             self.state.set(1);
             return true;

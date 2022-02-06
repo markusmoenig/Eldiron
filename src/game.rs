@@ -27,7 +27,7 @@ impl ScreenWidget for Game  {
     }
     
     /// Assumes the default texture format: `wgpu::TextureFormat::Rgba8UnormSrgb`
-    fn draw(&self, _frame: &mut [u8], _anim_counter: u32, _asset: &mut Asset) {
+    fn draw(&mut self, _frame: &mut [u8], _anim_counter: u32, _asset: &mut Asset) {
 
         // Draw the current window
         match self.window {

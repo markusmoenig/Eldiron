@@ -48,7 +48,7 @@ impl ScreenWidget for Editor {
     fn update(&mut self) {
     }
 
-    fn draw(&self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset) {
+    fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset) {
         //let start = self.get_time();
 
         asset.draw_rect(frame, &self.rect, [0,0,0,255]);

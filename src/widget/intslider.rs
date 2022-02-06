@@ -26,7 +26,7 @@ impl Widget for IntSliderWidget {
     fn update(&mut self) {
     }
 
-    fn draw(&self, frame: &mut [u8], _anim_counter: u32, asset: &mut Asset) {
+    fn draw(&mut self, frame: &mut [u8], _anim_counter: u32, asset: &mut Asset) {
 
         asset.draw_rect(frame, &self.rect, self.get_color_selection());
 
@@ -45,7 +45,7 @@ impl Widget for IntSliderWidget {
         } 
     }
 
-    fn mouse_down(&self, pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_down(&mut self, pos: (u32, u32), _asset: &mut Asset) -> bool {
         if self.contains_pos(pos) {
             //self.state.set(2);
 
@@ -61,7 +61,7 @@ impl Widget for IntSliderWidget {
         false
     }
 
-    fn mouse_dragged(&self, pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_dragged(&mut self, pos: (u32, u32), _asset: &mut Asset) -> bool {
         if self.contains_pos(pos) {
             //self.state.set(2);
 
@@ -77,7 +77,7 @@ impl Widget for IntSliderWidget {
         false
     }
 
-    fn mouse_up(&self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_up(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         if self.state.get() == 2 {
             self.state.set(1);
             return true;

@@ -7,7 +7,7 @@ pub trait ScreenWidget {
     fn new(asset: &Asset) -> Self where Self: Sized;
 
     fn update(&mut self);
-    fn draw(&self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset);
+    fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset);
 
     fn mouse_down(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         false 
@@ -54,17 +54,17 @@ pub trait Widget {
     fn new(text: Vec<String>, rect: (u32, u32, u32, u32), asset: &Asset) -> Self where Self: Sized;
 
     fn update(&mut self);
-    fn draw(&self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset);
+    fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset);
 
-    fn mouse_down(&self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_down(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         false
     }
 
-    fn mouse_up(&self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_up(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         false
     }
 
-    fn mouse_dragged(&self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_dragged(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         false
     }
 

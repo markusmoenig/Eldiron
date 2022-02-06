@@ -28,7 +28,7 @@ impl Widget for TabWidget {
     fn update(&mut self) {
     }
 
-    fn draw(&self, frame: &mut [u8], _anim_counter: u32, asset: &mut Asset) {
+    fn draw(&mut self, frame: &mut [u8], _anim_counter: u32, asset: &mut Asset) {
         //if self.pages.get() > 1 {
             self.content_rect.set((self.rect.0, self.rect.1, self.rect.2, self.rect.3 - asset.get_text_element_height()));
 
@@ -53,7 +53,7 @@ impl Widget for TabWidget {
         (self.rect.0 + page_width * page, self.rect.1 + self.rect.3 - UI_ELEMENT_HEIGHT, page_width, UI_ELEMENT_HEIGHT)
     }
 
-    fn mouse_down(&self, pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_down(&mut self, pos: (u32, u32), _asset: &mut Asset) -> bool {
         if self.pages.get() > 1 {
 
             let pages = self.pages.get();

@@ -14,14 +14,14 @@ For v1 I target these features:
 
 * Tilemap editor to select tiles in bitmaps and assign tile types and animations. (Done)
 * Commission game tiles and create a modular character tile system (In progress).
-* World editor to create the world and it's areas (TBD).
+* World editor to create the world and it's areas (In progress).
 * Behavior tree node system for creating the RPG system and AI (TBD).
 * Cooperative multiplayer for dungeons ? (Unsure if v1 or later).
 * 3D Dungeons ? (Unsure if v1 or later)
 
 ## Long term
 
-After v1 I want to add more perspectives to the game engine, like top down (U6-U7) and orthogonal views (U7+). This will require more code but also a huge amount of graphical assets. This will also depend a bit of what I can afford to commision based on the Patreon income.
+After v1 I want to add more perspectives to the game engine, like top down (U6-U7) and orthogonal views (U7+). This will require more code but also a huge amount of graphical assets. This will also depend a bit of what I can afford to commission based on the Patreon income.
 
 ## Installation and Documentation
 
