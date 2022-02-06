@@ -104,28 +104,6 @@ pub trait Widget {
     fn set_state(&self, _state: u32) {
     }
 
-    // The following are widget specific and optional
-
-    // TabWidget
-    fn set_pagination(&self, _pages: u32) {
-    }
-
-    fn get_page_rect(&self, _page: u32) -> (u32, u32, u32, u32) {
-        (0,0,0,0)
-    }
-
-    // Sliders
-    fn set_range(&self, _range: (f32, f32)) {
-    }
-
-    fn set_value(&self, _value: f32) {
-    }
-
-    // TileMapWidget
-    // fn get_selected_range(start: Option<(u32, u32)>, end: Option<(u32, u32)>) -> Vec<(u32, u32)> {
-    //     vec![]
-    // }
-
     // Default colors
 
     fn get_color_background(&self) -> [u8; 4] {

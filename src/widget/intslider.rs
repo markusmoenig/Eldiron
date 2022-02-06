@@ -6,8 +6,8 @@ pub struct IntSliderWidget {
     rect            : (u32, u32, u32, u32),
     text            : Vec<String>,
     state           : Cell<u32>,
-    pub value       : Cell<i32>,
-    range           : Cell<(i32, i32)>
+    pub value       : i32,
+    pub range       : (i32, i32)
 }
 
 impl Widget for IntSliderWidget {
@@ -17,8 +17,8 @@ impl Widget for IntSliderWidget {
             rect,
             text,
             state               : Cell::new(1),
-            value               : Cell::new(0),
-            range               : Cell::new((1, 4))
+            value               : 0,
+            range               : (1, 4)
         }
     }
 
@@ -30,11 +30,11 @@ impl Widget for IntSliderWidget {
 
         asset.draw_rect(frame, &self.rect, self.get_color_selection());
 
-        let width = (self.rect.2 as i32 / self.range.get().1) * self.value.get();
+        let width = (self.rect.2 as i32 / self.range.1) * self.value;
 
         asset.draw_rect(frame, &(self.rect.0, self.rect.1, width as u32, self.rect.3), self.get_color_selection_blue());
 
-        let text = format!("{}: {}", self.text[0], self.value.get());
+        let text = format!("{}: {}", self.text[0], self.value);
         let state = self.state.get();
 
         if state == 0 {
@@ -49,12 +49,12 @@ impl Widget for IntSliderWidget {
         if self.contains_pos(pos) {
             //self.state.set(2);
 
-            let step = self.rect.2 as i32 / self.range.get().1;
-            let v = self.range.get().0 + (pos.0 as i32 - self.rect.0 as i32 ) / step;
+            let step = self.rect.2 as i32 / self.range.1;
+            let v = self.range.0 + (pos.0 as i32 - self.rect.0 as i32 ) / step;
 
             //println!("value {}", v);
 
-            self.value.set(v);
+            self.value = v;
 
             return true;
         }
@@ -65,12 +65,10 @@ impl Widget for IntSliderWidget {
         if self.contains_pos(pos) {
             //self.state.set(2);
 
-            let step = self.rect.2 as i32 / self.range.get().1;
-            let v = self.range.get().0 + (pos.0 as i32 - self.rect.0 as i32 ) / step;
+            let step = self.rect.2 as i32 / self.range.1;
+            let v = self.range.0 + (pos.0 as i32 - self.rect.0 as i32 ) / step;
 
-            println!("value {}", v);
-
-            self.value.set(v);
+            self.value = v;
 
             return true;
         }
@@ -90,14 +88,6 @@ impl Widget for IntSliderWidget {
             return;
         }
         self.state.set(state);
-    }
-
-    fn set_range(&self, range: (f32, f32)) {
-        self.range.set((range.0 as i32, range.1 as i32));
-    }
-
-    fn set_value(&self, value: f32) {
-        self.value.set(value as i32);
     }
 
     fn get_rect(&self) -> &(u32, u32, u32, u32) {

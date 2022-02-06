@@ -3,6 +3,7 @@ use crate::prelude::*;
 use crate::widget::*;
 
 use crate::tab::TabWidget;
+use crate::tab::TabWidgetHelper;
 use crate::button::ButtonWidget;
 use crate::optionsgrid::OptionsGridWidget;
 use crate::asset::Asset;
@@ -24,6 +25,7 @@ pub struct TileMapEditor {
     curr_grid_size          : Cell<u32>,  
     curr_map_tiles          : Cell<(u32, u32)>,  
     tab_widget              : TabWidget,
+    tab_helper              : TabWidgetHelper,
     options_grid            : OptionsGridWidget,
     set_anim_button         : ButtonWidget,
     clear_anim_button       : ButtonWidget,
@@ -39,9 +41,9 @@ impl Widget for TileMapEditor {
         let set_anim_button = ButtonWidget::new(vec!["Set Anim".to_string()], (20 + 100 + 40, HEIGHT / 2 + 96, 120,  UI_ELEMENT_HEIGHT), asset);
         let clear_anim_button = ButtonWidget::new(vec!["Clear Anim".to_string()], (20 + 100 + 40 + 120 + 8, HEIGHT / 2 + 96, 120,  UI_ELEMENT_HEIGHT), asset);
 
-        let scale_button = IntSliderWidget::new(vec!["Scale".to_string()], (WIDTH - 240 - 20, 0, 120,  UI_ELEMENT_HEIGHT), asset);
-        scale_button.set_range((1.0, 4.0));
-        scale_button.set_value(2.0);
+        let mut scale_button = IntSliderWidget::new(vec!["Scale".to_string()], (WIDTH - 240 - 20, 0, 120,  UI_ELEMENT_HEIGHT), asset);
+        scale_button.range = (1, 4);
+        scale_button.value = 2;
 
         let mut names : Vec<String> = vec![];
         for tm in &asset.tileset.maps_names {
@@ -59,6 +61,7 @@ impl Widget for TileMapEditor {
             curr_grid_size          : Cell::new(0),
             curr_map_tiles          : Cell::new((0,0)),
             tab_widget              : TabWidget::new(vec!(),(0, UI_ELEMENT_HEIGHT, WIDTH, HEIGHT / 2 - UI_ELEMENT_HEIGHT), asset),
+            tab_helper              : TabWidgetHelper {},
             set_anim_button,
             clear_anim_button,
             tilemap_menu,
@@ -95,7 +98,7 @@ impl Widget for TileMapEditor {
         let tiles_per_page = screen_x * screen_y;
         let pages = max( (total_tiles as f32 / tiles_per_page as f32).ceil() as u32, 1);
 
-        self.tab_widget.set_pagination(pages);
+        self.tab_helper.set_pagination(&mut self.tab_widget, pages);
 
         let page = self.tab_widget.curr_page.get();
 
@@ -503,7 +506,7 @@ impl Widget for TileMapEditor {
         }
 
         if consumed == false && self.scale_button.mouse_down(pos, asset) {
-            self.scale = self.scale_button.value.get() as f32;
+            self.scale = self.scale_button.value as f32;
             consumed = true
         }
 
@@ -536,7 +539,7 @@ impl Widget for TileMapEditor {
         }
 
         if self.scale_button.mouse_down(pos, asset) {
-            self.scale = self.scale_button.value.get() as f32;
+            self.scale = self.scale_button.value as f32;
             return true;
         }
 
