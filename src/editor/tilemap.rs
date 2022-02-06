@@ -32,6 +32,7 @@ pub struct TileMapEditor {
     tilemap_menu            : MenuWidget,
     scale_button            : IntSliderWidget,
     scale                   : f32,
+    helper                  : TileMapEditorHelper
 }
 
 impl Widget for TileMapEditor {
@@ -68,7 +69,8 @@ impl Widget for TileMapEditor {
             scale_button,
             options_grid            : OptionsGridWidget::new(vec!["Unused".to_string(), "Environment".to_string(), "EnvBlocking".to_string(), "Character".to_string(), "UtilityChar".to_string(), "Water".to_string(), "Harmful".to_string()], 
             (20 + 100 + 40, HEIGHT / 2 + 20, WIDTH - 40 - 100 - 40, 2 * UI_ELEMENT_HEIGHT + 16), asset),
-            scale                   : 2_f32
+            scale                   : 2_f32,
+            helper                  : TileMapEditorHelper {}
         }
     }
 
@@ -147,50 +149,10 @@ impl Widget for TileMapEditor {
             }
         }
 
-        // Returns the selected range between the start and end selection points
-        fn get_selected_range(start: Option<(u32, u32)>, end: Option<(u32, u32)>, screen_x: u32) -> Vec<(u32, u32)> {
-            let mut v = Vec::<(u32, u32)>::new();
-            //println!("get_selected_range {:?} {:?}", start, end );
-
-            if let Some(s) = start {
-    
-                if let Some(e) = end {
-    
-                    let mut smaller = s;
-                    let mut bigger = e;
-    
-                    if smaller.1 > bigger.1 || (smaller.1 == bigger.1 && smaller.0 > bigger.0) {
-                        let t = smaller;
-                        smaller = bigger;
-                        bigger = t;
-                    }
-
-                    // Iterate between the two selection points
-                    loop {
-                        v.push(smaller);
-                        if smaller.0 == bigger.0 && smaller.1 == bigger.1 {
-                            break;
-                        }
-
-                        smaller.0 += 1;
-
-                        if smaller.0 >= screen_x {
-                            smaller.0 = 0;
-                            smaller.1 += 1;
-                        }
-                    }
-    
-                } else {
-                    v.push(s);
-                }
-            }
-            v
-        }
-
         // Draw the selection
         if let Some(_s) = self.screen_selected.get() {
             
-            let range = get_selected_range(self.screen_selected.get(), self.screen_end_selected.get(), screen_x);
+            let range = self.helper.get_selected_range(self.screen_selected.get(), self.screen_end_selected.get(), screen_x);
 
             if range.len() > 1 {
                 self.set_anim_button.set_state(1);
@@ -253,45 +215,6 @@ impl Widget for TileMapEditor {
     }
 
     fn mouse_down(&mut self, pos: (u32, u32), asset: &mut Asset) -> bool {
-
-            // Returns the selected range between the start and end selection points
-            fn get_selected_range(start: Option<(u32, u32)>, end: Option<(u32, u32)>, screen_x: u32) -> Vec<(u32, u32)> {
-                let mut v = Vec::<(u32, u32)>::new();
-
-                if let Some(s) = start {
-        
-                    if let Some(e) = end {
-        
-                        let mut smaller = s;
-                        let mut bigger = e;
-        
-                        if smaller.1 > bigger.1 || (smaller.1 == bigger.1 && smaller.0 > bigger.0) {
-                            let t = smaller;
-                            smaller = bigger;
-                            bigger = t;
-                        }
-
-                        // Iterate between the two selection points
-                        loop {
-                            v.push(smaller);
-                            if smaller.0 == bigger.0 && smaller.1 == bigger.1 {
-                                break;
-                            }
-
-                            smaller.0 += 1;
-
-                            if smaller.0 >= screen_x {
-                                smaller.0 = 0;
-                                smaller.1 += 1;
-                            }
-                        }
-        
-                    } else {
-                        v.push(s);
-                    }
-                }
-                v
-            } 
 
         let mut consumed = false;
 
@@ -397,7 +320,7 @@ impl Widget for TileMapEditor {
                         let scaled_grid_size = (map.settings.grid_size as f32 * scale) as u32;        
                         let screen_x = WIDTH / scaled_grid_size;
 
-                        let range = get_selected_range(self.screen_selected.get(), self.screen_end_selected.get(), screen_x);
+                        let range = self.helper.get_selected_range(self.screen_selected.get(), self.screen_end_selected.get(), screen_x);
 
                         for s in range {
                             let map_pos = screen_to_map(map, s);
@@ -449,7 +372,7 @@ impl Widget for TileMapEditor {
                     if let Some(screen_start) = self.screen_selected.get() {
         
                         let start = screen_to_map(map, screen_start);
-                        let range = get_selected_range(self.screen_selected.get(), self.screen_end_selected.get(), screen_x);
+                        let range = self.helper.get_selected_range(self.screen_selected.get(), self.screen_end_selected.get(), screen_x);
 
                         if range.len() > 1 {
 
@@ -571,5 +494,50 @@ impl Widget for TileMapEditor {
 
     fn get_rect(&self) -> &(u32, u32, u32, u32) {
         return &self.rect;
+    }
+}
+
+
+struct TileMapEditorHelper;
+
+impl TileMapEditorHelper {
+    // Returns the selected range between the start and end selection points
+    fn get_selected_range(&self, start: Option<(u32, u32)>, end: Option<(u32, u32)>, screen_x: u32) -> Vec<(u32, u32)> {
+        let mut v = Vec::<(u32, u32)>::new();
+        //println!("get_selected_range {:?} {:?}", start, end );
+
+        if let Some(s) = start {
+
+            if let Some(e) = end {
+
+                let mut smaller = s;
+                let mut bigger = e;
+
+                if smaller.1 > bigger.1 || (smaller.1 == bigger.1 && smaller.0 > bigger.0) {
+                    let t = smaller;
+                    smaller = bigger;
+                    bigger = t;
+                }
+
+                // Iterate between the two selection points
+                loop {
+                    v.push(smaller);
+                    if smaller.0 == bigger.0 && smaller.1 == bigger.1 {
+                        break;
+                    }
+
+                    smaller.0 += 1;
+
+                    if smaller.0 >= screen_x {
+                        smaller.0 = 0;
+                        smaller.1 += 1;
+                    }
+                }
+
+            } else {
+                v.push(s);
+            }
+        }
+        v
     }
 }
