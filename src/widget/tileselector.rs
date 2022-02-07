@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
 use crate::widget::*;
+use itertools::Itertools;
 
 use crate::optionsgrid::OptionsGridWidget;
 use crate::asset::Asset;
@@ -62,7 +63,10 @@ impl Widget for TileSelectorWidget {
         if self.tiles == None {
             let mut tiles: Vec<(u32, u32, u32)> = vec![];
 
-            for (_index, map) in &asset.tileset.maps {
+            let sorted_keys= asset.tileset.maps.keys().sorted();
+
+            for key in sorted_keys {
+                let map = &asset.tileset.maps[key];
                 let amount = map.max_tiles();
                 for offset in 0..amount {
                     let id = map.offset_to_id(offset);
