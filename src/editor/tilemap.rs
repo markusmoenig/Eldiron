@@ -311,7 +311,7 @@ impl Widget for TileMapEditor {
             if self.options_grid.mouse_down(pos, asset) {
                 consumed =true;
 
-                if self.options_grid.clicked.get() == true {
+                if self.options_grid.clicked == true {
                     let index = self.options_grid.selected_index;
 
                     if let Some(map)= asset.tileset.maps.get_mut(&curr_map_id) {
@@ -353,7 +353,7 @@ impl Widget for TileMapEditor {
                         }
                         map.save_settings();
                     }
-                    self.options_grid.clicked.set(false);
+                    self.options_grid.clicked = false;
                 }
             }        
         }

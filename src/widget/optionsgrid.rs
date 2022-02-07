@@ -4,9 +4,9 @@ use core::cell::Cell;
 
 pub struct OptionsGridWidget {
     rect                : (u32, u32, u32, u32),
-    text                : Vec<String>,
+    pub text            : Vec<String>,
     state               : Cell<u32>,
-    pub clicked         : Cell<bool>,
+    pub clicked         : bool,
     spacing             : u32,
     pub selected_index  : u32
 }
@@ -18,7 +18,7 @@ impl Widget for OptionsGridWidget {
             rect,
             text,
             state               : Cell::new(1),
-            clicked             : Cell::new(false),
+            clicked             : false,
             spacing             : 8,
             selected_index      : 0
         }
@@ -99,7 +99,7 @@ impl Widget for OptionsGridWidget {
 
                 if self.contains_pos_for(pos, (x, y, 120, UI_ELEMENT_HEIGHT)) {
                     self.selected_index = i as u32;
-                    self.clicked.set(true);
+                    self.clicked = true;
                     return true;
                 }
     
