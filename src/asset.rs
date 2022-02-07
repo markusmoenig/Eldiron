@@ -1,10 +1,15 @@
 
 pub mod tileset;
+pub mod tilearea;
 
 use rusttype::{point, Font, Scale};
 
 use crate::prelude::*;
 use tileset::*;
+
+use std::collections::HashMap;
+
+use crate::tilearea::TileArea;
 
 #[derive(PartialEq)]
 pub enum TextAlignment {
@@ -15,17 +20,30 @@ pub enum TextAlignment {
 
 pub struct Asset<'a> {
     pub tileset                 : TileSet,
-    //gohu_font_11            : Font<'a>,
-    gohu_font_14            : Font<'a>,
+    //gohu_font_11              : Font<'a>,
+    gohu_font_14                : Font<'a>,
+    pub grid_size               : f32,
+    pub areas                   : HashMap<String, TileArea>,
+    pub curr_area               : String
 }
 
 impl Asset<'_>  {
     
     pub fn new() -> Self where Self: Sized {
+
+        // Create the tile areas
+        let mut areas = HashMap::new();
+
+        let world = TileArea::new();
+        areas.insert("world".to_string(),world);
+
         Self {
             tileset         : tileset::TileSet::new(),
             //gohu_font_11    : Font::try_from_bytes(include_bytes!("../assets/fonts/gohufont-uni-11.ttf") as &[u8]).expect("Error constructing Font"),
-            gohu_font_14    : Font::try_from_bytes(include_bytes!("../assets/fonts/gohufont-uni-14.ttf") as &[u8]).expect("Error constructing Font")
+            gohu_font_14    : Font::try_from_bytes(include_bytes!("../assets/fonts/gohufont-uni-14.ttf") as &[u8]).expect("Error constructing Font"),
+            grid_size       : 32.0,
+            areas,
+            curr_area       : "world".to_string()
         }
     }
 
@@ -255,4 +273,21 @@ impl Asset<'_>  {
          (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v) * 255.0) as u8,
         255]
     }
+
+    /// Returns the tile fo the given id
+    pub fn get_tile(&mut self, id: (u32, u32, u32)) -> Tile {
+        let map = self.get_map_of_id(id.0);
+        map.get_tile((id.1, id.2))
+    }
+
+    ///
+    pub fn set_area_value(&mut self, pos: (isize, isize), value: (u32, u32, u32, TileUsage)) {
+        let area = &mut self.areas.get_mut(&self.curr_area).unwrap();
+        area.set_value(pos, value);
+    }
+
+
+    // pub fn draw(&self, frame: &mut [u8], asset: &mut Asset, rect: &(u32,u32,u32,u32)) {
+
+    // }
 }

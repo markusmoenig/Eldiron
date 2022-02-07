@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+//use serde_json::to_string;
 
 use std::fs;
 use std::fs::File;
@@ -124,7 +125,7 @@ impl TileMap {
 /// The TileSet struct consists of several TileMaps, each representing one atlas and it's tiles.
 pub struct TileSet {
     pub maps            : HashMap<u32, TileMap>,
-    pub maps_names      : Vec<String>
+    pub maps_names      : Vec<String>,
 }
 
 impl TileSet {
@@ -138,7 +139,6 @@ impl TileSet {
         let mut maps_names : Vec<String> = vec![];
 
         for path in paths {
-
             // Generate the tile map for this dir element
             let mut tile_map = TileMap::new(&path.unwrap().path());
             maps_names.push(tile_map.get_name());
@@ -166,8 +166,6 @@ impl TileSet {
 
             // Insert the tilemap
             maps.insert(tile_map.settings.id, tile_map);
-
-            //println!("Tilemap: {}, {}", tile_map.file_path.display(), tile_map.settings.id);
         }
 
         TileSet {

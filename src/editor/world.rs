@@ -7,6 +7,7 @@ use crate::tileselector::{ TileSelectorWidget, TileSelectorHelper };
 
 pub struct WorldEditor {
     rect                    : (u32, u32, u32, u32),
+    content_rect            : (u32, u32, u32, u32),
     tileselector_widget     : TileSelectorWidget,
 }
 
@@ -21,6 +22,7 @@ impl Widget for WorldEditor {
 
         Self {
             rect,
+            content_rect                    : (rect.0, rect.1, rect.2, (rect.3 / 3) * 2),
             tileselector_widget,
         }
     }
@@ -37,6 +39,17 @@ impl Widget for WorldEditor {
         let mut consumed = false;
         if self.tileselector_widget.mouse_down(pos, asset) {
             consumed = true;
+        }
+        if consumed == false && self.contains_pos_for(pos, self.content_rect) {
+
+            if let Some(tile_id) = self.tileselector_widget.selected {
+
+                let grid_size = asset.grid_size as u32;
+                let id = (((pos.0 - self.content_rect.0) / grid_size) as isize, ((pos.1 - self.content_rect.1) / grid_size) as isize);
+
+                let tile = asset.get_tile(tile_id);
+                asset.set_area_value(id, (tile_id.0, tile_id.1, tile_id.2, tile.usage));
+            }
         }
         consumed
     }
