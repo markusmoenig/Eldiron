@@ -32,6 +32,7 @@ impl Widget for WorldEditor {
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset) {
+        asset.draw_area(frame, &self.content_rect, anim_counter);
         self.tileselector_widget.draw(frame, anim_counter, asset);
     }
 
@@ -47,8 +48,10 @@ impl Widget for WorldEditor {
                 let grid_size = asset.grid_size as u32;
                 let id = (((pos.0 - self.content_rect.0) / grid_size) as isize, ((pos.1 - self.content_rect.1) / grid_size) as isize);
 
-                let tile = asset.get_tile(tile_id);
+                let tile = asset.get_tile(&tile_id);
                 asset.set_area_value(id, (tile_id.0, tile_id.1, tile_id.2, tile.usage));
+
+                return true;
             }
         }
         consumed
@@ -68,6 +71,19 @@ impl Widget for WorldEditor {
         if self.tileselector_widget.mouse_dragged(pos, asset) {
             consumed = true;
         }
+        if consumed == false && self.contains_pos_for(pos, self.content_rect) {
+
+            if let Some(tile_id) = self.tileselector_widget.selected {
+
+                let grid_size = asset.grid_size as u32;
+                let id = (((pos.0 - self.content_rect.0) / grid_size) as isize, ((pos.1 - self.content_rect.1) / grid_size) as isize);
+
+                let tile = asset.get_tile(&tile_id);
+                asset.set_area_value(id, (tile_id.0, tile_id.1, tile_id.2, tile.usage));
+
+                return true;
+            }
+        }        
         consumed        
     }
 

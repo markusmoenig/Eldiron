@@ -82,7 +82,7 @@ impl TileMap {
     }
 
     /// Get the tile for the given id
-    pub fn get_tile(&self, tile_id: (u32, u32)) -> Tile {
+    pub fn get_tile(&self, tile_id: &(u32, u32)) -> Tile {
         if let Some(t) = self.settings.tiles.get(&tile_id) {
             Tile { usage: t.usage.clone(), anim_tiles: t.anim_tiles.clone() }
         } else {

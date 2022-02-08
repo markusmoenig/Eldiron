@@ -70,7 +70,7 @@ impl Widget for TileSelectorWidget {
                 let amount = map.max_tiles();
                 for offset in 0..amount {
                     let id = map.offset_to_id(offset);
-                    let tile = map.get_tile(id);
+                    let tile = map.get_tile(&id);
                     let sel_index = self.options_grid.selected_index;
 
                     if self.usage == TileSelectorUsage::All {

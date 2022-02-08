@@ -124,7 +124,7 @@ impl Widget for TileMapEditor {
             let x = (tile+offset) % x_tiles;
             let y = (tile+offset) / x_tiles;
 
-            let tile = map.get_tile((x, y));
+            let tile = map.get_tile(&(x, y));
 
             if tile.anim_tiles.len() > 0 {
                 let index = anim_counter % tile.anim_tiles.len() as u32;
@@ -179,7 +179,7 @@ impl Widget for TileMapEditor {
             if let Some(map_selected) = &self.map_selected.get() {
                 // Draw selected tile as 100x100
 
-                let tile = map.get_tile(*map_selected);
+                let tile = map.get_tile(map_selected);
 
                 if tile.anim_tiles.len() > 0 {
                     let index = anim_counter % tile.anim_tiles.len() as u32;
@@ -274,7 +274,7 @@ impl Widget for TileMapEditor {
 
                     self.map_selected.set(Some(map_pos));
 
-                    let tile = map.get_tile(map_pos);
+                    let tile = map.get_tile(&map_pos);
 
                     if tile.usage == TileUsage::Unused {
                         self.options_grid.selected_index = 0;
@@ -325,7 +325,7 @@ impl Widget for TileMapEditor {
                         for s in range {
                             let map_pos = screen_to_map(map, s);
 
-                            let mut tile = map.get_tile(map_pos);
+                            let mut tile = map.get_tile(&map_pos);
 
                             if index == 0 {
                                 tile.usage = TileUsage::Unused;
@@ -376,7 +376,7 @@ impl Widget for TileMapEditor {
 
                         if range.len() > 1 {
 
-                            let mut tile = map.get_tile(start);
+                            let mut tile = map.get_tile(&start);
 
                             tile.anim_tiles = vec![];
 
@@ -385,7 +385,7 @@ impl Widget for TileMapEditor {
                                 tile.anim_tiles.push(map_pos);
 
                                 if map_pos.0 != start.0 || map_pos.1 != start.1 {
-                                    let mut unused = map.get_tile(map_pos);
+                                    let mut unused = map.get_tile(&map_pos);
                                     unused.usage = TileUsage::Unused;
                                     map.set_tile(map_pos, unused);
                                 }
@@ -410,7 +410,7 @@ impl Widget for TileMapEditor {
 
                     if let Some(selected) = self.screen_selected.get() {
                         let map_pos = screen_to_map(map, selected);
-                        let mut tile = map.get_tile(map_pos);
+                        let mut tile = map.get_tile(&map_pos);
 
                         tile.anim_tiles = vec![];
 

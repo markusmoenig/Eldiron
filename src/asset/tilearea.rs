@@ -56,6 +56,11 @@ impl TileArea {
         }
     }
 
+    /// Returns an optional tile value at the given position
+    pub fn get_value(&self, pos: (isize, isize)) -> Option<&(u32, u32, u32, TileUsage)> {
+        self.tiles.get(&pos)
+    }
+
     /// Sets a value at the given position
     pub fn set_value(&mut self, pos: (isize, isize), value: (u32, u32, u32, TileUsage)) {
         self.tiles.insert(pos, value);
