@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-// use std::fs;
-// use std::fs::File;
-// use std::path;
+use std::fs;
+//use std::fs::File;
+use std::path;
 
 use std::collections::HashMap;
 //use std::path::PathBuf;
@@ -10,15 +10,21 @@ use std::collections::HashMap;
 use crate::asset::tileset::TileUsage;
 
 #[derive(Serialize, Deserialize)]
-pub struct TileArea {
+pub struct TileAreaData {
+    #[serde(with = "vectorize")]
     pub tiles           : HashMap<(isize, isize), (u32, u32, u32, TileUsage)>,
     pub curr_pos        : (isize, isize),
     pub min_pos         : (isize, isize),
     pub max_pos         : (isize, isize),
 }
 
+pub struct TileArea {
+    name                : String,
+    data                : TileAreaData,
+}
+
 impl TileArea {
-    pub fn new() -> TileArea {
+    pub fn new(name: String) -> TileArea {
 
         /*
         fn load(file_name: &PathBuf) -> (Vec<u8>, u32, u32) {
@@ -46,36 +52,51 @@ impl TileArea {
             .unwrap_or(TileMapSettings { grid_size: 16, tiles: HashMap::new(), id: 0 } );
         */
 
-        let tiles = HashMap::new();
+        //let tiles = HashMap::new();
+
+        // Gets the content of the settings file
+        let json_path = path::Path::new("assets").join("areas").join( format!("{}{}", name, ".json"));
+        let contents = fs::read_to_string( json_path )
+            .unwrap_or("".to_string());
+
+        // Construct the json settings
+        let data = serde_json::from_str(&contents)
+            .unwrap_or(TileAreaData { tiles: HashMap::new(), curr_pos: (0,0), min_pos: (0,0), max_pos: (0,0) });
 
         TileArea {
-            tiles,
-            curr_pos            : (0, 0),
-            min_pos             : (0, 0),
-            max_pos             : (0, 0),
+            name,
+            data,
         }
+    }
+
+    /// Save the TileAreaData to file
+    pub fn save_data(&self) {
+        let json_path = path::Path::new("assets").join("areas").join( format!("{}{}", self.name, ".json"));
+        let json = serde_json::to_string(&self.data).unwrap();
+        fs::write(json_path, json)
+            .expect("Unable to write area file");
     }
 
     /// Returns an optional tile value at the given position
     pub fn get_value(&self, pos: (isize, isize)) -> Option<&(u32, u32, u32, TileUsage)> {
-        self.tiles.get(&pos)
+        self.data.tiles.get(&pos)
     }
 
     /// Sets a value at the given position
     pub fn set_value(&mut self, pos: (isize, isize), value: (u32, u32, u32, TileUsage)) {
-        self.tiles.insert(pos, value);
+        self.data.tiles.insert(pos, value);
 
-        if self.min_pos.0 > pos.0 {
-            self.min_pos.0 = pos.0;
+        if self.data.min_pos.0 > pos.0 {
+            self.data.min_pos.0 = pos.0;
         }
-        if self.min_pos.1 > pos.1 {
-            self.min_pos.1 = pos.1;
+        if self.data.min_pos.1 > pos.1 {
+            self.data.min_pos.1 = pos.1;
         }
-        if self.max_pos.0 < pos.0 {
-            self.max_pos.0 = pos.0;
+        if self.data.max_pos.0 < pos.0 {
+            self.data.max_pos.0 = pos.0;
         }    
-        if self.max_pos.1 < pos.1 {
-            self.max_pos.1 = pos.1;
+        if self.data.max_pos.1 < pos.1 {
+            self.data.max_pos.1 = pos.1;
         }              
     }
 }

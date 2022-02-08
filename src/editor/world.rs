@@ -50,6 +50,7 @@ impl Widget for WorldEditor {
 
                 let tile = asset.get_tile(&tile_id);
                 asset.set_area_value(id, (tile_id.0, tile_id.1, tile_id.2, tile.usage));
+                asset.save_area();
 
                 return true;
             }

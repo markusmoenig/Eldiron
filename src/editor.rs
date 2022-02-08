@@ -49,7 +49,7 @@ impl ScreenWidget for Editor {
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset) {
-        //let start = self.get_time();
+        let start = self.get_time();
 
         asset.draw_rect(frame, &self.rect, [0,0,0,255]);
         asset.draw_rect(frame, &(0, 0, WIDTH, UI_ELEMENT_HEIGHT), self.editor_menu.get_color_background());
@@ -58,9 +58,9 @@ impl ScreenWidget for Editor {
 
         self.editor_menu.draw(frame, anim_counter, asset);
 
-        //let stop = self.get_time();
+        let stop = self.get_time();
 
-        //println!("{:?}", stop - start);
+        println!("{:?}", stop - start);
     }
 
     /// Returns the current widgets

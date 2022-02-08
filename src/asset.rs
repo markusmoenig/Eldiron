@@ -34,13 +34,13 @@ impl Asset<'_>  {
         // Create the tile areas
         let mut areas = HashMap::new();
 
-        let world = TileArea::new();
+        let world = TileArea::new("world".to_string());
         areas.insert("world".to_string(),world);
 
         Self {
             tileset         : tileset::TileSet::new(),
             //gohu_font_11    : Font::try_from_bytes(include_bytes!("../assets/fonts/gohufont-uni-11.ttf") as &[u8]).expect("Error constructing Font"),
-            gohu_font_14    : Font::try_from_bytes(include_bytes!("../assets/fonts/gohufont-uni-14.ttf") as &[u8]).expect("Error constructing Font"),
+            gohu_font_14    : Font::try_from_bytes(include_bytes!("../assets/fonts/Open_Sans/static/OpenSans/OpenSans-SemiBold.ttf") as &[u8]).expect("Error constructing Font"),
             grid_size       : 32,
             areas,
             curr_area       : "world".to_string()
@@ -291,7 +291,7 @@ impl Asset<'_>  {
 
     /// Returns the default font and the default rendering size
     pub fn get_default_font(&self) -> (&Font, f32) {
-        (&self.gohu_font_14, 16.0)
+        (&self.gohu_font_14, 20.0)
     }
 
     /// Returns the default font and the default rendering size
@@ -311,6 +311,12 @@ impl Asset<'_>  {
     pub fn get_tile(&self, id: &(u32, u32, u32)) -> Tile {
         let map = self.get_map_of_id(id.0);
         map.get_tile(&(id.1, id.2))
+    }
+
+    /// Sets a value in the current area
+    pub fn save_area(&self) {
+        let area = &mut self.areas.get(&self.curr_area).unwrap();
+        area.save_data();
     }
 
     /// Sets a value in the current area

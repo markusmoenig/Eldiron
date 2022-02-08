@@ -13,7 +13,7 @@ mod prelude {
     pub const HEIGHT                : u32 = 40 * 16;
 
     pub const UI_ELEMENT_HEIGHT     : u32 = 24;
-    pub const UI_ELEMENT_MARGIN     : u32 = 4;
+    pub const UI_ELEMENT_MARGIN     : u32 = 2;
 }
 
 use prelude::*;

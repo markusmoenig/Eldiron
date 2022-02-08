@@ -51,12 +51,14 @@ impl TileMap {
         fn load(file_name: &PathBuf) -> (Vec<u8>, u32, u32) {
 
             let decoder = png::Decoder::new(File::open(file_name).unwrap());
-            let mut reader = decoder.read_info().unwrap();
-            let mut buf = vec![0; reader.output_buffer_size()];
-            let info = reader.next_frame(&mut buf).unwrap();
-            let bytes = &buf[..info.buffer_size()];
-    
-            (bytes.to_vec(), info.width, info.height)
+            if let Ok(mut reader) = decoder.read_info() {
+                let mut buf = vec![0; reader.output_buffer_size()];
+                let info = reader.next_frame(&mut buf).unwrap();
+                let bytes = &buf[..info.buffer_size()];
+        
+                return (bytes.to_vec(), info.width, info.height);
+            }
+            (vec![], 0 , 0)
         }
 
         // Load the atlas pixels
@@ -64,7 +66,7 @@ impl TileMap {
 
         // Gets the content of the settings file
         let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
-        let json_path = path::Path::new("assets").join("json").join( format!("{}{}", name, ".json"));
+        let json_path = path::Path::new("assets").join("tilemaps").join( format!("{}{}", name, ".json"));
         let contents = fs::read_to_string( json_path )
             .unwrap_or("".to_string());
 
@@ -102,9 +104,8 @@ impl TileMap {
 
     /// Save the TileMapSettings to file
     pub fn save_settings(&self) {
-
         let name = path::Path::new(&self.file_path).file_stem().unwrap().to_str().unwrap();
-        let json_path = path::Path::new("assets").join("json").join( format!("{}{}", name, ".json"));
+        let json_path = path::Path::new("assets").join("tilemaps").join( format!("{}{}", name, ".json"));
 
         let json = serde_json::to_string(&self.settings).unwrap();
         fs::write(json_path, json)
@@ -140,32 +141,35 @@ impl TileSet {
 
         for path in paths {
             // Generate the tile map for this dir element
+
             let mut tile_map = TileMap::new(&path.unwrap().path());
-            maps_names.push(tile_map.get_name());
+            if tile_map.width != 0 {
+                maps_names.push(tile_map.get_name());
 
-            // Make sure we create a unique id (check if the id already exists in the set)
-            let mut has_id_already = true;
-            while has_id_already {
+                // Make sure we create a unique id (check if the id already exists in the set)
+                let mut has_id_already = true;
+                while has_id_already {
 
-                has_id_already = false;
-                for (key, _value) in &maps {
-                    if key == &tile_map.settings.id {
-                        has_id_already = true;
+                    has_id_already = false;
+                    for (key, _value) in &maps {
+                        if key == &tile_map.settings.id {
+                            has_id_already = true;
+                        }
+                    }
+
+                    if has_id_already {
+                        tile_map.settings.id += 1;
                     }
                 }
 
-                if has_id_already {
-                    tile_map.settings.id += 1;
+                // If the tilemap has no tiles we assume it's new and we save the settings
+                if tile_map.settings.tiles.len() == 0 {
+                    tile_map.save_settings();
                 }
-            }
 
-            // If the tilemap has no tiles we assume it's new and we save the settings
-            if tile_map.settings.tiles.len() == 0 {
-                tile_map.save_settings();
+                // Insert the tilemap
+                maps.insert(tile_map.settings.id, tile_map);
             }
-
-            // Insert the tilemap
-            maps.insert(tile_map.settings.id, tile_map);
         }
 
         TileSet {
