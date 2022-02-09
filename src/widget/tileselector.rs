@@ -53,7 +53,7 @@ impl Widget for TileSelectorWidget {
     fn update(&mut self) {
     }
 
-    fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset) {
+    fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset, context: &ScreenContext) {
 
         let grid = self.helper.get_available_grid(self);
         let grid_size = self.helper.get_grid_size();
@@ -156,8 +156,8 @@ impl Widget for TileSelectorWidget {
             }
         }
 
-        self.options_grid.draw(frame, anim_counter, asset);
-        self.tab_widget.draw(frame, anim_counter, asset);
+        self.options_grid.draw(frame, anim_counter, asset, context);
+        self.tab_widget.draw(frame, anim_counter, asset, context);
     }
 
     fn mouse_down(&mut self, pos: (u32, u32), asset: &mut Asset) -> bool {

@@ -28,7 +28,7 @@ impl Widget for OptionsGridWidget {
     fn update(&mut self) {
     }
 
-    fn draw(&mut self, frame: &mut [u8], _anim_counter: u32, asset: &mut Asset) {
+    fn draw(&mut self, frame: &mut [u8], _anim_counter: u32, asset: &mut Asset, _context: &ScreenContext) {
 
         let mut x = self.rect.0;
         let mut y = self.rect.1;

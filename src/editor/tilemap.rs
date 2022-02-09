@@ -12,6 +12,7 @@ use crate::menu::MenuWidget;
 use crate::intslider::IntSliderWidget;
 
 use crate::asset::tileset::TileMap;
+use crate::widget::context::ScreenContext;
 
 use core::cmp::max;
 use core::cell::Cell;
@@ -39,10 +40,10 @@ impl Widget for TileMapEditor {
     
     fn new(_text: Vec<String>, rect: (u32, u32, u32, u32), asset: &Asset) -> Self where Self: Sized {
 
-        let set_anim_button = ButtonWidget::new(vec!["Set Anim".to_string()], (20 + 100 + 40, HEIGHT / 2 + 96, 120,  UI_ELEMENT_HEIGHT), asset);
-        let clear_anim_button = ButtonWidget::new(vec!["Clear Anim".to_string()], (20 + 100 + 40 + 120 + 8, HEIGHT / 2 + 96, 120,  UI_ELEMENT_HEIGHT), asset);
+        let set_anim_button = ButtonWidget::new(vec!["Set Anim".to_string()], (20 + 100 + 40, asset.height / 2 + 96, 120,  UI_ELEMENT_HEIGHT), asset);
+        let clear_anim_button = ButtonWidget::new(vec!["Clear Anim".to_string()], (20 + 100 + 40 + 120 + 8, asset.height / 2 + 96, 120,  UI_ELEMENT_HEIGHT), asset);
 
-        let mut scale_button = IntSliderWidget::new(vec!["Scale".to_string()], (WIDTH - 240 - 20, 0, 120,  UI_ELEMENT_HEIGHT), asset);
+        let mut scale_button = IntSliderWidget::new(vec!["Scale".to_string()], (asset.width - 240 - 20, 0, 120,  UI_ELEMENT_HEIGHT), asset);
         scale_button.range = (1, 4);
         scale_button.value = 2;
 
@@ -51,7 +52,7 @@ impl Widget for TileMapEditor {
             names.push(tm.to_string());
         }
 
-        let tilemap_menu = MenuWidget::new(names, (WIDTH - 120 - 10, 0, 120,  UI_ELEMENT_HEIGHT), asset);
+        let tilemap_menu = MenuWidget::new(names, (asset.width - 120 - 10, 0, 120,  UI_ELEMENT_HEIGHT), asset);
 
         Self {
             rect,
@@ -61,14 +62,14 @@ impl Widget for TileMapEditor {
             screen_start            : (0, 0),
             curr_grid_size          : Cell::new(0),
             curr_map_tiles          : Cell::new((0,0)),
-            tab_widget              : TabWidget::new(vec!(),(0, UI_ELEMENT_HEIGHT, WIDTH, HEIGHT / 2 - UI_ELEMENT_HEIGHT), asset),
+            tab_widget              : TabWidget::new(vec!(),(0, UI_ELEMENT_HEIGHT, asset.width, asset.height / 2 - UI_ELEMENT_HEIGHT), asset),
             tab_helper              : TabWidgetHelper {},
             set_anim_button,
             clear_anim_button,
             tilemap_menu,
             scale_button,
             options_grid            : OptionsGridWidget::new(vec!["Unused".to_string(), "Environment".to_string(), "EnvBlocking".to_string(), "Character".to_string(), "UtilityChar".to_string(), "Water".to_string(), "Harmful".to_string()], 
-            (20 + 100 + 40, HEIGHT / 2 + 20, WIDTH - 40 - 100 - 40, 2 * UI_ELEMENT_HEIGHT + 16), asset),
+            (20 + 100 + 40, asset.height / 2 + 20, asset.width - 40 - 100 - 40, 2 * UI_ELEMENT_HEIGHT + 16), asset),
             scale                   : 2_f32,
             helper                  : TileMapEditorHelper {}
         }
@@ -78,7 +79,7 @@ impl Widget for TileMapEditor {
     fn update(&mut self) {
     }
 
-    fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset) {
+    fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset, context: &ScreenContext) {
 
         let scale = self.scale;
     
@@ -94,7 +95,7 @@ impl Widget for TileMapEditor {
 
         let total_tiles = x_tiles * y_tiles;
 
-        let screen_x = WIDTH / scaled_grid_size;
+        let screen_x = asset.width / scaled_grid_size;
         let screen_y = (self.tab_widget.get_rect().3 - UI_ELEMENT_HEIGHT) / scaled_grid_size;
 
         let tiles_per_page = screen_x * screen_y;
@@ -184,15 +185,15 @@ impl Widget for TileMapEditor {
                 if tile.anim_tiles.len() > 0 {
                     let index = anim_counter % tile.anim_tiles.len() as u32;
                     let p = tile.anim_tiles[index as usize];
-                    asset.draw_tile(frame, &(20, HEIGHT / 2 + 20), curr_map_id, &(p.0, p.1), 100.0 / map.settings.grid_size as f32);
+                    asset.draw_tile(frame, &(20, asset.height / 2 + 20), curr_map_id, &(p.0, p.1), 100.0 / map.settings.grid_size as f32);
                 } else {
-                    asset.draw_tile(frame, &(20, HEIGHT / 2 + 20), curr_map_id, map_selected, 100.0 / map.settings.grid_size as f32);
+                    asset.draw_tile(frame, &(20, asset.height / 2 + 20), curr_map_id, map_selected, 100.0 / map.settings.grid_size as f32);
                 }
                 // Draw selection text
-                asset.draw_text_rect(frame, &(20, HEIGHT / 2 + 125, 100, UI_ELEMENT_HEIGHT), &format!("({},{})", map_selected.0, map_selected.1), self.get_color_text(), [0,0,0,255], crate::asset::TextAlignment::Center);
+                asset.draw_text_rect(frame, &(20, asset.height / 2 + 125, 100, UI_ELEMENT_HEIGHT), &format!("({},{})", map_selected.0, map_selected.1), self.get_color_text(), [0,0,0,255], crate::asset::TextAlignment::Center);
             }
         } else {
-            asset.draw_rect(frame, &(20, HEIGHT / 2 + 20, 100, 100), self.get_color_background());
+            asset.draw_rect(frame, &(20, asset.height / 2 + 20, 100, 100), self.get_color_background());
 
             self.set_anim_button.set_state(0);
             self.clear_anim_button.set_state(0);
@@ -200,16 +201,16 @@ impl Widget for TileMapEditor {
         }
 
         // Draw the tab widget
-        self.tab_widget.draw(frame, anim_counter, asset);
+        self.tab_widget.draw(frame, anim_counter, asset, context);
 
         // Draw the lower half
-        self.options_grid.draw(frame, anim_counter, asset);
-        self.set_anim_button.draw(frame, anim_counter, asset);
-        self.clear_anim_button.draw(frame, anim_counter, asset);
+        self.options_grid.draw(frame, anim_counter, asset, context);
+        self.set_anim_button.draw(frame, anim_counter, asset, context);
+        self.clear_anim_button.draw(frame, anim_counter, asset, context);
 
         // Toolbar
-        self.tilemap_menu.draw(frame, anim_counter, asset);
-        self.scale_button.draw(frame, anim_counter, asset);
+        self.tilemap_menu.draw(frame, anim_counter, asset, context);
+        self.scale_button.draw(frame, anim_counter, asset, context);
 
         self.curr_grid_size.set(scaled_grid_size);
     }
@@ -220,11 +221,13 @@ impl Widget for TileMapEditor {
 
         let curr_map_id = self.tilemap_menu.selected_index.get();
 
+        let width = asset.width;
+
         // Convert a screen position to the map position
         let screen_to_map = |map: &TileMap, screen_pos: (u32, u32)| -> (u32, u32) {
             let scale = self.scale;
             let scaled_grid_size = (map.settings.grid_size as f32 * scale) as u32;        
-            let screen_x = WIDTH / scaled_grid_size;
+            let screen_x = width / scaled_grid_size;
 
             let tile_offset = screen_pos.0 + screen_pos.1 * screen_x;                
             let map_tiles = self.curr_map_tiles.get();
@@ -257,7 +260,7 @@ impl Widget for TileMapEditor {
 
                 // convert screen position to map position
 
-                let screen_tiles_x = WIDTH / scaled_grid_size;
+                let screen_tiles_x = asset.width / scaled_grid_size;
                 let tile_offset = x + y * screen_tiles_x;
                 
                 let map_tiles = self.curr_map_tiles.get();
@@ -318,7 +321,7 @@ impl Widget for TileMapEditor {
 
                         let scale = self.scale;                    
                         let scaled_grid_size = (map.settings.grid_size as f32 * scale) as u32;        
-                        let screen_x = WIDTH / scaled_grid_size;
+                        let screen_x = asset.width / scaled_grid_size;
 
                         let range = self.helper.get_selected_range(self.screen_selected.get(), self.screen_end_selected.get(), screen_x);
 
@@ -366,7 +369,7 @@ impl Widget for TileMapEditor {
         
                 let scale = self.scale;
                 let scaled_grid_size = (map.settings.grid_size as f32 * scale) as u32;        
-                let screen_x = WIDTH / scaled_grid_size;
+                let screen_x = asset.width / scaled_grid_size;
 
                 if self.set_anim_button.clicked.get() == true {
                     if let Some(screen_start) = self.screen_selected.get() {
@@ -473,7 +476,7 @@ impl Widget for TileMapEditor {
                 let x = pos.0 / scaled_grid_size + self.screen_start.0;
                 let y = (pos.1 - self.tab_widget.get_rect().1) / scaled_grid_size + self.screen_start.1;
 
-                let screen_tiles_x = WIDTH / scaled_grid_size;
+                let screen_tiles_x = asset.width / scaled_grid_size;
                 let tile_offset = x + y * screen_tiles_x;
                 
                 let map_tiles = self.curr_map_tiles.get();

@@ -26,7 +26,7 @@ impl Widget for MenuWidget {
     fn update(&mut self) {
     }
 
-    fn draw(&mut self, frame: &mut [u8], _anim_counter: u32, asset: &mut Asset) {
+    fn draw(&mut self, frame: &mut [u8], _anim_counter: u32, asset: &mut Asset, _context: &ScreenContext) {
 
         asset.draw_rect(frame, &self.rect, [255, 255, 255, 255]);
 

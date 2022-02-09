@@ -9,9 +9,6 @@ mod asset;
 mod prelude {
     pub const TICK_IN_MS            : u128 = 250;
 
-    pub const WIDTH                 : u32 = 60 * 16;
-    pub const HEIGHT                : u32 = 40 * 16;
-
     pub const UI_ELEMENT_HEIGHT     : u32 = 24;
     pub const UI_ELEMENT_MARGIN     : u32 = 2;
 }
@@ -35,6 +32,10 @@ use winit_input_helper::WinitInputHelper;
 use std::time::Duration;
 
 fn main() -> Result<(), Error> {
+
+    const WIDTH     : usize = 60 * 16;
+    const HEIGHT    : usize = 40 * 16;
+
     env_logger::init();
 
     let event_loop = EventLoop::new();
@@ -54,13 +55,13 @@ fn main() -> Result<(), Error> {
     let mut pixels = {
         let window_size = window.inner_size();
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new(WIDTH, HEIGHT, surface_texture)?
+        Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture)?
     };
 
-    let mut asset = Asset::new();
+    let mut asset = Asset::new(WIDTH as u32, HEIGHT as u32);
 
-    let game : Box<dyn ScreenWidget> = Box::new(Game::new(&asset));
-    let editor : Box<dyn ScreenWidget> = Box::new(Editor::new(&asset));
+    let game : Box<dyn ScreenWidget> = Box::new(Game::new(&asset, WIDTH, HEIGHT));
+    let editor : Box<dyn ScreenWidget> = Box::new(Editor::new(&asset, WIDTH, HEIGHT));
 
     let mut curr_screen = editor;
 
@@ -126,6 +127,10 @@ fn main() -> Result<(), Error> {
             // Resize the window
             if let Some(size) = input.window_resized() {
                 pixels.resize_surface(size.width, size.height);
+                pixels.resize_buffer(size.width / window.scale_factor() as u32, size.height / window.scale_factor() as u32);
+                asset.width = size.width / window.scale_factor() as u32;
+                asset.height = size.height / window.scale_factor() as u32;
+                curr_screen.resize(size.width as usize / window.scale_factor() as usize, size.height as usize / window.scale_factor() as usize);
                 window.request_redraw();
             }
 

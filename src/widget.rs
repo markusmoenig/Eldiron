@@ -2,11 +2,20 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::asset::Asset;
 
+use self::context::ScreenContext;
+
+pub mod context;
+pub mod draw2d;
+
+/// Top level screen widget
 pub trait ScreenWidget {
 
-    fn new(asset: &Asset) -> Self where Self: Sized;
+    fn new(asset: &Asset, width: usize, height: usize) -> Self where Self: Sized;
 
     fn update(&mut self);
+    fn resize(&mut self, width: usize, height: usize) {
+    }
+
     fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset);
 
     fn mouse_down(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
@@ -54,7 +63,7 @@ pub trait Widget {
     fn new(text: Vec<String>, rect: (u32, u32, u32, u32), asset: &Asset) -> Self where Self: Sized;
 
     fn update(&mut self);
-    fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset);
+    fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset, context: &ScreenContext);
 
     fn mouse_down(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         false

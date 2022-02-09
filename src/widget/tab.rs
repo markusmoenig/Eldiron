@@ -30,7 +30,7 @@ impl Widget for TabWidget {
     fn update(&mut self) {
     }
 
-    fn draw(&mut self, frame: &mut [u8], _anim_counter: u32, asset: &mut Asset) {
+    fn draw(&mut self, frame: &mut [u8], _anim_counter: u32, asset: &mut Asset, _context: &ScreenContext) {
         //if self.pages.get() > 1 {
             self.content_rect.set((self.rect.0, self.rect.1, self.rect.2, self.rect.3 - asset.get_text_element_height()));
 

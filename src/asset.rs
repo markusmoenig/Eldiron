@@ -24,12 +24,15 @@ pub struct Asset<'a> {
     gohu_font_14                : Font<'a>,
     pub grid_size               : u32,
     pub areas                   : HashMap<String, TileArea>,
-    pub curr_area               : String
+    pub curr_area               : String,
+
+    pub width                   : u32,
+    pub height                  : u32,
 }
 
 impl Asset<'_>  {
     
-    pub fn new() -> Self where Self: Sized {
+    pub fn new(width: u32, height: u32) -> Self where Self: Sized {
 
         // Create the tile areas
         let mut areas = HashMap::new();
@@ -43,7 +46,10 @@ impl Asset<'_>  {
             gohu_font_14    : Font::try_from_bytes(include_bytes!("../assets/fonts/Open_Sans/static/OpenSans/OpenSans-SemiBold.ttf") as &[u8]).expect("Error constructing Font"),
             grid_size       : 32,
             areas,
-            curr_area       : "world".to_string()
+            curr_area       : "world".to_string(),
+
+            width,
+            height            
         }
     }
 
@@ -57,7 +63,7 @@ impl Asset<'_>  {
         for y in rect.1..rect.1+rect.3 {
             for x in rect.0..rect.0+rect.2 {
 
-                let i = x as usize * 4 + y as usize * (WIDTH as usize) * 4;
+                let i = x as usize * 4 + y as usize * (self.width as usize) * 4;
 
                 frame[i..i + 4].copy_from_slice(&color);
             }
@@ -69,19 +75,19 @@ impl Asset<'_>  {
 
         let y = rect.1;
         for x in rect.0..rect.0+rect.2 {
-            let mut i = x as usize * 4 + y as usize * (WIDTH as usize) * 4;
+            let mut i = x as usize * 4 + y as usize * (self.width as usize) * 4;
             frame[i..i + 4].copy_from_slice(&color);
 
-            i = x as usize * 4 + (y + rect.3- 1) as usize * (WIDTH as usize) * 4;
+            i = x as usize * 4 + (y + rect.3- 1) as usize * (self.width as usize) * 4;
             frame[i..i + 4].copy_from_slice(&color);
         }
 
         let x = rect.0;
         for y in rect.1..rect.1+rect.3 {
-            let mut i = x as usize * 4 + y as usize * (WIDTH as usize) * 4;
+            let mut i = x as usize * 4 + y as usize * (self.width as usize) * 4;
             frame[i..i + 4].copy_from_slice(&color);
 
-            i = (x + rect.2 - 1) as usize * 4 + y as usize * (WIDTH as usize) * 4;
+            i = (x + rect.2 - 1) as usize * 4 + y as usize * (self.width as usize) * 4;
             frame[i..i + 4].copy_from_slice(&color);
         }
     }
@@ -126,7 +132,7 @@ impl Asset<'_>  {
 
                 let x = (sx as f32 / scale) as u32;
 
-                let d = pos.0 as usize * 4 + (sx as usize) * 4 + (sy as usize + pos.1 as usize) * (WIDTH as usize) * 4;
+                let d = pos.0 as usize * 4 + (sx as usize) * 4 + (sy as usize + pos.1 as usize) * (self.width as usize) * 4;
                 let s = (x as usize + g_pos.0 as usize) * 4 + (y as usize + g_pos.1 as usize) * (map.width as usize) * 4;
 
                 frame[d..d + 4].copy_from_slice(&[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]]);
@@ -159,7 +165,7 @@ impl Asset<'_>  {
 
                 let x = (sx as f32 / scale) as u32;
 
-                let d = pos.0 as usize * 4 + (sx as usize) * 4 + (sy as usize + pos.1 as usize) * (WIDTH as usize) * 4;
+                let d = pos.0 as usize * 4 + (sx as usize) * 4 + (sy as usize + pos.1 as usize) * (self.width as usize) * 4;
                 let s = (x as usize + g_pos.0 as usize) * 4 + (y as usize + g_pos.1 as usize) * (map.width as usize) * 4;
 
                 frame[d..d + 4].copy_from_slice(&[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]]);
@@ -182,7 +188,7 @@ impl Asset<'_>  {
 
                 let x = (sx as f32 / scale) as u32;
 
-                let d = pos.0 as usize * 4 + (sx as usize) * 4 + (sy as usize + pos.1 as usize) * (WIDTH as usize) * 4;
+                let d = pos.0 as usize * 4 + (sx as usize) * 4 + (sy as usize + pos.1 as usize) * (self.width as usize) * 4;
                 let s = (x as usize + g_pos.0 as usize) * 4 + (y as usize + g_pos.1 as usize) * (map.width as usize) * 4;
 
                 let mixed_color = self.mix(&[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]], &color, 0.5);
@@ -224,7 +230,7 @@ impl Asset<'_>  {
         for glyph in glyphs {
             if let Some(bounding_box) = glyph.pixel_bounding_box() {
                 glyph.draw(|x, y, v| {
-                    let d = ((x + bounding_box.min.x as u32) as usize + pos.0 as usize) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1 as usize) * (WIDTH as usize) * 4;
+                    let d = ((x + bounding_box.min.x as u32) as usize + pos.0 as usize) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1 as usize) * (self.width as usize) * 4;
                     if v > 0.0 {
                         frame[d..d + 4].copy_from_slice(&self.mix(&background, &color, v));
                     }
@@ -250,7 +256,7 @@ impl Asset<'_>  {
         for glyph in glyphs {
             if let Some(bounding_box) = glyph.pixel_bounding_box() {
                 glyph.draw(|x, y, v| {
-                    let d = ((x + bounding_box.min.x as u32) as usize + pos.0 as usize) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1 as usize) * (WIDTH as usize) * 4;
+                    let d = ((x + bounding_box.min.x as u32) as usize + pos.0 as usize) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1 as usize) * (self.width as usize) * 4;
                     if v > 0.0 {
                         let background = &[frame[d], frame[d+1], frame[d+2], frame[d]+3];
                         frame[d..d + 4].copy_from_slice(&self.mix(&background, &color, v));

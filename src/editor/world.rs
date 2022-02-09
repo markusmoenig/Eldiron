@@ -4,6 +4,7 @@ use crate::widget::*;
 use crate::Asset;
 
 use crate::tileselector::{ TileSelectorWidget, TileSelectorHelper };
+use crate::widget::context::ScreenContext;
 
 pub struct WorldEditor {
     rect                    : (u32, u32, u32, u32),
@@ -31,9 +32,9 @@ impl Widget for WorldEditor {
     fn update(&mut self) {
     }
 
-    fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset) {
+    fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset, context: &ScreenContext) {
         asset.draw_area(frame, &self.content_rect, anim_counter);
-        self.tileselector_widget.draw(frame, anim_counter, asset);
+        self.tileselector_widget.draw(frame, anim_counter, asset, context);
     }
 
     fn mouse_down(&mut self, pos: (u32, u32), asset: &mut Asset) -> bool {
