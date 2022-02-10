@@ -65,7 +65,7 @@ pub trait Widget {
     fn new(text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self where Self: Sized;
 
     fn update(&mut self) {}
-    fn resize(&mut self, _width: usize, _height: usize) {
+    fn resize(&mut self, _width: usize, _height: usize, _context: &ScreenContext) {
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &ScreenContext);

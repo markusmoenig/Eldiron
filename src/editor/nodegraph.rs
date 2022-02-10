@@ -29,17 +29,14 @@ impl Widget for NodeGraph {
         }
     }
 
-    fn resize(&mut self, width: usize, height: usize) {
+    fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
         self.buffer.resize(width * height * 4, 0);
         self.dirty = true;
         self.rect.2 = width;
         self.rect.3 = height;
-        println!("resized to {} {}", width, width * height * 4);
     }
 
     fn draw(&mut self, frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &ScreenContext) {
-
-        println!("draw {} {}", self.rect.2, self.buffer.len());
 
         let rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
         let buffer_frame = &mut self.buffer[..];

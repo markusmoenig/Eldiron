@@ -28,7 +28,7 @@ impl Widget for ToolBar {
         }
     }    
 
-    fn resize(&mut self, width: usize, height: usize) {
+    fn resize(&mut self, width: usize, height: usize, context: &ScreenContext) {
         self.rect.2 = width;
         self.rect.3 = height;
     }

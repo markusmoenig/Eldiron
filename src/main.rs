@@ -135,10 +135,11 @@ fn main() -> Result<(), Error> {
             // Resize the window
             if let Some(size) = input.window_resized() {
                 pixels.resize_surface(size.width, size.height);
-                pixels.resize_buffer(size.width / window.scale_factor() as u32, size.height / window.scale_factor() as u32);
-                asset.width = size.width / window.scale_factor() as u32;
-                asset.height = size.height / window.scale_factor() as u32;
-                curr_screen.resize(size.width as usize / window.scale_factor() as usize, size.height as usize / window.scale_factor() as usize);
+                let scale = window.scale_factor() as u32;
+                pixels.resize_buffer(size.width / scale, size.height / scale);
+                asset.width = size.width / scale;
+                asset.height = size.height / scale;
+                curr_screen.resize(size.width as usize / scale as usize, size.height as usize / scale as usize);
                 window.request_redraw();
             }
 

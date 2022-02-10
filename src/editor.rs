@@ -65,8 +65,8 @@ impl ScreenWidget for Editor {
     fn resize(&mut self, width: usize, height: usize) {
         self.context.width = width; self.rect.2 = width;
         self.context.height = height; self.rect.3 = height;
-        self.node_graph.resize(width, height);
-        self.toolbar.resize(width, height);
+        self.toolbar.resize(width, height, &self.context);
+        self.node_graph.resize(width, height - self.context.toolbar_height, &self.context);
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset) {
