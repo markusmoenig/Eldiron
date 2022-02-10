@@ -13,10 +13,10 @@ pub trait ScreenWidget {
     fn new(asset: &Asset, width: usize, height: usize) -> Self where Self: Sized;
 
     fn update(&mut self);
-    fn resize(&mut self, width: usize, height: usize) {
+    fn resize(&mut self, _width: usize, _height: usize) {
     }
 
-    fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset);
+    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset);
 
     fn mouse_down(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         false 
@@ -43,27 +43,28 @@ pub trait ScreenWidget {
 
 // General purpose widgets
 pub mod button;
-pub mod tab;
-pub mod optionsgrid;
-pub mod menu;
-pub mod intslider;
-pub mod tileselector;
+// pub mod tab;
+// pub mod optionsgrid;
+// pub mod menu;
+// pub mod intslider;
+// pub mod tileselector;
 
 /// The widget state
 
-//#[derive(PartialEq)]
-// pub enum WidgetState {
-//     Disabled,
-//     Normal,
-//     //Right
-// }
+#[derive(PartialEq)]
+pub enum WidgetState {
+    Disabled,
+    Normal,
+    Selected,
+}
 
 pub trait Widget {
 
-    fn new(text: Vec<String>, rect: (u32, u32, u32, u32), asset: &Asset) -> Self where Self: Sized;
+    fn new(text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self where Self: Sized;
 
-    fn update(&mut self);
-    fn draw(&mut self, frame: &mut [u8], anim_counter: u32, asset: &mut Asset, context: &ScreenContext);
+    fn update(&mut self) {}
+
+    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &ScreenContext);
 
     fn mouse_down(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
         false
@@ -84,7 +85,7 @@ pub trait Widget {
         // { self.f = Some(Box::new(f)//); }
     //}
 
-    fn contains_pos(&self, pos: (u32, u32)) -> bool {
+    fn contains_pos(&self, pos: (usize, usize)) -> bool {
         let rect = self.get_rect();
 
         if pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3 {
@@ -94,7 +95,7 @@ pub trait Widget {
         }
     }
 
-    fn contains_pos_for(&self, pos: (u32, u32), rect: (u32, u32, u32, u32)) -> bool {
+    fn contains_pos_for(&self, pos: (usize, usize), rect: (usize, usize, usize, usize)) -> bool {
         if pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3 {
             true
         } else {
@@ -102,9 +103,9 @@ pub trait Widget {
         }
     }
 
-    fn get_rect(&self) -> &(u32, u32, u32, u32);
+    fn get_rect(&self) -> &(usize, usize, usize, usize);
 
-    fn get_content_rect(&self) -> (u32, u32, u32, u32) {
+    fn get_content_rect(&self) -> (usize, usize, usize, usize) {
         let r = self.get_rect();
         (r.0, r.1, r.2, r.3)
     }

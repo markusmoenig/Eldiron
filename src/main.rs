@@ -65,7 +65,7 @@ fn main() -> Result<(), Error> {
 
     let mut curr_screen = editor;
 
-    let mut anim_counter : u32 = 0;
+    let mut anim_counter : usize = 0;
     let mut timer : u128 = 0;
 
     event_loop.run(move |event, _, control_flow| {

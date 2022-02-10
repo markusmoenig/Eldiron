@@ -1,4 +1,13 @@
 
+use rusttype::{point, Font, Scale};
+
+#[derive(PartialEq)]
+pub enum TextAlignment {
+    Left,
+    Center,
+    //Right
+}
+
 pub struct Draw2D {
 }
 
@@ -150,19 +159,83 @@ impl Draw2D {
         }
     }
 
+    /// Draws a text aligned inside a rect
+    pub fn draw_text_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4], background: &[u8;4], align: TextAlignment) {
+        if align == TextAlignment::Left {
+            self.draw_text(frame, &(rect.0, rect.1), stride, font, size, text, color, background);
+        } else
+        if align == TextAlignment::Center {
+            let text_size = self.get_text_size(font, size, text);
+            let x =  rect.0 + (rect.2 - text_size.0) / 2;
+            let y =  rect.1 + (rect.3 - text_size.1) / 2;
+            self.draw_text(frame, &(x, y), stride, font, size, text, color, background);
+        }
+    }
+
+    /// Draws the given text
+    pub fn draw_text(&self,  frame: &mut [u8], pos: &(usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4], background: &[u8; 4]) {
+
+        let scale = Scale::uniform(size);
+
+        let v_metrics = font.v_metrics(scale);
+
+        let glyphs: Vec<_> = font
+            .layout( text, scale, point(0.0, 0.0 + v_metrics.ascent))
+            .collect();
+
+        for glyph in glyphs {
+            if let Some(bounding_box) = glyph.pixel_bounding_box() {
+                glyph.draw(|x, y, v| {
+                    let d = (x as usize + bounding_box.min.x as usize + pos.0) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1) * (stride as usize) * 4;
+                    if v > 0.0 {
+                        frame[d..d + 4].copy_from_slice(&self.mix_color(&background, &color, v as f64));
+                    }
+                });
+            }
+        }
+    }
+
+    /// Returns the size of the given text
+    fn get_text_size(&self, font: &Font, size: f32, text: &str) -> (usize, usize) {
+        
+        let scale = Scale::uniform(size);
+        let v_metrics = font.v_metrics(scale);
+
+        let glyphs: Vec<_> = font
+            .layout(text, scale, point(0.0, 0.0 + v_metrics.ascent))
+            .collect();
+        
+        let glyphs_height = (v_metrics.ascent - v_metrics.descent).ceil() as u32;
+        let glyphs_width = {
+            let min_x = glyphs
+                .first()
+                .map(|g| g.pixel_bounding_box().unwrap().min.x)
+                .unwrap();
+            let max_x = glyphs
+                .last()
+                .map(|g| g.pixel_bounding_box().unwrap().max.x)
+                .unwrap();
+            (max_x - min_x) as u32
+        };
+
+        (glyphs_width as usize, glyphs_height as usize)
+    }    
+
+    /// The fill mask for an SDF distance
     fn fill_mask(&self, dist : f64) -> f64 {
         (-dist).clamp(0.0, 1.0)
     }
 
+    /// The border mask for an SDF distance
     fn border_mask(&self, dist : f64, width: f64) -> f64 {
        (dist + width).clamp(0.0, 1.0) - dist.clamp(0.0, 1.0)
     }
 
     /// Smoothstep for f32
-    pub fn smoothstep(&self, e0: f64, e1: f64, x: f64) -> f64 {
-        let t = ((x - e0) / (e1 - e0)). clamp(0.0, 1.0);
-        return t * t * (3.0 - 2.0 * t); 
-    }
+    // pub fn smoothstep(&self, e0: f64, e1: f64, x: f64) -> f64 {
+    //     let t = ((x - e0) / (e1 - e0)). clamp(0.0, 1.0);
+    //     return t * t * (3.0 - 2.0 * t); 
+    // }
 
     /// Mixes two colors based on v
     pub fn mix_color(&self, a: &[u8;4], b: &[u8;4], v: f64) -> [u8; 4] {

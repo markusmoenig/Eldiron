@@ -4,7 +4,6 @@ pub mod tilearea;
 
 use rusttype::{point, Font, Scale};
 
-use crate::prelude::*;
 use tileset::*;
 
 use std::collections::HashMap;
@@ -22,6 +21,7 @@ pub struct Asset<'a> {
     pub tileset                 : TileSet,
     //gohu_font_11              : Font<'a>,
     gohu_font_14                : Font<'a>,
+    pub open_sans               : Font<'a>,
     pub grid_size               : u32,
     pub areas                   : HashMap<String, TileArea>,
     pub curr_area               : String,
@@ -44,6 +44,7 @@ impl Asset<'_>  {
             tileset         : tileset::TileSet::new(),
             //gohu_font_11    : Font::try_from_bytes(include_bytes!("../assets/fonts/gohufont-uni-11.ttf") as &[u8]).expect("Error constructing Font"),
             gohu_font_14    : Font::try_from_bytes(include_bytes!("../assets/fonts/Open_Sans/static/OpenSans/OpenSans-SemiBold.ttf") as &[u8]).expect("Error constructing Font"),
+            open_sans       : Font::try_from_bytes(include_bytes!("../assets/fonts/Open_Sans/static/OpenSans/OpenSans-Regular.ttf") as &[u8]).expect("Error constructing Font"),
             grid_size       : 32,
             areas,
             curr_area       : "world".to_string(),
@@ -93,27 +94,27 @@ impl Asset<'_>  {
     }
 
     /// Draws a rect with a text
-    pub fn draw_text_rect(&self, frame: &mut [u8], rect: &(u32, u32, u32, u32), text: &str, color: [u8; 4], background: [u8;4], align: TextAlignment) {
-        self.draw_rect(frame, rect, background);
+    pub fn draw_text_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, text: &str, color: [u8; 4], background: [u8;4], align: TextAlignment) {
+        //self.draw_rect(frame, rect, background);
         if align == TextAlignment::Left {
-            self.draw_text(frame, &(rect.0 + UI_ELEMENT_MARGIN, rect.1 + UI_ELEMENT_MARGIN), text, color, background);
+            self.draw_text(frame, &(rect.0, rect.1), stride, text, color, background);
         } else
         if align == TextAlignment::Center {
             let size = self.get_text_size(text);
             let left_center =  rect.0 + (rect.2 - size.0) / 2;
-            self.draw_text(frame, &(left_center, rect.1 + UI_ELEMENT_MARGIN), text, color, background);
+            self.draw_text(frame, &(left_center, rect.1), stride, text, color, background);
         }
     }
 
     /// Draws a rect with a text blended with the background
-    pub fn draw_text_rect_blend(&self, frame: &mut [u8], rect: &(u32, u32, u32, u32), text: &str, color: [u8; 4], align: TextAlignment) {
+    pub fn draw_text_rect_blend(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), text: &str, color: [u8; 4], align: TextAlignment) {
         if align == TextAlignment::Left {
-            self.draw_text_blend(frame, &(rect.0 + UI_ELEMENT_MARGIN, rect.1 + UI_ELEMENT_MARGIN), text, color);
+            self.draw_text_blend(frame, &(rect.0, rect.1), text, color);
         } else
         if align == TextAlignment::Center {
             let size = self.get_text_size(text);
             let left_center =  rect.0 + (rect.2 - size.0) / 2;
-            self.draw_text_blend(frame, &(left_center, rect.1 + UI_ELEMENT_MARGIN), text, color);
+            self.draw_text_blend(frame, &(left_center, rect.1), text, color);
         }
     }
 
@@ -214,7 +215,7 @@ impl Asset<'_>  {
     // }
 
     /// Draws the given text
-    pub fn draw_text(&self,  frame: &mut [u8], pos: &(u32, u32), text: &str, color: [u8; 4], background: [u8; 4]) {
+    pub fn draw_text(&self,  frame: &mut [u8], pos: &(usize, usize), stride: usize, text: &str, color: [u8; 4], background: [u8; 4]) {
 
         let def = self.get_default_font();
 
@@ -230,7 +231,7 @@ impl Asset<'_>  {
         for glyph in glyphs {
             if let Some(bounding_box) = glyph.pixel_bounding_box() {
                 glyph.draw(|x, y, v| {
-                    let d = ((x + bounding_box.min.x as u32) as usize + pos.0 as usize) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1 as usize) * (self.width as usize) * 4;
+                    let d = ((x + bounding_box.min.x as u32) as usize) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1) * (stride as usize) * 4;
                     if v > 0.0 {
                         frame[d..d + 4].copy_from_slice(&self.mix(&background, &color, v));
                     }
@@ -240,7 +241,7 @@ impl Asset<'_>  {
     }
 
     /// Draws the given text
-    pub fn draw_text_blend(&self,  frame: &mut [u8], pos: &(u32, u32), text: &str, color: [u8; 4]) {
+    pub fn draw_text_blend(&self,  frame: &mut [u8], pos: &(usize, usize), text: &str, color: [u8; 4]) {
 
         let def = self.get_default_font();
 
@@ -267,7 +268,7 @@ impl Asset<'_>  {
     }
 
     /// Returns the size of the given text
-    fn get_text_size(&self, text: &str) -> (u32, u32) {
+    fn get_text_size(&self, text: &str) -> (usize, usize) {
         
         let def = self.get_default_font();
 
@@ -292,7 +293,7 @@ impl Asset<'_>  {
             (max_x - min_x) as u32
         };
 
-        (glyphs_width, glyphs_height)
+        (glyphs_width as usize, glyphs_height as usize)
     }
 
     /// Returns the default font and the default rendering size
