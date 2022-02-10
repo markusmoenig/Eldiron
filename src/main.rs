@@ -8,9 +8,6 @@ mod asset;
 
 mod prelude {
     pub const TICK_IN_MS            : u128 = 250;
-
-    pub const UI_ELEMENT_HEIGHT     : u32 = 24;
-    pub const UI_ELEMENT_MARGIN     : u32 = 2;
 }
 
 use prelude::*;
@@ -105,7 +102,7 @@ fn main() -> Result<(), Error> {
                 let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
                     .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                if curr_screen.mouse_up((pixel_pos.0 as u32, pixel_pos.1 as u32), &mut asset) {
+                if curr_screen.mouse_up((pixel_pos.0, pixel_pos.1), &mut asset) {
                     window.request_redraw();
                 }
             }
@@ -121,6 +118,17 @@ fn main() -> Result<(), Error> {
                         window.request_redraw();
                     }
                 }         
+            } else {
+                let diff =  input.mouse_diff();
+                if diff.0 != 0.0 || diff.1 != 0.0 {
+                    let coords =  input.mouse().unwrap();
+                    let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
+                        .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+
+                    if curr_screen.mouse_hover((pixel_pos.0, pixel_pos.1), &mut asset) {
+                        window.request_redraw();
+                    }
+                }                   
             }
 
 

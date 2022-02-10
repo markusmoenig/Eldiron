@@ -22,7 +22,7 @@ pub trait ScreenWidget {
         false 
     }
 
-    fn mouse_up(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
         false
     }
 
@@ -30,7 +30,9 @@ pub trait ScreenWidget {
         false
     }
 
-    fn get_widgets(&self) -> &Vec<Box<dyn Widget>>;
+    fn mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
+        false
+    }
 
     /// Gets the current time in milliseconds
     fn get_time(&self) -> u128 {
@@ -55,7 +57,7 @@ pub mod button;
 pub enum WidgetState {
     Disabled,
     Normal,
-    Selected,
+    Hover,
 }
 
 pub trait Widget {
@@ -63,6 +65,8 @@ pub trait Widget {
     fn new(text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self where Self: Sized;
 
     fn update(&mut self) {}
+    fn resize(&mut self, _width: usize, _height: usize) {
+    }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &ScreenContext);
 
@@ -70,11 +74,15 @@ pub trait Widget {
         false
     }
 
-    fn mouse_up(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
         false
     }
 
     fn mouse_dragged(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
+        false
+    }
+
+    fn mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
         false
     }
 

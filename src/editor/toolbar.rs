@@ -28,9 +28,28 @@ impl Widget for ToolBar {
         }
     }    
 
+    fn resize(&mut self, width: usize, height: usize) {
+        self.rect.2 = width;
+        self.rect.3 = height;
+    }
+
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &ScreenContext) {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &[25, 25, 25, 255]);
         self.button_widget.draw(frame, anim_counter, asset, context);
+    }
+
+    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
+        let mut consumed = false;
+
+        consumed = self.button_widget.mouse_up(pos, asset);
+
+        consumed
+    }
+
+    fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
+        let mut consumed = false;
+        consumed = self.button_widget.mouse_hover(pos, asset);
+        consumed
     }
 
     fn get_rect(&self) -> &(usize, usize, usize, usize) {

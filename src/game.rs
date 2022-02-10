@@ -39,10 +39,5 @@ impl ScreenWidget for Game  {
         let stop = self.get_time();
 
         println!("{:?}", stop - start);
-    }  
-
-    /// Returns the current widgets
-    fn get_widgets(&self) -> &Vec<Box<dyn Widget>> {
-        &self.widgets
     }
 }

@@ -2,8 +2,6 @@ use crate::widget::*;
 
 use core::cell::Cell;
 
-use crate::draw2d::TextAlignment;
-
 #[derive(PartialEq)]
 pub enum ButtonType {
     ToolBar,
@@ -16,7 +14,9 @@ pub struct ButtonWidget {
     text            : Vec<String>,
     button_type     : ButtonType,
     state           : WidgetState,
-    pub clicked     : Cell<bool>
+    pub clicked     : Cell<bool>,
+    dirty           : bool,
+    buffer          : Vec<u8>,
 }
 
 impl Widget for ButtonWidget {
@@ -31,37 +31,29 @@ impl Widget for ButtonWidget {
             text,
             button_type         : ButtonType::ToolBar,
             state               : WidgetState::Normal,
-            clicked             : Cell::new(false)
+            clicked             : Cell::new(false),
+            dirty               : true,
+            buffer              : vec![0;rect.2 * rect.3 * 4]
         }
     }
 
     fn draw(&mut self, frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &ScreenContext) {
 
-        //asset.draw_rect(frame, &self.rect, [255, 255, 255, 255]);
+        let rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
+        let buffer_frame = &mut self.buffer[..];
 
-        //context.draw2d.draw_rect(frame, &self.rect, context.width, &[255, 255, 255, 255]);
+        if self.dirty {
+            if self.button_type == ButtonType::ToolBar {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
 
-        if self.button_type == ButtonType::ToolBar {
-            self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
-            context.draw2d.draw_rounded_rect_with_border(frame, &self.rect, context.width, &(self.content_rect.2 as f64 / 2.0, self.content_rect.3 as f64 / 2.0), &context.color_black, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
-            //context.draw2d.draw_text_rect(frame, &self.content_rect, context.width, &self.text[0], [255, 255, 255, 255], context.color_black, TextAlignment::Center);
-            context.draw2d.draw_text_rect(frame, &self.content_rect, context.width, &asset.open_sans,25.0, &self.text[0], &context.color_white, &context.color_black, draw2d::TextAlignment::Center);
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64 / 2.0, self.content_rect.3 as f64 / 2.0), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
+                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+            }            
         }
-        //pub fn draw_text_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, text: &str, color: [u8; 4], background: [u8;4], align: TextAlignment) {
-
-        /*
-        let state = self.state.get();
-
-        if state == 0 {
-            asset.draw_text_rect(frame, &self.rect, self.text[0].as_str(), self.get_color_text_disabled(), self.get_color_background(), crate::asset::TextAlignment::Center);
-        } else 
-        if state == 1 {
-            asset.draw_text_rect(frame, &self.rect, self.text[0].as_str(), self.get_color_text(), self.get_color_background(), crate::asset::TextAlignment::Center);
-        } else
-        if state == 2 {
-            asset.draw_text_rect(frame, &self.rect, self.text[0].as_str(), self.get_color_text(), self.get_color_selection_blue(), crate::asset::TextAlignment::Center);
-        }     
-        */   
+        self.dirty = false;
+        context.draw2d.copy_slice(frame, buffer_frame, &self.rect, context.width);
     }
 
     fn mouse_down(&mut self, pos: (u32, u32), _asset: &mut Asset) -> bool {
@@ -73,7 +65,7 @@ impl Widget for ButtonWidget {
         false
     }
 
-    fn mouse_up(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
         // if self.state.get() == 2 {
         //     //self.state.set(1);
         //     return true;
@@ -81,11 +73,26 @@ impl Widget for ButtonWidget {
         false
     }
 
-    fn set_state(&self, state: u32) {
-        // if self.state.get() == 2 && state == 1 {
-        //     return;
-        // }
-        //self.state.set(state);
+    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset) -> bool {
+        //println!("{}");
+        if self.contains_pos_for(pos, self.content_rect) {
+            if self.state != WidgetState::Disabled {
+                if self.state != WidgetState::Hover {
+                    self.state = WidgetState::Hover;
+                    self.dirty = true;
+                    return true;
+                }
+            }
+        } else {
+            if self.state != WidgetState::Disabled {
+                if self.state == WidgetState::Hover {
+                    self.state = WidgetState::Normal;
+                    self.dirty = true;
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn get_rect(&self) -> &(usize, usize, usize, usize) {

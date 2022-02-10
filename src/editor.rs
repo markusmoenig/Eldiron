@@ -5,6 +5,7 @@ use crate::widget:: {ScreenWidget, Widget};
 use crate::asset::Asset;
 
 mod toolbar;
+mod nodegraph;
 // mod tilemap;
 // mod world;
 
@@ -15,13 +16,14 @@ use crate::editor::toolbar::ToolBar;
 use crate::context::ScreenContext;
 //use crate::draw2d::Draw2D;
 
+use crate::editor::nodegraph::NodeGraph;
+
 /// The Editor struct
 pub struct Editor {
     rect                    : (usize, usize, usize, usize),
     context                 : ScreenContext,
     toolbar                 : ToolBar,
-    widgets                 : Vec<Box<dyn Widget>>,
-    //editor_menu             : MenuWidget,
+    node_graph              : NodeGraph,
     curr_index              : u32,
 }
 
@@ -29,11 +31,10 @@ impl ScreenWidget for Editor {
     
     fn new(asset: &Asset, width: usize, height: usize) -> Self where Self: Sized {
 
-        let mut widgets = vec!();
-
         let context = ScreenContext::new(width, height);
-        let toolbar = ToolBar::new(vec!(), (0,0, width, context.toolbar_height), asset, &context);
 
+        let toolbar = ToolBar::new(vec!(), (0,0, width, context.toolbar_height), asset, &context);
+        let node_graph = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context);
 
         //let editor_menu = MenuWidget::new(vec!["Tilemap Editor".to_string(), "World Editor".to_string()], (10, 0, 140,  UI_ELEMENT_HEIGHT), asset);
         
@@ -52,8 +53,7 @@ impl ScreenWidget for Editor {
             rect            : (0, 0, width, height),
             context,
             toolbar,
-            widgets,
-            //editor_menu,
+            node_graph,
             curr_index      : 0
         }
     }
@@ -65,6 +65,8 @@ impl ScreenWidget for Editor {
     fn resize(&mut self, width: usize, height: usize) {
         self.context.width = width; self.rect.2 = width;
         self.context.height = height; self.rect.3 = height;
+        self.node_graph.resize(width, height);
+        self.toolbar.resize(width, height);
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset) {
@@ -72,28 +74,25 @@ impl ScreenWidget for Editor {
         let start = self.get_time();
 
         self.toolbar.draw(frame, anim_counter, asset, &self.context);
-        self.context.draw2d.draw_square_pattern(frame, &(0, self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), self.context.width, &[44, 44, 46, 255], &[56, 56, 56, 255], 40);
+        self.node_graph.draw(frame, anim_counter, asset, &self.context);
+
+        // self.context.draw2d.draw_square_pattern(frame, &(0, self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), self.context.width, &[44, 44, 46, 255], &[56, 56, 56, 255], 40);
 
         // self.context.draw2d.draw_circle(frame, &(0, toolbar_height, self.rect.2, self.rect.3 - toolbar_height), self.context.width, &[255, 255, 255, 255], 200.0);
         // self.context.draw2d.draw_circle_with_border(frame, &(0, toolbar_height, self.rect.2, self.rect.3 - toolbar_height), self.context.width, &[255, 255, 255, 255], 200.0, &[255, 0, 0, 255], 10.0);
 
         // self.context.draw2d.draw_rounded_rect(frame, &(0, toolbar_height, self.rect.2, self.rect.3 - toolbar_height), self.context.width, &(200.0, 200.0), &[255, 255, 255, 255], &(50.0, 50.0, 50.0, 50.0));
-        self.context.draw2d.draw_rounded_rect_with_border(frame, &(0, self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), self.context.width, &(200.0, 200.0), &[255, 255, 255, 255], &(50.0, 50.0, 50.0, 50.0), &[255, 0, 0, 255], 20.0);
+        // self.context.draw2d.draw_rounded_rect_with_border(frame, &(0, self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), self.context.width, &(200.0, 200.0), &[255, 255, 255, 255], &(50.0, 50.0, 50.0, 50.0), &[255, 0, 0, 255], 20.0);
 
         let stop = self.get_time();
 
         println!("{:?}", stop - start);
     }
 
-    /// Returns the current widgets
-    fn get_widgets(&self) -> &Vec<Box<dyn Widget>> {
-        &self.widgets
-    }
-
     fn mouse_down(&mut self, pos: (u32, u32), asset: &mut Asset) -> bool {
-        let mut consumed;
+        let mut consumed = false;
 
-        consumed = self.widgets[self.curr_index as usize].mouse_down(pos, asset);
+        //consumed = self.widgets[self.curr_index as usize].mouse_down(pos, asset);
 
         // if consumed == false && self.editor_menu.mouse_down(pos, asset) {
         //     consumed = true;
@@ -101,9 +100,9 @@ impl ScreenWidget for Editor {
         consumed
     }
 
-    fn mouse_up(&mut self, pos: (u32, u32), asset: &mut Asset) -> bool {
-        let mut consumed;
-        consumed = self.widgets[self.curr_index as usize].mouse_up(pos, asset);
+    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
+        let mut consumed = false;
+        //consumed = self.widgets[self.curr_index as usize].mouse_up(pos, asset);
 
         // if consumed == false && self.editor_menu.mouse_up(pos, asset) {
         //     consumed = true;
@@ -112,13 +111,23 @@ impl ScreenWidget for Editor {
     }
 
     fn mouse_dragged(&mut self, pos: (u32, u32), asset: &mut Asset) -> bool {
-        let mut consumed;
-        consumed = self.widgets[self.curr_index as usize].mouse_dragged(pos, asset);
+        let mut consumed = false;
+        //consumed = self.widgets[self.curr_index as usize].mouse_dragged(pos, asset);
 
         // if consumed == false && self.editor_menu.mouse_dragged(pos, asset) {
         //     self.curr_index = self.editor_menu.selected_index.get();
         //     consumed = true;
         // }
+        consumed
+    }
+
+    fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
+        let mut consumed = false;
+        //consumed = self.widgets[self.curr_index as usize].mouse_hover(pos, asset);
+
+        if consumed == false && self.toolbar.mouse_hover(pos, asset) {
+            consumed = true;
+        }
         consumed
     }
 }

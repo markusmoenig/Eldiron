@@ -2,7 +2,7 @@
 pub mod tileset;
 pub mod tilearea;
 
-use rusttype::{point, Font, Scale};
+use rusttype::{Font};
 
 use tileset::*;
 
@@ -10,17 +10,10 @@ use std::collections::HashMap;
 
 use crate::tilearea::TileArea;
 
-#[derive(PartialEq)]
-pub enum TextAlignment {
-    Left,
-    Center,
-    //Right
-}
-
 pub struct Asset<'a> {
     pub tileset                 : TileSet,
     //gohu_font_11              : Font<'a>,
-    gohu_font_14                : Font<'a>,
+    //gohu_font_14                : Font<'a>,
     pub open_sans               : Font<'a>,
     pub grid_size               : u32,
     pub areas                   : HashMap<String, TileArea>,
@@ -43,7 +36,7 @@ impl Asset<'_>  {
         Self {
             tileset         : tileset::TileSet::new(),
             //gohu_font_11    : Font::try_from_bytes(include_bytes!("../assets/fonts/gohufont-uni-11.ttf") as &[u8]).expect("Error constructing Font"),
-            gohu_font_14    : Font::try_from_bytes(include_bytes!("../assets/fonts/Open_Sans/static/OpenSans/OpenSans-SemiBold.ttf") as &[u8]).expect("Error constructing Font"),
+            //gohu_font_14    : Font::try_from_bytes(include_bytes!("../assets/fonts/Open_Sans/static/OpenSans/OpenSans-SemiBold.ttf") as &[u8]).expect("Error constructing Font"),
             open_sans       : Font::try_from_bytes(include_bytes!("../assets/fonts/Open_Sans/static/OpenSans/OpenSans-Regular.ttf") as &[u8]).expect("Error constructing Font"),
             grid_size       : 32,
             areas,
@@ -90,31 +83,6 @@ impl Asset<'_>  {
 
             i = (x + rect.2 - 1) as usize * 4 + y as usize * (self.width as usize) * 4;
             frame[i..i + 4].copy_from_slice(&color);
-        }
-    }
-
-    /// Draws a rect with a text
-    pub fn draw_text_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, text: &str, color: [u8; 4], background: [u8;4], align: TextAlignment) {
-        //self.draw_rect(frame, rect, background);
-        if align == TextAlignment::Left {
-            self.draw_text(frame, &(rect.0, rect.1), stride, text, color, background);
-        } else
-        if align == TextAlignment::Center {
-            let size = self.get_text_size(text);
-            let left_center =  rect.0 + (rect.2 - size.0) / 2;
-            self.draw_text(frame, &(left_center, rect.1), stride, text, color, background);
-        }
-    }
-
-    /// Draws a rect with a text blended with the background
-    pub fn draw_text_rect_blend(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), text: &str, color: [u8; 4], align: TextAlignment) {
-        if align == TextAlignment::Left {
-            self.draw_text_blend(frame, &(rect.0, rect.1), text, color);
-        } else
-        if align == TextAlignment::Center {
-            let size = self.get_text_size(text);
-            let left_center =  rect.0 + (rect.2 - size.0) / 2;
-            self.draw_text_blend(frame, &(left_center, rect.1), text, color);
         }
     }
 
@@ -213,98 +181,6 @@ impl Asset<'_>  {
     //         }
     //     }
     // }
-
-    /// Draws the given text
-    pub fn draw_text(&self,  frame: &mut [u8], pos: &(usize, usize), stride: usize, text: &str, color: [u8; 4], background: [u8; 4]) {
-
-        let def = self.get_default_font();
-
-        let font = def.0;
-        let scale = Scale::uniform(def.1);
-
-        let v_metrics = font.v_metrics(scale);
-
-        let glyphs: Vec<_> = font
-            .layout( text, scale, point(0.0, 0.0 + v_metrics.ascent))
-            .collect();
-
-        for glyph in glyphs {
-            if let Some(bounding_box) = glyph.pixel_bounding_box() {
-                glyph.draw(|x, y, v| {
-                    let d = ((x + bounding_box.min.x as u32) as usize) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1) * (stride as usize) * 4;
-                    if v > 0.0 {
-                        frame[d..d + 4].copy_from_slice(&self.mix(&background, &color, v));
-                    }
-                });
-            }
-        }
-    }
-
-    /// Draws the given text
-    pub fn draw_text_blend(&self,  frame: &mut [u8], pos: &(usize, usize), text: &str, color: [u8; 4]) {
-
-        let def = self.get_default_font();
-
-        let font = def.0;
-        let scale = Scale::uniform(def.1);
-
-        let v_metrics = font.v_metrics(scale);
-
-        let glyphs: Vec<_> = font
-            .layout( text, scale, point(0.0, 0.0 + v_metrics.ascent))
-            .collect();
-
-        for glyph in glyphs {
-            if let Some(bounding_box) = glyph.pixel_bounding_box() {
-                glyph.draw(|x, y, v| {
-                    let d = ((x + bounding_box.min.x as u32) as usize + pos.0 as usize) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1 as usize) * (self.width as usize) * 4;
-                    if v > 0.0 {
-                        let background = &[frame[d], frame[d+1], frame[d+2], frame[d]+3];
-                        frame[d..d + 4].copy_from_slice(&self.mix(&background, &color, v));
-                    }
-                });
-            }
-        }
-    }
-
-    /// Returns the size of the given text
-    fn get_text_size(&self, text: &str) -> (usize, usize) {
-        
-        let def = self.get_default_font();
-
-        let font = def.0;
-        let scale = Scale::uniform(def.1);
-        let v_metrics = font.v_metrics(scale);
-
-        let glyphs: Vec<_> = font
-            .layout(text, scale, point(0.0, 0.0 + v_metrics.ascent))
-            .collect();
-        
-        let glyphs_height = (v_metrics.ascent - v_metrics.descent).ceil() as u32;
-        let glyphs_width = {
-            let min_x = glyphs
-                .first()
-                .map(|g| g.pixel_bounding_box().unwrap().min.x)
-                .unwrap();
-            let max_x = glyphs
-                .last()
-                .map(|g| g.pixel_bounding_box().unwrap().max.x)
-                .unwrap();
-            (max_x - min_x) as u32
-        };
-
-        (glyphs_width as usize, glyphs_height as usize)
-    }
-
-    /// Returns the default font and the default rendering size
-    pub fn get_default_font(&self) -> (&Font, f32) {
-        (&self.gohu_font_14, 20.0)
-    }
-
-    /// Returns the default font and the default rendering size
-    pub fn get_text_element_height(&self) -> u32 {
-        16 + 4
-    }
 
     /// Mixes two colors based on v
     pub fn mix(&self, a: &[u8;4], b: &[u8;4], v: f32) -> [u8; 4] {

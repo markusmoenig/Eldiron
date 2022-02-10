@@ -188,6 +188,31 @@ impl Draw2D {
                 glyph.draw(|x, y, v| {
                     let d = (x as usize + bounding_box.min.x as usize + pos.0) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1) * (stride as usize) * 4;
                     if v > 0.0 {
+                        //frame[d..d + 4].copy_from_slice(&self.mix_color(&background, &color, self.smoothstep(0.0, 1.0, v as f64)));
+                        frame[d..d + 4].copy_from_slice(&self.mix_color(&background, &color, v as f64));
+                    }
+                });
+            }
+        }
+    }
+
+    /// Draws the given text and blends it with the existing background
+    pub fn draw_text_blend(&self,  frame: &mut [u8], pos: &(usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4]) {
+
+        let scale = Scale::uniform(size);
+
+        let v_metrics = font.v_metrics(scale);
+
+        let glyphs: Vec<_> = font
+            .layout( text, scale, point(0.0, 0.0 + v_metrics.ascent))
+            .collect();
+
+        for glyph in glyphs {
+            if let Some(bounding_box) = glyph.pixel_bounding_box() {
+                glyph.draw(|x, y, v| {
+                    let d = (x as usize + bounding_box.min.x as usize + pos.0) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1) * (stride as usize) * 4;
+                    if v > 0.0 {
+                        let background = &[frame[d], frame[d+1], frame[d+2], frame[d]+3];
                         frame[d..d + 4].copy_from_slice(&self.mix_color(&background, &color, v as f64));
                     }
                 });
@@ -219,7 +244,16 @@ impl Draw2D {
         };
 
         (glyphs_width as usize, glyphs_height as usize)
-    }    
+    }
+
+    /// Copies rect from the source frame into the dest frame
+    pub fn copy_slice(&self, dest: &mut [u8], source: &[u8], rect: &(usize, usize, usize, usize), dest_stride: usize) {
+        for y in 0..rect.3 {
+            let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
+            let s = y * rect.2 * 4;
+            dest[d..d + rect.2 * 4].copy_from_slice(&source[s..s + rect.2 * 4]);
+        }
+    }
 
     /// The fill mask for an SDF distance
     fn fill_mask(&self, dist : f64) -> f64 {
@@ -231,11 +265,11 @@ impl Draw2D {
        (dist + width).clamp(0.0, 1.0) - dist.clamp(0.0, 1.0)
     }
 
-    /// Smoothstep for f32
-    // pub fn smoothstep(&self, e0: f64, e1: f64, x: f64) -> f64 {
-    //     let t = ((x - e0) / (e1 - e0)). clamp(0.0, 1.0);
-    //     return t * t * (3.0 - 2.0 * t); 
-    // }
+    /// Smoothstep for f64
+    pub fn smoothstep(&self, e0: f64, e1: f64, x: f64) -> f64 {
+        let t = ((x - e0) / (e1 - e0)). clamp(0.0, 1.0);
+        return t * t * (3.0 - 2.0 * t); 
+    }
 
     /// Mixes two colors based on v
     pub fn mix_color(&self, a: &[u8;4], b: &[u8;4], v: f64) -> [u8; 4] {
