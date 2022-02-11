@@ -1,4 +1,3 @@
-
 use crate::widget::*;
 use crate::Asset;
 
@@ -6,12 +5,12 @@ use crate::widget::atom::AtomWidget;
 use crate::widget::atom::AtomWidgetType;
 use crate::widget::context::ScreenContext;
 
-pub struct ToolBar {
+pub struct TileMapOptions {
     rect                    : (usize, usize, usize, usize),
     widgets                 : Vec<AtomWidget>,
 }
 
-impl Widget for ToolBar {
+impl Widget for TileMapOptions {
 
     fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self where Self: Sized {
 
@@ -33,10 +32,10 @@ impl Widget for ToolBar {
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
-        context.draw2d.draw_rect(frame, &self.rect, context.width, &[25, 25, 25, 255]);
+        //context.draw2d.draw_rect(frame, &self.rect, context.width, &[25, 25, 25, 255]);
 
         for atom in &mut self.widgets {
-            atom.draw(frame, anim_counter, asset, context);
+            //atom.draw(frame, anim_counter, asset, context);
         }
     }
 

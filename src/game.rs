@@ -1,6 +1,6 @@
 use crate::asset::Asset;
 
-use crate::widget:: {ScreenWidget, Widget};
+use crate::widget:: {ScreenWidget};
 
 /// Which window do we show currently
 enum GameState {
@@ -10,7 +10,6 @@ enum GameState {
 /// The main Game struct
 pub struct Game {
     window                  : GameState,
-    widgets                 : Vec<Box<dyn Widget>>
 }
 
 impl ScreenWidget for Game  {
@@ -18,7 +17,6 @@ impl ScreenWidget for Game  {
     fn new(_asset: &Asset, _width: usize, _height: usize) -> Self where Self: Sized {
         Self {
             window          : GameState::StartMenu,
-            widgets         : vec!()
         }
     }
 

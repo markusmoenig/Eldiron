@@ -1,7 +1,5 @@
 
 use crate::draw2d::Draw2D;
-use crate::Widget;
-use crate::Asset;
 
 pub struct ScreenContext {
     pub draw2d                  : Draw2D,
@@ -10,7 +8,6 @@ pub struct ScreenContext {
     pub toolbar_button_height   : usize,
     pub toolbar_button_rounding : (f64, f64, f64, f64),
     pub toolbar_button_text_size: f32,
-
 
     pub color_black             : [u8;4],
     pub color_light_gray        : [u8;4],
@@ -40,6 +37,7 @@ impl ScreenContext {
         }
     }
 
+    /*
     pub fn process_mouse_hover(&self, pos: (usize, usize,), widgets: &mut Vec<Box<dyn Widget>>, asset: &mut Asset) -> bool {
         let mut consumed = false;
 
@@ -50,5 +48,5 @@ impl ScreenContext {
             }
         }
         consumed
-    }
+    }*/
 }

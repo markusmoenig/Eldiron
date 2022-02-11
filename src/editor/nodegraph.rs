@@ -3,27 +3,17 @@ use crate::widget::*;
 use crate::Asset;
 use crate::editor::ScreenContext;
 
-#[derive(PartialEq)]
-pub enum ButtonType {
-    ToolBar,
-    Normal,
-}
-
 pub struct NodeGraph {
     rect            : (usize, usize, usize, usize),
-    text            : Vec<String>,
-    state           : WidgetState,
     dirty           : bool,
     buffer          : Vec<u8>,
 }
 
 impl Widget for NodeGraph {
     
-    fn new(text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext) -> Self where Self: Sized {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext) -> Self where Self: Sized {
         Self {
             rect,
-            text,
-            state               : WidgetState::Normal,
             dirty               : true,
             buffer              : vec![0;rect.2 * rect.3 * 4]
         }
@@ -36,7 +26,7 @@ impl Widget for NodeGraph {
         self.rect.3 = height;
     }
 
-    fn draw(&mut self, frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &ScreenContext) {
+    fn draw(&mut self, frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
 
         let rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
         let buffer_frame = &mut self.buffer[..];
@@ -49,7 +39,7 @@ impl Widget for NodeGraph {
         context.draw2d.copy_slice(frame, buffer_frame, &self.rect, context.width);
     }
 
-    fn mouse_down(&mut self, pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
         // if self.contains_pos(pos) {
         //     //self.state.set(2);
         //     self.clicked.set(true);
@@ -58,7 +48,7 @@ impl Widget for NodeGraph {
         false
     }
 
-    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
+    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
         // if self.state.get() == 2 {
         //     //self.state.set(1);
         //     return true;
@@ -66,7 +56,7 @@ impl Widget for NodeGraph {
         false
     }
 
-    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset) -> bool {
+    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
         false
     }
 

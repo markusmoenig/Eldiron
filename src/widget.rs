@@ -1,4 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
+use serde::{Deserialize, Serialize};
+
+use uuid::Uuid;
 
 use crate::asset::Asset;
 
@@ -44,12 +47,40 @@ pub trait ScreenWidget {
 }
 
 // General purpose widgets
-pub mod button;
+//pub mod button;
+pub mod atom;
 // pub mod tab;
 // pub mod optionsgrid;
 // pub mod menu;
 // pub mod intslider;
 // pub mod tileselector;
+
+#[derive(Serialize, Deserialize, PartialEq)]
+pub enum AtomDataType {
+    Int,
+    Float,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AtomData {
+    atom_type       : AtomDataType,
+    name            : String,
+    id              : String,
+    data            : (f64, f64, f64, f64)
+}
+
+impl AtomData {
+    
+    pub fn new_as_button(name: String) -> Self {
+
+        Self {
+            atom_type           : AtomDataType::Int,
+            name,
+            id                  : Uuid::new_v4().to_string(),
+            data                : (0.0,0.0,0.0,0.0)
+        }
+    }
+}
 
 /// The widget state
 
@@ -68,21 +99,21 @@ pub trait Widget {
     fn resize(&mut self, _width: usize, _height: usize, _context: &ScreenContext) {
     }
 
-    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &ScreenContext);
+    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext);
 
-    fn mouse_down(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_down(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         false
     }
 
-    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
+    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         false
     }
 
-    fn mouse_dragged(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_dragged(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         false
     }
 
-    fn mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
+    fn mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         false
     }
 

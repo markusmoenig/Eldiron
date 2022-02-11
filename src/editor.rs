@@ -6,6 +6,7 @@ use crate::asset::Asset;
 
 mod toolbar;
 mod nodegraph;
+mod tilemapoptions;
 // mod tilemap;
 // mod world;
 
@@ -18,23 +19,28 @@ use crate::context::ScreenContext;
 
 use crate::editor::nodegraph::NodeGraph;
 
+use self::tilemapoptions::TileMapOptions;
+
 /// The Editor struct
 pub struct Editor {
     rect                    : (usize, usize, usize, usize),
     context                 : ScreenContext,
     toolbar                 : ToolBar,
+    tilemap_options         : TileMapOptions,
     node_graph              : NodeGraph,
-    curr_index              : u32,
+    left_width              : usize,
 }
 
 impl ScreenWidget for Editor {
     
     fn new(asset: &Asset, width: usize, height: usize) -> Self where Self: Sized {
-
+        
+        let left_width = 180_usize;
         let context = ScreenContext::new(width, height);
 
         let toolbar = ToolBar::new(vec!(), (0,0, width, context.toolbar_height), asset, &context);
-        let node_graph = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context);
+        let tilemap_options = TileMapOptions::new(vec!(), (0, context.toolbar_height, left_width, height), asset, &context);
+        let node_graph = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
 
         //let editor_menu = MenuWidget::new(vec!["Tilemap Editor".to_string(), "World Editor".to_string()], (10, 0, 140,  UI_ELEMENT_HEIGHT), asset);
         
@@ -53,8 +59,9 @@ impl ScreenWidget for Editor {
             rect            : (0, 0, width, height),
             context,
             toolbar,
+            tilemap_options,
             node_graph,
-            curr_index      : 0
+            left_width
         }
     }
 
@@ -66,15 +73,17 @@ impl ScreenWidget for Editor {
         self.context.width = width; self.rect.2 = width;
         self.context.height = height; self.rect.3 = height;
         self.toolbar.resize(width, height, &self.context);
-        self.node_graph.resize(width, height - self.context.toolbar_height, &self.context);
+        self.tilemap_options.resize(self.left_width, height, &self.context);
+        self.node_graph.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset) {
 
         let start = self.get_time();
 
-        self.toolbar.draw(frame, anim_counter, asset, &self.context);
-        self.node_graph.draw(frame, anim_counter, asset, &self.context);
+        self.toolbar.draw(frame, anim_counter, asset, &mut self.context);
+        self.tilemap_options.draw(frame, anim_counter, asset, &mut self.context);
+        self.node_graph.draw(frame, anim_counter, asset, &mut self.context);
 
         // self.context.draw2d.draw_square_pattern(frame, &(0, self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), self.context.width, &[44, 44, 46, 255], &[56, 56, 56, 255], 40);
 
@@ -125,7 +134,7 @@ impl ScreenWidget for Editor {
         let mut consumed = false;
         //consumed = self.widgets[self.curr_index as usize].mouse_hover(pos, asset);
 
-        if consumed == false && self.toolbar.mouse_hover(pos, asset) {
+        if consumed == false && self.toolbar.mouse_hover(pos, asset, &mut self.context) {
             consumed = true;
         }
         consumed
