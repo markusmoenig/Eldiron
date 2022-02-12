@@ -15,10 +15,24 @@ impl Widget for TileMapOptions {
     fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self where Self: Sized {
 
         let mut widgets : Vec<AtomWidget> = vec![];
-        let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarButton, 
-            AtomData::new_as_button("Game".to_string()));
-        game_button.set_rect((rect.0 + 10, rect.1, 100, rect.3), asset, context);
-        widgets.push(game_button);
+        
+        let margin = 5_usize;
+
+        let mut unused_button = AtomWidget::new(vec!["Unused".to_string()], AtomWidgetType::CheckButton, 
+            AtomData::new_as_button("Unused".to_string()));
+
+        let mut environment_button = AtomWidget::new(vec!["Environment".to_string()], AtomWidgetType::CheckButton, 
+        AtomData::new_as_button("Environment".to_string()));
+
+        widgets.push(unused_button);
+        widgets.push(environment_button);
+
+        let mut r = (rect.0 + 5, rect.1 + 10, rect.2 - 10, 35);
+
+        for w in &mut widgets {
+            w.set_rect(r, asset, context);
+            r.1 += 35;
+        }
 
         Self {
             rect,
@@ -35,7 +49,7 @@ impl Widget for TileMapOptions {
         //context.draw2d.draw_rect(frame, &self.rect, context.width, &[25, 25, 25, 255]);
 
         for atom in &mut self.widgets {
-            //atom.draw(frame, anim_counter, asset, context);
+            atom.draw(frame, anim_counter, asset, context);
         }
     }
 

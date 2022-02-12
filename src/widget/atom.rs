@@ -1,8 +1,17 @@
 use crate::widget::*;
 
+pub struct GroupedList {
+    id                  : u32,
+    color               : [u8;4],
+    items               : Vec<String>
+}
+
 #[derive(PartialEq)]
 pub enum AtomWidgetType {
     ToolBarButton,
+    CheckButton,
+    Button,
+    GroupedList,
 }
 
 pub struct AtomWidget {
@@ -15,6 +24,8 @@ pub struct AtomWidget {
     pub clicked         : bool,
     dirty               : bool,
     buffer              : Vec<u8>,
+
+    grouped_items       : Vec<GroupedList>
 }
 
 impl AtomWidget {
@@ -30,7 +41,9 @@ impl AtomWidget {
             state               : WidgetState::Normal,
             clicked             : false,
             dirty               : true,
-            buffer              : vec![]
+            buffer              : vec![],
+
+            grouped_items       : vec![]
         }
     }
 
@@ -52,7 +65,23 @@ impl AtomWidget {
                 let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64 / 2.0, self.content_rect.3 as f64 / 2.0), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
-            }            
+            }  else   
+            if self.atom_widget_type == AtomWidgetType::CheckButton || self.atom_widget_type == AtomWidgetType::Button {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
+
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64 / 2.0, self.content_rect.3 as f64 / 2.0), &fill_color, &context.button_rounding, &context.color_light_gray, 1.5);
+                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+            } else
+            if self.atom_widget_type == AtomWidgetType::GroupedList {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
+
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64 / 2.0, self.content_rect.3 as f64 / 2.0), &fill_color, &context.button_rounding, &context.color_light_gray, 1.5);
+                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+            }                
         }
         self.dirty = false;
         context.draw2d.copy_slice(frame, buffer_frame, &self.rect, context.width);
