@@ -91,7 +91,7 @@ impl Draw2D {
                     r.0 = r.1;
                 }
 
-                let q : (f64, f64) = (p.0.abs() - size.0 + r.0, p.1.abs() - size.1 + r.0);
+                let q : (f64, f64) = (p.0.abs() - size.0 / 2.0 + r.0, p.1.abs() - size.1 / 2.0 + r.0);
                 let d = f64::min(f64::max(q.0, q.1), 0.0) + self.length((f64::max(q.0, 0.0), f64::max(q.1, 0.0))) - r.0;
                 
                 if d < 0.0 {
@@ -126,7 +126,7 @@ impl Draw2D {
                     r.0 = r.1;
                 }
 
-                let q : (f64, f64) = (p.0.abs() - size.0 + r.0, p.1.abs() - size.1 + r.0);
+                let q : (f64, f64) = (p.0.abs() - size.0 / 2.0 + r.0, p.1.abs() - size.1 / 2.0 + r.0);
                 let d = f64::min(f64::max(q.0, q.1), 0.0) + self.length((f64::max(q.0, 0.0), f64::max(q.1, 0.0))) - r.0;
                 
                 if d < 1.0 {

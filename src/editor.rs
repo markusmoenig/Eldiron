@@ -39,7 +39,7 @@ impl ScreenWidget for Editor {
         let context = ScreenContext::new(width, height);
 
         let toolbar = ToolBar::new(vec!(), (0,0, width, context.toolbar_height), asset, &context);
-        let tilemap_options = TileMapOptions::new(vec!(), (0, context.toolbar_height, left_width, height), asset, &context);
+        let tilemap_options = TileMapOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
         let node_graph = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
 
         //let editor_menu = MenuWidget::new(vec!["Tilemap Editor".to_string(), "World Editor".to_string()], (10, 0, 140,  UI_ELEMENT_HEIGHT), asset);

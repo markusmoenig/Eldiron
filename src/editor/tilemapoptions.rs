@@ -18,21 +18,31 @@ impl Widget for TileMapOptions {
         
         let margin = 5_usize;
 
-        let mut unused_button = AtomWidget::new(vec!["Unused".to_string()], AtomWidgetType::CheckButton, 
-            AtomData::new_as_button("Unused".to_string()));
+        let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList, 
+    AtomData::new_as_button("GroupedList".to_string()));
 
-        let mut environment_button = AtomWidget::new(vec!["Environment".to_string()], AtomWidgetType::CheckButton, 
-        AtomData::new_as_button("Environment".to_string()));
+        group_list.add_group_list(context.color_yellow, vec!["Unused".to_string(), "Environment".to_string()]);
+        group_list.set_rect(rect, asset, context);
 
-        widgets.push(unused_button);
-        widgets.push(environment_button);
+        widgets.push(group_list);
 
-        let mut r = (rect.0 + 5, rect.1 + 10, rect.2 - 10, 35);
+        println!("rect {:?}", rect);
 
-        for w in &mut widgets {
-            w.set_rect(r, asset, context);
-            r.1 += 35;
-        }
+        // let mut unused_button = AtomWidget::new(vec!["Unused".to_string()], AtomWidgetType::CheckButton, 
+        //     AtomData::new_as_button("Unused".to_string()));
+
+        // let mut environment_button = AtomWidget::new(vec!["Environment".to_string()], AtomWidgetType::CheckButton, 
+        // AtomData::new_as_button("Environment".to_string()));
+
+        // widgets.push(unused_button);
+        // widgets.push(environment_button);
+
+        // let mut r = (rect.0 + 5, rect.1 + 10, rect.2 - 10, 35);
+
+        // for w in &mut widgets {
+        //     w.set_rect(r, asset, context);
+        //     r.1 += 35;
+        // }
 
         Self {
             rect,
