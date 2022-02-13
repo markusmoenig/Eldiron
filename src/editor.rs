@@ -98,10 +98,10 @@ impl ScreenWidget for Editor {
         println!("{:?}", stop - start);
     }
 
-    fn mouse_down(&mut self, pos: (u32, u32), asset: &mut Asset) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
         let mut consumed = false;
 
-        //consumed = self.widgets[self.curr_index as usize].mouse_down(pos, asset);
+        consumed = self.tilemap_options.mouse_down(pos, asset, &mut self.context);
 
         // if consumed == false && self.editor_menu.mouse_down(pos, asset) {
         //     consumed = true;

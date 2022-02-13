@@ -17,6 +17,7 @@ pub struct ScreenContext {
     pub color_light_gray        : [u8;4],
     pub color_white             : [u8;4],
     pub color_yellow            : [u8;4],
+    pub color_light_yellow      : [u8;4],
 
     pub width                   : usize,
     pub height                  : usize,
@@ -42,6 +43,7 @@ impl ScreenContext {
             color_white                 : [255, 255, 255, 255],
             color_light_gray            : [105, 105, 105, 255],
             color_yellow                : [208, 115, 50, 255],
+            color_light_yellow          : [208, 156, 112, 255],
 
             width, height,
         }

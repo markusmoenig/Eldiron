@@ -1,9 +1,13 @@
 use crate::widget::*;
 
 pub struct GroupedList {
-    id                  : u32,
     color               : [u8;4],
-    items               : Vec<String>
+    selected_color      : [u8;4],
+    items               : Vec<GroupItem>
+}
+struct GroupItem {
+    rect                : (usize, usize, usize, usize),
+    text                : String
 }
 
 #[derive(PartialEq)]
@@ -15,17 +19,19 @@ pub enum AtomWidgetType {
 }
 
 pub struct AtomWidget {
-    rect                : (usize, usize, usize, usize),
-    content_rect        : (usize, usize, usize, usize),
-    text                : Vec<String>,
-    atom_widget_type    : AtomWidgetType,
-    atom_data           : AtomData,
-    state               : WidgetState,
-    pub clicked         : bool,
-    dirty               : bool,
-    buffer              : Vec<u8>,
+    rect                        : (usize, usize, usize, usize),
+    content_rect                : (usize, usize, usize, usize),
+    text                        : Vec<String>,
+    atom_widget_type            : AtomWidgetType,
+    atom_data                   : AtomData,
+    state                       : WidgetState,
+    pub clicked                 : bool,
+    dirty                       : bool,
+    buffer                      : Vec<u8>,
 
-    groups              : Vec<GroupedList>
+    groups                      : Vec<GroupedList>,
+    pub curr_group_index        : usize,
+    pub curr_item_index         : usize,
 }
 
 impl AtomWidget {
@@ -43,7 +49,9 @@ impl AtomWidget {
             dirty               : true,
             buffer              : vec![],
 
-            groups              : vec![]
+            groups              : vec![],
+            curr_group_index    : 0,
+            curr_item_index     : 0,
         }
     }
 
@@ -77,31 +85,45 @@ impl AtomWidget {
             } else
             if self.atom_widget_type == AtomWidgetType::GroupedList {
 
-                println!("tt {}", 1);
+                self.content_rect = (self.rect.0, self.rect.1, self.rect.2, self.rect.3);
 
-                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
+                let mut y = 2;
+                //for (g_index, group) in self.groups.iter().enumerate() {
+                for g_index in 0..self.groups.len() {
 
-                let mut y = self.rect.1;
-                for group in &self.groups {
-                    for (index, item) in group.items.iter().enumerate() {
+                    //for (i_index, item) in group.items.iter().enumerate() {
+                    for i_index in 0..self.groups[g_index].items.len() {
 
-                        let r = (rect.0, y, rect.2, 30);
+                        let r = (rect.0, y, rect.2, 32);
+
                         let mut rounding = context.button_rounding;
 
-                        if index == 0 {
+                        let color: &[u8;4];
+
+                        if g_index == self.curr_group_index && i_index == self.curr_item_index {
+                            color = &self.groups[g_index].selected_color;
+                        } else {
+                            color = &self.groups[g_index].color;
+                        }
+
+                        if i_index == 0 {
                             rounding.0 = 0.0;
                             rounding.2 = 0.0;
                         } else 
-                        if index == group.items.len() - 1 {
+                        if i_index == &self.groups[g_index].items.len() - 1 {
                             rounding.1 = 0.0;
-                            rounding.3 = 0.0;                                
-                        
+                            rounding.3 = 0.0;                         
+                        } else {
+                            rounding = (0.0, 0.0, 0.0, 0.0);
                         }
 
-                        context.draw2d.draw_rounded_rect(buffer_frame, &r, rect.2, &(180.0, 30.0), &group.color, &rounding);
+                        context.draw2d.draw_rounded_rect(buffer_frame, &r, rect.2, &(180.0, 32.0), color, &rounding);
+                        context.draw2d.draw_text(buffer_frame, &(r.0 + 25, r.1 + 4), rect.2, &asset.open_sans, context.button_text_size, &self.groups[g_index].items[i_index].text, &context.color_white, color);
 
-                        println!("tt {}", 1);
-                        y += 31;
+                        self.groups[g_index].items[i_index].rect = r;
+                        self.groups[g_index].items[i_index].rect.1 += self.rect.1;
+
+                        y += 33;
                     }
                 }
             }                
@@ -115,6 +137,19 @@ impl AtomWidget {
             if self.atom_widget_type == AtomWidgetType::ToolBarButton {
                 self.clicked = true;
                 return true;
+            } else
+            if self.atom_widget_type == AtomWidgetType::GroupedList {
+                for g_index in 0..self.groups.len() {
+                    for i_index in 0..self.groups[g_index].items.len() {
+                        if self.contains_pos_for(pos, self.groups[g_index].items[i_index].rect) {
+                            self.curr_group_index = g_index;
+                            self.curr_item_index = i_index;
+                            self.dirty = true;
+                            self.clicked = true;
+                            return true;
+                        }
+                    }
+                }
             }
         }
         false
@@ -148,8 +183,13 @@ impl AtomWidget {
         false
     }
 
-    pub fn add_group_list(&mut self, color: [u8;4], items: Vec<String>) {
-        let group = GroupedList { id: 0, color: color, items: items };
+    pub fn add_group_list(&mut self, color: [u8;4], selected_color: [u8;4], items: Vec<String>) {
+        let mut g_items : Vec<GroupItem> = vec![];
+        for t in &items {
+            let item = GroupItem {rect: (0,0,0,0), text: t.to_string()};
+            g_items.push(item);
+        }
+        let group = GroupedList { color: color, selected_color, items: g_items };
         self.groups.push(group);
     }
 

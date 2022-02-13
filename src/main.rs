@@ -92,7 +92,7 @@ fn main() -> Result<(), Error> {
                 let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
                     .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                if curr_screen.mouse_down((pixel_pos.0 as u32, pixel_pos.1 as u32), &mut asset) {
+                if curr_screen.mouse_down((pixel_pos.0, pixel_pos.1), &mut asset) {
                     window.request_redraw();
                 }
             }

@@ -21,12 +21,9 @@ impl Widget for TileMapOptions {
         let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList, 
     AtomData::new_as_button("GroupedList".to_string()));
 
-        group_list.add_group_list(context.color_yellow, vec!["Unused".to_string(), "Environment".to_string()]);
+        group_list.add_group_list(context.color_yellow, context.color_light_yellow, vec!["Unused".to_string(), "Environment".to_string(), "EnvBlocking".to_string(), "Character".to_string(), "UtilityChar".to_string(), "Water".to_string(), "Harmful".to_string()]);
         group_list.set_rect(rect, asset, context);
-
         widgets.push(group_list);
-
-        println!("rect {:?}", rect);
 
         // let mut unused_button = AtomWidget::new(vec!["Unused".to_string()], AtomWidgetType::CheckButton, 
         //     AtomData::new_as_button("Unused".to_string()));
@@ -66,6 +63,9 @@ impl Widget for TileMapOptions {
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_down(pos, asset, context) {
+                if atom.clicked {
+
+                }
                 return true;
             }
         }

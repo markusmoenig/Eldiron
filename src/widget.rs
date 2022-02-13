@@ -21,7 +21,7 @@ pub trait ScreenWidget {
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset);
 
-    fn mouse_down(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_down(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
         false 
     }
 
