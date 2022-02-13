@@ -10,9 +10,10 @@ struct GroupItem {
     text                : String
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum AtomWidgetType {
     ToolBarButton,
+    ToolBarSliderButton,
     CheckButton,
     Button,
     GroupedList,
@@ -29,6 +30,10 @@ pub struct AtomWidget {
     dirty                       : bool,
     buffer                      : Vec<u8>,
 
+    // For index based buttons
+    pub curr_index              : usize,
+
+    // For GroupedLists
     groups                      : Vec<GroupedList>,
     pub curr_group_index        : usize,
     pub curr_item_index         : usize,
@@ -49,6 +54,8 @@ impl AtomWidget {
             dirty               : true,
             buffer              : vec![],
 
+            curr_index          : 0,
+
             groups              : vec![],
             curr_group_index    : 0,
             curr_item_index     : 0,
@@ -65,7 +72,6 @@ impl AtomWidget {
         let rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
         let buffer_frame = &mut self.buffer[..];
 
-        
         if self.dirty {
             if self.atom_widget_type == AtomWidgetType::ToolBarButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
@@ -74,7 +80,15 @@ impl AtomWidget {
                 let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
-            }  else   
+            }  else  
+            if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
+
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
+                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+            }  else               
             if self.atom_widget_type == AtomWidgetType::CheckButton || self.atom_widget_type == AtomWidgetType::Button {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
 
@@ -117,7 +131,7 @@ impl AtomWidget {
                             rounding = (0.0, 0.0, 0.0, 0.0);
                         }
 
-                        context.draw2d.draw_rounded_rect(buffer_frame, &r, rect.2, &(180.0, 32.0), color, &rounding);
+                        context.draw2d.draw_rounded_rect(buffer_frame, &r, rect.2, &(self.rect.2 as f64, 32.0), color, &rounding);
                         context.draw2d.draw_text(buffer_frame, &(r.0 + 25, r.1 + 4), rect.2, &asset.open_sans, context.button_text_size, &self.groups[g_index].items[i_index].text, &context.color_white, color);
 
                         self.groups[g_index].items[i_index].rect = r;
@@ -136,6 +150,13 @@ impl AtomWidget {
         if self.contains_pos(pos) {
             if self.atom_widget_type == AtomWidgetType::ToolBarButton {
                 self.clicked = true;
+                return true;
+            } else
+            if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton {
+                self.clicked = true;
+                self.curr_index += 1;
+                self.curr_index %= self.text.len();
+                self.dirty = true;
                 return true;
             } else
             if self.atom_widget_type == AtomWidgetType::GroupedList {

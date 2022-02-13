@@ -7,11 +7,11 @@ use crate::asset::Asset;
 mod toolbar;
 mod nodegraph;
 mod tilemapoptions;
-// mod tilemap;
+mod tilemap;
 // mod world;
 
 use crate::editor::toolbar::ToolBar;
-// use tilemap::TileMapEditor;
+use tilemap::TileMap;
 // use world::WorldEditor;
 // use crate::menu::MenuWidget;
 use crate::context::ScreenContext;
@@ -26,7 +26,10 @@ pub struct Editor {
     rect                    : (usize, usize, usize, usize),
     context                 : ScreenContext,
     toolbar                 : ToolBar,
+
     tilemap_options         : TileMapOptions,
+    tilemap                 : TileMap,
+
     node_graph              : NodeGraph,
     left_width              : usize,
 }
@@ -40,6 +43,8 @@ impl ScreenWidget for Editor {
 
         let toolbar = ToolBar::new(vec!(), (0,0, width, context.toolbar_height), asset, &context);
         let tilemap_options = TileMapOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let tilemap = TileMap::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
+
         let node_graph = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
 
         //let editor_menu = MenuWidget::new(vec!["Tilemap Editor".to_string(), "World Editor".to_string()], (10, 0, 140,  UI_ELEMENT_HEIGHT), asset);
@@ -59,7 +64,10 @@ impl ScreenWidget for Editor {
             rect            : (0, 0, width, height),
             context,
             toolbar,
+
             tilemap_options,
+            tilemap,
+
             node_graph,
             left_width
         }
@@ -83,7 +91,8 @@ impl ScreenWidget for Editor {
 
         self.toolbar.draw(frame, anim_counter, asset, &mut self.context);
         self.tilemap_options.draw(frame, anim_counter, asset, &mut self.context);
-        self.node_graph.draw(frame, anim_counter, asset, &mut self.context);
+        self.tilemap.draw(frame, anim_counter, asset, &mut self.context);
+        //self.node_graph.draw(frame, anim_counter, asset, &mut self.context);
 
         // self.context.draw2d.draw_square_pattern(frame, &(0, self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), self.context.width, &[44, 44, 46, 255], &[56, 56, 56, 255], 40);
 
@@ -101,21 +110,31 @@ impl ScreenWidget for Editor {
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
         let mut consumed = false;
 
-        consumed = self.tilemap_options.mouse_down(pos, asset, &mut self.context);
-
-        // if consumed == false && self.editor_menu.mouse_down(pos, asset) {
-        //     consumed = true;
-        // }
+        if self.toolbar.mouse_down(pos, asset, &mut self.context) {            
+            self.tilemap.set_tilemap_index(self.toolbar.widgets[0].curr_index);
+            consumed = true;
+        }
+        if consumed == false && self.tilemap_options.mouse_down(pos, asset, &mut self.context) {
+            consumed = true;
+        }
+        if consumed == false && self.tilemap.mouse_down(pos, asset, &mut self.context) {
+            consumed = true;
+        }        
         consumed
     }
 
     fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
         let mut consumed = false;
-        //consumed = self.widgets[self.curr_index as usize].mouse_up(pos, asset);
-
-        // if consumed == false && self.editor_menu.mouse_up(pos, asset) {
-        //     consumed = true;
-        // }
+        if self.toolbar.mouse_up(pos, asset, &mut self.context) {            
+            self.tilemap.set_tilemap_index(self.toolbar.widgets[0].curr_index);
+            consumed = true;
+        }
+        if self.tilemap_options.mouse_up(pos, asset, &mut self.context) {
+            consumed = true;
+        }
+        if self.tilemap.mouse_up(pos, asset, &mut self.context) {
+            consumed = true;
+        }        
         consumed
     }
 
