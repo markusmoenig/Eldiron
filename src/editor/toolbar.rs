@@ -24,7 +24,7 @@ impl Widget for ToolBar {
 
         let mut tiles_button = AtomWidget::new(vec!["Tiles".to_string()], AtomWidgetType::ToolBarSwitchButton, 
         AtomData::new_as_button("Tiles".to_string()));
-        tiles_button.set_rect((rect.0 + 220, rect.1, 120, rect.3), asset, context);
+        tiles_button.set_rect((rect.0 + 220, rect.1, 130, rect.3), asset, context);
         tiles_button.selected = true;
         widgets.push(tiles_button);
 

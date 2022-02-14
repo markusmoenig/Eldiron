@@ -121,6 +121,15 @@ impl AtomWidget {
 
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
 
+                let mut y_pos = rect.3 / 2 - 7;
+                for y in 0_usize..3_usize {
+                    for x in 0_usize..3_usize {
+                        let color = if y == 1 && x == 1 { &context.color_white } else { &context.color_light_gray };
+                        context.draw2d.draw_circle(buffer_frame, &(rect.2 - 20 - x * 5, y_pos, 6, 6), rect.2, color, 2.0);
+                    }
+                    y_pos += 5;
+                }
+
                 // Draw left part
 
                 fill_color = &context.color_black;
@@ -129,6 +138,14 @@ impl AtomWidget {
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &left_rect, rect.2, &((div - 1) as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
                 left_rect.0 += 5;
                 context.draw2d.draw_text_rect(buffer_frame, &left_rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+
+                y_pos = rect.3 / 2 - 7;
+                for y in 0_usize..3_usize {
+                    for x in 0_usize..3_usize {
+                        context.draw2d.draw_circle(buffer_frame, &(10 + x * 5, y_pos, 6, 6), rect.2, &context.color_white, 2.0);
+                    }
+                    y_pos += 5;
+                }
             }  else                            
             if self.atom_widget_type == AtomWidgetType::CheckButton || self.atom_widget_type == AtomWidgetType::Button {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
