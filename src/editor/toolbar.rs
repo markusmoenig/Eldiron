@@ -22,10 +22,15 @@ impl Widget for ToolBar {
         item_slider_button.set_rect((rect.0 + 10, rect.1, 200, rect.3), asset, context);
         widgets.push(item_slider_button);
 
+        let mut tiles_button = AtomWidget::new(vec!["Tiles".to_string()], AtomWidgetType::ToolBarSwitchButton, 
+        AtomData::new_as_button("Tiles".to_string()));
+        tiles_button.set_rect((rect.0 + 220, rect.1, 120, rect.3), asset, context);
+        tiles_button.selected = true;
+        widgets.push(tiles_button);
 
         let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarButton, 
             AtomData::new_as_button("Game".to_string()));
-        game_button.set_rect((rect.0 + 220, rect.1, 100, rect.3), asset, context);
+        game_button.set_rect((rect.0 + 360, rect.1, 100, rect.3), asset, context);
         widgets.push(game_button);
 
         Self {
@@ -40,7 +45,7 @@ impl Widget for ToolBar {
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
-        context.draw2d.draw_rect(frame, &self.rect, context.width, &[25, 25, 25, 255]);
+        context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
 
         for atom in &mut self.widgets {
             atom.draw(frame, anim_counter, asset, context);

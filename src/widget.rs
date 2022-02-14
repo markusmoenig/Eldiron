@@ -29,7 +29,7 @@ pub trait ScreenWidget {
         false
     }
 
-    fn mouse_dragged(&mut self, _pos: (u32, u32), _asset: &mut Asset) -> bool {
+    fn mouse_dragged(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
         false
     }
 

@@ -14,6 +14,7 @@ struct GroupItem {
 pub enum AtomWidgetType {
     ToolBarButton,
     ToolBarSliderButton,
+    ToolBarSwitchButton,
     CheckButton,
     Button,
     GroupedList,
@@ -29,6 +30,14 @@ pub struct AtomWidget {
     pub clicked                 : bool,
     dirty                       : bool,
     buffer                      : Vec<u8>,
+
+    pub disabled                : bool,
+    pub selected                : bool,
+    has_hover                   : bool,
+
+    // For toolbar switches
+    pub right_selected          : bool,
+    right_has_hover             : bool,
 
     // For index based buttons
     pub curr_index              : usize,
@@ -53,6 +62,13 @@ impl AtomWidget {
             clicked             : false,
             dirty               : true,
             buffer              : vec![],
+
+            disabled            : false,
+            selected            : false,
+            has_hover           : false,
+
+            right_selected      : false,
+            right_has_hover     : false,
 
             curr_index          : 0,
 
@@ -88,7 +104,32 @@ impl AtomWidget {
                 let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
-            }  else               
+            }  else  
+            if self.atom_widget_type == AtomWidgetType::ToolBarSwitchButton {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
+
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+
+                let div = (self.content_rect.2 / 4) * 3;
+                let mut left_rect = rect.clone();
+
+                left_rect.2 = div;
+
+                // Draw Right part
+                let mut fill_color = &context.color_black;
+                if self.right_has_hover  { fill_color = &context.color_light_gray } if self.right_selected { fill_color = &context.color_gray };
+
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
+
+                // Draw left part
+
+                fill_color = &context.color_black;
+                if self.has_hover  { fill_color = &context.color_light_gray } if self.selected { fill_color = &context.color_gray };
+
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &left_rect, rect.2, &((div - 1) as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
+                left_rect.0 += 5;
+                context.draw2d.draw_text_rect(buffer_frame, &left_rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+            }  else                            
             if self.atom_widget_type == AtomWidgetType::CheckButton || self.atom_widget_type == AtomWidgetType::Button {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
 
@@ -159,6 +200,27 @@ impl AtomWidget {
                 self.dirty = true;
                 return true;
             } else
+            if self.atom_widget_type == AtomWidgetType::ToolBarSwitchButton {
+
+                if self.contains_pos_for(pos, self.content_rect) {
+                    let mut rect = self.content_rect.clone();
+                    let div = (rect.2 / 4) * 3;
+                    rect.2 = div;
+    
+                    if self.contains_pos_for(pos, rect) {
+                        self.selected = true;
+                        self.right_selected = false;
+                        self.has_hover = false;                        
+                    } else {
+                        self.selected = false;
+                        self.right_selected = true;
+                        self.right_has_hover = false;
+                    }
+                }
+                self.dirty = true;
+                self.clicked = true;
+                return true;
+            } else            
             if self.atom_widget_type == AtomWidgetType::GroupedList {
                 for g_index in 0..self.groups.len() {
                     for i_index in 0..self.groups[g_index].items.len() {
@@ -199,6 +261,31 @@ impl AtomWidget {
                         return true;
                     }
                 }
+            }
+        } else
+        if self.atom_widget_type == AtomWidgetType::ToolBarSwitchButton {
+            if self.contains_pos_for(pos, self.content_rect) {
+                let mut rect = self.content_rect.clone();
+                let div = (rect.2 / 4) * 3;
+                rect.2 = div;
+
+                if self.contains_pos_for(pos, rect) {
+                    if self.selected == false {
+                        self.has_hover = true;
+                    }
+                    self.right_has_hover = false;
+                } else {
+                    if self.right_selected == false {
+                        self.right_has_hover = true;
+                    }
+                    self.has_hover = false;
+                }
+
+                self.dirty = true;
+                return true;
+            } else {
+                if self.has_hover { self.has_hover = false; self.dirty = true; return true; }
+                if self.right_has_hover { self.right_has_hover = false; self.dirty = true; return true; }
             }
         }
         false

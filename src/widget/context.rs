@@ -14,6 +14,7 @@ pub struct ScreenContext {
     pub button_rounding         : (f64, f64, f64, f64),
 
     pub color_black             : [u8;4],
+    pub color_gray              : [u8;4],
     pub color_light_gray        : [u8;4],
     pub color_white             : [u8;4],
     pub color_yellow            : [u8;4],
@@ -33,7 +34,7 @@ impl ScreenContext {
             toolbar_height              : 45,
             toolbar_button_height       : 35,
             toolbar_button_rounding     : (18.0, 18.0, 18.0, 18.0),
-            toolbar_button_text_size    : 30.0,
+            toolbar_button_text_size    : 27.0,
 
             button_height               : 25,
             button_text_size            : 24.0,
@@ -41,7 +42,8 @@ impl ScreenContext {
 
             color_black                 : [25, 25, 25, 255],
             color_white                 : [255, 255, 255, 255],
-            color_light_gray            : [105, 105, 105, 255],
+            color_gray                  : [105, 105, 105, 255],
+            color_light_gray            : [155, 155, 155, 255],
             color_yellow                : [208, 115, 50, 255],
             color_light_yellow          : [208, 156, 112, 255],
 

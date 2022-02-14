@@ -34,7 +34,7 @@ impl TileMap {
     }
 
     pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {        
-        context.draw2d.draw_rect(frame, &self.rect, context.width, &[25, 25, 25, 255]);
+        context.draw2d.draw_rect(frame, &self.rect, context.width, &[44, 44, 44, 255]);
         if asset.tileset.maps.is_empty() { return }
 
         let scale = 2.0;
@@ -111,6 +111,10 @@ impl TileMap {
     }
 
     pub fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+        false
+    }
+
+    pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         false
     }
 

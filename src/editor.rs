@@ -21,9 +21,16 @@ use crate::editor::nodegraph::NodeGraph;
 
 use self::tilemapoptions::TileMapOptions;
 
+#[derive (PartialEq)]
+enum EditorState {
+    TILES_OVERVIEW,
+    TILES_DETAIL
+}
+
 /// The Editor struct
 pub struct Editor {
     rect                    : (usize, usize, usize, usize),
+    state                   : EditorState,
     context                 : ScreenContext,
     toolbar                 : ToolBar,
 
@@ -62,6 +69,7 @@ impl ScreenWidget for Editor {
 
         Self {
             rect            : (0, 0, width, height),
+            state           : EditorState::TILES_OVERVIEW,
             context,
             toolbar,
 
@@ -81,7 +89,8 @@ impl ScreenWidget for Editor {
         self.context.width = width; self.rect.2 = width;
         self.context.height = height; self.rect.3 = height;
         self.toolbar.resize(width, height, &self.context);
-        self.tilemap_options.resize(self.left_width, height, &self.context);
+        self.tilemap_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
+        self.tilemap.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
         self.node_graph.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
     }
 
@@ -90,9 +99,14 @@ impl ScreenWidget for Editor {
         let start = self.get_time();
 
         self.toolbar.draw(frame, anim_counter, asset, &mut self.context);
-        self.tilemap_options.draw(frame, anim_counter, asset, &mut self.context);
-        self.tilemap.draw(frame, anim_counter, asset, &mut self.context);
-        //self.node_graph.draw(frame, anim_counter, asset, &mut self.context);
+
+        if self.state == EditorState::TILES_OVERVIEW {
+            self.node_graph.draw(frame, anim_counter, asset, &mut self.context);
+        } else
+        if self.state == EditorState::TILES_DETAIL {
+            self.tilemap_options.draw(frame, anim_counter, asset, &mut self.context);
+            self.tilemap.draw(frame, anim_counter, asset, &mut self.context);
+        }
 
         // self.context.draw2d.draw_square_pattern(frame, &(0, self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), self.context.width, &[44, 44, 46, 255], &[56, 56, 56, 255], 40);
 
@@ -112,14 +126,32 @@ impl ScreenWidget for Editor {
 
         if self.toolbar.mouse_down(pos, asset, &mut self.context) {            
             self.tilemap.set_tilemap_index(self.toolbar.widgets[0].curr_index);
+
+            if self.toolbar.widgets[1].selected {
+                self.state = EditorState::TILES_OVERVIEW;
+            } else
+            if self.toolbar.widgets[1].right_selected {
+                self.state = EditorState::TILES_DETAIL;
+            }            
+            self.tilemap.set_tilemap_index(self.toolbar.widgets[0].curr_index);
+
             consumed = true;
         }
-        if consumed == false && self.tilemap_options.mouse_down(pos, asset, &mut self.context) {
-            consumed = true;
-        }
-        if consumed == false && self.tilemap.mouse_down(pos, asset, &mut self.context) {
-            consumed = true;
-        }        
+
+        if self.state == EditorState::TILES_OVERVIEW {
+            if consumed == false && self.node_graph.mouse_down(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+        } else
+        if self.state == EditorState::TILES_DETAIL {
+            if consumed == false && self.tilemap_options.mouse_down(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if consumed == false && self.tilemap.mouse_down(pos, asset, &mut self.context) {
+                consumed = true;
+            }      
+        }  
+
         consumed
     }
 
@@ -129,23 +161,39 @@ impl ScreenWidget for Editor {
             self.tilemap.set_tilemap_index(self.toolbar.widgets[0].curr_index);
             consumed = true;
         }
-        if self.tilemap_options.mouse_up(pos, asset, &mut self.context) {
-            consumed = true;
-        }
-        if self.tilemap.mouse_up(pos, asset, &mut self.context) {
-            consumed = true;
-        }        
+
+        if self.state == EditorState::TILES_OVERVIEW {
+            if consumed == false && self.node_graph.mouse_up(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+        } else
+        if self.state == EditorState::TILES_DETAIL {
+            if self.tilemap_options.mouse_up(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if self.tilemap.mouse_up(pos, asset, &mut self.context) {
+                consumed = true;
+            }    
+        }    
         consumed
     }
 
-    fn mouse_dragged(&mut self, pos: (u32, u32), asset: &mut Asset) -> bool {
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
         let mut consumed = false;
-        //consumed = self.widgets[self.curr_index as usize].mouse_dragged(pos, asset);
 
-        // if consumed == false && self.editor_menu.mouse_dragged(pos, asset) {
-        //     self.curr_index = self.editor_menu.selected_index.get();
-        //     consumed = true;
-        // }
+        if self.state == EditorState::TILES_OVERVIEW {
+            if consumed == false && self.node_graph.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+        } else
+        if self.state == EditorState::TILES_DETAIL {
+            if self.tilemap_options.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if self.tilemap.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }    
+        }
         consumed
     }
 

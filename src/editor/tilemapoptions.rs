@@ -21,7 +21,7 @@ impl Widget for TileMapOptions {
         let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList, 
     AtomData::new_as_button("GroupedList".to_string()));
 
-        group_list.add_group_list(context.color_yellow, context.color_light_yellow, vec!["Unused".to_string(), "Environment".to_string(), "EnvBlocking".to_string(), "Character".to_string(), "UtilityChar".to_string(), "Water".to_string(), "Harmful".to_string()]);
+        group_list.add_group_list(context.color_yellow, context.color_light_yellow, vec!["Unused".to_string(), "Environment".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Harmful".to_string()]);
         group_list.set_rect(rect, asset, context);
         widgets.push(group_list);
 
@@ -53,10 +53,10 @@ impl Widget for TileMapOptions {
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
-        //context.draw2d.draw_rect(frame, &self.rect, context.width, &[25, 25, 25, 255]);
+        context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
 
         for atom in &mut self.widgets {
-            atom.draw(frame, anim_counter, asset, context);
+           atom.draw(frame, anim_counter, asset, context);
         }
     }
 
