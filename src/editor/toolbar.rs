@@ -28,9 +28,15 @@ impl Widget for ToolBar {
         tiles_button.selected = true;
         widgets.push(tiles_button);
 
+        let mut areas_button = AtomWidget::new(vec!["Areas".to_string()], AtomWidgetType::ToolBarSwitchButton, 
+        AtomData::new_as_button("Areas".to_string()));
+        areas_button.set_rect((rect.0 + 360, rect.1, 140, rect.3), asset, context);
+        // areas_button.selected = true;
+        widgets.push(areas_button);
+
         let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarButton, 
             AtomData::new_as_button("Game".to_string()));
-        game_button.set_rect((rect.0 + 360, rect.1, 100, rect.3), asset, context);
+        game_button.set_rect((rect.0 + 510, rect.1, 100, rect.3), asset, context);
         widgets.push(game_button);
 
         Self {

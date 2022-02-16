@@ -34,7 +34,8 @@ impl TileMap {
     }
 
     pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {        
-        context.draw2d.draw_rect(frame, &self.rect, context.width, &[44, 44, 44, 255]);
+        //context.draw2d.draw_rect(frame, &self.rect, context.width, &[44, 44, 44, 255]);
+        //context.draw2d.draw_square_pattern(frame, &self.rect, self.rect.2, &[44, 44, 46, 255], &[56, 56, 56, 255], scaled_grid_size);
         if asset.tileset.maps.is_empty() { return }
 
         let scale = 2.0;

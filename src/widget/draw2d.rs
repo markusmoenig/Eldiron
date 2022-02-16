@@ -23,6 +23,28 @@ impl Draw2D {
         }
     }
 
+    /// Draws the outline of a given rectangle
+    pub fn draw_rect_outline(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, color: [u8; 4]) {
+
+        let y = rect.1;
+        for x in rect.0..rect.0+rect.2 {
+            let mut i = x * 4 + y * stride * 4;
+            frame[i..i + 4].copy_from_slice(&color);
+
+            i = x * 4 + (y + rect.3- 1) * stride * 4;
+            frame[i..i + 4].copy_from_slice(&color);
+        }
+
+        let x = rect.0;
+        for y in rect.1..rect.1+rect.3 {
+            let mut i = x * 4 + y * stride * 4;
+            frame[i..i + 4].copy_from_slice(&color);
+
+            i = (x + rect.2 - 1) * 4 + y * stride * 4;
+            frame[i..i + 4].copy_from_slice(&color);
+        }
+    }    
+
     /// Draws a circle
     pub fn draw_circle(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, color: &[u8; 4], radius: f64) {
         let center = (rect.0 as f64 + rect.2 as f64 / 2.0, rect.1 as f64 + rect.3 as f64 / 2.0);

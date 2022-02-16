@@ -49,6 +49,7 @@ pub trait ScreenWidget {
 // General purpose widgets
 //pub mod button;
 pub mod atom;
+pub mod node;
 // pub mod tab;
 // pub mod optionsgrid;
 // pub mod menu;

@@ -17,7 +17,10 @@ use tilemap::TileMap;
 use crate::context::ScreenContext;
 //use crate::draw2d::Draw2D;
 
-use crate::editor::nodegraph::NodeGraph;
+use crate::node::NodeWidget;
+use crate::widget::node::NodeWidgetType;
+
+use crate::editor::nodegraph::{ NodeGraph, GraphMode };
 
 use self::tilemapoptions::TileMapOptions;
 
@@ -37,7 +40,7 @@ pub struct Editor {
     tilemap_options         : TileMapOptions,
     tilemap                 : TileMap,
 
-    node_graph              : NodeGraph,
+    node_graph_tiles        : NodeGraph,
     left_width              : usize,
 }
 
@@ -49,23 +52,18 @@ impl ScreenWidget for Editor {
         let context = ScreenContext::new(width, height);
 
         let toolbar = ToolBar::new(vec!(), (0,0, width, context.toolbar_height), asset, &context);
+
+        // Tile Views
         let tilemap_options = TileMapOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
         let tilemap = TileMap::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
 
-        let node_graph = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
+        let mut tile_nodes = vec![];
+        for t in &asset.tileset.maps_names {
+            let node = NodeWidget::new(vec![t.to_string()], NodeWidgetType::Tile, vec![]);
+            tile_nodes.push(node);
+        }
 
-        //let editor_menu = MenuWidget::new(vec!["Tilemap Editor".to_string(), "World Editor".to_string()], (10, 0, 140,  UI_ELEMENT_HEIGHT), asset);
-        
-        //let text : Box<dyn Widget> = Box::new(TextWidget::new("Hallo".to_string(), (0,0, WIDTH, HEIGHT)));
-
-        /*
-        let tilemap_editor : Box<dyn Widget> = Box::new(TileMapEditor::new(vec!(), (0,0, asset.width, asset.height), asset));
-        let world_editor : Box<dyn Widget> = Box::new(WorldEditor::new(vec!(), (0,0, asset.width, asset.height), asset));
-        widgets.push(tilemap_editor);
-        widgets.push(world_editor);
-        */
-
-        //let mut curr_screen = editor;
+        let node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, tile_nodes);
 
         Self {
             rect            : (0, 0, width, height),
@@ -76,7 +74,7 @@ impl ScreenWidget for Editor {
             tilemap_options,
             tilemap,
 
-            node_graph,
+            node_graph_tiles,
             left_width
         }
     }
@@ -89,9 +87,10 @@ impl ScreenWidget for Editor {
         self.context.width = width; self.rect.2 = width;
         self.context.height = height; self.rect.3 = height;
         self.toolbar.resize(width, height, &self.context);
+
         self.tilemap_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
         self.tilemap.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
-        self.node_graph.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
+        self.node_graph_tiles.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset) {
@@ -101,7 +100,7 @@ impl ScreenWidget for Editor {
         self.toolbar.draw(frame, anim_counter, asset, &mut self.context);
 
         if self.state == EditorState::TILES_OVERVIEW {
-            self.node_graph.draw(frame, anim_counter, asset, &mut self.context);
+            self.node_graph_tiles.draw(frame, anim_counter, asset, &mut self.context);
         } else
         if self.state == EditorState::TILES_DETAIL {
             self.tilemap_options.draw(frame, anim_counter, asset, &mut self.context);
@@ -128,9 +127,11 @@ impl ScreenWidget for Editor {
             self.tilemap.set_tilemap_index(self.toolbar.widgets[0].curr_index);
 
             if self.toolbar.widgets[1].selected {
+                self.node_graph_tiles.set_mode( GraphMode::Overview, (0, self.rect.1 + self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
                 self.state = EditorState::TILES_OVERVIEW;
             } else
             if self.toolbar.widgets[1].right_selected {
+                self.node_graph_tiles.set_mode( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
                 self.state = EditorState::TILES_DETAIL;
             }            
             self.tilemap.set_tilemap_index(self.toolbar.widgets[0].curr_index);
@@ -139,7 +140,7 @@ impl ScreenWidget for Editor {
         }
 
         if self.state == EditorState::TILES_OVERVIEW {
-            if consumed == false && self.node_graph.mouse_down(pos, asset, &mut self.context) {
+            if consumed == false && self.node_graph_tiles.mouse_down(pos, asset, &mut self.context) {
                 consumed = true;
             }
         } else
@@ -163,7 +164,7 @@ impl ScreenWidget for Editor {
         }
 
         if self.state == EditorState::TILES_OVERVIEW {
-            if consumed == false && self.node_graph.mouse_up(pos, asset, &mut self.context) {
+            if consumed == false && self.node_graph_tiles.mouse_up(pos, asset, &mut self.context) {
                 consumed = true;
             }
         } else
@@ -182,7 +183,7 @@ impl ScreenWidget for Editor {
         let mut consumed = false;
 
         if self.state == EditorState::TILES_OVERVIEW {
-            if consumed == false && self.node_graph.mouse_dragged(pos, asset, &mut self.context) {
+            if consumed == false && self.node_graph_tiles.mouse_dragged(pos, asset, &mut self.context) {
                 consumed = true;
             }
         } else
