@@ -19,6 +19,8 @@ For v1 I target these features:
 * Cooperative multiplayer for dungeons ? (Unsure if v1 or later).
 * 3D Dungeons ? (Unsure if v1 or later)
 
+Eldiron is currently under heavy development and not yet ready for consumption.
+
 ## Installation and Documentation
 
 The game creator can be easily installed using Rust and it's cargo package manager. This is very easy todo even if you have no programming experience. The installation guide and documentation is available in the Wiki of this repo.
