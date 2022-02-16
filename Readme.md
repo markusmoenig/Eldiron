@@ -1,4 +1,4 @@
-# Eldiron - Classic RPG creation
+# Eldiron - Classic RPG Creation
 
 Eldiron is a creator for classic RPGs written in Rust. Eldiron v1 will be able to be used to create games similar to Ultima 4 and 5 with more variety planned after v1.
 
@@ -23,12 +23,8 @@ Eldiron is currently under heavy development and not yet ready for consumption.
 
 ## Installation and Documentation
 
-The game creator can be easily installed using Rust and it's cargo package manager. This is very easy todo even if you have no programming experience. The installation guide and documentation is available in the Wiki of this repo.
+The game creator can be easily installed using Rust and it's cargo package manager. This is very easy to-do even if you have no programming experience. The installation guide and documentation is available in the Wiki of this repo.
 
 ## License
 
 The source and all assets I commissioned for Eldiron are licensed under the MIT. You can use the source and assets freely.
-
-## Supporting Eldiron
-
-If you like Eldiron you can support me by joining my Patreon. I will use any potential income on developing more features, commissioning more assets and server costs.
