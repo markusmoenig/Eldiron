@@ -52,10 +52,15 @@ impl NodeGraph {
             //context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(200.0, 200.0), &[255, 255, 255, 255], &(50.0, 50.0, 50.0, 50.0), &[255, 0, 0, 255], 20.0);     
 
             if self.graph_mode == GraphMode::Overview {
-                for n in &self.nodes {
+                for node in &self.nodes {
 
-                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(0, 0, 251, 121), rect.2, &(250.0, 120.0), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &context.color_light_gray, 1.5);
-                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(0, 0, 220, 120), rect.2, &(119.0, 120.0), &[0,0,0,255], &(20.0, 20.0, 20.0, 20.0), &context.color_light_gray, 1.5);
+
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(100, 100, 250, 121), rect.2, &(249.0, 120.0), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(100, 100, 220, 120), rect.2, &(119.0, 120.0), &[0,0,0,255], &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
+
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(100, 100, 250, 121), rect.2, &(249.0, 120.0), &[0,0,0,0], &(20.0, 20.0, 20.0, 20.0), &context.color_white, 1.5);
+
+                    //context.draw2d.draw_text(buffer_frame, &(150, 120 + 4), rect.2, &asset.open_sans, context.button_text_size, &node.text[0], &context.color_white, &context.color_black);
                 }
             }
         }

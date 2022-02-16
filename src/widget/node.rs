@@ -18,7 +18,7 @@ pub enum NodeWidgetType {
 pub struct NodeWidget {
     rect                        : (usize, usize, usize, usize),
     content_rect                : (usize, usize, usize, usize),
-    text                        : Vec<String>,
+    pub text                    : Vec<String>,
     node_widget_type            : NodeWidgetType,
     data                        : Vec<AtomData>,
     state                       : WidgetState,
