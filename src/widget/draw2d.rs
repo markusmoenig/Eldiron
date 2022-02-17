@@ -43,7 +43,7 @@ impl Draw2D {
             i = (x + rect.2 - 1) * 4 + y * stride * 4;
             frame[i..i + 4].copy_from_slice(&color);
         }
-    }    
+    }
 
     /// Draws a circle
     pub fn draw_circle(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, color: &[u8; 4], radius: f64) {
@@ -100,7 +100,7 @@ impl Draw2D {
             for x in rect.0..rect.0+rect.2 {
                 let i = x * 4 + y * stride * 4;
 
-                let p = (x as f64 - center.0, y as f64 - center.1);               
+                let p = (x as f64 - center.0, y as f64 - center.1);
                 let mut r : (f64, f64);
 
                 if p.0 > 0.0 {
@@ -115,7 +115,7 @@ impl Draw2D {
 
                 let q : (f64, f64) = (p.0.abs() - size.0 / 2.0 + r.0, p.1.abs() - size.1 / 2.0 + r.0);
                 let d = f64::min(f64::max(q.0, q.1), 0.0) + self.length((f64::max(q.0, 0.0), f64::max(q.1, 0.0))) - r.0;
-                
+
                 if d < 0.0 {
                     let t = self.fill_mask(d);
 
@@ -135,7 +135,7 @@ impl Draw2D {
             for x in rect.0..rect.0+rect.2 {
                 let i = x * 4 + y * stride * 4;
 
-                let p = (x as f64 - center.0, y as f64 - center.1);               
+                let p = (x as f64 - center.0, y as f64 - center.1);
                 let mut r : (f64, f64);
 
                 if p.0 > 0.0 {
@@ -150,7 +150,7 @@ impl Draw2D {
 
                 let q : (f64, f64) = (p.0.abs() - size.0 / 2.0 + r.0, p.1.abs() - size.1 / 2.0 + r.0);
                 let d = f64::min(f64::max(q.0, q.1), 0.0) + self.length((f64::max(q.0, 0.0), f64::max(q.1, 0.0))) - r.0;
-                
+
                 if d < 1.0 {
                     let t = self.fill_mask(d);
 
@@ -234,7 +234,7 @@ impl Draw2D {
                 glyph.draw(|x, y, v| {
                     let d = (x as usize + bounding_box.min.x as usize + pos.0) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1) * (stride as usize) * 4;
                     if v > 0.0 {
-                        let background = &[frame[d], frame[d+1], frame[d+2], frame[d]+3];
+                        let background = &[frame[d], frame[d+1], frame[d+2], frame[d+3]];
                         frame[d..d + 4].copy_from_slice(&self.mix_color(&background, &color, v as f64));
                     }
                 });
@@ -244,14 +244,14 @@ impl Draw2D {
 
     /// Returns the size of the given text
     fn get_text_size(&self, font: &Font, size: f32, text: &str) -> (usize, usize) {
-        
+
         let scale = Scale::uniform(size);
         let v_metrics = font.v_metrics(scale);
 
         let glyphs: Vec<_> = font
             .layout(text, scale, point(0.0, 0.0 + v_metrics.ascent))
             .collect();
-        
+
         let glyphs_height = (v_metrics.ascent - v_metrics.descent).ceil() as u32;
         let glyphs_width = {
             let min_x = glyphs
@@ -277,6 +277,24 @@ impl Draw2D {
         }
     }
 
+    /// Blends rect from the source frame into the dest frame
+    pub fn blend_slice(&self, dest: &mut [u8], source: &[u8], rect: &(usize, usize, usize, usize), dest_stride: usize) {
+        for y in 0..rect.3 {
+            let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
+            let s = y * rect.2 * 4;
+
+            for x in 0..rect.2 {
+
+                let dd = d + x * 4;
+                let ss = s + x * 4;
+
+                let background = &[dest[dd], dest[dd+1], dest[dd+2], dest[dd+3]];
+                let color = &[source[ss], source[ss+1], source[ss+2], source[ss+3]];
+                dest[dd..dd + 4].copy_from_slice(&self.mix_color(&background, &color, (color[3] as f64) / 255.0));
+            }
+        }
+    }
+
     /// The fill mask for an SDF distance
     fn fill_mask(&self, dist : f64) -> f64 {
         (-dist).clamp(0.0, 1.0)
@@ -290,12 +308,12 @@ impl Draw2D {
     /// Smoothstep for f64
     pub fn smoothstep(&self, e0: f64, e1: f64, x: f64) -> f64 {
         let t = ((x - e0) / (e1 - e0)). clamp(0.0, 1.0);
-        return t * t * (3.0 - 2.0 * t); 
+        return t * t * (3.0 - 2.0 * t);
     }
 
     /// Mixes two colors based on v
     pub fn mix_color(&self, a: &[u8;4], b: &[u8;4], v: f64) -> [u8; 4] {
-        [   (((1.0 - v) * (a[0] as f64 / 255.0) + b[0] as f64 / 255.0 * v) * 255.0) as u8, 
+        [   (((1.0 - v) * (a[0] as f64 / 255.0) + b[0] as f64 / 255.0 * v) * 255.0) as u8,
             (((1.0 - v) * (a[1] as f64 / 255.0) + b[1] as f64 / 255.0 * v) * 255.0) as u8,
             (((1.0 - v) * (a[2] as f64 / 255.0) + b[2] as f64 / 255.0 * v) * 255.0) as u8,
         255]

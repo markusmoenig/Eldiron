@@ -1,8 +1,8 @@
 # Eldiron - Classic RPG Creation
 
-Eldiron is a creator for classic RPGs written in Rust. Eldiron v1 will be able to be used to create games similar to Ultima 4 and 5 with more variety planned after v1.
+Eldiron is a creator for classic RPGs written in Rust. Eldiron v1 will be able to create games similar to Ultima 4 and 5 with more variety planned after v1.
 
-The game creator (which contains the game engine) is cross platform and should run on all Desktops. The game engine will work on Desktops but also on iOS and Android devices.
+The game creator (which contains the game engine) is cross platform and should run on all Desktops. The game engine will work on Desktops but also on iOS and Android devices and possibly other devices. It is designed from the ground up to be extremely portable.
 
 Eldiron comes with a range of freely usable 16x16 and 24x24 tilemaps for environment and characters, however you can of course use your own tilemaps, instructions in the Wiki which serves as the main documentation hub.
 

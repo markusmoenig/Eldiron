@@ -17,6 +17,8 @@ use tilemap::TileMap;
 use crate::context::ScreenContext;
 //use crate::draw2d::Draw2D;
 
+use crate::node::NodeUserData;
+
 use crate::node::NodeWidget;
 use crate::widget::node::NodeWidgetType;
 
@@ -53,13 +55,13 @@ impl ScreenWidget for Editor {
 
         let toolbar = ToolBar::new(vec!(), (0,0, width, context.toolbar_height), asset, &context);
 
-        // Tile Views
+        // Tile views and nodes
         let tilemap_options = TileMapOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
         let tilemap = TileMap::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
 
         let mut tile_nodes = vec![];
         for t in &asset.tileset.maps_names {
-            let node = NodeWidget::new(vec![t.to_string()], NodeWidgetType::Tile, vec![]);
+            let node = NodeWidget::new(vec![t.to_string()], NodeWidgetType::Tile, vec![], NodeUserData { overview_position: (100, 100), position: (0, 0)});
             tile_nodes.push(node);
         }
 
