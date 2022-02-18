@@ -7,6 +7,9 @@ pub struct ScreenContext {
     pub target_fps              : usize,
     pub default_fps             : usize,
 
+    pub width                   : usize,
+    pub height                  : usize,
+
     pub toolbar_height          : usize,
     pub toolbar_button_height   : usize,
     pub toolbar_button_rounding : (f64, f64, f64, f64),
@@ -24,8 +27,7 @@ pub struct ScreenContext {
     pub color_yellow            : [u8;4],
     pub color_light_yellow      : [u8;4],
 
-    pub width                   : usize,
-    pub height                  : usize,
+    pub curr_tileset_index      : usize
 }
 
 impl ScreenContext {
@@ -38,6 +40,9 @@ impl ScreenContext {
             target_fps                  : 4,
             default_fps                 : 4,
 
+            width, height,
+
+            // Editor statics
             toolbar_height              : 45,
             toolbar_button_height       : 35,
             toolbar_button_rounding     : (18.0, 18.0, 18.0, 18.0),
@@ -55,7 +60,8 @@ impl ScreenContext {
             color_yellow                : [208, 115, 50, 255],
             color_light_yellow          : [208, 156, 112, 255],
 
-            width, height,
+            // Editor state
+            curr_tileset_index          : 0
         }
     }
 
@@ -87,6 +93,7 @@ impl ScreenContext {
         }
     }
 
+    /// Returns true if the given rect (with an isize offset) contains the given position
     pub fn contains_pos_for_isize(&self, pos: (usize, usize), rect: (isize, isize, usize, usize)) -> bool {
         if pos.0 as isize >= rect.0 && (pos.0 as isize) < rect.0 + rect.2 as isize && pos.1 as isize >= rect.1 && (pos.1 as isize) < rect.1 + rect.3 as isize {
             true

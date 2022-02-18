@@ -22,7 +22,7 @@ use crate::node::NodeUserData;
 use crate::node::NodeWidget;
 use crate::widget::node::NodeWidgetType;
 
-use crate::editor::nodegraph::{ NodeGraph, GraphMode };
+use crate::editor::nodegraph::{ NodeGraph, GraphMode, GraphType };
 
 use self::tilemapoptions::TileMapOptions;
 
@@ -65,7 +65,7 @@ impl ScreenWidget for Editor {
             tile_nodes.push(node);
         }
 
-        let node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, tile_nodes);
+        let node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, GraphType::Tiles, tile_nodes);
 
         Self {
             rect            : (0, 0, width, height),

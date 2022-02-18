@@ -100,9 +100,12 @@ impl NodeWidget {
         }
 
         let rect = (0_usize, 0_usize, self.overview_size.0, self.overview_size.1);
-        let buffer_frame = &mut self.overview_buffer[..];
 
         if self.overview_dirty {
+
+            for i in &mut self.overview_buffer[..] { *i = 0 }
+            let buffer_frame = &mut self.overview_buffer[..];
+
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(0, 0, self.overview_size.1, self.overview_size.1), rect.2, &((self.overview_size.1 - 1) as f64, (self.overview_size.1 - 1) as f64), &[0,0,0,255], &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
 

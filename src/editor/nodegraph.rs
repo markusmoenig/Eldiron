@@ -9,11 +9,17 @@ pub enum GraphMode {
     Detail
 }
 
+#[derive(PartialEq)]
+pub enum GraphType {
+    Tiles,
+}
+
 pub struct NodeGraph {
     rect            : (usize, usize, usize, usize),
     dirty           : bool,
     buffer          : Vec<u8>,
     graph_mode      : GraphMode,
+    graph_type      : GraphType,
     nodes           : Vec<NodeWidget>,
 
     offset          : (isize, isize),
@@ -24,12 +30,13 @@ pub struct NodeGraph {
 
 impl NodeGraph {
 
-    pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext, nodes: Vec<NodeWidget>) -> Self {
+    pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext, graph_type: GraphType, nodes: Vec<NodeWidget>) -> Self {
         Self {
             rect,
             dirty               : true,
             buffer              : vec![0;rect.2 * rect.3 * 4],
             graph_mode          : GraphMode::Overview,
+            graph_type,
             nodes,
             offset              : (0, 0),
             drag_index          : None,
@@ -60,8 +67,16 @@ impl NodeGraph {
             if self.graph_mode == GraphMode::Overview {
                 for index in 0..self.nodes.len() {
 
+                    let mut selected = false;
+
+                    if self.graph_type == GraphType::Tiles {
+                        if index == context.curr_tileset_index {
+                            selected = true;
+                        }
+                    }
+
                     if self.nodes[index].overview_dirty {
-                        self.nodes[index].draw_overview(frame, anim_counter, asset, context, false);
+                        self.nodes[index].draw_overview(frame, anim_counter, asset, context, selected);
                     }
                     let rect= self.get_node_overview_rect(index, true);
                     context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].overview_buffer[..], &rect, context.width, &save_rect);
@@ -86,14 +101,27 @@ impl NodeGraph {
 
     pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
-        for index in 0..self.nodes.len() {
-            let rect= self.get_node_overview_rect(index, false);
+        if self.graph_mode == GraphMode::Overview {
+            for index in 0..self.nodes.len() {
+                let rect= self.get_node_overview_rect(index, false);
 
-            if context.contains_pos_for_isize(pos, rect) {
-                self.drag_index = Some(index);
-                self.drag_offset = (pos.0 as isize, pos.1 as isize);
-                self.drag_node_pos= (self.nodes[index].user_data.overview_position.0 as isize, self.nodes[index].user_data.overview_position.1 as isize);
-                return true;
+                if context.contains_pos_for_isize(pos, rect) {
+                    self.drag_index = Some(index);
+                    self.drag_offset = (pos.0 as isize, pos.1 as isize);
+                    self.drag_node_pos= (self.nodes[index].user_data.overview_position.0 as isize, self.nodes[index].user_data.overview_position.1 as isize);
+
+                    if self.graph_type == GraphType::Tiles {
+                        if context.curr_tileset_index != index {
+
+                            self.nodes[context.curr_tileset_index].overview_dirty = true;
+                            context.curr_tileset_index = index;
+                            self.nodes[index].overview_dirty = true;
+                            self.dirty = true;
+                        }
+                    }
+
+                    return true;
+                }
             }
         }
         // if self.contains_pos(pos) {
