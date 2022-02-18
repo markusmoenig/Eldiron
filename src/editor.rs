@@ -47,9 +47,9 @@ pub struct Editor {
 }
 
 impl ScreenWidget for Editor {
-    
+
     fn new(asset: &Asset, width: usize, height: usize) -> Self where Self: Sized {
-        
+
         let left_width = 180_usize;
         let context = ScreenContext::new(width, height);
 
@@ -60,8 +60,8 @@ impl ScreenWidget for Editor {
         let tilemap = TileMap::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
 
         let mut tile_nodes = vec![];
-        for t in &asset.tileset.maps_names {
-            let node = NodeWidget::new(vec![t.to_string()], NodeWidgetType::Tile, vec![], NodeUserData { overview_position: (100, 100), position: (0, 0)});
+        for (index, t) in asset.tileset.maps_names.iter().enumerate() {
+            let node = NodeWidget::new(vec![t.to_string()], NodeWidgetType::Tile, vec![], NodeUserData { overview_position: (100, 100 + 150 * index as isize), position: (0, 0)});
             tile_nodes.push(node);
         }
 
@@ -125,7 +125,7 @@ impl ScreenWidget for Editor {
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
         let mut consumed = false;
 
-        if self.toolbar.mouse_down(pos, asset, &mut self.context) {            
+        if self.toolbar.mouse_down(pos, asset, &mut self.context) {
             self.tilemap.set_tilemap_index(self.toolbar.widgets[0].curr_index);
 
             if self.toolbar.widgets[1].selected {
@@ -135,7 +135,7 @@ impl ScreenWidget for Editor {
             if self.toolbar.widgets[1].right_selected {
                 self.node_graph_tiles.set_mode( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
                 self.state = EditorState::TILES_DETAIL;
-            }            
+            }
             self.tilemap.set_tilemap_index(self.toolbar.widgets[0].curr_index);
 
             consumed = true;
@@ -152,15 +152,15 @@ impl ScreenWidget for Editor {
             }
             if consumed == false && self.tilemap.mouse_down(pos, asset, &mut self.context) {
                 consumed = true;
-            }      
-        }  
+            }
+        }
 
         consumed
     }
 
     fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
         let mut consumed = false;
-        if self.toolbar.mouse_up(pos, asset, &mut self.context) {            
+        if self.toolbar.mouse_up(pos, asset, &mut self.context) {
             self.tilemap.set_tilemap_index(self.toolbar.widgets[0].curr_index);
             consumed = true;
         }
@@ -176,8 +176,8 @@ impl ScreenWidget for Editor {
             }
             if self.tilemap.mouse_up(pos, asset, &mut self.context) {
                 consumed = true;
-            }    
-        }    
+            }
+        }
         consumed
     }
 
@@ -195,7 +195,7 @@ impl ScreenWidget for Editor {
             }
             if self.tilemap.mouse_dragged(pos, asset, &mut self.context) {
                 consumed = true;
-            }    
+            }
         }
         consumed
     }
@@ -208,5 +208,9 @@ impl ScreenWidget for Editor {
             consumed = true;
         }
         consumed
+    }
+
+    fn get_target_fps(&self) -> usize {
+        self.context.target_fps
     }
 }

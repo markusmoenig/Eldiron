@@ -4,6 +4,9 @@ use crate::draw2d::Draw2D;
 pub struct ScreenContext {
     pub draw2d                  : Draw2D,
 
+    pub target_fps              : usize,
+    pub default_fps             : usize,
+
     pub toolbar_height          : usize,
     pub toolbar_button_height   : usize,
     pub toolbar_button_rounding : (f64, f64, f64, f64),
@@ -31,7 +34,10 @@ impl ScreenContext {
 
         Self {
             draw2d                      : Draw2D {},
-            
+
+            target_fps                  : 4,
+            default_fps                 : 4,
+
             toolbar_height              : 45,
             toolbar_button_height       : 35,
             toolbar_button_rounding     : (18.0, 18.0, 18.0, 18.0),
@@ -75,6 +81,14 @@ impl ScreenContext {
     /// Returns true if the given rect contains the given position
     pub fn contains_pos_for(&self, pos: (usize, usize), rect: (usize, usize, usize, usize)) -> bool {
         if pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3 {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn contains_pos_for_isize(&self, pos: (usize, usize), rect: (isize, isize, usize, usize)) -> bool {
+        if pos.0 as isize >= rect.0 && (pos.0 as isize) < rect.0 + rect.2 as isize && pos.1 as isize >= rect.1 && (pos.1 as isize) < rect.1 + rect.3 as isize {
             true
         } else {
             false

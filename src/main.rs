@@ -6,11 +6,11 @@ mod editor;
 mod widget;
 mod asset;
 
-mod prelude {
-    pub const TICK_IN_MS            : u128 = 250;
-}
+// mod prelude {
+//     pub const TICK_IN_MS            : u128 = 250;
+// }
 
-use prelude::*;
+// use prelude::*;
 
 use crate::game::*;
 use crate::widget::*;
@@ -39,7 +39,7 @@ fn main() -> Result<(), Error> {
     let mut input = WinitInputHelper::new();
     let window = {
         let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
-        
+
         WindowBuilder::new()
             .with_title("Eldiron")
             .with_inner_size(size)
@@ -87,7 +87,7 @@ fn main() -> Result<(), Error> {
                 return;
             }
 
-            if input.mouse_pressed(0) {         
+            if input.mouse_pressed(0) {
                 let coords =  input.mouse().unwrap();
                 let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
                     .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
@@ -97,7 +97,7 @@ fn main() -> Result<(), Error> {
                 }
             }
 
-            if input.mouse_released(0) {                
+            if input.mouse_released(0) {
                 let coords =  input.mouse().unwrap();
                 let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
                     .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
@@ -117,7 +117,7 @@ fn main() -> Result<(), Error> {
                     if curr_screen.mouse_dragged((pixel_pos.0, pixel_pos.1), &mut asset) {
                         window.request_redraw();
                     }
-                }         
+                }
             } else {
                 let diff =  input.mouse_diff();
                 if diff.0 != 0.0 || diff.1 != 0.0 {
@@ -128,7 +128,7 @@ fn main() -> Result<(), Error> {
                     if curr_screen.mouse_hover((pixel_pos.0, pixel_pos.1), &mut asset) {
                         window.request_redraw();
                     }
-                }                   
+                }
             }
 
 
@@ -145,14 +145,17 @@ fn main() -> Result<(), Error> {
 
             let curr_time = game.get_time();
 
-            if curr_time > timer + TICK_IN_MS {
+            let tick_in_ms =  (1000.0 / curr_screen.get_target_fps() as f32) as u128;
+
+            if curr_time > timer + tick_in_ms {
                 curr_screen.update();
                 window.request_redraw();
                 timer = curr_time;
                 anim_counter = anim_counter.wrapping_add(1);
             } else {
-                let t = (timer + TICK_IN_MS - curr_time) as u64;
-                std::thread::sleep(Duration::from_millis(t / 2)); 
+                let t = (timer + tick_in_ms - curr_time) as u64;
+                std::thread::sleep(Duration::from_millis(t / 2));
+                //println!("tt {}", t);
             }
         }
     });

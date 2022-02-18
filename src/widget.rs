@@ -22,7 +22,7 @@ pub trait ScreenWidget {
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset);
 
     fn mouse_down(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
-        false 
+        false
     }
 
     fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
@@ -41,9 +41,11 @@ pub trait ScreenWidget {
     fn get_time(&self) -> u128 {
         let stop = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");    
+            .expect("Time went backwards");
             stop.as_millis()
     }
+
+    fn get_target_fps(&self) -> usize;
 }
 
 // General purpose widgets
@@ -71,7 +73,7 @@ pub struct AtomData {
 }
 
 impl AtomData {
-    
+
     pub fn new_as_button(name: String) -> Self {
 
         Self {

@@ -13,7 +13,7 @@ pub struct Game {
 }
 
 impl ScreenWidget for Game  {
-    
+
     fn new(_asset: &Asset, _width: usize, _height: usize) -> Self where Self: Sized {
         Self {
             window          : GameState::StartMenu,
@@ -23,7 +23,7 @@ impl ScreenWidget for Game  {
     /// Update the game state
     fn update(&mut self) {
     }
-    
+
     /// Assumes the default texture format: `wgpu::TextureFormat::Rgba8UnormSrgb`
     fn draw(&mut self, _frame: &mut [u8], _anim_counter: usize, _asset: &mut Asset) {
 
@@ -37,5 +37,9 @@ impl ScreenWidget for Game  {
         let stop = self.get_time();
 
         println!("{:?}", stop - start);
+    }
+
+    fn get_target_fps(&self) -> usize {
+        4
     }
 }

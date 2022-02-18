@@ -295,6 +295,31 @@ impl Draw2D {
         }
     }
 
+    /// Blends rect from the source frame into the dest frame and honors the safe rect
+    pub fn blend_slice_safe(&self, dest: &mut [u8], source: &[u8], rect: &(isize, isize, usize, usize), dest_stride: usize, safe_rect: &(usize, usize, usize, usize)) {
+        let dest_stride_isize = dest_stride as isize;
+        for y in 0..rect.3 as isize {
+            let d = rect.0 * 4 + (y + rect.1) * dest_stride_isize * 4;
+            let s = y * (rect.2 as isize) * 4;
+
+            // TODO: Make this faster
+
+            if (y + rect.1 as isize) >= safe_rect.1 as isize && (y + rect.1 as isize) < (safe_rect.1 + safe_rect.3) as isize {
+                for x in 0..rect.2 as isize {
+
+                    if (x + rect.0 as isize) >= safe_rect.0 as isize && (x + rect.0 as isize) < (safe_rect.0 + safe_rect.2) as isize {
+                        let dd = (d + x * 4) as usize;
+                        let ss = (s + x * 4) as usize;
+
+                        let background = &[dest[dd], dest[dd+1], dest[dd+2], dest[dd+3]];
+                        let color = &[source[ss], source[ss+1], source[ss+2], source[ss+3]];
+                        dest[dd..dd + 4].copy_from_slice(&self.mix_color(&background, &color, (color[3] as f64) / 255.0));
+                    }
+                }
+            }
+        }
+    }
+
     /// The fill mask for an SDF distance
     fn fill_mask(&self, dist : f64) -> f64 {
         (-dist).clamp(0.0, 1.0)

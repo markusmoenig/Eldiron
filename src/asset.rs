@@ -24,7 +24,7 @@ pub struct Asset<'a> {
 }
 
 impl Asset<'_>  {
-    
+
     pub fn new(width: u32, height: u32) -> Self where Self: Sized {
 
         // Create the tile areas
@@ -43,47 +43,13 @@ impl Asset<'_>  {
             curr_area       : "world".to_string(),
 
             width,
-            height            
+            height
         }
     }
 
     /// Returns the tilemap of the given id
     pub fn get_map_of_id(&self, id: u32) -> &TileMap {
         &self.tileset.maps[&id]
-    }
-
-    /// Draws the given rectangle
-    pub fn draw_rect(&self, frame: &mut [u8], rect: &(u32, u32, u32, u32), color: [u8; 4]) {
-        for y in rect.1..rect.1+rect.3 {
-            for x in rect.0..rect.0+rect.2 {
-
-                let i = x as usize * 4 + y as usize * (self.width as usize) * 4;
-
-                frame[i..i + 4].copy_from_slice(&color);
-            }
-        }
-    }
-
-    /// Draws the outline of a given rectangle
-    pub fn draw_rect_outline(&self, frame: &mut [u8], rect: &(u32, u32, u32, u32), color: [u8; 4]) {
-
-        let y = rect.1;
-        for x in rect.0..rect.0+rect.2 {
-            let mut i = x as usize * 4 + y as usize * (self.width as usize) * 4;
-            frame[i..i + 4].copy_from_slice(&color);
-
-            i = x as usize * 4 + (y + rect.3- 1) as usize * (self.width as usize) * 4;
-            frame[i..i + 4].copy_from_slice(&color);
-        }
-
-        let x = rect.0;
-        for y in rect.1..rect.1+rect.3 {
-            let mut i = x as usize * 4 + y as usize * (self.width as usize) * 4;
-            frame[i..i + 4].copy_from_slice(&color);
-
-            i = (x + rect.2 - 1) as usize * 4 + y as usize * (self.width as usize) * 4;
-            frame[i..i + 4].copy_from_slice(&color);
-        }
     }
 
     /// Draws the given tile with a given scale
@@ -107,7 +73,7 @@ impl Asset<'_>  {
                 frame[d..d + 4].copy_from_slice(&[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]]);
             }
         }
-    }  
+    }
 
     /// Draws the given animated tile
     pub fn draw_animated_tile(&self,  frame: &mut [u8], pos: &(u32, u32), tilemap_id: u32, grid_pos: &(u32, u32), anim_counter: u32, target_size: u32) {
@@ -122,7 +88,7 @@ impl Asset<'_>  {
         let mut cg_pos = grid_pos;
 
         if tile.anim_tiles.len() > 0 {
-            let index = anim_counter % tile.anim_tiles.len() as u32;        
+            let index = anim_counter % tile.anim_tiles.len() as u32;
             cg_pos = &tile.anim_tiles[index as usize];
         }
 
@@ -140,7 +106,7 @@ impl Asset<'_>  {
                 frame[d..d + 4].copy_from_slice(&[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]]);
             }
         }
-    } 
+    }
 
     /// Draws the given tile mixed with a given color
     pub fn draw_tile_mixed(&self,  frame: &mut [u8], pos: &(u32, u32), tilemap_id: u32, grid_pos: &(u32, u32), color: [u8; 4], scale: f32) {
@@ -184,7 +150,7 @@ impl Asset<'_>  {
 
     /// Mixes two colors based on v
     pub fn mix(&self, a: &[u8;4], b: &[u8;4], v: f32) -> [u8; 4] {
-        [(((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8, 
+        [(((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
          (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] as f32 / 255.0 * v) * 255.0) as u8,
          (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v) * 255.0) as u8,
         255]
@@ -222,6 +188,6 @@ impl Asset<'_>  {
                     self.draw_animated_tile(frame, &pos, value.0, &(value.1, value.2), anim_counter,self.grid_size);
                 }
             }
-        }   
+        }
     }
 }

@@ -39,10 +39,7 @@ pub struct NodeWidget {
     pub user_data               : NodeUserData,
 
     pub disabled                : bool,
-    pub selected                : bool,
     has_hover                   : bool,
-
-    pub overview_selected       : bool,
 
     pub overview_size           : (usize, usize),
     pub size                    : (usize, usize),
@@ -66,12 +63,10 @@ impl NodeWidget {
 
             overview_dirty      : true,
             overview_buffer     : vec![],
-            overview_selected   : false,
 
             user_data,
 
             disabled            : false,
-            selected            : false,
             has_hover           : false,
 
             overview_size       : (250, 120),
@@ -98,7 +93,7 @@ impl NodeWidget {
         */
     }
 
-    pub fn draw_overview(&mut self, frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+    pub fn draw_overview(&mut self, frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool) {
 
         if self.overview_buffer.is_empty() {
             self.overview_buffer = vec![0;self.overview_size.0 * self.overview_size.1 * 4];
@@ -113,7 +108,7 @@ impl NodeWidget {
 
             context.draw2d.draw_text(buffer_frame, &(135, 85), rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, &context.color_black);
 
-            if self.overview_selected {
+            if selected {
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &[0,0,0,0], &(20.0, 20.0, 20.0, 20.0), &context.color_light_white, 1.5);
             }
         }
