@@ -25,7 +25,9 @@ pub struct NodeGraph {
     offset          : (isize, isize),
     drag_index      : Option<usize>,
     drag_offset     : (isize, isize),
-    drag_node_pos   : (isize, isize)
+    drag_node_pos   : (isize, isize),
+
+    pub clicked     : bool
 }
 
 impl NodeGraph {
@@ -41,7 +43,9 @@ impl NodeGraph {
             offset              : (0, 0),
             drag_index          : None,
             drag_offset         : (0, 0),
-            drag_node_pos       : (0, 0)
+            drag_node_pos       : (0, 0),
+
+            clicked             : false
         }
     }
 
@@ -117,6 +121,7 @@ impl NodeGraph {
                             context.curr_tileset_index = index;
                             self.nodes[index].overview_dirty = true;
                             self.dirty = true;
+                            self.clicked = true;
                         }
                     }
 
@@ -160,6 +165,27 @@ impl NodeGraph {
             return true;
         }
         false
+    }
+
+    /// Marks the two nodes as dirty
+    pub fn changed_selection(&mut self, old_selection: usize, new_selection: usize) {
+        if self.graph_mode == GraphMode::Overview {
+            for index in 0..self.nodes.len() {
+                if index == old_selection || index == new_selection {
+                    self.nodes[index].overview_dirty = true;
+                    self.dirty = true;
+                }
+            }
+        }
+    }
+
+    pub fn mark_all_dirty(&mut self) {
+        if self.graph_mode == GraphMode::Overview {
+            for index in 0..self.nodes.len() {
+                self.nodes[index].overview_dirty = true;
+            }
+        }
+        self.dirty = true;
     }
 
     // pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {

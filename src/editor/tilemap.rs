@@ -17,7 +17,7 @@ impl TileMap {
     pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
 
         let mut widgets : Vec<AtomWidget> = vec![];
-        let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarButton, 
+        let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarButton,
             AtomData::new_as_button("Game".to_string()));
         game_button.set_rect((rect.0 + 10, rect.1, 100, rect.3), asset, context);
         widgets.push(game_button);
@@ -26,21 +26,22 @@ impl TileMap {
             rect,
             tilemap_index           : 0,
         }
-    }    
+    }
 
     pub fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
         self.rect.3 = height;
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {        
-        //context.draw2d.draw_rect(frame, &self.rect, context.width, &[44, 44, 44, 255]);
-        //context.draw2d.draw_square_pattern(frame, &self.rect, self.rect.2, &[44, 44, 46, 255], &[56, 56, 56, 255], scaled_grid_size);
+    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+        context.draw2d.draw_rect(frame, &self.rect, context.width, &[44, 44, 44, 255]);
         if asset.tileset.maps.is_empty() { return }
 
         let scale = 2.0;
         let map = &asset.tileset.maps[&(self.tilemap_index as u32)];
         let scaled_grid_size = (map.settings.grid_size as f32 * scale) as usize;
+
+        //context.draw2d.draw_square_pattern(frame, &self.rect, self.rect.2, &[44, 44, 46, 255], &[56, 56, 56, 255], scaled_grid_size);
 
         let x_tiles = map.width / map.settings.grid_size;
         let y_tiles = map.height / map.settings.grid_size;

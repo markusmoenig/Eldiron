@@ -28,7 +28,7 @@ pub struct AtomWidget {
     atom_data                   : AtomData,
     state                       : WidgetState,
     pub clicked                 : bool,
-    dirty                       : bool,
+    pub dirty                   : bool,
     buffer                      : Vec<u8>,
 
     pub disabled                : bool,
@@ -49,7 +49,7 @@ pub struct AtomWidget {
 }
 
 impl AtomWidget {
-    
+
     pub fn new(text: Vec<String>, atom_widget_type: AtomWidgetType, atom_data: AtomData) -> Self {
 
         Self {
@@ -96,7 +96,7 @@ impl AtomWidget {
                 let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
-            }  else  
+            }  else
             if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
 
@@ -104,7 +104,7 @@ impl AtomWidget {
                 let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
-            }  else  
+            }  else
             if self.atom_widget_type == AtomWidgetType::ToolBarSwitchButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
 
@@ -146,7 +146,7 @@ impl AtomWidget {
                     }
                     y_pos += 5;
                 }
-            }  else                            
+            }  else
             if self.atom_widget_type == AtomWidgetType::CheckButton || self.atom_widget_type == AtomWidgetType::Button {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
 
@@ -181,10 +181,10 @@ impl AtomWidget {
                         if i_index == 0 {
                             rounding.0 = 0.0;
                             rounding.2 = 0.0;
-                        } else 
+                        } else
                         if i_index == &self.groups[g_index].items.len() - 1 {
                             rounding.1 = 0.0;
-                            rounding.3 = 0.0;                         
+                            rounding.3 = 0.0;
                         } else {
                             rounding = (0.0, 0.0, 0.0, 0.0);
                         }
@@ -198,7 +198,7 @@ impl AtomWidget {
                         y += 33;
                     }
                 }
-            }                
+            }
         }
         self.dirty = false;
         context.draw2d.copy_slice(frame, buffer_frame, &self.rect, context.width);
@@ -223,11 +223,11 @@ impl AtomWidget {
                     let mut rect = self.content_rect.clone();
                     let div = (rect.2 / 4) * 3;
                     rect.2 = div;
-    
+
                     if self.contains_pos_for(pos, rect) {
                         self.selected = true;
                         self.right_selected = false;
-                        self.has_hover = false;                        
+                        self.has_hover = false;
                     } else {
                         self.selected = false;
                         self.right_selected = true;
@@ -237,7 +237,7 @@ impl AtomWidget {
                 self.dirty = true;
                 self.clicked = true;
                 return true;
-            } else            
+            } else
             if self.atom_widget_type == AtomWidgetType::GroupedList {
                 for g_index in 0..self.groups.len() {
                     for i_index in 0..self.groups[g_index].items.len() {

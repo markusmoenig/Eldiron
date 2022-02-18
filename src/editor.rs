@@ -28,8 +28,8 @@ use self::tilemapoptions::TileMapOptions;
 
 #[derive (PartialEq)]
 enum EditorState {
-    TILES_OVERVIEW,
-    TILES_DETAIL
+    TilesOverview,
+    TilesDetail
 }
 
 /// The Editor struct
@@ -69,7 +69,7 @@ impl ScreenWidget for Editor {
 
         Self {
             rect            : (0, 0, width, height),
-            state           : EditorState::TILES_OVERVIEW,
+            state           : EditorState::TilesOverview,
             context,
             toolbar,
 
@@ -101,10 +101,10 @@ impl ScreenWidget for Editor {
 
         self.toolbar.draw(frame, anim_counter, asset, &mut self.context);
 
-        if self.state == EditorState::TILES_OVERVIEW {
+        if self.state == EditorState::TilesOverview {
             self.node_graph_tiles.draw(frame, anim_counter, asset, &mut self.context);
         } else
-        if self.state == EditorState::TILES_DETAIL {
+        if self.state == EditorState::TilesDetail {
             self.tilemap_options.draw(frame, anim_counter, asset, &mut self.context);
             self.tilemap.draw(frame, anim_counter, asset, &mut self.context);
         }
@@ -126,27 +126,42 @@ impl ScreenWidget for Editor {
         let mut consumed = false;
 
         if self.toolbar.mouse_down(pos, asset, &mut self.context) {
-            self.tilemap.set_tilemap_index(self.toolbar.widgets[0].curr_index);
 
+            if self.toolbar.widgets[0].clicked {
+
+                if self.state == EditorState::TilesOverview || self.state == EditorState::TilesDetail {
+                    self.node_graph_tiles.changed_selection(self.context.curr_tileset_index, self.toolbar.widgets[0].curr_index);
+                    self.context.curr_tileset_index = self.toolbar.widgets[0].curr_index;
+                    self.tilemap.set_tilemap_index(self.context.curr_tileset_index);
+                    self.node_graph_tiles.clicked = false;
+                }
+                self.toolbar.widgets[0].clicked = false;
+            } else
             if self.toolbar.widgets[1].selected {
                 self.node_graph_tiles.set_mode( GraphMode::Overview, (0, self.rect.1 + self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
-                self.state = EditorState::TILES_OVERVIEW;
+                self.state = EditorState::TilesOverview;
+                self.node_graph_tiles.mark_all_dirty();
             } else
             if self.toolbar.widgets[1].right_selected {
                 self.node_graph_tiles.set_mode( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
-                self.state = EditorState::TILES_DETAIL;
+                self.state = EditorState::TilesDetail;
             }
-            self.tilemap.set_tilemap_index(self.toolbar.widgets[0].curr_index);
 
             consumed = true;
         }
 
-        if self.state == EditorState::TILES_OVERVIEW {
+        if self.state == EditorState::TilesOverview {
             if consumed == false && self.node_graph_tiles.mouse_down(pos, asset, &mut self.context) {
                 consumed = true;
+                if self.node_graph_tiles.clicked {
+                    self.toolbar.widgets[0].curr_index = self.context.curr_tileset_index;
+                    self.toolbar.widgets[0].dirty = true;
+                    self.tilemap.set_tilemap_index(self.context.curr_tileset_index);
+                    self.node_graph_tiles.clicked = false;
+                }
             }
         } else
-        if self.state == EditorState::TILES_DETAIL {
+        if self.state == EditorState::TilesDetail {
             if consumed == false && self.tilemap_options.mouse_down(pos, asset, &mut self.context) {
                 consumed = true;
             }
@@ -165,12 +180,12 @@ impl ScreenWidget for Editor {
             consumed = true;
         }
 
-        if self.state == EditorState::TILES_OVERVIEW {
+        if self.state == EditorState::TilesOverview {
             if consumed == false && self.node_graph_tiles.mouse_up(pos, asset, &mut self.context) {
                 consumed = true;
             }
         } else
-        if self.state == EditorState::TILES_DETAIL {
+        if self.state == EditorState::TilesDetail {
             if self.tilemap_options.mouse_up(pos, asset, &mut self.context) {
                 consumed = true;
             }
@@ -184,12 +199,12 @@ impl ScreenWidget for Editor {
     fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
         let mut consumed = false;
 
-        if self.state == EditorState::TILES_OVERVIEW {
+        if self.state == EditorState::TilesOverview {
             if consumed == false && self.node_graph_tiles.mouse_dragged(pos, asset, &mut self.context) {
                 consumed = true;
             }
         } else
-        if self.state == EditorState::TILES_DETAIL {
+        if self.state == EditorState::TilesDetail {
             if self.tilemap_options.mouse_dragged(pos, asset, &mut self.context) {
                 consumed = true;
             }
