@@ -167,6 +167,13 @@ impl NodeGraph {
         false
     }
 
+    pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        self.offset.0 -= delta.0 / 20;
+        self.offset.1 += delta.1 / 20;
+        self.dirty = true;
+        true
+    }
+
     /// Marks the two nodes as dirty
     pub fn changed_selection(&mut self, old_selection: usize, new_selection: usize) {
         if self.graph_mode == GraphMode::Overview {

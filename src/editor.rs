@@ -61,7 +61,7 @@ impl ScreenWidget for Editor {
 
         let mut tile_nodes = vec![];
         for (index, t) in asset.tileset.maps_names.iter().enumerate() {
-            let node = NodeWidget::new(vec![t.to_string()], NodeWidgetType::Tile, vec![], NodeUserData { overview_position: (100, 100 + 150 * index as isize), position: (0, 0)});
+            let node = NodeWidget::new(vec![t.to_string()], NodeWidgetType::Tile, vec![], NodeUserData { overview_position: (100, 50 + 150 * index as isize), position: (0, 0)});
             tile_nodes.push(node);
         }
 
@@ -92,7 +92,7 @@ impl ScreenWidget for Editor {
 
         self.tilemap_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
         self.tilemap.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
-        self.node_graph_tiles.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
+        self.node_graph_tiles.resize(width, height - self.context.toolbar_height, &self.context);
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset) {
@@ -221,6 +221,26 @@ impl ScreenWidget for Editor {
 
         if consumed == false && self.toolbar.mouse_hover(pos, asset, &mut self.context) {
             consumed = true;
+        }
+        consumed
+    }
+
+    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset) -> bool {
+        let mut consumed = false;
+        //consumed = self.widgets[self.curr_index as usize].mouse_hover(pos, asset);
+
+        if consumed == false && self.toolbar.mouse_wheel(delta, asset, &mut self.context) {
+            consumed = true;
+        }
+        if self.state == EditorState::TilesOverview {
+            if consumed == false && self.node_graph_tiles.mouse_wheel(delta, asset, &mut self.context) {
+                consumed = true;
+            }
+        }
+        if self.state == EditorState::TilesDetail {
+            if consumed == false && self.tilemap.mouse_wheel(delta, asset, &mut self.context) {
+                consumed = true;
+            }
         }
         consumed
     }

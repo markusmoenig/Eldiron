@@ -37,6 +37,10 @@ pub trait ScreenWidget {
         false
     }
 
+    fn mouse_wheel(&mut self, _delta: (isize, isize), _asset: &mut Asset) -> bool {
+        false
+    }
+
     /// Gets the current time in milliseconds
     fn get_time(&self) -> u128 {
         let stop = SystemTime::now()
@@ -117,6 +121,10 @@ pub trait Widget {
     }
 
     fn mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        false
+    }
+
+    fn mouse_wheel(&mut self, _delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         false
     }
 

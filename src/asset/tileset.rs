@@ -18,7 +18,7 @@ pub enum TileUsage {
     Character,
     UtilityChar,
     Water,
-    Harmful,
+    Effect,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -55,7 +55,7 @@ impl TileMap {
                 let mut buf = vec![0; reader.output_buffer_size()];
                 let info = reader.next_frame(&mut buf).unwrap();
                 let bytes = &buf[..info.buffer_size()];
-        
+
                 return (bytes.to_vec(), info.width, info.height);
             }
             (vec![], 0 , 0)

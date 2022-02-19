@@ -15,20 +15,20 @@ impl Widget for TileMapOptions {
     fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self where Self: Sized {
 
         let mut widgets : Vec<AtomWidget> = vec![];
-        
+
         let margin = 5_usize;
 
-        let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList, 
+        let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new_as_button("GroupedList".to_string()));
 
-        group_list.add_group_list(context.color_yellow, context.color_light_yellow, vec!["Unused".to_string(), "Environment".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Harmful".to_string()]);
+        group_list.add_group_list(context.color_yellow, context.color_light_yellow, vec!["Unused".to_string(), "Environment".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string()]);
         group_list.set_rect(rect, asset, context);
         widgets.push(group_list);
 
-        // let mut unused_button = AtomWidget::new(vec!["Unused".to_string()], AtomWidgetType::CheckButton, 
+        // let mut unused_button = AtomWidget::new(vec!["Unused".to_string()], AtomWidgetType::CheckButton,
         //     AtomData::new_as_button("Unused".to_string()));
 
-        // let mut environment_button = AtomWidget::new(vec!["Environment".to_string()], AtomWidgetType::CheckButton, 
+        // let mut environment_button = AtomWidget::new(vec!["Environment".to_string()], AtomWidgetType::CheckButton,
         // AtomData::new_as_button("Environment".to_string()));
 
         // widgets.push(unused_button);
@@ -45,7 +45,7 @@ impl Widget for TileMapOptions {
             rect,
             widgets             : widgets,
         }
-    }    
+    }
 
     fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
         self.rect.2 = width;

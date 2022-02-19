@@ -6,11 +6,12 @@ mod editor;
 mod widget;
 mod asset;
 
-// mod prelude {
-//     pub const TICK_IN_MS            : u128 = 250;
-// }
+mod prelude {
+    pub const GAME_TICK_IN_MS : u128 = 250;
+}
 
-// use prelude::*;
+use prelude::*;
+//use winit::event::KeyboardInput;
 
 use crate::game::*;
 use crate::widget::*;
@@ -21,10 +22,12 @@ use crate::asset::*;
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
-use winit::event::{Event, VirtualKeyCode};
+//use winit::event::KeyboardInput;
+use winit::event::{Event, DeviceEvent, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
+
 
 use std::time::Duration;
 
@@ -64,6 +67,9 @@ fn main() -> Result<(), Error> {
 
     let mut anim_counter : usize = 0;
     let mut timer : u128 = 0;
+    let mut game_tick_timer : u128 = 0;
+
+    let mut mouse_wheel_ongoing = false;
 
     event_loop.run(move |event, _, control_flow| {
 
@@ -78,6 +84,41 @@ fn main() -> Result<(), Error> {
                 return;
             }
         }
+
+        match &event {
+            Event::DeviceEvent { event, .. } => match event {
+                // DeviceEvent::Text { codepoint } => {
+                //     println!("text: ({})", codepoint);
+                // }
+                DeviceEvent::MouseWheel { delta } => match delta {
+                    winit::event::MouseScrollDelta::LineDelta(x, y) => {
+                        println!("mouse wheel Line Delta: ({},{})", x, y);
+                    }
+                    winit::event::MouseScrollDelta::PixelDelta(p) => {
+                        //println!("mouse wheel Pixel Delta: ({},{})", p.x, p.y);
+                        if curr_screen.mouse_wheel((p.x as isize, p.y as isize), &mut asset) {
+                            window.request_redraw();
+                            mouse_wheel_ongoing = true;
+                        }
+
+                        if p.x == 0.0 && p.y == 0.0 {
+                            mouse_wheel_ongoing = false;
+                        }
+                    }
+                },
+                _ => (),
+            },
+            _ => (),
+        }
+
+        /*
+        let text = input.text();
+
+        if text.is_empty() == false {
+            for t in text {
+                println!("{:?}", t);
+            }
+        }*/
 
         // Handle input events
         if input.update(&event) {
@@ -131,7 +172,6 @@ fn main() -> Result<(), Error> {
                 }
             }
 
-
             // Resize the window
             if let Some(size) = input.window_resized() {
                 pixels.resize_surface(size.width, size.height);
@@ -145,17 +185,28 @@ fn main() -> Result<(), Error> {
 
             let curr_time = game.get_time();
 
-            let tick_in_ms =  (1000.0 / curr_screen.get_target_fps() as f32) as u128;
-
-            if curr_time > timer + tick_in_ms {
+            // Game tick ?
+            if curr_time > game_tick_timer + GAME_TICK_IN_MS {
                 curr_screen.update();
                 window.request_redraw();
-                timer = curr_time;
+                game_tick_timer = curr_time;
                 anim_counter = anim_counter.wrapping_add(1);
             } else {
-                let t = (timer + tick_in_ms - curr_time) as u64;
-                std::thread::sleep(Duration::from_millis(t / 2));
-                //println!("tt {}", t);
+
+                // If not, lets see if we need to redraw for the target fps
+                let tick_in_ms =  (1000.0 / curr_screen.get_target_fps() as f32) as u128;
+
+                if curr_time > timer + tick_in_ms {
+                    curr_screen.update();
+                    window.request_redraw();
+                    timer = curr_time;
+                } else
+                if mouse_wheel_ongoing == false {
+                    let t = (timer + tick_in_ms - curr_time) as u64;
+                    if t > 10 {
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                }
             }
         }
     });

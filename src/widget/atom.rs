@@ -201,7 +201,8 @@ impl AtomWidget {
             }
         }
         self.dirty = false;
-        context.draw2d.copy_slice(frame, buffer_frame, &self.rect, context.width);
+        //context.draw2d.copy_slice(frame, buffer_frame, &self.rect, context.width);
+        context.draw2d.blend_slice(frame, buffer_frame, &self.rect, context.width);
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {

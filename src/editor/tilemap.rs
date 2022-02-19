@@ -10,6 +10,10 @@ use crate::widget::context::ScreenContext;
 pub struct TileMap {
     rect                    : (usize, usize, usize, usize),
     tilemap_index           : usize,
+
+    line_offset             : usize,
+    max_line_offset         : usize,
+    line_offset_counter     : isize
 }
 
 impl TileMap {
@@ -25,6 +29,10 @@ impl TileMap {
         Self {
             rect,
             tilemap_index           : 0,
+
+            line_offset             : 0,
+            max_line_offset         : 0,
+            line_offset_counter     : 0
         }
     }
 
@@ -34,7 +42,8 @@ impl TileMap {
     }
 
     pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
-        context.draw2d.draw_rect(frame, &self.rect, context.width, &[44, 44, 44, 255]);
+        //context.draw2d.draw_rect(frame, &self.rect, context.width, &[44, 44, 44, 255]);
+        context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
         if asset.tileset.maps.is_empty() { return }
 
         let scale = 2.0;
@@ -56,10 +65,19 @@ impl TileMap {
 
         let tiles_per_page = screen_x * screen_y;
 
+        self.max_line_offset = 0;
+
+        if total_tiles > tiles_per_page {
+            self.max_line_offset = (total_tiles - tiles_per_page) / screen_x;
+            if (total_tiles - tiles_per_page) % screen_x != 0 {
+                self.max_line_offset += 1;
+            }
+        }
+
         let mut x_off = 0_usize;
         let mut y_off = 0_usize;
 
-        let offset = 0;//page * tiles_per_page;
+        let offset = self.line_offset * screen_x;
 
         // Draw the tiles
         for tile in 0..tiles_per_page {
@@ -118,6 +136,15 @@ impl TileMap {
 
     pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         false
+    }
+
+    pub fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+        self.line_offset_counter += delta.1;
+        self.line_offset = (self.line_offset_counter / 40).clamp(0, self.max_line_offset as isize) as usize;
+        if delta.1 == 0 {
+            self.line_offset_counter = 0;
+        }
+        true
     }
 
     pub fn set_tilemap_index(&mut self, index: usize) {
