@@ -58,6 +58,10 @@ impl Widget for TileMapOptions {
         for atom in &mut self.widgets {
            atom.draw(frame, anim_counter, asset, context);
         }
+
+        if let Some(grid_pos) = context.curr_tile {
+            context.draw2d.draw_animated_tile(frame, &(0, 300), asset.get_map_of_id(context.curr_tileset_index), context.width, &grid_pos, anim_counter, 100);
+        }
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {

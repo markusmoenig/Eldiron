@@ -177,8 +177,6 @@ fn main() -> Result<(), Error> {
                 pixels.resize_surface(size.width, size.height);
                 let scale = window.scale_factor() as u32;
                 pixels.resize_buffer(size.width / scale, size.height / scale);
-                asset.width = size.width / scale;
-                asset.height = size.height / scale;
                 curr_screen.resize(size.width as usize / scale as usize, size.height as usize / scale as usize);
                 window.request_redraw();
             }

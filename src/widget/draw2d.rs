@@ -1,6 +1,8 @@
 
 use rusttype::{point, Font, Scale};
 
+use crate::tileset::TileMap;
+
 #[derive(PartialEq)]
 pub enum TextAlignment {
     Left,
@@ -69,7 +71,7 @@ impl Draw2D {
     }
 
     /// Draws a circle with a border of a given size
-    pub fn draw_circle_with_border(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, color: &[u8; 4], radius: f64, border_color: &[u8; 4], border_size: f64) {
+    pub fn _draw_circle_with_border(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, color: &[u8; 4], radius: f64, border_color: &[u8; 4], border_size: f64) {
         let center = (rect.0 as f64 + rect.2 as f64 / 2.0, rect.1 as f64 + rect.3 as f64 / 2.0);
         for y in rect.1..rect.1+rect.3 {
             for x in rect.0..rect.0+rect.2 {
@@ -219,7 +221,7 @@ impl Draw2D {
     }
 
     /// Draws the given text and blends it with the existing background
-    pub fn draw_text_blend(&self,  frame: &mut [u8], pos: &(usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4]) {
+    pub fn _draw_text_blend(&self,  frame: &mut [u8], pos: &(usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4]) {
 
         let scale = Scale::uniform(size);
 
@@ -331,7 +333,7 @@ impl Draw2D {
     }
 
     /// Smoothstep for f64
-    pub fn smoothstep(&self, e0: f64, e1: f64, x: f64) -> f64 {
+    pub fn _smoothstep(&self, e0: f64, e1: f64, x: f64) -> f64 {
         let t = ((x - e0) / (e1 - e0)). clamp(0.0, 1.0);
         return t * t * (3.0 - 2.0 * t);
     }
@@ -347,5 +349,83 @@ impl Draw2D {
     // Length of a 2d vector
     pub fn length(&self, v: (f64, f64)) -> f64 {
         ((v.0).powf(2.0) + (v.1).powf(2.0)).sqrt()
+    }
+
+    /// Draw a tile
+    pub fn draw_tile(&self,  frame: &mut [u8], pos: &(usize, usize), map: &TileMap, stride: usize, grid_pos: &(usize, usize), scale: f32) {
+        let pixels = &map.pixels;
+
+        let new_size = ((map.settings.grid_size as f32 * scale) as usize, (map.settings.grid_size as f32 * scale) as usize);
+
+        let g_pos = (grid_pos.0 * map.settings.grid_size, grid_pos.1 * map.settings.grid_size);
+
+        for sy in 0..new_size.0 {
+            let y = (sy as f32 / scale) as usize;
+            for sx in 0..new_size.1 {
+
+                let x = (sx as f32 / scale) as usize;
+
+                let d = pos.0 * 4 + sx * 4 + (sy + pos.1) * stride * 4;
+                let s = (x + g_pos.0) * 4 + (y + g_pos.1) * map.width * 4;
+
+                frame[d..d + 4].copy_from_slice(&[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]]);
+            }
+        }
+    }
+
+    /// Draws a tile mixed with a given color
+    pub fn draw_tile_mixed(&self,  frame: &mut [u8], pos: &(usize, usize), map: &TileMap, stride: usize, grid_pos: &(usize, usize), color: [u8; 4], scale: f32) {
+        let pixels = &map.pixels;
+
+        let new_size = ((map.settings.grid_size as f32 * scale) as usize, (map.settings.grid_size as f32 * scale) as usize);
+
+        let g_pos = (grid_pos.0 * map.settings.grid_size, grid_pos.1 * map.settings.grid_size);
+
+        for sy in 0..new_size.0 {
+            let y = (sy as f32 / scale) as usize;
+            for sx in 0..new_size.1 {
+
+                let x = (sx as f32 / scale) as usize;
+
+                let d = pos.0 * 4 + sx * 4 + (sy + pos.1) * stride * 4;
+                let s = (x + g_pos.0) * 4 + (y + g_pos.1) * map.width * 4;
+
+                let mixed_color = self.mix_color(&[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]], &color, 0.5);
+
+                frame[d..d + 4].copy_from_slice(&mixed_color);
+            }
+        }
+    }
+
+    /// Draws the given animated tile
+    pub fn draw_animated_tile(&self,  frame: &mut [u8], pos: &(usize, usize), map: &TileMap, stride: usize, grid_pos: &(usize, usize), anim_counter: usize, target_size: u32) {
+        let pixels = &map.pixels;
+        let scale = target_size as f32 / map.settings.grid_size as f32;
+
+        let new_size = ((map.settings.grid_size as f32 * scale) as usize, (map.settings.grid_size as f32 * scale) as usize);
+
+        let tile = map.get_tile(grid_pos);
+
+        let mut cg_pos = grid_pos;
+
+        if tile.anim_tiles.len() > 0 {
+            let index = anim_counter % tile.anim_tiles.len();
+            cg_pos = &tile.anim_tiles[index];
+        }
+
+        let g_pos = (cg_pos.0 * map.settings.grid_size, cg_pos.1 * map.settings.grid_size);
+
+        for sy in 0..new_size.0 {
+            let y = (sy as f32 / scale) as usize;
+            for sx in 0..new_size.1 {
+
+                let x = (sx as f32 / scale) as usize;
+
+                let d = pos.0 * 4 + sx * 4 + (sy + pos.1) * stride * 4;
+                let s = (x + g_pos.0) * 4 + (y + g_pos.1) * map.width * 4;
+
+                frame[d..d + 4].copy_from_slice(&[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]]);
+            }
+        }
     }
 }

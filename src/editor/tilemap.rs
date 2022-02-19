@@ -10,6 +10,7 @@ use crate::widget::context::ScreenContext;
 pub struct TileMap {
     rect                    : (usize, usize, usize, usize),
     tilemap_index           : usize,
+    scale                   : f32,
 
     line_offset             : usize,
     max_line_offset         : usize,
@@ -29,6 +30,7 @@ impl TileMap {
         Self {
             rect,
             tilemap_index           : 0,
+            scale                   : 2.0,
 
             line_offset             : 0,
             max_line_offset         : 0,
@@ -46,8 +48,8 @@ impl TileMap {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
         if asset.tileset.maps.is_empty() { return }
 
-        let scale = 2.0;
-        let map = &asset.tileset.maps[&(self.tilemap_index as u32)];
+        let scale = self.scale;
+        let map = &asset.tileset.maps[&(self.tilemap_index)];
         let scaled_grid_size = (map.settings.grid_size as f32 * scale) as usize;
 
         //context.draw2d.draw_square_pattern(frame, &self.rect, self.rect.2, &[44, 44, 46, 255], &[56, 56, 56, 255], scaled_grid_size);
@@ -92,20 +94,18 @@ impl TileMap {
             let x = (tile+offset) % x_tiles as usize;
             let y = (tile+offset) / x_tiles as usize;
 
-            let tile = map.get_tile(&(x as u32, y as u32));
+            let tile = map.get_tile(&(x, y));
 
-            let pp = &(x_step as u32 + self.rect.0 as u32 + left_offset as u32, y_step as u32 + self.rect.1 as u32 + top_offset as u32);
+            let pp = &(x_step + self.rect.0 + left_offset, y_step + self.rect.1 + top_offset);
 
             if tile.anim_tiles.len() > 0 {
                 let index = anim_counter % tile.anim_tiles.len() as usize;
-
-                let p = tile.anim_tiles[index as usize];
-                asset.draw_tile(frame, pp, self.tilemap_index as u32, &(p.0, p.1), scale);
+                context.draw2d.draw_tile(frame, pp, map, context.width, &tile.anim_tiles[index], scale);
             } else
             if tile.usage == TileUsage::Unused {
-                asset.draw_tile_mixed(frame, pp, self.tilemap_index as u32, &(x as u32, y as u32), [128, 128, 128, 255], scale);
+                context.draw2d.draw_tile_mixed(frame, pp, map, context.width, &(x, y), [128, 128, 128, 255], scale);
             } else {
-                asset.draw_tile(frame, pp, self.tilemap_index as u32, &(x as u32, y as u32), scale);
+                context.draw2d.draw_tile(frame, pp, map, context.width, &(x, y), scale);
             }
 
             x_off += 1;
@@ -122,6 +122,12 @@ impl TileMap {
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+
+        let grid_pos = self.screen_to_map(asset, pos);
+
+        context.curr_tile = Some(grid_pos);
+        //println!("{:?}", grid_pos);
+
         false
     }
 
@@ -147,7 +153,31 @@ impl TileMap {
         true
     }
 
+    /// Sets a new map index
     pub fn set_tilemap_index(&mut self, index: usize) {
         self.tilemap_index = index;
+        self.line_offset = 0;
+    }
+
+    /// Converts a screen position to a map grid position
+    fn screen_to_map(&self, asset: &Asset, screen_pos: (usize, usize)) -> (usize, usize) {
+
+        let scale = self.scale;
+
+        let map = asset.get_map_of_id(self.tilemap_index as usize);
+
+        let scaled_grid_size = (map.settings.grid_size as f32 * scale) as usize;
+
+        let x_tiles = (map.width / map.settings.grid_size) as usize;
+        let y_tiles = (map.height / map.settings.grid_size) as usize;
+
+        let screen_x = self.rect.2 / scaled_grid_size;
+
+        let x = (screen_pos.0 - self.rect.0)/ scaled_grid_size;// + self.screen_start.0;
+        let y = (screen_pos.1 - self.rect.1) / scaled_grid_size;// + self.screen_start.1;
+
+        let tile_offset = x + y * screen_x;
+
+        ((tile_offset % x_tiles), (tile_offset / y_tiles))
     }
 }

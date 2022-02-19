@@ -24,24 +24,24 @@ pub enum TileUsage {
 #[derive(Serialize, Deserialize)]
 pub struct Tile {
     pub usage               : TileUsage,
-    pub anim_tiles          : Vec<(u32, u32)>
+    pub anim_tiles          : Vec<(usize, usize)>
 }
 
 // TileMap implementation
 
 #[derive(Serialize, Deserialize)]
 pub struct TileMapSettings {
-    pub grid_size       : u32,
+    pub grid_size       : usize,
     #[serde(with = "vectorize")]
-    pub tiles           : HashMap<(u32, u32), Tile>,
-    pub id              : u32,
+    pub tiles           : HashMap<(usize, usize), Tile>,
+    pub id              : usize,
 }
 
 pub struct TileMap {
     pub pixels          : Vec<u8>,
     pub file_path       : PathBuf,
-    pub width           : u32,
-    pub height          : u32,
+    pub width           : usize,
+    pub height          : usize,
     pub settings        : TileMapSettings,
 }
 
@@ -77,14 +77,14 @@ impl TileMap {
         TileMap {
             pixels          : info.0,
             file_path       : file_name.to_path_buf(),
-            width           : info.1,
-            height          : info.2,
+            width           : info.1 as usize,
+            height          : info.2 as usize,
             settings
         }
     }
 
     /// Get the tile for the given id
-    pub fn get_tile(&self, tile_id: &(u32, u32)) -> Tile {
+    pub fn get_tile(&self, tile_id: &(usize, usize)) -> Tile {
         if let Some(t) = self.settings.tiles.get(&tile_id) {
             Tile { usage: t.usage.clone(), anim_tiles: t.anim_tiles.clone() }
         } else {
@@ -93,7 +93,7 @@ impl TileMap {
     }
 
     /// Set the tile for the given id
-    pub fn set_tile(&mut self, tile_id: (u32, u32), tile: Tile) {
+    pub fn set_tile(&mut self, tile_id: (usize, usize), tile: Tile) {
         self.settings.tiles.insert(tile_id, tile);
     }
 
@@ -113,26 +113,26 @@ impl TileMap {
     }
 
     /// Returns the amount of tiles for this tilemap
-    pub fn max_tiles(&self) -> u32 {
+    pub fn max_tiles(&self) -> usize {
         (self.width / self.settings.grid_size) * (self.height / self.settings.grid_size)
     }
 
     /// Returns the amount of tiles for this tilemap
-    pub fn offset_to_id(&self, offset: u32) -> (u32, u32) {
+    pub fn offset_to_id(&self, offset: usize) -> (usize, usize) {
         (offset % (self.width / self.settings.grid_size), offset / (self.width / self.settings.grid_size))
     }
 }
 
 /// The TileSet struct consists of several TileMaps, each representing one atlas and it's tiles.
 pub struct TileSet {
-    pub maps            : HashMap<u32, TileMap>,
+    pub maps            : HashMap<usize, TileMap>,
     pub maps_names      : Vec<String>,
 }
 
 impl TileSet {
     pub fn new() -> TileSet {
 
-        let mut maps : HashMap<u32, TileMap> = HashMap::new();
+        let mut maps : HashMap<usize, TileMap> = HashMap::new();
 
         let tilemaps_path = path::Path::new("assets").join("tilemaps");
         let paths = fs::read_dir(tilemaps_path).unwrap();

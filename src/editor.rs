@@ -97,7 +97,7 @@ impl ScreenWidget for Editor {
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset) {
 
-        let start = self.get_time();
+        //let start = self.get_time();
 
         self.toolbar.draw(frame, anim_counter, asset, &mut self.context);
 
@@ -117,9 +117,9 @@ impl ScreenWidget for Editor {
         // self.context.draw2d.draw_rounded_rect(frame, &(0, toolbar_height, self.rect.2, self.rect.3 - toolbar_height), self.context.width, &(200.0, 200.0), &[255, 255, 255, 255], &(50.0, 50.0, 50.0, 50.0));
         // self.context.draw2d.draw_rounded_rect_with_border(frame, &(0, self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), self.context.width, &(200.0, 200.0), &[255, 255, 255, 255], &(50.0, 50.0, 50.0, 50.0), &[255, 0, 0, 255], 20.0);
 
-        let stop = self.get_time();
+        //let stop = self.get_time();
 
-        println!("{:?}", stop - start);
+        //println!("{:?}", stop - start);
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {

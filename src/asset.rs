@@ -18,14 +18,11 @@ pub struct Asset<'a> {
     pub grid_size               : u32,
     pub areas                   : HashMap<String, TileArea>,
     pub curr_area               : String,
-
-    pub width                   : u32,
-    pub height                  : u32,
 }
 
 impl Asset<'_>  {
 
-    pub fn new(width: u32, height: u32) -> Self where Self: Sized {
+    pub fn new(_width: u32, _height: u32) -> Self where Self: Sized {
 
         // Create the tile areas
         let mut areas = HashMap::new();
@@ -41,17 +38,15 @@ impl Asset<'_>  {
             grid_size       : 32,
             areas,
             curr_area       : "world".to_string(),
-
-            width,
-            height
         }
     }
 
     /// Returns the tilemap of the given id
-    pub fn get_map_of_id(&self, id: u32) -> &TileMap {
+    pub fn get_map_of_id(&self, id: usize) -> &TileMap {
         &self.tileset.maps[&id]
     }
 
+    /*
     /// Draws the given tile with a given scale
     pub fn draw_tile(&self,  frame: &mut [u8], pos: &(u32, u32), tilemap_id: u32, grid_pos: &(u32, u32), scale: f32) {
         let map = self.get_map_of_id(tilemap_id);
@@ -154,10 +149,10 @@ impl Asset<'_>  {
          (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] as f32 / 255.0 * v) * 255.0) as u8,
          (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v) * 255.0) as u8,
         255]
-    }
+    }*/
 
     /// Returns the tile fo the given id
-    pub fn get_tile(&self, id: &(u32, u32, u32)) -> Tile {
+    pub fn get_tile(&self, id: &(usize, usize, usize)) -> Tile {
         let map = self.get_map_of_id(id.0);
         map.get_tile(&(id.1, id.2))
     }
@@ -174,6 +169,7 @@ impl Asset<'_>  {
         area.set_value(pos, value);
     }
 
+    /*
     /// Draw the given area
     pub fn draw_area(&self, frame: &mut [u8], rect: &(u32,u32,u32,u32), anim_counter: u32) {
         let area = self.areas.get(&self.curr_area).unwrap();
@@ -189,5 +185,5 @@ impl Asset<'_>  {
                 }
             }
         }
-    }
+    }*/
 }
