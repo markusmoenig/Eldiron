@@ -117,6 +117,11 @@ impl TileMap {
         (self.width / self.settings.grid_size) * (self.height / self.settings.grid_size)
     }
 
+    /// Returns the amount of tiles per row
+    pub fn max_tiles_per_row(&self) -> usize {
+        (self.width / self.settings.grid_size)
+    }
+
     /// Returns the amount of tiles for this tilemap
     pub fn offset_to_id(&self, offset: usize) -> (usize, usize) {
         (offset % (self.width / self.settings.grid_size), offset / (self.width / self.settings.grid_size))

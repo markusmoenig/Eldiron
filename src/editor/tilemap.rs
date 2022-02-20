@@ -12,9 +12,13 @@ pub struct TileMap {
     tilemap_index           : usize,
     scale                   : f32,
 
+    screen_offset           : (usize, usize),
+
     line_offset             : usize,
     max_line_offset         : usize,
-    line_offset_counter     : isize
+    line_offset_counter     : isize,
+
+    pub clicked             : bool,
 }
 
 impl TileMap {
@@ -32,9 +36,13 @@ impl TileMap {
             tilemap_index           : 0,
             scale                   : 2.0,
 
+            screen_offset           : (0, 0),
+
             line_offset             : 0,
             max_line_offset         : 0,
-            line_offset_counter     : 0
+            line_offset_counter     : 0,
+
+            clicked                 : false
         }
     }
 
@@ -64,6 +72,8 @@ impl TileMap {
 
         let left_offset = (self.rect.2 % scaled_grid_size) / 2;
         let top_offset = (self.rect.3 % scaled_grid_size) / 2;
+
+        self.screen_offset = (left_offset, top_offset);
 
         let tiles_per_page = screen_x * screen_y;
 
@@ -108,6 +118,20 @@ impl TileMap {
                 context.draw2d.draw_tile(frame, pp, map, context.width, &(x, y), scale);
             }
 
+            if let Some(selection) = context.curr_tile {
+                if x == selection.0 && y == selection.1 {
+                    context.draw2d.draw_rect_outline(frame, &(pp.0, pp.1, scaled_grid_size, scaled_grid_size), context.width, context.color_white);
+                } else {
+                    if let Some(selection_end) = context.selection_end {
+                        if  y > selection.1 || y == selection.1 && x >= selection.0 { // >=
+                            if  y < selection_end.1 || y == selection_end.1 && x <= selection_end.0 { // <=
+                                context.draw2d.draw_rect_outline(frame, &(pp.0, pp.1, scaled_grid_size, scaled_grid_size), context.width, context.color_white);
+                            }
+                        }
+                    }
+                }
+            }
+
             x_off += 1;
 
             if x_off >= screen_x {
@@ -125,31 +149,39 @@ impl TileMap {
 
         let grid_pos = self.screen_to_map(asset, pos);
 
-        context.curr_tile = Some(grid_pos);
-        //println!("{:?}", grid_pos);
+        context.curr_tile = grid_pos;
+        self.clicked = true;
 
-        false
+        context.selection_end = None;
+
+        true
     }
 
-    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
-        let mut consumed = false;
+    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        let consumed = false;
         consumed
     }
 
-    pub fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    pub fn _mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         false
     }
 
     pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+
+        if let Some(curr_id) = context.curr_tile {
+            if let Some(end_pos) = self.screen_to_map(asset, pos) {
+                if end_pos.0 > curr_id.0 || end_pos.1 > curr_id.1 {
+                    context.selection_end = Some(end_pos);
+                    return true;
+                }
+            }
+        }
         false
     }
 
-    pub fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         self.line_offset_counter += delta.1;
         self.line_offset = (self.line_offset_counter / 40).clamp(0, self.max_line_offset as isize) as usize;
-        if delta.1 == 0 {
-            self.line_offset_counter = 0;
-        }
         true
     }
 
@@ -160,24 +192,35 @@ impl TileMap {
     }
 
     /// Converts a screen position to a map grid position
-    fn screen_to_map(&self, asset: &Asset, screen_pos: (usize, usize)) -> (usize, usize) {
+    fn screen_to_map(&self, asset: &Asset, screen_pos: (usize, usize)) -> Option<(usize, usize)> {
 
         let scale = self.scale;
 
-        let map = asset.get_map_of_id(self.tilemap_index as usize);
+        let map = asset.get_map_of_id(self.tilemap_index);
 
         let scaled_grid_size = (map.settings.grid_size as f32 * scale) as usize;
 
-        let x_tiles = (map.width / map.settings.grid_size) as usize;
-        let y_tiles = (map.height / map.settings.grid_size) as usize;
+        let x_tiles = map.width / map.settings.grid_size;
 
         let screen_x = self.rect.2 / scaled_grid_size;
 
-        let x = (screen_pos.0 - self.rect.0)/ scaled_grid_size;// + self.screen_start.0;
-        let y = (screen_pos.1 - self.rect.1) / scaled_grid_size;// + self.screen_start.1;
+        if screen_pos.0 > self.rect.0 + self.screen_offset.0 && screen_pos.1 > self.rect.1 + self.screen_offset.0 {
 
-        let tile_offset = x + y * screen_x;
+            let x = (screen_pos.0 - self.rect.0 - self.screen_offset.0) / scaled_grid_size;
+            let y = (screen_pos.1 - self.rect.1 - self.screen_offset.0) / scaled_grid_size + self.line_offset;
 
-        ((tile_offset % x_tiles), (tile_offset / y_tiles))
+            let tile_offset = x + y * screen_x;
+
+            return Some(((tile_offset % x_tiles), (tile_offset / x_tiles)));
+        }
+        None
+    }
+
+    /// Sets the tile anim for the current tile
+    pub fn set_anim(&mut self, asset: &Asset, context: &ScreenContext) {
+    }
+
+    /// Clears the tile anim for the current tile
+    pub fn clear_anim(&mut self, asset: &Asset, context: &ScreenContext) {
     }
 }

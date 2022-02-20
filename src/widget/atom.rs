@@ -25,7 +25,7 @@ pub struct AtomWidget {
     content_rect                : (usize, usize, usize, usize),
     text                        : Vec<String>,
     atom_widget_type            : AtomWidgetType,
-    atom_data                   : AtomData,
+    pub atom_data               : AtomData,
     state                       : WidgetState,
     pub clicked                 : bool,
     pub dirty                   : bool,
@@ -207,7 +207,7 @@ impl AtomWidget {
 
     pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         if self.contains_pos(pos) {
-            if self.atom_widget_type == AtomWidgetType::ToolBarButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarButton ||  self.atom_widget_type == AtomWidgetType::Button {
                 self.clicked = true;
                 return true;
             } else
@@ -261,8 +261,12 @@ impl AtomWidget {
         false
     }
 
+    pub fn mouse_dragged(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        false
+    }
+
     pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        if self.atom_widget_type == AtomWidgetType::ToolBarButton {
+        if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button {
             if self.contains_pos_for(pos, self.content_rect) {
                 if self.state != WidgetState::Disabled {
                     if self.state != WidgetState::Hover {

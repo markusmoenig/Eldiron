@@ -28,7 +28,8 @@ pub struct ScreenContext {
     pub color_light_yellow      : [u8;4],
 
     pub curr_tileset_index      : usize,
-    pub curr_tile               : Option<(usize, usize)>
+    pub curr_tile               : Option<(usize, usize)>,
+    pub selection_end           : Option<(usize, usize)>,
 }
 
 impl ScreenContext {
@@ -62,8 +63,11 @@ impl ScreenContext {
             color_light_yellow          : [208, 156, 112, 255],
 
             // Editor state
+
+            // Tiles
             curr_tileset_index          : 0,
-            curr_tile                   : None
+            curr_tile                   : None,
+            selection_end               : None,
         }
     }
 

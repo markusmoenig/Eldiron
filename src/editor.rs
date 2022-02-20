@@ -166,6 +166,9 @@ impl ScreenWidget for Editor {
                 consumed = true;
             }
             if consumed == false && self.tilemap.mouse_down(pos, asset, &mut self.context) {
+                if self.tilemap.clicked == true {
+                    self.tilemap_options.adjust_tile_usage(asset, &self.context);
+                }
                 consumed = true;
             }
         }
@@ -221,6 +224,12 @@ impl ScreenWidget for Editor {
 
         if consumed == false && self.toolbar.mouse_hover(pos, asset, &mut self.context) {
             consumed = true;
+        }
+
+        if self.state == EditorState::TilesDetail {
+            if consumed == false && self.tilemap_options.mouse_hover(pos, asset, &mut self.context) {
+                consumed = true;
+            }
         }
         consumed
     }

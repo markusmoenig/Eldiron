@@ -71,7 +71,7 @@ pub enum AtomDataType {
 #[derive(Serialize, Deserialize)]
 pub struct AtomData {
     atom_type       : AtomDataType,
-    name            : String,
+    pub name        : String,
     id              : String,
     data            : (f64, f64, f64, f64)
 }
