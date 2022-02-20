@@ -182,6 +182,9 @@ impl TileMap {
     pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         self.line_offset_counter += delta.1;
         self.line_offset = (self.line_offset_counter / 40).clamp(0, self.max_line_offset as isize) as usize;
+        if delta.1 == 0 {
+            self.line_offset_counter = 0;
+        }
         true
     }
 
@@ -214,13 +217,5 @@ impl TileMap {
             return Some(((tile_offset % x_tiles), (tile_offset / x_tiles)));
         }
         None
-    }
-
-    /// Sets the tile anim for the current tile
-    pub fn set_anim(&mut self, asset: &Asset, context: &ScreenContext) {
-    }
-
-    /// Clears the tile anim for the current tile
-    pub fn clear_anim(&mut self, asset: &Asset, context: &ScreenContext) {
     }
 }

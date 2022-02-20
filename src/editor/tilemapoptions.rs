@@ -21,18 +21,18 @@ impl TileMapOptions {
         let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new_as_button("GroupedList".to_string()));
 
-        group_list.add_group_list(context.color_yellow, context.color_light_yellow, vec!["Unused".to_string(), "Environment".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string()]);
+        group_list.add_group_list(context.color_yellow, context.color_light_yellow, vec!["Unused".to_string(), "Environment".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string(), "Icon".to_string()]);
         group_list.set_rect(rect, asset, context);
         widgets.push(group_list);
 
         let mut set_anim_button = AtomWidget::new(vec!["Set Anim".to_string()], AtomWidgetType::Button,
             AtomData::new_as_button("Set Anim".to_string()));
-        set_anim_button.set_rect((rect.0 + 10, rect.1 + 250, rect.2 - 20, 40), asset, context);
+        set_anim_button.set_rect((rect.0 + 10, rect.1 + 280, rect.2 - 20, 40), asset, context);
         widgets.push(set_anim_button);
 
         let mut clear_anim_button = AtomWidget::new(vec!["Clear Anim".to_string()], AtomWidgetType::Button,
         AtomData::new_as_button("Clear Anim".to_string()));
-        clear_anim_button.set_rect((rect.0 + 10, rect.1 + 285, rect.2 - 20, 40), asset, context);
+        clear_anim_button.set_rect((rect.0 + 10, rect.1 + 315, rect.2 - 20, 40), asset, context);
         widgets.push(clear_anim_button);
 
         Self {
@@ -76,15 +76,37 @@ impl TileMapOptions {
                                 4 => usage = TileUsage::UtilityChar,
                                 5 => usage = TileUsage::Water,
                                 6 => usage = TileUsage::Effect,
+                                7 => usage = TileUsage::Icon,
                                 _ => usage = TileUsage::Unused,
                             }
 
-                            let mut tile = asset.get_tile(&(context.curr_tileset_index, tile_id.0, tile_id.1));
-                            tile.usage = usage;
+                            let mut tiles : Vec<(usize, usize)> = vec![];
+                            let mut i = tile_id.clone();
 
-                            if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
-                                map.set_tile(tile_id, tile);
-                                map.save_settings();
+                            tiles.push(i);
+
+                            // Collect all tiles in the selection
+                            if let Some(selection_end) = context.selection_end {
+                                if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
+                                    while i.0 != selection_end.0 || i.1 != selection_end.1 {
+                                        i.0 += 1;
+                                        if i.0 >= map.max_tiles_per_row() {
+                                            i.0 = 0;
+                                            i.1 += 1;
+                                        }
+                                        tiles.push(i);
+                                    }
+                                }
+                            }
+
+                            for id in &tiles {
+                                let mut tile = asset.get_tile(&(context.curr_tileset_index, id.0, id.1));
+                                tile.usage = usage.clone();
+
+                                if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
+                                    map.set_tile(*id, tile);
+                                    map.save_settings();
+                                }
                             }
                         }
 
@@ -146,6 +168,7 @@ impl TileMapOptions {
                 TileUsage::UtilityChar => self.widgets[0].curr_item_index = 4,
                 TileUsage::Water => self.widgets[0].curr_item_index = 5,
                 TileUsage::Effect => self.widgets[0].curr_item_index = 6,
+                TileUsage::Icon => self.widgets[0].curr_item_index = 7,
             }
         } else {
             self.widgets[0].curr_item_index = 0;

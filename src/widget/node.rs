@@ -1,15 +1,5 @@
 use crate::widget::*;
 
-pub struct GroupedList {
-    color                       : [u8;4],
-    selected_color              : [u8;4],
-    items                       : Vec<GroupItem>
-}
-struct GroupItem {
-    rect                        : (usize, usize, usize, usize),
-    text                        : String
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct NodeUserData {
     pub overview_position       : (isize, isize),
@@ -119,16 +109,16 @@ impl NodeWidget {
         //context.draw2d.copy_slice(frame, buffer_frame, &self.rect, context.width);
     }
 
-    pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    pub fn _mouse_down(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         false
     }
 
-    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    pub fn _mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         self.clicked = false;
         false
     }
 
-    pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    pub fn _mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         false
     }
 }
