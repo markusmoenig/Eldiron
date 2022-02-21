@@ -83,7 +83,7 @@ impl NodeWidget {
         */
     }
 
-    pub fn draw_overview(&mut self, frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool) {
+    pub fn draw_overview(&mut self, frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool, preview_buffer: &[u8]) {
 
         if self.overview_buffer.is_empty() {
             self.overview_buffer = vec![0;self.overview_size.0 * self.overview_size.1 * 4];
@@ -104,6 +104,8 @@ impl NodeWidget {
             if selected {
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &[0,0,0,0], &(20.0, 20.0, 20.0, 20.0), &context.color_light_white, 1.5);
             }
+
+            context.draw2d.blend_slice(buffer_frame, preview_buffer, &(10, 10, 100, 100), rect.2);
         }
         self.overview_dirty = false;
         //context.draw2d.copy_slice(frame, buffer_frame, &self.rect, context.width);

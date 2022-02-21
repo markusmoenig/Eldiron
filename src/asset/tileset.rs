@@ -36,6 +36,7 @@ pub struct TileMapSettings {
     #[serde(with = "vectorize")]
     pub tiles           : HashMap<(usize, usize), Tile>,
     pub id              : usize,
+    pub default_tile    : Option<(usize, usize)>
 }
 
 pub struct TileMap {
@@ -73,7 +74,7 @@ impl TileMap {
 
         // Construct the json settings
         let settings = serde_json::from_str(&contents)
-            .unwrap_or(TileMapSettings { grid_size: 16, tiles: HashMap::new(), id: 0 } );
+            .unwrap_or(TileMapSettings { grid_size: 16, tiles: HashMap::new(), id: 0, default_tile: None } );
 
         TileMap {
             pixels          : info.0,

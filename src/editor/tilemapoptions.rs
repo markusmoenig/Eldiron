@@ -35,6 +35,11 @@ impl TileMapOptions {
         clear_anim_button.set_rect((rect.0 + 10, rect.1 + 315, rect.2 - 20, 40), asset, context);
         widgets.push(clear_anim_button);
 
+        let mut set_default_button = AtomWidget::new(vec!["Set Default".to_string()], AtomWidgetType::Button,
+        AtomData::new_as_button("Set Default".to_string()));
+        set_default_button.set_rect((rect.0 + 10, rect.1 + 370, rect.2 - 20, 40), asset, context);
+        widgets.push(set_default_button);
+
         Self {
             rect,
             widgets             : widgets,
@@ -117,6 +122,9 @@ impl TileMapOptions {
                     } else
                     if atom.atom_data.name == "Clear Anim" {
                         self.clear_anim(asset, context);
+                    } else
+                    if atom.atom_data.name == "Set Default" {
+                        self.set_default_tile(asset, context);
                     }
                 }
                 return true;
@@ -221,6 +229,15 @@ impl TileMapOptions {
                 map.set_tile(selection, tile);
                 map.save_settings();
             }
+        }
+    }
+
+    /// Sets the default tile for the current map
+    pub fn set_default_tile(&mut self, asset: &mut Asset, context: &ScreenContext) {
+        if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
+
+            map.settings.default_tile = context.curr_tile;
+            map.save_settings();
         }
     }
 }

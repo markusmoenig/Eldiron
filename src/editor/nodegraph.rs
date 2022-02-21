@@ -80,8 +80,18 @@ impl NodeGraph {
                     }
 
                     if self.nodes[index].overview_dirty {
-                        self.nodes[index].draw_overview(frame, anim_counter, asset, context, selected);
+                        let mut preview_buffer = vec![0; 100 * 100 * 4];
+                        if self.graph_type == GraphType::Tiles {
+                            // For tile maps draw the default_tile
+                            if let Some(map)= asset.tileset.maps.get_mut(&index) {
+                                if let Some(default_tile) = map.settings.default_tile {
+                                    context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &default_tile, 0, 100);
+                                }
+                            }
+                        }
+                        self.nodes[index].draw_overview(frame, anim_counter, asset, context, selected, &preview_buffer);
                     }
+
                     let rect= self.get_node_overview_rect(index, true);
                     context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].overview_buffer[..], &rect, context.width, &save_rect);
                 }
