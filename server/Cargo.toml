@@ -1,0 +1,20 @@
+[lib]
+name = "server"
+#When building for Xcode
+#crate-type = ["staticlib", "cdylib"]
+
+[package]
+name = "server"
+version = "0.1.0"
+edition = "2021"
+authors = ["Markus Moenig"]
+
+[dependencies]
+env_logger = "0.9"
+log = "0.4"
+png = "0.17.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rusttype = "0.9.2"
+vectorize = "0.2.0"
+itertools = "0.10.2"

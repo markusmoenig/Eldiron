@@ -121,7 +121,7 @@ impl TileMap {
 
     /// Returns the amount of tiles per row
     pub fn max_tiles_per_row(&self) -> usize {
-        (self.width / self.settings.grid_size)
+        self.width / self.settings.grid_size
     }
 
     /// Returns the amount of tiles for this tilemap

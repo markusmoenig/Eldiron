@@ -1,6 +1,6 @@
 use crate::widget::node::NodeWidget;
 
-use crate::Asset;
+use server::asset::Asset;
 use crate::editor::ScreenContext;
 
 #[derive(PartialEq)]

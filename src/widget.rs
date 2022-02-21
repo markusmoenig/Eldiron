@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use uuid::Uuid;
 
-use crate::asset::Asset;
+use server::asset::Asset;
 
 use self::context::ScreenContext;
 

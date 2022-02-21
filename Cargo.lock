@@ -389,6 +389,7 @@ dependencies = [
  "rusttype",
  "serde",
  "serde_json",
+ "server",
  "uuid",
  "vectorize",
  "winit",
@@ -1229,6 +1230,20 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "server"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "itertools",
+ "log",
+ "png",
+ "rusttype",
+ "serde",
+ "serde_json",
+ "vectorize",
 ]
 
 [[package]]

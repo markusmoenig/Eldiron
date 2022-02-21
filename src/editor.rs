@@ -1,17 +1,16 @@
 
 use crate::widget:: {ScreenWidget, Widget};
 
-//use crate::prelude::*;
-use crate::asset::Asset;
+use server::asset::Asset;
 
 mod toolbar;
 mod nodegraph;
 mod tilemapoptions;
-mod tilemap;
-// mod world;
+mod tilemapwidget;
 
 use crate::editor::toolbar::ToolBar;
-use tilemap::TileMap;
+use tilemapwidget::TileMapWidget;
+
 // use world::WorldEditor;
 // use crate::menu::MenuWidget;
 use crate::context::ScreenContext;
@@ -40,7 +39,7 @@ pub struct Editor {
     toolbar                 : ToolBar,
 
     tilemap_options         : TileMapOptions,
-    tilemap                 : TileMap,
+    tilemap                 : TileMapWidget,
 
     node_graph_tiles        : NodeGraph,
     left_width              : usize,
@@ -57,7 +56,7 @@ impl ScreenWidget for Editor {
 
         // Tile views and nodes
         let tilemap_options = TileMapOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
-        let tilemap = TileMap::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
+        let tilemap = TileMapWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
 
         let mut tile_nodes = vec![];
         for (index, t) in asset.tileset.maps_names.iter().enumerate() {

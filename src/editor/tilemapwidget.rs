@@ -1,13 +1,14 @@
 use crate::widget::*;
-use crate::Asset;
 
-use crate::asset::tileset::TileUsage;
+use server::asset::{ Asset };
+
+use server::asset::tileset::TileUsage;
 
 use crate::widget::atom::AtomWidget;
 use crate::widget::atom::AtomWidgetType;
 use crate::widget::context::ScreenContext;
 
-pub struct TileMap {
+pub struct TileMapWidget {
     rect                    : (usize, usize, usize, usize),
     tilemap_index           : usize,
     scale                   : f32,
@@ -21,7 +22,7 @@ pub struct TileMap {
     pub clicked             : bool,
 }
 
-impl TileMap {
+impl TileMapWidget {
 
     pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
 

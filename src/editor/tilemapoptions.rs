@@ -1,7 +1,7 @@
 use crate::widget::*;
-use crate::Asset;
+use server::asset::Asset;
 
-use crate::asset::tileset::TileUsage;
+use server::asset::tileset::TileUsage;
 
 use crate::widget::atom::AtomWidget;
 use crate::widget::atom::AtomWidgetType;
@@ -73,6 +73,7 @@ impl TileMapOptions {
                     if atom.atom_data.name == "GroupedList" {
 
                         if let Some(tile_id) = context.curr_tile {
+
                             let mut usage : TileUsage = TileUsage::Unused;
                             match atom.curr_item_index {
                                 1 => usage = TileUsage::Environment,

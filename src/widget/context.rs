@@ -91,7 +91,7 @@ impl ScreenContext {
     // }
 
     /// Returns true if the given rect contains the given position
-    pub fn contains_pos_for(&self, pos: (usize, usize), rect: (usize, usize, usize, usize)) -> bool {
+    pub fn _contains_pos_for(&self, pos: (usize, usize), rect: (usize, usize, usize, usize)) -> bool {
         if pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3 {
             true
         } else {

@@ -1,7 +1,7 @@
 
 use rusttype::{point, Font, Scale};
 
-use crate::tileset::TileMap;
+use server::asset::TileMap;
 
 #[derive(PartialEq)]
 pub enum TextAlignment {

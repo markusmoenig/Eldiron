@@ -4,11 +4,11 @@ pub mod tilearea;
 
 use rusttype::{Font};
 
-use tileset::*;
+pub use tileset::*;
 
-use std::collections::HashMap;
+//use std::collections::HashMap;
 
-use crate::tilearea::TileArea;
+//use crate::tilearea::TileArea;
 
 pub struct Asset<'a> {
     pub tileset                 : TileSet,
@@ -16,8 +16,8 @@ pub struct Asset<'a> {
     //gohu_font_14                : Font<'a>,
     pub open_sans               : Font<'a>,
     pub grid_size               : u32,
-    pub areas                   : HashMap<String, TileArea>,
-    pub curr_area               : String,
+    //pub areas                   : HashMap<String, TileArea>,
+    //pub curr_area               : String,
 }
 
 impl Asset<'_>  {
@@ -25,19 +25,19 @@ impl Asset<'_>  {
     pub fn new(_width: u32, _height: u32) -> Self where Self: Sized {
 
         // Create the tile areas
-        let mut areas = HashMap::new();
+        //let mut areas = HashMap::new();
 
-        let world = TileArea::new("world".to_string());
-        areas.insert("world".to_string(),world);
+        //let world = TileArea::new("world".to_string());
+        //areas.insert("world".to_string(),world);
 
         Self {
             tileset         : tileset::TileSet::new(),
             //gohu_font_11    : Font::try_from_bytes(include_bytes!("../assets/fonts/gohufont-uni-11.ttf") as &[u8]).expect("Error constructing Font"),
             //gohu_font_14    : Font::try_from_bytes(include_bytes!("../assets/fonts/Open_Sans/static/OpenSans/OpenSans-SemiBold.ttf") as &[u8]).expect("Error constructing Font"),
-            open_sans       : Font::try_from_bytes(include_bytes!("../assets/fonts/Open_Sans/static/OpenSans/OpenSans-Regular.ttf") as &[u8]).expect("Error constructing Font"),
+            open_sans       : Font::try_from_bytes(include_bytes!("../../assets/fonts/Open_Sans/static/OpenSans/OpenSans-Regular.ttf") as &[u8]).expect("Error constructing Font"),
             grid_size       : 32,
-            areas,
-            curr_area       : "world".to_string(),
+            //areas,
+            //curr_area       : "world".to_string(),
         }
     }
 
@@ -157,17 +157,17 @@ impl Asset<'_>  {
         map.get_tile(&(id.1, id.2))
     }
 
-    /// Sets a value in the current area
-    pub fn save_area(&self) {
-        let area = &mut self.areas.get(&self.curr_area).unwrap();
-        area.save_data();
-    }
+    // /// Sets a value in the current area
+    // pub fn save_area(&self) {
+    //     let area = &mut self.areas.get(&self.curr_area).unwrap();
+    //     area.save_data();
+    // }
 
-    /// Sets a value in the current area
-    pub fn set_area_value(&mut self, pos: (isize, isize), value: (u32, u32, u32, TileUsage)) {
-        let area = &mut self.areas.get_mut(&self.curr_area).unwrap();
-        area.set_value(pos, value);
-    }
+    // /// Sets a value in the current area
+    // pub fn set_area_value(&mut self, pos: (isize, isize), value: (u32, u32, u32, TileUsage)) {
+    //     let area = &mut self.areas.get_mut(&self.curr_area).unwrap();
+    //     area.set_value(pos, value);
+    // }
 
     /*
     /// Draw the given area
