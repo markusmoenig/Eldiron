@@ -102,8 +102,8 @@ impl NodeGraph {
     }
 
     fn get_node_overview_rect(&self, node_index: usize, relative: bool) -> (isize, isize, usize, usize) {
-        let mut x = (self.nodes[node_index].user_data.overview_position.0 + self.offset.0);
-        let mut y = (self.nodes[node_index].user_data.overview_position.1 + self.offset.1);
+        let mut x = self.nodes[node_index].user_data.overview_position.0 + self.offset.0;
+        let mut y = self.nodes[node_index].user_data.overview_position.1 + self.offset.1;
 
         if relative == false {
             x += self.rect.0 as isize;

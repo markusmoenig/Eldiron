@@ -57,7 +57,7 @@ fn main() -> Result<(), Error> {
         Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture)?
     };
 
-    let mut asset = Asset::new(WIDTH as u32, HEIGHT as u32);
+    let mut asset = Asset::new();
 
     let game : Box<dyn ScreenWidget> = Box::new(Game::new(&asset, WIDTH, HEIGHT));
     let editor : Box<dyn ScreenWidget> = Box::new(Editor::new(&asset, WIDTH, HEIGHT));

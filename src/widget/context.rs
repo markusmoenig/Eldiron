@@ -1,5 +1,6 @@
 
 use crate::draw2d::Draw2D;
+use server::gamedata::GameData;
 
 pub struct ScreenContext {
     pub draw2d                  : Draw2D,
@@ -9,6 +10,8 @@ pub struct ScreenContext {
 
     pub width                   : usize,
     pub height                  : usize,
+
+    pub data                    : GameData,
 
     pub toolbar_height          : usize,
     pub toolbar_button_height   : usize,
@@ -43,6 +46,8 @@ impl ScreenContext {
             default_fps                 : 4,
 
             width, height,
+
+            data                        : GameData::new(),
 
             // Editor statics
             toolbar_height              : 45,
