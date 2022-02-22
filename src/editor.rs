@@ -1,4 +1,6 @@
 
+use crate::editor::areaoptions::AreaOptions;
+use crate::editor::areawidget::AreaWidget;
 use crate::widget:: {ScreenWidget, Widget};
 
 use server::asset::Asset;
@@ -7,14 +9,13 @@ mod toolbar;
 mod nodegraph;
 mod tilemapoptions;
 mod tilemapwidget;
+mod areawidget;
+mod areaoptions;
 
 use crate::editor::toolbar::ToolBar;
 use tilemapwidget::TileMapWidget;
 
-// use world::WorldEditor;
-// use crate::menu::MenuWidget;
 use crate::context::ScreenContext;
-//use crate::draw2d::Draw2D;
 
 use crate::node::NodeUserData;
 
@@ -28,7 +29,9 @@ use self::tilemapoptions::TileMapOptions;
 #[derive (PartialEq)]
 enum EditorState {
     TilesOverview,
-    TilesDetail
+    TilesDetail,
+    AreaOverview,
+    AreaDetail
 }
 
 /// The Editor struct
@@ -41,7 +44,12 @@ pub struct Editor {
     tilemap_options         : TileMapOptions,
     tilemap                 : TileMapWidget,
 
+    area_options            : AreaOptions,
+    area_widget             : AreaWidget,
+
     node_graph_tiles        : NodeGraph,
+    node_graph_areas        : NodeGraph,
+
     left_width              : usize,
 }
 
@@ -66,16 +74,32 @@ impl ScreenWidget for Editor {
 
         let node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, GraphType::Tiles, tile_nodes);
 
+        // Area views and nodes
+        let area_options = AreaOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let area_widget = AreaWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
+
+        let mut area_nodes = vec![];
+        for (index, area) in &context.data.areas {//asset.tileset.maps_names.iter().enumerate() {
+            let node = NodeWidget::new(vec![area.name.to_string()], NodeWidgetType::Tile, vec![], NodeUserData { overview_position: (100, 50 + 150 * *index as isize), position: (0, 0)});
+            area_nodes.push(node);
+        }
+
+        let node_graph_areas = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, GraphType::Tiles, area_nodes);
+
         Self {
-            rect            : (0, 0, width, height),
-            state           : EditorState::TilesOverview,
+            rect                    : (0, 0, width, height),
+            state                   : EditorState::TilesOverview,
             context,
             toolbar,
 
             tilemap_options,
             tilemap,
 
+            area_options,
+            area_widget,
+
             node_graph_tiles,
+            node_graph_areas,
             left_width
         }
     }
@@ -92,6 +116,7 @@ impl ScreenWidget for Editor {
         self.tilemap_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
         self.tilemap.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
         self.node_graph_tiles.resize(width, height - self.context.toolbar_height, &self.context);
+        self.node_graph_areas.resize(width, height - self.context.toolbar_height, &self.context);
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset) {
@@ -106,6 +131,13 @@ impl ScreenWidget for Editor {
         if self.state == EditorState::TilesDetail {
             self.tilemap_options.draw(frame, anim_counter, asset, &mut self.context);
             self.tilemap.draw(frame, anim_counter, asset, &mut self.context);
+        } else
+        if self.state == EditorState::AreaOverview {
+            self.node_graph_areas.draw(frame, anim_counter, asset, &mut self.context);
+        } else
+        if self.state == EditorState::AreaDetail {
+            self.area_options.draw(frame, anim_counter, asset, &mut self.context);
+            self.area_widget.draw(frame, anim_counter, asset, &mut self.context);
         }
 
         // self.context.draw2d.draw_square_pattern(frame, &(0, self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), self.context.width, &[44, 44, 46, 255], &[56, 56, 56, 255], 40);
@@ -136,16 +168,46 @@ impl ScreenWidget for Editor {
                 }
                 self.toolbar.widgets[0].clicked = false;
             } else
-            if self.toolbar.widgets[1].selected {
-                self.node_graph_tiles.set_mode( GraphMode::Overview, (0, self.rect.1 + self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
-                self.state = EditorState::TilesOverview;
-                self.node_graph_tiles.mark_all_dirty();
-            } else
-            if self.toolbar.widgets[1].right_selected {
-                self.node_graph_tiles.set_mode( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
-                self.state = EditorState::TilesDetail;
-            }
+            // Tile Button
+            if self.toolbar.widgets[1].clicked {
+                if self.toolbar.widgets[1].selected {
+                    self.node_graph_tiles.set_mode( GraphMode::Overview, (0, self.rect.1 + self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.state = EditorState::TilesOverview;
+                    self.node_graph_tiles.mark_all_dirty();
 
+                    self.toolbar.widgets[2].selected = false;
+                    self.toolbar.widgets[2].right_selected = false;
+                    self.toolbar.widgets[2].dirty = true;
+                } else
+                if self.toolbar.widgets[1].right_selected {
+                    self.node_graph_tiles.set_mode( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.state = EditorState::TilesDetail;
+
+                    self.toolbar.widgets[2].selected = false;
+                    self.toolbar.widgets[2].right_selected = false;
+                    self.toolbar.widgets[2].dirty = true;
+                }
+            } else
+            // Area Button
+            if self.toolbar.widgets[2].clicked {
+                if self.toolbar.widgets[2].selected {
+                    self.node_graph_areas.set_mode( GraphMode::Overview, (0, self.rect.1 + self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.state = EditorState::AreaOverview;
+                    self.node_graph_areas.mark_all_dirty();
+
+                    self.toolbar.widgets[1].selected = false;
+                    self.toolbar.widgets[1].right_selected = false;
+                    self.toolbar.widgets[1].dirty = true;
+                } else
+                if self.toolbar.widgets[2].right_selected {
+                    self.node_graph_areas.set_mode( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.state = EditorState::AreaDetail;
+
+                    self.toolbar.widgets[1].selected = false;
+                    self.toolbar.widgets[1].right_selected = false;
+                    self.toolbar.widgets[1].dirty = true;
+                }
+            }
             consumed = true;
         }
 

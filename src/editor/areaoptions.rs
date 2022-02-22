@@ -7,23 +7,16 @@ use crate::widget::atom::AtomWidget;
 use crate::widget::atom::AtomWidgetType;
 use crate::widget::context::ScreenContext;
 
-pub struct TileMapOptions {
+pub struct AreaOptions {
     rect                    : (usize, usize, usize, usize),
     widgets                 : Vec<AtomWidget>,
 }
 
-impl TileMapOptions {
+impl AreaOptions {
 
     pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
 
         let mut widgets : Vec<AtomWidget> = vec![];
-
-        let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
-    AtomData::new_as_button("GroupedList".to_string()));
-
-        group_list.add_group_list(context.color_yellow, context.color_light_yellow, vec!["Unused".to_string(), "Environment".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string(), "Icon".to_string()]);
-        group_list.set_rect(rect, asset, context);
-        widgets.push(group_list);
 
         let mut set_anim_button = AtomWidget::new(vec!["Set Anim".to_string()], AtomWidgetType::Button,
             AtomData::new_as_button("Set Anim".to_string()));

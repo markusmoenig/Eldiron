@@ -29,8 +29,6 @@ impl GameArea {
 
         let name = path::Path::new(&path).file_stem().unwrap().to_str().unwrap();
 
-        println!("area name {:?}", name);
-
         // Gets the content of the settings file
         let json_path = path.join( format!("{}{}", name, ".json"));
         let contents = fs::read_to_string( json_path )

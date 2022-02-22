@@ -1,11 +1,6 @@
-use crate::widget::*;
 
 use server::asset::{ Asset };
-
 use server::asset::tileset::TileUsage;
-
-use crate::widget::atom::AtomWidget;
-use crate::widget::atom::AtomWidgetType;
 use crate::widget::context::ScreenContext;
 
 pub struct TileMapWidget {
@@ -24,13 +19,7 @@ pub struct TileMapWidget {
 
 impl TileMapWidget {
 
-    pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
-
-        let mut widgets : Vec<AtomWidget> = vec![];
-        let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarButton,
-            AtomData::new_as_button("Game".to_string()));
-        game_button.set_rect((rect.0 + 10, rect.1, 100, rect.3), asset, context);
-        widgets.push(game_button);
+    pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext) -> Self {
 
         Self {
             rect,
