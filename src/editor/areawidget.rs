@@ -5,14 +5,14 @@ use crate::widget::context::ScreenContext;
 
 pub struct AreaWidget {
     pub rect                : (usize, usize, usize, usize),
-    area_index              : usize,
+    pub area_index          : usize,
 
     grid_size               : usize,
 
     offset                  : (usize, usize),
     screen_offset           : (usize, usize),
 
-    pub clicked             : bool,
+    pub clicked             : Option<(isize, isize)>,
 }
 
 impl AreaWidget {
@@ -27,7 +27,7 @@ impl AreaWidget {
             offset                  : (0, 0),
             screen_offset           : (0, 0),
 
-            clicked                 : false
+            clicked                 : None,
         }
     }
 
@@ -53,7 +53,7 @@ impl AreaWidget {
         for y in 0..y_tiles {
             for x in 0..x_tiles {
                 if let Some(value) = area.get_value((x, y)) {
-                    let pos = (rect.0 + (x as usize) * grid_size, rect.1 + (y as usize) * grid_size);
+                    let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
 
                     let map = asset.get_map_of_id(value.0);
                     context.draw2d.draw_animated_tile(frame, &pos, map,context.width,&(value.1, value.2), anim_counter, grid_size);
@@ -62,8 +62,23 @@ impl AreaWidget {
         }
     }
 
-    pub fn mouse_down(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        true
+    pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+        if context.contains_pos_for(pos, self.rect) {
+
+            let grid_size = self.grid_size;
+
+            let screen_x = self.rect.2 / grid_size;
+
+            let x = (pos.0 - self.rect.0 - self.screen_offset.0) / grid_size;
+            let y = (pos.1 - self.rect.1 - self.screen_offset.0) / grid_size;// + self.line_offset;
+
+            //let tile_offset = x + y * screen_x;
+
+            self.clicked = Some((x as isize, y as isize));
+
+            return true;
+        }
+        false
     }
 
     pub fn _mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {

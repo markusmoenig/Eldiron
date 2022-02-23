@@ -250,6 +250,22 @@ impl ScreenWidget for Editor {
                 }
             }
             if consumed == false && self.area_tile_selector.mouse_down(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if consumed == false && self.area_widget.mouse_down(pos, asset, &mut self.context) {
+
+                if let Some(clicked) = self.area_widget.clicked {
+                    if let Some(selected) = &self.area_tile_selector.selected {
+
+                        //let area = self.context.data.areas.get(&self.area_widget.area_index).unwrap();
+                        if let Some(area) = self.context.data.areas.get_mut(&self.area_widget.area_index) {
+                            area.set_value(clicked, selected.clone());
+                            area.save_data();
+                        }
+                    }
+
+                }
+                consumed = true;
             }
         }
 
