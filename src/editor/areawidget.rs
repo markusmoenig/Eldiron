@@ -9,7 +9,7 @@ pub struct AreaWidget {
 
     grid_size               : usize,
 
-    offset                  : (usize, usize),
+    offset                  : (isize, isize),
     screen_offset           : (usize, usize),
 
     pub clicked             : Option<(isize, isize)>,
@@ -52,7 +52,7 @@ impl AreaWidget {
 
         for y in 0..y_tiles {
             for x in 0..x_tiles {
-                if let Some(value) = area.get_value((x, y)) {
+                if let Some(value) = area.get_value((x - self.offset.0, y - self.offset.1)) {
                     let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
 
                     let map = asset.get_map_of_id(value.0);
@@ -67,14 +67,10 @@ impl AreaWidget {
 
             let grid_size = self.grid_size;
 
-            let screen_x = self.rect.2 / grid_size;
+            let x = ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
+            let y = ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;
 
-            let x = (pos.0 - self.rect.0 - self.screen_offset.0) / grid_size;
-            let y = (pos.1 - self.rect.1 - self.screen_offset.0) / grid_size;// + self.line_offset;
-
-            //let tile_offset = x + y * screen_x;
-
-            self.clicked = Some((x as isize, y as isize));
+            self.clicked = Some((x, y));
 
             return true;
         }
@@ -97,19 +93,14 @@ impl AreaWidget {
         false
     }
 
-    pub fn mouse_wheel(&mut self, _delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        /*
-        self.line_offset_counter += delta.1;
-        self.line_offset = (self.line_offset_counter / 40).clamp(0, self.max_line_offset as isize) as usize;
-        if delta.1 == 0 {
-            self.line_offset_counter = 0;
-        }
-        */
+    pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        self.offset.0 -= delta.0 / self.grid_size as isize;
+        self.offset.1 += delta.1 / self.grid_size as isize;
         true
     }
 
     /// Sets a new map index
-    pub fn set_area_index(&mut self, index: usize) {
+    pub fn _set_area_index(&mut self, index: usize) {
         self.area_index = index;
     }
 }

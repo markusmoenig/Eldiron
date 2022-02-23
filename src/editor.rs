@@ -243,6 +243,9 @@ impl ScreenWidget for Editor {
                             } else
                             if atom.curr_item_index == 1 {
                                 self.area_tile_selector.set_tile_type(TileUsage::EnvBlocking, asset);
+                            } else
+                            if atom.curr_item_index == 2 {
+                                self.area_tile_selector.set_tile_type(TileUsage::Water, asset);
                             }
                         }
                     }
@@ -344,6 +347,16 @@ impl ScreenWidget for Editor {
         }
         if self.state == EditorState::TilesDetail {
             if consumed == false && self.tilemap.mouse_wheel(delta, asset, &mut self.context) {
+                consumed = true;
+            }
+        }
+        if self.state == EditorState::AreaOverview {
+            if consumed == false && self.node_graph_areas.mouse_wheel(delta, asset, &mut self.context) {
+                consumed = true;
+            }
+        }
+        if self.state == EditorState::AreaDetail {
+            if consumed == false && self.area_widget.mouse_wheel(delta, asset, &mut self.context) {
                 consumed = true;
             }
         }

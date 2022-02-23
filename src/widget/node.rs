@@ -70,7 +70,7 @@ impl NodeWidget {
         self.buffer = vec![0;rect.2 * rect.3 * 4];
     }*/
 
-    pub fn draw(&mut self, frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+    pub fn _draw(&mut self, _frame: &mut [u8], _anim_counter: usize, _asset: &mut Asset, _context: &mut ScreenContext) {
 
         /*
         let rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
@@ -83,7 +83,7 @@ impl NodeWidget {
         */
     }
 
-    pub fn draw_overview(&mut self, frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool, preview_buffer: &[u8]) {
+    pub fn draw_overview(&mut self, _frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool, preview_buffer: &[u8]) {
 
         if self.overview_buffer.is_empty() {
             self.overview_buffer = vec![0;self.overview_size.0 * self.overview_size.1 * 4];

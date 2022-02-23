@@ -173,7 +173,7 @@ impl TileMapWidget {
         self.line_offset_counter += delta.1;
         self.line_offset = (self.line_offset_counter / 40).clamp(0, self.max_line_offset as isize) as usize;
         if delta.1 == 0 {
-            self.line_offset_counter = 0;
+           self.line_offset_counter = 0;
         }
         true
     }

@@ -1,8 +1,6 @@
 use crate::widget::*;
 use server::asset::Asset;
 
-use server::asset::tileset::TileUsage;
-
 use crate::widget::atom::AtomWidget;
 use crate::widget::atom::AtomWidgetType;
 use crate::widget::context::ScreenContext;
@@ -29,31 +27,13 @@ impl AreaOptions {
         let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new_as_button("GroupedList".to_string()));
 
-        group_list.add_group_list(context.color_yellow, context.color_light_yellow, vec!["Environment".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string(), "Icon".to_string()]);
+        group_list.add_group_list(context.color_yellow, context.color_light_yellow, vec!["Environment".to_string(), "Blocking".to_string(), "Water".to_string() ]);
         group_list.set_rect((rect.0, rect.1 + 60, rect.2, 400), asset, context);
         widgets.push(group_list);
 
-        /*
-
-        let mut set_anim_button = AtomWidget::new(vec!["Set Anim".to_string()], AtomWidgetType::Button,
-            AtomData::new_as_button("Set Anim".to_string()));
-        set_anim_button.set_rect((rect.0 + 10, rect.1 + 280, rect.2 - 20, 40), asset, context);
-        widgets.push(set_anim_button);
-
-        let mut clear_anim_button = AtomWidget::new(vec!["Clear Anim".to_string()], AtomWidgetType::Button,
-        AtomData::new_as_button("Clear Anim".to_string()));
-        clear_anim_button.set_rect((rect.0 + 10, rect.1 + 315, rect.2 - 20, 40), asset, context);
-        widgets.push(clear_anim_button);
-
-        let mut set_default_button = AtomWidget::new(vec!["Set Default".to_string()], AtomWidgetType::Button,
-        AtomData::new_as_button("Set Default".to_string()));
-        set_default_button.set_rect((rect.0 + 10, rect.1 + 370, rect.2 - 20, 40), asset, context);
-        widgets.push(set_default_button);
-        */
-
         Self {
             rect,
-            widgets             : widgets,
+            widgets,
         }
     }
 
@@ -76,180 +56,15 @@ impl AreaOptions {
         }
     }
 
-    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
-        for atom in &mut self.widgets {
-            if atom.mouse_down(pos, asset, context) {
-                if atom.clicked {
-
-                    if atom.atom_data.name == "GroupedList" {
-
-                        if let Some(tile_id) = context.curr_tile {
-
-                            let usage : TileUsage;
-                            match atom.curr_item_index {
-                                1 => usage = TileUsage::Environment,
-                                2 => usage = TileUsage::EnvBlocking,
-                                3 => usage = TileUsage::Character,
-                                4 => usage = TileUsage::UtilityChar,
-                                5 => usage = TileUsage::Water,
-                                6 => usage = TileUsage::Effect,
-                                7 => usage = TileUsage::Icon,
-                                _ => usage = TileUsage::Unused,
-                            }
-
-                            let mut tiles : Vec<(usize, usize)> = vec![];
-                            let mut i = tile_id.clone();
-
-                            tiles.push(i);
-
-                            // Collect all tiles in the selection
-                            if let Some(selection_end) = context.selection_end {
-                                if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
-                                    while i.0 != selection_end.0 || i.1 != selection_end.1 {
-                                        i.0 += 1;
-                                        if i.0 >= map.max_tiles_per_row() {
-                                            i.0 = 0;
-                                            i.1 += 1;
-                                        }
-                                        tiles.push(i);
-                                    }
-                                }
-                            }
-
-                            for id in &tiles {
-                                let mut tile = asset.get_tile(&(context.curr_tileset_index, id.0, id.1));
-                                tile.usage = usage.clone();
-
-                                if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
-                                    map.set_tile(*id, tile);
-                                    map.save_settings();
-                                }
-                            }
-                        }
-
-                        atom.clicked = false;
-                    } else
-                    if atom.atom_data.name == "Set Anim" {
-                        self.set_anim(asset, context);
-                    } else
-                    if atom.atom_data.name == "Clear Anim" {
-                        self.clear_anim(asset, context);
-                    } else
-                    if atom.atom_data.name == "Set Default" {
-                        self.set_default_tile(asset, context);
-                    }
-                }
-                return true;
-            }
-        }
+    pub fn _mouse_down(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         false
     }
 
-    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
-        let mut consumed = false;
-
-        for atom in &mut self.widgets {
-            if atom.mouse_up(pos, asset, context) {
-                consumed = true;
-            }
-        }
-        consumed
-    }
-
-    pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
-        let mut consumed = false;
-
-        for atom in &mut self.widgets {
-            if atom.mouse_dragged(pos, asset, context) {
-                consumed = true;
-            }
-        }
-        consumed
-    }
-
-    pub fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
-        for atom in &mut self.widgets {
-            if atom.mouse_hover(pos, asset, context) {
-                return true;
-            }
-        }
+    pub fn _mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         false
     }
 
-    /// Updates the group widget based on the selected tile
-    pub fn adjust_tile_usage(&mut self, asset: &Asset, context: &ScreenContext) {
-        if let Some(tile_id) = context.curr_tile {
-            let tile = asset.get_tile(&(context.curr_tileset_index, tile_id.0, tile_id.1));
-            match tile.usage {
-                TileUsage::Unused => self.widgets[0].curr_item_index = 0,
-                TileUsage::Environment => self.widgets[0].curr_item_index = 1,
-                TileUsage::EnvBlocking => self.widgets[0].curr_item_index = 2,
-                TileUsage::Character => self.widgets[0].curr_item_index = 3,
-                TileUsage::UtilityChar => self.widgets[0].curr_item_index = 4,
-                TileUsage::Water => self.widgets[0].curr_item_index = 5,
-                TileUsage::Effect => self.widgets[0].curr_item_index = 6,
-                TileUsage::Icon => self.widgets[0].curr_item_index = 7,
-            }
-        } else {
-            self.widgets[0].curr_item_index = 0;
-        }
-        self.widgets[0].dirty = true;
-    }
-
-    /// Sets the tile anim for the current tile
-    pub fn set_anim(&mut self, asset: &mut Asset, context: &ScreenContext) {
-        if let Some(selection) = context.curr_tile {
-            if let Some(selection_end) = context.selection_end {
-                if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
-                    let mut tile = map.get_tile(&selection);
-
-                    let mut anim_tiles : Vec<(usize, usize)> = vec![];
-                    let mut i = selection.clone();
-
-                    anim_tiles.push(i);
-
-                    while i.0 != selection_end.0 || i.1 != selection_end.1 {
-                        i.0 += 1;
-                        if i.0 >= map.max_tiles_per_row() {
-                            i.0 = 0;
-                            i.1 += 1;
-                        }
-                        anim_tiles.push(i);
-
-                        let mut tile = map.get_tile(&i);
-                        tile.usage = TileUsage::Unused;
-                        map.set_tile(i, tile);
-                    }
-
-                    tile.anim_tiles = anim_tiles;
-
-                    map.set_tile(selection, tile);
-                    map.save_settings();
-                }
-            }
-        }
-    }
-
-    /// Clears the tile anim for the current tile
-    pub fn clear_anim(&mut self, asset: &mut Asset, context: &ScreenContext) {
-        if let Some(selection) = context.curr_tile {
-            if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
-                let mut tile = map.get_tile(&selection);
-
-                tile.anim_tiles = vec![];
-
-                map.set_tile(selection, tile);
-                map.save_settings();
-            }
-        }
-    }
-
-    /// Sets the default tile for the current map
-    pub fn set_default_tile(&mut self, asset: &mut Asset, context: &ScreenContext) {
-        if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
-
-            map.settings.default_tile = context.curr_tile;
-            map.save_settings();
-        }
+    pub fn _mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        false
     }
 }
