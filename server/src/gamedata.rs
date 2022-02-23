@@ -65,26 +65,8 @@ impl GameData {
     }
 
     /// Sets a value in the area
-    pub fn set_area_value(&mut self, id: usize, pos: (isize, isize), value: (u32, u32, u32, TileUsage)) {
+    pub fn set_area_value(&mut self, id: usize, pos: (isize, isize), value: (usize, usize, usize, TileUsage)) {
         let area = &mut self.areas.get_mut(&id).unwrap();
         area.set_value(pos, value);
     }
-
-    /*
-    /// Draw the given area
-    pub fn draw_area(&self, frame: &mut [u8], rect: &(u32,u32,u32,u32), anim_counter: u32) {
-        let area = self.areas.get(&self.curr_area).unwrap();
-
-        let x_tiles = (rect.2 / self.grid_size) as isize;
-        let y_tiles = (rect.3 / self.grid_size) as isize;
-
-        for y in 0..y_tiles {
-            for x in 0..x_tiles {
-                if let Some(value) = area.get_value((x, y)) {
-                    let pos = (rect.0 + (x as u32) * self.grid_size, rect.1 + (y as u32) * self.grid_size);
-                    self.draw_animated_tile(frame, &pos, value.0, &(value.1, value.2), anim_counter,self.grid_size);
-                }
-            }
-        }
-    }*/
 }

@@ -55,6 +55,7 @@ pub trait ScreenWidget {
 // General purpose widgets
 pub mod atom;
 pub mod node;
+pub mod tileselector;
 
 #[derive(Serialize, Deserialize, PartialEq)]
 pub enum AtomDataType {

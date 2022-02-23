@@ -9,7 +9,7 @@ use crate::widget::context::ScreenContext;
 
 pub struct AreaOptions {
     rect                    : (usize, usize, usize, usize),
-    widgets                 : Vec<AtomWidget>,
+    pub widgets             : Vec<AtomWidget>,
 }
 
 impl AreaOptions {
@@ -17,6 +17,23 @@ impl AreaOptions {
     pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
 
         let mut widgets : Vec<AtomWidget> = vec![];
+
+        let mut tilemap_names = asset.tileset.maps_names.clone();
+        tilemap_names.insert(0, "Tilemaps: All".to_string());
+
+        let mut tilemaps_slider_button = AtomWidget::new(tilemap_names, AtomWidgetType::ToolBarSliderButton,
+        AtomData::new_as_button("Tilemaps".to_string()));
+        tilemaps_slider_button.set_rect((rect.0 + 10, rect.1 + 10, rect.2 - 10, 40), asset, context);
+        widgets.push(tilemaps_slider_button);
+
+        let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
+    AtomData::new_as_button("GroupedList".to_string()));
+
+        group_list.add_group_list(context.color_yellow, context.color_light_yellow, vec!["Environment".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string(), "Icon".to_string()]);
+        group_list.set_rect((rect.0, rect.1 + 60, rect.2, 400), asset, context);
+        widgets.push(group_list);
+
+        /*
 
         let mut set_anim_button = AtomWidget::new(vec!["Set Anim".to_string()], AtomWidgetType::Button,
             AtomData::new_as_button("Set Anim".to_string()));
@@ -32,6 +49,7 @@ impl AreaOptions {
         AtomData::new_as_button("Set Default".to_string()));
         set_default_button.set_rect((rect.0 + 10, rect.1 + 370, rect.2 - 20, 40), asset, context);
         widgets.push(set_default_button);
+        */
 
         Self {
             rect,

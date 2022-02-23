@@ -398,7 +398,7 @@ impl Draw2D {
     }
 
     /// Draws the given animated tile
-    pub fn draw_animated_tile(&self,  frame: &mut [u8], pos: &(usize, usize), map: &TileMap, stride: usize, grid_pos: &(usize, usize), anim_counter: usize, target_size: u32) {
+    pub fn draw_animated_tile(&self,  frame: &mut [u8], pos: &(usize, usize), map: &TileMap, stride: usize, grid_pos: &(usize, usize), anim_counter: usize, target_size: usize) {
         let pixels = &map.pixels;
         let scale = target_size as f32 / map.settings.grid_size as f32;
 

@@ -1,7 +1,9 @@
 
+use crate::tileselector::TileSelectorWidget;
 use crate::editor::areaoptions::AreaOptions;
 use crate::editor::areawidget::AreaWidget;
 use crate::widget:: {ScreenWidget, Widget};
+use crate::tileset::TileUsage;
 
 use server::asset::Asset;
 
@@ -46,6 +48,7 @@ pub struct Editor {
 
     area_options            : AreaOptions,
     area_widget             : AreaWidget,
+    area_tile_selector      : TileSelectorWidget,
 
     node_graph_tiles        : NodeGraph,
     node_graph_areas        : NodeGraph,
@@ -76,7 +79,9 @@ impl ScreenWidget for Editor {
 
         // Area views and nodes
         let area_options = AreaOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
-        let area_widget = AreaWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
+        let area_widget = AreaWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height - 250), asset, &context);
+        let mut area_tile_selector = TileSelectorWidget::new(vec!(), (left_width, area_widget.rect.1 + area_widget.rect.3, width - left_width, 250), asset, &context);
+        area_tile_selector.set_tile_type(TileUsage::Environment, &asset);
 
         let mut area_nodes = vec![];
         for (index, area) in &context.data.areas {//asset.tileset.maps_names.iter().enumerate() {
@@ -97,6 +102,7 @@ impl ScreenWidget for Editor {
 
             area_options,
             area_widget,
+            area_tile_selector,
 
             node_graph_tiles,
             node_graph_areas,
@@ -115,6 +121,11 @@ impl ScreenWidget for Editor {
 
         self.tilemap_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
         self.tilemap.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
+
+        self.area_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
+
+        self.area_widget.rect = (self.left_width, self.context.toolbar_height, width - self.left_width, height - self.context.toolbar_height - 250);
+        self.area_tile_selector.rect = (self.left_width, self.area_widget.rect.1 + self.area_widget.rect.3, width - self.left_width, 250);
         self.node_graph_tiles.resize(width, height - self.context.toolbar_height, &self.context);
         self.node_graph_areas.resize(width, height - self.context.toolbar_height, &self.context);
     }
@@ -138,19 +149,8 @@ impl ScreenWidget for Editor {
         if self.state == EditorState::AreaDetail {
             self.area_options.draw(frame, anim_counter, asset, &mut self.context);
             self.area_widget.draw(frame, anim_counter, asset, &mut self.context);
+            self.area_tile_selector.draw(frame, anim_counter, asset, &mut self.context);
         }
-
-        // self.context.draw2d.draw_square_pattern(frame, &(0, self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), self.context.width, &[44, 44, 46, 255], &[56, 56, 56, 255], 40);
-
-        // self.context.draw2d.draw_circle(frame, &(0, toolbar_height, self.rect.2, self.rect.3 - toolbar_height), self.context.width, &[255, 255, 255, 255], 200.0);
-        // self.context.draw2d.draw_circle_with_border(frame, &(0, toolbar_height, self.rect.2, self.rect.3 - toolbar_height), self.context.width, &[255, 255, 255, 255], 200.0, &[255, 0, 0, 255], 10.0);
-
-        // self.context.draw2d.draw_rounded_rect(frame, &(0, toolbar_height, self.rect.2, self.rect.3 - toolbar_height), self.context.width, &(200.0, 200.0), &[255, 255, 255, 255], &(50.0, 50.0, 50.0, 50.0));
-        // self.context.draw2d.draw_rounded_rect_with_border(frame, &(0, self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), self.context.width, &(200.0, 200.0), &[255, 255, 255, 255], &(50.0, 50.0, 50.0, 50.0), &[255, 0, 0, 255], 20.0);
-
-        //let stop = self.get_time();
-
-        //println!("{:?}", stop - start);
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
@@ -231,6 +231,25 @@ impl ScreenWidget for Editor {
                     self.tilemap_options.adjust_tile_usage(asset, &self.context);
                 }
                 consumed = true;
+            }
+        }
+        if self.state == EditorState::AreaDetail {
+            for atom in &mut self.area_options.widgets {
+                if atom.mouse_down(pos, asset, &mut self.context) {
+                    if atom.clicked {
+                        if atom.atom_data.name == "GroupedList" {
+                            if atom.curr_item_index == 0 {
+                                self.area_tile_selector.set_tile_type(TileUsage::Environment, asset);
+                            } else
+                            if atom.curr_item_index == 1 {
+                                self.area_tile_selector.set_tile_type(TileUsage::EnvBlocking, asset);
+                            }
+                        }
+                    }
+                    consumed = true;
+                }
+            }
+            if consumed == false && self.area_tile_selector.mouse_down(pos, asset, &mut self.context) {
             }
         }
 

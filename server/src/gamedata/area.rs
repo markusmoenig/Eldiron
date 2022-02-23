@@ -11,7 +11,7 @@ use crate::asset::tileset::TileUsage;
 #[derive(Serialize, Deserialize)]
 pub struct GameAreaData {
     #[serde(with = "vectorize")]
-    pub tiles           : HashMap<(isize, isize), (u32, u32, u32, TileUsage)>,
+    pub tiles           : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
     pub id              : usize,
     pub curr_pos        : (isize, isize),
     pub min_pos         : (isize, isize),
@@ -54,12 +54,12 @@ impl GameArea {
     }
 
     /// Returns an optional tile value at the given position
-    pub fn get_value(&self, pos: (isize, isize)) -> Option<&(u32, u32, u32, TileUsage)> {
+    pub fn get_value(&self, pos: (isize, isize)) -> Option<&(usize, usize, usize, TileUsage)> {
         self.data.tiles.get(&pos)
     }
 
     /// Sets a value at the given position
-    pub fn set_value(&mut self, pos: (isize, isize), value: (u32, u32, u32, TileUsage)) {
+    pub fn set_value(&mut self, pos: (isize, isize), value: (usize, usize, usize, TileUsage)) {
         self.data.tiles.insert(pos, value);
 
         if self.data.min_pos.0 > pos.0 {

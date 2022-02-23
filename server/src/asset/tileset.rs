@@ -115,7 +115,7 @@ impl TileMap {
     }
 
     /// Returns the amount of tiles for this tilemap
-    pub fn _max_tiles(&self) -> usize {
+    pub fn max_tiles(&self) -> usize {
         (self.width / self.settings.grid_size) * (self.height / self.settings.grid_size)
     }
 
@@ -125,7 +125,7 @@ impl TileMap {
     }
 
     /// Returns the amount of tiles for this tilemap
-    pub fn _offset_to_id(&self, offset: usize) -> (usize, usize) {
+    pub fn offset_to_id(&self, offset: usize) -> (usize, usize) {
         (offset % (self.width / self.settings.grid_size), offset / (self.width / self.settings.grid_size))
     }
 }
