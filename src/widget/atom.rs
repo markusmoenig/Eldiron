@@ -110,7 +110,7 @@ impl AtomWidget {
 
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
 
-                let div = (self.content_rect.2 / 4) * 3;
+                let div = self.content_rect.2 - 35;
                 let mut left_rect = rect.clone();
 
                 left_rect.2 = div;

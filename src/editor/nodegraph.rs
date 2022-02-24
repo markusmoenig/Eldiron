@@ -13,6 +13,7 @@ pub enum GraphMode {
 pub enum GraphType {
     Tiles,
     Areas,
+    Behavior,
 }
 
 pub struct NodeGraph {
