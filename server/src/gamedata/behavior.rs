@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use crate::asset::tileset::TileUsage;
 
 #[derive(Serialize, Deserialize)]
-pub struct GameAreaData {
+pub struct GameBehaviorData {
     #[serde(with = "vectorize")]
     pub tiles           : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
     pub id              : usize,
@@ -18,13 +18,13 @@ pub struct GameAreaData {
     pub max_pos         : (isize, isize),
 }
 
-pub struct GameArea {
+pub struct GameBehavior {
     pub name            : String,
     pub path            : PathBuf,
-    pub data            : GameAreaData,
+    pub data            : GameBehaviorData,
 }
 
-impl GameArea {
+impl GameBehavior {
     pub fn new(path: &PathBuf) -> Self {
 
         let name = path::Path::new(&path).file_stem().unwrap().to_str().unwrap();
@@ -36,7 +36,7 @@ impl GameArea {
 
         // Construct the json settings
         let data = serde_json::from_str(&contents)
-            .unwrap_or(GameAreaData { tiles: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (0,0), max_pos: (0,0) });
+            .unwrap_or(GameBehaviorData { tiles: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (0,0), max_pos: (0,0) });
 
         Self {
             name        : name.to_string(),
@@ -51,28 +51,5 @@ impl GameArea {
         let json = serde_json::to_string(&self.data).unwrap();
         fs::write(json_path, json)
             .expect("Unable to write area file");
-    }
-
-    /// Returns an optional tile value at the given position
-    pub fn get_value(&self, pos: (isize, isize)) -> Option<&(usize, usize, usize, TileUsage)> {
-        self.data.tiles.get(&pos)
-    }
-
-    /// Sets a value at the given position
-    pub fn set_value(&mut self, pos: (isize, isize), value: (usize, usize, usize, TileUsage)) {
-        self.data.tiles.insert(pos, value);
-
-        if self.data.min_pos.0 > pos.0 {
-            self.data.min_pos.0 = pos.0;
-        }
-        if self.data.min_pos.1 > pos.1 {
-            self.data.min_pos.1 = pos.1;
-        }
-        if self.data.max_pos.0 < pos.0 {
-            self.data.max_pos.0 = pos.0;
-        }
-        if self.data.max_pos.1 < pos.1 {
-            self.data.max_pos.1 = pos.1;
-        }
     }
 }

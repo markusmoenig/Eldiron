@@ -1,8 +1,11 @@
 pub mod area;
+pub mod behavior;
 
 use std::collections::HashMap;
+use std::fs::metadata;
 
 use crate::gamedata::area::GameArea;
+use crate::gamedata::behavior::GameBehavior;
 use crate::asset::TileUsage;
 
 use itertools::Itertools;
@@ -14,6 +17,10 @@ pub struct GameData {
     pub areas                   : HashMap<usize, GameArea>,
     pub areas_names             : Vec<String>,
     pub areas_ids               : Vec<usize>,
+
+    pub behaviors               : HashMap<usize, GameBehavior>,
+    pub behaviors_names         : Vec<String>,
+    pub behaviors_ids           : Vec<usize>,
 }
 
 impl GameData {
@@ -29,28 +36,33 @@ impl GameData {
         let paths = fs::read_dir(tilemaps_path).unwrap();
 
         for path in paths {
-            let mut area = GameArea::new(&path.unwrap().path());
+            let path = &path.unwrap().path();
+            let md = metadata(path).unwrap();
 
-            areas_names.push(area.name.clone());
+            if md.is_dir() {
+                let mut area = GameArea::new(path);
 
-            // Make sure we create a unique id (check if the id already exists in the set)
-            let mut has_id_already = true;
-            while has_id_already {
+                areas_names.push(area.name.clone());
 
-                has_id_already = false;
-                for (key, _value) in &areas {
-                    if key == &area.data.id {
-                        has_id_already = true;
+                // Make sure we create a unique id (check if the id already exists in the set)
+                let mut has_id_already = true;
+                while has_id_already {
+
+                    has_id_already = false;
+                    for (key, _value) in &areas {
+                        if key == &area.data.id {
+                            has_id_already = true;
+                        }
+                    }
+
+                    if has_id_already {
+                        area.data.id += 1;
                     }
                 }
 
-                if has_id_already {
-                    area.data.id += 1;
-                }
+                areas_ids.push(area.data.id);
+                areas.insert(area.data.id, area);
             }
-
-            areas_ids.push(area.data.id);
-            areas.insert(area.data.id, area);
         }
 
         let sorted_keys= areas.keys().sorted();
@@ -63,10 +75,63 @@ impl GameData {
             }
         }
 
+        // Behaviors
+
+        let behavior_path = path::Path::new("game").join("behavior");
+        let paths = fs::read_dir(behavior_path).unwrap();
+
+        let mut behaviors: HashMap<usize, GameBehavior> = HashMap::new();
+        let mut behaviors_names = vec![];
+        let mut behaviors_ids = vec![];
+
+        for path in paths {
+            let path = &path.unwrap().path();
+            let md = metadata(path).unwrap();
+
+            if md.is_dir() {
+                let mut behavior = GameBehavior::new(path);
+
+                behaviors_names.push(behavior.name.clone());
+
+                // Make sure we create a unique id (check if the id already exists in the set)
+                let mut has_id_already = true;
+                while has_id_already {
+
+                    has_id_already = false;
+                    for (key, _value) in &areas {
+                        if key == &behavior.data.id {
+                            has_id_already = true;
+                        }
+                    }
+
+                    if has_id_already {
+                        behavior.data.id += 1;
+                    }
+                }
+
+                behaviors_ids.push(behavior.data.id);
+                behaviors.insert(behavior.data.id, behavior);
+            }
+        }
+
+        let sorted_keys= areas.keys().sorted();
+        for key in sorted_keys {
+            let area = &areas[key];
+
+            // If the area has no tiles we assume it's new and we save the data
+            if area.data.tiles.len() == 0 {
+                //area.save_data();
+            }
+        }
+
         Self {
             areas,
             areas_names,
-            areas_ids
+            areas_ids,
+
+            behaviors,
+            behaviors_names,
+            behaviors_ids
         }
     }
 

@@ -36,7 +36,7 @@ impl Widget for ToolBar {
 
         let mut behavior_button = AtomWidget::new(vec!["Behavior".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new_as_button("Areas".to_string()));
-        behavior_button.set_rect((rect.0 + 510, rect.1, 175, rect.3), asset, context);
+        behavior_button.set_rect((rect.0 + 510, rect.1, 165, rect.3), asset, context);
         // areas_button.selected = true;
         widgets.push(behavior_button);
 
