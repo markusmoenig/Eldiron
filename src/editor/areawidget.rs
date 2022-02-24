@@ -5,7 +5,7 @@ use crate::widget::context::ScreenContext;
 
 pub struct AreaWidget {
     pub rect                : (usize, usize, usize, usize),
-    pub area_index          : usize,
+    pub area_id             : usize,
 
     grid_size               : usize,
 
@@ -21,7 +21,7 @@ impl AreaWidget {
 
         Self {
             rect,
-            area_index              : 0,
+            area_id                 : 0,
             grid_size               : 32,
 
             offset                  : (0, 0),
@@ -45,7 +45,7 @@ impl AreaWidget {
         //let grid = (rect.2 / grid_size, rect.3 / grid_size);
         //let max_tiles = grid.0 * grid.1;
 
-        let area = context.data.areas.get(&self.area_index).unwrap();
+        let area = context.data.areas.get(&self.area_id).unwrap();
 
         let x_tiles = (rect.2 / grid_size) as isize;
         let y_tiles = (rect.3 / grid_size) as isize;
@@ -100,7 +100,7 @@ impl AreaWidget {
     }
 
     /// Sets a new map index
-    pub fn _set_area_index(&mut self, index: usize) {
-        self.area_index = index;
+    pub fn set_area_id(&mut self, id: usize) {
+        self.area_id = id;
     }
 }

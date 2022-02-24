@@ -5,7 +5,7 @@ use crate::widget::context::ScreenContext;
 
 pub struct TileMapWidget {
     rect                    : (usize, usize, usize, usize),
-    tilemap_index           : usize,
+    tilemap_id              : usize,
     scale                   : f32,
 
     screen_offset           : (usize, usize),
@@ -23,7 +23,7 @@ impl TileMapWidget {
 
         Self {
             rect,
-            tilemap_index           : 0,
+            tilemap_id              : 0,
             scale                   : 2.0,
 
             screen_offset           : (0, 0),
@@ -47,7 +47,7 @@ impl TileMapWidget {
         if asset.tileset.maps.is_empty() { return }
 
         let scale = self.scale;
-        let map = &asset.tileset.maps[&(self.tilemap_index)];
+        let map = &asset.tileset.maps[&(self.tilemap_id)];
         let scaled_grid_size = (map.settings.grid_size as f32 * scale) as usize;
 
         //context.draw2d.draw_square_pattern(frame, &self.rect, self.rect.2, &[44, 44, 46, 255], &[56, 56, 56, 255], scaled_grid_size);
@@ -179,8 +179,8 @@ impl TileMapWidget {
     }
 
     /// Sets a new map index
-    pub fn set_tilemap_index(&mut self, index: usize) {
-        self.tilemap_index = index;
+    pub fn set_tilemap_id(&mut self, id: usize) {
+        self.tilemap_id = id;
         self.line_offset = 0;
     }
 
@@ -189,7 +189,7 @@ impl TileMapWidget {
 
         let scale = self.scale;
 
-        let map = asset.get_map_of_id(self.tilemap_index);
+        let map = asset.get_map_of_id(self.tilemap_id);
 
         let scaled_grid_size = (map.settings.grid_size as f32 * scale) as usize;
 

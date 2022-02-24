@@ -5,11 +5,15 @@ use std::collections::HashMap;
 use crate::gamedata::area::GameArea;
 use crate::asset::TileUsage;
 
+use itertools::Itertools;
+
 use std::path;
 use std::fs;
 
 pub struct GameData {
     pub areas                   : HashMap<usize, GameArea>,
+    pub areas_names             : Vec<String>,
+    pub areas_ids               : Vec<usize>,
 }
 
 impl GameData {
@@ -18,14 +22,16 @@ impl GameData {
 
         // Create the tile areas
         let mut areas: HashMap<usize, GameArea> = HashMap::new();
+        let mut areas_names = vec![];
+        let mut areas_ids = vec![];
 
         let tilemaps_path = path::Path::new("game").join("areas");
         let paths = fs::read_dir(tilemaps_path).unwrap();
 
-        //let mut maps_names : Vec<String> = vec![];
-
         for path in paths {
             let mut area = GameArea::new(&path.unwrap().path());
+
+            areas_names.push(area.name.clone());
 
             // Make sure we create a unique id (check if the id already exists in the set)
             let mut has_id_already = true;
@@ -43,10 +49,14 @@ impl GameData {
                 }
             }
 
+            areas_ids.push(area.data.id);
             areas.insert(area.data.id, area);
         }
 
-        for (_, area) in &areas {
+        let sorted_keys= areas.keys().sorted();
+        for key in sorted_keys {
+            let area = &areas[key];
+
             // If the area has no tiles we assume it's new and we save the data
             if area.data.tiles.len() == 0 {
                 area.save_data();
@@ -54,7 +64,9 @@ impl GameData {
         }
 
         Self {
-            areas
+            areas,
+            areas_names,
+            areas_ids
         }
     }
 

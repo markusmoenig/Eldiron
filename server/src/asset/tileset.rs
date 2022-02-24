@@ -134,6 +134,7 @@ impl TileMap {
 pub struct TileSet {
     pub maps            : HashMap<usize, TileMap>,
     pub maps_names      : Vec<String>,
+    pub maps_ids        : Vec<usize>,
 }
 
 impl TileSet {
@@ -144,7 +145,8 @@ impl TileSet {
         let tilemaps_path = path::Path::new("assets").join("tilemaps");
         let paths = fs::read_dir(tilemaps_path).unwrap();
 
-        let mut maps_names : Vec<String> = vec![];
+        let mut maps_names  : Vec<String> = vec![];
+        let mut maps_ids    : Vec<usize> = vec![];
 
         for path in paths {
             // Generate the tile map for this dir element
@@ -169,6 +171,8 @@ impl TileSet {
                     }
                 }
 
+                maps_ids.push(tile_map.settings.id);
+
                 // If the tilemap has no tiles we assume it's new and we save the settings
                 if tile_map.settings.tiles.len() == 0 {
                     tile_map.save_settings();
@@ -182,6 +186,7 @@ impl TileSet {
         TileSet {
             maps,
             maps_names,
+            maps_ids
         }
     }
 

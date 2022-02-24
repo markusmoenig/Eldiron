@@ -12,6 +12,7 @@ pub enum GraphMode {
 #[derive(PartialEq)]
 pub enum GraphType {
     Tiles,
+    Areas,
 }
 
 pub struct NodeGraph {
@@ -77,6 +78,11 @@ impl NodeGraph {
                         if index == context.curr_tileset_index {
                             selected = true;
                         }
+                    } else
+                    if self.graph_type == GraphType::Areas {
+                        if index == context.curr_area_index {
+                            selected = true;
+                        }
                     }
 
                     if self.nodes[index].overview_dirty {
@@ -129,6 +135,16 @@ impl NodeGraph {
 
                             self.nodes[context.curr_tileset_index].overview_dirty = true;
                             context.curr_tileset_index = index;
+                            self.nodes[index].overview_dirty = true;
+                            self.dirty = true;
+                            self.clicked = true;
+                        }
+                    }
+                    if self.graph_type == GraphType::Areas {
+                        if context.curr_area_index != index {
+
+                            self.nodes[context.curr_area_index].overview_dirty = true;
+                            context.curr_area_index = index;
                             self.nodes[index].overview_dirty = true;
                             self.dirty = true;
                             self.clicked = true;

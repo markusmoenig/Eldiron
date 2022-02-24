@@ -23,7 +23,7 @@ pub enum AtomWidgetType {
 pub struct AtomWidget {
     rect                        : (usize, usize, usize, usize),
     content_rect                : (usize, usize, usize, usize),
-    text                        : Vec<String>,
+    pub text                    : Vec<String>,
     atom_widget_type            : AtomWidgetType,
     pub atom_data               : AtomData,
     state                       : WidgetState,

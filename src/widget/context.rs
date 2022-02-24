@@ -33,6 +33,8 @@ pub struct ScreenContext {
     pub curr_tileset_index      : usize,
     pub curr_tile               : Option<(usize, usize)>,
     pub selection_end           : Option<(usize, usize)>,
+
+    pub curr_area_index         : usize,
 }
 
 impl ScreenContext {
@@ -73,6 +75,9 @@ impl ScreenContext {
             curr_tileset_index          : 0,
             curr_tile                   : None,
             selection_end               : None,
+
+            // Areas
+            curr_area_index             : 0,
         }
     }
 

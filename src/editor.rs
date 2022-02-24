@@ -89,7 +89,7 @@ impl ScreenWidget for Editor {
             area_nodes.push(node);
         }
 
-        let node_graph_areas = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, GraphType::Tiles, area_nodes);
+        let node_graph_areas = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, GraphType::Areas, area_nodes);
 
         Self {
             rect                    : (0, 0, width, height),
@@ -159,12 +159,15 @@ impl ScreenWidget for Editor {
         if self.toolbar.mouse_down(pos, asset, &mut self.context) {
 
             if self.toolbar.widgets[0].clicked {
-
                 if self.state == EditorState::TilesOverview || self.state == EditorState::TilesDetail {
                     self.node_graph_tiles.changed_selection(self.context.curr_tileset_index, self.toolbar.widgets[0].curr_index);
                     self.context.curr_tileset_index = self.toolbar.widgets[0].curr_index;
-                    self.tilemap.set_tilemap_index(self.context.curr_tileset_index);
-                    self.node_graph_tiles.clicked = false;
+                    self.tilemap.set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
+                } else
+                if self.state == EditorState::AreaOverview || self.state == EditorState::AreaDetail {
+                    self.node_graph_areas.changed_selection(self.context.curr_area_index, self.toolbar.widgets[0].curr_index);
+                    self.context.curr_area_index = self.toolbar.widgets[0].curr_index;
+                    self.area_widget.set_area_id(self.context.data.areas_ids[self.context.curr_area_index]);
                 }
                 self.toolbar.widgets[0].clicked = false;
             } else
@@ -187,6 +190,10 @@ impl ScreenWidget for Editor {
                     self.toolbar.widgets[2].right_selected = false;
                     self.toolbar.widgets[2].dirty = true;
                 }
+
+                self.toolbar.widgets[0].text = asset.tileset.maps_names.clone();
+                self.toolbar.widgets[0].curr_index = self.context.curr_tileset_index;
+                self.toolbar.widgets[0].dirty = true;
             } else
             // Area Button
             if self.toolbar.widgets[2].clicked {
@@ -207,6 +214,10 @@ impl ScreenWidget for Editor {
                     self.toolbar.widgets[1].right_selected = false;
                     self.toolbar.widgets[1].dirty = true;
                 }
+
+                self.toolbar.widgets[0].text = self.context.data.areas_names.clone();
+                self.toolbar.widgets[0].curr_index = self.context.curr_area_index;
+                self.toolbar.widgets[0].dirty = true;
             }
             consumed = true;
         }
@@ -217,7 +228,7 @@ impl ScreenWidget for Editor {
                 if self.node_graph_tiles.clicked {
                     self.toolbar.widgets[0].curr_index = self.context.curr_tileset_index;
                     self.toolbar.widgets[0].dirty = true;
-                    self.tilemap.set_tilemap_index(self.context.curr_tileset_index);
+                    self.tilemap.set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
                     self.node_graph_tiles.clicked = false;
                 }
             }
@@ -232,7 +243,18 @@ impl ScreenWidget for Editor {
                 }
                 consumed = true;
             }
-        }
+        } else
+        if self.state == EditorState::AreaOverview {
+            if consumed == false && self.node_graph_areas.mouse_down(pos, asset, &mut self.context) {
+                consumed = true;
+                if self.node_graph_areas.clicked {
+                    self.toolbar.widgets[0].curr_index = self.context.curr_area_index;
+                    self.toolbar.widgets[0].dirty = true;
+                    self.area_widget.set_area_id(self.context.data.areas_ids[self.context.curr_area_index]);
+                    self.node_graph_areas.clicked = false;
+                }
+            }
+        } else
         if self.state == EditorState::AreaDetail {
             for atom in &mut self.area_options.widgets {
                 if atom.mouse_down(pos, asset, &mut self.context) {
@@ -261,7 +283,7 @@ impl ScreenWidget for Editor {
                     if let Some(selected) = &self.area_tile_selector.selected {
 
                         //let area = self.context.data.areas.get(&self.area_widget.area_index).unwrap();
-                        if let Some(area) = self.context.data.areas.get_mut(&self.area_widget.area_index) {
+                        if let Some(area) = self.context.data.areas.get_mut(&self.area_widget.area_id) {
                             area.set_value(clicked, selected.clone());
                             area.save_data();
                         }
@@ -278,7 +300,7 @@ impl ScreenWidget for Editor {
     fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
         let mut consumed = false;
         if self.toolbar.mouse_up(pos, asset, &mut self.context) {
-            self.tilemap.set_tilemap_index(self.toolbar.widgets[0].curr_index);
+            self.tilemap.set_tilemap_id(asset.tileset.maps_ids[self.toolbar.widgets[0].curr_index]);
             consumed = true;
         }
 
