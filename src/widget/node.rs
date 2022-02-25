@@ -2,13 +2,13 @@ use crate::widget::*;
 
 #[derive(Serialize, Deserialize)]
 pub struct NodeUserData {
-    pub overview_position       : (isize, isize),
     pub position                : (isize, isize)
 }
 
 #[derive(PartialEq, Debug)]
 pub enum NodeWidgetType {
-    Tile
+    Overview,
+    BehaviorTree,
 }
 
 pub struct NodeWidget {
@@ -22,9 +22,6 @@ pub struct NodeWidget {
 
     pub dirty                   : bool,
     pub buffer                  : Vec<u8>,
-
-    pub overview_dirty          : bool,
-    pub overview_buffer         : Vec<u8>,
 
     pub user_data               : NodeUserData,
 
@@ -51,9 +48,6 @@ impl NodeWidget {
             dirty               : true,
             buffer              : vec![],
 
-            overview_dirty      : true,
-            overview_buffer     : vec![],
-
             user_data,
 
             disabled            : false,
@@ -64,37 +58,46 @@ impl NodeWidget {
         }
     }
 
-    /*
-    pub fn set_rect(&mut self, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext) {
-        self.rect = rect;
-        self.buffer = vec![0;rect.2 * rect.3 * 4];
-    }*/
 
-    pub fn _draw(&mut self, _frame: &mut [u8], _anim_counter: usize, _asset: &mut Asset, _context: &mut ScreenContext) {
+    /// Draw the node
+    pub fn draw(&mut self, _frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool) {
 
-        /*
-        let rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
-        let buffer_frame = &mut self.buffer[..];
-
-        if self.dirty {
-        }
-        self.dirty = false;
-        context.draw2d.copy_slice(frame, buffer_frame, &self.rect, context.width);
-        */
-    }
-
-    pub fn draw_overview(&mut self, _frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool, preview_buffer: &[u8]) {
-
-        if self.overview_buffer.is_empty() {
-            self.overview_buffer = vec![0;self.overview_size.0 * self.overview_size.1 * 4];
+        if self.buffer.is_empty() {
+            self.buffer = vec![0;self.overview_size.0 * self.overview_size.1 * 4];
         }
 
         let rect = (0_usize, 0_usize, self.overview_size.0, self.overview_size.1);
 
-        if self.overview_dirty {
+        if self.dirty {
 
-            for i in &mut self.overview_buffer[..] { *i = 0 }
-            let buffer_frame = &mut self.overview_buffer[..];
+            for i in &mut self.buffer[..] { *i = 0 }
+            let buffer_frame = &mut self.buffer[..];
+
+            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
+            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(0, 0, self.overview_size.1, self.overview_size.1), rect.2, &((self.overview_size.1 - 1) as f64, (self.overview_size.1 - 1) as f64), &[0,0,0,255], &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
+
+            context.draw2d.draw_text(buffer_frame, &(135, 85), rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, &context.color_black);
+
+            if selected {
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &[0,0,0,0], &(20.0, 20.0, 20.0, 20.0), &context.color_light_white, 1.5);
+            }
+        }
+        self.dirty = false;
+    }
+
+    /// Draw an overview node
+    pub fn draw_overview(&mut self, _frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool, preview_buffer: &[u8]) {
+
+        if self.buffer.is_empty() {
+            self.buffer = vec![0;self.overview_size.0 * self.overview_size.1 * 4];
+        }
+
+        let rect = (0_usize, 0_usize, self.overview_size.0, self.overview_size.1);
+
+        if self.dirty {
+
+            for i in &mut self.buffer[..] { *i = 0 }
+            let buffer_frame = &mut self.buffer[..];
 
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(0, 0, self.overview_size.1, self.overview_size.1), rect.2, &((self.overview_size.1 - 1) as f64, (self.overview_size.1 - 1) as f64), &[0,0,0,255], &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
@@ -107,8 +110,7 @@ impl NodeWidget {
 
             context.draw2d.blend_slice(buffer_frame, preview_buffer, &(10, 10, 100, 100), rect.2);
         }
-        self.overview_dirty = false;
-        //context.draw2d.copy_slice(frame, buffer_frame, &self.rect, context.width);
+        self.dirty = false;
     }
 
     pub fn _mouse_down(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {

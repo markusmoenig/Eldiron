@@ -35,6 +35,8 @@ pub struct ScreenContext {
     pub selection_end           : Option<(usize, usize)>,
 
     pub curr_area_index         : usize,
+
+    pub curr_behavior_index     : usize,
 }
 
 impl ScreenContext {
@@ -78,6 +80,9 @@ impl ScreenContext {
 
             // Areas
             curr_area_index             : 0,
+
+            // Behaviors
+            curr_behavior_index         : 0,
         }
     }
 

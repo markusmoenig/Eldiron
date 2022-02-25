@@ -1,5 +1,8 @@
 use crate::widget::node::NodeWidget;
 
+use crate::node::NodeUserData;
+use crate::widget::node::NodeWidgetType;
+
 use server::asset::Asset;
 use crate::editor::ScreenContext;
 
@@ -51,10 +54,20 @@ impl NodeGraph {
         }
     }
 
-    pub fn set_mode(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &ScreenContext) {
+    pub fn set_mode(&mut self, mode: GraphMode) {
+        self.graph_mode = mode;
+    }
+
+    pub fn set_mode_and_rect(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &ScreenContext) {
         self.graph_mode = mode;
         self.rect = rect;
         self.resize(rect.2, rect.3, context)
+    }
+
+    pub fn _set_mode_and_nodes(&mut self, mode: GraphMode, nodes: Vec<NodeWidget>, _context: &ScreenContext) {
+        self.graph_mode = mode;
+        self.nodes = nodes;
+        self.mark_all_dirty();
     }
 
     pub fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
@@ -84,9 +97,14 @@ impl NodeGraph {
                         if index == context.curr_area_index {
                             selected = true;
                         }
+                    } else
+                    if self.graph_type == GraphType::Behavior {
+                        if index == context.curr_behavior_index {
+                            selected = true;
+                        }
                     }
 
-                    if self.nodes[index].overview_dirty {
+                    if self.nodes[index].dirty {
                         let mut preview_buffer = vec![0; 100 * 100 * 4];
                         if self.graph_type == GraphType::Tiles {
                             // For tile maps draw the default_tile
@@ -99,8 +117,20 @@ impl NodeGraph {
                         self.nodes[index].draw_overview(frame, anim_counter, asset, context, selected, &preview_buffer);
                     }
 
-                    let rect= self.get_node_overview_rect(index, true);
-                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].overview_buffer[..], &rect, context.width, &save_rect);
+                    let rect= self.get_node_rect(index, true);
+                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, context.width, &save_rect);
+                }
+            } else {
+                // Detail View
+                for index in 0..self.nodes.len() {
+                    if self.nodes[index].dirty {
+
+                        let selected = false;
+                        self.nodes[index].draw(frame, anim_counter, asset, context, selected);
+                    }
+
+                    let rect= self.get_node_rect(index, true);
+                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, context.width, &save_rect);
                 }
             }
         }
@@ -108,35 +138,39 @@ impl NodeGraph {
         context.draw2d.copy_slice(frame, &mut self.buffer[..], &self.rect, context.width);
     }
 
-    fn get_node_overview_rect(&self, node_index: usize, relative: bool) -> (isize, isize, usize, usize) {
-        let mut x = self.nodes[node_index].user_data.overview_position.0 + self.offset.0;
-        let mut y = self.nodes[node_index].user_data.overview_position.1 + self.offset.1;
+    fn get_node_rect(&self, node_index: usize, relative: bool) -> (isize, isize, usize, usize) {
+        let mut x = self.nodes[node_index].user_data.position.0 + self.offset.0;
+        let mut y = self.nodes[node_index].user_data.position.1 + self.offset.1;
 
         if relative == false {
             x += self.rect.0 as isize;
             y += self.rect.1 as isize;
         }
 
-        (x, y, self.nodes[node_index].overview_size.0, self.nodes[node_index].overview_size.1)
+        if self.graph_mode == GraphMode::Overview {
+            (x, y, self.nodes[node_index].overview_size.0, self.nodes[node_index].overview_size.1)
+        } else {
+            (x, y, self.nodes[node_index].overview_size.0, self.nodes[node_index].overview_size.1)
+        }
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
         if self.graph_mode == GraphMode::Overview {
             for index in 0..self.nodes.len() {
-                let rect= self.get_node_overview_rect(index, false);
+                let rect= self.get_node_rect(index, false);
 
                 if context.contains_pos_for_isize(pos, rect) {
                     self.drag_index = Some(index);
                     self.drag_offset = (pos.0 as isize, pos.1 as isize);
-                    self.drag_node_pos= (self.nodes[index].user_data.overview_position.0 as isize, self.nodes[index].user_data.overview_position.1 as isize);
+                    self.drag_node_pos= (self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize);
 
                     if self.graph_type == GraphType::Tiles {
                         if context.curr_tileset_index != index {
 
-                            self.nodes[context.curr_tileset_index].overview_dirty = true;
+                            self.nodes[context.curr_tileset_index].dirty = true;
                             context.curr_tileset_index = index;
-                            self.nodes[index].overview_dirty = true;
+                            self.nodes[index].dirty = true;
                             self.dirty = true;
                             self.clicked = true;
                         }
@@ -144,9 +178,9 @@ impl NodeGraph {
                     if self.graph_type == GraphType::Areas {
                         if context.curr_area_index != index {
 
-                            self.nodes[context.curr_area_index].overview_dirty = true;
+                            self.nodes[context.curr_area_index].dirty = true;
                             context.curr_area_index = index;
-                            self.nodes[index].overview_dirty = true;
+                            self.nodes[index].dirty = true;
                             self.dirty = true;
                             self.clicked = true;
                         }
@@ -181,8 +215,8 @@ impl NodeGraph {
             let dx = pos.0 as isize - self.drag_offset.0;
             let dy = pos.1 as isize - self.drag_offset.1;
 
-            self.nodes[index].user_data.overview_position.0 = self.drag_node_pos.0 + dx;
-            self.nodes[index].user_data.overview_position.1 = self.drag_node_pos.1 + dy;
+            self.nodes[index].user_data.position.0 = self.drag_node_pos.0 + dx;
+            self.nodes[index].user_data.position.1 = self.drag_node_pos.1 + dy;
             self.dirty = true;
 
             context.target_fps = 60;
@@ -206,7 +240,7 @@ impl NodeGraph {
         if self.graph_mode == GraphMode::Overview {
             for index in 0..self.nodes.len() {
                 if index == old_selection || index == new_selection {
-                    self.nodes[index].overview_dirty = true;
+                    self.nodes[index].dirty = true;
                     self.dirty = true;
                 }
             }
@@ -216,10 +250,17 @@ impl NodeGraph {
     pub fn mark_all_dirty(&mut self) {
         if self.graph_mode == GraphMode::Overview {
             for index in 0..self.nodes.len() {
-                self.nodes[index].overview_dirty = true;
+                self.nodes[index].dirty = true;
             }
         }
         self.dirty = true;
+    }
+
+    pub fn set_behavior_id(&mut self, _id: usize) {
+
+        let tree_node = NodeWidget::new(vec!["Behavior Tree".to_string()], NodeWidgetType::Overview, vec![], NodeUserData { position: (100, 100)});
+
+        self.nodes = vec![tree_node];
     }
 
     // pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
