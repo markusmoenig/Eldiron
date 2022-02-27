@@ -13,6 +13,8 @@ use itertools::Itertools;
 use std::path;
 use std::fs;
 
+use self::behavior::BehaviorNodeType;
+
 pub struct GameData {
     pub areas                   : HashMap<usize, GameArea>,
     pub areas_names             : Vec<String>,
@@ -98,7 +100,7 @@ impl GameData {
                 while has_id_already {
 
                     has_id_already = false;
-                    for (key, _value) in &areas {
+                    for (key, _value) in &behaviors {
                         if key == &behavior.data.id {
                             has_id_already = true;
                         }
@@ -109,20 +111,24 @@ impl GameData {
                     }
                 }
 
+                if behavior.data.nodes.len() == 0 {
+                    behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                    behavior.save_data();
+                }
                 behaviors_ids.push(behavior.data.id);
                 behaviors.insert(behavior.data.id, behavior);
             }
         }
 
-        let sorted_keys= areas.keys().sorted();
-        for key in sorted_keys {
-            let area = &areas[key];
+        // let sorted_keys= behaviors.keys().sorted();
+        // for key in sorted_keys {
+        //     let behavior = &behaviors[key];
 
-            // If the area has no tiles we assume it's new and we save the data
-            if area.data.tiles.len() == 0 {
-                //area.save_data();
-            }
-        }
+        //     // If the behavior has no nodes we assume it's new and we save the data
+        //     if behavior.data.nodes.len() == 0 {
+        //         behavior.save_data();
+        //     }
+        // }
 
         Self {
             areas,

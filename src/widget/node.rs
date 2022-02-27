@@ -1,3 +1,5 @@
+use server::gamedata::behavior::{GameBehaviorData, BehaviorNode};
+
 use crate::widget::*;
 
 #[derive(Serialize, Deserialize)]
@@ -8,7 +10,7 @@ pub struct NodeUserData {
 #[derive(PartialEq, Debug)]
 pub enum NodeWidgetType {
     Overview,
-    BehaviorTree,
+    Behavior,
 }
 
 pub struct NodeWidget {
@@ -28,7 +30,6 @@ pub struct NodeWidget {
     pub disabled                : bool,
     has_hover                   : bool,
 
-    pub overview_size           : (usize, usize),
     pub size                    : (usize, usize),
 }
 
@@ -37,8 +38,6 @@ impl NodeWidget {
     pub fn new(text: Vec<String>, node_widget_type: NodeWidgetType, data: Vec<AtomData>, user_data: NodeUserData) -> Self {
 
         Self {
-            //rect                : (0,0,0,0),
-            //content_rect        : (0,0,0,0),
             text,
             node_widget_type,
             data,
@@ -53,8 +52,29 @@ impl NodeWidget {
             disabled            : false,
             has_hover           : false,
 
-            overview_size       : (250, 120),
-            size                : (0, 0)
+            size                : (250, 120),
+        }
+    }
+
+    pub fn new_from_behavior_data(data: &mut BehaviorNode) -> Self {
+
+        Self {
+            text                : vec![data.name.clone()],
+            node_widget_type    : NodeWidgetType::Behavior,
+            data                : vec![],
+
+            state               : WidgetState::Normal,
+            clicked             : false,
+
+            dirty               : true,
+            buffer              : vec![],
+
+            user_data           : NodeUserData { position: data.position.clone() },
+
+            disabled            : false,
+            has_hover           : false,
+
+            size                : (200, 300)
         }
     }
 
@@ -63,10 +83,12 @@ impl NodeWidget {
     pub fn draw(&mut self, _frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool) {
 
         if self.buffer.is_empty() {
-            self.buffer = vec![0;self.overview_size.0 * self.overview_size.1 * 4];
+            self.buffer = vec![0;self.size.0 * self.size.1 * 4];
         }
 
-        let rect = (0_usize, 0_usize, self.overview_size.0, self.overview_size.1);
+        println!("{:?}", self.size);
+
+        let rect = (0_usize, 0_usize, self.size.0, self.size.1);
 
         if self.dirty {
 
@@ -74,13 +96,14 @@ impl NodeWidget {
             let buffer_frame = &mut self.buffer[..];
 
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
+            /*
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(0, 0, self.overview_size.1, self.overview_size.1), rect.2, &((self.overview_size.1 - 1) as f64, (self.overview_size.1 - 1) as f64), &[0,0,0,255], &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
 
             context.draw2d.draw_text(buffer_frame, &(135, 85), rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, &context.color_black);
 
             if selected {
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &[0,0,0,0], &(20.0, 20.0, 20.0, 20.0), &context.color_light_white, 1.5);
-            }
+            }*/
         }
         self.dirty = false;
     }
@@ -89,10 +112,10 @@ impl NodeWidget {
     pub fn draw_overview(&mut self, _frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool, preview_buffer: &[u8]) {
 
         if self.buffer.is_empty() {
-            self.buffer = vec![0;self.overview_size.0 * self.overview_size.1 * 4];
+            self.buffer = vec![0;self.size.0 * self.size.1 * 4];
         }
 
-        let rect = (0_usize, 0_usize, self.overview_size.0, self.overview_size.1);
+        let rect = (0_usize, 0_usize, self.size.0, self.size.1);
 
         if self.dirty {
 
@@ -100,7 +123,7 @@ impl NodeWidget {
             let buffer_frame = &mut self.buffer[..];
 
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
-            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(0, 0, self.overview_size.1, self.overview_size.1), rect.2, &((self.overview_size.1 - 1) as f64, (self.overview_size.1 - 1) as f64), &[0,0,0,255], &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
+            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(0, 0, self.size.1, self.size.1), rect.2, &((self.size.1 - 1) as f64, (self.size.1 - 1) as f64), &[0,0,0,255], &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
 
             context.draw2d.draw_text(buffer_frame, &(135, 85), rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, &context.color_black);
 

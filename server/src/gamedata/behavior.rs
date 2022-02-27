@@ -6,16 +6,41 @@ use std::path::PathBuf;
 
 use std::collections::HashMap;
 
-use crate::asset::tileset::TileUsage;
+#[derive(Serialize, Deserialize, PartialEq)]
+pub enum BehaviorNodeType {
+    BehaviorTree,
+}
+
+#[derive(Serialize, Deserialize, PartialEq)]
+pub enum BehaviorNodeState {
+    Idle,
+    Running,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BehaviorNode {
+    pub behavior_type           : BehaviorNodeType,
+    pub behavior_state          : BehaviorNodeState,
+    pub name                    : String,
+
+    pub values                  : HashMap<String, (f64, f64, f64, f64)>,
+    pub id                      : usize,
+
+    pub position                : (isize, isize),
+
+    pub ok_connection           : Option<usize>,
+    pub fail_connection         : Option<usize>,
+    pub right_connection        : Option<usize>,
+
+    pub connected               : bool,
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct GameBehaviorData {
-    #[serde(with = "vectorize")]
-    pub tiles           : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
+    pub nodes           : Vec<BehaviorNode>,
     pub id              : usize,
-    pub curr_pos        : (isize, isize),
-    pub min_pos         : (isize, isize),
-    pub max_pos         : (isize, isize),
+
+    pub name            : String,
 }
 
 pub struct GameBehavior {
@@ -36,7 +61,7 @@ impl GameBehavior {
 
         // Construct the json settings
         let data = serde_json::from_str(&contents)
-            .unwrap_or(GameBehaviorData { tiles: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (0,0), max_pos: (0,0) });
+            .unwrap_or(GameBehaviorData { nodes: vec![], id: 0, name: "New Behavior".to_string() });
 
         Self {
             name        : name.to_string(),
@@ -45,11 +70,34 @@ impl GameBehavior {
         }
     }
 
-    /// Save the TileAreaData to file
+    /// Save the GameBehaviorData to file
     pub fn save_data(&self) {
         let json_path = self.path.join( format!("{}{}", self.name, ".json"));
         let json = serde_json::to_string(&self.data).unwrap();
         fs::write(json_path, json)
             .expect("Unable to write area file");
+    }
+
+    /// Add a new node of the given type and name
+    pub fn add_node(&mut self, behavior_type: BehaviorNodeType, name: String) {
+        let mut node = BehaviorNode { behavior_type: behavior_type, behavior_state: BehaviorNodeState::Idle, name, values: HashMap::new(),id: 0, position: (100, 100), ok_connection: None, fail_connection: None, right_connection: None, connected: false };
+
+
+        let mut has_id_already = true;
+        while has_id_already {
+
+            has_id_already = false;
+            for n in &self.data.nodes {
+                if n.id == node.id {
+                    has_id_already = true;
+                }
+            }
+
+            if has_id_already {
+                node.id += 1;
+            }
+        }
+
+        self.data.nodes.push(node);
     }
 }

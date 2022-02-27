@@ -118,19 +118,24 @@ impl NodeGraph {
                     }
 
                     let rect= self.get_node_rect(index, true);
-                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, context.width, &save_rect);
+                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, save_rect.2, &save_rect);
                 }
             } else {
                 // Detail View
+
                 for index in 0..self.nodes.len() {
                     if self.nodes[index].dirty {
 
                         let selected = false;
+
                         self.nodes[index].draw(frame, anim_counter, asset, context, selected);
                     }
 
                     let rect= self.get_node_rect(index, true);
-                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, context.width, &save_rect);
+
+                            println!("rect {:?}", rect);
+
+                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, save_rect.2, &save_rect);
                 }
             }
         }
@@ -147,11 +152,8 @@ impl NodeGraph {
             y += self.rect.1 as isize;
         }
 
-        if self.graph_mode == GraphMode::Overview {
-            (x, y, self.nodes[node_index].overview_size.0, self.nodes[node_index].overview_size.1)
-        } else {
-            (x, y, self.nodes[node_index].overview_size.0, self.nodes[node_index].overview_size.1)
-        }
+
+        (x, y, self.nodes[node_index].size.0, self.nodes[node_index].size.1)
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
@@ -190,11 +192,6 @@ impl NodeGraph {
                 }
             }
         }
-        // if self.contains_pos(pos) {
-        //     //self.state.set(2);
-        //     self.clicked.set(true);
-        //     return true;
-        // }
         false
     }
 
@@ -256,11 +253,18 @@ impl NodeGraph {
         self.dirty = true;
     }
 
-    pub fn set_behavior_id(&mut self, _id: usize) {
+    /// Set the behavior id, this will take the bevhavior node data and create node widgets
+    pub fn set_behavior_id(&mut self, _id: usize, context: &mut ScreenContext) {
 
-        let tree_node = NodeWidget::new(vec!["Behavior Tree".to_string()], NodeWidgetType::Overview, vec![], NodeUserData { position: (100, 100)});
+        self.nodes = vec![];
+        if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
 
-        self.nodes = vec![tree_node];
+            for n in &mut behavior.data.nodes {
+                let node = NodeWidget::new_from_behavior_data(n);
+
+                self.nodes.push(node);
+            }
+        }
     }
 
     // pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {

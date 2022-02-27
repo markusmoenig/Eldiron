@@ -70,7 +70,7 @@ impl ScreenWidget for Editor {
     fn new(asset: &Asset, width: usize, height: usize) -> Self where Self: Sized {
 
         let left_width = 180_usize;
-        let context = ScreenContext::new(width, height);
+        let mut context = ScreenContext::new(width, height);
 
         let toolbar = ToolBar::new(vec!(), (0,0, width, context.toolbar_height), asset, &context);
 
@@ -116,7 +116,7 @@ impl ScreenWidget for Editor {
         let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, GraphType::Behavior, vec![]);
 
         node_graph_behavior_details.set_mode(GraphMode::Detail);
-        node_graph_behavior_details.set_behavior_id(0);
+        node_graph_behavior_details.set_behavior_id(0, &mut context);
 
         Self {
             rect                    : (0, 0, width, height),
@@ -163,6 +163,7 @@ impl ScreenWidget for Editor {
         self.node_graph_tiles.resize(width, height - self.context.toolbar_height, &self.context);
         self.node_graph_areas.resize(width, height - self.context.toolbar_height, &self.context);
         self.node_graph_behavior.resize(width, height - self.context.toolbar_height, &self.context);
+        self.node_graph_behavior_details.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset) {
