@@ -1,8 +1,5 @@
 use crate::widget::node::NodeWidget;
 
-use crate::node::NodeUserData;
-use crate::widget::node::NodeWidgetType;
-
 use server::asset::Asset;
 use crate::editor::ScreenContext;
 
@@ -126,15 +123,16 @@ impl NodeGraph {
                 for index in 0..self.nodes.len() {
                     if self.nodes[index].dirty {
 
-                        let selected = false;
+                        let mut selected = false;
+
+                        if self.nodes[index].id == context.curr_behavior_node_id {
+                            selected = true;
+                        }
 
                         self.nodes[index].draw(frame, anim_counter, asset, context, selected);
                     }
 
                     let rect= self.get_node_rect(index, true);
-
-                            println!("rect {:?}", rect);
-
                     context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, save_rect.2, &save_rect);
                 }
             }
@@ -151,7 +149,6 @@ impl NodeGraph {
             x += self.rect.0 as isize;
             y += self.rect.1 as isize;
         }
-
 
         (x, y, self.nodes[node_index].size.0, self.nodes[node_index].size.1)
     }
@@ -187,8 +184,40 @@ impl NodeGraph {
                             self.clicked = true;
                         }
                     }
+                    if self.graph_type == GraphType::Behavior {
+                        if context.curr_behavior_index != index {
+
+                            self.nodes[context.curr_behavior_index].dirty = true;
+                            context.curr_behavior_index = index;
+                            self.nodes[index].dirty = true;
+                            self.dirty = true;
+                            self.clicked = true;
+                        }
+                    }
 
                     return true;
+                }
+            }
+        } else
+        if self.graph_mode == GraphMode::Detail {
+            for index in 0..self.nodes.len() {
+                let rect= self.get_node_rect(index, false);
+
+                if context.contains_pos_for_isize(pos, rect) {
+                    self.drag_index = Some(index);
+                    self.drag_offset = (pos.0 as isize, pos.1 as isize);
+                    self.drag_node_pos= (self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize);
+
+                    if self.graph_type == GraphType::Behavior {
+                        if context.curr_behavior_node_id != self.nodes[index].id {
+
+                            self.nodes[context.curr_behavior_node_id].dirty = true;
+                            context.curr_behavior_node_id = self.nodes[index].id;
+                            self.nodes[index].dirty = true;
+                            self.dirty = true;
+                            self.clicked = true;
+                        }
+                    }
                 }
             }
         }
@@ -196,13 +225,18 @@ impl NodeGraph {
     }
 
     pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
-        // if self.state.get() == 2 {
-        //     //self.state.set(1);
-        //     return true;
-        // }
         if self.drag_index != None {
             self.drag_index = None;
             context.target_fps = context.default_fps;
+
+            // Save the new node position
+            if self.graph_type == GraphType::Behavior && self.graph_mode == GraphMode::Detail {
+                if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
+                    let position = self.nodes[behavior.get_index_of_node_id(context.curr_behavior_node_id)].user_data.position;
+                    behavior.data.nodes[context.curr_behavior_node_id].position = position;
+                    behavior.save_data();
+                }
+            }
         }
         false
     }

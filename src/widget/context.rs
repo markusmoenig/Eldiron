@@ -37,6 +37,7 @@ pub struct ScreenContext {
     pub curr_area_index         : usize,
 
     pub curr_behavior_index     : usize,
+    pub curr_behavior_node_id   : usize,
 }
 
 impl ScreenContext {
@@ -83,6 +84,7 @@ impl ScreenContext {
 
             // Behaviors
             curr_behavior_index         : 0,
+            curr_behavior_node_id       : 0,
         }
     }
 

@@ -100,4 +100,14 @@ impl GameBehavior {
 
         self.data.nodes.push(node);
     }
+
+    /// Takes an id of a node and returns the index of the node
+    pub fn get_index_of_node_id(&self, id: usize) -> usize {
+        for (index, node) in self.data.nodes.iter().enumerate() {
+            if node.id == id {
+                return index;
+            }
+        }
+        0
+    }
 }

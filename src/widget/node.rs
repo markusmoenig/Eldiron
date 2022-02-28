@@ -22,6 +22,8 @@ pub struct NodeWidget {
     state                       : WidgetState,
     pub clicked                 : bool,
 
+    pub id                      : usize,
+
     pub dirty                   : bool,
     pub buffer                  : Vec<u8>,
 
@@ -43,6 +45,8 @@ impl NodeWidget {
             data,
             state               : WidgetState::Normal,
             clicked             : false,
+
+            id                  : 0,
 
             dirty               : true,
             buffer              : vec![],
@@ -66,6 +70,8 @@ impl NodeWidget {
             state               : WidgetState::Normal,
             clicked             : false,
 
+            id                  : data.id,
+
             dirty               : true,
             buffer              : vec![],
 
@@ -80,13 +86,11 @@ impl NodeWidget {
 
 
     /// Draw the node
-    pub fn draw(&mut self, _frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool) {
+    pub fn draw(&mut self, _frame: &mut [u8], _anim_counter: usize, _asset: &mut Asset, context: &mut ScreenContext, selected: bool) {
 
         if self.buffer.is_empty() {
             self.buffer = vec![0;self.size.0 * self.size.1 * 4];
         }
-
-        println!("{:?}", self.size);
 
         let rect = (0_usize, 0_usize, self.size.0, self.size.1);
 
@@ -95,7 +99,10 @@ impl NodeWidget {
             for i in &mut self.buffer[..] { *i = 0 }
             let buffer_frame = &mut self.buffer[..];
 
-            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
+
+            let border_color = if selected == false {&context.color_gray} else {&context.color_white};
+
+            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &context.color_black, &(20.0, 20.0, 20.0, 20.0), border_color, 1.5);
             /*
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(0, 0, self.overview_size.1, self.overview_size.1), rect.2, &((self.overview_size.1 - 1) as f64, (self.overview_size.1 - 1) as f64), &[0,0,0,255], &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
 
