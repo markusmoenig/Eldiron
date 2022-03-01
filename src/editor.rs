@@ -79,7 +79,7 @@ impl ScreenWidget for Editor {
 
         let mut tile_nodes = vec![];
         for (index, t) in asset.tileset.maps_names.iter().enumerate() {
-            let node = NodeWidget::new(vec![t.to_string()], vec![], NodeUserData { position: (100, 50 + 150 * index as isize) });
+            let node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: (100, 50 + 150 * index as isize) });
             tile_nodes.push(node);
         }
 
@@ -94,7 +94,7 @@ impl ScreenWidget for Editor {
 
         let mut area_nodes = vec![];
         for (index, area) in context.data.areas.iter().enumerate() {
-            let node = NodeWidget::new(vec![area.1.name.to_string()], vec![], NodeUserData { position: (100, 50 + 150 * index as isize)});
+            let node = NodeWidget::new(vec![area.1.name.to_string()], NodeUserData { position: (100, 50 + 150 * index as isize)});
             area_nodes.push(node);
         }
 
@@ -106,7 +106,8 @@ impl ScreenWidget for Editor {
 
         let mut behavior_nodes = vec![];
         for (index, behavior) in context.data.behaviors.iter().enumerate() {
-            let node = NodeWidget::new(vec![behavior.1.name.to_string()], vec![], NodeUserData { position: (100, 50 + 150 * index as isize) });
+            let node = NodeWidget::new(vec![behavior.1.name.to_string()],
+             NodeUserData { position: (100, 50 + 150 * index as isize) });
             behavior_nodes.push(node);
         }
         let node_graph_behavior = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, GraphType::Behavior, behavior_nodes);
@@ -114,7 +115,7 @@ impl ScreenWidget for Editor {
         let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, GraphType::Behavior, vec![]);
 
         node_graph_behavior_details.set_mode(GraphMode::Detail);
-        node_graph_behavior_details.set_behavior_id(0, &mut context);
+        node_graph_behavior_details.set_behavior_id(0, asset, &mut context);
 
         Self {
             rect                    : (0, 0, width, height),
@@ -322,7 +323,7 @@ impl ScreenWidget for Editor {
             for atom in &mut self.area_options.widgets {
                 if atom.mouse_down(pos, asset, &mut self.context) {
                     if atom.clicked {
-                        if atom.atom_data.name == "GroupedList" {
+                        if atom.atom_data.id == "GroupedList" {
                             if atom.curr_item_index == 0 {
                                 self.area_tile_selector.set_tile_type(TileUsage::Environment, asset);
                             } else

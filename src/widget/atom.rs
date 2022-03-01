@@ -1,13 +1,40 @@
 use crate::widget::*;
 
 pub struct GroupedList {
-    color               : [u8;4],
-    selected_color      : [u8;4],
-    items               : Vec<GroupItem>
+    color                       : [u8;4],
+    selected_color              : [u8;4],
+    items                       : Vec<GroupItem>
 }
 struct GroupItem {
-    rect                : (usize, usize, usize, usize),
-    text                : String
+    rect                        : (usize, usize, usize, usize),
+    text                        : String
+}
+
+// #[derive(Serialize, Deserialize, PartialEq)]
+// pub enum AtomDataType {
+//     Int,
+//     Float,
+// }
+
+#[derive(Serialize, Deserialize)]
+pub struct AtomData {
+    //atom_type                 : AtomDataType,
+    pub text                    : String,
+    pub id                      : String,
+    pub data                    : (f64, f64, f64, f64)
+}
+
+impl AtomData {
+
+    pub fn new_as_int(id: String, value: isize) -> Self {
+
+        Self {
+            //atom_type           : AtomDataType::Int,
+            text                : "".to_string(),
+            id                  : id,
+            data                : (value as f64,0.0,0.0,0.0)
+        }
+    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -18,6 +45,7 @@ pub enum AtomWidgetType {
     CheckButton,
     Button,
     GroupedList,
+    NodeSliderButton,
 }
 
 pub struct AtomWidget {
@@ -46,6 +74,9 @@ pub struct AtomWidget {
     groups                      : Vec<GroupedList>,
     pub curr_group_index        : usize,
     pub curr_item_index         : usize,
+
+    // Id for behavior data (BehaviorId, NodeId, AtomId)
+    pub  behavior_id            : Option<(usize, usize, String)>
 }
 
 impl AtomWidget {
@@ -75,6 +106,8 @@ impl AtomWidget {
             groups              : vec![],
             curr_group_index    : 0,
             curr_item_index     : 0,
+
+            behavior_id         : None,
         }
     }
 
@@ -83,7 +116,7 @@ impl AtomWidget {
         self.buffer = vec![0;rect.2 * rect.3 * 4];
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+    pub fn draw(&mut self, frame: &mut [u8], stride: usize, _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
 
         let rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
         let buffer_frame = &mut self.buffer[..];
@@ -104,6 +137,14 @@ impl AtomWidget {
                 let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+            }  else
+            if self.atom_widget_type == AtomWidgetType::NodeSliderButton {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.node_button_height) / 2, self.rect.2 - 2, context.node_button_height - 1);
+
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.node_button_rounding, &context.color_light_gray, 1.5);
+                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.node_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
             if self.atom_widget_type == AtomWidgetType::ToolBarSwitchButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
@@ -202,7 +243,7 @@ impl AtomWidget {
         }
         self.dirty = false;
         //context.draw2d.copy_slice(frame, buffer_frame, &self.rect, context.width);
-        context.draw2d.blend_slice(frame, buffer_frame, &self.rect, context.width);
+        context.draw2d.blend_slice(frame, buffer_frame, &self.rect, stride);
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {

@@ -1,5 +1,6 @@
-use server::gamedata::behavior::{BehaviorNode};
+use server::gamedata::behavior::{GameBehaviorData, BehaviorNode, BehaviorNodeType};
 
+use crate::atom:: { AtomData, AtomWidget, AtomWidgetType };
 use crate::widget::*;
 
 #[derive(Serialize, Deserialize)]
@@ -9,7 +10,8 @@ pub struct NodeUserData {
 
 pub struct NodeWidget {
     pub text                    : Vec<String>,
-    data                        : Vec<AtomData>,
+    pub widgets                 : Vec<AtomWidget>,
+
     pub clicked                 : bool,
 
     pub id                      : usize,
@@ -26,11 +28,11 @@ pub struct NodeWidget {
 
 impl NodeWidget {
 
-    pub fn new(text: Vec<String>, data: Vec<AtomData>, user_data: NodeUserData) -> Self {
+    pub fn new(text: Vec<String>, user_data: NodeUserData) -> Self {
 
         Self {
             text,
-            data,
+            widgets             : vec![],
             clicked             : false,
 
             id                  : 0,
@@ -46,30 +48,40 @@ impl NodeWidget {
         }
     }
 
-    pub fn new_from_behavior_data(data: &mut BehaviorNode) -> Self {
+    pub fn new_from_behavior_data(behavior: &GameBehaviorData, behavior_node: &BehaviorNode, _asset: &Asset, _context: &ScreenContext) -> Self {
+
+        let mut widgets = vec![];
+
+        if behavior_node.behavior_type == BehaviorNodeType::BehaviorTree {
+
+            let mut tree1 = AtomWidget::new(vec!["Execute".to_string()], AtomWidgetType::NodeSliderButton,
+            AtomData::new_as_int("execute".to_string(), 0));
+            tree1.behavior_id = Some((behavior.id, behavior_node.id, "execute".to_string()));
+            widgets.push(tree1);
+        }
 
         Self {
-            text                : vec![data.name.clone()],
-            data                : vec![],
+            text                : vec![behavior_node.name.clone()],
+            widgets,
 
             clicked             : false,
 
-            id                  : data.id,
+            id                  : behavior_node.id,
 
             dirty               : true,
             buffer              : vec![],
 
-            user_data           : NodeUserData { position: data.position.clone() },
+            user_data           : NodeUserData { position: behavior_node.position.clone() },
 
             disabled            : false,
 
-            size                : (200, 300)
+            size                : (180, 300)
         }
     }
 
 
     /// Draw the node
-    pub fn draw(&mut self, _frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool) {
+    pub fn draw(&mut self, _frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool) {
 
         if self.buffer.is_empty() {
             self.buffer = vec![0;self.size.0 * self.size.1 * 4];
@@ -78,7 +90,6 @@ impl NodeWidget {
         let rect = (0_usize, 0_usize, self.size.0, self.size.1);
 
         if self.dirty {
-
             for i in &mut self.buffer[..] { *i = 0 }
             let buffer_frame = &mut self.buffer[..];
             let title_color = &context.color_yellow;
@@ -97,6 +108,12 @@ impl NodeWidget {
             }
 
             context.draw2d.draw_text(buffer_frame, &(20, 7), rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, title_color);
+
+            for atom_widget in &mut self.widgets {
+                atom_widget.set_rect((10, 50, 160, context.node_button_height), asset, context);
+                atom_widget.draw(buffer_frame, self.size.0, anim_counter, asset, context);
+
+            }
         }
         self.dirty = false;
     }

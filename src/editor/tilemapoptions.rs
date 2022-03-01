@@ -1,4 +1,4 @@
-use crate::widget::*;
+use crate::atom::AtomData;
 use server::asset::Asset;
 
 use server::asset::tileset::TileUsage;
@@ -19,24 +19,24 @@ impl TileMapOptions {
         let mut widgets : Vec<AtomWidget> = vec![];
 
         let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
-    AtomData::new_as_button("GroupedList".to_string()));
+    AtomData::new_as_int("GroupedList".to_string(), 0));
 
         group_list.add_group_list(context.color_yellow, context.color_light_yellow, vec!["Unused".to_string(), "Environment".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string(), "Icon".to_string()]);
         group_list.set_rect(rect, asset, context);
         widgets.push(group_list);
 
         let mut set_anim_button = AtomWidget::new(vec!["Set Anim".to_string()], AtomWidgetType::Button,
-            AtomData::new_as_button("Set Anim".to_string()));
+            AtomData::new_as_int("Set Anim".to_string(), 0));
         set_anim_button.set_rect((rect.0 + 10, rect.1 + 280, rect.2 - 20, 40), asset, context);
         widgets.push(set_anim_button);
 
         let mut clear_anim_button = AtomWidget::new(vec!["Clear Anim".to_string()], AtomWidgetType::Button,
-        AtomData::new_as_button("Clear Anim".to_string()));
+        AtomData::new_as_int("Clear Anim".to_string(), 0));
         clear_anim_button.set_rect((rect.0 + 10, rect.1 + 315, rect.2 - 20, 40), asset, context);
         widgets.push(clear_anim_button);
 
         let mut set_default_button = AtomWidget::new(vec!["Set Default".to_string()], AtomWidgetType::Button,
-        AtomData::new_as_button("Set Default".to_string()));
+        AtomData::new_as_int("Set Default".to_string(), 0));
         set_default_button.set_rect((rect.0 + 10, rect.1 + 370, rect.2 - 20, 40), asset, context);
         widgets.push(set_default_button);
 
@@ -55,7 +55,7 @@ impl TileMapOptions {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
 
         for atom in &mut self.widgets {
-           atom.draw(frame, anim_counter, asset, context);
+           atom.draw(frame, context.width, anim_counter, asset, context);
         }
 
         if let Some(grid_pos) = context.curr_tile {
@@ -70,7 +70,7 @@ impl TileMapOptions {
             if atom.mouse_down(pos, asset, context) {
                 if atom.clicked {
 
-                    if atom.atom_data.name == "GroupedList" {
+                    if atom.atom_data.id == "GroupedList" {
 
                         if let Some(tile_id) = context.curr_tile {
 
@@ -118,13 +118,13 @@ impl TileMapOptions {
 
                         atom.clicked = false;
                     } else
-                    if atom.atom_data.name == "Set Anim" {
+                    if atom.atom_data.id == "Set Anim" {
                         self.set_anim(asset, context);
                     } else
-                    if atom.atom_data.name == "Clear Anim" {
+                    if atom.atom_data.id == "Clear Anim" {
                         self.clear_anim(asset, context);
                     } else
-                    if atom.atom_data.name == "Set Default" {
+                    if atom.atom_data.id == "Set Default" {
                         self.set_default_tile(asset, context);
                     }
                 }

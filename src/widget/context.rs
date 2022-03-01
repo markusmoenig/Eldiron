@@ -3,41 +3,46 @@ use crate::draw2d::Draw2D;
 use server::gamedata::GameData;
 
 pub struct ScreenContext {
-    pub draw2d                  : Draw2D,
+    pub draw2d                          : Draw2D,
 
-    pub target_fps              : usize,
-    pub default_fps             : usize,
+    pub target_fps                      : usize,
+    pub default_fps                     : usize,
 
-    pub width                   : usize,
-    pub height                  : usize,
+    pub width                           : usize,
+    pub height                          : usize,
 
-    pub data                    : GameData,
+    pub data                            : GameData,
 
-    pub toolbar_height          : usize,
-    pub toolbar_button_height   : usize,
-    pub toolbar_button_rounding : (f64, f64, f64, f64),
-    pub toolbar_button_text_size: f32,
+    pub toolbar_height                  : usize,
+    pub toolbar_button_height           : usize,
+    pub toolbar_button_rounding         : (f64, f64, f64, f64),
+    pub toolbar_button_text_size        : f32,
 
-    pub button_height           : usize,
-    pub button_text_size        : f32,
-    pub button_rounding         : (f64, f64, f64, f64),
+    pub button_height                   : usize,
+    pub button_text_size                : f32,
+    pub button_rounding                 : (f64, f64, f64, f64),
 
-    pub color_black             : [u8;4],
-    pub color_gray              : [u8;4],
-    pub color_light_gray        : [u8;4],
-    pub color_white             : [u8;4],
-    pub color_light_white       : [u8;4],
-    pub color_yellow            : [u8;4],
-    pub color_light_yellow      : [u8;4],
+    pub node_button_height              : usize,
+    pub node_button_text_size           : f32,
+    pub node_button_header_text_size    : f32,
+    pub node_button_rounding            : (f64, f64, f64, f64),
 
-    pub curr_tileset_index      : usize,
-    pub curr_tile               : Option<(usize, usize)>,
-    pub selection_end           : Option<(usize, usize)>,
+    pub color_black                     : [u8;4],
+    pub color_gray                      : [u8;4],
+    pub color_light_gray                : [u8;4],
+    pub color_white                     : [u8;4],
+    pub color_light_white               : [u8;4],
+    pub color_yellow                    : [u8;4],
+    pub color_light_yellow              : [u8;4],
 
-    pub curr_area_index         : usize,
+    pub curr_tileset_index              : usize,
+    pub curr_tile                       : Option<(usize, usize)>,
+    pub selection_end                   : Option<(usize, usize)>,
 
-    pub curr_behavior_index     : usize,
-    pub curr_behavior_node_id   : usize,
+    pub curr_area_index                 : usize,
+
+    pub curr_behavior_index             : usize,
+    pub curr_behavior_node_id           : usize,
 }
 
 impl ScreenContext {
@@ -63,6 +68,11 @@ impl ScreenContext {
             button_height               : 25,
             button_text_size            : 24.0,
             button_rounding             : (12.0, 12.0, 12.0, 12.0),
+
+            node_button_height          : 24,
+            node_button_text_size       : 21.0,
+            node_button_header_text_size: 16.0,
+            node_button_rounding        : (12.0, 12.0, 12.0, 12.0),
 
             color_black                 : [25, 25, 25, 255],
             color_white                 : [255, 255, 255, 255],

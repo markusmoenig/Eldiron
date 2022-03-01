@@ -1,8 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
-use uuid::Uuid;
-
 use server::asset::Asset;
 
 use self::context::ScreenContext;
@@ -56,33 +54,6 @@ pub trait ScreenWidget {
 pub mod atom;
 pub mod node;
 pub mod tileselector;
-
-#[derive(Serialize, Deserialize, PartialEq)]
-pub enum AtomDataType {
-    Int,
-    Float,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct AtomData {
-    atom_type       : AtomDataType,
-    pub name        : String,
-    id              : String,
-    data            : (f64, f64, f64, f64)
-}
-
-impl AtomData {
-
-    pub fn new_as_button(name: String) -> Self {
-
-        Self {
-            atom_type           : AtomDataType::Int,
-            name,
-            id                  : Uuid::new_v4().to_string(),
-            data                : (0.0,0.0,0.0,0.0)
-        }
-    }
-}
 
 /// The widget state
 

@@ -1,4 +1,4 @@
-use crate::widget::*;
+use crate::atom::AtomData;
 use server::asset::Asset;
 
 use crate::widget::atom::AtomWidget;
@@ -20,12 +20,12 @@ impl BehaviorOptions {
         tilemap_names.insert(0, "Tilemaps: All".to_string());
 
         let mut tilemaps_slider_button = AtomWidget::new(tilemap_names, AtomWidgetType::ToolBarSliderButton,
-        AtomData::new_as_button("Tilemaps".to_string()));
+        AtomData::new_as_int("Tilemaps".to_string(), 0));
         tilemaps_slider_button.set_rect((rect.0 + 10, rect.1 + 10, rect.2 - 10, 40), asset, context);
         widgets.push(tilemaps_slider_button);
 
         let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
-    AtomData::new_as_button("GroupedList".to_string()));
+    AtomData::new_as_int("GroupedList".to_string(), 0));
 
         group_list.add_group_list(context.color_yellow, context.color_light_yellow, vec!["Environment".to_string(), "Blocking".to_string(), "Water".to_string() ]);
         group_list.set_rect((rect.0, rect.1 + 60, rect.2, 400), asset, context);
@@ -46,7 +46,7 @@ impl BehaviorOptions {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
 
         for atom in &mut self.widgets {
-           atom.draw(frame, anim_counter, asset, context);
+           atom.draw(frame, context.width, anim_counter, asset, context);
         }
 
         if let Some(grid_pos) = context.curr_tile {

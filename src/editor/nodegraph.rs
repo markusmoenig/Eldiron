@@ -1,6 +1,6 @@
 use crate::widget::node::NodeWidget;
 
-use server::asset::Asset;
+use server::{asset::Asset };
 use crate::editor::ScreenContext;
 
 #[derive(PartialEq)]
@@ -288,14 +288,12 @@ impl NodeGraph {
     }
 
     /// Set the behavior id, this will take the bevhavior node data and create node widgets
-    pub fn set_behavior_id(&mut self, _id: usize, context: &mut ScreenContext) {
+    pub fn set_behavior_id(&mut self, _id: usize, asset: &Asset, context: &ScreenContext) {
 
         self.nodes = vec![];
-        if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
-
-            for n in &mut behavior.data.nodes {
-                let node = NodeWidget::new_from_behavior_data(n);
-
+        if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
+            for n in &behavior.data.nodes {
+                let node = NodeWidget::new_from_behavior_data(&behavior.data, n, asset, context);
                 self.nodes.push(node);
             }
         }
