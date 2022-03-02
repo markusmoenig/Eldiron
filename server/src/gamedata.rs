@@ -152,4 +152,30 @@ impl GameData {
         let area = &mut self.areas.get_mut(&id).unwrap();
         area.set_value(pos, value);
     }
+
+    /// Sets the value for the given behavior id
+    pub fn set_behavior_id_value(&mut self, id: (usize, usize, String), value: (f64, f64, f64, f64)) {
+        if let Some(behavior) = self.behaviors.get_mut(&id.0) {
+            for index in 0..behavior.data.nodes.len() {
+                if behavior.data.nodes[index].id == id.1 {
+                    behavior.data.nodes[index].values.insert(id.2.clone(), value);
+                    behavior.save_data();
+                }
+            }
+        }
+    }
+
+    /// Gets the value of the behavior id
+    pub fn get_behavior_id_value(&self, id: (usize, usize, String)) -> (f64, f64, f64, f64) {
+        if let Some(behavior) = self.behaviors.get(&id.0) {
+            for index in 0..behavior.data.nodes.len() {
+                if behavior.data.nodes[index].id == id.1 {
+                    if let Some(v) = behavior.data.nodes[index].values.get(&id.2) {
+                        return *v;
+                    }
+                }
+            }
+        }
+        (0.0, 0.0, 0.0, 0.0)
+    }
 }

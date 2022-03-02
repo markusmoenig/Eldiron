@@ -24,6 +24,8 @@ pub struct NodeWidget {
     pub disabled                : bool,
 
     pub size                    : (usize, usize),
+
+    pub clicked_id              : Option<(usize, usize, String)>
 }
 
 impl NodeWidget {
@@ -45,19 +47,22 @@ impl NodeWidget {
             disabled            : false,
 
             size                : (250, 120),
+
+            clicked_id          : None,
         }
     }
 
-    pub fn new_from_behavior_data(behavior: &GameBehaviorData, behavior_node: &BehaviorNode, _asset: &Asset, _context: &ScreenContext) -> Self {
+    pub fn new_from_behavior_data(behavior: &GameBehaviorData, behavior_node: &BehaviorNode, _asset: &Asset, context: &ScreenContext) -> Self {
 
         let mut widgets = vec![];
 
         if behavior_node.behavior_type == BehaviorNodeType::BehaviorTree {
-
             let mut tree1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Demand".to_string()], AtomWidgetType::NodeSliderButton,
             AtomData::new_as_int("execute".to_string(), 0));
             tree1.atom_data.text = "Execute".to_string();
-            tree1.behavior_id = Some((behavior.id, behavior_node.id, "execute".to_string()));
+            let id = (behavior.id, behavior_node.id, "execute".to_string());
+            tree1.behavior_id = Some(id.clone());
+            tree1.curr_index = context.data.get_behavior_id_value(id).0 as usize;
             widgets.push(tree1);
         }
 
@@ -76,13 +81,25 @@ impl NodeWidget {
 
             disabled            : false,
 
-            size                : (180, 300)
+            size                : (180, 300),
+
+            clicked_id          : None,
         }
     }
 
 
     /// Draw the node
     pub fn draw(&mut self, _frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool) {
+
+        let title_size = 30_usize;
+        let mut height = title_size + 15;
+        for atom_widget in &mut self.widgets {
+            height += atom_widget.get_height(context);
+            height += context.node_button_header_text_size as usize;
+            height += 15;
+        }
+
+        self.size.1 = height;
 
         if self.buffer.is_empty() {
             self.buffer = vec![0;self.size.0 * self.size.1 * 4];
@@ -96,7 +113,6 @@ impl NodeWidget {
             let title_color = &context.color_yellow;
             let back_color : &[u8;4] = &context.color_black;
 
-            let title_size = 30_usize;
             let rounding = &(20.0, 20.0, 20.0, 20.0);
 
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), title_color, rounding, &context.color_gray, 1.5);
@@ -115,10 +131,10 @@ impl NodeWidget {
 
             for atom_widget in &mut self.widgets {
 
-                context.draw2d.draw_text(buffer_frame, &(25, y), rect.2, &asset.open_sans, context.node_button_header_text_size, &atom_widget.atom_data.text, &context.color_light_white, &context.color_black);
+                context.draw2d.draw_text(buffer_frame, &(30, y), rect.2, &asset.open_sans, context.node_button_header_text_size, &atom_widget.atom_data.text, &context.color_light_white, &context.color_black);
 
                 y += 20;
-                atom_widget.set_rect((10, y, 160, context.node_button_height), asset, context);
+                atom_widget.set_rect((15, y, self.size.0 - 30, context.node_button_height), asset, context);
                 atom_widget.draw(buffer_frame, self.size.0, anim_counter, asset, context);
             }
         }
@@ -159,16 +175,29 @@ impl NodeWidget {
             if atom_widget.mouse_down(pos, asset, context) {
                 self.dirty = true;
                 self.clicked = true;
+                self.clicked_id = atom_widget.behavior_id.clone();
                 return true;
             }
         }
         false
     }
 
-    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
         if self.clicked == true {
+
+            if let Some(id) = self.clicked_id.clone() {
+                for index in 0..self.widgets.len() {
+                    if let Some(widget_id) = self.widgets[index].behavior_id.clone() {
+                        if id == widget_id {
+                            context.data.set_behavior_id_value(id.clone(), self.widgets[index].atom_data.data);
+                        }
+                    }
+                }
+            }
+
             self.clicked = false;
         }
+        self.clicked_id = None;
         false
     }
 

@@ -5,6 +5,7 @@ pub struct GroupedList {
     selected_color              : [u8;4],
     items                       : Vec<GroupItem>
 }
+
 struct GroupItem {
     rect                        : (usize, usize, usize, usize),
     text                        : String
@@ -50,7 +51,7 @@ pub enum AtomWidgetType {
 
 pub struct AtomWidget {
     rect                        : (usize, usize, usize, usize),
-    content_rect                : (usize, usize, usize, usize),
+    pub content_rect            : (usize, usize, usize, usize),
     pub text                    : Vec<String>,
     atom_widget_type            : AtomWidgetType,
     pub atom_data               : AtomData,
@@ -257,6 +258,7 @@ impl AtomWidget {
                 self.curr_index += 1;
                 self.curr_index %= self.text.len();
                 self.dirty = true;
+                self.atom_data.data.0 = self.curr_index as f64;
                 return true;
             } else
             if self.atom_widget_type == AtomWidgetType::ToolBarSwitchButton {
@@ -380,5 +382,12 @@ impl AtomWidget {
         } else {
             false
         }
+    }
+
+    /// Returns the height for this widget
+    pub fn get_height(&self, context: &ScreenContext) -> usize {
+        //if self.atom_widget_type == AtomWidgetType::NodeSliderButton {
+        //}
+        context.node_button_height
     }
 }
