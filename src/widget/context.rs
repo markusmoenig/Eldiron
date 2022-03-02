@@ -71,7 +71,7 @@ impl ScreenContext {
 
             node_button_height          : 24,
             node_button_text_size       : 21.0,
-            node_button_header_text_size: 16.0,
+            node_button_header_text_size: 19.0,
             node_button_rounding        : (12.0, 12.0, 12.0, 12.0),
 
             color_black                 : [25, 25, 25, 255],

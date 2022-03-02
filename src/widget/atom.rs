@@ -252,7 +252,7 @@ impl AtomWidget {
                 self.clicked = true;
                 return true;
             } else
-            if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton || self.atom_widget_type == AtomWidgetType::NodeSliderButton {
                 self.clicked = true;
                 self.curr_index += 1;
                 self.curr_index %= self.text.len();

@@ -153,7 +153,7 @@ impl NodeGraph {
         (x, y, self.nodes[node_index].size.0, self.nodes[node_index].size.1)
     }
 
-    pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
         if self.graph_mode == GraphMode::Overview {
             for index in 0..self.nodes.len() {
@@ -221,10 +221,27 @@ impl NodeGraph {
                 }
             }
         }
+
+        // Check the atom widgets
+        for index in 0..self.nodes.len() {
+
+            let rect= self.get_node_rect(index, false);
+            if context.contains_pos_for_isize(pos, rect) {
+
+                let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
+
+                if self.nodes[index].mouse_down(local, asset, context) {
+                    self.dirty = true;
+                    return true;
+                }
+                break;
+            }
+        }
+
         false
     }
 
-    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         if self.drag_index != None {
             self.drag_index = None;
             context.target_fps = context.default_fps;
@@ -237,6 +254,13 @@ impl NodeGraph {
                     behavior.save_data();
                 }
             }
+        }
+
+        // Check the atom widgets
+        for index in 0..self.nodes.len() {
+            let rect= self.get_node_rect(index, false);
+            let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
+            self.nodes[index].mouse_up(local, asset, context);
         }
         false
     }

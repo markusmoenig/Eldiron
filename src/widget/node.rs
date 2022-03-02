@@ -54,8 +54,9 @@ impl NodeWidget {
 
         if behavior_node.behavior_type == BehaviorNodeType::BehaviorTree {
 
-            let mut tree1 = AtomWidget::new(vec!["Execute".to_string()], AtomWidgetType::NodeSliderButton,
+            let mut tree1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Demand".to_string()], AtomWidgetType::NodeSliderButton,
             AtomData::new_as_int("execute".to_string(), 0));
+            tree1.atom_data.text = "Execute".to_string();
             tree1.behavior_id = Some((behavior.id, behavior_node.id, "execute".to_string()));
             widgets.push(tree1);
         }
@@ -93,13 +94,14 @@ impl NodeWidget {
             for i in &mut self.buffer[..] { *i = 0 }
             let buffer_frame = &mut self.buffer[..];
             let title_color = &context.color_yellow;
+            let back_color : &[u8;4] = &context.color_black;
 
-            let title_size = 35_usize;
+            let title_size = 30_usize;
             let rounding = &(20.0, 20.0, 20.0, 20.0);
 
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), title_color, rounding, &context.color_gray, 1.5);
 
-            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(rect.0, rect.1 + title_size, rect.2, rect.3 - title_size), rect.2, &((rect.2 - 1) as f64, (rect.3 - title_size - 1) as f64), &context.color_black, rounding, &context.color_gray, 0.0);
+            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(rect.0, rect.1 + title_size, rect.2, rect.3 - title_size), rect.2, &((rect.2 - 1) as f64, (rect.3 - title_size - 1) as f64), back_color, rounding, &context.color_gray, 0.0);
 
             if selected {
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &[0,0,0,0], rounding, &context.color_white, 1.5);
@@ -107,12 +109,17 @@ impl NodeWidget {
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &[0,0,0,0], rounding, &context.color_gray, 1.5);
             }
 
-            context.draw2d.draw_text(buffer_frame, &(20, 7), rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, title_color);
+            context.draw2d.draw_text(buffer_frame, &(20, 5), rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, title_color);
+
+            let mut y = 38_usize;
 
             for atom_widget in &mut self.widgets {
-                atom_widget.set_rect((10, 50, 160, context.node_button_height), asset, context);
-                atom_widget.draw(buffer_frame, self.size.0, anim_counter, asset, context);
 
+                context.draw2d.draw_text(buffer_frame, &(25, y), rect.2, &asset.open_sans, context.node_button_header_text_size, &atom_widget.atom_data.text, &context.color_light_white, &context.color_black);
+
+                y += 20;
+                atom_widget.set_rect((10, y, 160, context.node_button_height), asset, context);
+                atom_widget.draw(buffer_frame, self.size.0, anim_counter, asset, context);
             }
         }
         self.dirty = false;
@@ -146,12 +153,22 @@ impl NodeWidget {
         self.dirty = false;
     }
 
-    pub fn _mouse_down(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    /// Check if one of the atom widgets was clicked
+    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+        for atom_widget in &mut self.widgets {
+            if atom_widget.mouse_down(pos, asset, context) {
+                self.dirty = true;
+                self.clicked = true;
+                return true;
+            }
+        }
         false
     }
 
-    pub fn _mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        self.clicked = false;
+    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        if self.clicked == true {
+            self.clicked = false;
+        }
         false
     }
 
