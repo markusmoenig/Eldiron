@@ -120,7 +120,7 @@ impl NodeWidget {
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(rect.0, rect.1 + title_size, rect.2, rect.3 - title_size), rect.2, &((rect.2 - 1) as f64, (rect.3 - title_size - 1) as f64), back_color, rounding, &context.color_gray, 0.0);
 
             if selected {
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &[0,0,0,0], rounding, &context.color_white, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &[0,0,0,0], rounding, &context.color_light_white, 1.5);
             } else {
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &[0,0,0,0], rounding, &context.color_gray, 1.5);
             }

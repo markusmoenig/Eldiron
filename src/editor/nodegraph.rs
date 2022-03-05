@@ -1,4 +1,6 @@
-use crate::widget::node::NodeWidget;
+use crate::widget::node::{NodeUserData, NodeWidget};
+
+use server::gamedata::behavior::{BehaviorNodeType};
 
 use server::{asset::Asset };
 use crate::editor::ScreenContext;
@@ -17,7 +19,7 @@ pub enum GraphType {
 }
 
 pub struct NodeGraph {
-    rect            : (usize, usize, usize, usize),
+    pub rect        : (usize, usize, usize, usize),
     dirty           : bool,
     buffer          : Vec<u8>,
     graph_mode      : GraphMode,
@@ -212,8 +214,14 @@ impl NodeGraph {
                         if context.curr_behavior_node_id != self.nodes[index].id {
 
                             self.nodes[context.curr_behavior_node_id].dirty = true;
+                            for w in &mut self.nodes[context.curr_behavior_node_id].widgets {
+                                w.dirty = true;
+                            }
                             context.curr_behavior_node_id = self.nodes[index].id;
                             self.nodes[index].dirty = true;
+                            for w in &mut self.nodes[index].widgets {
+                                w.dirty = true;
+                            }
                             self.dirty = true;
                             self.clicked = true;
                         }
@@ -290,6 +298,10 @@ impl NodeGraph {
         true
     }
 
+    // pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    //     false
+    // }
+
     /// Marks the two nodes as dirty
     pub fn changed_selection(&mut self, old_selection: usize, new_selection: usize) {
         if self.graph_mode == GraphMode::Overview {
@@ -297,6 +309,9 @@ impl NodeGraph {
                 if index == old_selection || index == new_selection {
                     self.nodes[index].dirty = true;
                     self.dirty = true;
+                    for a in &mut self.nodes[index].widgets {
+                        a.dirty = true;
+                    }
                 }
             }
         }
@@ -306,6 +321,9 @@ impl NodeGraph {
         if self.graph_mode == GraphMode::Overview {
             for index in 0..self.nodes.len() {
                 self.nodes[index].dirty = true;
+                for a in &mut self.nodes[index].widgets {
+                    a.dirty = true;
+                }
             }
         }
         self.dirty = true;
@@ -323,7 +341,16 @@ impl NodeGraph {
         }
     }
 
-    // pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
-    //     false
-    // }
+    /// Adds a node of the type identified by its name
+    pub fn add_node_of_name(&mut self, name: String, context: &mut ScreenContext) {
+        if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
+
+            let node_type : BehaviorNodeType = BehaviorNodeType::BehaviorTree;
+
+            behavior.add_node(node_type, name.clone());
+            let node = NodeWidget::new(vec![name.clone()],
+             NodeUserData { position: (100, 100) });
+            self.nodes.push(node);
+        }
+    }
 }

@@ -82,7 +82,6 @@ impl GameBehavior {
     pub fn add_node(&mut self, behavior_type: BehaviorNodeType, name: String) {
         let mut node = BehaviorNode { behavior_type: behavior_type, behavior_state: BehaviorNodeState::Idle, name, values: HashMap::new(),id: 0, position: (100, 100), ok_connection: None, fail_connection: None, right_connection: None, connected: false };
 
-
         let mut has_id_already = true;
         while has_id_already {
 

@@ -2,6 +2,14 @@
 use crate::draw2d::Draw2D;
 use server::gamedata::GameData;
 
+#[derive(PartialEq)]
+pub struct ScreenDragContext {
+    pub text                            : String,
+    pub color                           : [u8;4],
+    pub offset                          : (isize, isize),
+    pub buffer                          : Option<[u8; 180 * 32 * 4]>
+}
+
 pub struct ScreenContext {
     pub draw2d                          : Draw2D,
 
@@ -43,6 +51,8 @@ pub struct ScreenContext {
 
     pub curr_behavior_index             : usize,
     pub curr_behavior_node_id           : usize,
+
+    pub drag_context                    : Option<ScreenDragContext>
 }
 
 impl ScreenContext {
@@ -83,6 +93,8 @@ impl ScreenContext {
             color_light_yellow          : [208, 156, 112, 255],
 
             // Editor state
+
+            drag_context                : None,
 
             // Tiles
             curr_tileset_index          : 0,

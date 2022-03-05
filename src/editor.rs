@@ -20,11 +20,8 @@ use crate::editor::toolbar::ToolBar;
 use tilemapwidget::TileMapWidget;
 
 use crate::context::ScreenContext;
-
 use crate::node::NodeUserData;
-
 use crate::node::NodeWidget;
-
 use crate::editor::nodegraph::{ NodeGraph, GraphMode, GraphType };
 
 use self::tilemapoptions::TileMapOptions;
@@ -61,6 +58,7 @@ pub struct Editor {
     node_graph_behavior_details     : NodeGraph,
 
     left_width                      : usize,
+    mouse_pos                       : (usize, usize)
 }
 
 impl ScreenWidget for Editor {
@@ -137,7 +135,8 @@ impl ScreenWidget for Editor {
             node_graph_behavior,
             node_graph_behavior_details,
 
-            left_width
+            left_width,
+            mouse_pos               : (0,0)
         }
     }
 
@@ -192,6 +191,15 @@ impl ScreenWidget for Editor {
         if self.state == EditorState::BehaviorDetail {
             self.behavior_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_behavior_details.draw(frame, anim_counter, asset, &mut self.context);
+        }
+
+        if let Some(drag_context) = &self.context.drag_context {
+            if let Some(mut buffer) = drag_context.buffer {
+
+                println!("drag");
+
+                self.context.draw2d.blend_slice_safe(frame, &mut buffer[..], &(self.mouse_pos.0 as isize, self.mouse_pos.1 as isize, 180, 32), self.context.width, &self.rect);
+            }
         }
     }
 
@@ -406,6 +414,18 @@ impl ScreenWidget for Editor {
                 consumed = true;
             }
         }
+        if let Some(drag_context) = &self.context.drag_context {
+
+            if self.context.contains_pos_for(pos, self.node_graph_behavior_details.rect) {
+                println!("drag up");
+                //behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                self.node_graph_behavior_details.add_node_of_name(drag_context.text.clone(), &mut self.context);
+            }
+            //
+            self.context.drag_context = None;
+            self.context.target_fps = self.context.default_fps;
+            consumed = true;
+        }
         consumed
     }
 
@@ -436,10 +456,14 @@ impl ScreenWidget for Editor {
             }
         } else
         if self.state == EditorState::BehaviorDetail {
+            if consumed == false && self.behavior_options.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }
             if consumed == false && self.node_graph_behavior_details.mouse_dragged(pos, asset, &mut self.context) {
                 consumed = true;
             }
         }
+        self.mouse_pos = pos.clone();
         consumed
     }
 

@@ -1,5 +1,7 @@
 use crate::widget::*;
 
+use super::context::ScreenDragContext;
+
 pub struct GroupedList {
     color                       : [u8;4],
     selected_color              : [u8;4],
@@ -11,15 +13,8 @@ struct GroupItem {
     text                        : String
 }
 
-// #[derive(Serialize, Deserialize, PartialEq)]
-// pub enum AtomDataType {
-//     Int,
-//     Float,
-// }
-
 #[derive(Serialize, Deserialize)]
 pub struct AtomData {
-    //atom_type                 : AtomDataType,
     pub text                    : String,
     pub id                      : String,
     pub data                    : (f64, f64, f64, f64)
@@ -30,7 +25,6 @@ impl AtomData {
     pub fn new_as_int(id: String, value: isize) -> Self {
 
         Self {
-            //atom_type           : AtomDataType::Int,
             text                : "".to_string(),
             id                  : id,
             data                : (value as f64,0.0,0.0,0.0)
@@ -77,7 +71,11 @@ pub struct AtomWidget {
     pub curr_item_index         : usize,
 
     // Id for behavior data (BehaviorId, NodeId, AtomId)
-    pub  behavior_id            : Option<(usize, usize, String)>
+    pub  behavior_id            : Option<(usize, usize, String)>,
+
+    // Drag
+    pub drag_enabled            : bool,
+    pub drag_context            : Option<ScreenDragContext>,
 }
 
 impl AtomWidget {
@@ -109,6 +107,9 @@ impl AtomWidget {
             curr_item_index     : 0,
 
             behavior_id         : None,
+
+            drag_enabled        : false,
+            drag_context        : None
         }
     }
 
@@ -290,6 +291,15 @@ impl AtomWidget {
                             self.curr_item_index = i_index;
                             self.dirty = true;
                             self.clicked = true;
+
+                            if self.drag_enabled {
+                                self.drag_context = Some(ScreenDragContext{
+                                    text: self.groups[g_index].items[i_index].text.clone(),
+                                    color: self.groups[g_index].color.clone(),
+                                    offset: (0, 0),
+                                    buffer: None });
+                            }
+
                             return true;
                         }
                     }
@@ -301,6 +311,7 @@ impl AtomWidget {
 
     pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         self.clicked = false;
+        self.drag_context = None;
         false
     }
 
