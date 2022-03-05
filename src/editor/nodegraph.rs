@@ -1,6 +1,7 @@
-use crate::widget::node::{NodeUserData, NodeWidget};
+use crate::widget::node::{NodeWidget};
+use crate::atom:: { AtomData, AtomWidget, AtomWidgetType };
 
-use server::gamedata::behavior::{BehaviorNodeType};
+use server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode};
 
 use server::{asset::Asset };
 use crate::editor::ScreenContext;
@@ -26,7 +27,7 @@ pub struct NodeGraph {
     graph_type      : GraphType,
     nodes           : Vec<NodeWidget>,
 
-    offset          : (isize, isize),
+    pub offset      : (isize, isize),
     drag_index      : Option<usize>,
     drag_offset     : (isize, isize),
     drag_node_pos   : (isize, isize),
@@ -317,6 +318,7 @@ impl NodeGraph {
         }
     }
 
+    /// Mark all nodes as dirty
     pub fn mark_all_dirty(&mut self) {
         if self.graph_mode == GraphMode::Overview {
             for index in 0..self.nodes.len() {
@@ -330,27 +332,59 @@ impl NodeGraph {
     }
 
     /// Set the behavior id, this will take the bevhavior node data and create node widgets
-    pub fn set_behavior_id(&mut self, _id: usize, asset: &Asset, context: &ScreenContext) {
-
+    pub fn set_behavior_id(&mut self, _id: usize, context: &ScreenContext) {
         self.nodes = vec![];
         if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
             for n in &behavior.data.nodes {
-                let node = NodeWidget::new_from_behavior_data(&behavior.data, n, asset, context);
-                self.nodes.push(node);
+                let mut node_widget = NodeWidget::new_from_behavior_data(&behavior.data, n);
+                self.init_node_widget(&behavior.data, n, &mut node_widget, context);
+                self.nodes.push(node_widget);
             }
         }
     }
 
     /// Adds a node of the type identified by its name
-    pub fn add_node_of_name(&mut self, name: String, context: &mut ScreenContext) {
+    pub fn add_node_of_name(&mut self, name: String, position: (isize, isize), context: &mut ScreenContext) {
+
+        let mut node_widget : Option<NodeWidget> =  None;
+
+        // Create the node
         if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
 
             let node_type : BehaviorNodeType = BehaviorNodeType::BehaviorTree;
 
+            let index = behavior.data.nodes.len() - 1;
+            behavior.data.nodes[index].position = position;
+
             behavior.add_node(node_type, name.clone());
-            let node = NodeWidget::new(vec![name.clone()],
-             NodeUserData { position: (100, 100) });
+            let node = NodeWidget::new_from_behavior_data(&behavior.data, &behavior.data.nodes[index]);
+             node_widget = Some(node);
+
+            behavior.save_data();
+        }
+
+        // Add the atom widgets
+        if let Some(mut node) = node_widget {
+            let behavior = context.data.behaviors.get(&context.curr_behavior_index).unwrap();
+            self.init_node_widget(&behavior.data, &behavior.data.nodes[behavior.data.nodes.len() - 1], &mut node, context);
             self.nodes.push(node);
         }
+
+        self.dirty = true;
+    }
+
+    /// Inits the node widget (atom widgets, id)
+    pub fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, behavior_node: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
+
+        if behavior_node.behavior_type == BehaviorNodeType::BehaviorTree {
+            let mut tree1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Demand".to_string()], AtomWidgetType::NodeSliderButton,
+            AtomData::new_as_int("execute".to_string(), 0));
+            tree1.atom_data.text = "Execute".to_string();
+            let id = (behavior_data.id, behavior_node.id, "execute".to_string());
+            tree1.behavior_id = Some(id.clone());
+            tree1.curr_index = context.data.get_behavior_id_value(id).0 as usize;
+            node_widget.widgets.push(tree1);
+        }
+
     }
 }

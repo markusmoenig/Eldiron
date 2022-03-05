@@ -113,7 +113,7 @@ impl ScreenWidget for Editor {
         let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, GraphType::Behavior, vec![]);
 
         node_graph_behavior_details.set_mode(GraphMode::Detail);
-        node_graph_behavior_details.set_behavior_id(0, asset, &mut context);
+        node_graph_behavior_details.set_behavior_id(0, &mut context);
 
         Self {
             rect                    : (0, 0, width, height),
@@ -195,10 +195,7 @@ impl ScreenWidget for Editor {
 
         if let Some(drag_context) = &self.context.drag_context {
             if let Some(mut buffer) = drag_context.buffer {
-
-                println!("drag");
-
-                self.context.draw2d.blend_slice_safe(frame, &mut buffer[..], &(self.mouse_pos.0 as isize, self.mouse_pos.1 as isize, 180, 32), self.context.width, &self.rect);
+                self.context.draw2d.blend_slice_safe(frame, &mut buffer[..], &(self.mouse_pos.0 as isize - drag_context.offset.0, self.mouse_pos.1 as isize - drag_context.offset.1, 180, 32), self.context.width, &self.rect);
             }
         }
     }
@@ -414,12 +411,16 @@ impl ScreenWidget for Editor {
                 consumed = true;
             }
         }
-        if let Some(drag_context) = &self.context.drag_context {
 
+        // Node Drag ?
+        if let Some(drag_context) = &self.context.drag_context {
             if self.context.contains_pos_for(pos, self.node_graph_behavior_details.rect) {
-                println!("drag up");
-                //behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
-                self.node_graph_behavior_details.add_node_of_name(drag_context.text.clone(), &mut self.context);
+
+                let mut position = (pos.0 as isize, pos.1 as isize);
+                position.0 -= self.node_graph_behavior_details.rect.0 as isize + self.node_graph_behavior_details.offset.0 + drag_context.offset.0;
+                position.1 -= self.node_graph_behavior_details.rect.1 as isize + self.node_graph_behavior_details.offset.1 + drag_context.offset.1;
+
+                self.node_graph_behavior_details.add_node_of_name(drag_context.text.clone(), position, &mut self.context);
             }
             //
             self.context.drag_context = None;

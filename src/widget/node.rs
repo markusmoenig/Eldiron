@@ -1,6 +1,6 @@
-use server::gamedata::behavior::{GameBehaviorData, BehaviorNode, BehaviorNodeType};
+use server::gamedata::behavior::{GameBehaviorData, BehaviorNode};
 
-use crate::atom:: { AtomData, AtomWidget, AtomWidgetType };
+use crate::atom:: { AtomWidget };
 use crate::widget::*;
 
 #[derive(Serialize, Deserialize)]
@@ -52,23 +52,11 @@ impl NodeWidget {
         }
     }
 
-    pub fn new_from_behavior_data(behavior: &GameBehaviorData, behavior_node: &BehaviorNode, _asset: &Asset, context: &ScreenContext) -> Self {
-
-        let mut widgets = vec![];
-
-        if behavior_node.behavior_type == BehaviorNodeType::BehaviorTree {
-            let mut tree1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Demand".to_string()], AtomWidgetType::NodeSliderButton,
-            AtomData::new_as_int("execute".to_string(), 0));
-            tree1.atom_data.text = "Execute".to_string();
-            let id = (behavior.id, behavior_node.id, "execute".to_string());
-            tree1.behavior_id = Some(id.clone());
-            tree1.curr_index = context.data.get_behavior_id_value(id).0 as usize;
-            widgets.push(tree1);
-        }
+    pub fn new_from_behavior_data(_behavior: &GameBehaviorData, behavior_node: &BehaviorNode) -> Self {
 
         Self {
             text                : vec![behavior_node.name.clone()],
-            widgets,
+            widgets             : vec![],
 
             clicked             : false,
 

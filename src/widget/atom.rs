@@ -292,11 +292,13 @@ impl AtomWidget {
                             self.dirty = true;
                             self.clicked = true;
 
+                            let mouse_offset = (pos.0 - self.groups[g_index].items[i_index].rect.0, pos.1 - self.groups[g_index].items[i_index].rect.1);
+
                             if self.drag_enabled {
                                 self.drag_context = Some(ScreenDragContext{
                                     text: self.groups[g_index].items[i_index].text.clone(),
                                     color: self.groups[g_index].color.clone(),
-                                    offset: (0, 0),
+                                    offset: (mouse_offset.0 as isize, mouse_offset.1 as isize),
                                     buffer: None });
                             }
 
