@@ -383,6 +383,7 @@ version = "0.1.0"
 dependencies = [
  "env_logger",
  "itertools",
+ "line_drawing",
  "log",
  "pixels",
  "png",
@@ -695,6 +696,15 @@ checksum = "efbc0f03f9a775e9f6aed295c6a1ba2253c5757a9e03d55c6caa46a681abcddd"
 dependencies = [
  "cfg-if 1.0.0",
  "winapi",
+]
+
+[[package]]
+name = "line_drawing"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d1478a313008a3e6c8149995e90a99ee9094034b5c5c3da1eeb81183cb61d1d"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]

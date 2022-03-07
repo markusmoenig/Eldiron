@@ -1,5 +1,6 @@
 
 use rusttype::{point, Font, Scale};
+use line_drawing::Bresenham;
 
 use server::asset::TileMap;
 
@@ -22,6 +23,20 @@ impl Draw2D {
                 let i = x * 4 + y * stride * 4;
                 frame[i..i + 4].copy_from_slice(color);
             }
+        }
+    }
+
+    /// Draws the given rectangle
+    pub fn draw_line(&self, frame: &mut [u8], start: &(usize, usize), end: &(usize, usize), stride: usize, color: &[u8; 4]) {
+        let p1 = (start.0 as i64, start.1 as i64);
+        let p2 = (end.0 as i64, end.1 as i64);
+
+        for (x, y) in Bresenham::new(p1, p2) {
+            //let x = min(x as usize, WIDTH - 1);
+            //let y = min(y as usize, HEIGHT - 1);
+            let i = x as usize * 4 + y as usize * stride * 4;
+
+            frame[i..i + 4].copy_from_slice(color);
         }
     }
 

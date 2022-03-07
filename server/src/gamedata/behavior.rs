@@ -18,7 +18,17 @@ pub enum BehaviorNodeState {
     Running,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
+pub enum BehaviorNodeConnector {
+    Top,
+    Right,
+    Fail,
+    Success,
+    Bottom,
+    Left,
+}
+
+#[derive(Serialize, Deserialize, PartialEq)]
 pub struct BehaviorNode {
     pub behavior_type           : BehaviorNodeType,
     pub behavior_state          : BehaviorNodeState,
@@ -28,18 +38,12 @@ pub struct BehaviorNode {
     pub id                      : usize,
 
     pub position                : (isize, isize),
-
-    pub top_connection          : Option<usize>,
-    pub right_connection        : Option<usize>,
-    pub fail_connection         : Option<usize>,
-    pub success_connection      : Option<usize>,
-    pub bottom_connection       : Option<usize>,
-    pub left_connection         : Option<usize>,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct GameBehaviorData {
     pub nodes           : Vec<BehaviorNode>,
+    pub connections     : Vec<(usize, BehaviorNodeConnector, usize, BehaviorNodeConnector)>,
     pub id              : usize,
 
     pub name            : String,
@@ -63,7 +67,7 @@ impl GameBehavior {
 
         // Construct the json settings
         let data = serde_json::from_str(&contents)
-            .unwrap_or(GameBehaviorData { nodes: vec![], id: 0, name: "New Behavior".to_string() });
+            .unwrap_or(GameBehaviorData { nodes: vec![], connections: vec![], id: 0, name: "New Behavior".to_string() });
 
         Self {
             name        : name.to_string(),
@@ -89,12 +93,6 @@ impl GameBehavior {
             values: HashMap::new(),
             id: 0,
             position: (100, 100),
-            top_connection: None,
-            right_connection: None,
-            fail_connection: None,
-            success_connection: None,
-            bottom_connection: None,
-            left_connection: None
         };
 
         let mut has_id_already = true;

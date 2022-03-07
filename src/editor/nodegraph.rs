@@ -1,7 +1,7 @@
 use crate::widget::node::{NodeConnector, NodeWidget};
 use crate::atom:: { AtomData, AtomWidget, AtomWidgetType };
 
-use server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode};
+use server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode, BehaviorNodeConnector};
 
 use server::{asset::Asset };
 use crate::editor::ScreenContext;
@@ -28,9 +28,14 @@ pub struct NodeGraph {
     nodes           : Vec<NodeWidget>,
 
     pub offset      : (isize, isize),
+
     drag_index      : Option<usize>,
     drag_offset     : (isize, isize),
     drag_node_pos   : (isize, isize),
+
+    source_conn     : Option<(BehaviorNodeConnector,usize)>,
+
+    mouse_pos       : (usize, usize),
 
     pub clicked     : bool
 }
@@ -50,7 +55,10 @@ impl NodeGraph {
             drag_offset         : (0, 0),
             drag_node_pos       : (0, 0),
 
-            clicked             : false
+            mouse_pos           : (0,0),
+            clicked             : false,
+
+            source_conn         : None,
         }
     }
 
@@ -123,6 +131,7 @@ impl NodeGraph {
             } else {
                 // Detail View
 
+                // Draw nodes
                 for index in 0..self.nodes.len() {
                     if self.nodes[index].dirty {
 
@@ -137,6 +146,23 @@ impl NodeGraph {
 
                     let rect= self.get_node_rect(index, true);
                     context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, save_rect.2, &save_rect);
+                }
+
+                // Draw ongoing connection effort
+                if let Some(conn) = &self.source_conn {
+
+                    let node = &self.nodes[conn.1];
+                    let connector = &node.node_connector[&conn.0];
+
+                    let node_rect = self.get_node_rect(conn.1, true);
+
+                    let mid_x = node_rect.0 + connector.rect.0 as isize + connector.rect.2 as isize / 2;
+                    let mid_y = node_rect.1 + connector.rect.1 as isize + connector.rect.3 as isize / 2;
+
+                    if self.mouse_pos.0 > self.rect.0 && self.mouse_pos.1 > self.rect.1 {
+                        let mouse_local = (self.mouse_pos.0 - self.rect.0, self.mouse_pos.1 - self.rect.1);
+                        context.draw2d.draw_line(&mut self.buffer[..], &(mid_x as usize,mid_y as usize), &mouse_local, save_rect.2, &context.node_connector_color);
+                    }
                 }
             }
         }
@@ -163,6 +189,7 @@ impl NodeGraph {
                 let rect= self.get_node_rect(index, false);
 
                 if context.contains_pos_for_isize(pos, rect) {
+
                     self.drag_index = Some(index);
                     self.drag_offset = (pos.0 as isize, pos.1 as isize);
                     self.drag_node_pos= (self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize);
@@ -207,6 +234,18 @@ impl NodeGraph {
                 let rect= self.get_node_rect(index, false);
 
                 if context.contains_pos_for_isize(pos, rect) {
+
+                    for (conn, connector) in &self.nodes[index].node_connector {
+                        let c_rect = (pos.0  as isize - rect.0, pos.1 as isize - rect.1);
+                        if c_rect.0 > 0 && c_rect.1 > 0 {
+                            if context.contains_pos_for((c_rect.0 as usize, c_rect.1 as usize), connector.rect) {
+                                self.source_conn = Some((*conn, index));
+
+                                return true;
+                            }
+                        }
+                    }
+
                     self.drag_index = Some(index);
                     self.drag_offset = (pos.0 as isize, pos.1 as isize);
                     self.drag_node_pos= (self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize);
@@ -265,6 +304,13 @@ impl NodeGraph {
             }
         }
 
+        // Node connection
+        if self.source_conn.is_some() {
+            self.source_conn = None;
+            self.dirty = true;
+            return true;
+        }
+
         // Check the atom widgets
         for index in 0..self.nodes.len() {
             let rect= self.get_node_rect(index, false);
@@ -275,6 +321,10 @@ impl NodeGraph {
     }
 
     pub fn mouse_dragged(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+
+        self.mouse_pos = pos.clone();
+
+        // Dragging a node
         if let Some(index) = self.drag_index {
             let dx = pos.0 as isize - self.drag_offset.0;
             let dy = pos.1 as isize - self.drag_offset.1;
@@ -289,6 +339,14 @@ impl NodeGraph {
 
             return true;
         }
+
+        // Dragging a connection
+        if let Some(source) = self.source_conn {
+
+            self.dirty = true;
+            return true;
+        }
+
         false
     }
 
@@ -388,7 +446,7 @@ impl NodeGraph {
             atom1.behavior_id = Some(id.clone());
             atom1.curr_index = context.data.get_behavior_id_value(id).0 as usize;
             node_widget.widgets.push(atom1);
-            node_widget.bottom_conn_rect = Some(NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
         if behavior_node.behavior_type == BehaviorNodeType::DiceRoll {
             let mut atom1 = AtomWidget::new(vec!["D20".to_string(), "D10".to_string(), "D8".to_string()], AtomWidgetType::NodeSliderButton,
@@ -398,6 +456,7 @@ impl NodeGraph {
             atom1.behavior_id = Some(id.clone());
             atom1.curr_index = context.data.get_behavior_id_value(id).0 as usize;
             node_widget.widgets.push(atom1);
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
         }
     }
 }

@@ -34,6 +34,7 @@ pub struct ScreenContext {
     pub node_button_text_size           : f32,
     pub node_button_header_text_size    : f32,
     pub node_button_rounding            : (f64, f64, f64, f64),
+    pub node_connector_color            : [u8;4],
 
     pub color_black                     : [u8;4],
     pub color_gray                      : [u8;4],
@@ -83,6 +84,7 @@ impl ScreenContext {
             node_button_text_size       : 21.0,
             node_button_header_text_size: 19.0,
             node_button_rounding        : (12.0, 12.0, 12.0, 12.0),
+            node_connector_color        : [174, 174, 174, 255],
 
             color_black                 : [25, 25, 25, 255],
             color_white                 : [255, 255, 255, 255],

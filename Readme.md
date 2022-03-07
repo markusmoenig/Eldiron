@@ -6,6 +6,8 @@ The game creator (which contains the game engine) is cross platform and should r
 
 Eldiron comes with a range of freely usable 16x16 and 24x24 tilemaps for environment and characters, however you can of course use your own tilemaps, instructions in the Wiki which serves as the main documentation hub.
 
+The game engine contains of a client and a server part, although currently no multi-player options exist yet, the code has been written with multi-player support in mind from the ground up.
+
 ## Why ?
 
 I played the Ultima games day and night in my youth so I decided to create my own similar games as I have some time to spare (what could be a better hobby ?), and on the way also develop a game creator for this type of game which I have todo for my own games anyway.
@@ -19,7 +21,7 @@ For v1 I target these features:
 * Tilemap editor to select tiles in bitmaps and assign tile types and animations. (Done)
 * Commission game tiles and create a modular character tile system (In progress).
 * World editor to create the world and it's areas (In progress).
-* Behavior tree node system for creating the RPG system and AI (TBD).
+* Behavior tree node system for creating the RPG system and AI (In progress).
 * 3D Dungeons ? (Unsure if v1 or later)
 
 Eldiron is currently under heavy development and not yet ready for consumption.

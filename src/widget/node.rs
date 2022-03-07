@@ -1,4 +1,6 @@
-use server::gamedata::behavior::{GameBehaviorData, BehaviorNode};
+use std::collections::HashMap;
+
+use server::gamedata::behavior::{GameBehaviorData, BehaviorNode, BehaviorNodeConnector};
 
 use crate::atom:: { AtomWidget };
 use crate::widget::*;
@@ -9,9 +11,7 @@ pub struct NodeUserData {
 }
 
 pub struct NodeConnector {
-
     pub rect                    : (usize, usize, usize, usize)
-
 }
 
 pub struct NodeWidget {
@@ -33,12 +33,7 @@ pub struct NodeWidget {
 
     pub clicked_id              : Option<(usize, usize, String)>,
 
-    pub top_conn_rect           : Option<NodeConnector>,
-    pub right_conn_rect         : Option<NodeConnector>,
-    pub fail_conn_rect          : Option<NodeConnector>,
-    pub success_conn_rect       : Option<NodeConnector>,
-    pub bottom_conn_rect        : Option<NodeConnector>,
-    pub left_conn_rect          : Option<NodeConnector>,
+    pub node_connector          : HashMap<BehaviorNodeConnector, NodeConnector>,
 }
 
 impl NodeWidget {
@@ -63,12 +58,7 @@ impl NodeWidget {
 
             clicked_id          : None,
 
-            top_conn_rect       : None,
-            right_conn_rect     : None,
-            fail_conn_rect      : None,
-            success_conn_rect   : None,
-            bottom_conn_rect    : None,
-            left_conn_rect      : None,
+            node_connector      : HashMap::new()
         }
     }
 
@@ -93,12 +83,7 @@ impl NodeWidget {
 
             clicked_id          : None,
 
-            top_conn_rect       : None,
-            right_conn_rect     : None,
-            fail_conn_rect      : None,
-            success_conn_rect   : None,
-            bottom_conn_rect    : None,
-            left_conn_rect      : None,
+            node_connector      : HashMap::new()
         }
     }
 
@@ -157,9 +142,13 @@ impl NodeWidget {
 
             // Draw terminals
 
-            if let Some(bottom) = &mut self.bottom_conn_rect {
+            if let Some(top) = self.node_connector.get_mut(&BehaviorNodeConnector::Top) {
+                top.rect = (rect.2 / 2 - 6, 0, 12, 12);
+                context.draw2d.draw_circle(buffer_frame, &top.rect, stride, &context.node_connector_color, 6.0);
+            }
+            if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Bottom) {
                 bottom.rect = (rect.2 / 2 - 6, rect.3 - 2, 12, 12);
-                context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.color_light_gray, 6.0);
+                context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0);
             }
         }
         self.dirty = false;
