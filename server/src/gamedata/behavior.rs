@@ -9,6 +9,7 @@ use std::collections::HashMap;
 #[derive(Serialize, Deserialize, PartialEq)]
 pub enum BehaviorNodeType {
     BehaviorTree,
+    DiceRoll,
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]
@@ -28,11 +29,12 @@ pub struct BehaviorNode {
 
     pub position                : (isize, isize),
 
-    pub ok_connection           : Option<usize>,
-    pub fail_connection         : Option<usize>,
+    pub top_connection          : Option<usize>,
     pub right_connection        : Option<usize>,
-
-    pub connected               : bool,
+    pub fail_connection         : Option<usize>,
+    pub success_connection      : Option<usize>,
+    pub bottom_connection       : Option<usize>,
+    pub left_connection         : Option<usize>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -80,7 +82,20 @@ impl GameBehavior {
 
     /// Add a new node of the given type and name
     pub fn add_node(&mut self, behavior_type: BehaviorNodeType, name: String) {
-        let mut node = BehaviorNode { behavior_type: behavior_type, behavior_state: BehaviorNodeState::Idle, name, values: HashMap::new(),id: 0, position: (100, 100), ok_connection: None, fail_connection: None, right_connection: None, connected: false };
+        let mut node = BehaviorNode {
+            behavior_type: behavior_type,
+            behavior_state: BehaviorNodeState::Idle,
+            name,
+            values: HashMap::new(),
+            id: 0,
+            position: (100, 100),
+            top_connection: None,
+            right_connection: None,
+            fail_connection: None,
+            success_connection: None,
+            bottom_connection: None,
+            left_connection: None
+        };
 
         let mut has_id_already = true;
         while has_id_already {

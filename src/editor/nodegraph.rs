@@ -1,4 +1,4 @@
-use crate::widget::node::{NodeWidget};
+use crate::widget::node::{NodeConnector, NodeWidget};
 use crate::atom:: { AtomData, AtomWidget, AtomWidgetType };
 
 use server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode};
@@ -351,7 +351,11 @@ impl NodeGraph {
         // Create the node
         if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
 
-            let node_type : BehaviorNodeType = BehaviorNodeType::BehaviorTree;
+            let mut node_type : BehaviorNodeType = BehaviorNodeType::BehaviorTree;
+
+            if name == "Dice Roll" {
+                node_type = BehaviorNodeType::DiceRoll;
+            }
 
             let index = behavior.data.nodes.len() - 1;
             behavior.data.nodes[index].position = position;
@@ -377,14 +381,23 @@ impl NodeGraph {
     pub fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, behavior_node: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
 
         if behavior_node.behavior_type == BehaviorNodeType::BehaviorTree {
-            let mut tree1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Demand".to_string()], AtomWidgetType::NodeSliderButton,
+            let mut atom1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Demand".to_string()], AtomWidgetType::NodeSliderButton,
             AtomData::new_as_int("execute".to_string(), 0));
-            tree1.atom_data.text = "Execute".to_string();
+            atom1.atom_data.text = "Execute".to_string();
             let id = (behavior_data.id, behavior_node.id, "execute".to_string());
-            tree1.behavior_id = Some(id.clone());
-            tree1.curr_index = context.data.get_behavior_id_value(id).0 as usize;
-            node_widget.widgets.push(tree1);
+            atom1.behavior_id = Some(id.clone());
+            atom1.curr_index = context.data.get_behavior_id_value(id).0 as usize;
+            node_widget.widgets.push(atom1);
+            node_widget.bottom_conn_rect = Some(NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if behavior_node.behavior_type == BehaviorNodeType::DiceRoll {
+            let mut atom1 = AtomWidget::new(vec!["D20".to_string(), "D10".to_string(), "D8".to_string()], AtomWidgetType::NodeSliderButton,
+            AtomData::new_as_int("dice".to_string(), 0));
+            atom1.atom_data.text = "Dice".to_string();
+            let id = (behavior_data.id, behavior_node.id, "execute".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.curr_index = context.data.get_behavior_id_value(id).0 as usize;
+            node_widget.widgets.push(atom1);
         }
-
     }
 }
