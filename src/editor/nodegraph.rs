@@ -33,7 +33,9 @@ pub struct NodeGraph {
     drag_offset     : (isize, isize),
     drag_node_pos   : (isize, isize),
 
+    // For connecting nodes
     source_conn     : Option<(BehaviorNodeConnector,usize)>,
+    dest_conn       : Option<(BehaviorNodeConnector,usize)>,
 
     mouse_pos       : (usize, usize),
 
@@ -59,6 +61,7 @@ impl NodeGraph {
             clicked             : false,
 
             source_conn         : None,
+            dest_conn           : None,
         }
     }
 
@@ -86,10 +89,10 @@ impl NodeGraph {
     }
 
     pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
-        let save_rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
+        let safe_rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
 
         if self.dirty {
-            context.draw2d.draw_square_pattern(&mut self.buffer[..], &save_rect, save_rect.2, &[44, 44, 46, 255], &[56, 56, 56, 255], 40);
+            context.draw2d.draw_square_pattern(&mut self.buffer[..], &safe_rect, safe_rect.2, &[44, 44, 46, 255], &[56, 56, 56, 255], 40);
 
             if self.graph_mode == GraphMode::Overview {
                 for index in 0..self.nodes.len() {
@@ -126,7 +129,7 @@ impl NodeGraph {
                     }
 
                     let rect= self.get_node_rect(index, true);
-                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, save_rect.2, &save_rect);
+                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, safe_rect.2, &safe_rect);
                 }
             } else {
                 // Detail View
@@ -145,7 +148,32 @@ impl NodeGraph {
                     }
 
                     let rect= self.get_node_rect(index, true);
-                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, save_rect.2, &save_rect);
+                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, safe_rect.2, &safe_rect);
+                }
+
+                // Draw connections
+                if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
+                    for (source_node_id , source_connector, dest_node_id, dest_connector) in &behavior.data.connections {
+
+                        let source_index = self.node_id_to_widget_index(source_node_id.clone());
+                        let source_rect = &self.get_node_rect(source_index, true);
+                        let source_node = &self. nodes[source_index];
+
+                        let dest_index = self.node_id_to_widget_index(dest_node_id.clone());
+                        let dest_rect = &self.get_node_rect(dest_index, true);
+                        let dest_node = &self. nodes[dest_index];
+
+                        let source_connector = &source_node.node_connector[source_connector];
+                        let dest_connector = &dest_node.node_connector[dest_connector];
+
+                        let start_x = source_rect.0 + source_connector.rect.0 as isize + source_connector.rect.2 as isize / 2;
+                        let start_y = source_rect.1 + source_connector.rect.1 as isize + source_connector.rect.3 as isize / 2;
+
+                        let end_x = dest_rect.0 + dest_connector.rect.0 as isize + dest_connector.rect.2 as isize / 2;
+                        let end_y = dest_rect.1 + dest_connector.rect.1 as isize + dest_connector.rect.3 as isize / 2;
+
+                        context.draw2d.draw_line_safe(&mut self.buffer[..], &(start_x, start_y), &(end_x, end_y), &safe_rect, safe_rect.2, &context.node_connector_color);
+                    }
                 }
 
                 // Draw ongoing connection effort
@@ -156,13 +184,22 @@ impl NodeGraph {
 
                     let node_rect = self.get_node_rect(conn.1, true);
 
-                    let mid_x = node_rect.0 + connector.rect.0 as isize + connector.rect.2 as isize / 2;
-                    let mid_y = node_rect.1 + connector.rect.1 as isize + connector.rect.3 as isize / 2;
+                    let start_x = node_rect.0 + connector.rect.0 as isize + connector.rect.2 as isize / 2;
+                    let start_y = node_rect.1 + connector.rect.1 as isize + connector.rect.3 as isize / 2;
 
-                    if self.mouse_pos.0 > self.rect.0 && self.mouse_pos.1 > self.rect.1 {
-                        let mouse_local = (self.mouse_pos.0 - self.rect.0, self.mouse_pos.1 - self.rect.1);
-                        context.draw2d.draw_line(&mut self.buffer[..], &(mid_x as usize,mid_y as usize), &mouse_local, save_rect.2, &context.node_connector_color);
+                    let mut end_x = self.mouse_pos.0 as isize - self.rect.0 as isize;
+                    let mut end_y = self.mouse_pos.1 as isize - self.rect.1 as isize;
+
+                    if let Some(conn) = &self.dest_conn {
+                        let node = &self.nodes[conn.1];
+                        let connector = &node.node_connector[&conn.0];
+                        let node_rect = self.get_node_rect(conn.1, true);
+
+                        end_x = node_rect.0 + connector.rect.0 as isize + connector.rect.2 as isize / 2;
+                        end_y = node_rect.1 + connector.rect.1 as isize + connector.rect.3 as isize / 2;
                     }
+
+                    context.draw2d.draw_line_safe(&mut self.buffer[..], &(start_x, start_y), &(end_x, end_y), &safe_rect, safe_rect.2, &context.node_connector_color);
                 }
             }
         }
@@ -235,6 +272,7 @@ impl NodeGraph {
 
                 if context.contains_pos_for_isize(pos, rect) {
 
+                    // Check for node terminals
                     for (conn, connector) in &self.nodes[index].node_connector {
                         let c_rect = (pos.0  as isize - rect.0, pos.1 as isize - rect.1);
                         if c_rect.0 > 0 && c_rect.1 > 0 {
@@ -313,7 +351,14 @@ impl NodeGraph {
         }
 
         // Node connection
-        if self.source_conn.is_some() {
+        if let Some(source_conn) = &self.source_conn {
+            if let Some(dest_conn) = &self.dest_conn {
+
+                if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
+                    behavior.data.connections.push((self.widget_index_to_node_id(source_conn.1), source_conn.0, self.widget_index_to_node_id(dest_conn.1), dest_conn.0));
+                }
+                self.dest_conn = None;
+            }
             self.source_conn = None;
             self.dirty = true;
             return true;
@@ -343,13 +388,34 @@ impl NodeGraph {
 
             context.target_fps = 60;
 
-            //println!("here 11 {} {}", self.drag_node_pos.0 + dx, self.drag_node_pos.1 + dy);
-
             return true;
         }
 
-        // Dragging a connection
+        // Dragging a connection, check for dest connection
         if let Some(source) = self.source_conn {
+            self.dest_conn = None;
+            for index in 0..self.nodes.len() {
+                let rect= self.get_node_rect(index, false);
+
+                if context.contains_pos_for_isize(pos, rect) {
+
+                    // Check for node terminals
+                    for (conn, connector) in &self.nodes[index].node_connector {
+                        let c_rect = (pos.0  as isize - rect.0, pos.1 as isize - rect.1);
+                        if c_rect.0 > 0 && c_rect.1 > 0 {
+                            if context.contains_pos_for((c_rect.0 as usize, c_rect.1 as usize), connector.rect) {
+
+                                // Set the dest_conn if terminal is of another node
+                                // TODO make more checks
+                                if index != source.1 {
+                                    self.dest_conn = Some((*conn, index));
+                                }
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
 
             self.dirty = true;
             return true;
@@ -468,5 +534,20 @@ impl NodeGraph {
             node_widget.widgets.push(atom1);
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
         }
+    }
+
+    /// Converts the index of a node widget to a node id
+    pub fn widget_index_to_node_id(&self, index: usize) -> usize {
+        self.nodes[index].id
+    }
+
+    /// Converts the id of a node to a widget index
+    pub fn node_id_to_widget_index(&self, id: usize) -> usize {
+        for index in 0..self.nodes.len() {
+            if self.nodes[index].id == id {
+                return index;
+            }
+        }
+        0
     }
 }

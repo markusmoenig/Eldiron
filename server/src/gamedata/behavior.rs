@@ -42,17 +42,17 @@ pub struct BehaviorNode {
 
 #[derive(Serialize, Deserialize)]
 pub struct GameBehaviorData {
-    pub nodes           : HashMap<usize, BehaviorNode>,
-    pub connections     : Vec<(usize, BehaviorNodeConnector, usize, BehaviorNodeConnector)>,
-    pub id              : usize,
+    pub nodes                   : HashMap<usize, BehaviorNode>,
+    pub connections             : Vec<(usize, BehaviorNodeConnector, usize, BehaviorNodeConnector)>,
+    pub id                      : usize,
 
-    pub name            : String,
+    pub name                    : String,
 }
 
 pub struct GameBehavior {
-    pub name            : String,
-    pub path            : PathBuf,
-    pub data            : GameBehaviorData,
+    pub name                    : String,
+    pub path                    : PathBuf,
+    pub data                    : GameBehaviorData,
 }
 
 impl GameBehavior {
