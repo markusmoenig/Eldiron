@@ -42,7 +42,7 @@ pub struct BehaviorNode {
 
 #[derive(Serialize, Deserialize)]
 pub struct GameBehaviorData {
-    pub nodes           : Vec<BehaviorNode>,
+    pub nodes           : HashMap<usize, BehaviorNode>,
     pub connections     : Vec<(usize, BehaviorNodeConnector, usize, BehaviorNodeConnector)>,
     pub id              : usize,
 
@@ -67,7 +67,7 @@ impl GameBehavior {
 
         // Construct the json settings
         let data = serde_json::from_str(&contents)
-            .unwrap_or(GameBehaviorData { nodes: vec![], connections: vec![], id: 0, name: "New Behavior".to_string() });
+            .unwrap_or(GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: 0, name: "New Behavior".to_string() });
 
         Self {
             name        : name.to_string(),
@@ -85,7 +85,8 @@ impl GameBehavior {
     }
 
     /// Add a new node of the given type and name
-    pub fn add_node(&mut self, behavior_type: BehaviorNodeType, name: String) {
+    pub fn add_node(&mut self, behavior_type: BehaviorNodeType, name: String) -> usize {
+
         let mut node = BehaviorNode {
             behavior_type: behavior_type,
             behavior_state: BehaviorNodeState::Idle,
@@ -99,8 +100,8 @@ impl GameBehavior {
         while has_id_already {
 
             has_id_already = false;
-            for n in &self.data.nodes {
-                if n.id == node.id {
+            for (key, _value) in &self.data.nodes {
+                if key == &node.id {
                     has_id_already = true;
                 }
             }
@@ -110,16 +111,9 @@ impl GameBehavior {
             }
         }
 
-        self.data.nodes.push(node);
-    }
-
-    /// Takes an id of a node and returns the index of the node
-    pub fn get_index_of_node_id(&self, id: usize) -> usize {
-        for (index, node) in self.data.nodes.iter().enumerate() {
-            if node.id == id {
-                return index;
-            }
-        }
-        0
+        // Insert the node
+        let id = node.id.clone();
+        self.data.nodes.insert(node.id, node);
+        id
     }
 }

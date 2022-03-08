@@ -297,9 +297,17 @@ impl NodeGraph {
             // Save the new node position
             if self.graph_type == GraphType::Behavior && self.graph_mode == GraphMode::Detail {
                 if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
-                    let position = self.nodes[behavior.get_index_of_node_id(context.curr_behavior_node_id)].user_data.position;
-                    behavior.data.nodes[context.curr_behavior_node_id].position = position;
-                    behavior.save_data();
+
+                    for node_widget in &self.nodes {
+                        if node_widget.id == context.curr_behavior_node_id {
+                            let position = node_widget.user_data.position.clone();
+                            if let Some(behavior_node) = behavior.data.nodes.get_mut(&context.curr_behavior_node_id) {
+                                behavior_node.position = position;
+                                behavior.save_data();
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -393,9 +401,9 @@ impl NodeGraph {
     pub fn set_behavior_id(&mut self, _id: usize, context: &ScreenContext) {
         self.nodes = vec![];
         if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
-            for n in &behavior.data.nodes {
-                let mut node_widget = NodeWidget::new_from_behavior_data(&behavior.data, n);
-                self.init_node_widget(&behavior.data, n, &mut node_widget, context);
+            for (_id, node_data) in &behavior.data.nodes {
+                let mut node_widget = NodeWidget::new_from_behavior_data(&behavior.data, node_data);
+                self.init_node_widget(&behavior.data, node_data, &mut node_widget, context);
                 self.nodes.push(node_widget);
             }
         }
@@ -405,6 +413,7 @@ impl NodeGraph {
     pub fn add_node_of_name(&mut self, name: String, position: (isize, isize), context: &mut ScreenContext) {
 
         let mut node_widget : Option<NodeWidget> =  None;
+        let mut id : usize = 0;
 
         // Create the node
         if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
@@ -415,11 +424,12 @@ impl NodeGraph {
                 node_type = BehaviorNodeType::DiceRoll;
             }
 
-            let index = behavior.data.nodes.len() - 1;
-            behavior.data.nodes[index].position = position;
+            id = behavior.add_node(node_type, name.clone());
+            if let Some(node) = behavior.data.nodes.get_mut(&id) {
+                node.position = position;
+            }
 
-            behavior.add_node(node_type, name.clone());
-            let node = NodeWidget::new_from_behavior_data(&behavior.data, &behavior.data.nodes[index]);
+            let node = NodeWidget::new_from_behavior_data(&behavior.data, &behavior.data.nodes.get(&id).unwrap());
              node_widget = Some(node);
 
             behavior.save_data();
@@ -428,7 +438,7 @@ impl NodeGraph {
         // Add the atom widgets
         if let Some(mut node) = node_widget {
             let behavior = context.data.behaviors.get(&context.curr_behavior_index).unwrap();
-            self.init_node_widget(&behavior.data, &behavior.data.nodes[behavior.data.nodes.len() - 1], &mut node, context);
+            self.init_node_widget(&behavior.data, &behavior.data.nodes.get(&id).unwrap(), &mut node, context);
             self.nodes.push(node);
         }
 
@@ -452,7 +462,7 @@ impl NodeGraph {
             let mut atom1 = AtomWidget::new(vec!["D20".to_string(), "D10".to_string(), "D8".to_string()], AtomWidgetType::NodeSliderButton,
             AtomData::new_as_int("dice".to_string(), 0));
             atom1.atom_data.text = "Dice".to_string();
-            let id = (behavior_data.id, behavior_node.id, "execute".to_string());
+            let id = (behavior_data.id, behavior_node.id, "dice".to_string());
             atom1.behavior_id = Some(id.clone());
             atom1.curr_index = context.data.get_behavior_id_value(id).0 as usize;
             node_widget.widgets.push(atom1);

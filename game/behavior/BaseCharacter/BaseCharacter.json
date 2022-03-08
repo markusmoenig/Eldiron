@@ -1,1 +1,1 @@
-{"nodes":[{"behavior_type":"BehaviorTree","behavior_state":"Idle","name":"Behavior Tree","values":{"execute":[0.0,0.0,0.0,0.0]},"id":0,"position":[260,185]}],"connections":[],"id":0,"name":"New Behavior"}
+{"nodes":{"1":{"behavior_type":"DiceRoll","behavior_state":"Idle","name":"Dice Roll","values":{"dice":[1.0,0.0,0.0,0.0]},"id":1,"position":[302,267]},"0":{"behavior_type":"BehaviorTree","behavior_state":"Idle","name":"Behavior Tree","values":{},"id":0,"position":[100,100]}},"connections":[],"id":0,"name":"New Behavior"}
