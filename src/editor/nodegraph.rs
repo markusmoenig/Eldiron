@@ -207,6 +207,7 @@ impl NodeGraph {
         context.draw2d.copy_slice(frame, &mut self.buffer[..], &self.rect, context.width);
     }
 
+    /// Returns the rectangle for the given node either in relative or absolute coordinates
     fn get_node_rect(&self, node_index: usize, relative: bool) -> (isize, isize, usize, usize) {
         let mut x = self.nodes[node_index].user_data.position.0 + self.offset.0;
         let mut y = self.nodes[node_index].user_data.position.1 + self.offset.1;
@@ -391,9 +392,9 @@ impl NodeGraph {
             return true;
         }
 
+        self.dest_conn = None;
         // Dragging a connection, check for dest connection
         if let Some(source) = self.source_conn {
-            self.dest_conn = None;
             for index in 0..self.nodes.len() {
                 let rect= self.get_node_rect(index, false);
 
@@ -405,12 +406,17 @@ impl NodeGraph {
                         if c_rect.0 > 0 && c_rect.1 > 0 {
                             if context.contains_pos_for((c_rect.0 as usize, c_rect.1 as usize), connector.rect) {
 
-                                // Set the dest_conn if terminal is of another node
-                                // TODO make more checks
+                                // Check if nodes are different
                                 if index != source.1 {
-                                    self.dest_conn = Some((*conn, index));
+
+                                    let source1 = self.connector_is_source(source.0);
+                                    let source2 = self.connector_is_source(*conn);
+
+                                    // We can connect if the two connectors are sourcee and dest
+                                    if source1 != source2 {
+                                        self.dest_conn = Some((*conn, index));
+                                    }
                                 }
-                                return true;
                             }
                         }
                     }
@@ -549,5 +555,13 @@ impl NodeGraph {
             }
         }
         0
+    }
+
+    /// Returns true if the node connector is a source connector (Right or Bottom)
+    pub fn connector_is_source(&self, connector: BehaviorNodeConnector) -> bool {
+        if connector == BehaviorNodeConnector::Right || connector == BehaviorNodeConnector::Bottom {
+            return true;
+        }
+        false
     }
 }
