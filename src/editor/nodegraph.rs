@@ -1,5 +1,6 @@
 use crate::widget::node::{NodeConnector, NodeWidget};
 use crate::atom:: { AtomData, AtomWidget, AtomWidgetType };
+use crate::widget::node_preview::NodePreviewWidget;
 
 use server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode, BehaviorNodeConnector};
 
@@ -20,26 +21,28 @@ pub enum GraphType {
 }
 
 pub struct NodeGraph {
-    pub rect        : (usize, usize, usize, usize),
-    dirty           : bool,
-    buffer          : Vec<u8>,
-    graph_mode      : GraphMode,
-    graph_type      : GraphType,
-    nodes           : Vec<NodeWidget>,
+    pub rect                    : (usize, usize, usize, usize),
+    dirty                       : bool,
+    buffer                      : Vec<u8>,
+    graph_mode                  : GraphMode,
+    graph_type                  : GraphType,
+    nodes                       : Vec<NodeWidget>,
 
-    pub offset      : (isize, isize),
+    pub offset                  : (isize, isize),
 
-    drag_index      : Option<usize>,
-    drag_offset     : (isize, isize),
-    drag_node_pos   : (isize, isize),
+    drag_index                  : Option<usize>,
+    drag_offset                 : (isize, isize),
+    drag_node_pos               : (isize, isize),
 
     // For connecting nodes
-    source_conn     : Option<(BehaviorNodeConnector,usize)>,
-    dest_conn       : Option<(BehaviorNodeConnector,usize)>,
+    source_conn                 : Option<(BehaviorNodeConnector,usize)>,
+    dest_conn                   : Option<(BehaviorNodeConnector,usize)>,
 
-    mouse_pos       : (usize, usize),
+    mouse_pos                   : (usize, usize),
 
-    pub clicked     : bool
+    pub clicked                 : bool,
+
+    pub preview                 : Option<NodePreviewWidget>
 }
 
 impl NodeGraph {
@@ -62,14 +65,22 @@ impl NodeGraph {
 
             source_conn         : None,
             dest_conn           : None,
+
+            preview             : None,
         }
     }
 
     pub fn set_mode(&mut self, mode: GraphMode) {
+        if mode == GraphMode::Detail && self.preview.is_none() {
+            self.preview = Some(NodePreviewWidget::new());
+        }
         self.graph_mode = mode;
     }
 
     pub fn set_mode_and_rect(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &ScreenContext) {
+        if mode == GraphMode::Detail && self.preview.is_none() {
+            self.preview = Some(NodePreviewWidget::new());
+        }
         self.graph_mode = mode;
         self.rect = rect;
         self.resize(rect.2, rect.3, context)
@@ -201,6 +212,13 @@ impl NodeGraph {
 
                     context.draw2d.draw_line_safe(&mut self.buffer[..], &(start_x, start_y), &(end_x, end_y), &safe_rect, safe_rect.2, &context.node_connector_color);
                 }
+
+                // Render the preview widget
+                if let Some(preview) = &mut self.preview {
+                    preview.draw(frame, anim_counter, asset, context);
+                    preview.rect = (self.rect.0 + self.rect.2 - preview.size.0, self.rect.1, preview.size.0, preview.size.1);
+                    context.draw2d.blend_slice(&mut self.buffer[..], &mut preview.buffer[..], &(self.rect.2 - preview.size.0, 0, preview.size.0, preview.size.1), safe_rect.2);
+                }
             }
         }
         self.dirty = false;
@@ -268,6 +286,7 @@ impl NodeGraph {
             }
         } else
         if self.graph_mode == GraphMode::Detail {
+
             for index in 0..self.nodes.len() {
                 let rect= self.get_node_rect(index, false);
 
@@ -304,6 +323,16 @@ impl NodeGraph {
                             self.dirty = true;
                             self.clicked = true;
                         }
+                    }
+                }
+            }
+
+            // Check Preview
+            if let Some(preview) = &mut self.preview {
+                if context.contains_pos_for(pos, preview.rect) {
+                    preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context);
+                    if preview.clicked {
+                        println!("clicked");
                     }
                 }
             }
@@ -370,6 +399,11 @@ impl NodeGraph {
             let rect= self.get_node_rect(index, false);
             let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
             self.nodes[index].mouse_up(local, asset, context);
+        }
+
+        // Preview
+        if let Some(preview) = &mut self.preview {
+            preview.mouse_up(pos, asset, context);
         }
         false
     }

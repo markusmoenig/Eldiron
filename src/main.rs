@@ -32,8 +32,8 @@ use std::time::Duration;
 
 fn main() -> Result<(), Error> {
 
-    const WIDTH     : usize = 60 * 16;
-    const HEIGHT    : usize = 40 * 16;
+    const WIDTH     : usize = 1240;//60 * 16;
+    const HEIGHT    : usize = 700;//40 * 16;
 
     env_logger::init();
 
