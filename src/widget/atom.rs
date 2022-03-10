@@ -116,7 +116,9 @@ impl AtomWidget {
 
     pub fn set_rect(&mut self, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext) {
         self.rect = rect;
-        self.buffer = vec![0;rect.2 * rect.3 * 4];
+        if self.buffer.len() != rect.2 * rect.3 * 4 {
+            self.buffer = vec![0;rect.2 * rect.3 * 4];
+        }
     }
 
     pub fn draw(&mut self, frame: &mut [u8], stride: usize, _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
@@ -261,6 +263,8 @@ impl AtomWidget {
         if self.contains_pos(pos) {
             if self.atom_widget_type == AtomWidgetType::ToolBarButton ||  self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton {
                 self.clicked = true;
+                self.state = WidgetState::Clicked;
+                self.dirty = true;
                 return true;
             } else
             if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton || self.atom_widget_type == AtomWidgetType::NodeSliderButton {
@@ -321,8 +325,19 @@ impl AtomWidget {
     }
 
     pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        self.clicked = false;
+
         self.drag_context = None;
+
+        if self.state == WidgetState::Clicked {
+            self.state = WidgetState::Normal;
+        }
+
+        if self.clicked {
+            self.clicked = false;
+            self.dirty = true;
+            return true;
+        }
+
         false
     }
 

@@ -311,17 +311,14 @@ impl NodeGraph {
                     if self.graph_type == GraphType::Behavior {
                         if context.curr_behavior_node_id != self.nodes[index].id {
 
-                            self.nodes[context.curr_behavior_node_id].dirty = true;
-                            for w in &mut self.nodes[context.curr_behavior_node_id].widgets {
-                                w.dirty = true;
-                            }
+                            let sel_index = self.node_id_to_widget_index(context.curr_behavior_node_id);
+
+                            self.nodes[sel_index].dirty = true;
                             context.curr_behavior_node_id = self.nodes[index].id;
                             self.nodes[index].dirty = true;
-                            for w in &mut self.nodes[index].widgets {
-                                w.dirty = true;
-                            }
                             self.dirty = true;
                             self.clicked = true;
+                            return true;
                         }
                     }
                 }
@@ -333,6 +330,8 @@ impl NodeGraph {
                     preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context);
                     if preview.clicked {
                         context.data.create_behavior(context.curr_behavior_index, true, true);
+                        self.dirty = true;
+                        return true;
                     }
                 }
             }
@@ -385,7 +384,13 @@ impl NodeGraph {
             if let Some(dest_conn) = &self.dest_conn {
 
                 if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
-                    behavior.data.connections.push((self.widget_index_to_node_id(source_conn.1), source_conn.0, self.widget_index_to_node_id(dest_conn.1), dest_conn.0));
+
+                    // Add the connection in the order of source connector -> dest connector
+                    if self.connector_is_source(dest_conn.0) {
+                        behavior.data.connections.push((self.widget_index_to_node_id(dest_conn.1), dest_conn.0, self.widget_index_to_node_id(source_conn.1), source_conn.0));
+                    } else {
+                        behavior.data.connections.push((self.widget_index_to_node_id(source_conn.1), source_conn.0, self.widget_index_to_node_id(dest_conn.1), dest_conn.0));
+                    }
                 }
                 self.dest_conn = None;
             }
@@ -403,7 +408,10 @@ impl NodeGraph {
 
         // Preview
         if let Some(preview) = &mut self.preview {
-            preview.mouse_up(pos, asset, context);
+            if preview.mouse_up(pos, asset, context) {
+                self.dirty = true;
+                return  true;
+            }
         }
         false
     }
@@ -482,9 +490,6 @@ impl NodeGraph {
                 if index == old_selection || index == new_selection {
                     self.nodes[index].dirty = true;
                     self.dirty = true;
-                    for a in &mut self.nodes[index].widgets {
-                        a.dirty = true;
-                    }
                 }
             }
         }
@@ -495,9 +500,6 @@ impl NodeGraph {
         if self.graph_mode == GraphMode::Overview {
             for index in 0..self.nodes.len() {
                 self.nodes[index].dirty = true;
-                for a in &mut self.nodes[index].widgets {
-                    a.dirty = true;
-                }
             }
         }
         self.dirty = true;

@@ -58,11 +58,12 @@ pub mod tileselector;
 
 /// The widget state
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum WidgetState {
     Disabled,
     Normal,
     Hover,
+    Clicked,
 }
 
 pub trait Widget {

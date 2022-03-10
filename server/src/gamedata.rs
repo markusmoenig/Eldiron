@@ -207,9 +207,6 @@ impl GameData {
                     for c in &behavior.data.connections {
                         if c.0 == *id {
                             to_execute.push(c.2);
-                        } else
-                        if c.2 == *id {
-                            to_execute.push(c.0);
                         }
                     }
                 }

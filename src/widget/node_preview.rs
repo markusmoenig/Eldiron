@@ -68,7 +68,7 @@ impl NodePreviewWidget {
             context.draw2d.draw_rect(buffer_frame, &(1, 1, 1, 1), stride, &[65, 65, 65, 255]);
 
             self.widgets[0].set_rect((20, 4, 140, 32), asset, context);
-            self.widgets[0].draw(buffer_frame, stride, anim_counter, asset, context)
+            self.widgets[0].draw(buffer_frame, stride, anim_counter, asset, context);
         }
         self.dirty = false;
     }
@@ -86,9 +86,16 @@ impl NodePreviewWidget {
         false
     }
 
-    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         self.clicked = false;
         self.clicked_id = None;
+        for atom_widget in &mut self.widgets {
+            if atom_widget.mouse_up(pos, asset, context) {
+                self.dirty = true;
+                self.clicked = false;
+                return true;
+            }
+        }
         false
     }
 
