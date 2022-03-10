@@ -1,11 +1,12 @@
 pub mod area;
 pub mod behavior;
+pub mod nodes;
 
 use std::collections::HashMap;
 use std::fs::metadata;
 
 use crate::gamedata::area::GameArea;
-use crate::gamedata::behavior::GameBehavior;
+use crate::gamedata::behavior::{ BehaviorInstance, GameBehavior };
 use crate::asset::TileUsage;
 
 use itertools::Itertools;
@@ -13,7 +14,9 @@ use itertools::Itertools;
 use std::path;
 use std::fs;
 
-use self::behavior::BehaviorNodeType;
+use self::behavior::{BehaviorNodeType, BehaviorNode};
+
+type NodeCall = fn(&mut BehaviorInstance, &BehaviorNode) -> nodes::NodeResult;
 
 pub struct GameData {
     pub areas                   : HashMap<usize, GameArea>,
@@ -23,6 +26,8 @@ pub struct GameData {
     pub behaviors               : HashMap<usize, GameBehavior>,
     pub behaviors_names         : Vec<String>,
     pub behaviors_ids           : Vec<usize>,
+
+    pub nodes                   : HashMap<String, NodeCall>
 }
 
 impl GameData {
@@ -130,6 +135,9 @@ impl GameData {
         //     }
         // }
 
+        let mut nodes : HashMap<String, NodeCall> = HashMap::new();
+        nodes.insert("Dice Roll".to_string(), nodes::dice_roll);
+
         Self {
             areas,
             areas_names,
@@ -137,7 +145,9 @@ impl GameData {
 
             behaviors,
             behaviors_names,
-            behaviors_ids
+            behaviors_ids,
+
+            nodes,
         }
     }
 
@@ -173,5 +183,41 @@ impl GameData {
             }
         }
         (0.0, 0.0, 0.0, 0.0)
+    }
+
+    pub fn start_behavior(&mut self, id: usize) {
+
+        let mut to_execute : Vec<usize> = vec![];
+
+        if let Some(behavior) = self.behaviors.get_mut(&id) {
+            for (id, node) in &behavior.data.nodes {
+                if node.behavior_type == BehaviorNodeType::BehaviorTree {
+
+                    for c in &behavior.data.connections {
+                        if c.0 == *id {
+                            to_execute.push(c.2);
+                        } else
+                        if c.2 == *id {
+                            to_execute.push(c.0);
+                        }
+                    }
+                }
+            }
+
+            let mut instance = BehaviorInstance {behavior_id: id, tree_ids: to_execute.clone(), values: HashMap::new()};
+
+            let mut execute_node = |id: usize| {
+                if let Some(node) = behavior.data.nodes.get_mut(&id) {
+                    // println!("Executing:: {}", node.name);
+                    if let Some(node_call) = self.nodes.get_mut(&node.name) {
+                        node_call(&mut instance, node);
+                    }
+                }
+            };
+
+            for id in to_execute {
+                execute_node(id);
+            }
+        }
     }
 }
