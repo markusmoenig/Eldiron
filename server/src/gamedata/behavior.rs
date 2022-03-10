@@ -12,12 +12,6 @@ pub enum BehaviorNodeType {
     DiceRoll,
 }
 
-#[derive(Serialize, Deserialize, PartialEq)]
-pub enum BehaviorNodeState {
-    Idle,
-    Running,
-}
-
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
 pub enum BehaviorNodeConnector {
     Top,
@@ -31,7 +25,6 @@ pub enum BehaviorNodeConnector {
 #[derive(Serialize, Deserialize, PartialEq)]
 pub struct BehaviorNode {
     pub behavior_type           : BehaviorNodeType,
-    pub behavior_state          : BehaviorNodeState,
     pub name                    : String,
 
     pub values                  : HashMap<String, (f64, f64, f64, f64)>,
@@ -42,9 +35,12 @@ pub struct BehaviorNode {
 
 #[derive(Serialize, Deserialize, PartialEq)]
 pub struct BehaviorInstance {
+    pub id                      : usize,
     pub behavior_id             : usize,
     pub tree_ids                : Vec<usize>,
     pub values                  : HashMap<String, (f64, f64, f64, f64)>,
+
+    pub in_progress_id          : Option<usize>
 }
 
 #[derive(Serialize, Deserialize)]
@@ -96,7 +92,6 @@ impl GameBehavior {
 
         let mut node = BehaviorNode {
             behavior_type: behavior_type,
-            behavior_state: BehaviorNodeState::Idle,
             name,
             values: HashMap::new(),
             id: 0,

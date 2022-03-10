@@ -12,6 +12,7 @@ use crate::asset::tileset::TileUsage;
 pub struct GameAreaData {
     #[serde(with = "vectorize")]
     pub tiles           : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
+    pub instance_ids    : Vec<usize>,
     pub id              : usize,
     pub curr_pos        : (isize, isize),
     pub min_pos         : (isize, isize),
@@ -36,7 +37,7 @@ impl GameArea {
 
         // Construct the json settings
         let data = serde_json::from_str(&contents)
-            .unwrap_or(GameAreaData { tiles: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (0,0), max_pos: (0,0) });
+            .unwrap_or(GameAreaData { tiles: HashMap::new(), instance_ids: vec![], id: 0, curr_pos: (0,0), min_pos: (0,0), max_pos: (0,0) });
 
         Self {
             name        : name.to_string(),

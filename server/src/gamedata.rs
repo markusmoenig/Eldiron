@@ -27,7 +27,9 @@ pub struct GameData {
     pub behaviors_names         : Vec<String>,
     pub behaviors_ids           : Vec<usize>,
 
-    pub nodes                   : HashMap<String, NodeCall>
+    pub nodes                   : HashMap<String, NodeCall>,
+
+    pub instances               : HashMap<usize, BehaviorInstance>
 }
 
 impl GameData {
@@ -148,6 +150,8 @@ impl GameData {
             behaviors_ids,
 
             nodes,
+
+            instances               : HashMap::new(),
         }
     }
 
@@ -185,7 +189,14 @@ impl GameData {
         (0.0, 0.0, 0.0, 0.0)
     }
 
-    pub fn start_behavior(&mut self, id: usize) {
+    /// Create save data and return it
+    pub fn save(&self) -> String {
+        let json = serde_json::to_string(&self.instances).unwrap();
+        json
+    }
+
+    /// Create a new behavior of the given id and return it's id
+    pub fn create_behavior(&mut self, id: usize, is_temporary: bool, execute: bool) -> usize {
 
         let mut to_execute : Vec<usize> = vec![];
 
@@ -204,20 +215,51 @@ impl GameData {
                 }
             }
 
-            let mut instance = BehaviorInstance {behavior_id: id, tree_ids: to_execute.clone(), values: HashMap::new()};
+            let mut instance = BehaviorInstance {id: 0, behavior_id: id, tree_ids: to_execute.clone(), values: HashMap::new(), in_progress_id: None};
 
-            let mut execute_node = |id: usize| {
-                if let Some(node) = behavior.data.nodes.get_mut(&id) {
-                    // println!("Executing:: {}", node.name);
-                    if let Some(node_call) = self.nodes.get_mut(&node.name) {
-                        node_call(&mut instance, node);
+            if is_temporary == false {
+                // Make sure id is unique
+                let mut has_id_already = true;
+                while has_id_already {
+
+                    has_id_already = false;
+                    for (key, _value) in &self.instances {
+                        if key == &instance.id {
+                            has_id_already = true;
+                        }
+                    }
+
+                    if has_id_already {
+                        instance.id += 1;
                     }
                 }
-            };
-
-            for id in to_execute {
-                execute_node(id);
             }
+
+            let id = instance.id.clone();
+
+            if execute {
+                // Execute the trees
+                let mut execute_node = |id: usize| {
+                    if let Some(node) = behavior.data.nodes.get_mut(&id) {
+                        // println!("Executing:: {}", node.name);
+                        if let Some(node_call) = self.nodes.get_mut(&node.name) {
+                            node_call(&mut instance, node);
+                        }
+                    }
+                };
+
+                for id in to_execute {
+                    execute_node(id);
+                }
+            }
+
+            if is_temporary == false {
+                self.instances.insert(instance.id.clone(), instance);
+            }
+
+            return id;
         }
+
+        0
     }
 }

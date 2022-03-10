@@ -332,10 +332,7 @@ impl NodeGraph {
                 if context.contains_pos_for(pos, preview.rect) {
                     preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context);
                     if preview.clicked {
-                        //if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
-                        //     behavior.start();
-                        //}
-                        context.data.start_behavior(context.curr_behavior_index);
+                        context.data.create_behavior(context.curr_behavior_index, true, true);
                     }
                 }
             }
