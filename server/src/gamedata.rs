@@ -27,7 +27,7 @@ pub struct GameData {
     pub behaviors_names         : Vec<String>,
     pub behaviors_ids           : Vec<usize>,
 
-    pub nodes                   : HashMap<String, NodeCall>,
+    pub nodes                   : HashMap<BehaviorNodeType, NodeCall>,
 
     pub instances               : HashMap<usize, BehaviorInstance>
 }
@@ -137,8 +137,8 @@ impl GameData {
         //     }
         // }
 
-        let mut nodes : HashMap<String, NodeCall> = HashMap::new();
-        nodes.insert("Dice Roll".to_string(), nodes::dice_roll);
+        let mut nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
+        nodes.insert(BehaviorNodeType::DiceRoll, nodes::dice_roll);
 
         Self {
             areas,
@@ -239,7 +239,7 @@ impl GameData {
                 let mut execute_node = |id: usize| {
                     if let Some(node) = behavior.data.nodes.get_mut(&id) {
                         // println!("Executing:: {}", node.name);
-                        if let Some(node_call) = self.nodes.get_mut(&node.name) {
+                        if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
                             node_call(&mut instance, node);
                         }
                     }
