@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use server::gamedata::behavior::{GameBehaviorData, BehaviorNode, BehaviorNodeConnector};
 
 use crate::atom:: { AtomWidget };
-use crate::widget::*;
+use crate::editor::ScreenContext;
+use server::asset::Asset;
 
-#[derive(Serialize, Deserialize)]
+//#[derive(Serialize, Deserialize)]
 pub struct NodeUserData {
     pub position                : (isize, isize)
 }
@@ -110,7 +111,7 @@ impl NodeWidget {
         if self.dirty {
             for i in &mut self.buffer[..] { *i = 0 }
             let buffer_frame = &mut self.buffer[..];
-            let title_color = &context.color_yellow;
+            let title_color = &context.color_green;
             let back_color : &[u8;4] = &context.color_black;
             let stride = self.size.0;
 

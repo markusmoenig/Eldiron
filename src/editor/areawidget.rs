@@ -86,9 +86,17 @@ impl AreaWidget {
         false
     }
 
-    pub fn _mouse_dragged(&mut self, _pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    pub fn mouse_dragged(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+        if context.contains_pos_for(pos, self.rect) {
 
-        if let Some(_curr_id) = context.curr_tile {
+            let grid_size = self.grid_size;
+
+            let x = ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
+            let y = ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;
+
+            self.clicked = Some((x, y));
+
+            return true;
         }
         false
     }

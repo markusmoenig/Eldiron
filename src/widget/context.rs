@@ -45,8 +45,10 @@ pub struct ScreenContext {
     pub color_light_gray                : [u8;4],
     pub color_white                     : [u8;4],
     pub color_light_white               : [u8;4],
-    pub color_yellow                    : [u8;4],
-    pub color_light_yellow              : [u8;4],
+    pub color_orange                    : [u8;4],
+    pub color_light_orange              : [u8;4],
+    pub color_green                     : [u8;4],
+    pub color_light_green               : [u8;4],
 
     pub curr_tileset_index              : usize,
     pub curr_tile                       : Option<(usize, usize)>,
@@ -99,8 +101,10 @@ impl ScreenContext {
             color_light_white           : [240, 240, 240, 255],
             color_gray                  : [105, 105, 105, 255],
             color_light_gray            : [155, 155, 155, 255],
-            color_yellow                : [208, 115, 50, 255],
-            color_light_yellow          : [208, 156, 112, 255],
+            color_orange                : [208, 115, 50, 255],
+            color_light_orange          : [208, 156, 112, 255],
+            color_green                 : [10, 93, 80, 255],
+            color_light_green           : [101, 140, 134, 255],
 
             // Editor state
 

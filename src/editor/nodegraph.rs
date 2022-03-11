@@ -1,6 +1,6 @@
-use crate::widget::node::{NodeConnector, NodeWidget};
+use crate::editor::node::{NodeConnector, NodeWidget};
 use crate::atom:: { AtomData, AtomWidget, AtomWidgetType };
-use crate::widget::node_preview::NodePreviewWidget;
+use crate::editor::node_preview::NodePreviewWidget;
 
 use server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode, BehaviorNodeConnector};
 
@@ -42,7 +42,8 @@ pub struct NodeGraph {
 
     pub clicked                 : bool,
 
-    pub preview                 : Option<NodePreviewWidget>
+    pub preview                 : Option<NodePreviewWidget>,
+    preview_drag_start          : (isize, isize),
 }
 
 impl NodeGraph {
@@ -67,6 +68,7 @@ impl NodeGraph {
             dest_conn           : None,
 
             preview             : None,
+            preview_drag_start  : (0,0),
         }
     }
 
@@ -332,6 +334,8 @@ impl NodeGraph {
                         context.data.create_behavior(context.curr_behavior_index, true, true);
                         self.dirty = true;
                         return true;
+                    } else {
+                        self.preview_drag_start = (pos.0 as isize, pos.1 as isize);
                     }
                 }
             }
@@ -416,7 +420,7 @@ impl NodeGraph {
         false
     }
 
-    pub fn mouse_dragged(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
         self.mouse_pos = pos.clone();
 
@@ -467,6 +471,22 @@ impl NodeGraph {
 
             self.dirty = true;
             return true;
+        }
+
+        // Preview
+        if let Some(preview) = &mut self.preview {
+            let x = pos.0 as isize - preview.rect.0 as isize;
+            let y = pos.1 as isize - preview.rect.1 as isize;
+
+            let r_x = self.preview_drag_start.0 - pos.0 as isize;
+            let r_y = pos.1 as isize - self.preview_drag_start.1;
+
+            if preview.mouse_dragged((x as usize, y as usize), (r_x, r_y), asset, context) {
+                self.dirty = true;
+                //preview.rect = (self.rect.0 + self.rect.2 - preview.size.0, self.rect.1, preview.size.0, preview.size.1);
+
+                return  true;
+            }
         }
 
         false

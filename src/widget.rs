@@ -52,8 +52,6 @@ pub trait ScreenWidget {
 
 // General purpose widgets
 pub mod atom;
-pub mod node;
-pub mod node_preview;
 pub mod tileselector;
 
 /// The widget state

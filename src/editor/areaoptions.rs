@@ -27,7 +27,7 @@ impl AreaOptions {
         let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new_as_int("GroupedList".to_string(), 0));
 
-        group_list.add_group_list(context.color_yellow, context.color_light_yellow, vec!["Environment".to_string(), "Blocking".to_string(), "Water".to_string() ]);
+        group_list.add_group_list(context.color_green, context.color_light_green, vec!["Environment".to_string(), "Blocking".to_string(), "Water".to_string() ]);
         group_list.set_rect((rect.0, rect.1 + 60, rect.2, 400), asset, context);
         widgets.push(group_list);
 

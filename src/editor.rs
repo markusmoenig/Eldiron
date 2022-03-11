@@ -15,13 +15,15 @@ mod tilemapwidget;
 mod areawidget;
 mod areaoptions;
 mod behavioroptions;
+mod node;
+mod node_preview;
 
 use crate::editor::toolbar::ToolBar;
 use tilemapwidget::TileMapWidget;
 
 use crate::context::ScreenContext;
-use crate::node::NodeUserData;
-use crate::node::NodeWidget;
+use crate::editor::node::NodeUserData;
+use crate::editor::node::NodeWidget;
 use crate::editor::nodegraph::{ NodeGraph, GraphMode, GraphType };
 
 use self::tilemapoptions::TileMapOptions;
@@ -450,6 +452,22 @@ impl ScreenWidget for Editor {
         } else
         if self.state == EditorState::AreaOverview {
             if consumed == false && self.node_graph_areas.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+        } else
+        if self.state == EditorState::AreaDetail {
+            if consumed == false && self.area_widget.mouse_dragged(pos, asset, &mut self.context) {
+
+                if let Some(clicked) = self.area_widget.clicked {
+                    if let Some(selected) = &self.area_tile_selector.selected {
+
+                        //let area = self.context.data.areas.get(&self.area_widget.area_index).unwrap();
+                        if let Some(area) = self.context.data.areas.get_mut(&self.area_widget.area_id) {
+                            area.set_value(clicked, selected.clone());
+                            area.save_data();
+                        }
+                    }
+                }
                 consumed = true;
             }
         } else

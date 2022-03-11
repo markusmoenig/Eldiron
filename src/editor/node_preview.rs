@@ -1,9 +1,6 @@
-//use std::collections::HashMap;
-
-//use server::gamedata::behavior::{GameBehaviorData, BehaviorNode, BehaviorNodeConnector};
-
+use crate::Asset;
 use crate::atom:: { AtomWidget, AtomWidgetType, AtomData };
-use crate::widget::*;
+use crate::editor::ScreenContext;
 
 pub struct NodePreviewWidget {
     pub rect                    : (usize, usize, usize, usize),
@@ -21,6 +18,8 @@ pub struct NodePreviewWidget {
     pub size                    : (usize, usize),
 
     pub clicked_id              : Option<(usize, usize, String)>,
+
+    pub drag_size               : Option<(usize, usize)>
 }
 
 impl NodePreviewWidget {
@@ -42,16 +41,18 @@ impl NodePreviewWidget {
 
             disabled            : false,
 
-            size                : (250, 120),
+            size                : (300, 250),
 
             clicked_id          : None,
+
+            drag_size           : None,
         }
     }
 
     /// Draw the node
     pub fn draw(&mut self, _frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
 
-        if self.buffer.is_empty() {
+        if self.buffer.len() != self.size.0 * self.size.1 * 4 {
             self.buffer = vec![0;self.size.0 * self.size.1 * 4];
         }
 
@@ -83,6 +84,13 @@ impl NodePreviewWidget {
                 return true;
             }
         }
+
+        // Test dragging area
+        if context.contains_pos_for(pos, (0, self.size.1 - 20, 20, 20)) {
+            self.drag_size = Some(self.size.clone());
+            context.target_fps = 60;
+            return true;
+        }
         false
     }
 
@@ -96,10 +104,28 @@ impl NodePreviewWidget {
                 return true;
             }
         }
+
+        if self.drag_size.is_some() {
+            self.drag_size = None;
+            context.target_fps = context.default_fps;
+        }
         false
     }
 
-    pub fn _mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    pub fn mouse_dragged(&mut self, _pos: (usize, usize), rel_pos: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+
+        if let Some(drag_size) = &self.drag_size {
+            let mut x: isize = drag_size.0 as isize + rel_pos.0;
+            let mut y: isize =  drag_size.1 as isize + rel_pos.1;
+            if x < 200 { x = 200; }
+            if x > 600 { x = 600; }
+            if y < 60 { y = 60; }
+            if y > 600 { y = 600; }
+            self.size = (x as usize, y as usize);
+            self.dirty = true;
+            return true;
+        }
+
         false
     }
 }
