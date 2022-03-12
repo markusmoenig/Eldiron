@@ -83,7 +83,11 @@ impl NodePreviewWidget {
             self.map_rect.2 = rect.2 - 20;
             self.map_rect.3 = rect.3 - 100;
 
-            context.draw2d.draw_area(buffer_frame, 0, &self.map_rect, stride, 32, anim_counter, asset, &context.data);
+            if let Some(area) = context.data.areas.get(&0) {
+                let offset = area.data.min_pos;
+
+                context.draw2d.draw_area(buffer_frame, area, &self.map_rect, &offset, stride, 32, anim_counter, asset);
+            }
         }
         self.dirty = false;
     }

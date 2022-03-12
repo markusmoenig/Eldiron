@@ -4,7 +4,7 @@ use line_drawing::Bresenham;
 
 use server::asset::TileMap;
 use server::asset::Asset;
-use server::gamedata::GameData;
+use server::gamedata::area::GameArea;
 
 #[derive(PartialEq)]
 pub enum TextAlignment {
@@ -473,27 +473,21 @@ impl Draw2D {
         }
     }
 
-    pub fn draw_area(&self, frame: &mut [u8], area_id: usize, rect: &(usize, usize, usize, usize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, data: &GameData) {
-        if let Some(area) = data.areas.get(&area_id) {
-            let left_offset = (rect.2 % tile_size) / 2;
-            let top_offset = (rect.3 % tile_size) / 2;
+    /// Draws the given area with the given offset into the rectangle
+    pub fn draw_area(&self, frame: &mut [u8], area: &GameArea, rect: &(usize, usize, usize, usize), offset: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset) {
+        let left_offset = (rect.2 % tile_size) / 2;
+        let top_offset = (rect.3 % tile_size) / 2;
 
-            //let rect_offset = (left_offset, top_offset);
+        let x_tiles = (rect.2 / tile_size) as isize;
+        let y_tiles = (rect.3 / tile_size) as isize;
 
-            let x_tiles = (rect.2 / tile_size) as isize;
-            let y_tiles = (rect.3 / tile_size) as isize;
+        for y in 0..y_tiles {
+            for x in 0..x_tiles {
+                if let Some(value) = area.get_value((x + offset.0, y + offset.1)) {
+                    let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
-            let offset =(5, 5);// area.data.min_pos;// (0_isize, 0_isize);
-            //println!("{:?}", offset);
-
-            for y in 0..y_tiles {
-                for x in 0..x_tiles {
-                    if let Some(value) = area.get_value((x + offset.0, y + offset.1)) {
-                        let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
-
-                        let map = asset.get_map_of_id(value.0);
-                        self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
-                    }
+                    let map = asset.get_map_of_id(value.0);
+                    self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
                 }
             }
         }

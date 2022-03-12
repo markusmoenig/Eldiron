@@ -37,7 +37,7 @@ impl GameArea {
 
         // Construct the json settings
         let data = serde_json::from_str(&contents)
-            .unwrap_or(GameAreaData { tiles: HashMap::new(), instance_ids: vec![], id: 0, curr_pos: (0,0), min_pos: (0,0), max_pos: (0,0) });
+            .unwrap_or(GameAreaData { tiles: HashMap::new(), instance_ids: vec![], id: 0, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000) });
 
         Self {
             name        : name.to_string(),
@@ -75,5 +75,29 @@ impl GameArea {
         if self.data.max_pos.1 < pos.1 {
             self.data.max_pos.1 = pos.1;
         }
+    }
+
+    /// Calculates the min / max positions
+    pub fn calc_dimensions(&mut self) {
+        let mut min_pos = (10000, 10000);
+        let mut max_pos = (-10000, -10000);
+
+        for (pos, _tile)  in &self.data.tiles {
+            if min_pos.0 > pos.0 {
+                min_pos.0 = pos.0;
+            }
+            if min_pos.1 > pos.1 {
+                min_pos.1 = pos.1;
+            }
+            if max_pos.0 < pos.0 {
+                max_pos.0 = pos.0;
+            }
+            if max_pos.1 < pos.1 {
+                max_pos.1 = pos.1;
+            }
+        }
+
+        self.data.min_pos = min_pos;
+        self.data.max_pos = max_pos;
     }
 }

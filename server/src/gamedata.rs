@@ -69,6 +69,8 @@ impl GameData {
                     }
                 }
 
+                area.calc_dimensions();
+
                 areas_ids.push(area.data.id);
                 areas.insert(area.data.id, area);
             }
