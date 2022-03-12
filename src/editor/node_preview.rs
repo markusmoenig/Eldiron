@@ -19,7 +19,11 @@ pub struct NodePreviewWidget {
 
     pub clicked_id              : Option<(usize, usize, String)>,
 
-    pub drag_size               : Option<(usize, usize)>
+    pub drag_size               : Option<(usize, usize)>,
+
+    // For showing maps
+    pub map_tile_size           : usize,
+    pub map_rect                : (usize, usize, usize, usize)
 }
 
 impl NodePreviewWidget {
@@ -46,6 +50,9 @@ impl NodePreviewWidget {
             clicked_id          : None,
 
             drag_size           : None,
+
+            map_tile_size       : 32,
+            map_rect            : (0,0,0,0),
         }
     }
 
@@ -70,6 +77,13 @@ impl NodePreviewWidget {
 
             self.widgets[0].set_rect((20, 4, 140, 32), asset, context);
             self.widgets[0].draw(buffer_frame, stride, anim_counter, asset, context);
+
+            self.map_rect.0 = 10;
+            self.map_rect.1 = 50;
+            self.map_rect.2 = rect.2 - 20;
+            self.map_rect.3 = rect.3 - 100;
+
+            context.draw2d.draw_area(buffer_frame, 0, &self.map_rect, stride, 32, anim_counter, asset, &context.data);
         }
         self.dirty = false;
     }
@@ -119,7 +133,7 @@ impl NodePreviewWidget {
             let mut y: isize =  drag_size.1 as isize + rel_pos.1;
             if x < 200 { x = 200; }
             if x > 600 { x = 600; }
-            if y < 60 { y = 60; }
+            if y < 150 { y = 150; }
             if y > 600 { y = 600; }
             self.size = (x as usize, y as usize);
             self.dirty = true;
