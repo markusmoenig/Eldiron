@@ -29,7 +29,7 @@ impl Draw2D {
     }
 
     /// Draws the given rectangle
-    pub fn _draw_line(&self, frame: &mut [u8], start: &(usize, usize), end: &(usize, usize), stride: usize, color: &[u8; 4]) {
+    pub fn draw_line(&self, frame: &mut [u8], start: &(usize, usize), end: &(usize, usize), stride: usize, color: &[u8; 4]) {
         let p1 = (start.0 as i64, start.1 as i64);
         let p2 = (end.0 as i64, end.1 as i64);
 
@@ -176,7 +176,7 @@ impl Draw2D {
 
     /// Draws a rounded rect with a border
     pub fn draw_rounded_rect_with_border(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, size: &(f64, f64), color: &[u8; 4], rounding: &(f64, f64, f64, f64), border_color: &[u8; 4], border_size: f64) {
-        let center = (rect.0 as f64 + size.0 / 2.0, rect.1 as f64 + size.1 / 2.0 + (rect.3 as f64 - size.1) / 2.0);
+        let center = ((rect.0 as f64 + size.0 / 2.0).round(), (rect.1 as f64 + size.1 / 2.0 + (rect.3 as f64 - size.1) / 2.0).round());
         for y in rect.1..rect.1+rect.3 {
             for x in rect.0..rect.0+rect.2 {
                 let i = x * 4 + y * stride * 4;

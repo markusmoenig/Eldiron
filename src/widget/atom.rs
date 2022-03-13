@@ -36,6 +36,7 @@ impl AtomData {
 pub enum AtomWidgetType {
     ToolBarButton,
     ToolBarSliderButton,
+    ToolBarMenuButton,
     ToolBarSwitchButton,
     CheckButton,
     Button,
@@ -70,6 +71,9 @@ pub struct AtomWidget {
     groups                      : Vec<GroupedList>,
     pub curr_group_index        : usize,
     pub curr_item_index         : usize,
+
+    // For Menus
+    pub new_selection           : Option<usize>,
 
     // Id for behavior data (BehaviorId, NodeId, AtomId)
     pub  behavior_id            : Option<(usize, usize, String)>,
@@ -107,6 +111,8 @@ impl AtomWidget {
             curr_group_index    : 0,
             curr_item_index     : 0,
 
+            new_selection       : None,
+
             behavior_id         : None,
 
             drag_enabled        : false,
@@ -127,6 +133,9 @@ impl AtomWidget {
         let buffer_frame = &mut self.buffer[..];
 
         if self.dirty {
+
+            // Toolbar
+
             if self.atom_widget_type == AtomWidgetType::ToolBarButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
 
@@ -135,14 +144,6 @@ impl AtomWidget {
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
-            if self.atom_widget_type == AtomWidgetType::LargeButton {
-                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.large_button_height) / 2, self.rect.2 - 2, context.large_button_height);
-
-                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.large_button_rounding, &context.color_light_gray, 1.3);
-                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.large_button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
-            }  else
             if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
 
@@ -150,14 +151,6 @@ impl AtomWidget {
                 let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
-            }  else
-            if self.atom_widget_type == AtomWidgetType::NodeSliderButton {
-                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.node_button_height) / 2, self.rect.2 - 2, context.node_button_height - 1);
-
-                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.node_button_rounding, &context.color_light_gray, 1.5);
-                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.node_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
             if self.atom_widget_type == AtomWidgetType::ToolBarSwitchButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
@@ -201,6 +194,47 @@ impl AtomWidget {
                     y_pos += 5;
                 }
             }  else
+            if self.atom_widget_type == AtomWidgetType::ToolBarMenuButton {
+                if self.state != WidgetState::Clicked {
+                    self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
+
+                    context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                    //let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
+                    let fill_color = &context.color_black;
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
+                    context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+
+                    // Triangle
+                    let color = if self.state == WidgetState::Hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
+
+                    context.draw2d.draw_line(buffer_frame, &(self.content_rect.2 - 30, 18), &(self.content_rect.2 - 20, 18), rect.2, color);
+                    context.draw2d.draw_line(buffer_frame, &(self.content_rect.2 - 30, 18), &(self.content_rect.2 - 25, 28), rect.2, color);
+                    context.draw2d.draw_line(buffer_frame, &(self.content_rect.2 - 20, 18), &(self.content_rect.2 - 25, 28), rect.2, color);
+                }
+            }  else
+
+            // Node
+
+            if self.atom_widget_type == AtomWidgetType::NodeSliderButton {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.node_button_height) / 2, self.rect.2 - 2, context.node_button_height - 1);
+
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.node_button_rounding, &context.color_light_gray, 1.5);
+                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.node_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+            }  else
+
+            // Large
+            if self.atom_widget_type == AtomWidgetType::LargeButton {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.large_button_height) / 2, self.rect.2 - 2, context.large_button_height);
+
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.large_button_rounding, &context.color_light_gray, 1.3);
+                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.large_button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+            }  else
+
+            // Normal
             if self.atom_widget_type == AtomWidgetType::CheckButton || self.atom_widget_type == AtomWidgetType::Button {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
 
@@ -259,6 +293,47 @@ impl AtomWidget {
         context.draw2d.blend_slice(frame, buffer_frame, &self.rect, stride);
     }
 
+    // Draw overlay widgets which gets rendered on the whole screen, like open menus etc
+    pub fn draw_overlay(&mut self, frame: &mut [u8], rect: &(usize, usize, usize, usize), _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+        if self.atom_widget_type == AtomWidgetType::ToolBarMenuButton && self.state == WidgetState::Clicked {
+
+            // Draw Open Menu
+            self.content_rect = (self.rect.0, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2, context.toolbar_button_height * self.text.len());
+
+            context.draw2d.draw_rect(frame, &self.content_rect, rect.2, &context.color_black);
+
+            context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, rect.2, &(self.content_rect.2 as f64 - 1.0, self.content_rect.3 as f64 - 1.0), & &context.color_black, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
+
+            let mut r = self.content_rect.clone();
+            r.3 = context.toolbar_button_height;
+            for (index,text) in self.text.iter().enumerate() {
+
+                let mut fill_color = &context.color_black;
+
+                if let Some(selection) = self.new_selection {
+                    if index == selection {
+                        fill_color = &context.color_gray;
+                        let mut rounding = (0.0, 0.0, 0.0, 0.0);
+
+                        if index == 0 {
+                            rounding.1 =  context.toolbar_button_rounding.1;
+                            rounding.3 =  context.toolbar_button_rounding.3;
+                        } else
+                        if index == self.text.len() - 1 {
+                            rounding.0 =  context.toolbar_button_rounding.0;
+                            rounding.2 =  context.toolbar_button_rounding.2;
+                        }
+
+                        context.draw2d.draw_rounded_rect_with_border(frame, &r, rect.2, &(r.2 as f64 - 1.0, r.3 as f64 - 1.0), &fill_color, &rounding, &context.color_light_gray, 1.5);
+                    }
+                }
+
+                context.draw2d.draw_text_rect(frame, &r, rect.2, &asset.open_sans, context.toolbar_button_text_size, &text, &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+                r.1 += context.toolbar_button_height;
+            }
+        }
+    }
+
     pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         if self.contains_pos(pos) {
             if self.atom_widget_type == AtomWidgetType::ToolBarButton ||  self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton {
@@ -266,6 +341,15 @@ impl AtomWidget {
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
                 return true;
+            } else
+            if self.atom_widget_type == AtomWidgetType::ToolBarMenuButton {
+                if self.text.len() > 1 {
+                    self.clicked = true;
+                    self.state = WidgetState::Clicked;
+                    self.dirty = true;
+                    self.new_selection = Some(0);
+                    return true;
+                }
             } else
             if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton || self.atom_widget_type == AtomWidgetType::NodeSliderButton {
                 self.clicked = true;
@@ -328,25 +412,46 @@ impl AtomWidget {
 
         self.drag_context = None;
 
-        if self.state == WidgetState::Clicked {
-            self.state = WidgetState::Normal;
-        }
-
-        if self.clicked {
+        if self.clicked || self.state == WidgetState::Clicked {
             self.clicked = false;
             self.dirty = true;
+
+            if self.state == WidgetState::Clicked {
+                self.state = WidgetState::Normal;
+            }
+
+            if let Some(selection) = self.new_selection {
+                self.curr_index = selection;
+            }
+
             return true;
         }
 
         false
     }
 
-    pub fn mouse_dragged(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    pub fn mouse_dragged(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+
+        if self.atom_widget_type == AtomWidgetType::ToolBarMenuButton && self.state == WidgetState::Clicked {
+
+            self.new_selection = None;
+
+            let mut r = self.content_rect.clone();
+            r.3 = context.toolbar_button_height;
+            for index in 0..self.text.len() {
+
+                if context.contains_pos_for(pos, r) {
+                    self.new_selection = Some(index);
+                    return true;
+                }
+                r.1 += context.toolbar_button_height;
+            }
+        }
         false
     }
 
     pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton {
+        if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::ToolBarMenuButton {
             if self.contains_pos_for(pos, self.content_rect) {
                 if self.state != WidgetState::Disabled {
                     if self.state != WidgetState::Hover {

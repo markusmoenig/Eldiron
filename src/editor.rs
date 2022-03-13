@@ -200,6 +200,9 @@ impl ScreenWidget for Editor {
                 self.context.draw2d.blend_slice_safe(frame, &mut buffer[..], &(self.mouse_pos.0 as isize - drag_context.offset.0, self.mouse_pos.1 as isize - drag_context.offset.1, 180, 32), self.context.width, &self.rect);
             }
         }
+
+        // Draw overlay
+        self.toolbar.draw_overlay(frame, &self.rect, anim_counter, asset, &mut self.context);
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
@@ -207,6 +210,7 @@ impl ScreenWidget for Editor {
 
         if self.toolbar.mouse_down(pos, asset, &mut self.context) {
 
+            /*
             if self.toolbar.widgets[0].clicked {
                 if self.state == EditorState::TilesOverview || self.state == EditorState::TilesDetail {
                     self.node_graph_tiles.changed_selection(self.context.curr_tileset_index, self.toolbar.widgets[0].curr_index);
@@ -219,7 +223,7 @@ impl ScreenWidget for Editor {
                     self.area_widget.set_area_id(self.context.data.areas_ids[self.context.curr_area_index]);
                 }
                 self.toolbar.widgets[0].clicked = false;
-            } else
+            } else*/
             // Tile Button
             if self.toolbar.widgets[1].clicked {
                 if self.toolbar.widgets[1].selected {
@@ -388,9 +392,25 @@ impl ScreenWidget for Editor {
     }
 
     fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
+
         let mut consumed = false;
         if self.toolbar.mouse_up(pos, asset, &mut self.context) {
-            self.tilemap.set_tilemap_id(asset.tileset.maps_ids[self.toolbar.widgets[0].curr_index]);
+
+            if self.toolbar.widgets[0].new_selection.is_some() {
+                if self.state == EditorState::TilesOverview || self.state == EditorState::TilesDetail {
+                    self.node_graph_tiles.changed_selection(self.context.curr_tileset_index, self.toolbar.widgets[0].curr_index);
+                    self.context.curr_tileset_index = self.toolbar.widgets[0].curr_index;
+                    self.tilemap.set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
+                } else
+                if self.state == EditorState::AreaOverview || self.state == EditorState::AreaDetail {
+                    self.node_graph_areas.changed_selection(self.context.curr_area_index, self.toolbar.widgets[0].curr_index);
+                    self.context.curr_area_index = self.toolbar.widgets[0].curr_index;
+                    self.area_widget.set_area_id(self.context.data.areas_ids[self.context.curr_area_index]);
+                }
+                self.toolbar.widgets[0].new_selection = None;
+            }
+
+            //self.tilemap.set_tilemap_id(asset.tileset.maps_ids[self.toolbar.widgets[0].curr_index]);
             consumed = true;
         }
 
@@ -436,6 +456,8 @@ impl ScreenWidget for Editor {
 
     fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
         let mut consumed = false;
+
+        self.toolbar.mouse_dragged(pos, asset, &mut self.context);
 
         if self.state == EditorState::TilesOverview {
             if consumed == false && self.node_graph_tiles.mouse_dragged(pos, asset, &mut self.context) {

@@ -17,7 +17,7 @@ impl Widget for ToolBar {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
-        let mut item_slider_button = AtomWidget::new(asset.tileset.maps_names.clone(), AtomWidgetType::ToolBarSliderButton,
+        let mut item_slider_button = AtomWidget::new(asset.tileset.maps_names.clone(), AtomWidgetType::ToolBarMenuButton,
         AtomData::new_as_int("Game".to_string(), 0));
         item_slider_button.set_rect((rect.0 + 10, rect.1, 200, rect.3), asset, context);
         widgets.push(item_slider_button);
@@ -64,6 +64,12 @@ impl Widget for ToolBar {
         }
     }
 
+    fn draw_overlay(&mut self, frame: &mut [u8], rect: &(usize, usize, usize, usize), anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+        for atom in &mut self.widgets {
+            atom.draw_overlay(frame, rect, anim_counter, asset, context);
+        }
+    }
+
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_down(pos, asset, context) {
@@ -82,6 +88,15 @@ impl Widget for ToolBar {
             }
         }
         consumed
+    }
+
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+        for atom in &mut self.widgets {
+            if atom.mouse_dragged(pos, asset, context) {
+                return true;
+            }
+        }
+        false
     }
 
     fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
