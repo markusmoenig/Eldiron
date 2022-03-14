@@ -212,9 +212,7 @@ impl AtomWidget {
                     // Triangle
                     let color = if self.state == WidgetState::Hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
 
-                    context.draw2d.draw_line(buffer_frame, &(self.content_rect.2 - 30, 18), &(self.content_rect.2 - 20, 18), rect.2, color);
-                    context.draw2d.draw_line(buffer_frame, &(self.content_rect.2 - 30, 18), &(self.content_rect.2 - 25, 28), rect.2, color);
-                    context.draw2d.draw_line(buffer_frame, &(self.content_rect.2 - 20, 18), &(self.content_rect.2 - 25, 28), rect.2, color);
+                    context.draw2d.blend_mask(buffer_frame, &(rect.2 - 25, 20, rect.2, rect.3), rect.2, &context.menu_triangle_mask[..], &(10, 10), &color);
                 }
             }  else
 
@@ -241,9 +239,7 @@ impl AtomWidget {
                     // Triangle
                     let color = if self.state == WidgetState::Hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
 
-                    context.draw2d.draw_line(buffer_frame, &(self.content_rect.2 - 25, 8), &(self.content_rect.2 - 15, 8), rect.2, color);
-                    context.draw2d.draw_line(buffer_frame, &(self.content_rect.2 - 25, 8), &(self.content_rect.2 - 20, 18), rect.2, color);
-                    context.draw2d.draw_line(buffer_frame, &(self.content_rect.2 - 15, 8), &(self.content_rect.2 - 20, 18), rect.2, color);
+                    context.draw2d.blend_mask(buffer_frame, &(rect.2 - 25, 10, rect.2, rect.3), rect.2, &context.menu_triangle_mask[..], &(10, 10), &color);
                 }
             }  else
 
@@ -512,7 +508,7 @@ impl AtomWidget {
             self.new_selection = None;
 
             let mut r = self.content_rect.clone();
-            r.3 = context.toolbar_button_height;
+            r.3 = context.node_button_height;
             for index in 0..self.text.len() {
 
                 if context.contains_pos_for(pos, r) {

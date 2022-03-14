@@ -2,6 +2,8 @@
 use crate::draw2d::Draw2D;
 use server::gamedata::GameData;
 
+use zeno::{Mask, Stroke};
+
 #[derive(PartialEq)]
 pub struct ScreenDragContext {
     pub text                            : String,
@@ -59,12 +61,31 @@ pub struct ScreenContext {
     pub curr_behavior_index             : usize,
     pub curr_behavior_node_id           : usize,
 
-    pub drag_context                    : Option<ScreenDragContext>
+    pub drag_context                    : Option<ScreenDragContext>,
+
+    // Masks
+    pub menu_triangle_mask              : [u8;10*10],
+    pub preview_arc_mask                : [u8;20*20],
 }
 
 impl ScreenContext {
 
     pub fn new(width: usize, height: usize) -> Self {
+
+
+        let mut menu_triangle_mask = [0u8; 10 * 10];
+        Mask::new("M 0,0 10,0 5,7 0,0 Z")
+            .size(10, 10)
+            .render_into(&mut menu_triangle_mask, None);
+
+        let mut preview_arc_mask = [0u8; 20 * 20];
+        Mask::new("M 18,18 C0,16 2,4 1,0")
+            .size(20, 20)
+            .style(
+                // Stroke style with a width of 4
+                Stroke::new(1.0)
+            )
+            .render_into(&mut preview_arc_mask, None);
 
         Self {
             draw2d                      : Draw2D {},
@@ -121,6 +142,10 @@ impl ScreenContext {
             // Behaviors
             curr_behavior_index         : 0,
             curr_behavior_node_id       : 0,
+
+            // UI Masks
+            menu_triangle_mask,
+            preview_arc_mask
         }
     }
 

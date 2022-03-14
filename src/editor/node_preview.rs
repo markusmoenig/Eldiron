@@ -107,6 +107,7 @@ impl NodePreviewWidget {
 
                 context.draw2d.draw_area(buffer_frame, area, &self.map_rect, &offset, stride, 32, anim_counter, asset);
             }
+            context.draw2d.blend_mask(buffer_frame, &(6, rect.3 - 23, rect.2, rect.3), rect.2, &context.preview_arc_mask[..], &(20, 20), &context.color_gray);
         }
         self.dirty = false;
     }
@@ -123,7 +124,7 @@ impl NodePreviewWidget {
         }
 
         // Test dragging area
-        if context.contains_pos_for(pos, (0, self.size.1 - 20, 20, 20)) {
+        if context.contains_pos_for(pos, (0, self.size.1 - 20, 30, 20)) {
             self.drag_size = Some(self.size.clone());
             context.target_fps = 60;
             return true;

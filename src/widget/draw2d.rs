@@ -18,6 +18,20 @@ pub struct Draw2D {
 
 impl Draw2D {
 
+    /// Draws the mask
+    pub fn blend_mask(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, mask_frame: &[u8], mask_size: &(usize, usize), color: &[u8; 4]) {
+        for y in 0..mask_size.1 {
+            for x in 0..mask_size.0 {
+                let i = (x+rect.0) * 4 + (y+rect.1) * stride * 4;
+                let m = mask_frame[x + y * mask_size.0];
+                let c : [u8;4] = [color[0], color[1], color[2], m];
+
+                let background = &[frame[i], frame[i+1], frame[i+2], frame[i+3]];
+                frame[i..i + 4].copy_from_slice(&self.mix_color(&background, &c, m as f64 / 255.0));
+            }
+        }
+    }
+
     /// Draws the given rectangle
     pub fn draw_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, color: &[u8; 4]) {
         for y in rect.1..rect.1+rect.3 {
@@ -29,7 +43,7 @@ impl Draw2D {
     }
 
     /// Draws the given rectangle
-    pub fn draw_line(&self, frame: &mut [u8], start: &(usize, usize), end: &(usize, usize), stride: usize, color: &[u8; 4]) {
+    pub fn _draw_line(&self, frame: &mut [u8], start: &(usize, usize), end: &(usize, usize), stride: usize, color: &[u8; 4]) {
         let p1 = (start.0 as i64, start.1 as i64);
         let p2 = (end.0 as i64, end.1 as i64);
 

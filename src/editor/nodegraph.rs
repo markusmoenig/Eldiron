@@ -2,6 +2,8 @@ use crate::editor::node::{NodeConnector, NodeWidget};
 use crate::atom:: { AtomData, AtomWidget, AtomWidgetType };
 use crate::editor::node_preview::NodePreviewWidget;
 
+use zeno::{Mask, Stroke};
+
 use server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode, BehaviorNodeConnector};
 
 use server::{asset::Asset };
@@ -167,6 +169,10 @@ impl NodeGraph {
 
                 // Draw connections
                 if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
+
+                    let mut mask : Vec<u8> = vec![0; safe_rect.2 * safe_rect.3];
+                    let mut path : String = "".to_string();
+
                     for (source_node_id , source_connector, dest_node_id, dest_connector) in &behavior.data.connections {
 
                         let source_index = self.node_id_to_widget_index(source_node_id.clone());
@@ -186,8 +192,20 @@ impl NodeGraph {
                         let end_x = dest_rect.0 + dest_connector.rect.0 as isize + dest_connector.rect.2 as isize / 2;
                         let end_y = dest_rect.1 + dest_connector.rect.1 as isize + dest_connector.rect.3 as isize / 2;
 
-                        context.draw2d.draw_line_safe(&mut self.buffer[..], &(start_x, start_y), &(end_x, end_y), &safe_rect, safe_rect.2, &context.node_connector_color);
+                        //context.draw2d.draw_line_safe(&mut self.buffer[..], &(start_x, start_y), &(end_x, end_y), &safe_rect, safe_rect.2, &context.node_connector_color);
+
+                        //path += format!("M {},{} L {},{}", start_x, start_y, end_x, end_y).as_str();
+                        path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, start_x, start_y + 50, end_x, end_y - 50, end_x, end_y).as_str();
                     }
+
+                    Mask::new(path.as_str())
+                    .size(safe_rect.2 as u32, safe_rect.3 as u32)
+                    .style(
+                       Stroke::new(2.0)
+                    )
+                    .render_into(&mut mask, None);
+
+                    context.draw2d.blend_mask(&mut self.buffer[..], &safe_rect, safe_rect.2, &mask[..], &(safe_rect.2, safe_rect.3), &context.node_connector_color);
                 }
 
                 // Draw ongoing connection effort
@@ -434,7 +452,6 @@ impl NodeGraph {
                 self.dirty = true;
                 if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
                     behavior.save_data();
-                    println!("{}", context.curr_behavior_index);
                 }
                 return true;
             }
