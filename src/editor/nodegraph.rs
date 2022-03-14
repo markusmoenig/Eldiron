@@ -72,16 +72,16 @@ impl NodeGraph {
         }
     }
 
-    pub fn set_mode(&mut self, mode: GraphMode) {
+    pub fn set_mode(&mut self, mode: GraphMode, context: &ScreenContext) {
         if mode == GraphMode::Detail && self.preview.is_none() {
-            self.preview = Some(NodePreviewWidget::new());
+            self.preview = Some(NodePreviewWidget::new(context));
         }
         self.graph_mode = mode;
     }
 
     pub fn set_mode_and_rect(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &ScreenContext) {
         if mode == GraphMode::Detail && self.preview.is_none() {
-            self.preview = Some(NodePreviewWidget::new());
+            self.preview = Some(NodePreviewWidget::new(context));
         }
         self.graph_mode = mode;
         self.rect = rect;
@@ -161,6 +161,7 @@ impl NodeGraph {
                     }
 
                     let rect= self.get_node_rect(index, true);
+                    self.nodes[index].graph_offset = (rect.0, rect.1);
                     context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, safe_rect.2, &safe_rect);
                 }
 
@@ -219,12 +220,34 @@ impl NodeGraph {
                 if let Some(preview) = &mut self.preview {
                     preview.draw(frame, anim_counter, asset, context);
                     preview.rect = (self.rect.0 + self.rect.2 - preview.size.0, self.rect.1, preview.size.0, preview.size.1);
+                    preview.graph_offset = (preview.rect.0 as isize, preview.rect.1 as isize);
                     context.draw2d.blend_slice(&mut self.buffer[..], &mut preview.buffer[..], &(self.rect.2 - preview.size.0, 0, preview.size.0, preview.size.1), safe_rect.2);
                 }
             }
         }
         self.dirty = false;
         context.draw2d.copy_slice(frame, &mut self.buffer[..], &self.rect, context.width);
+
+        // Draw nodes overlay
+        for index in 0..self.nodes.len() {
+            let mut node_offset = self.nodes[index].graph_offset.clone();
+            node_offset.0 += self.rect.0 as isize;
+            node_offset.1 += self.rect.1 as isize;
+
+            for atom in &mut self.nodes[index].widgets {
+                atom.emb_offset = node_offset.clone();
+                atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
+            }
+        }
+
+        // Preview overlay ?
+        if let Some(preview) = &mut self.preview {
+            let node_offset = preview.graph_offset.clone();
+            for atom in &mut preview.widgets {
+                atom.emb_offset = node_offset.clone();
+                atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
+            }
+        }
     }
 
     /// Returns the rectangle for the given node either in relative or absolute coordinates
@@ -407,7 +430,14 @@ impl NodeGraph {
         for index in 0..self.nodes.len() {
             let rect= self.get_node_rect(index, false);
             let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
-            self.nodes[index].mouse_up(local, asset, context);
+            if self.nodes[index].mouse_up(local, asset, context) {
+                self.dirty = true;
+                if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
+                    behavior.save_data();
+                    println!("{}", context.curr_behavior_index);
+                }
+                return true;
+            }
         }
 
         // Preview
@@ -423,6 +453,24 @@ impl NodeGraph {
     pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
         self.mouse_pos = pos.clone();
+
+        // Draw nodes overlay
+        for index in 0..self.nodes.len() {
+            for atom in &mut self.nodes[index].widgets {
+                if atom.mouse_dragged(pos, asset, context) {
+                    return true;
+                }
+            }
+        }
+
+        // Draw preview overlay
+        if let Some(preview) = &mut self.preview {
+            for atom in &mut preview.widgets {
+                if atom.mouse_dragged(pos, asset, context) {
+                    return true;
+                }
+            }
+        }
 
         // Dragging a node
         if let Some(index) = self.drag_index {
@@ -577,7 +625,7 @@ impl NodeGraph {
     pub fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, behavior_node: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
 
         if behavior_node.behavior_type == BehaviorNodeType::BehaviorTree {
-            let mut atom1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Demand".to_string()], AtomWidgetType::NodeSliderButton,
+            let mut atom1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Demand".to_string()], AtomWidgetType::NodeMenuButton,
             AtomData::new_as_int("execute".to_string(), 0));
             atom1.atom_data.text = "Execute".to_string();
             let id = (behavior_data.id, behavior_node.id, "execute".to_string());
@@ -587,7 +635,7 @@ impl NodeGraph {
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
         if behavior_node.behavior_type == BehaviorNodeType::DiceRoll {
-            let mut atom1 = AtomWidget::new(vec!["D20".to_string(), "D10".to_string(), "D8".to_string()], AtomWidgetType::NodeSliderButton,
+            let mut atom1 = AtomWidget::new(vec!["D20".to_string(), "D10".to_string(), "D8".to_string()], AtomWidgetType::NodeMenuButton,
             AtomData::new_as_int("dice".to_string(), 0));
             atom1.atom_data.text = "Dice".to_string();
             let id = (behavior_data.id, behavior_node.id, "dice".to_string());

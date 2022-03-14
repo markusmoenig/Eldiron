@@ -114,7 +114,7 @@ impl ScreenWidget for Editor {
 
         let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, GraphType::Behavior, vec![]);
 
-        node_graph_behavior_details.set_mode(GraphMode::Detail);
+        node_graph_behavior_details.set_mode(GraphMode::Detail, &context);
         node_graph_behavior_details.set_behavior_id(0, &mut context);
 
         Self {

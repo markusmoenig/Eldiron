@@ -35,6 +35,8 @@ pub struct NodeWidget {
     pub clicked_id              : Option<(usize, usize, String)>,
 
     pub node_connector          : HashMap<BehaviorNodeConnector, NodeConnector>,
+
+    pub graph_offset            : (isize, isize),
 }
 
 impl NodeWidget {
@@ -59,7 +61,9 @@ impl NodeWidget {
 
             clicked_id          : None,
 
-            node_connector      : HashMap::new()
+            node_connector      : HashMap::new(),
+
+            graph_offset        : (0,0)
         }
     }
 
@@ -84,7 +88,9 @@ impl NodeWidget {
 
             clicked_id          : None,
 
-            node_connector      : HashMap::new()
+            node_connector      : HashMap::new(),
+
+            graph_offset        : (0,0)
         }
     }
 
@@ -196,9 +202,19 @@ impl NodeWidget {
         false
     }
 
-    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+
+        let mut consumed = false;
+        for atom_widget in &mut self.widgets {
+            if atom_widget.mouse_up(pos, asset, context) {
+                self.dirty = true;
+                self.clicked = true;
+            }
+        }
+
         if self.clicked == true {
 
+            // Save the data
             if let Some(id) = self.clicked_id.clone() {
                 for index in 0..self.widgets.len() {
                     if let Some(widget_id) = self.widgets[index].behavior_id.clone() {
@@ -209,10 +225,11 @@ impl NodeWidget {
                 }
             }
 
+            consumed = true;
             self.clicked = false;
         }
         self.clicked_id = None;
-        false
+        consumed
     }
 
     pub fn _mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {

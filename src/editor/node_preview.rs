@@ -23,19 +23,32 @@ pub struct NodePreviewWidget {
 
     // For showing maps
     pub map_tile_size           : usize,
-    pub map_rect                : (usize, usize, usize, usize)
+    pub map_rect                : (usize, usize, usize, usize),
+
+    pub graph_offset            : (isize, isize),
+
+    pub curr_area_index         : usize,
 }
 
 impl NodePreviewWidget {
 
-    pub fn new() -> Self {
+    pub fn new(context: &ScreenContext) -> Self {
 
         let run_button = AtomWidget::new(vec!["Run Behavior".to_string()], AtomWidgetType::LargeButton,
         AtomData::new_as_int("run".to_string(), 0));
 
+        let mut areas_button = AtomWidget::new(context.data.areas_names.clone(), AtomWidgetType::NodeMenuButton,
+        AtomData::new_as_int("area".to_string(), 0));
+        areas_button.atom_data.text = "Area".to_string();
+        //let id = (behavior_data.id, behavior_node.id, "execute".to_string());
+        //atom1.behavior_id = Some(id.clone());
+        areas_button.curr_index = 0;//context.data.get_behavior_id_value(id).0 as usize;
+        //node_widget.widgets.push(atom1);
+        //node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+
         Self {
             rect                : (0,0,0,0),
-            widgets             : vec![run_button],
+            widgets             : vec![run_button, areas_button],
             clicked             : false,
 
             id                  : 0,
@@ -53,6 +66,10 @@ impl NodePreviewWidget {
 
             map_tile_size       : 32,
             map_rect            : (0,0,0,0),
+
+            graph_offset        : (0,0),
+
+            curr_area_index     : 0,
         }
     }
 
@@ -61,6 +78,9 @@ impl NodePreviewWidget {
 
         if self.buffer.len() != self.size.0 * self.size.1 * 4 {
             self.buffer = vec![0;self.size.0 * self.size.1 * 4];
+            for w in &mut self.widgets {
+                w.dirty = true;
+            }
         }
 
         let rect = (0, 0, self.size.0, self.size.1);
@@ -71,19 +91,22 @@ impl NodePreviewWidget {
             let stride = self.size.0;
 
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &context.color_black, &(0.0, 0.0, 20.0, 0.0), &context.color_gray, 1.5);
-            context.draw2d.draw_rect(buffer_frame, &(2, 0, rect.2 - 4, 2), stride, &context.color_black);
+            context.draw2d.draw_rect(buffer_frame, &(2, 0, rect.2 - 4, 4), stride, &context.color_black);
             context.draw2d.draw_rect(buffer_frame, &(rect.2-2, 0, 2, rect.3 - 1), stride, &context.color_black);
             context.draw2d.draw_rect(buffer_frame, &(1, 1, 1, 1), stride, &[65, 65, 65, 255]);
 
             self.widgets[0].set_rect((20, 4, 140, 32), asset, context);
             self.widgets[0].draw(buffer_frame, stride, anim_counter, asset, context);
 
+            self.widgets[1].set_rect((15, self.size.1 - 50, self.size.0 - 20, 25), asset, context);
+            self.widgets[1].draw(buffer_frame, stride, anim_counter, asset, context);
+
             self.map_rect.0 = 10;
             self.map_rect.1 = 50;
             self.map_rect.2 = rect.2 - 20;
             self.map_rect.3 = rect.3 - 100;
 
-            if let Some(area) = context.data.areas.get(&0) {
+            if let Some(area) = context.data.areas.get(&self.curr_area_index) {
                 let offset = area.data.min_pos;
 
                 context.draw2d.draw_area(buffer_frame, area, &self.map_rect, &offset, stride, 32, anim_counter, asset);
@@ -119,6 +142,10 @@ impl NodePreviewWidget {
             if atom_widget.mouse_up(pos, asset, context) {
                 self.dirty = true;
                 self.clicked = false;
+
+                if atom_widget.atom_data.text == "Area" {
+                    self.curr_area_index = atom_widget.curr_index;
+                }
                 return true;
             }
         }
