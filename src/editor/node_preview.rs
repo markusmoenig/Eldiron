@@ -40,11 +40,7 @@ impl NodePreviewWidget {
         let mut areas_button = AtomWidget::new(context.data.areas_names.clone(), AtomWidgetType::NodeMenuButton,
         AtomData::new_as_int("area".to_string(), 0));
         areas_button.atom_data.text = "Area".to_string();
-        //let id = (behavior_data.id, behavior_node.id, "execute".to_string());
-        //atom1.behavior_id = Some(id.clone());
-        areas_button.curr_index = 0;//context.data.get_behavior_id_value(id).0 as usize;
-        //node_widget.widgets.push(atom1);
-        //node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        areas_button.curr_index = 0;
 
         Self {
             rect                : (0,0,0,0),
@@ -90,7 +86,7 @@ impl NodePreviewWidget {
             let buffer_frame = &mut self.buffer[..];
             let stride = self.size.0;
 
-            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &context.color_black, &(0.0, 0.0, 20.0, 0.0), &context.color_gray, 1.5);
+            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3 - 2) as f64), &context.color_black, &(0.0, 0.0, 20.0, 0.0), &context.color_gray, 1.5);
             context.draw2d.draw_rect(buffer_frame, &(2, 0, rect.2 - 4, 4), stride, &context.color_black);
             context.draw2d.draw_rect(buffer_frame, &(rect.2-2, 0, 2, rect.3 - 1), stride, &context.color_black);
             context.draw2d.draw_rect(buffer_frame, &(1, 1, 1, 1), stride, &[65, 65, 65, 255]);
