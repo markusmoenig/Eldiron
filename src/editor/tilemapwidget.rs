@@ -12,7 +12,6 @@ pub struct TileMapWidget {
 
     line_offset             : usize,
     max_line_offset         : usize,
-    line_offset_counter     : isize,
 
     pub clicked             : bool,
 }
@@ -30,7 +29,6 @@ impl TileMapWidget {
 
             line_offset             : 0,
             max_line_offset         : 0,
-            line_offset_counter     : 0,
 
             clicked                 : false
         }
@@ -132,7 +130,6 @@ impl TileMapWidget {
                 }
             }
         }
-
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
@@ -167,11 +164,9 @@ impl TileMapWidget {
     }
 
     pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        self.line_offset_counter += delta.1;
-        self.line_offset = (self.line_offset_counter / 40).clamp(0, self.max_line_offset as isize) as usize;
-        if delta.1 == 0 {
-           self.line_offset_counter = 0;
-        }
+        let mut o = self.line_offset as isize;
+        o += delta.1 / 16;
+        self.line_offset = o.clamp(0, self.max_line_offset as isize) as usize;
         true
     }
 

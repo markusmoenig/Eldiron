@@ -154,9 +154,13 @@ impl AtomWidget {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
 
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
+                let fill_color = &context.color_black;//if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
-                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+                context.draw2d.draw_text_rect(buffer_frame, &(rect.0, rect.1, rect.2 - 10, rect.3), rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+
+                // Right Arrow
+                let color = if self.state == WidgetState::Hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
+                context.draw2d.blend_mask(buffer_frame, &(rect.2 - 24, 16, rect.2, rect.3), rect.2, &context.right_arrow_mask[..], &(10, 10), &color);
             }  else
             if self.atom_widget_type == AtomWidgetType::ToolBarSwitchButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
@@ -275,10 +279,7 @@ impl AtomWidget {
                 self.content_rect = (self.rect.0, self.rect.1, self.rect.2, self.rect.3);
 
                 let mut y = 2;
-                //for (g_index, group) in self.groups.iter().enumerate() {
                 for g_index in 0..self.groups.len() {
-
-                    //for (i_index, item) in group.items.iter().enumerate() {
                     for i_index in 0..self.groups[g_index].items.len() {
 
                         let r = (rect.0, y, rect.2, 32);
@@ -321,7 +322,6 @@ impl AtomWidget {
             }
         }
         self.dirty = false;
-        //context.draw2d.copy_slice(frame, buffer_frame, &self.rect, context.width);
         context.draw2d.blend_slice(frame, buffer_frame, &self.rect, stride);
     }
 
@@ -539,7 +539,7 @@ impl AtomWidget {
     }
 
     pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::ToolBarMenuButton {
+        if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::ToolBarMenuButton || self.atom_widget_type == AtomWidgetType::ToolBarSliderButton {
             if self.contains_pos_for(pos, self.content_rect) {
                 if self.state != WidgetState::Disabled {
                     if self.state != WidgetState::Hover {

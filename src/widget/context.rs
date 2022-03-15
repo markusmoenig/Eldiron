@@ -1,6 +1,7 @@
 
 use crate::draw2d::Draw2D;
 use server::gamedata::GameData;
+use crate::TileUsage;
 
 use zeno::{Mask, Stroke};
 
@@ -51,6 +52,7 @@ pub struct ScreenContext {
     pub color_light_orange              : [u8;4],
     pub color_green                     : [u8;4],
     pub color_light_green               : [u8;4],
+    pub color_blue                      : [u8;4],
 
     pub color_red                       : [u8;4],
     pub color_green_conn                : [u8;4],
@@ -60,6 +62,7 @@ pub struct ScreenContext {
     pub selection_end                   : Option<(usize, usize)>,
 
     pub curr_area_index                 : usize,
+    pub curr_area_tile                  : Option<(usize, usize, usize, TileUsage)>,
 
     pub curr_behavior_index             : usize,
     pub curr_behavior_node_id           : usize,
@@ -67,6 +70,7 @@ pub struct ScreenContext {
     pub drag_context                    : Option<ScreenDragContext>,
 
     // Masks
+    pub right_arrow_mask                : [u8;10*10],
     pub menu_triangle_mask              : [u8;10*10],
     pub preview_arc_mask                : [u8;20*20],
 }
@@ -75,6 +79,13 @@ impl ScreenContext {
 
     pub fn new(width: usize, height: usize) -> Self {
 
+        let mut right_arrow_mask = [0u8; 10 * 10];
+        Mask::new("M 0,0 10,5 0,10")
+            .size(10, 10)
+            .style(
+                Stroke::new(2.0)
+            )
+            .render_into(&mut right_arrow_mask, None);
 
         let mut menu_triangle_mask = [0u8; 10 * 10];
         Mask::new("M 0,0 10,0 5,7 0,0 Z")
@@ -85,7 +96,6 @@ impl ScreenContext {
         Mask::new("M 18,18 C0,16 2,4 1,0")
             .size(20, 20)
             .style(
-                // Stroke style with a width of 4
                 Stroke::new(1.0)
             )
             .render_into(&mut preview_arc_mask, None);
@@ -131,6 +141,7 @@ impl ScreenContext {
             color_light_green           : [101, 140, 134, 255],
             color_red                   : [207, 55, 54, 255],
             color_green_conn            : [20, 143, 40, 255],
+            color_blue                  : [27, 79, 136, 255],
 
             // Editor state
 
@@ -143,35 +154,18 @@ impl ScreenContext {
 
             // Areas
             curr_area_index             : 0,
+            curr_area_tile              : None,
 
             // Behaviors
             curr_behavior_index         : 0,
             curr_behavior_node_id       : 0,
 
             // UI Masks
+            right_arrow_mask,
             menu_triangle_mask,
             preview_arc_mask
         }
     }
-
-    // pub fn layout_hor_fixed(&self, margin: usize, width: usize, total_width: usize, widgets: usize) -> Vec<usize> {
-    //     let mut v: Vec<usize> = vec![];
-
-    //     let total_space_used = width * widgets + margin * 2;
-    //     let mut spacing = 0_usize;
-
-    //     if total_width > total_space_used {
-    //         //spacing = (total_width - total_space_used) / (widgets - 1);
-    //     }
-
-    //     let mut r = margin;
-    //     for i in 0..widgets {
-    //         v.push(r);
-    //         r += width + spacing;
-    //     }
-
-    //     v
-    // }
 
     /// Returns true if the given rect contains the given position
     pub fn contains_pos_for(&self, pos: (usize, usize), rect: (usize, usize, usize, usize)) -> bool {
@@ -190,17 +184,4 @@ impl ScreenContext {
             false
         }
     }
-
-    /*
-    pub fn process_mouse_hover(&self, pos: (usize, usize,), widgets: &mut Vec<Box<dyn Widget>>, asset: &mut Asset) -> bool {
-        let mut consumed = false;
-
-        for w in widgets {
-            if w.mouse_hover(pos, asset) {
-                consumed = true;
-                break;
-            }
-        }
-        consumed
-    }*/
 }

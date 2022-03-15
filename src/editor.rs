@@ -60,7 +60,8 @@ pub struct Editor {
     node_graph_behavior_details     : NodeGraph,
 
     left_width                      : usize,
-    mouse_pos                       : (usize, usize)
+    mouse_pos                       : (usize, usize),
+    mouse_hover_pos                 : (usize, usize)
 }
 
 impl ScreenWidget for Editor {
@@ -90,7 +91,7 @@ impl ScreenWidget for Editor {
         let area_options = AreaOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
         let area_widget = AreaWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height - 250), asset, &context);
         let mut area_tile_selector = TileSelectorWidget::new(vec!(), (left_width, area_widget.rect.1 + area_widget.rect.3, width - left_width, 250), asset, &context);
-        area_tile_selector.set_tile_type(TileUsage::Environment, &asset);
+        area_tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], None, &asset);
 
         let mut area_nodes = vec![];
         for (index, area) in context.data.areas.iter().enumerate() {
@@ -138,7 +139,8 @@ impl ScreenWidget for Editor {
             node_graph_behavior_details,
 
             left_width,
-            mouse_pos               : (0,0)
+            mouse_pos               : (0,0),
+            mouse_hover_pos         : (0,0)
         }
     }
 
@@ -157,6 +159,7 @@ impl ScreenWidget for Editor {
         self.area_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
         self.area_widget.rect = (self.left_width, self.context.toolbar_height, width - self.left_width, height - self.context.toolbar_height - 250);
         self.area_tile_selector.rect = (self.left_width, self.area_widget.rect.1 + self.area_widget.rect.3, width - self.left_width, 250);
+        self.area_tile_selector.resize(width - self.left_width, 250);
 
         self.behavior_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
 
@@ -325,15 +328,11 @@ impl ScreenWidget for Editor {
             for atom in &mut self.area_options.widgets {
                 if atom.mouse_down(pos, asset, &mut self.context) {
                     if atom.clicked {
-                        if atom.atom_data.id == "GroupedList" {
-                            if atom.curr_item_index == 0 {
-                                self.area_tile_selector.set_tile_type(TileUsage::Environment, asset);
-                            } else
-                            if atom.curr_item_index == 1 {
-                                self.area_tile_selector.set_tile_type(TileUsage::EnvBlocking, asset);
-                            } else
-                            if atom.curr_item_index == 2 {
-                                self.area_tile_selector.set_tile_type(TileUsage::Water, asset);
+                        if atom.atom_data.id == "Tilemaps" {
+                            if atom.curr_index == 0 {
+                                self.area_tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], None, &asset);
+                            } else {
+                                self.area_tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], Some(atom.curr_index - 1), &asset);
                             }
                         }
                     }
@@ -342,13 +341,18 @@ impl ScreenWidget for Editor {
             }
             if consumed == false && self.area_tile_selector.mouse_down(pos, asset, &mut self.context) {
                 consumed = true;
+
+                if let Some(selected) = &self.area_tile_selector.selected {
+                    self.context.curr_area_tile = Some(selected.clone());
+                } else {
+                    self.context.curr_area_tile = None;
+                }
             }
             if consumed == false && self.area_widget.mouse_down(pos, asset, &mut self.context) {
 
                 if let Some(clicked) = self.area_widget.clicked {
                     if let Some(selected) = &self.area_tile_selector.selected {
 
-                        //let area = self.context.data.areas.get(&self.area_widget.area_index).unwrap();
                         if let Some(area) = self.context.data.areas.get_mut(&self.area_widget.area_id) {
                             area.set_value(clicked, selected.clone());
                             area.save_data();
@@ -365,7 +369,6 @@ impl ScreenWidget for Editor {
                 if self.node_graph_behavior.clicked {
                     self.toolbar.widgets[0].curr_index = self.context.curr_behavior_index;
                     self.toolbar.widgets[0].dirty = true;
-                    //self.area_widget.set_behavior_id(self.context.data.behavior_ids[self.context.curr_behavior_index]);
                     self.node_graph_behavior.clicked = false;
                 }
             }
@@ -502,13 +505,19 @@ impl ScreenWidget for Editor {
 
     fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
         let mut consumed = false;
-        //consumed = self.widgets[self.curr_index as usize].mouse_hover(pos, asset);
+
+        self.mouse_hover_pos = pos.clone();
 
         if consumed == false && self.toolbar.mouse_hover(pos, asset, &mut self.context) {
             consumed = true;
         } else
         if self.state == EditorState::TilesDetail {
             if consumed == false && self.tilemap_options.mouse_hover(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+        } else
+        if self.state == EditorState::AreaDetail {
+            if consumed == false && self.area_options.mouse_hover(pos, asset, &mut self.context) {
                 consumed = true;
             }
         }
@@ -538,7 +547,10 @@ impl ScreenWidget for Editor {
             }
         } else
         if self.state == EditorState::AreaDetail {
-            if consumed == false && self.area_widget.mouse_wheel(delta, asset, &mut self.context) {
+            if consumed == false && self.context.contains_pos_for(self.mouse_hover_pos,self.area_widget.rect) && self.area_widget.mouse_wheel(delta, asset, &mut self.context) {
+                consumed = true;
+            }
+            if consumed == false && self.context.contains_pos_for(self.mouse_hover_pos,self.area_tile_selector.rect) && self.area_tile_selector.mouse_wheel(delta, asset, &mut self.context) {
                 consumed = true;
             }
         } else
