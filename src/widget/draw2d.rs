@@ -1,6 +1,5 @@
 
 use rusttype::{point, Font, Scale};
-use line_drawing::Bresenham;
 
 use server::asset::TileMap;
 use server::asset::Asset;
@@ -37,47 +36,6 @@ impl Draw2D {
         for y in rect.1..rect.1+rect.3 {
             for x in rect.0..rect.0+rect.2 {
                 let i = x * 4 + y * stride * 4;
-                frame[i..i + 4].copy_from_slice(color);
-            }
-        }
-    }
-
-    /// Draws the given rectangle
-    pub fn _draw_line(&self, frame: &mut [u8], start: &(usize, usize), end: &(usize, usize), stride: usize, color: &[u8; 4]) {
-        let p1 = (start.0 as i64, start.1 as i64);
-        let p2 = (end.0 as i64, end.1 as i64);
-
-        for (x, y) in Bresenham::new(p1, p2) {
-            //let x = min(x as usize, WIDTH - 1);
-            //let y = min(y as usize, HEIGHT - 1);
-            let i = x as usize * 4 + y as usize * stride * 4;
-
-            frame[i..i + 4].copy_from_slice(color);
-        }
-    }
-
-    /// Draws the given rectangle
-    pub fn draw_line_safe(&self, frame: &mut [u8], start: &(isize, isize), end: &(isize, isize), safe_rect: &(usize, usize, usize, usize), stride: usize, color: &[u8; 4]) {
-
-        let safe_rect_isize = (safe_rect.0 as isize, safe_rect.1 as isize, safe_rect.2 as isize, safe_rect.3 as isize);
-
-        pub fn contains_pos_for(pos: (isize, isize), rect: &(isize, isize, isize, isize)) -> bool {
-            if pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3 {
-                true
-            } else {
-                false
-            }
-        }
-
-        let p1 = (start.0 as i64, start.1 as i64);
-        let p2 = (end.0 as i64, end.1 as i64);
-
-        for (x, y) in Bresenham::new(p1, p2) {
-            //let x = min(x as usize, WIDTH - 1);
-            //let y = min(y as usize, HEIGHT - 1);
-
-            if contains_pos_for((x as isize, y as isize), &safe_rect_isize) {
-                let i = x as usize * 4 + y as usize * stride * 4;
                 frame[i..i + 4].copy_from_slice(color);
             }
         }
