@@ -52,7 +52,7 @@ pub struct AtomWidget {
     pub text                    : Vec<String>,
     atom_widget_type            : AtomWidgetType,
     pub atom_data               : AtomData,
-    state                       : WidgetState,
+    pub state                   : WidgetState,
     pub clicked                 : bool,
     pub dirty                   : bool,
     buffer                      : Vec<u8>,
@@ -254,13 +254,21 @@ impl AtomWidget {
             }  else
 
             // Normal
-            if self.atom_widget_type == AtomWidgetType::CheckButton || self.atom_widget_type == AtomWidgetType::Button {
+            if self.atom_widget_type == AtomWidgetType::CheckButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
 
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                 let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.button_rounding, &context.color_light_gray, 1.5);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+            } else
+            if self.atom_widget_type == AtomWidgetType::Button {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
+
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                let fill_color = if self.state != WidgetState::Clicked { &context.color_black } else { &context.color_light_gray };
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.button_rounding, &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_light_gray}, 1.5);
+                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_white}, &fill_color, draw2d::TextAlignment::Center);
             } else
             if self.atom_widget_type == AtomWidgetType::GroupedList {
 
@@ -277,12 +285,17 @@ impl AtomWidget {
 
                         let mut rounding = context.button_rounding;
 
-                        let color: &[u8;4];
+                        let color: [u8;4];
+                        let mut text_color: [u8;4] = context.color_white;
 
+                        if self.state == WidgetState::Disabled {
+                            color = context.draw2d.mix_color(&self.groups[g_index].color, &[128, 128, 128, 255], 0.5);
+                            text_color = context.color_light_gray;
+                        } else
                         if g_index == self.curr_group_index && i_index == self.curr_item_index {
-                            color = &self.groups[g_index].selected_color;
+                            color = self.groups[g_index].selected_color;
                         } else {
-                            color = &self.groups[g_index].color;
+                            color = self.groups[g_index].color;
                         }
 
                         if i_index == 0 {
@@ -296,8 +309,8 @@ impl AtomWidget {
                             rounding = (0.0, 0.0, 0.0, 0.0);
                         }
 
-                        context.draw2d.draw_rounded_rect(buffer_frame, &r, rect.2, &(self.rect.2 as f64, 32.0), color, &rounding);
-                        context.draw2d.draw_text(buffer_frame, &(r.0 + 25, r.1 + 4), rect.2, &asset.open_sans, context.button_text_size, &self.groups[g_index].items[i_index].text, &context.color_white, color);
+                        context.draw2d.draw_rounded_rect(buffer_frame, &r, rect.2, &(self.rect.2 as f64, 32.0), &color, &rounding);
+                        context.draw2d.draw_text(buffer_frame, &(r.0 + 25, r.1 + 4), rect.2, &asset.open_sans, context.button_text_size, &self.groups[g_index].items[i_index].text, &text_color, &color);
 
                         self.groups[g_index].items[i_index].rect = r;
                         self.groups[g_index].items[i_index].rect.1 += self.rect.1;
@@ -389,6 +402,9 @@ impl AtomWidget {
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        if self.state == WidgetState::Disabled {
+            return false;
+        }
         if self.contains_pos(pos) {
             if self.atom_widget_type == AtomWidgetType::ToolBarButton ||  self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton {
                 self.clicked = true;

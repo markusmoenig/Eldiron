@@ -3,7 +3,7 @@ use crate::tileselector::TileSelectorWidget;
 use crate::editor::areaoptions::AreaOptions;
 use crate::editor::behavioroptions::BehaviorOptions;
 use crate::editor::areawidget::AreaWidget;
-use crate::widget:: {ScreenWidget, Widget};
+use crate::widget:: {ScreenWidget, Widget, WidgetState};
 use crate::tileset::TileUsage;
 
 use server::asset::Asset;
@@ -210,20 +210,6 @@ impl ScreenWidget for Editor {
 
         if self.toolbar.mouse_down(pos, asset, &mut self.context) {
 
-            /*
-            if self.toolbar.widgets[0].clicked {
-                if self.state == EditorState::TilesOverview || self.state == EditorState::TilesDetail {
-                    self.node_graph_tiles.changed_selection(self.context.curr_tileset_index, self.toolbar.widgets[0].curr_index);
-                    self.context.curr_tileset_index = self.toolbar.widgets[0].curr_index;
-                    self.tilemap.set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
-                } else
-                if self.state == EditorState::AreaOverview || self.state == EditorState::AreaDetail {
-                    self.node_graph_areas.changed_selection(self.context.curr_area_index, self.toolbar.widgets[0].curr_index);
-                    self.context.curr_area_index = self.toolbar.widgets[0].curr_index;
-                    self.area_widget.set_area_id(self.context.data.areas_ids[self.context.curr_area_index]);
-                }
-                self.toolbar.widgets[0].clicked = false;
-            } else*/
             // Tile Button
             if self.toolbar.widgets[1].clicked {
                 if self.toolbar.widgets[1].selected {
@@ -316,6 +302,11 @@ impl ScreenWidget for Editor {
                 if self.tilemap.clicked == true {
                     self.tilemap_options.adjust_tile_usage(asset, &self.context);
                 }
+                if self.context.curr_tile.is_some() {
+                    self.tilemap_options.set_state(WidgetState::Normal);
+                } else {
+                    self.tilemap_options.set_state(WidgetState::Disabled);
+                }
                 consumed = true;
             }
         } else
@@ -401,6 +392,8 @@ impl ScreenWidget for Editor {
                     self.node_graph_tiles.changed_selection(self.context.curr_tileset_index, self.toolbar.widgets[0].curr_index);
                     self.context.curr_tileset_index = self.toolbar.widgets[0].curr_index;
                     self.tilemap.set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
+                    self.context.curr_tile = None;
+                    self.tilemap_options.set_state(WidgetState::Disabled);
                 } else
                 if self.state == EditorState::AreaOverview || self.state == EditorState::AreaDetail {
                     self.node_graph_areas.changed_selection(self.context.curr_area_index, self.toolbar.widgets[0].curr_index);
@@ -409,8 +402,6 @@ impl ScreenWidget for Editor {
                 }
                 self.toolbar.widgets[0].new_selection = None;
             }
-
-            //self.tilemap.set_tilemap_id(asset.tileset.maps_ids[self.toolbar.widgets[0].curr_index]);
             consumed = true;
         }
 

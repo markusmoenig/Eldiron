@@ -6,6 +6,7 @@ use server::asset::tileset::TileUsage;
 use crate::widget::atom::AtomWidget;
 use crate::widget::atom::AtomWidgetType;
 use crate::widget::context::ScreenContext;
+use crate::widget::WidgetState;
 
 pub struct TileMapOptions {
     rect                    : (usize, usize, usize, usize),
@@ -21,22 +22,27 @@ impl TileMapOptions {
         let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new_as_int("GroupedList".to_string(), 0));
 
-        group_list.add_group_list(context.color_green, context.color_light_green, vec!["Unused".to_string(), "Environment".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string(), "Icon".to_string()]);
+        group_list.state = WidgetState::Disabled;
+
+        group_list.add_group_list(context.color_green, context.color_light_green, vec!["Unused".to_string(), "Environment".to_string(), "Env. Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string(), "Icon".to_string()]);
         group_list.set_rect(rect, asset, context);
         widgets.push(group_list);
 
         let mut set_anim_button = AtomWidget::new(vec!["Set Anim".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Set Anim".to_string(), 0));
+        set_anim_button.state = WidgetState::Disabled;
         set_anim_button.set_rect((rect.0 + 10, rect.1 + 280, rect.2 - 20, 40), asset, context);
         widgets.push(set_anim_button);
 
         let mut clear_anim_button = AtomWidget::new(vec!["Clear Anim".to_string()], AtomWidgetType::Button,
         AtomData::new_as_int("Clear Anim".to_string(), 0));
+        clear_anim_button.state = WidgetState::Disabled;
         clear_anim_button.set_rect((rect.0 + 10, rect.1 + 315, rect.2 - 20, 40), asset, context);
         widgets.push(clear_anim_button);
 
         let mut set_default_button = AtomWidget::new(vec!["Set Default".to_string()], AtomWidgetType::Button,
         AtomData::new_as_int("Set Default".to_string(), 0));
+        set_default_button.state = WidgetState::Disabled;
         set_default_button.set_rect((rect.0 + 10, rect.1 + 370, rect.2 - 20, 40), asset, context);
         widgets.push(set_default_button);
 
@@ -62,6 +68,14 @@ impl TileMapOptions {
             context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + self.rect.3 - 140), asset.get_map_of_id(context.curr_tileset_index), context.width, &grid_pos, anim_counter, 100);
 
             context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 40, self.rect.2, 30), context.width, &asset.open_sans, 20.0, &format!("({},{})", grid_pos.0, grid_pos.1), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
+        }
+    }
+
+    // Sets the state of the widgets
+    pub fn set_state(&mut self, state: WidgetState) {
+        for a in &mut self.widgets {
+            a.state = state.clone();
+            a.dirty = true;
         }
     }
 

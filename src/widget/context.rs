@@ -52,6 +52,9 @@ pub struct ScreenContext {
     pub color_green                     : [u8;4],
     pub color_light_green               : [u8;4],
 
+    pub color_red                       : [u8;4],
+    pub color_green_conn                : [u8;4],
+
     pub curr_tileset_index              : usize,
     pub curr_tile                       : Option<(usize, usize)>,
     pub selection_end                   : Option<(usize, usize)>,
@@ -126,6 +129,8 @@ impl ScreenContext {
             color_light_orange          : [208, 156, 112, 255],
             color_green                 : [10, 93, 80, 255],
             color_light_green           : [101, 140, 134, 255],
+            color_red                   : [207, 55, 54, 255],
+            color_green_conn            : [20, 143, 40, 255],
 
             // Editor state
 

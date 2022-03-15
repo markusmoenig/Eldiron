@@ -56,7 +56,7 @@ pub mod tileselector;
 
 /// The widget state
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub enum WidgetState {
     Disabled,
     Normal,

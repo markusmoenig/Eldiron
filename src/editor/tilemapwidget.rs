@@ -137,11 +137,8 @@ impl TileMapWidget {
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
-        let grid_pos = self.screen_to_map(asset, pos);
-
-        context.curr_tile = grid_pos;
+        context.curr_tile = self.screen_to_map(asset, pos);
         self.clicked = true;
-
         context.selection_end = None;
 
         true
@@ -194,6 +191,9 @@ impl TileMapWidget {
         let scaled_grid_size = (map.settings.grid_size as f32 * scale) as usize;
 
         let x_tiles = map.width / map.settings.grid_size;
+        let y_tiles = map.height / map.settings.grid_size;
+
+        let total_tiles = (x_tiles * y_tiles) as usize;
 
         let screen_x = self.rect.2 / scaled_grid_size;
 
@@ -204,7 +204,9 @@ impl TileMapWidget {
 
             let tile_offset = x + y * screen_x;
 
-            return Some(((tile_offset % x_tiles), (tile_offset / x_tiles)));
+            if tile_offset < total_tiles {
+                return Some(((tile_offset % x_tiles), (tile_offset / x_tiles)));
+            }
         }
         None
     }
