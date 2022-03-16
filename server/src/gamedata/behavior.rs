@@ -10,6 +10,8 @@ use std::collections::HashMap;
 pub enum BehaviorNodeType {
     BehaviorTree,
     DiceRoll,
+    VariableNumber,
+    VariablePosition,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

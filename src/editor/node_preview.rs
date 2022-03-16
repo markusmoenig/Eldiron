@@ -116,6 +116,10 @@ impl NodePreviewWidget {
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         for atom_widget in &mut self.widgets {
             if atom_widget.mouse_down(pos, asset, context) {
+
+                if atom_widget.atom_data.id == "run" {
+                    context.data.create_behavior(context.curr_behavior_index, true, true);
+                }
                 self.dirty = true;
                 self.clicked = true;
                 self.clicked_id = atom_widget.behavior_id.clone();

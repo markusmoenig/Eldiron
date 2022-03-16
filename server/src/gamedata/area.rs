@@ -100,4 +100,11 @@ impl GameArea {
         self.data.min_pos = min_pos;
         self.data.max_pos = max_pos;
     }
+
+    /// Calculates the offset for center of the area for the given visible size
+    pub fn get_center_offset_for_visible_size(&self, visible_tiles: (usize, usize)) -> (isize, isize) {
+        let x = self.data.min_pos.0 + (self.data.max_pos.0 - self.data.min_pos.0) / 2 - visible_tiles.0 as isize / 2;
+        let y = self.data.min_pos.1 + (self.data.max_pos.1 - self.data.min_pos.1) / 2 - visible_tiles.1 as isize / 2;
+        (x, y)
+    }
 }

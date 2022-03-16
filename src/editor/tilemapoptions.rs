@@ -24,26 +24,26 @@ impl TileMapOptions {
 
         group_list.state = WidgetState::Disabled;
 
-        group_list.add_group_list(context.color_green, context.color_light_green, vec!["Unused".to_string(), "Environment".to_string(), "Env. Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string(), "Icon".to_string()]);
+        group_list.add_group_list(context.color_green, context.color_light_green, vec!["Unused".to_string(), "Environment".to_string(), "Road".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string(), "Icon".to_string()]);
         group_list.set_rect(rect, asset, context);
         widgets.push(group_list);
 
         let mut set_anim_button = AtomWidget::new(vec!["Set Anim".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Set Anim".to_string(), 0));
         set_anim_button.state = WidgetState::Disabled;
-        set_anim_button.set_rect((rect.0 + 10, rect.1 + 280, rect.2 - 20, 40), asset, context);
+        set_anim_button.set_rect((rect.0 + 10, rect.1 + 280 + 30, rect.2 - 20, 40), asset, context);
         widgets.push(set_anim_button);
 
         let mut clear_anim_button = AtomWidget::new(vec!["Clear Anim".to_string()], AtomWidgetType::Button,
         AtomData::new_as_int("Clear Anim".to_string(), 0));
         clear_anim_button.state = WidgetState::Disabled;
-        clear_anim_button.set_rect((rect.0 + 10, rect.1 + 315, rect.2 - 20, 40), asset, context);
+        clear_anim_button.set_rect((rect.0 + 10, rect.1 + 315 + 30, rect.2 - 20, 40), asset, context);
         widgets.push(clear_anim_button);
 
         let mut set_default_button = AtomWidget::new(vec!["Set Default".to_string()], AtomWidgetType::Button,
         AtomData::new_as_int("Set Default".to_string(), 0));
         set_default_button.state = WidgetState::Disabled;
-        set_default_button.set_rect((rect.0 + 10, rect.1 + 370, rect.2 - 20, 40), asset, context);
+        set_default_button.set_rect((rect.0 + 10, rect.1 + 370 + 30, rect.2 - 20, 40), asset, context);
         widgets.push(set_default_button);
 
         Self {
@@ -91,12 +91,13 @@ impl TileMapOptions {
                             let usage : TileUsage;
                             match atom.curr_item_index {
                                 1 => usage = TileUsage::Environment,
-                                2 => usage = TileUsage::EnvBlocking,
-                                3 => usage = TileUsage::Character,
-                                4 => usage = TileUsage::UtilityChar,
-                                5 => usage = TileUsage::Water,
-                                6 => usage = TileUsage::Effect,
-                                7 => usage = TileUsage::Icon,
+                                2 => usage = TileUsage::EnvRoad,
+                                3 => usage = TileUsage::EnvBlocking,
+                                4 => usage = TileUsage::Character,
+                                5 => usage = TileUsage::UtilityChar,
+                                6 => usage = TileUsage::Water,
+                                7 => usage = TileUsage::Effect,
+                                8 => usage = TileUsage::Icon,
                                 _ => usage = TileUsage::Unused,
                             }
 
@@ -186,12 +187,13 @@ impl TileMapOptions {
             match tile.usage {
                 TileUsage::Unused => self.widgets[0].curr_item_index = 0,
                 TileUsage::Environment => self.widgets[0].curr_item_index = 1,
-                TileUsage::EnvBlocking => self.widgets[0].curr_item_index = 2,
-                TileUsage::Character => self.widgets[0].curr_item_index = 3,
-                TileUsage::UtilityChar => self.widgets[0].curr_item_index = 4,
-                TileUsage::Water => self.widgets[0].curr_item_index = 5,
-                TileUsage::Effect => self.widgets[0].curr_item_index = 6,
-                TileUsage::Icon => self.widgets[0].curr_item_index = 7,
+                TileUsage::EnvRoad => self.widgets[0].curr_item_index = 2,
+                TileUsage::EnvBlocking => self.widgets[0].curr_item_index = 3,
+                TileUsage::Character => self.widgets[0].curr_item_index = 4,
+                TileUsage::UtilityChar => self.widgets[0].curr_item_index = 5,
+                TileUsage::Water => self.widgets[0].curr_item_index = 6,
+                TileUsage::Effect => self.widgets[0].curr_item_index = 7,
+                TileUsage::Icon => self.widgets[0].curr_item_index = 8,
             }
         } else {
             self.widgets[0].curr_item_index = 0;

@@ -37,6 +37,8 @@ pub struct NodeWidget {
     pub node_connector          : HashMap<BehaviorNodeConnector, NodeConnector>,
 
     pub graph_offset            : (isize, isize),
+
+    pub color                   : [u8;4],
 }
 
 impl NodeWidget {
@@ -63,7 +65,9 @@ impl NodeWidget {
 
             node_connector      : HashMap::new(),
 
-            graph_offset        : (0,0)
+            graph_offset        : (0,0),
+
+            color               : [0, 0, 0, 255]
         }
     }
 
@@ -90,7 +94,9 @@ impl NodeWidget {
 
             node_connector      : HashMap::new(),
 
-            graph_offset        : (0,0)
+            graph_offset        : (0,0),
+
+            color               : [0, 0, 0, 255]
         }
     }
 
@@ -117,7 +123,7 @@ impl NodeWidget {
         if self.dirty {
             for i in &mut self.buffer[..] { *i = 0 }
             let buffer_frame = &mut self.buffer[..];
-            let title_color = &context.color_green;
+            let title_color = &self.color;
             let back_color : &[u8;4] = &context.color_black;
             let stride = self.size.0;
 

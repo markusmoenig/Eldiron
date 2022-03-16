@@ -139,7 +139,15 @@ impl NodeGraph {
                                     context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &default_tile, 0, 100);
                                 }
                             }
+                        } else
+                        if self.graph_type == GraphType::Areas {
+                            // For Areas draw the center of the map
+                            if let Some(area)= context.data.areas.get_mut(&index) {
+                                let offset = area.get_center_offset_for_visible_size((10, 10));
+                                context.draw2d.draw_area(&mut preview_buffer[..], area, &(0, 0, 100, 100), &offset, 100, 10, anim_counter, asset);
+                            }
                         }
+
                         self.nodes[index].draw_overview(frame, anim_counter, asset, context, selected, &preview_buffer);
                     }
 
@@ -376,7 +384,6 @@ impl NodeGraph {
                 if context.contains_pos_for(pos, preview.rect) {
                     preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context);
                     if preview.clicked {
-                        context.data.create_behavior(context.curr_behavior_index, true, true);
                         self.dirty = true;
                         return true;
                     } else {
@@ -653,6 +660,7 @@ impl NodeGraph {
             atom1.behavior_id = Some(id.clone());
             atom1.curr_index = context.data.get_behavior_id_value(id).0 as usize;
             node_widget.widgets.push(atom1);
+            node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
         if behavior_node.behavior_type == BehaviorNodeType::DiceRoll {
@@ -663,6 +671,7 @@ impl NodeGraph {
             atom1.behavior_id = Some(id.clone());
             atom1.curr_index = context.data.get_behavior_id_value(id).0 as usize;
             node_widget.widgets.push(atom1);
+            node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
         }
     }

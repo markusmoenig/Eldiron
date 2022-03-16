@@ -94,8 +94,8 @@ impl ScreenWidget for Editor {
         area_tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], None, &asset);
 
         let mut area_nodes = vec![];
-        for (index, area) in context.data.areas.iter().enumerate() {
-            let node = NodeWidget::new(vec![area.1.name.to_string()], NodeUserData { position: (100, 50 + 150 * index as isize)});
+        for (index, t) in context.data.areas_names.iter().enumerate() {
+            let node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: (100, 50 + 150 * index as isize)});
             area_nodes.push(node);
         }
 

@@ -14,6 +14,7 @@ use std::path::PathBuf;
 pub enum TileUsage {
     Unused,
     Environment,
+    EnvRoad,
     EnvBlocking,
     Character,
     UtilityChar,
