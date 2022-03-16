@@ -2,17 +2,15 @@
 
 # Eldiron - Classic RPG Creation
 
-Eldiron is a creator for classic RPGs written in Rust.
+Eldiron is a creator for classic RPGs written in Rust. Eldiron v1 will be able to create games similar to Ultima 4 and 5 but with a modern twist and features.
 
 [![MIT License](https://img.shields.io/apm/l/atomic-design-ui.svg?)](https://github.com/tterb/atomic-design-ui/blob/master/LICENSEs) [![version](https://img.shields.io/badge/version-0.1-red.svg)](https://shields.io/) [![macOS](https://svgshare.com/i/ZjP.svg)](https://svgshare.com/i/ZjP.svg) [![Windows](https://svgshare.com/i/ZhY.svg)](https://svgshare.com/i/ZhY.svg) [![Linux](https://svgshare.com/i/Zhy.svg)](https://svgshare.com/i/Zhy.svg)
 
-Eldiron v1 will be able to create games similar to Ultima 4 and 5 but with a modern twist and features.
-
 The game creator (which contains the game engine) is cross platform and should run on all Desktops. The game engine will work on Desktops but also on iOS and Android devices and any other device Rust compiles on. It is designed from the ground up to be extremely portable.
 
-Eldiron comes with a range of freely usable tilemaps for environment and characters, however you can of course use your own tilemaps, instructions in the Wiki which serves as the main documentation hub.
+Eldiron comes with a range of freely usable tilemaps for environment and characters, however you can of course use your own tilemaps, see the instructions below.
 
-The game engine contains a client and a server modules, although currently no multi-player options exist yet, the code has been written with multi-player support in mind from the ground up.
+The game engine contains a client and server modules, although currently no multi-player options exist yet, the code has been written with multi-player support in mind from the ground up.
 
 Join the community on [Discord](https://discord.gg/ybfTnqy8).
 
@@ -26,9 +24,7 @@ Join the community on [Discord](https://discord.gg/ybfTnqy8).
 
 ## Why ?
 
-I played the Ultima games day and night in my youth so I decided to create my own similar games as I have some time to spare (what could be a better hobby ?), and on the way also develop a game creator for this type of game which I need my own games anyway.
-
-It's fun, and creating an RPG system has a lot of unique challenges. The behavior node system I am working on should make it possible to easily implement any kind of functionality, be it combat, crafting or any other feature.
+I played the Ultima games day and night in my youth so I decided to create my own similar games as I have some time to spare (what could be a better hobby ?), and on the way also develop a game creator for this type of game which I need for my own game anyway.
 
 ## Features and Status
 
@@ -42,10 +38,22 @@ For v1 I target these features:
 
 Eldiron is currently under heavy development and not yet ready for consumption.
 
-## Installation and Documentation
+## Installation
 
-The game creator can be easily installed using Rust and it's cargo package manager. This is very easy to-do even if you have no programming experience. The installation guide and documentation is available in the Wiki of this repo.
+Eldiron is written in Rust, to run it you have to install Rust and its package manager cargo. Please follow the instructions on this [page](https://www.rust-lang.org/tools/install).
+
+After you successfully installed Rust, check out this repository (or download the source via a .zip file), open a terminal, navigate to the Eldiron directory and start Eldiron with `cargo run --release`.
+
+## The assets directory
+
+Eldiron reads all assets from the assets directory, this is a top level directory in this repository. If you want to add your own tilemaps to Eldiron you will need to paste the tilemap image into the assets/tilemaps directory. Note that right now only tilemaps with square tiles are supported.
+
+Eldiron comes with a range of standard tilemaps by default.
 
 ## License
 
 The source and all assets I commissioned for Eldiron are licensed under the MIT. You can use the source and assets freely.
+
+## Support
+
+You can support the Eldiron project by becoming a [Patreon](https://patreon.com/eldiron).
