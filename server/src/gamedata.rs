@@ -180,7 +180,7 @@ impl GameData {
     }
 
     /// Gets the value of the behavior id
-    pub fn get_behavior_id_value(&self, id: (usize, usize, String)) -> (f64, f64, f64, f64) {
+    pub fn get_behavior_id_value(&self, id: (usize, usize, String), def: (f64, f64, f64, f64)) -> (f64, f64, f64, f64) {
         if let Some(behavior) = self.behaviors.get(&id.0) {
             if let Some(node) = behavior.data.nodes.get(&id.1) {
                 if let Some(v) = node.values.get(&id.2) {
@@ -188,7 +188,7 @@ impl GameData {
                 }
             }
         }
-        (0.0, 0.0, 0.0, 0.0)
+        def
     }
 
     /// Create save data and return it

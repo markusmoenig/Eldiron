@@ -37,7 +37,7 @@ impl NodePreviewWidget {
         let run_button = AtomWidget::new(vec!["Run Behavior".to_string()], AtomWidgetType::LargeButton,
         AtomData::new_as_int("run".to_string(), 0));
 
-        let mut areas_button = AtomWidget::new(context.data.areas_names.clone(), AtomWidgetType::NodeMenuButton,
+        let mut areas_button = AtomWidget::new(context.data.areas_names.clone(), AtomWidgetType::MenuButton,
         AtomData::new_as_int("area".to_string(), 0));
         areas_button.atom_data.text = "Area".to_string();
         areas_button.curr_index = 0;
@@ -120,6 +120,7 @@ impl NodePreviewWidget {
                 if atom_widget.atom_data.id == "run" {
                     context.data.create_behavior(context.curr_behavior_index, true, true);
                 }
+
                 self.dirty = true;
                 self.clicked = true;
                 self.clicked_id = atom_widget.behavior_id.clone();

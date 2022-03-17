@@ -382,12 +382,14 @@ impl NodeGraph {
             // Check Preview
             if let Some(preview) = &mut self.preview {
                 if context.contains_pos_for(pos, preview.rect) {
-                    preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context);
-                    if preview.clicked {
-                        self.dirty = true;
-                        return true;
-                    } else {
-                        self.preview_drag_start = (pos.0 as isize, pos.1 as isize);
+                    if preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context) {
+
+                        if preview.clicked {
+                            self.dirty = true;
+                            return true;
+                        } else {
+                            self.preview_drag_start = (pos.0 as isize, pos.1 as isize);
+                        }
                     }
                 }
             }
@@ -482,10 +484,21 @@ impl NodeGraph {
 
         self.mouse_pos = pos.clone();
 
-        // Draw nodes overlay
         for index in 0..self.nodes.len() {
+            let rect= self.get_node_rect(index, false);
             for atom in &mut self.nodes[index].widgets {
-                if atom.mouse_dragged(pos, asset, context) {
+                if atom.atom_widget_type == AtomWidgetType::MenuButton || atom.atom_widget_type == AtomWidgetType::NodeMenuButton {
+                    if atom.mouse_dragged(pos, asset, context) {
+                        return true;
+                    }
+                } else {
+                    if pos.0 as isize >= rect.0 && pos.1 as isize >= rect. 1 {
+                        let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
+                        if atom.mouse_dragged(local, asset, context) {
+                            self.dirty = atom.dirty;
+                            self.nodes[index].dirty = atom.dirty;
+                        }
+                    }
                     return true;
                 }
             }
@@ -658,19 +671,30 @@ impl NodeGraph {
             atom1.atom_data.text = "Execute".to_string();
             let id = (behavior_data.id, behavior_node.id, "execute".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.curr_index = context.data.get_behavior_id_value(id).0 as usize;
+            atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0)).0 as usize;
             node_widget.widgets.push(atom1);
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
         if behavior_node.behavior_type == BehaviorNodeType::DiceRoll {
-            let mut atom1 = AtomWidget::new(vec!["D20".to_string(), "D10".to_string(), "D8".to_string()], AtomWidgetType::NodeMenuButton,
-            AtomData::new_as_int("dice".to_string(), 0));
-            atom1.atom_data.text = "Dice".to_string();
-            let id = (behavior_data.id, behavior_node.id, "dice".to_string());
+
+            let mut atom1 = AtomWidget::new(vec!["Throws".to_string()], AtomWidgetType::NodeIntSlider,
+            AtomData::new_as_int_range("throws".to_string(), 1, 1, 5, 1));
+            atom1.atom_data.text = "Throws".to_string();
+            let id = (behavior_data.id, behavior_node.id, "throws".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.curr_index = context.data.get_behavior_id_value(id).0 as usize;
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (1.0,1.0,5.0,1.0));
             node_widget.widgets.push(atom1);
+
+            //a d4, a d6, a d8, one or two d10s, a d12 and a d20.
+            let mut atom2 = AtomWidget::new(vec!["D4".to_string(), "D6".to_string(), "D8".to_string(), "D10".to_string(), "D12".to_string(),  "D20".to_string()], AtomWidgetType::NodeMenuButton,
+            AtomData::new_as_int("dice".to_string(), 0));
+            atom2.atom_data.text = "Dice".to_string();
+            let id = (behavior_data.id, behavior_node.id, "dice".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0)).0 as usize;
+            node_widget.widgets.push(atom2);
+
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
         }

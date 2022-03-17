@@ -30,6 +30,15 @@ impl AtomData {
             data                : (value as f64,0.0,0.0,0.0)
         }
     }
+
+    pub fn new_as_int_range(id: String, value: isize, min: isize, max: isize, step: isize) -> Self {
+
+        Self {
+            text                : "".to_string(),
+            id                  : id,
+            data                : (value as f64, min as f64, max as f64, step as f64)
+        }
+    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -38,19 +47,21 @@ pub enum AtomWidgetType {
     ToolBarSliderButton,
     ToolBarMenuButton,
     ToolBarSwitchButton,
+    NodeSliderButton,
+    NodeMenuButton,
+    NodeIntSlider,
+    LargeButton,
     CheckButton,
     Button,
     GroupedList,
-    NodeSliderButton,
-    NodeMenuButton,
-    LargeButton,
+    MenuButton,
 }
 
 pub struct AtomWidget {
-    rect                        : (usize, usize, usize, usize),
+    pub rect                    : (usize, usize, usize, usize),
     pub content_rect            : (usize, usize, usize, usize),
     pub text                    : Vec<String>,
-    atom_widget_type            : AtomWidgetType,
+    pub atom_widget_type        : AtomWidgetType,
     pub atom_data               : AtomData,
     pub state                   : WidgetState,
     pub clicked                 : bool,
@@ -230,21 +241,63 @@ impl AtomWidget {
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.node_button_rounding, &context.color_light_gray, 1.5);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.node_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
-            if self.atom_widget_type == AtomWidgetType::NodeMenuButton {
+            if self.atom_widget_type == AtomWidgetType::NodeMenuButton || self.atom_widget_type == AtomWidgetType::MenuButton {
                 if self.state != WidgetState::Clicked {
                     self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.node_button_height) / 2, self.rect.2 - 2, context.node_button_height);
 
+                    let fill_color = if self.atom_widget_type == AtomWidgetType::MenuButton { context.color_black } else { context.color_node_light_gray };
+                    let border_color = if self.atom_widget_type == AtomWidgetType::MenuButton { context.color_light_gray } else { context.color_node_light_gray };
+
                     context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                    //let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
-                    let fill_color = &context.color_black;
-                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &context.color_light_gray, 1.5);
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &border_color, 1.5);
                     context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.node_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
 
                     // Triangle
-                    let color = if self.state == WidgetState::Hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
+                    let mut color = if self.state == WidgetState::Hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
+
+                    if self.atom_widget_type == AtomWidgetType::NodeMenuButton {
+                        color = if self.state == WidgetState::Hover && self.text.len() > 1 { &context.color_light_white } else { &context.color_node_picker };
+                    }
 
                     context.draw2d.blend_mask(buffer_frame, &(rect.2 - 25, 10, rect.2, rect.3), rect.2, &context.menu_triangle_mask[..], &(10, 10), &color);
                 }
+            }  else
+            if self.atom_widget_type == AtomWidgetType::NodeIntSlider {
+
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height);
+
+                let fill_color = if self.atom_widget_type == AtomWidgetType::MenuButton { context.color_black } else { context.color_node_dark_gray };
+                let border_color = if self.atom_widget_type == AtomWidgetType::MenuButton { context.color_light_gray } else { context.color_node_dark_gray };
+
+                let v = self.atom_data.data.0.round();
+
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &border_color, 1.5);
+
+                let min = self.atom_data.data.1;
+
+                if v > min {
+                    let max = self.atom_data.data.2;
+                    let pp = self.content_rect.2 as f64 / (max - min);
+
+                    let mut r = rect.clone();
+                    let left_off = ((v - 1.0) * pp).round() as usize;
+
+                    if left_off < r.2 {
+                        r.2 = left_off;
+                        let mut round = context.node_button_rounding.clone();
+                        if v < max {
+                            round.0 = 0.0;
+                            round.1 = 0.0;
+                        } else {
+                            r.2 = rect.2;
+                        }
+
+                        context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &(r.2 as f64, r.3 as f64 - 1.0), &context.color_node_light_gray, &round, &&context.color_node_light_gray, 1.5);
+                    }
+                }
+
+                context.draw2d.blend_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.node_button_text_size, &format!("{}", v), &context.color_white, draw2d::TextAlignment::Center);
             }  else
 
             // Large
@@ -327,6 +380,7 @@ impl AtomWidget {
 
     // Draw overlay widgets which gets rendered on the whole screen, like open menus etc
     pub fn draw_overlay(&mut self, frame: &mut [u8], rect: &(usize, usize, usize, usize), _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+        //println!("{:?} {:?}",  self.atom_widget_type, self.state );
         if self.atom_widget_type == AtomWidgetType::ToolBarMenuButton && self.state == WidgetState::Clicked {
 
             // Draw Open Menu
@@ -364,7 +418,7 @@ impl AtomWidget {
                 r.1 += context.toolbar_button_height;
             }
         } else
-        if self.atom_widget_type == AtomWidgetType::NodeMenuButton && self.state == WidgetState::Clicked {
+        if (self.atom_widget_type == AtomWidgetType::NodeMenuButton || self.atom_widget_type == AtomWidgetType::MenuButton) && self.state == WidgetState::Clicked {
 
             // Draw Open Menu
             self.content_rect = (self.rect.0 + self.emb_offset.0 as usize, self.rect.1 + self.emb_offset.1 as usize + (self.rect.3 - context.node_button_height) / 2, self.rect.2, context.node_button_height * self.text.len());
@@ -412,7 +466,7 @@ impl AtomWidget {
                 self.dirty = true;
                 return true;
             } else
-            if self.atom_widget_type == AtomWidgetType::ToolBarMenuButton || self.atom_widget_type == AtomWidgetType::NodeMenuButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarMenuButton || self.atom_widget_type == AtomWidgetType::NodeMenuButton|| self.atom_widget_type == AtomWidgetType::MenuButton {
                 if self.text.len() > 1 {
                     self.clicked = true;
                     self.state = WidgetState::Clicked;
@@ -427,6 +481,27 @@ impl AtomWidget {
                 self.curr_index %= self.text.len();
                 self.dirty = true;
                 self.atom_data.data.0 = self.curr_index as f64;
+                return true;
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodeIntSlider {
+
+                let min = self.atom_data.data.1;
+                let max = self.atom_data.data.2;
+                //let step = self.atom_data.data.3;
+
+                if  pos.0 >= self.content_rect.0 {
+                    let offset = (pos.0 - self.content_rect.0) as f64;
+
+                    let pp = (max - min) / self.content_rect.2 as f64;
+                    let v = (min + offset * pp).round().clamp(min, max);
+
+                    self.atom_data.data.0 = v;
+
+                    self.dirty = true;
+                    self.state = WidgetState::Clicked;
+                    self.new_selection = Some(v as usize);
+                }
+
                 return true;
             } else
             if self.atom_widget_type == AtomWidgetType::ToolBarSwitchButton {
@@ -519,7 +594,7 @@ impl AtomWidget {
             }
             return true;
         } else
-        if self.atom_widget_type == AtomWidgetType::NodeMenuButton && self.state == WidgetState::Clicked {
+        if (self.atom_widget_type == AtomWidgetType::NodeMenuButton || self.atom_widget_type == AtomWidgetType::MenuButton) && self.state == WidgetState::Clicked {
 
             self.new_selection = None;
 
@@ -534,6 +609,23 @@ impl AtomWidget {
                 r.1 += context.node_button_height;
             }
             return true;
+        }
+        if self.atom_widget_type == AtomWidgetType::NodeIntSlider && self.state == WidgetState::Clicked {
+            let min = self.atom_data.data.1;
+            let max = self.atom_data.data.2;
+            //let step = self.atom_data.data.3;
+
+            if  pos.0 >= self.content_rect.0 {
+                let offset = (pos.0 - self.content_rect.0) as f64;
+
+                let pp = (max - min) / self.content_rect.2 as f64;
+                let v = (min + offset * pp).round().clamp(min, max);
+                self.atom_data.data.0 = v;
+
+                self.new_selection = Some(v as usize);
+                self.dirty = true;
+                return true;
+            }
         }
         false
     }
