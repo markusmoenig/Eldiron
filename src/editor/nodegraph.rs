@@ -492,14 +492,14 @@ impl NodeGraph {
                         return true;
                     }
                 } else {
-                    if pos.0 as isize >= rect.0 && pos.1 as isize >= rect. 1 {
-                        let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
-                        if atom.mouse_dragged(local, asset, context) {
-                            self.dirty = atom.dirty;
-                            self.nodes[index].dirty = atom.dirty;
-                        }
+                    let x = if pos.0 as isize > rect.0 { pos.0 as isize - rect.0 } else { 0 };
+                    let y = if pos.1 as isize > rect.1 { pos.1 as isize - rect.1 } else { 0 };
+                    let local = (x as usize, y as usize);
+                    if atom.mouse_dragged(local, asset, context) {
+                        self.dirty = atom.dirty;
+                        self.nodes[index].dirty = atom.dirty;
+                        return true;
                     }
-                    return true;
                 }
             }
         }

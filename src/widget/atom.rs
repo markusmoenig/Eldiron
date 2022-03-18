@@ -624,8 +624,13 @@ impl AtomWidget {
 
                 self.new_selection = Some(v as usize);
                 self.dirty = true;
-                return true;
+            } else {
+                self.atom_data.data.0 = min;
+
+                self.new_selection = Some(min as usize);
+                self.dirty = true;
             }
+            return true;
         }
         false
     }

@@ -21,8 +21,7 @@ use server::asset::*;
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
-//use winit::event::KeyboardInput;
-use winit::event::{Event, DeviceEvent, VirtualKeyCode};
+use winit::event::{Event, DeviceEvent, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
@@ -85,6 +84,16 @@ fn main() -> Result<(), Error> {
         }
 
         match &event {
+
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::ReceivedCharacter(char ) => match char {
+                    _ => {
+                        println!("{}", char);
+                    }
+                },
+                _ => (),
+            },
+
             Event::DeviceEvent { event, .. } => match event {
                 // DeviceEvent::Text { codepoint } => {
                 //     println!("text: ({})", codepoint);
