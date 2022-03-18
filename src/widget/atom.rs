@@ -1,4 +1,4 @@
-use crate::widget::*;
+use crate::{widget::*, editor::dialog::DialogState};
 
 use super::context::ScreenDragContext;
 
@@ -50,6 +50,7 @@ pub enum AtomWidgetType {
     NodeSliderButton,
     NodeMenuButton,
     NodeIntSlider,
+    NodeIntButton,
     LargeButton,
     CheckButton,
     Button,
@@ -299,6 +300,19 @@ impl AtomWidget {
 
                 context.draw2d.blend_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.node_button_text_size, &format!("{}", v), &context.color_white, draw2d::TextAlignment::Center);
             }  else
+            if self.atom_widget_type == AtomWidgetType::NodeIntButton {
+
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height);
+
+                let fill_color = if self.state == WidgetState::Clicked { context.color_node_dark_gray } else { context.color_node_light_gray };
+
+                let v = self.atom_data.data.0.round();
+
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &fill_color, 1.5);
+
+                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.node_button_text_size, &format!("{}", v), &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+            }  else
 
             // Large
             if self.atom_widget_type == AtomWidgetType::LargeButton {
@@ -460,7 +474,7 @@ impl AtomWidget {
             return false;
         }
         if self.contains_pos(pos) {
-            if self.atom_widget_type == AtomWidgetType::ToolBarButton ||  self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarButton ||  self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeIntButton {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
@@ -553,13 +567,20 @@ impl AtomWidget {
         false
     }
 
-    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
         self.drag_context = None;
 
         if self.clicked || self.state == WidgetState::Clicked {
             self.clicked = false;
             self.dirty = true;
+
+            if self.atom_widget_type == AtomWidgetType::NodeIntButton {
+                context.dialog_state = DialogState::Open;
+                context.dialog_atom_type = AtomWidgetType::NodeIntButton;
+                context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
+                context.dialog_node_behavior_value = self.atom_data.data.clone();
+            }
 
             if self.state == WidgetState::Clicked {
                 self.state = WidgetState::Normal;

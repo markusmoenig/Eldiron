@@ -1,9 +1,12 @@
 
 use crate::draw2d::Draw2D;
 use server::gamedata::GameData;
+use crate::editor::dialog::DialogState;
 use crate::TileUsage;
 
 use zeno::{Mask, Stroke};
+
+use super::atom::AtomWidgetType;
 
 #[derive(PartialEq)]
 pub struct ScreenDragContext {
@@ -72,6 +75,11 @@ pub struct ScreenContext {
     pub curr_behavior_node_id           : usize,
 
     pub drag_context                    : Option<ScreenDragContext>,
+
+    pub dialog_state                    : DialogState,
+    pub dialog_atom_type                : AtomWidgetType,
+    pub dialog_node_behavior_id         : (usize, usize, String),
+    pub dialog_node_behavior_value      : (f64, f64, f64, f64),
 
     // Masks
     pub right_arrow_mask                : [u8;10*10],
@@ -167,6 +175,11 @@ impl ScreenContext {
             // Behaviors
             curr_behavior_index         : 0,
             curr_behavior_node_id       : 0,
+
+            dialog_state                : DialogState::Closed,
+            dialog_atom_type            : AtomWidgetType::Button,
+            dialog_node_behavior_id     : (0, 0, "".to_string()),
+            dialog_node_behavior_value  : (0.0, 0.0, 0.0, 0.0),
 
             // UI Masks
             right_arrow_mask,

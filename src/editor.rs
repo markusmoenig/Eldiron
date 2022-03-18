@@ -6,6 +6,8 @@ use crate::editor::areawidget::AreaWidget;
 use crate::widget:: {ScreenWidget, Widget, WidgetState};
 use crate::tileset::TileUsage;
 
+use crate::editor::dialog::DialogWidget;
+
 use server::asset::Asset;
 
 mod toolbar;
@@ -17,6 +19,7 @@ mod areaoptions;
 mod behavioroptions;
 mod node;
 mod node_preview;
+pub mod dialog;
 
 use crate::editor::toolbar::ToolBar;
 use tilemapwidget::TileMapWidget;
@@ -26,6 +29,7 @@ use crate::editor::node::NodeUserData;
 use crate::editor::node::NodeWidget;
 use crate::editor::nodegraph::{ NodeGraph, GraphMode, GraphType };
 
+use self::dialog::DialogState;
 use self::tilemapoptions::TileMapOptions;
 
 #[derive (PartialEq)]
@@ -61,7 +65,9 @@ pub struct Editor {
 
     left_width                      : usize,
     mouse_pos                       : (usize, usize),
-    mouse_hover_pos                 : (usize, usize)
+    mouse_hover_pos                 : (usize, usize),
+
+    dialog                          : DialogWidget
 }
 
 impl ScreenWidget for Editor {
@@ -138,6 +144,8 @@ impl ScreenWidget for Editor {
             node_graph_behavior,
             node_graph_behavior_details,
 
+            dialog                  : DialogWidget::new(),
+
             left_width,
             mouse_pos               : (0,0),
             mouse_hover_pos         : (0,0)
@@ -204,13 +212,22 @@ impl ScreenWidget for Editor {
             }
         }
 
+        if self.context.dialog_state == DialogState::Open {
+            self.dialog.rect.0 = (self.context.width - self.dialog.rect.2) / 2;
+            self.dialog.draw(frame, anim_counter, asset, &mut self.context);
+        }
+
         // Draw overlay
         self.toolbar.draw_overlay(frame, &self.rect, anim_counter, asset, &mut self.context);
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
-        let mut consumed = false;
 
+        if self.context.dialog_state == DialogState::Open {
+            return self.dialog.mouse_down(pos, asset, &mut self.context);
+        }
+
+        let mut consumed = false;
         if self.toolbar.mouse_down(pos, asset, &mut self.context) {
 
             // Tile Button
@@ -387,6 +404,10 @@ impl ScreenWidget for Editor {
 
     fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
 
+        if self.context.dialog_state == DialogState::Open {
+            return self.dialog.mouse_up(pos, asset, &mut self.context);
+        }
+
         let mut consumed = false;
         if self.toolbar.mouse_up(pos, asset, &mut self.context) {
 
@@ -449,8 +470,12 @@ impl ScreenWidget for Editor {
     }
 
     fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
-        let mut consumed = false;
 
+        if self.context.dialog_state == DialogState::Open {
+            return self.dialog.mouse_dragged(pos, asset, &mut self.context);
+        }
+
+        let mut consumed = false;
         self.toolbar.mouse_dragged(pos, asset, &mut self.context);
 
         if self.state == EditorState::TilesOverview {
@@ -504,8 +529,12 @@ impl ScreenWidget for Editor {
     }
 
     fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
-        let mut consumed = false;
 
+        if self.context.dialog_state == DialogState::Open {
+            return self.dialog.mouse_hover(pos, asset, &mut self.context);
+        }
+
+        let mut consumed = false;
         self.mouse_hover_pos = pos.clone();
 
         if consumed == false && self.toolbar.mouse_hover(pos, asset, &mut self.context) {
@@ -525,9 +554,12 @@ impl ScreenWidget for Editor {
     }
 
     fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset) -> bool {
-        let mut consumed = false;
-        //consumed = self.widgets[self.curr_index as usize].mouse_hover(pos, asset);
 
+        if self.context.dialog_state == DialogState::Open {
+            return false;
+        }
+
+        let mut consumed = false;
         if consumed == false && self.toolbar.mouse_wheel(delta, asset, &mut self.context) {
             consumed = true;
         } else

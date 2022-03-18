@@ -100,7 +100,6 @@ impl NodeWidget {
         }
     }
 
-
     /// Draw the node
     pub fn draw(&mut self, _frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool) {
 

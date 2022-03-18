@@ -635,11 +635,12 @@ impl NodeGraph {
         // Create the node
         if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
 
-            let mut node_type : BehaviorNodeType = BehaviorNodeType::BehaviorTree;
-
-            if name == "Dice Roll" {
-                node_type = BehaviorNodeType::DiceRoll;
-            }
+            let node_type = match name.as_str() {
+                "Dice Roll" => BehaviorNodeType::DiceRoll,
+                "Number" => BehaviorNodeType::VariableNumber,
+                "Position" => BehaviorNodeType::VariablePosition,
+                _ => BehaviorNodeType::BehaviorTree
+            };
 
             id = behavior.add_node(node_type, name.clone());
             if let Some(node) = behavior.data.nodes.get_mut(&id) {
@@ -697,6 +698,18 @@ impl NodeGraph {
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if behavior_node.behavior_type == BehaviorNodeType::VariableNumber {
+
+            let mut atom1 = AtomWidget::new(vec!["Value".to_string()], AtomWidgetType::NodeIntButton,
+            AtomData::new_as_int_range("value".to_string(), 1, 1, 5, 1));
+            atom1.atom_data.text = "Value".to_string();
+            let id = (behavior_data.id, behavior_node.id, "value".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0));
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_orange.clone();
         }
     }
 
