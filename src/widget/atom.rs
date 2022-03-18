@@ -576,7 +576,9 @@ impl AtomWidget {
             self.dirty = true;
 
             if self.atom_widget_type == AtomWidgetType::NodeIntButton {
-                context.dialog_state = DialogState::Open;
+                context.dialog_state = DialogState::Opening;
+                context.dialog_height = 0;
+                context.target_fps = 60;
                 context.dialog_atom_type = AtomWidgetType::NodeIntButton;
                 context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
                 context.dialog_node_behavior_value = self.atom_data.data.clone();

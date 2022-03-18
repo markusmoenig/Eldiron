@@ -1,4 +1,3 @@
-use crate::widget::*;
 use server::asset::Asset;
 
 use crate::atom::{ AtomWidget, AtomWidgetType, AtomData };
@@ -11,11 +10,6 @@ pub enum DialogState {
     Open,
     Opening,
     Closing
-}
-
-#[derive(PartialEq, Debug)]
-pub enum DialogType {
-    NodeInt
 }
 
 pub struct DialogWidget {
@@ -59,7 +53,28 @@ impl DialogWidget {
 
     pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
 
-        let rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
+        let mut rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
+
+        if context.dialog_state == DialogState::Opening {
+            context.dialog_height += 20;
+            rect.3 = context.dialog_height;
+            if context.dialog_height >= self.rect.3 {
+                context.dialog_state = DialogState::Open;
+                context.target_fps = context.default_fps;
+            }
+            self.dirty = true;
+        } else
+        if context.dialog_state == DialogState::Closing {
+            context.dialog_height -= 20;
+            rect.3 = context.dialog_height;
+            if context.dialog_height <= 20 {
+                context.dialog_state = DialogState::Closed;
+                context.target_fps = context.default_fps;
+                return;
+            }
+            self.dirty = true;
+        }
+
         if self.buffer.len() != rect.2 * rect.3 * 4 {
             self.buffer = vec![0;rect.2 * rect.3 * 4];
         }
@@ -71,15 +86,17 @@ impl DialogWidget {
 
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(rect.2 as f64 - 1.0, rect.3 as f64 - 1.0), &context.color_black, &(20.0, 0.0, 20.0, 0.0), &context.color_light_gray, 1.5);
 
-            self.widgets[0].set_rect((rect.2 - 280, rect.3 - 60, 120, 40), asset, context);
-            self.widgets[1].set_rect((rect.2 - 140, rect.3 - 60, 120, 40), asset, context);
+            if context.dialog_state == DialogState::Open {
+                self.widgets[0].set_rect((rect.2 - 280, rect.3 - 60, 120, 40), asset, context);
+                self.widgets[1].set_rect((rect.2 - 140, rect.3 - 60, 120, 40), asset, context);
 
-            for atom in &mut self.widgets {
-                atom.draw(buffer_frame, rect.2, anim_counter, asset, context);
+                for atom in &mut self.widgets {
+                    atom.draw(buffer_frame, rect.2, anim_counter, asset, context);
+                }
             }
         }
         self.dirty = false;
-        context.draw2d.blend_slice(frame, buffer_frame, &self.rect, context.width);
+        context.draw2d.blend_slice(frame, buffer_frame, &(self.rect.0, self.rect.1, rect.2, rect.3), context.width);
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
@@ -106,7 +123,8 @@ impl DialogWidget {
                 self.dirty = true;
 
                 if self.clicked_id == "Cancel" {
-                    context.dialog_state = DialogState::Closed;
+                    context.dialog_state = DialogState::Closing;
+                    context.target_fps = 60;
                 }
 
                 return true;
@@ -138,23 +156,5 @@ impl DialogWidget {
             }
         }
         false
-    }
-
-    fn contains_pos(&self, pos: (usize, usize)) -> bool {
-        let rect = self.rect;
-
-        if pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3 {
-            true
-        } else {
-            false
-        }
-    }
-
-    fn contains_pos_for(&self, pos: (usize, usize), rect: (usize, usize, usize, usize)) -> bool {
-        if pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3 {
-            true
-        } else {
-            false
-        }
     }
 }

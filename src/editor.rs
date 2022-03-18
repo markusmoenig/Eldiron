@@ -212,7 +212,7 @@ impl ScreenWidget for Editor {
             }
         }
 
-        if self.context.dialog_state == DialogState::Open {
+        if self.context.dialog_state != DialogState::Closed {
             self.dialog.rect.0 = (self.context.width - self.dialog.rect.2) / 2;
             self.dialog.draw(frame, anim_counter, asset, &mut self.context);
         }

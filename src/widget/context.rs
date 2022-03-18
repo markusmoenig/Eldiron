@@ -77,6 +77,7 @@ pub struct ScreenContext {
     pub drag_context                    : Option<ScreenDragContext>,
 
     pub dialog_state                    : DialogState,
+    pub dialog_height                   : usize,
     pub dialog_atom_type                : AtomWidgetType,
     pub dialog_node_behavior_id         : (usize, usize, String),
     pub dialog_node_behavior_value      : (f64, f64, f64, f64),
@@ -177,6 +178,7 @@ impl ScreenContext {
             curr_behavior_node_id       : 0,
 
             dialog_state                : DialogState::Closed,
+            dialog_height               : 0,
             dialog_atom_type            : AtomWidgetType::Button,
             dialog_node_behavior_id     : (0, 0, "".to_string()),
             dialog_node_behavior_value  : (0.0, 0.0, 0.0, 0.0),
