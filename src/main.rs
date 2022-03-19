@@ -21,11 +21,11 @@ use server::asset::*;
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
-use winit::event::{Event, DeviceEvent, VirtualKeyCode, WindowEvent};
+use winit::event::{Event, DeviceEvent, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
-
+use winit::event::KeyboardInput;
 
 use std::time::Duration;
 
@@ -70,6 +70,7 @@ fn main() -> Result<(), Error> {
     let mut mouse_wheel_ongoing = false;
 
     event_loop.run(move |event, _, control_flow| {
+        use winit::event::{ElementState, VirtualKeyCode};
 
         if let Event::RedrawRequested(_) = event {
             curr_screen.draw(pixels.get_frame(), anim_counter, &mut asset);
@@ -88,8 +89,67 @@ fn main() -> Result<(), Error> {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::ReceivedCharacter(char ) => match char {
                     _ => {
-                        println!("{}", char);
+                        if curr_screen.key_down(Some(*char), None, &mut asset) {
+                            window.request_redraw();
+                        }
                     }
+                },
+
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            virtual_keycode: Some(virtual_code),
+                            state: ElementState::Pressed,
+                            ..
+                        },
+                    ..
+                } => match virtual_code {
+                    VirtualKeyCode::Delete => {
+                        if curr_screen.key_down(None, Some(WidgetKey::Delete), &mut asset) {
+                            window.request_redraw();
+                        }
+                    },
+                    VirtualKeyCode::Back => {
+                        if curr_screen.key_down(None, Some(WidgetKey::Delete), &mut asset) {
+                            window.request_redraw();
+                        }
+                    },
+                    VirtualKeyCode::Up => {
+                        if curr_screen.key_down(None, Some(WidgetKey::Up), &mut asset) {
+                            window.request_redraw();
+                        }
+                    },
+                    VirtualKeyCode::Right => {
+                        if curr_screen.key_down(None, Some(WidgetKey::Right), &mut asset) {
+                            window.request_redraw();
+                        }
+                    },
+                    VirtualKeyCode::Down => {
+                        if curr_screen.key_down(None, Some(WidgetKey::Down), &mut asset) {
+                            window.request_redraw();
+                        }
+                    },
+                    VirtualKeyCode::Left => {
+                        if curr_screen.key_down(None, Some(WidgetKey::Left), &mut asset) {
+                            window.request_redraw();
+                        }
+                    },
+                    VirtualKeyCode::Space => {
+                        if curr_screen.key_down(None, Some(WidgetKey::Space), &mut asset) {
+                            window.request_redraw();
+                        }
+                    },
+                    VirtualKeyCode::Return => {
+                        if curr_screen.key_down(None, Some(WidgetKey::Return), &mut asset) {
+                            window.request_redraw();
+                        }
+                    },
+                    VirtualKeyCode::Escape => {
+                        if curr_screen.key_down(None, Some(WidgetKey::Escape), &mut asset) {
+                            window.request_redraw();
+                        }
+                    }
+                    _ => (),
                 },
                 _ => (),
             },
@@ -131,10 +191,10 @@ fn main() -> Result<(), Error> {
         // Handle input events
         if input.update(&event) {
             // Close events
-            if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
-                *control_flow = ControlFlow::Exit;
-                return;
-            }
+            // if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
+            //     *control_flow = ControlFlow::Exit;
+            //     return;
+            // }
 
             if input.mouse_pressed(0) {
                 let coords =  input.mouse().unwrap();

@@ -29,7 +29,7 @@ pub struct BehaviorNode {
     pub behavior_type           : BehaviorNodeType,
     pub name                    : String,
 
-    pub values                  : HashMap<String, (f64, f64, f64, f64)>,
+    pub values                  : HashMap<String, (f64, f64, f64, f64, String)>,
     pub id                      : usize,
 
     pub position                : (isize, isize),

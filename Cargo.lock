@@ -382,6 +382,7 @@ name = "eldiron"
 version = "0.1.0"
 dependencies = [
  "env_logger",
+ "evalexpr",
  "itertools",
  "log",
  "pixels",
@@ -473,6 +474,12 @@ dependencies = [
  "regex",
  "termcolor",
 ]
+
+[[package]]
+name = "evalexpr"
+version = "7.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d4fd7bd9e32c1205549decf6f36772d7b606a579b26afaffa335ae148151a5d"
 
 [[package]]
 name = "fnv"

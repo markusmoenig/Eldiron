@@ -1,4 +1,4 @@
-use crate::{widget::*, editor::dialog::DialogState};
+use crate::{widget::*, editor::dialog::{DialogState, DialogEntry}};
 
 use super::context::ScreenDragContext;
 
@@ -17,7 +17,7 @@ struct GroupItem {
 pub struct AtomData {
     pub text                    : String,
     pub id                      : String,
-    pub data                    : (f64, f64, f64, f64)
+    pub data                    : (f64, f64, f64, f64, String)
 }
 
 impl AtomData {
@@ -27,7 +27,7 @@ impl AtomData {
         Self {
             text                : "".to_string(),
             id                  : id,
-            data                : (value as f64,0.0,0.0,0.0)
+            data                : (value as f64,0.0,0.0,0.0, "".to_string())
         }
     }
 
@@ -36,7 +36,7 @@ impl AtomData {
         Self {
             text                : "".to_string(),
             id                  : id,
-            data                : (value as f64, min as f64, max as f64, step as f64)
+            data                : (value as f64, min as f64, max as f64, step as f64, "".to_string())
         }
     }
 }
@@ -69,7 +69,6 @@ pub struct AtomWidget {
     pub dirty                   : bool,
     buffer                      : Vec<u8>,
 
-    pub disabled                : bool,
     pub selected                : bool,
     has_hover                   : bool,
 
@@ -114,7 +113,6 @@ impl AtomWidget {
             dirty               : true,
             buffer              : vec![],
 
-            disabled            : false,
             selected            : false,
             has_hover           : false,
 
@@ -579,7 +577,7 @@ impl AtomWidget {
                 context.dialog_state = DialogState::Opening;
                 context.dialog_height = 0;
                 context.target_fps = 60;
-                context.dialog_atom_type = AtomWidgetType::NodeIntButton;
+                context.dialog_entry = DialogEntry::NodeNumber;
                 context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
                 context.dialog_node_behavior_value = self.atom_data.data.clone();
             }

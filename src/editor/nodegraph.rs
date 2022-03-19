@@ -293,6 +293,22 @@ impl NodeGraph {
         (x, y, self.nodes[node_index].size.0, self.nodes[node_index].size.1)
     }
 
+    /// Updates a node value from the dialog
+    pub fn update_from_dialog(&mut self, context: &mut ScreenContext) {
+        for node_index in 0..self.nodes.len() {
+            for atom_index in 0..self.nodes[node_index].widgets.len() {
+                if let Some(id) = &self.nodes[node_index].widgets[atom_index].behavior_id {
+                    if id.0 == context.dialog_node_behavior_id.0 && id.1 == context.dialog_node_behavior_id.1 && id.2 == context.dialog_node_behavior_id.2 {
+                        self.nodes[node_index].widgets[atom_index].atom_data.data = context.dialog_node_behavior_value.clone();
+                        self.nodes[node_index].widgets[atom_index].dirty = true;
+                        self.nodes[node_index].dirty = true;
+                        self.dirty = true
+                    }
+                }
+            }
+        }
+    }
+
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
         if self.graph_mode == GraphMode::Overview {
@@ -672,7 +688,7 @@ impl NodeGraph {
             atom1.atom_data.text = "Execute".to_string();
             let id = (behavior_data.id, behavior_node.id, "execute".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0)).0 as usize;
+            atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string())).0 as usize;
             node_widget.widgets.push(atom1);
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
@@ -684,7 +700,7 @@ impl NodeGraph {
             atom1.atom_data.text = "Throws".to_string();
             let id = (behavior_data.id, behavior_node.id, "throws".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (1.0,1.0,5.0,1.0));
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (1.0,1.0,5.0,1.0, "".to_string()));
             node_widget.widgets.push(atom1);
 
             //a d4, a d6, a d8, one or two d10s, a d12 and a d20.
@@ -693,7 +709,7 @@ impl NodeGraph {
             atom2.atom_data.text = "Dice".to_string();
             let id = (behavior_data.id, behavior_node.id, "dice".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0)).0 as usize;
+            atom2.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string())).0 as usize;
             node_widget.widgets.push(atom2);
 
             node_widget.color = context.color_green.clone();
@@ -706,7 +722,7 @@ impl NodeGraph {
             atom1.atom_data.text = "Value".to_string();
             let id = (behavior_data.id, behavior_node.id, "value".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0));
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()));
             node_widget.widgets.push(atom1);
 
             node_widget.color = context.color_orange.clone();

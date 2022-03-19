@@ -170,7 +170,7 @@ impl GameData {
     }
 
     /// Sets the value for the given behavior id
-    pub fn set_behavior_id_value(&mut self, id: (usize, usize, String), value: (f64, f64, f64, f64)) {
+    pub fn set_behavior_id_value(&mut self, id: (usize, usize, String), value: (f64, f64, f64, f64, String)) {
         if let Some(behavior) = self.behaviors.get_mut(&id.0) {
             if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
                 node.values.insert(id.2.clone(), value);
@@ -180,11 +180,11 @@ impl GameData {
     }
 
     /// Gets the value of the behavior id
-    pub fn get_behavior_id_value(&self, id: (usize, usize, String), def: (f64, f64, f64, f64)) -> (f64, f64, f64, f64) {
+    pub fn get_behavior_id_value(&self, id: (usize, usize, String), def: (f64, f64, f64, f64, String)) -> (f64, f64, f64, f64, String) {
         if let Some(behavior) = self.behaviors.get(&id.0) {
             if let Some(node) = behavior.data.nodes.get(&id.1) {
                 if let Some(v) = node.values.get(&id.2) {
-                    return *v;
+                    return v.clone();
                 }
             }
         }

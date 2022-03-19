@@ -3,7 +3,7 @@ use crate::tileselector::TileSelectorWidget;
 use crate::editor::areaoptions::AreaOptions;
 use crate::editor::behavioroptions::BehaviorOptions;
 use crate::editor::areawidget::AreaWidget;
-use crate::widget:: {ScreenWidget, Widget, WidgetState};
+use crate::widget:: {ScreenWidget, Widget, WidgetState, WidgetKey};
 use crate::tileset::TileUsage;
 
 use crate::editor::dialog::DialogWidget;
@@ -29,7 +29,7 @@ use crate::editor::node::NodeUserData;
 use crate::editor::node::NodeWidget;
 use crate::editor::nodegraph::{ NodeGraph, GraphMode, GraphType };
 
-use self::dialog::DialogState;
+use self::dialog::{DialogState, DialogEntry};
 use self::tilemapoptions::TileMapOptions;
 
 #[derive (PartialEq)]
@@ -215,10 +215,23 @@ impl ScreenWidget for Editor {
         if self.context.dialog_state != DialogState::Closed {
             self.dialog.rect.0 = (self.context.width - self.dialog.rect.2) / 2;
             self.dialog.draw(frame, anim_counter, asset, &mut self.context);
+        } else
+        if self.context.dialog_entry != DialogEntry::None {
+            if self.state == EditorState::BehaviorDetail {
+                self.node_graph_behavior_details.update_from_dialog(&mut self.context);
+            }
+            self.context.dialog_entry = DialogEntry::None;
         }
 
         // Draw overlay
         self.toolbar.draw_overlay(frame, &self.rect, anim_counter, asset, &mut self.context);
+    }
+
+    fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset) -> bool {
+        if self.context.dialog_state == DialogState::Open {
+            return self.dialog.key_down(char, key, asset, &mut self.context);
+        }
+        false
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {

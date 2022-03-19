@@ -8,6 +8,20 @@ use self::context::ScreenContext;
 pub mod context;
 pub mod draw2d;
 
+/// The widget state
+
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub enum WidgetKey {
+    Escape,
+    Return,
+    Delete,
+    Up,
+    Right,
+    Down,
+    Left,
+    Space,
+}
+
 /// Top level screen widget
 pub trait ScreenWidget {
 
@@ -18,6 +32,10 @@ pub trait ScreenWidget {
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset);
+
+    fn key_down(&mut self, _char: Option<char>, _key: Option<WidgetKey>, _asset: &mut Asset) -> bool {
+        false
+    }
 
     fn mouse_down(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
         false
