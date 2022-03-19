@@ -652,7 +652,8 @@ impl NodeGraph {
         if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
 
             let node_type = match name.as_str() {
-                "Dice Roll" => BehaviorNodeType::DiceRoll,
+                "Dice Check" => BehaviorNodeType::DiceCheck,
+                "Expression" => BehaviorNodeType::Expression,
                 "Number" => BehaviorNodeType::VariableNumber,
                 "Position" => BehaviorNodeType::VariablePosition,
                 _ => BehaviorNodeType::BehaviorTree
@@ -693,12 +694,27 @@ impl NodeGraph {
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
-        if behavior_node.behavior_type == BehaviorNodeType::DiceRoll {
+        if behavior_node.behavior_type == BehaviorNodeType::Expression {
 
-            let mut atom1 = AtomWidget::new(vec!["Throws".to_string()], AtomWidgetType::NodeIntSlider,
-            AtomData::new_as_int_range("throws".to_string(), 1, 1, 5, 1));
-            atom1.atom_data.text = "Throws".to_string();
-            let id = (behavior_data.id, behavior_node.id, "throws".to_string());
+            let mut atom1 = AtomWidget::new(vec!["Expression".to_string()], AtomWidgetType::NodeExpressionButton,
+            AtomData::new_as_int("expression".to_string(), 0));
+            atom1.atom_data.text = "Expression".to_string();
+            let id = (behavior_data.id, behavior_node.id, "expression".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "1 > 0".to_string()));
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if behavior_node.behavior_type == BehaviorNodeType::DiceCheck {
+
+            let mut atom1 = AtomWidget::new(vec!["Check".to_string()], AtomWidgetType::NodeExpressionButton,
+            AtomData::new_as_int_range("check".to_string(), 1, 1, 5, 1));
+            atom1.atom_data.text = "Check".to_string();
+            let id = (behavior_data.id, behavior_node.id, "check".to_string());
             atom1.behavior_id = Some(id.clone());
             atom1.atom_data.data = context.data.get_behavior_id_value(id, (1.0,1.0,5.0,1.0, "".to_string()));
             node_widget.widgets.push(atom1);
@@ -714,11 +730,13 @@ impl NodeGraph {
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if behavior_node.behavior_type == BehaviorNodeType::VariableNumber {
 
             let mut atom1 = AtomWidget::new(vec!["Value".to_string()], AtomWidgetType::NodeIntButton,
-            AtomData::new_as_int_range("value".to_string(), 1, 1, 5, 1));
+            AtomData::new_as_int("value".to_string(), 0));
             atom1.atom_data.text = "Value".to_string();
             let id = (behavior_data.id, behavior_node.id, "value".to_string());
             atom1.behavior_id = Some(id.clone());

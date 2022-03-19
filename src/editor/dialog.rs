@@ -5,10 +5,13 @@ use crate::widget::{ WidgetKey, WidgetState };
 
 use crate::context::ScreenContext;
 
+use evalexpr::*;
+
 #[derive(PartialEq, Debug)]
 pub enum DialogEntry {
     None,
     NodeNumber,
+    NodeExpression,
 }
 
 #[derive(PartialEq, Debug)]
@@ -70,8 +73,14 @@ impl DialogWidget {
                 context.dialog_state = DialogState::Open;
                 context.target_fps = context.default_fps;
 
+                self.widgets[0].state = WidgetState::Normal;
+                self.widgets[1].state = WidgetState::Normal;
+
                 if context.dialog_entry == DialogEntry::NodeNumber {
                     self.text = format!("{}", context.dialog_node_behavior_value.0);
+                } else
+                if context.dialog_entry == DialogEntry::NodeExpression {
+                    self.text = context.dialog_node_behavior_value.4.clone();
                 }
             }
             self.dirty = true;
@@ -113,6 +122,22 @@ impl DialogWidget {
                     if self.widgets[1].state == WidgetState::Disabled {
                         self.widgets[1].state = WidgetState::Normal;
                     }
+                } else
+                if context.dialog_entry == DialogEntry::NodeExpression {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Expression".to_string(), &context.color_white, &context.color_black);
+
+                    let mut cont = HashMapContext::new();
+
+                    let _ = eval_empty_with_context_mut("a = 5", &mut cont);
+                    let exp = eval_boolean_with_context(&self.text, &cont);
+                    //println!("{:?}", exp);
+                    if exp.is_err(){
+                        border_color = context.color_red;
+                        self.widgets[1].state = WidgetState::Disabled;
+                    } else
+                    if self.widgets[1].state == WidgetState::Disabled {
+                        self.widgets[1].state = WidgetState::Normal;
+                    }
                 }
 
                 let input_rect = (20, 60, rect.2 - 40, 60);
@@ -148,6 +173,18 @@ impl DialogWidget {
             let float_value = self.text.parse::<f64>();
             if float_value.is_ok() {
                 context.dialog_node_behavior_value.0 = float_value.unwrap();
+                context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());
+                return true;
+            }
+        } else
+        if context.dialog_entry == DialogEntry::NodeExpression {
+
+            let mut cont = HashMapContext::new();
+
+            let _ = eval_empty_with_context_mut("a = 5", &mut cont);
+            let exp = eval_boolean_with_context(&self.text, &cont);
+            if exp.is_ok() {
+                context.dialog_node_behavior_value.4 = self.text.clone();
                 context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());
                 return true;
             }

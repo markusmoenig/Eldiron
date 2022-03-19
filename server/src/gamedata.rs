@@ -140,7 +140,7 @@ impl GameData {
         // }
 
         let mut nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
-        nodes.insert(BehaviorNodeType::DiceRoll, nodes::dice_roll);
+        nodes.insert(BehaviorNodeType::DiceCheck, nodes::dice_check);
 
         Self {
             areas,

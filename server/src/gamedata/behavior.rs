@@ -9,9 +9,10 @@ use std::collections::HashMap;
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum BehaviorNodeType {
     BehaviorTree,
-    DiceRoll,
+    Expression,
     VariableNumber,
     VariablePosition,
+    DiceCheck,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -142,7 +143,7 @@ impl GameBehavior {
         let mut execute_node = |id: usize| {
             if let Some(node) = self.data.nodes.get_mut(&id) {
                 println!("Executing:: {}", node.name);
-                if node.behavior_type == BehaviorNodeType::DiceRoll {
+                if node.behavior_type == BehaviorNodeType::DiceCheck {
 
                 }
             }

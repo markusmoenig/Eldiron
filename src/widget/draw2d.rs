@@ -201,11 +201,12 @@ impl Draw2D {
 
     /// Draws a text aligned inside a rect
     pub fn draw_text_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4], background: &[u8;4], align: TextAlignment) {
+        if text.trim_end().is_empty() { return; }
         if align == TextAlignment::Left {
             self.draw_text(frame, &(rect.0, rect.1), stride, font, size, text, color, background);
         } else
         if align == TextAlignment::Center {
-            let text_size = self.get_text_size(font, size, text);
+            let text_size = self.get_text_size(font, size, text.trim_end());
             let x =  rect.0 + (rect.2 - text_size.0) / 2;
             let y =  rect.1 + (rect.3 - text_size.1) / 2;
             self.draw_text(frame, &(x, y), stride, font, size, text, color, background);
@@ -214,11 +215,12 @@ impl Draw2D {
 
     /// Blends a text aligned inside a rect and blends it with the existing background
     pub fn blend_text_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4], align: TextAlignment) {
+        if text.trim_end().is_empty() { return; }
         if align == TextAlignment::Left {
             self.blend_text(frame, &(rect.0, rect.1), stride, font, size, text, color);
         } else
         if align == TextAlignment::Center {
-            let text_size = self.get_text_size(font, size, text);
+            let text_size = self.get_text_size(font, size, text.trim_end());
             let x =  rect.0 + (rect.2 - text_size.0) / 2;
             let y =  rect.1 + (rect.3 - text_size.1) / 2;
             self.blend_text(frame, &(x, y), stride, font, size, text, color);
@@ -227,9 +229,9 @@ impl Draw2D {
 
     /// Draws the given text
     pub fn draw_text(&self,  frame: &mut [u8], pos: &(usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4], background: &[u8; 4]) {
+        if text.is_empty() { return; }
 
         let scale = Scale::uniform(size);
-
         let v_metrics = font.v_metrics(scale);
 
         let glyphs: Vec<_> = font
@@ -251,6 +253,7 @@ impl Draw2D {
 
     /// Draws the given text and blends it with the existing background
     pub fn blend_text(&self,  frame: &mut [u8], pos: &(usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4]) {
+        if text.is_empty() { return; }
 
         let scale = Scale::uniform(size);
 
@@ -287,11 +290,11 @@ impl Draw2D {
         let glyphs_width = {
             let min_x = glyphs
                 .first()
-                .map(|g| g.pixel_bounding_box().unwrap().min.x)
+                .map(|g| g.pixel_bounding_box().unwrap_or(rusttype::Rect{min: rusttype::Point{x: 0, y: 0}, max: rusttype::Point{x: 0, y: 0}}).min.x)
                 .unwrap();
             let max_x = glyphs
                 .last()
-                .map(|g| g.pixel_bounding_box().unwrap().max.x)
+                .map(|g| g.pixel_bounding_box().unwrap_or(rusttype::Rect{min: rusttype::Point{x: 0, y: 0}, max: rusttype::Point{x: 0, y: 0}}).max.x)
                 .unwrap();
             (max_x - min_x) as u32
         };

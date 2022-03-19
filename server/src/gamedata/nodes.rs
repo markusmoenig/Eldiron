@@ -8,7 +8,7 @@ pub enum NodeResult {
     InProgress,
 }
 
-pub fn dice_roll(_inst: &mut BehaviorInstance, _node: &BehaviorNode) -> NodeResult {
-    println!("inside dice_roll");
+pub fn dice_check(_inst: &mut BehaviorInstance, _node: &BehaviorNode) -> NodeResult {
+    println!("inside check");
     NodeResult::Failure
 }
