@@ -555,6 +555,7 @@ impl NodeGraph {
                     for (conn, connector) in &self.nodes[index].node_connector {
                         let c_rect = (pos.0  as isize - rect.0, pos.1 as isize - rect.1);
                         if c_rect.0 > 0 && c_rect.1 > 0 {
+
                             if context.contains_pos_for((c_rect.0 as usize, c_rect.1 as usize), connector.rect) {
 
                                 // Check if nodes are different
@@ -656,6 +657,7 @@ impl NodeGraph {
                 "Expression" => BehaviorNodeType::Expression,
                 "Number" => BehaviorNodeType::VariableNumber,
                 "Position" => BehaviorNodeType::VariablePosition,
+                "Say" => BehaviorNodeType::Say,
                 _ => BehaviorNodeType::BehaviorTree
             };
 
@@ -744,6 +746,19 @@ impl NodeGraph {
             node_widget.widgets.push(atom1);
 
             node_widget.color = context.color_orange.clone();
+        } else
+        if behavior_node.behavior_type == BehaviorNodeType::Say {
+            let mut atom1 = AtomWidget::new(vec!["Text".to_string()], AtomWidgetType::NodeTextButton,
+            AtomData::new_as_int("text".to_string(), 0));
+            atom1.atom_data.text = "Text".to_string();
+            let id = (behavior_data.id, behavior_node.id, "text".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Hello".to_string()));
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         }
     }
 
@@ -764,7 +779,7 @@ impl NodeGraph {
 
     /// Returns true if the node connector is a source connector (Right or Bottom)
     pub fn connector_is_source(&self, connector: BehaviorNodeConnector) -> bool {
-        if connector == BehaviorNodeConnector::Right || connector == BehaviorNodeConnector::Bottom {
+        if connector == BehaviorNodeConnector::Right || connector == BehaviorNodeConnector::Bottom || connector == BehaviorNodeConnector::Success || connector == BehaviorNodeConnector::Fail {
             return true;
         }
         false

@@ -141,6 +141,8 @@ impl GameData {
 
         let mut nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
         nodes.insert(BehaviorNodeType::DiceCheck, nodes::dice_check);
+        nodes.insert(BehaviorNodeType::Expression, nodes::expression);
+        nodes.insert(BehaviorNodeType::Say, nodes::say);
 
         Self {
             areas,
@@ -242,7 +244,7 @@ impl GameData {
                     if let Some(node) = behavior.data.nodes.get_mut(&id) {
                         // println!("Executing:: {}", node.name);
                         if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
-                            node_call(&mut instance, node);
+                            let rc = node_call(&mut instance, node);
                         }
                     }
                 };

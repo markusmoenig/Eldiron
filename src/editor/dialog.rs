@@ -12,6 +12,7 @@ pub enum DialogEntry {
     None,
     NodeNumber,
     NodeExpression,
+    NodeText,
 }
 
 #[derive(PartialEq, Debug)]
@@ -79,7 +80,7 @@ impl DialogWidget {
                 if context.dialog_entry == DialogEntry::NodeNumber {
                     self.text = format!("{}", context.dialog_node_behavior_value.0);
                 } else
-                if context.dialog_entry == DialogEntry::NodeExpression {
+                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeText {
                     self.text = context.dialog_node_behavior_value.4.clone();
                 }
             }
@@ -138,6 +139,9 @@ impl DialogWidget {
                     if self.widgets[1].state == WidgetState::Disabled {
                         self.widgets[1].state = WidgetState::Normal;
                     }
+                } else
+                if context.dialog_entry == DialogEntry::NodeText {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Text".to_string(), &context.color_white, &context.color_black);
                 }
 
                 let input_rect = (20, 60, rect.2 - 40, 60);
@@ -188,6 +192,11 @@ impl DialogWidget {
                 context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());
                 return true;
             }
+        } else
+        if context.dialog_entry == DialogEntry::NodeText {
+            context.dialog_node_behavior_value.4 = self.text.clone();
+            context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());
+            return true;
         }
         false
     }

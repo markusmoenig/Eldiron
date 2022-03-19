@@ -13,6 +13,8 @@ pub enum BehaviorNodeType {
     VariableNumber,
     VariablePosition,
     DiceCheck,
+    Pathfinder,
+    Say,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

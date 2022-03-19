@@ -54,6 +54,7 @@ pub struct ScreenContext {
     pub color_green                     : [u8;4],
     pub color_light_green               : [u8;4],
     pub color_blue                      : [u8;4],
+    pub color_light_blue                : [u8;4],
 
     pub color_node_light_gray           : [u8;4],
     pub color_node_dark_gray            : [u8;4],
@@ -153,6 +154,7 @@ impl ScreenContext {
             color_red                   : [207, 55, 54, 255],
             color_green_conn            : [20, 143, 40, 255],
             color_blue                  : [27, 79, 136, 255],
+            color_light_blue            : [78, 103, 145, 255],
 
             color_node_light_gray       : [102, 102, 102, 255],
             color_node_dark_gray        : [48, 48, 48, 255],
