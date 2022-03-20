@@ -200,7 +200,8 @@ impl DialogWidget {
                         let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
                     }
                 }
-            }            let exp = eval_boolean_with_context(&self.text, &cont);
+            }
+            let exp = eval_boolean_with_context(&self.text, &cont);
             if exp.is_ok() {
                 context.dialog_node_behavior_value.4 = self.text.clone();
                 context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());

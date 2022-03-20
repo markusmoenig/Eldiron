@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::fs::metadata;
 
 use crate::gamedata::area::GameArea;
-use crate::gamedata::behavior::{ BehaviorInstance, GameBehavior };
+use crate::gamedata::behavior::{ BehaviorNodeConnector, BehaviorInstance, GameBehavior };
 use crate::asset::TileUsage;
 
 use itertools::Itertools;
@@ -14,9 +14,9 @@ use itertools::Itertools;
 use std::path;
 use std::fs;
 
-use self::behavior::{BehaviorNodeType, BehaviorNode};
+use self::behavior::{BehaviorNodeType};
 
-type NodeCall = fn(&mut BehaviorInstance, &BehaviorNode) -> nodes::NodeResult;
+type NodeCall = fn(&mut BehaviorInstance, id: (usize, usize), data: &mut GameData) -> behavior::BehaviorNodeConnector;
 
 pub struct GameData {
     pub areas                   : HashMap<usize, GameArea>,
@@ -236,21 +236,11 @@ impl GameData {
                 }
             }
 
-            let id = instance.id.clone();
+            //let node_id = instance.id.clone();
 
             if execute {
-                // Execute the trees
-                let mut execute_node = |id: usize| {
-                    if let Some(node) = behavior.data.nodes.get_mut(&id) {
-                        // println!("Executing:: {}", node.name);
-                        if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
-                            let rc = node_call(&mut instance, node);
-                        }
-                    }
-                };
-
-                for id in to_execute {
-                    execute_node(id);
+                for node_id in to_execute {
+                    self.execute_node(&mut instance, (id.clone(), node_id));
                 }
             }
 
@@ -262,5 +252,40 @@ impl GameData {
         }
 
         0
+    }
+
+    /// Executes the given node and follows the connection chain
+    fn execute_node(&mut self, instance: &mut BehaviorInstance, id: (usize, usize)) {
+
+        let mut connector : Option<BehaviorNodeConnector> = None;
+
+        // Call the node and get the resulting BehaviorNodeConnector
+        if let Some(behavior) = self.behaviors.get_mut(&id.0) {
+            if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
+                // println!("Executing:: {}", node.name);
+
+                if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
+                    connector = Some(node_call(instance, id, self));
+                }
+            }
+        }
+
+        // Search the connections if we can find an ongoing node connection
+        let mut connected_node_id : Option<usize> = None;
+        if let Some(connector) = connector {
+            if let Some(behavior) = self.behaviors.get_mut(&id.0) {
+
+                for c in &behavior.data.connections {
+                    if c.0 == id.1 && c.1 == connector {
+                        connected_node_id = Some(c.2);
+                    }
+                }
+            }
+        }
+
+        // And if yes execute it
+        if let Some(connected_node_id) = connected_node_id {
+            self.execute_node(instance, (id.0, connected_node_id));
+        }
     }
 }

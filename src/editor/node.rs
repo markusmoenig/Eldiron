@@ -165,11 +165,13 @@ impl NodeWidget {
             }
             if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Success) {
                 bottom.rect = (rect.2 / 2 - 6 - 30, rect.3 - 2, 12, 12);
-                context.draw2d._draw_circle_with_border(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0, &context.color_green, 2.0);
+                context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.color_green, 6.0);
+                //context.draw2d._draw_circle_with_border(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0, &context.color_green, 2.0);
             }
             if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Fail) {
                 bottom.rect = (rect.2 / 2 - 6 + 30, rect.3 - 2, 12, 12);
-                context.draw2d._draw_circle_with_border(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0, &context.color_red, 2.0);
+                context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.color_red, 6.0);
+                //context.draw2d._draw_circle_with_border(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0, &context.color_red, 2.0);
             }
         }
         self.dirty = false;
