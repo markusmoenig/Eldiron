@@ -1,4 +1,5 @@
 use server::asset::Asset;
+use server::gamedata::behavior::BehaviorNodeType;
 
 use crate::atom::{ AtomWidget, AtomWidgetType, AtomData };
 use crate::widget::{ WidgetKey, WidgetState };
@@ -128,8 +129,15 @@ impl DialogWidget {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Expression".to_string(), &context.color_white, &context.color_black);
 
                     let mut cont = HashMapContext::new();
-
-                    let _ = eval_empty_with_context_mut("a = 5", &mut cont);
+                    let behavior_id = context.dialog_node_behavior_id.0.clone();
+                    if let Some(behavior) = context.data.behaviors.get_mut(&behavior_id) {
+                        for n in &behavior.data.nodes {
+                            if n.1.behavior_type == BehaviorNodeType::VariableNumber {
+                                let t = format!("{} = {}", n.1.name, n.1.values.get("value").unwrap().0);
+                                let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
+                            }
+                        }
+                    }
                     let exp = eval_boolean_with_context(&self.text, &cont);
                     //println!("{:?}", exp);
                     if exp.is_err(){
@@ -184,9 +192,15 @@ impl DialogWidget {
         if context.dialog_entry == DialogEntry::NodeExpression {
 
             let mut cont = HashMapContext::new();
-
-            let _ = eval_empty_with_context_mut("a = 5", &mut cont);
-            let exp = eval_boolean_with_context(&self.text, &cont);
+            let behavior_id = context.dialog_node_behavior_id.0.clone();
+            if let Some(behavior) = context.data.behaviors.get_mut(&behavior_id) {
+                for n in &behavior.data.nodes {
+                    if n.1.behavior_type == BehaviorNodeType::VariableNumber {
+                        let t = format!("{} = {}", n.1.name, n.1.values.get("value").unwrap().0);
+                        let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
+                    }
+                }
+            }            let exp = eval_boolean_with_context(&self.text, &cont);
             if exp.is_ok() {
                 context.dialog_node_behavior_value.4 = self.text.clone();
                 context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());

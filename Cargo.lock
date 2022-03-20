@@ -1245,6 +1245,7 @@ name = "server"
 version = "0.1.0"
 dependencies = [
  "env_logger",
+ "evalexpr",
  "itertools",
  "log",
  "png",
