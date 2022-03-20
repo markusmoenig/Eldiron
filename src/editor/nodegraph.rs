@@ -198,7 +198,7 @@ impl NodeGraph {
                         let start_y = source_rect.1 + source_connector.rect.1 as isize + source_connector.rect.3 as isize;
 
                         let end_x = dest_rect.0 + dest_connector.rect.0 as isize + dest_connector.rect.2 as isize / 2;
-                        let end_y = dest_rect.1 + dest_connector.rect.1 as isize + dest_connector.rect.3 as isize;
+                        let end_y = dest_rect.1 + dest_connector.rect.1 as isize + dest_connector.rect.3 as isize / 2;
 
                         //context.draw2d.draw_line_safe(&mut self.buffer[..], &(start_x, start_y), &(end_x, end_y), &safe_rect, safe_rect.2, &context.node_connector_color);
 
