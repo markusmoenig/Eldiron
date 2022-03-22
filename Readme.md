@@ -79,6 +79,7 @@ While the basic functionality of the area editor is working, many functions are 
 * Undo / Redo
 * Rectangular operations (cut / copy / paste / move / copy) etc.
 * Assigning tiles to groups
+* Sooner or later we need layers
 
 ## Behavior View (10% Done)
 
