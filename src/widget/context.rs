@@ -85,6 +85,7 @@ pub struct ScreenContext {
     pub right_arrow_mask                : [u8;10*10],
     pub menu_triangle_mask              : [u8;10*10],
     pub preview_arc_mask                : [u8;20*20],
+    pub menu_mask                       : [u8;20*20],
 }
 
 impl ScreenContext {
@@ -111,6 +112,14 @@ impl ScreenContext {
                 Stroke::new(1.0)
             )
             .render_into(&mut preview_arc_mask, None);
+
+            let mut menu_mask = [0u8; 20 * 20];
+            Mask::new("M 0,4 L 19, 4 M 0, 10 L 19, 10, M 0,16 L 19, 16")
+                .size(20, 20)
+                .style(
+                    Stroke::new(1.0)
+                )
+                .render_into(&mut menu_mask, None);
 
         Self {
             draw2d                      : Draw2D {},
@@ -186,7 +195,8 @@ impl ScreenContext {
             // UI Masks
             right_arrow_mask,
             menu_triangle_mask,
-            preview_arc_mask
+            preview_arc_mask,
+            menu_mask
         }
     }
 

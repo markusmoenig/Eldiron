@@ -264,6 +264,11 @@ impl NodeGraph {
             node_offset.0 += self.rect.0 as isize;
             node_offset.1 += self.rect.1 as isize;
 
+            if let Some(menu) = &mut self.nodes[index].menu {
+                menu.emb_offset = node_offset.clone();
+                menu.draw_overlay(frame, &self.rect, anim_counter, asset, context);
+            }
+
             for atom in &mut self.nodes[index].widgets {
                 atom.emb_offset = node_offset.clone();
                 atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
@@ -477,6 +482,22 @@ impl NodeGraph {
         for index in 0..self.nodes.len() {
             let rect= self.get_node_rect(index, false);
             let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
+
+            let mut menu_clicked = false;
+            if let Some(menu) = &mut self.nodes[index].menu {
+                if menu.mouse_up(local, asset, context) {
+                    menu_clicked = true;
+                    menu.dirty = true;
+                    println!("{}", menu.curr_index);
+                }
+            }
+
+            if menu_clicked {
+                self.dirty = true;
+                self.nodes[index].dirty = true;
+                return true;
+            }
+
             if self.nodes[index].mouse_up(local, asset, context) {
                 self.dirty = true;
                 if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
@@ -501,6 +522,14 @@ impl NodeGraph {
         self.mouse_pos = pos.clone();
 
         for index in 0..self.nodes.len() {
+
+            // Node menu
+            if let Some(menu) = &mut self.nodes[index].menu {
+                if menu.mouse_dragged(pos, asset, context) {
+                    return true;
+                }
+            }
+
             let rect= self.get_node_rect(index, false);
             for atom in &mut self.nodes[index].widgets {
                 if atom.atom_widget_type == AtomWidgetType::MenuButton || atom.atom_widget_type == AtomWidgetType::NodeMenuButton {
@@ -684,6 +713,14 @@ impl NodeGraph {
 
     /// Inits the node widget (atom widgets, id)
     pub fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, behavior_node: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
+
+        // Node menu
+        let mut node_menu_atom = AtomWidget::new(vec!["Rename".to_string(), "On Startup".to_string(), "On Demand".to_string()], AtomWidgetType::NodeMenu,
+        AtomData::new_as_int("menu".to_string(), 0));
+        node_menu_atom.atom_data.text = "menu".to_string();
+        let id = (behavior_data.id, behavior_node.id, "menu".to_string());
+        node_menu_atom.behavior_id = Some(id.clone());
+        node_widget.menu = Some(node_menu_atom);
 
         if behavior_node.behavior_type == BehaviorNodeType::BehaviorTree {
             let mut atom1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Demand".to_string()], AtomWidgetType::NodeMenuButton,

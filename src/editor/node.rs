@@ -18,6 +18,7 @@ pub struct NodeConnector {
 pub struct NodeWidget {
     pub text                    : Vec<String>,
     pub widgets                 : Vec<AtomWidget>,
+    pub menu                    : Option<AtomWidget>,
 
     pub clicked                 : bool,
 
@@ -48,6 +49,7 @@ impl NodeWidget {
         Self {
             text,
             widgets             : vec![],
+            menu                : None,
             clicked             : false,
 
             id                  : 0,
@@ -76,6 +78,7 @@ impl NodeWidget {
         Self {
             text                : vec![behavior_node.name.clone()],
             widgets             : vec![],
+            menu                : None,
 
             clicked             : false,
 
@@ -139,6 +142,13 @@ impl NodeWidget {
             }
 
             context.draw2d.draw_text(buffer_frame, &(25, 9), stride, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, title_color);
+
+            // Draw menu
+
+            if let Some(menu) = &mut self.menu {
+                menu.set_rect((self.size.0 - 37, 12, 20, 20), asset, context);
+                menu.draw(buffer_frame, stride, anim_counter, asset, context);
+            }
 
             // Draw atoms
 
@@ -207,6 +217,16 @@ impl NodeWidget {
 
     /// Check if one of the atom widgets was clicked
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+
+        if let Some(menu) = &mut self.menu {
+            if menu.mouse_down(pos, asset, context) {
+                self.dirty = true;
+                self.clicked = true;
+                self.clicked_id = menu.behavior_id.clone();
+                return true;
+            }
+        }
+
         for atom_widget in &mut self.widgets {
             if atom_widget.mouse_down(pos, asset, context) {
                 self.dirty = true;
@@ -221,6 +241,15 @@ impl NodeWidget {
     pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
         let mut consumed = false;
+
+        if let Some(menu) = &mut self.menu {
+            if menu.mouse_up(pos, asset, context) {
+                self.dirty = true;
+                self.clicked = true;
+                return true;
+            }
+        }
+
         for atom_widget in &mut self.widgets {
             if atom_widget.mouse_up(pos, asset, context) {
                 self.dirty = true;
