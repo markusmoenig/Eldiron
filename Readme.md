@@ -28,18 +28,6 @@ Join the community on [Discord](https://discord.gg/ybfTnqy8).
 
 I played the Ultima games day and night in my youth so I decided to create my own similar games as I have some time to spare (what could be a better hobby ?), and on the way also develop a game creator for this type of game which I need for my own game anyway.
 
-## Features and Status
-
-For v1 I target these features:
-
-* Tilemap editor to select tiles in bitmaps and assign tile types and animations. (Done)
-* Commission game tiles and create a modular character tile system (In progress).
-* World editor to create the world and it's areas (In progress).
-* Behavior tree node system for creating the RPG system and AI (In progress).
-* 3D Dungeons ? (Unsure if v1 or later)
-
-Eldiron is currently under heavy development and not yet ready for consumption.
-
 ## Installation
 
 Eldiron is written in Rust, to run it you have to install Rust and its package manager cargo. Please follow the instructions on this [page](https://www.rust-lang.org/tools/install).
