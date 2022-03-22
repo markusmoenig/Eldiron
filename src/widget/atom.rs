@@ -543,7 +543,7 @@ impl AtomWidget {
                     self.clicked = true;
                     self.state = WidgetState::Clicked;
                     self.dirty = true;
-                    self.new_selection = Some(0);
+                    self.new_selection = None;//Some(0);
                     return true;
                 }
             } else
@@ -706,7 +706,7 @@ impl AtomWidget {
                 r.1 += context.node_button_height;
             }
             return true;
-        }
+        } else
         if self.atom_widget_type == AtomWidgetType::NodeIntSlider && self.state == WidgetState::Clicked {
             let min = self.atom_data.data.1;
             let max = self.atom_data.data.2;

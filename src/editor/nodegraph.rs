@@ -504,14 +504,17 @@ impl NodeGraph {
             let mut menu_activated : Option<usize> = None;
             if let Some(menu) = &mut self.nodes[index].menu {
                 if menu.mouse_up(local, asset, context) {
-                    menu_activated = Some(menu.curr_index);
-                    menu.dirty = true;
-                    self.dirty = true;
+                    if menu.new_selection.is_some() {
+                        menu_activated = Some(menu.curr_index);
+                        menu.dirty = true;
+                        self.dirty = true;
+                    }
                 }
             }
 
             // If a menu was activated, mark the node as dirty
             if let Some(menu_activated) = menu_activated {
+                self.nodes[index].dirty = true;
                 match menu_activated {
                     0 => {
                         // Rename node
@@ -528,10 +531,10 @@ impl NodeGraph {
                     },
                     2 => {
                         // Delete node
+                        self.delete_node(self.nodes[index].id, context);
                     }
                     _ => {},
                 }
-                self.nodes[index].dirty = true;
                 return true;
             }
 
@@ -876,6 +879,25 @@ impl NodeGraph {
                     }
                 }
             }
+            behavior.save_data();
+        }
+    }
+
+    /// Disconnect the node from all connections
+    fn delete_node(&mut self, id: usize, context: &mut ScreenContext) {
+        self.disconnect_node(id, context);
+
+        // Remove node widget
+        for index in 0..self.nodes.len() {
+            if self.nodes[index].id == id {
+                self.nodes.remove(index);
+                break
+            }
+        }
+
+        // Remove node data
+        if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
+            behavior.data.nodes.remove(&id);
             behavior.save_data();
         }
     }
