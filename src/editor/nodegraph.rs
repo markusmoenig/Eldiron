@@ -722,7 +722,6 @@ impl NodeGraph {
         if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
 
             let node_type = match name.as_str() {
-                "Dice Check" => BehaviorNodeType::DiceCheck,
                 "Expression" => BehaviorNodeType::Expression,
                 "Number" => BehaviorNodeType::VariableNumber,
                 "Position" => BehaviorNodeType::VariablePosition,
@@ -782,29 +781,6 @@ impl NodeGraph {
             atom1.behavior_id = Some(id.clone());
             atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "1 > 0".to_string()));
             node_widget.widgets.push(atom1);
-
-            node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if behavior_node.behavior_type == BehaviorNodeType::DiceCheck {
-
-            let mut atom1 = AtomWidget::new(vec!["Check".to_string()], AtomWidgetType::NodeExpressionButton,
-            AtomData::new_as_int_range("check".to_string(), 1, 1, 5, 1));
-            atom1.atom_data.text = "Check".to_string();
-            let id = (behavior_data.id, behavior_node.id, "check".to_string());
-            atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "20".to_string()));
-            node_widget.widgets.push(atom1);
-
-            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeDiceButton,
-            AtomData::new_as_int("dice".to_string(), 0));
-            atom2.atom_data.text = "Dice".to_string();
-            let id = (behavior_data.id, behavior_node.id, "dice".to_string());
-            atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "1d20+0".to_string()));
-            node_widget.widgets.push(atom2);
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );

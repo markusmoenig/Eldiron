@@ -12,7 +12,7 @@ pub enum BehaviorNodeType {
     Expression,
     VariableNumber,
     VariablePosition,
-    DiceCheck,
+    VariableEntity,
     Pathfinder,
     Say,
 }
@@ -122,37 +122,5 @@ impl GameBehavior {
         let id = node.id.clone();
         self.data.nodes.insert(node.id, node);
         id
-    }
-
-    pub fn start(&mut self) {
-
-        let mut to_execute : Vec<usize> = vec![];
-
-        for (id, node) in &self.data.nodes {
-            if node.behavior_type == BehaviorNodeType::BehaviorTree {
-
-                for c in &self.data.connections {
-                    if c.0 == *id {
-                        to_execute.push(c.2);
-                    } else
-                    if c.2 == *id {
-                        to_execute.push(c.0);
-                    }
-                }
-            }
-        }
-
-        let mut execute_node = |id: usize| {
-            if let Some(node) = self.data.nodes.get_mut(&id) {
-                println!("Executing:: {}", node.name);
-                if node.behavior_type == BehaviorNodeType::DiceCheck {
-
-                }
-            }
-        };
-
-        for id in to_execute {
-            execute_node(id);
-        }
     }
 }

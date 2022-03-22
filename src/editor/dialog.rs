@@ -15,7 +15,6 @@ pub enum DialogEntry {
     NodeExpression,
     NodeText,
     NodeName,
-    NodeDice,
 }
 
 #[derive(PartialEq, Debug)]
@@ -83,7 +82,7 @@ impl DialogWidget {
                 if context.dialog_entry == DialogEntry::NodeNumber {
                     self.text = format!("{}", context.dialog_node_behavior_value.0);
                 } else
-                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeName || context.dialog_entry == DialogEntry::NodeDice {
+                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeName {
                     self.text = context.dialog_node_behavior_value.4.clone();
                 }
             }
@@ -102,13 +101,6 @@ impl DialogWidget {
 
         if self.buffer.len() != rect.2 * rect.3 * 4 {
             self.buffer = vec![0;rect.2 * rect.3 * 4];
-        }
-
-        let mut dice_is_valid = false;
-        if context.dialog_state == DialogState::Open {
-            if context.dialog_entry == DialogEntry::NodeDice {
-                dice_is_valid = self.dice_check();
-            }
         }
 
         let buffer_frame = &mut self.buffer[..];
@@ -162,14 +154,6 @@ impl DialogWidget {
                 } else
                 if context.dialog_entry == DialogEntry::NodeName {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Node Name".to_string(), &context.color_white, &context.color_black);
-                } else
-                if context.dialog_entry == DialogEntry::NodeDice {
-
-                    if dice_is_valid == false {
-                        border_color = context.color_red;
-                    }
-
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Dice".to_string(), &context.color_white, &context.color_black);
                 }
 
                 let input_rect = (20, 60, rect.2 - 40, 60);
@@ -232,14 +216,6 @@ impl DialogWidget {
             context.dialog_node_behavior_value.4 = self.text.clone();
             context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());
             return true;
-        }
-        else
-        if context.dialog_entry == DialogEntry::NodeDice {
-            if self.dice_check() {
-                context.dialog_node_behavior_value.4 = self.text.clone();
-                context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());
-                return true;
-            }
         }
         false
     }
@@ -339,51 +315,6 @@ impl DialogWidget {
         for atom in &mut self.widgets {
             if atom.mouse_hover(local, asset, context) {
                 self.dirty = true;
-                return true;
-            }
-        }
-        false
-    }
-
-    // Check if a dice expression is valid
-    fn dice_check(&mut self) -> bool {
-
-        if self.text.is_empty() {
-            return false;
-        }
-
-        let get_char = |index: usize| ->char {
-            let b: u8 = self.text.as_bytes()[index];
-            b as char
-        };
-
-        let mut i = 0_usize;
-        if get_char(i).is_ascii_digit() {
-            i += 1;
-        }
-
-        if i < self.text.len() {
-            if get_char(i) == 'd' || get_char(i) == 'D' {
-                i += 1;
-                let mut dice_text = "".to_string();
-                while i < self.text.len() && get_char(i).is_ascii_digit() {
-                    dice_text.push(get_char(i));
-                    i+= 1;
-                }
-
-                let mut modifier_text = "".to_string();
-                while i < self.text.len() {
-                    modifier_text.push(get_char(i));
-                    i+= 1;
-                }
-                if modifier_text.is_empty() == false {
-                    let mod_rc = modifier_text.parse::<i32>();
-                    if mod_rc.is_ok() {
-                    } else {
-                        return false;
-                    }
-                }
-
                 return true;
             }
         }

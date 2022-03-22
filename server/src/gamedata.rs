@@ -141,7 +141,6 @@ impl GameData {
         // }
 
         let mut nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
-        nodes.insert(BehaviorNodeType::DiceCheck, nodes::dice_check);
         nodes.insert(BehaviorNodeType::Expression, nodes::expression);
         nodes.insert(BehaviorNodeType::Say, nodes::say);
 
