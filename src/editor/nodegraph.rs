@@ -1,6 +1,7 @@
 use crate::editor::node::{NodeConnector, NodeWidget};
 use crate::atom:: { AtomData, AtomWidget, AtomWidgetType };
 use crate::editor::node_preview::NodePreviewWidget;
+use crate::editor::dialog::{ DialogState, DialogEntry };
 
 use zeno::{Mask, Stroke};
 
@@ -300,6 +301,22 @@ impl NodeGraph {
 
     /// Updates a node value from the dialog
     pub fn update_from_dialog(&mut self, context: &mut ScreenContext) {
+        if context.dialog_entry == DialogEntry::NodeName {
+            // Node based
+            for node_index in 0..self.nodes.len() {
+                if self.nodes[node_index].id == context.dialog_node_behavior_id.0 {
+                    self.nodes[node_index].text[0] = context.dialog_node_behavior_value.4.clone();
+                    self.nodes[node_index].dirty = true;
+                    self.dirty = true;
+
+                    context.data.set_behavior_node_name((context.curr_behavior_index, context.dialog_node_behavior_id.0),context.dialog_node_behavior_value.4.clone());
+                    break;
+                }
+            }
+            return
+        }
+
+        // Atom base
         for node_index in 0..self.nodes.len() {
             for atom_index in 0..self.nodes[node_index].widgets.len() {
                 if let Some(id) = &self.nodes[node_index].widgets[atom_index].behavior_id {
@@ -307,7 +324,8 @@ impl NodeGraph {
                         self.nodes[node_index].widgets[atom_index].atom_data.data = context.dialog_node_behavior_value.clone();
                         self.nodes[node_index].widgets[atom_index].dirty = true;
                         self.nodes[node_index].dirty = true;
-                        self.dirty = true
+                        self.dirty = true;
+                        break;
                     }
                 }
             }
@@ -483,17 +501,36 @@ impl NodeGraph {
             let rect= self.get_node_rect(index, false);
             let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
 
-            let mut menu_clicked = false;
+            let mut menu_activated : Option<usize> = None;
             if let Some(menu) = &mut self.nodes[index].menu {
                 if menu.mouse_up(local, asset, context) {
-                    menu_clicked = true;
+                    menu_activated = Some(menu.curr_index);
                     menu.dirty = true;
-                    println!("{}", menu.curr_index);
+                    self.dirty = true;
                 }
             }
 
-            if menu_clicked {
-                self.dirty = true;
+            // If a menu was activated, mark the node as dirty
+            if let Some(menu_activated) = menu_activated {
+                match menu_activated {
+                    0 => {
+                        // Rename node
+                        context.dialog_state = DialogState::Opening;
+                        context.dialog_height = 0;
+                        context.target_fps = 60;
+                        context.dialog_entry = DialogEntry::NodeName;
+                        context.dialog_node_behavior_id = (self.nodes[index].id, 0, "".to_string());
+                        context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].text[0].clone());
+                    },
+                    1 => {
+                        // Disconnect node
+                        self.disconnect_node(self.nodes[index].id, context);
+                    },
+                    2 => {
+                        // Delete node
+                    }
+                    _ => {},
+                }
                 self.nodes[index].dirty = true;
                 return true;
             }
@@ -715,7 +752,7 @@ impl NodeGraph {
     pub fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, behavior_node: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
 
         // Node menu
-        let mut node_menu_atom = AtomWidget::new(vec!["Rename".to_string(), "On Startup".to_string(), "On Demand".to_string()], AtomWidgetType::NodeMenu,
+        let mut node_menu_atom = AtomWidget::new(vec!["Rename".to_string(), "Disconnect".to_string(), "Delete".to_string()], AtomWidgetType::NodeMenu,
         AtomData::new_as_int("menu".to_string(), 0));
         node_menu_atom.atom_data.text = "menu".to_string();
         let id = (behavior_data.id, behavior_node.id, "menu".to_string());
@@ -820,5 +857,26 @@ impl NodeGraph {
             return true;
         }
         false
+    }
+
+    /// Disconnect the node from all connections
+    fn disconnect_node(&mut self, id: usize, context: &mut ScreenContext) {
+
+        if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
+            let mut nothing_to_remove = false;
+            while nothing_to_remove == false {
+                nothing_to_remove = true;
+
+                for (index, connection) in behavior.data.connections.iter().enumerate() {
+                    if connection.0 == id || connection.2 == id {
+                        //to_remove.push(index);
+                        behavior.data.connections.remove(index);
+                        nothing_to_remove = false;
+                        break;
+                    }
+                }
+            }
+            behavior.save_data();
+        }
     }
 }

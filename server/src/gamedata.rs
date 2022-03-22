@@ -181,6 +181,16 @@ impl GameData {
         }
     }
 
+    /// Sets the value for the given behavior id
+    pub fn set_behavior_node_name(&mut self, id: (usize, usize), value: String) {
+        if let Some(behavior) = self.behaviors.get_mut(&id.0) {
+            if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
+                node.name = value;
+                behavior.save_data();
+            }
+        }
+    }
+
     /// Gets the value of the behavior id
     pub fn get_behavior_id_value(&self, id: (usize, usize, String), def: (f64, f64, f64, f64, String)) -> (f64, f64, f64, f64, String) {
         if let Some(behavior) = self.behaviors.get(&id.0) {

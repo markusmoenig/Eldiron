@@ -14,6 +14,7 @@ pub enum DialogEntry {
     NodeNumber,
     NodeExpression,
     NodeText,
+    NodeName,
 }
 
 #[derive(PartialEq, Debug)]
@@ -81,7 +82,7 @@ impl DialogWidget {
                 if context.dialog_entry == DialogEntry::NodeNumber {
                     self.text = format!("{}", context.dialog_node_behavior_value.0);
                 } else
-                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeText {
+                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeName {
                     self.text = context.dialog_node_behavior_value.4.clone();
                 }
             }
@@ -150,6 +151,9 @@ impl DialogWidget {
                 } else
                 if context.dialog_entry == DialogEntry::NodeText {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Text".to_string(), &context.color_white, &context.color_black);
+                } else
+                if context.dialog_entry == DialogEntry::NodeName {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"New Name".to_string(), &context.color_white, &context.color_black);
                 }
 
                 let input_rect = (20, 60, rect.2 - 40, 60);
@@ -208,7 +212,7 @@ impl DialogWidget {
                 return true;
             }
         } else
-        if context.dialog_entry == DialogEntry::NodeText {
+        if context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeName {
             context.dialog_node_behavior_value.4 = self.text.clone();
             context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());
             return true;
