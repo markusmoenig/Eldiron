@@ -53,6 +53,7 @@ pub enum AtomWidgetType {
     NodeIntButton,
     NodeExpressionButton,
     NodeTextButton,
+    NodeDiceButton,
     NodeMenu,
     LargeButton,
     CheckButton,
@@ -314,7 +315,7 @@ impl AtomWidget {
 
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.node_button_text_size, &format!("{}", v), &context.color_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
-            if self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeTextButton {
+            if self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeDiceButton {
 
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height);
 
@@ -532,7 +533,7 @@ impl AtomWidget {
             return false;
         }
         if self.contains_pos(pos) {
-            if self.atom_widget_type == AtomWidgetType::ToolBarButton ||  self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeIntButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeTextButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarButton ||  self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeIntButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeDiceButton {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
@@ -654,6 +655,14 @@ impl AtomWidget {
                 context.dialog_height = 0;
                 context.target_fps = 60;
                 context.dialog_entry = DialogEntry::NodeText;
+                context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
+                context.dialog_node_behavior_value = self.atom_data.data.clone();
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodeDiceButton {
+                context.dialog_state = DialogState::Opening;
+                context.dialog_height = 0;
+                context.target_fps = 60;
+                context.dialog_entry = DialogEntry::NodeDice;
                 context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
                 context.dialog_node_behavior_value = self.atom_data.data.clone();
             }

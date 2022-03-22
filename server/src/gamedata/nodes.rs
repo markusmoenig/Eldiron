@@ -1,12 +1,44 @@
 
 use crate::gamedata::behavior:: { BehaviorNodeConnector, BehaviorInstance, BehaviorNodeType };
 use crate::gamedata::GameData;
-
+use crate::gamedata::nodes_utility::*;
 use evalexpr::*;
 
 /// dice_check
-pub fn dice_check(_inst: &mut BehaviorInstance, _id: (usize, usize), _data: &mut GameData) -> BehaviorNodeConnector {
-    println!("inside check");
+pub fn dice_check(_inst: &mut BehaviorInstance, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
+
+    if let Some(behavior) = data.behaviors.get_mut(&id.0) {
+        if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
+            if let Some(dice) = node.values.get("dice") {
+                let dice_value = throw_dice(dice.4.clone());
+
+                // Insert the variables
+                let mut cont = HashMapContext::new();
+                for n in &behavior.data.nodes {
+                    if n.1.behavior_type == BehaviorNodeType::VariableNumber {
+                        let t = format!("{} = {}", n.1.name, n.1.values.get("value").unwrap().0);
+                        let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
+                    }
+                }
+
+                // Evaluate the expression
+                if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
+                    println!("{:?}", node.values);
+                    let exp = eval_with_context(&node.values.get("check").unwrap().4, &cont);
+                    if exp.is_ok() {
+                        let v= exp.unwrap().as_number();
+                        if v.is_ok() {
+                            let vv = v.unwrap();
+                            if vv > dice_value as f64 {
+                                return BehaviorNodeConnector::Success;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     BehaviorNodeConnector::Fail
 }
 

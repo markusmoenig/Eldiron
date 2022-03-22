@@ -795,16 +795,15 @@ impl NodeGraph {
             atom1.atom_data.text = "Check".to_string();
             let id = (behavior_data.id, behavior_node.id, "check".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (1.0,1.0,5.0,1.0, "".to_string()));
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "20".to_string()));
             node_widget.widgets.push(atom1);
 
-            //a d4, a d6, a d8, one or two d10s, a d12 and a d20.
-            let mut atom2 = AtomWidget::new(vec!["D4".to_string(), "D6".to_string(), "D8".to_string(), "D10".to_string(), "D12".to_string(),  "D20".to_string()], AtomWidgetType::NodeMenuButton,
+            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeDiceButton,
             AtomData::new_as_int("dice".to_string(), 0));
             atom2.atom_data.text = "Dice".to_string();
             let id = (behavior_data.id, behavior_node.id, "dice".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string())).0 as usize;
+            atom2.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "1d20+0".to_string()));
             node_widget.widgets.push(atom2);
 
             node_widget.color = context.color_green.clone();
