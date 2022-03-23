@@ -29,7 +29,7 @@ pub struct NodeWidget {
 
     pub user_data               : NodeUserData,
 
-    pub disabled                : bool,
+    pub is_corner_node          : bool,
 
     pub size                    : (usize, usize),
 
@@ -59,7 +59,7 @@ impl NodeWidget {
 
             user_data,
 
-            disabled            : false,
+            is_corner_node      : false,
 
             size                : (250, 120),
 
@@ -89,7 +89,7 @@ impl NodeWidget {
 
             user_data           : NodeUserData { position: behavior_node.position.clone() },
 
-            disabled            : false,
+            is_corner_node      : false,
 
             size                : (190, 300),
 
@@ -108,6 +108,9 @@ impl NodeWidget {
 
         let title_size = 30_usize;
         let mut height = title_size + 25;
+        if self.is_corner_node {
+            height = 10;
+        }
         for atom_widget in &mut self.widgets {
             height += atom_widget.get_height(context);
             height += context.node_button_header_text_size as usize;
@@ -125,63 +128,84 @@ impl NodeWidget {
         if self.dirty {
             for i in &mut self.buffer[..] { *i = 0 }
             let buffer_frame = &mut self.buffer[..];
-            let title_color = &self.color;
-            let back_color : &[u8;4] = &context.color_black;
             let stride = self.size.0;
 
-            let rounding = &(20.0, 20.0, 20.0, 20.0);
+            if self.is_corner_node {
+                // Corner Node
 
-            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), title_color, rounding, &context.color_gray, 1.5);
+                let rounding = &(15.0, 0.0, 0.0, 0.0);
 
-            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(rect.0, rect.1 + title_size, rect.2, rect.3 - title_size), stride, &((rect.2 - 1) as f64, (rect.3 - title_size ) as f64 - 2.5), back_color, rounding, &context.color_gray, 0.0);
+                context.draw2d.draw_rounded_rect(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3 - 2) as f64), &self.color, rounding);
 
-            if selected {
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3) as f64 - 2.5), &[0,0,0,0], rounding, &context.color_light_white, 1.5);
+                // Draw atoms
+
+                let mut y = 18_usize;
+                for atom_widget in &mut self.widgets {
+                    atom_widget.set_rect((18, y, self.size.0 - 30, context.node_button_height), asset, context);
+                    atom_widget.draw(buffer_frame, stride, anim_counter, asset, context);
+
+                    y += atom_widget.get_height(context) + 5;
+                }
             } else {
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3) as f64 - 2.5), &[0,0,0,0], rounding, &context.color_gray, 1.5);
-            }
+                // Normal Node
 
-            context.draw2d.draw_text(buffer_frame, &(25, 9), stride, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, title_color);
+                let title_color = &self.color;
+                let back_color : &[u8;4] = &context.color_black;
 
-            // Draw menu
+                let rounding = &(20.0, 20.0, 20.0, 20.0);
 
-            if let Some(menu) = &mut self.menu {
-                menu.set_rect((self.size.0 - 37, 12, 20, 20), asset, context);
-                menu.draw(buffer_frame, stride, anim_counter, asset, context);
-            }
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), title_color, rounding, &context.color_gray, 1.5);
 
-            // Draw atoms
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(rect.0, rect.1 + title_size, rect.2, rect.3 - title_size), stride, &((rect.2 - 1) as f64, (rect.3 - title_size ) as f64 - 2.5), back_color, rounding, &context.color_gray, 0.0);
 
-            let mut y = 42_usize;
-            for atom_widget in &mut self.widgets {
-                context.draw2d.draw_text(buffer_frame, &(30, y), stride, &asset.open_sans, context.node_button_header_text_size, &atom_widget.atom_data.text, &[180, 180, 180, 255], &context.color_black);
+                if selected {
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3) as f64 - 2.5), &[0,0,0,0], rounding, &context.color_light_white, 1.5);
+                } else {
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3) as f64 - 2.5), &[0,0,0,0], rounding, &context.color_gray, 1.5);
+                }
 
-                y += context.node_button_header_text_size as usize;
-                atom_widget.set_rect((18, y, self.size.0 - 30, context.node_button_height), asset, context);
-                atom_widget.draw(buffer_frame, stride, anim_counter, asset, context);
+                context.draw2d.draw_text(buffer_frame, &(25, 9), stride, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, title_color);
 
-                y += atom_widget.get_height(context) + 5;
-            }
+                // Draw menu
 
-            // Draw terminals
+                if let Some(menu) = &mut self.menu {
+                    menu.set_rect((self.size.0 - 37, 12, 20, 20), asset, context);
+                    menu.draw(buffer_frame, stride, anim_counter, asset, context);
+                }
 
-            if let Some(top) = self.node_connector.get_mut(&BehaviorNodeConnector::Top) {
-                top.rect = (rect.2 / 2 - 6, 0, 12, 12);
-                context.draw2d.draw_circle(buffer_frame, &top.rect, stride, &context.node_connector_color, 6.0);
-            }
-            if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Bottom) {
-                bottom.rect = (rect.2 / 2 - 6, rect.3 - 2, 12, 12);
-                context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0);
-            }
-            if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Success) {
-                bottom.rect = (rect.2 / 2 - 6 - 30, rect.3 - 2, 12, 12);
-                context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.color_green, 6.0);
-                //context.draw2d._draw_circle_with_border(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0, &context.color_green, 2.0);
-            }
-            if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Fail) {
-                bottom.rect = (rect.2 / 2 - 6 + 30, rect.3 - 2, 12, 12);
-                context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.color_red, 6.0);
-                //context.draw2d._draw_circle_with_border(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0, &context.color_red, 2.0);
+                // Draw atoms
+
+                let mut y = 42_usize;
+                for atom_widget in &mut self.widgets {
+                    context.draw2d.draw_text(buffer_frame, &(30, y), stride, &asset.open_sans, context.node_button_header_text_size, &atom_widget.atom_data.text, &[180, 180, 180, 255], &context.color_black);
+
+                    y += context.node_button_header_text_size as usize;
+                    atom_widget.set_rect((18, y, self.size.0 - 30, context.node_button_height), asset, context);
+                    atom_widget.draw(buffer_frame, stride, anim_counter, asset, context);
+
+                    y += atom_widget.get_height(context) + 5;
+                }
+
+                // Draw terminals
+
+                if let Some(top) = self.node_connector.get_mut(&BehaviorNodeConnector::Top) {
+                    top.rect = (rect.2 / 2 - 6, 0, 12, 12);
+                    context.draw2d.draw_circle(buffer_frame, &top.rect, stride, &context.node_connector_color, 6.0);
+                }
+                if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Bottom) {
+                    bottom.rect = (rect.2 / 2 - 6, rect.3 - 2, 12, 12);
+                    context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0);
+                }
+                if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Success) {
+                    bottom.rect = (rect.2 / 2 - 6 - 30, rect.3 - 2, 12, 12);
+                    context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.color_green, 6.0);
+                    //context.draw2d._draw_circle_with_border(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0, &context.color_green, 2.0);
+                }
+                if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Fail) {
+                    bottom.rect = (rect.2 / 2 - 6 + 30, rect.3 - 2, 12, 12);
+                    context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.color_red, 6.0);
+                    //context.draw2d._draw_circle_with_border(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0, &context.color_red, 2.0);
+                }
             }
         }
         self.dirty = false;

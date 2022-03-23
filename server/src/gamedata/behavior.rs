@@ -6,13 +6,13 @@ use std::path::PathBuf;
 
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum BehaviorNodeType {
+    BehaviorType,
     BehaviorTree,
     Expression,
     VariableNumber,
     VariablePosition,
-    VariableEntity,
     Pathfinder,
     Say,
 }
@@ -96,12 +96,16 @@ impl GameBehavior {
     pub fn add_node(&mut self, behavior_type: BehaviorNodeType, name: String) -> usize {
 
         let mut node = BehaviorNode {
-            behavior_type: behavior_type,
+            behavior_type: behavior_type.clone(),
             name,
             values: HashMap::new(),
             id: 0,
             position: (100, 100),
         };
+
+        if behavior_type == BehaviorNodeType::BehaviorType {
+            node.position = (0, 0);
+        }
 
         let mut has_id_already = true;
         while has_id_already {

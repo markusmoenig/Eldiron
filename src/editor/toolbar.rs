@@ -40,6 +40,12 @@ impl Widget for ToolBar {
         // areas_button.selected = true;
         widgets.push(behavior_button);
 
+        let mut items_button = AtomWidget::new(vec!["Items".to_string()], AtomWidgetType::ToolBarSwitchButton,
+        AtomData::new_as_int("Items".to_string(), 0));
+        items_button.set_rect((rect.0 + 685, rect.1, 165, rect.3), asset, context);
+        // areas_button.selected = true;
+        widgets.push(items_button);
+
         let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarButton,
             AtomData::new_as_int("Game".to_string(), 0));
         game_button.set_rect((rect.2 - 110, rect.1, 100, rect.3), asset, context);

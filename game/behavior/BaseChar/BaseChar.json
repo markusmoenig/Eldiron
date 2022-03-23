@@ -1,1 +1,1 @@
-{"nodes":{"0":{"behavior_type":"BehaviorTree","name":"Behavior Tree","values":{},"id":0,"position":[123,80]}},"connections":[],"id":0,"name":"New Behavior"}
+{"nodes":{"0":{"behavior_type":"BehaviorType","name":"Behavior Type","values":{"type":[2.0,0.0,0.0,0.0,""]},"id":0,"position":[0,0]},"1":{"behavior_type":"BehaviorTree","name":"Behavior Tree","values":{"execute":[0.0,0.0,0.0,0.0,""]},"id":1,"position":[219,127]}},"connections":[],"id":0,"name":"New Behavior"}

@@ -122,6 +122,7 @@ impl GameData {
                 }
 
                 if behavior.data.nodes.len() == 0 {
+                    behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
                     behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
                     behavior.save_data();
                 }

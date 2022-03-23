@@ -158,8 +158,17 @@ impl NodeGraph {
             } else {
                 // Detail View
 
+                let mut corner_index = 0;
+
                 // Draw nodes
                 for index in 0..self.nodes.len() {
+
+                    // Check for corner node
+                    if self.nodes[index].is_corner_node {
+                        corner_index = index;
+                        continue;
+                    }
+
                     if self.nodes[index].dirty {
 
                         let mut selected = false;
@@ -175,6 +184,18 @@ impl NodeGraph {
                     self.nodes[index].graph_offset = (rect.0, rect.1);
                     context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, safe_rect.2, &safe_rect);
                 }
+
+                // Corner node
+                if self.nodes[corner_index].dirty {
+                    self.nodes[corner_index].draw(frame, anim_counter, asset, context, false);
+                }
+
+                let rect= self.get_node_rect(corner_index, true);
+                self.nodes[corner_index].graph_offset = (rect.0, rect.1);
+                self.nodes[corner_index].graph_offset = (rect.0, rect.1);
+                context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[corner_index].buffer[..], &rect, safe_rect.2, &safe_rect);
+
+                // --
 
                 let mut mask : Vec<u8> = vec![0; safe_rect.2 * safe_rect.3];
                 let mut path : String = "".to_string();
@@ -291,6 +312,11 @@ impl NodeGraph {
         let mut x = self.nodes[node_index].user_data.position.0 + self.offset.0;
         let mut y = self.nodes[node_index].user_data.position.1 + self.offset.1;
 
+        if self.nodes[node_index].is_corner_node {
+            x = -7;
+            y = -7;
+        }
+
         if relative == false {
             x += self.rect.0 as isize;
             y += self.rect.1 as isize;
@@ -382,6 +408,11 @@ impl NodeGraph {
         if self.graph_mode == GraphMode::Detail {
 
             for index in 0..self.nodes.len() {
+
+                if self.nodes[index].is_corner_node {
+                    continue;
+                }
+
                 let rect= self.get_node_rect(index, false);
 
                 if context.contains_pos_for_isize(pos, rect) {
@@ -752,6 +783,19 @@ impl NodeGraph {
 
     /// Inits the node widget (atom widgets, id)
     pub fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, behavior_node: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
+
+        if behavior_node.behavior_type == BehaviorNodeType::BehaviorType {
+            node_widget.is_corner_node = true;
+
+            let mut atom1 = AtomWidget::new(vec!["Character".to_string(), "Area".to_string(), "Module".to_string()], AtomWidgetType::NodeMenuButton,AtomData::new_as_int("type".to_string(), 0));
+            atom1.atom_data.text = "Type".to_string();
+            let id = (behavior_data.id, behavior_node.id, "type".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string())).0 as usize;
+            node_widget.widgets.push(atom1);
+            node_widget.color = context.color_black.clone();
+            return;
+        }
 
         // Node menu
         let mut node_menu_atom = AtomWidget::new(vec!["Rename".to_string(), "Disconnect".to_string(), "Delete".to_string()], AtomWidgetType::NodeMenu,
