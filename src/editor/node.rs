@@ -4,6 +4,7 @@ use server::gamedata::behavior::{GameBehaviorData, BehaviorNode, BehaviorNodeCon
 
 use crate::atom:: { AtomWidget };
 use crate::editor::ScreenContext;
+use crate::widget::atom::AtomWidgetType;
 use server::asset::Asset;
 
 //#[derive(Serialize, Deserialize)]
@@ -141,7 +142,11 @@ impl NodeWidget {
 
                 let mut y = 18_usize;
                 for atom_widget in &mut self.widgets {
-                    atom_widget.set_rect((18, y, self.size.0 - 30, context.node_button_height), asset, context);
+                    if atom_widget.atom_widget_type == AtomWidgetType::NodePositionButton {
+                        atom_widget.set_rect((18, y, self.size.0 - 30, context.node_button_height * 2), asset, context);
+                    } else {
+                        atom_widget.set_rect((18, y, self.size.0 - 30, context.node_button_height), asset, context);
+                    }
                     atom_widget.draw(buffer_frame, stride, anim_counter, asset, context);
 
                     y += atom_widget.get_height(context) + 5;

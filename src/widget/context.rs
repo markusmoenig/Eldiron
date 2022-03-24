@@ -81,6 +81,8 @@ pub struct ScreenContext {
     pub dialog_node_behavior_id         : (usize, usize, String),
     pub dialog_node_behavior_value      : (f64, f64, f64, f64, String),
 
+    pub active_position_id              : Option<(usize, usize, String)>,
+
     // Masks
     pub right_arrow_mask                : [u8;10*10],
     pub menu_triangle_mask              : [u8;10*10],
@@ -191,6 +193,8 @@ impl ScreenContext {
             dialog_entry                : DialogEntry::None,
             dialog_node_behavior_id     : (0, 0, "".to_string()),
             dialog_node_behavior_value  : (0.0, 0.0, 0.0, 0.0, "".to_string()),
+
+            active_position_id          : None,
 
             // UI Masks
             right_arrow_mask,

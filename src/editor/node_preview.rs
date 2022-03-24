@@ -21,11 +21,14 @@ pub struct NodePreviewWidget {
 
     pub drag_size               : Option<(usize, usize)>,
 
-    // For showing maps
-    pub map_tile_size           : usize,
-    pub map_rect                : (usize, usize, usize, usize),
+    // For showing area
+    pub area_tile_size          : usize,
+    pub area_rect               : (usize, usize, usize, usize),
+    pub area_offset             : (isize, isize),
 
     pub graph_offset            : (isize, isize),
+
+    pub clicked_area_id         : Option<(usize, isize, isize)>,
 
     pub curr_area_index         : usize,
 }
@@ -60,10 +63,13 @@ impl NodePreviewWidget {
 
             drag_size           : None,
 
-            map_tile_size       : 32,
-            map_rect            : (0,0,0,0),
+            area_tile_size      : 32,
+            area_rect           : (0,0,0,0),
+            area_offset         : (0,0),
 
             graph_offset        : (0,0),
+
+            clicked_area_id     : None,
 
             curr_area_index     : 0,
         }
@@ -97,15 +103,16 @@ impl NodePreviewWidget {
             self.widgets[1].set_rect((15, self.size.1 - 50, self.size.0 - 20, 25), asset, context);
             self.widgets[1].draw(buffer_frame, stride, anim_counter, asset, context);
 
-            self.map_rect.0 = 10;
-            self.map_rect.1 = 50;
-            self.map_rect.2 = rect.2 - 20;
-            self.map_rect.3 = rect.3 - 100;
+            self.area_rect.0 = 10;
+            self.area_rect.1 = 50;
+            self.area_rect.2 = rect.2 - 20;
+            self.area_rect.3 = rect.3 - 100;
 
-            if let Some(area) = context.data.areas.get(&self.curr_area_index) {
+            if let Some(area) = context.data.areas.get(&context.data.areas_ids[self.curr_area_index]) {
                 let offset = area.data.min_pos;
 
-                context.draw2d.draw_area(buffer_frame, area, &self.map_rect, &offset, stride, 32, anim_counter, asset);
+                self.area_offset = offset;
+                context.draw2d.draw_area(buffer_frame, area, &self.area_rect, &self.area_offset, stride, 32, anim_counter, asset);
             }
             context.draw2d.blend_mask(buffer_frame, &(6, rect.3 - 23, rect.2, rect.3), rect.2, &context.preview_arc_mask[..], &(20, 20), &context.color_gray);
         }
@@ -132,6 +139,21 @@ impl NodePreviewWidget {
         if context.contains_pos_for(pos, (0, self.size.1 - 20, 30, 20)) {
             self.drag_size = Some(self.size.clone());
             context.target_fps = 60;
+            return true;
+        }
+
+        // Test area map
+        if context.contains_pos_for(pos, self.area_rect) {
+
+            let left_offset = (self.area_rect.2 % self.area_tile_size) / 2;
+            let top_offset = (self.area_rect.3 % self.area_tile_size) / 2;
+
+            let x = self.area_offset.0 + ((pos.0 - self.area_rect.0 - left_offset) / self.area_tile_size) as isize;
+            let y = self.area_offset.1 + ((pos.1 - self.area_rect.1 - top_offset) / self.area_tile_size) as isize;
+            //println!("{} {}", x, y);
+            if let Some(area) = context.data.areas.get(&context.data.areas_ids[self.curr_area_index]) {
+                self.clicked_area_id = Some((area.data.id.clone(), x, y));
+            }
             return true;
         }
         false

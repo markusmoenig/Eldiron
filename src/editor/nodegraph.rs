@@ -450,9 +450,17 @@ impl NodeGraph {
             }
 
             // Check Preview
+
+            let mut clicked_area_id : Option<(usize, isize, isize)> = None;
             if let Some(preview) = &mut self.preview {
                 if context.contains_pos_for(pos, preview.rect) {
                     if preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context) {
+
+                        // Area id clicked ?
+                        if let Some(area_id) = preview.clicked_area_id {
+                            clicked_area_id = Some(area_id);
+                            preview.clicked_area_id = None;
+                        }
 
                         if preview.clicked {
                             self.dirty = true;
@@ -461,6 +469,13 @@ impl NodeGraph {
                             self.preview_drag_start = (pos.0 as isize, pos.1 as isize);
                         }
                     }
+                }
+            }
+
+            if let Some(clicked_area_id) = clicked_area_id {
+                if let Some(active_position_id) = &context.active_position_id {
+                    self.set_node_atom_data(active_position_id.clone(), (clicked_area_id.0 as f64, clicked_area_id.1 as f64, clicked_area_id.2 as f64, 0.0, "".to_string()), context);
+                    context.active_position_id = None;
                 }
             }
         }
@@ -782,18 +797,20 @@ impl NodeGraph {
     }
 
     /// Inits the node widget (atom widgets, id)
-    pub fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, behavior_node: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
+    pub fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
 
-        if behavior_node.behavior_type == BehaviorNodeType::BehaviorType {
+        if node_data.behavior_type == BehaviorNodeType::BehaviorType {
             node_widget.is_corner_node = true;
 
             let mut atom1 = AtomWidget::new(vec!["Character".to_string(), "Area".to_string(), "Module".to_string()], AtomWidgetType::NodeMenuButton,AtomData::new_as_int("type".to_string(), 0));
             atom1.atom_data.text = "Type".to_string();
-            let id = (behavior_data.id, behavior_node.id, "type".to_string());
+            let id = (behavior_data.id, node_data.id, "type".to_string());
             atom1.behavior_id = Some(id.clone());
             atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string())).0 as usize;
             node_widget.widgets.push(atom1);
             node_widget.color = context.color_black.clone();
+
+            self.setup_corner_node_widget(behavior_data, node_data, node_widget, context);
             return;
         }
 
@@ -801,27 +818,27 @@ impl NodeGraph {
         let mut node_menu_atom = AtomWidget::new(vec!["Rename".to_string(), "Disconnect".to_string(), "Delete".to_string()], AtomWidgetType::NodeMenu,
         AtomData::new_as_int("menu".to_string(), 0));
         node_menu_atom.atom_data.text = "menu".to_string();
-        let id = (behavior_data.id, behavior_node.id, "menu".to_string());
+        let id = (behavior_data.id, node_data.id, "menu".to_string());
         node_menu_atom.behavior_id = Some(id.clone());
         node_widget.menu = Some(node_menu_atom);
 
-        if behavior_node.behavior_type == BehaviorNodeType::BehaviorTree {
+        if node_data.behavior_type == BehaviorNodeType::BehaviorTree {
             let mut atom1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Demand".to_string()], AtomWidgetType::NodeMenuButton,
             AtomData::new_as_int("execute".to_string(), 0));
             atom1.atom_data.text = "Execute".to_string();
-            let id = (behavior_data.id, behavior_node.id, "execute".to_string());
+            let id = (behavior_data.id, node_data.id, "execute".to_string());
             atom1.behavior_id = Some(id.clone());
             atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string())).0 as usize;
             node_widget.widgets.push(atom1);
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
-        if behavior_node.behavior_type == BehaviorNodeType::Expression {
+        if node_data.behavior_type == BehaviorNodeType::Expression {
 
             let mut atom1 = AtomWidget::new(vec!["Expression".to_string()], AtomWidgetType::NodeExpressionButton,
             AtomData::new_as_int("expression".to_string(), 0));
             atom1.atom_data.text = "Expression".to_string();
-            let id = (behavior_data.id, behavior_node.id, "expression".to_string());
+            let id = (behavior_data.id, node_data.id, "expression".to_string());
             atom1.behavior_id = Some(id.clone());
             atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "1 > 0".to_string()));
             node_widget.widgets.push(atom1);
@@ -831,23 +848,23 @@ impl NodeGraph {
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
-        if behavior_node.behavior_type == BehaviorNodeType::VariableNumber {
+        if node_data.behavior_type == BehaviorNodeType::VariableNumber {
 
             let mut atom1 = AtomWidget::new(vec!["Value".to_string()], AtomWidgetType::NodeIntButton,
             AtomData::new_as_int("value".to_string(), 0));
             atom1.atom_data.text = "Value".to_string();
-            let id = (behavior_data.id, behavior_node.id, "value".to_string());
+            let id = (behavior_data.id, node_data.id, "value".to_string());
             atom1.behavior_id = Some(id.clone());
             atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()));
             node_widget.widgets.push(atom1);
 
             node_widget.color = context.color_orange.clone();
         } else
-        if behavior_node.behavior_type == BehaviorNodeType::Say {
+        if node_data.behavior_type == BehaviorNodeType::Say {
             let mut atom1 = AtomWidget::new(vec!["Text".to_string()], AtomWidgetType::NodeTextButton,
             AtomData::new_as_int("text".to_string(), 0));
             atom1.atom_data.text = "Text".to_string();
-            let id = (behavior_data.id, behavior_node.id, "text".to_string());
+            let id = (behavior_data.id, node_data.id, "text".to_string());
             atom1.behavior_id = Some(id.clone());
             atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Hello".to_string()));
             node_widget.widgets.push(atom1);
@@ -855,6 +872,36 @@ impl NodeGraph {
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        }
+    }
+
+    /// Sets up the corner node widget
+    pub fn setup_corner_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
+        let type_index : usize;
+
+        // Get the type index
+        if let Some(index) = node_data.values.get("type") {
+            type_index = index.0 as usize;
+        } else {
+            type_index = 0;
+        }
+
+        // Remove all atoms except the first one (the type)
+        while node_widget.widgets.len() > 1 {
+            node_widget.widgets.remove(1);
+        }
+
+        if self.graph_type == GraphType::Behavior {
+            if type_index == 0 {
+                // Character
+                let mut position_atom = AtomWidget::new(vec![], AtomWidgetType::NodePositionButton,
+                AtomData::new_as_int("position".to_string(), 0));
+                position_atom.atom_data.text = "position".to_string();
+                let id = (behavior_data.id, node_data.id, "position".to_string());
+                position_atom.behavior_id = Some(id.clone());
+                position_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()));
+                node_widget.widgets.push(position_atom);
+            }
         }
     }
 
@@ -918,6 +965,30 @@ impl NodeGraph {
         if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
             behavior.data.nodes.remove(&id);
             behavior.save_data();
+        }
+    }
+
+    // if let Some(area_id) = preview.clicked_area_id {
+    //     println!("{:?}", area_id);
+
+    //     if let Some(active_position_id) = &context.active_position_id {
+
+    fn set_node_atom_data(&mut self, node_atom_id: (usize, usize, String), data: (f64, f64, f64, f64, String), context: &mut ScreenContext) {
+        for index in 0..self.nodes.len() {
+            if self.nodes[index].id == node_atom_id.1 {
+                for atom_index in 0..self.nodes[index].widgets.len() {
+                    if self.nodes[index].widgets[atom_index].atom_data.id == node_atom_id.2 {
+                        self.nodes[index].widgets[atom_index].atom_data.data = data.clone();
+                        self.nodes[index].widgets[atom_index].dirty = true;
+                        self.nodes[index].dirty = true;
+                        self.dirty = true;
+
+                        context.data.set_behavior_id_value(node_atom_id.clone(), data.clone());
+
+                        break;
+                    }
+                }
+            }
         }
     }
 }

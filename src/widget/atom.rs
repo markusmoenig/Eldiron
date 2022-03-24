@@ -54,6 +54,7 @@ pub enum AtomWidgetType {
     NodeExpressionButton,
     NodeTextButton,
     NodeMenu,
+    NodePositionButton,
     LargeButton,
     CheckButton,
     Button,
@@ -334,6 +335,22 @@ impl AtomWidget {
                 context.draw2d.draw_rect(buffer_frame, &(0, 10, 15, 2), rect.2, &fill_color);
                 context.draw2d.draw_rect(buffer_frame, &(0, 16, 15, 2), rect.2, &fill_color);
                 //context.draw2d.blend_mask(buffer_frame, &(0, 0, rect.2, rect.3), rect.2, &context.menu_mask[..], &(20, 20), &context.color_white);
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodePositionButton {
+
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height * 2);
+
+                let border_color = if context.active_position_id == self.behavior_id { context.color_red } else { context.color_node_light_gray };
+
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &context.color_black, &context.node_button_rounding, &border_color, 1.5);
+
+                if self.atom_data.data.0 >= 0.0 {
+                    if let Some(area) = context.data.areas.get(&(self.atom_data.data.0 as usize)) {
+                        let offset = (self.atom_data.data.1 as isize, self.atom_data.data.2 as isize);
+                        context.draw2d.draw_area(buffer_frame, area, &(4, 1, rect.2 - 8, rect.3 - 2), &offset, rect.2, 14, 0, asset);
+                    }
+                }
             }
 
             // Large
@@ -527,7 +544,7 @@ impl AtomWidget {
 
     }
 
-    pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
         if self.state == WidgetState::Disabled {
             return false;
         }
@@ -620,6 +637,17 @@ impl AtomWidget {
                         }
                     }
                 }
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodePositionButton {
+                self.clicked = true;
+                self.state = WidgetState::Clicked;
+                self.dirty = true;
+                if context.active_position_id == self.behavior_id {
+                    context.active_position_id = None;
+                } else {
+                    context.active_position_id = self.behavior_id.clone();
+                }
+                return true;
             }
         }
         false
