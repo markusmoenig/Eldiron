@@ -142,13 +142,12 @@ impl DialogWidget {
                     }
                     // d1 - d2
                     let mut rng = thread_rng();
-                    for d in 2..=20 {
+                    for d in (2..=20).step_by(2) {
                         let random = rng.gen_range(1..=d);
                         let t = format!("{} = {}", format!("d{}", d), random);
                         let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
                     }
                     let exp = eval_boolean_with_context(&self.text, &cont);
-                    //println!("{:?}", exp);
                     if exp.is_err(){
                         border_color = context.color_red;
                         self.widgets[1].state = WidgetState::Disabled;
@@ -215,7 +214,7 @@ impl DialogWidget {
             }
             // d1 - d2
             let mut rng = thread_rng();
-            for d in 2..=20 {
+            for d in (2..=20).step_by(2) {
                 let random = rng.gen_range(1..=d);
                 let t = format!("{} = {}", format!("d{}", d), random);
                 let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);

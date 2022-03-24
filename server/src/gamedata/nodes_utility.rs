@@ -1,60 +1,50 @@
-// use rand::prelude::*;
+use crate::gamedata::behavior:: { BehaviorInstance, BehaviorNodeType };
+use crate::gamedata::GameData;
+use evalexpr::*;
+use rand::prelude::*;
 
-// /// Throw the dice identifier by the text
-// pub fn throw_dice(text: String) -> isize {
-//     if text.is_empty() {
-//         return 0;
-//     }
+pub fn eval_expression_as_number(_inst: &mut BehaviorInstance, id: (usize, usize), data: &mut GameData) -> Option<f64> {
+    if let Some(behavior) = data.behaviors.get_mut(&id.0) {
 
-//     let get_char = |index: usize| -> char {
-//         let b: u8 = text.as_bytes()[index];
-//         b as char
-//     };
+        // Insert the variables
+        let mut cont = HashMapContext::new();
+        for n in &behavior.data.nodes {
+            if n.1.behavior_type == BehaviorNodeType::VariableNumber {
+                let t = format!("{} = {}", n.1.name, n.1.values.get("value").unwrap().0);
+                let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
+            }
+        }
 
-//     let mut multiplier = 1_isize;
-//     let mut dice = 1_isize;
-//     let mut modifier = 0_isize;
+        // d1 - d2
+        let mut rng = thread_rng();
+        for d in (2..=20).step_by(2) {
+            let random = rng.gen_range(1..=d);
+            let t = format!("{} = {}", format!("d{}", d), random);
+            let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
+        }
 
-//     let mut i = 0_usize;
-
-//     if get_char(i).is_ascii_digit() {
-//         multiplier = get_char(0).to_digit(10).unwrap() as isize;
-//         i += 1;
-//     }
-
-//     if i < text.len() {
-//         if get_char(i) == 'd' || get_char(i) == 'D' {
-//             i += 1;
-//             let mut dice_text = "".to_string();
-//             while i < text.len() && get_char(i).is_ascii_digit() {
-//                 dice_text.push(get_char(i));
-//                 i+= 1;
-//             }
-//             if dice_text.is_empty() == false {
-//                 dice = dice_text.parse::<isize>().unwrap();
-//             }
-
-//             let mut modifier_text = "".to_string();
-//             while i < text.len() {
-//                 modifier_text.push(get_char(i));
-//                 i+= 1;
-//             }
-//             if modifier_text.is_empty() == false {
-//                 let mod_rc = modifier_text.parse::<isize>();
-//                 if mod_rc.is_ok() {
-//                     modifier = mod_rc.unwrap();
-//                 } else {
-//                     return 0;
-//                 }
-//             }
-
-//             //println!("{}d{}{}", multiplier, dice, modifier);
-//             let mut rng = thread_rng();
-//             let random = rng.gen_range(1..=dice);
-
-//             let rc = multiplier * random + modifier;
-//             return rc;
-//         }
-//     }
-//     0
-// }
+        // Evaluate the expression as a number
+        if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
+            let exp = eval_with_context(&node.values.get("expression").unwrap().4, &cont);
+            if exp.is_ok() {
+                let rc = exp.unwrap().as_number();
+                if rc.is_ok() {
+                    return Some(rc.unwrap());
+                }
+            }
+            /*
+            return match exp {
+                Ok(v) => {
+                    match v.as_number() {
+                        Ok(fv) => {
+                            Some(fv)
+                        },
+                        Err(e) => None
+                    }
+                },
+                Err(e) => None
+            }*/
+        }
+    }
+    None
+}
