@@ -2,7 +2,7 @@
 use crate::gamedata::behavior:: { BehaviorNodeConnector, BehaviorInstance, BehaviorNodeType };
 use crate::gamedata::GameData;
 use evalexpr::*;
-
+use rand::prelude::*;
 
 /// expression
 pub fn expression(_inst: &mut BehaviorInstance, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
@@ -15,6 +15,14 @@ pub fn expression(_inst: &mut BehaviorInstance, id: (usize, usize), data: &mut G
                 let t = format!("{} = {}", n.1.name, n.1.values.get("value").unwrap().0);
                 let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
             }
+        }
+
+        // d1 - d2
+        let mut rng = thread_rng();
+        for d in 2..=20 {
+            let random = rng.gen_range(1..=d);
+            let t = format!("{} = {}", format!("d{}", d), random);
+            let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
         }
 
         // Evaluate the expression
