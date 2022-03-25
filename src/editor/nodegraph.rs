@@ -894,6 +894,8 @@ impl NodeGraph {
         if self.graph_type == GraphType::Behavior {
             if type_index == 0 {
                 // Character
+
+                // Position
                 let mut position_atom = AtomWidget::new(vec![], AtomWidgetType::NodePositionButton,
                 AtomData::new_as_int("position".to_string(), 0));
                 position_atom.atom_data.text = "position".to_string();
@@ -901,6 +903,15 @@ impl NodeGraph {
                 position_atom.behavior_id = Some(id.clone());
                 position_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()));
                 node_widget.widgets.push(position_atom);
+
+                // Default Character Tile
+                let mut tile_atom = AtomWidget::new(vec![], AtomWidgetType::NodeCharTileButton,
+                    AtomData::new_as_int("tile".to_string(), 0));
+                tile_atom.atom_data.text = "tile".to_string();
+                let id = (behavior_data.id, node_data.id, "tile".to_string());
+                tile_atom.behavior_id = Some(id.clone());
+                tile_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()));
+                node_widget.widgets.push(tile_atom);
             }
         }
     }
@@ -968,12 +979,8 @@ impl NodeGraph {
         }
     }
 
-    // if let Some(area_id) = preview.clicked_area_id {
-    //     println!("{:?}", area_id);
-
-    //     if let Some(active_position_id) = &context.active_position_id {
-
-    fn set_node_atom_data(&mut self, node_atom_id: (usize, usize, String), data: (f64, f64, f64, f64, String), context: &mut ScreenContext) {
+    /// Sets the widget and behavior data for the given atom id
+    pub fn set_node_atom_data(&mut self, node_atom_id: (usize, usize, String), data: (f64, f64, f64, f64, String), context: &mut ScreenContext) {
         for index in 0..self.nodes.len() {
             if self.nodes[index].id == node_atom_id.1 {
                 for atom_index in 0..self.nodes[index].widgets.len() {

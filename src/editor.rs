@@ -124,6 +124,9 @@ impl ScreenWidget for Editor {
         node_graph_behavior_details.set_mode(GraphMode::Detail, &context);
         node_graph_behavior_details.set_behavior_id(0, &mut context);
 
+        let dialog = DialogWidget::new(asset, &context);
+
+
         Self {
             rect                    : (0, 0, width, height),
             state                   : EditorState::TilesOverview,
@@ -144,7 +147,7 @@ impl ScreenWidget for Editor {
             node_graph_behavior,
             node_graph_behavior_details,
 
-            dialog                  : DialogWidget::new(),
+            dialog,
 
             left_width,
             mouse_pos               : (0,0),
@@ -196,7 +199,7 @@ impl ScreenWidget for Editor {
         if self.state == EditorState::AreaDetail {
             self.area_options.draw(frame, anim_counter, asset, &mut self.context);
             self.area_widget.draw(frame, anim_counter, asset, &mut self.context);
-            self.area_tile_selector.draw(frame, anim_counter, asset, &mut self.context);
+            self.area_tile_selector.draw(frame, self.context.width, anim_counter, asset, &mut self.context);
         } else
         if self.state == EditorState::BehaviorOverview {
             self.node_graph_behavior.draw(frame, anim_counter, asset, &mut self.context);
@@ -218,7 +221,11 @@ impl ScreenWidget for Editor {
         } else
         if self.context.dialog_entry != DialogEntry::None {
             if self.state == EditorState::BehaviorDetail {
-                self.node_graph_behavior_details.update_from_dialog(&mut self.context);
+                if self.context.dialog_entry == DialogEntry::NodeTile {
+                    self.node_graph_behavior_details.set_node_atom_data(self.context.dialog_node_behavior_id.clone(), self.context.dialog_node_behavior_value.clone(), &mut self.context);
+                } else {
+                    self.node_graph_behavior_details.update_from_dialog(&mut self.context);
+                }
             }
             self.context.dialog_entry = DialogEntry::None;
         }
@@ -569,7 +576,7 @@ impl ScreenWidget for Editor {
     fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset) -> bool {
 
         if self.context.dialog_state == DialogState::Open {
-            return false;
+            return self.dialog.mouse_wheel(delta, asset, &mut self.context);
         }
 
         let mut consumed = false;

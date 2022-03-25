@@ -41,9 +41,9 @@ impl TileSelectorWidget {
         self.line_offset = 0;
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+    pub fn draw(&mut self, frame: &mut [u8], stride: usize, anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
 
-        context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
+        context.draw2d.draw_rect(frame, &self.rect, stride, &context.color_black);
 
         let grid_size = self.grid_size;
         let left_offset = (self.rect.2 % grid_size) / 2;
@@ -79,22 +79,22 @@ impl TileSelectorWidget {
                 let tile = &tiles[index + offset];
 
                 let map = asset.get_map_of_id(tile.0);
-                context.draw2d.draw_animated_tile(frame, &(x, y), map, context.width, &(tile.1, tile.2), anim_counter, self.grid_size);
+                context.draw2d.draw_animated_tile(frame, &(x, y), map, stride, &(tile.1, tile.2), anim_counter, self.grid_size);
 
                 let mut selected_drawn = false;
                 if let Some(selected) = &self.selected {
                     if selected.0 == map.settings.id && selected.1 == tile.1 && selected.2 == tile.2 {
-                        context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), context.width, context.color_white);
+                        context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_white);
                         selected_drawn = true;
                     }
                 }
 
                 if selected_drawn == false {
                     if tile.3 == TileUsage::EnvBlocking {
-                        context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), context.width, context.color_red);
+                        context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_red);
                     } else
                     if tile.3 == TileUsage::Water {
-                        context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), context.width, context.color_blue);
+                        context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_blue);
                     }
                 }
 

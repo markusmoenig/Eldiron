@@ -4,10 +4,8 @@ use server::gamedata::behavior::{GameBehaviorData, BehaviorNode, BehaviorNodeCon
 
 use crate::atom:: { AtomWidget };
 use crate::editor::ScreenContext;
-use crate::widget::atom::AtomWidgetType;
 use server::asset::Asset;
 
-//#[derive(Serialize, Deserialize)]
 pub struct NodeUserData {
     pub position                : (isize, isize)
 }
@@ -108,13 +106,12 @@ impl NodeWidget {
     pub fn draw(&mut self, _frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool) {
 
         let title_size = 30_usize;
-        let mut height = title_size + 25;
-        if self.is_corner_node {
-            height = 10;
-        }
+        let mut height =  if self.is_corner_node == false { title_size + 25 } else { 22 };
         for atom_widget in &mut self.widgets {
             height += atom_widget.get_height(context);
-            height += context.node_button_header_text_size as usize;
+            if self.is_corner_node == false {
+                height += context.node_button_header_text_size as usize;
+            }
             height += 8;
         }
 
@@ -142,14 +139,12 @@ impl NodeWidget {
 
                 let mut y = 18_usize;
                 for atom_widget in &mut self.widgets {
-                    if atom_widget.atom_widget_type == AtomWidgetType::NodePositionButton {
-                        atom_widget.set_rect((18, y, self.size.0 - 30, context.node_button_height * 2), asset, context);
-                    } else {
-                        atom_widget.set_rect((18, y, self.size.0 - 30, context.node_button_height), asset, context);
-                    }
+
+                    let height = atom_widget.get_height(context);
+                    atom_widget.set_rect((18, y, self.size.0 - 30, height), asset, context);
                     atom_widget.draw(buffer_frame, stride, anim_counter, asset, context);
 
-                    y += atom_widget.get_height(context) + 5;
+                    y += height + 6;
                 }
             } else {
                 // Normal Node

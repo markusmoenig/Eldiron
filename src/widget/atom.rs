@@ -55,6 +55,7 @@ pub enum AtomWidgetType {
     NodeTextButton,
     NodeMenu,
     NodePositionButton,
+    NodeCharTileButton,
     LargeButton,
     CheckButton,
     Button,
@@ -351,6 +352,22 @@ impl AtomWidget {
                         context.draw2d.draw_area(buffer_frame, area, &(4, 1, rect.2 - 8, rect.3 - 2), &offset, rect.2, 14, 0, asset);
                     }
                 }
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodeCharTileButton {
+
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height);
+
+                let fill_color = if self.state == WidgetState::Clicked { context.color_node_dark_gray } else { context.color_black };
+                let border_color = if self.state == WidgetState::Clicked { context.color_node_dark_gray } else { context.color_node_light_gray };
+
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &border_color, 1.5);
+
+                context.draw2d.draw_text(buffer_frame, &(25, 1), rect.2, &asset.open_sans, context.node_button_text_size, &"Default Tile:".to_string(), &context.color_white, &fill_color);
+
+                if self.atom_data.data.0 >= 0.0 {
+                    context.draw2d.draw_animated_tile(buffer_frame, &(rect.2 - 35, 2),  asset.get_map_of_id(self.atom_data.data.0 as usize), rect.2, &(self.atom_data.data.1 as usize, self.atom_data.data.2 as usize), 0, 18);
+                }
             }
 
             // Large
@@ -549,7 +566,7 @@ impl AtomWidget {
             return false;
         }
         if self.contains_pos(pos) {
-            if self.atom_widget_type == AtomWidgetType::ToolBarButton ||  self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeIntButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeTextButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarButton ||  self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeIntButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
@@ -682,6 +699,14 @@ impl AtomWidget {
                 context.dialog_height = 0;
                 context.target_fps = 60;
                 context.dialog_entry = DialogEntry::NodeText;
+                context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
+                context.dialog_node_behavior_value = self.atom_data.data.clone();
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodeCharTileButton {
+                context.dialog_state = DialogState::Opening;
+                context.dialog_height = 0;
+                context.target_fps = 60;
+                context.dialog_entry = DialogEntry::NodeTile;
                 context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
                 context.dialog_node_behavior_value = self.atom_data.data.clone();
             }
@@ -838,8 +863,9 @@ impl AtomWidget {
 
     /// Returns the height for this widget
     pub fn get_height(&self, context: &ScreenContext) -> usize {
-        //if self.atom_widget_type == AtomWidgetType::NodeSliderButton {
-        //}
+        if self.atom_widget_type == AtomWidgetType::NodePositionButton {
+            return context.node_button_height * 2;
+        }
         context.node_button_height
     }
 }

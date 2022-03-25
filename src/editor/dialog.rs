@@ -4,6 +4,9 @@ use server::gamedata::behavior::BehaviorNodeType;
 use crate::atom::{ AtomWidget, AtomWidgetType, AtomData };
 use crate::widget::{ WidgetKey, WidgetState };
 
+use crate::tileselector::TileSelectorWidget;
+use crate::tileset::TileUsage;
+
 use crate::context::ScreenContext;
 
 use evalexpr::*;
@@ -16,6 +19,7 @@ pub enum DialogEntry {
     NodeExpression,
     NodeText,
     NodeName,
+    NodeTile,
 }
 
 #[derive(PartialEq, Debug)]
@@ -36,11 +40,13 @@ pub struct DialogWidget {
     buffer                      : Vec<u8>,
 
     clicked_id                  : String,
+
+    tile_selector_widget        : TileSelectorWidget,
 }
 
 impl DialogWidget {
 
-    pub fn new() -> Self {
+    pub fn new(asset: &Asset, context: &ScreenContext) -> Self {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
@@ -52,6 +58,8 @@ impl DialogWidget {
         AtomData::new_as_int("Accept".to_string(), 0));
         widgets.push(ok_button);
 
+        let tile_selector_widget = TileSelectorWidget::new(vec!(), (0,0,0,0), asset, &context);
+
         Self {
             rect                : (0, 0, 600, 200),
             text                : "".to_string(),
@@ -62,6 +70,8 @@ impl DialogWidget {
             buffer              : vec![0],
 
             clicked_id          : "".to_string(),
+
+            tile_selector_widget
         }
     }
 
@@ -85,6 +95,13 @@ impl DialogWidget {
                 } else
                 if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeName {
                     self.text = context.dialog_node_behavior_value.4.clone();
+                } else
+                if context.dialog_entry == DialogEntry::NodeTile {
+                    self.tile_selector_widget.set_tile_type(vec![TileUsage::Character, TileUsage::UtilityChar], None, &asset);
+                    self.text = "".to_string();
+                    self.tile_selector_widget.grid_size = 24;
+                    self.tile_selector_widget.selected = Some((context.dialog_node_behavior_value.0 as usize, context.dialog_node_behavior_value.1 as usize, context.dialog_node_behavior_value.2 as usize, TileUsage::Character));
+                } else {
                 }
             }
             self.dirty = true;
@@ -161,10 +178,18 @@ impl DialogWidget {
                 } else
                 if context.dialog_entry == DialogEntry::NodeName {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Node Name".to_string(), &context.color_white, &context.color_black);
+                } else
+                if context.dialog_entry == DialogEntry::NodeTile {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Select Tile".to_string(), &context.color_white, &context.color_black);
+                    self.tile_selector_widget.rect = (20, 50, rect.2 - 40, 80);
+                    self.tile_selector_widget.draw(buffer_frame, rect.2, anim_counter, asset, context);
                 }
 
                 let input_rect = (20, 60, rect.2 - 40, 60);
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &input_rect, rect.2, &(input_rect.2 as f64 - 1.0, input_rect.3 as f64 - 1.0), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &border_color, 1.5);
+
+                if context.dialog_entry != DialogEntry::NodeTile {
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &input_rect, rect.2, &(input_rect.2 as f64 - 1.0, input_rect.3 as f64 - 1.0), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &border_color, 1.5);
+                }
 
                 if !self.text.is_empty() {
                     context.draw2d.draw_text_rect(buffer_frame, &input_rect, rect.2, &asset.open_sans, 30.0, &self.text, &context.color_white, &context.color_black, crate::draw2d::TextAlignment::Center);
@@ -181,6 +206,9 @@ impl DialogWidget {
         }
         self.dirty = false;
         context.draw2d.blend_slice(frame, buffer_frame, &(self.rect.0, self.rect.1, rect.2, rect.3), context.width);
+        if context.dialog_entry == DialogEntry::NodeTile {
+            self.dirty = true;
+        }
     }
 
     /// Accepts the given value (if correct)
@@ -230,6 +258,14 @@ impl DialogWidget {
             context.dialog_node_behavior_value.4 = self.text.clone();
             context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());
             return true;
+        } else
+        if context.dialog_entry == DialogEntry::NodeTile {
+            if let Some(selected) = &self.tile_selector_widget.selected {
+                context.dialog_node_behavior_value.0 = selected.0 as f64;
+                context.dialog_node_behavior_value.1 = selected.1 as f64;
+                context.dialog_node_behavior_value.2 = selected.2 as f64;
+                return true;
+            }
         }
         false
     }
@@ -279,6 +315,13 @@ impl DialogWidget {
             if atom.mouse_down(local, asset, context) {
                 self.dirty = true;
                 self.clicked_id = atom.atom_data.id.clone();
+                return true;
+            }
+        }
+
+        if context.dialog_entry == DialogEntry::NodeTile {
+            if self.tile_selector_widget.mouse_down(local, asset, context) {
+                self.dirty = true;
                 return true;
             }
         }
@@ -332,6 +375,18 @@ impl DialogWidget {
                 return true;
             }
         }
+        false
+    }
+
+    pub fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+
+        if context.dialog_entry == DialogEntry::NodeTile {
+            if self.tile_selector_widget.mouse_wheel(delta, asset, context) {
+                self.dirty = true;
+                return true;
+            }
+        }
+
         false
     }
 }
