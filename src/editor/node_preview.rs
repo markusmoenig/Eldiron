@@ -108,11 +108,16 @@ impl NodePreviewWidget {
             self.area_rect.2 = rect.2 - 20;
             self.area_rect.3 = rect.3 - 100;
 
-            if let Some(area) = context.data.areas.get(&context.data.areas_ids[self.curr_area_index]) {
-                let offset = area.data.min_pos;
-
-                self.area_offset = offset;
-                context.draw2d.draw_area(buffer_frame, area, &self.area_rect, &self.area_offset, stride, 32, anim_counter, asset);
+            // Draw the area
+            let area_id = context.data.areas_ids[self.curr_area_index];
+            if let Some(area) = context.data.areas.get(&area_id) {
+                if let Some(position) = context.data.get_behavior_default_position(area_id) {
+                    self.area_offset = context.draw2d.draw_area_centered_with_behavior(buffer_frame, area, &self.area_rect, &(position.1, position.2), stride, 32, 0, asset, context);
+                } else {
+                    let offset = area.data.min_pos;
+                    self.area_offset = offset;
+                    context.draw2d.draw_area(buffer_frame, area, &self.area_rect, &self.area_offset, stride, 32, 0, asset);
+                }
             }
             context.draw2d.blend_mask(buffer_frame, &(6, rect.3 - 23, rect.2, rect.3), rect.2, &context.preview_arc_mask[..], &(20, 20), &context.color_gray);
         }

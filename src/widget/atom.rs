@@ -348,8 +348,8 @@ impl AtomWidget {
 
                 if self.atom_data.data.0 >= 0.0 {
                     if let Some(area) = context.data.areas.get(&(self.atom_data.data.0 as usize)) {
-                        let offset = (self.atom_data.data.1 as isize, self.atom_data.data.2 as isize);
-                        context.draw2d.draw_area(buffer_frame, area, &(4, 1, rect.2 - 8, rect.3 - 2), &offset, rect.2, 14, 0, asset);
+                        let center = (self.atom_data.data.1 as isize, self.atom_data.data.2 as isize);
+                        context.draw2d.draw_area_centered_with_behavior(buffer_frame, area, &(4, 1, rect.2 - 8, rect.3 - 2), &center, rect.2, 14, 0, asset, context);
                     }
                 }
             } else
@@ -363,10 +363,10 @@ impl AtomWidget {
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &border_color, 1.5);
 
-                context.draw2d.draw_text(buffer_frame, &(25, 1), rect.2, &asset.open_sans, context.node_button_text_size, &"Default Tile:".to_string(), &context.color_white, &fill_color);
+                //context.draw2d.draw_text(buffer_frame, &(25, 1), rect.2, &asset.open_sans, context.node_button_text_size, &"Default Tile:".to_string(), &context.color_white, &fill_color);
 
                 if self.atom_data.data.0 >= 0.0 {
-                    context.draw2d.draw_animated_tile(buffer_frame, &(rect.2 - 35, 2),  asset.get_map_of_id(self.atom_data.data.0 as usize), rect.2, &(self.atom_data.data.1 as usize, self.atom_data.data.2 as usize), 0, 18);
+                    context.draw2d.draw_animated_tile(buffer_frame, &(rect.2 / 2 - 9, 2),  asset.get_map_of_id(self.atom_data.data.0 as usize), rect.2, &(self.atom_data.data.1 as usize, self.atom_data.data.2 as usize), 0, 18);
                 }
             }
 

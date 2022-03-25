@@ -204,6 +204,34 @@ impl GameData {
         def
     }
 
+    /// Gets the position for the given behavior
+    pub fn get_behavior_default_position(&self, id: usize) -> Option<(usize, isize, isize)> {
+        if let Some(behavior) = self.behaviors.get(&id) {
+            for (_index, node) in &behavior.data.nodes {
+                if node.behavior_type == BehaviorNodeType::BehaviorType {
+                    if let Some(position) = node.values.get(&"position".to_string()) {
+                        return Some((position.0 as usize, position.1 as isize, position.2 as isize));
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Gets the position for the given behavior
+    pub fn get_behavior_default_tile(&self, id: usize) -> Option<(usize, usize, usize)> {
+        if let Some(behavior) = self.behaviors.get(&id) {
+            for (_index, node) in &behavior.data.nodes {
+                if node.behavior_type == BehaviorNodeType::BehaviorType {
+                    if let Some(tile) = node.values.get(&"tile".to_string()) {
+                        return Some((tile.0 as usize, tile.1 as usize, tile.2 as usize));
+                    }
+                }
+            }
+        }
+        None
+    }
+
     /// Create save data and return it
     pub fn save(&self) -> String {
         let json = serde_json::to_string(&self.instances).unwrap();
