@@ -1,5 +1,5 @@
 
-use crate::gamedata::behavior:: { BehaviorNodeConnector, BehaviorInstance, BehaviorNodeType };
+use crate::gamedata::behavior:: { BehaviorNodeConnector, BehaviorNodeType };
 use crate::gamedata::GameData;
 //use crate::gamedata::nodes_utility::*;
 
@@ -7,7 +7,7 @@ use evalexpr::*;
 use rand::prelude::*;
 
 /// expression
-pub fn expression(_inst: &mut BehaviorInstance, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
+pub fn expression(_instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
 
         // Insert the variables
@@ -19,7 +19,7 @@ pub fn expression(_inst: &mut BehaviorInstance, id: (usize, usize), data: &mut G
             }
         }
 
-        // d1 - d2
+        // d2 - d20
         let mut rng = thread_rng();
         for d in (2..=20).step_by(2) {
             let random = rng.gen_range(1..=d);
@@ -42,13 +42,22 @@ pub fn expression(_inst: &mut BehaviorInstance, id: (usize, usize), data: &mut G
 }
 
 /// say
-pub fn say(_inst: &mut BehaviorInstance, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
+pub fn say(_instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
         if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
             if let Some(value) = node.values.get("text") {
                 println!("{}", value.4);
             }
         }
+    }
+    BehaviorNodeConnector::Bottom
+}
+
+/// Pathfinder
+pub fn pathfinder(instance_index: usize, _id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
+    if let Some(position) = &mut data.instances[instance_index].position {
+        position.1 += 1;
+        data.instances[instance_index].position = Some(*position);
     }
     BehaviorNodeConnector::Bottom
 }

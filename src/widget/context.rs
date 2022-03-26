@@ -85,6 +85,8 @@ pub struct ScreenContext {
 
     pub jump_to_position                : Option<(usize, isize, isize)>,
 
+    pub is_running                      : bool,
+
     // Masks
     pub right_arrow_mask                : [u8;10*10],
     pub menu_triangle_mask              : [u8;10*10],
@@ -198,6 +200,8 @@ impl ScreenContext {
 
             active_position_id          : None,
             jump_to_position            : None,
+
+            is_running                  : false,
 
             // UI Masks
             right_arrow_mask,

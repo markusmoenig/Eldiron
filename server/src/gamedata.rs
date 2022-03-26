@@ -17,7 +17,7 @@ use std::fs;
 
 use self::behavior::{BehaviorNodeType};
 
-type NodeCall = fn(&mut BehaviorInstance, id: (usize, usize), data: &mut GameData) -> behavior::BehaviorNodeConnector;
+type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData) -> behavior::BehaviorNodeConnector;
 
 pub struct GameData {
     pub areas                   : HashMap<usize, GameArea>,
@@ -30,7 +30,7 @@ pub struct GameData {
 
     pub nodes                   : HashMap<BehaviorNodeType, NodeCall>,
 
-    pub instances               : HashMap<usize, BehaviorInstance>
+    pub instances               : Vec<BehaviorInstance>,
 }
 
 impl GameData {
@@ -131,19 +131,10 @@ impl GameData {
             }
         }
 
-        // let sorted_keys= behaviors.keys().sorted();
-        // for key in sorted_keys {
-        //     let behavior = &behaviors[key];
-
-        //     // If the behavior has no nodes we assume it's new and we save the data
-        //     if behavior.data.nodes.len() == 0 {
-        //         behavior.save_data();
-        //     }
-        // }
-
         let mut nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
         nodes.insert(BehaviorNodeType::Expression, nodes::expression);
         nodes.insert(BehaviorNodeType::Say, nodes::say);
+        nodes.insert(BehaviorNodeType::Pathfinder, nodes::pathfinder);
 
         Self {
             areas,
@@ -156,7 +147,7 @@ impl GameData {
 
             nodes,
 
-            instances               : HashMap::new(),
+            instances               : vec![],
         }
     }
 
@@ -239,9 +230,12 @@ impl GameData {
     }
 
     /// Create a new behavior of the given id and return it's id
-    pub fn create_behavior(&mut self, id: usize, is_temporary: bool, execute: bool) -> usize {
+    pub fn create_behavior(&mut self, id: usize) -> usize {
 
         let mut to_execute : Vec<usize> = vec![];
+
+        let mut position : Option<(usize, isize, isize)> = None;
+        let mut tile     : Option<(usize, usize, usize)> = None;
 
         if let Some(behavior) = self.behaviors.get_mut(&id) {
             for (id, node) in &behavior.data.nodes {
@@ -252,40 +246,37 @@ impl GameData {
                             to_execute.push(c.2);
                         }
                     }
-                }
-            }
-
-            let mut instance = BehaviorInstance {id: 0, behavior_id: id, tree_ids: to_execute.clone(), values: HashMap::new(), in_progress_id: None};
-
-            if is_temporary == false {
-                // Make sure id is unique
-                let mut has_id_already = true;
-                while has_id_already {
-
-                    has_id_already = false;
-                    for (key, _value) in &self.instances {
-                        if key == &instance.id {
-                            has_id_already = true;
-                        }
+                } else
+                if node.behavior_type == BehaviorNodeType::BehaviorType {
+                    if let Some(value )= node.values.get(&"position".to_string()) {
+                        position = Some((value.0 as usize, value.1 as isize, value.2 as isize));
                     }
-
-                    if has_id_already {
-                        instance.id += 1;
+                    if let Some(value )= node.values.get(&"tile".to_string()) {
+                        tile = Some((value.0 as usize, value.1 as usize, value.2 as usize));
                     }
                 }
             }
 
-            //let node_id = instance.id.clone();
+            let mut instance = BehaviorInstance {id: 0, behavior_id: id, tree_ids: to_execute.clone(), values: HashMap::new(), in_progress_id: None, position, tile};
 
-            if execute {
-                for node_id in to_execute {
-                    self.execute_node(&mut instance, (id.clone(), node_id));
+            // Make sure id is unique
+            let mut has_id_already = true;
+            while has_id_already {
+
+                has_id_already = false;
+                for index in 0..self.instances.len() {
+                    if self.instances[index].id == instance.id {
+                        has_id_already = true;
+                    }
+                }
+
+                if has_id_already {
+                    instance.id += 1;
                 }
             }
 
-            if is_temporary == false {
-                self.instances.insert(instance.id.clone(), instance);
-            }
+            let instance_id = instance.id.clone();
+            self.instances.insert(instance_id, instance);
 
             return id;
         }
@@ -293,29 +284,43 @@ impl GameData {
         0
     }
 
+    pub fn tick(&mut self) {
+        for index in 0..self.instances.len() {
+            let trees = self.instances[index].tree_ids.clone();
+            for node_id in &trees {
+                self.execute_node(index, node_id.clone());
+            }
+        }
+    }
+
+    pub fn clear_instances(&mut self) {
+        self.instances = vec![];
+    }
+
     /// Executes the given node and follows the connection chain
-    fn execute_node(&mut self, instance: &mut BehaviorInstance, id: (usize, usize)) {
+    fn execute_node(&mut self, instance_index: usize, node_id: usize) {
 
         let mut connector : Option<BehaviorNodeConnector> = None;
+        let mut connected_node_id : Option<usize> = None;
 
         // Call the node and get the resulting BehaviorNodeConnector
-        if let Some(behavior) = self.behaviors.get_mut(&id.0) {
-            if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
+        if let Some(behavior) = self.behaviors.get_mut(&self.instances[instance_index].behavior_id) {
+            if let Some(node) = behavior.data.nodes.get_mut(&node_id) {
                 // println!("Executing:: {}", node.name);
 
                 if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
-                    connector = Some(node_call(instance, id, self));
+                    let behavior_id = self.instances[instance_index].behavior_id.clone();
+                    connector = Some(node_call(instance_index, (behavior_id, node_id), self));
                 }
             }
         }
 
         // Search the connections if we can find an ongoing node connection
-        let mut connected_node_id : Option<usize> = None;
         if let Some(connector) = connector {
-            if let Some(behavior) = self.behaviors.get_mut(&id.0) {
+            if let Some(behavior) = self.behaviors.get_mut(&self.instances[instance_index].behavior_id) {
 
                 for c in &behavior.data.connections {
-                    if c.0 == id.1 && c.1 == connector {
+                    if c.0 == node_id && c.1 == connector {
                         connected_node_id = Some(c.2);
                     }
                 }
@@ -324,7 +329,7 @@ impl GameData {
 
         // And if yes execute it
         if let Some(connected_node_id) = connected_node_id {
-            self.execute_node(instance, (id.0, connected_node_id));
+            self.execute_node(instance_index, connected_node_id);
         }
     }
 }

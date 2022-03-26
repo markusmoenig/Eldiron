@@ -131,6 +131,9 @@ impl NodePreviewWidget {
 
             if let Some(area) = context.data.areas.get(&area_id) {
 
+                if context.is_running {
+                    self.area_offset = context.draw2d.draw_area_centered_with_instances(buffer_frame, area, &self.area_rect, 0, stride, 32, anim_counter, asset, context);
+                } else
                 if let Some(position) = &self.curr_position {
                     self.area_offset = context.draw2d.draw_area_centered_with_behavior(buffer_frame, area, &self.area_rect, &(position.1 - self.area_scroll_offset.0, position.2 - self.area_scroll_offset.1), stride, 32, 0, asset, context);
                 } else
@@ -153,7 +156,15 @@ impl NodePreviewWidget {
             if atom_widget.mouse_down(pos, asset, context) {
 
                 if atom_widget.atom_data.id == "run" {
-                    context.data.create_behavior(context.curr_behavior_index, true, true);
+                    if context.is_running == false {
+                        context.data.create_behavior(context.curr_behavior_index);
+                        context.is_running = true;
+                        atom_widget.text[0] = "Stop".to_string();
+                    } else {
+                        context.data.clear_instances();
+                        context.is_running = false;
+                        atom_widget.text[0] = "Run Behavior".to_string();
+                    }
                 }
 
                 self.dirty = true;
@@ -231,5 +242,12 @@ impl NodePreviewWidget {
         self.area_scroll_offset.1 += delta.1 / self.tile_size as isize;
         self.dirty = true;
         true
+    }
+
+    /// Stop running
+    pub fn _stop(&mut self, context: &mut ScreenContext) {
+        context.data.clear_instances();
+        context.is_running = false;
+        self.widgets[0].text[0] = "Run Behavior".to_string();
     }
 }

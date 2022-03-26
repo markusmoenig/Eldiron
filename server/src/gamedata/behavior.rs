@@ -45,6 +45,10 @@ pub struct BehaviorInstance {
     pub tree_ids                : Vec<usize>,
     pub values                  : HashMap<String, (f64, f64, f64, f64)>,
 
+    // For character
+    pub position                : Option<(usize, isize, isize)>,
+    pub tile                    : Option<(usize, usize, usize)>,
+
     pub in_progress_id          : Option<usize>
 }
 

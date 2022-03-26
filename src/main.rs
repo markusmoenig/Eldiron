@@ -6,7 +6,7 @@ mod editor;
 mod widget;
 
 mod prelude {
-    pub const GAME_TICK_IN_MS : u128 = 250;
+    pub const GAME_TICK_IN_MS : u128 = 250 * 2;
 }
 
 use prelude::*;

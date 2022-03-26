@@ -157,6 +157,9 @@ impl ScreenWidget for Editor {
 
     /// Update the editor
     fn update(&mut self) {
+        if self.state == EditorState::BehaviorDetail {
+            self.node_graph_behavior_details.update(&mut self.context);
+        }
     }
 
     fn resize(&mut self, width: usize, height: usize) {
@@ -232,6 +235,9 @@ impl ScreenWidget for Editor {
 
         // Draw overlay
         self.toolbar.draw_overlay(frame, &self.rect, anim_counter, asset, &mut self.context);
+
+        //let stop = self.get_time();
+        //println!("{:?}", stop - start);
     }
 
     fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset) -> bool {

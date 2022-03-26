@@ -79,6 +79,16 @@ impl NodeGraph {
         }
     }
 
+    pub fn update(&mut self, context: &mut ScreenContext) {
+        if context.is_running {
+            context.data.tick();
+            self.dirty = true;
+            if let Some(preview) = &mut self.preview {
+                preview.dirty = true;
+            }
+        }
+    }
+
     pub fn set_mode(&mut self, mode: GraphMode, context: &ScreenContext) {
         if mode == GraphMode::Detail && self.preview.is_none() {
             self.preview = Some(NodePreviewWidget::new(context));
