@@ -47,6 +47,8 @@ pub struct NodeGraph {
 
     pub preview                 : Option<NodePreviewWidget>,
     preview_drag_start          : (isize, isize),
+
+    mouse_hover_pos             : (usize, usize)
 }
 
 impl NodeGraph {
@@ -72,6 +74,8 @@ impl NodeGraph {
 
             preview             : None,
             preview_drag_start  : (0,0),
+
+            mouse_hover_pos     : (0, 0)
         }
     }
 
@@ -713,16 +717,24 @@ impl NodeGraph {
         false
     }
 
-    pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    pub fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+        if let Some(preview) = &mut self.preview {
+            if context.contains_pos_for(self.mouse_hover_pos, preview.rect) {
+                preview.mouse_wheel(delta, asset, context);
+                self.dirty = true;
+                return true;
+            }
+        }
         self.offset.0 -= delta.0 / 20;
         self.offset.1 += delta.1 / 20;
         self.dirty = true;
         true
     }
 
-    // pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
-    //     false
-    // }
+    pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        self.mouse_hover_pos = pos;
+        false
+    }
 
     /// Marks the two nodes as dirty
     pub fn changed_selection(&mut self, old_selection: usize, new_selection: usize) {
@@ -772,6 +784,7 @@ impl NodeGraph {
                 "Number" => BehaviorNodeType::VariableNumber,
                 "Position" => BehaviorNodeType::VariablePosition,
                 "Say" => BehaviorNodeType::Say,
+                "Pathfinder" => BehaviorNodeType::Pathfinder,
                 _ => BehaviorNodeType::BehaviorTree
             };
 
@@ -871,6 +884,20 @@ impl NodeGraph {
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_data.behavior_type == BehaviorNodeType::Pathfinder {
+            let mut atom1 = AtomWidget::new(vec!["Destination".to_string()], AtomWidgetType::NodePositionButton,
+            AtomData::new_as_int("destination".to_string(), 0));
+            atom1.atom_data.text = "Destination".to_string();
+            let id = (behavior_data.id, node_data.id, "destination".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()));
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         }
     }

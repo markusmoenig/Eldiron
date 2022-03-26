@@ -569,6 +569,11 @@ impl ScreenWidget for Editor {
             if consumed == false && self.area_options.mouse_hover(pos, asset, &mut self.context) {
                 consumed = true;
             }
+        } else
+        if self.state == EditorState::BehaviorDetail {
+            if consumed == false && self.node_graph_behavior_details.mouse_hover(pos, asset, &mut self.context) {
+                consumed = true;
+            }
         }
         consumed
     }

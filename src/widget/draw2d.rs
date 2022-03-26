@@ -515,9 +515,9 @@ impl Draw2D {
                 if position.0 == area.data.id {
 
                     // Row check
-                    if position.1 >= offset.0 && position.1 <= offset.0 + x_tiles {
+                    if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
                         // Column check
-                        if position.2 >= offset.1 && position.2 <= offset.1 + y_tiles {
+                        if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
                             // Visible
                             if let Some(tile) = context.data.get_behavior_default_tile(*id) {
 

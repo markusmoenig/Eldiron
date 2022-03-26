@@ -663,6 +663,9 @@ impl AtomWidget {
                     context.active_position_id = None;
                 } else {
                     context.active_position_id = self.behavior_id.clone();
+                    if self.atom_data.data.0 >= 0.0 {
+                        context.jump_to_position = Some((self.atom_data.data.0 as usize, self.atom_data.data.1 as isize, self.atom_data.data.2 as isize));
+                    }
                 }
                 return true;
             }

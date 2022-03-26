@@ -139,11 +139,9 @@ impl NodeWidget {
 
                 let mut y = 18_usize;
                 for atom_widget in &mut self.widgets {
-
                     let height = atom_widget.get_height(context);
                     atom_widget.set_rect((18, y, self.size.0 - 30, height), asset, context);
                     atom_widget.draw(buffer_frame, stride, anim_counter, asset, context);
-
                     y += height + 6;
                 }
             } else {
@@ -179,11 +177,13 @@ impl NodeWidget {
                 for atom_widget in &mut self.widgets {
                     context.draw2d.draw_text(buffer_frame, &(30, y), stride, &asset.open_sans, context.node_button_header_text_size, &atom_widget.atom_data.text, &[180, 180, 180, 255], &context.color_black);
 
+                    let height = atom_widget.get_height(context);
+
                     y += context.node_button_header_text_size as usize;
-                    atom_widget.set_rect((18, y, self.size.0 - 30, context.node_button_height), asset, context);
+                    atom_widget.set_rect((18, y, self.size.0 - 30, height), asset, context);
                     atom_widget.draw(buffer_frame, stride, anim_counter, asset, context);
 
-                    y += atom_widget.get_height(context) + 5;
+                    y += height + 5;
                 }
 
                 // Draw terminals

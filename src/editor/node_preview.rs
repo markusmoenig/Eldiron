@@ -25,6 +25,11 @@ pub struct NodePreviewWidget {
     pub area_tile_size          : usize,
     pub area_rect               : (usize, usize, usize, usize),
     pub area_offset             : (isize, isize),
+    pub area_scroll_offset      : (isize, isize),
+
+    pub curr_position           : Option<(usize, isize, isize)>,
+
+    pub tile_size               : usize,
 
     pub graph_offset            : (isize, isize),
 
@@ -66,6 +71,11 @@ impl NodePreviewWidget {
             area_tile_size      : 32,
             area_rect           : (0,0,0,0),
             area_offset         : (0,0),
+            area_scroll_offset  : (0,0),
+
+            curr_position       : None,
+
+            tile_size           : 32,
 
             graph_offset        : (0,0),
 
@@ -86,6 +96,14 @@ impl NodePreviewWidget {
         }
 
         let rect = (0, 0, self.size.0, self.size.1);
+
+        // Go to this position
+        if let Some(jump_to_position) = context.jump_to_position {
+            self.dirty = true;
+            self.curr_position = Some(jump_to_position);
+            self.area_scroll_offset = (0, 0);
+            context.jump_to_position = None;
+        }
 
         if self.dirty {
             for i in &mut self.buffer[..] { *i = 0 }
@@ -110,13 +128,18 @@ impl NodePreviewWidget {
 
             // Draw the area
             let area_id = context.data.areas_ids[self.curr_area_index];
+
             if let Some(area) = context.data.areas.get(&area_id) {
+
+                if let Some(position) = &self.curr_position {
+                    self.area_offset = context.draw2d.draw_area_centered_with_behavior(buffer_frame, area, &self.area_rect, &(position.1 - self.area_scroll_offset.0, position.2 - self.area_scroll_offset.1), stride, 32, 0, asset, context);
+                } else
                 if let Some(position) = context.data.get_behavior_default_position(area_id) {
-                    self.area_offset = context.draw2d.draw_area_centered_with_behavior(buffer_frame, area, &self.area_rect, &(position.1, position.2), stride, 32, 0, asset, context);
+                    self.area_offset = context.draw2d.draw_area_centered_with_behavior(buffer_frame, area, &self.area_rect, &(position.1 - self.area_scroll_offset.0, position.2 - self.area_scroll_offset.1), stride, 32, 0, asset, context);
                 } else {
                     let offset = area.data.min_pos;
                     self.area_offset = offset;
-                    context.draw2d.draw_area(buffer_frame, area, &self.area_rect, &self.area_offset, stride, 32, 0, asset);
+                    context.draw2d.draw_area(buffer_frame, area, &self.area_rect, &self.area_offset, stride, self.tile_size, 0, asset);
                 }
             }
             context.draw2d.blend_mask(buffer_frame, &(6, rect.3 - 23, rect.2, rect.3), rect.2, &context.preview_arc_mask[..], &(20, 20), &context.color_gray);
@@ -201,5 +224,12 @@ impl NodePreviewWidget {
         }
 
         false
+    }
+
+    pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        self.area_scroll_offset.0 -= delta.0 / self.tile_size as isize;
+        self.area_scroll_offset.1 += delta.1 / self.tile_size as isize;
+        self.dirty = true;
+        true
     }
 }
