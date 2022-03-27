@@ -121,7 +121,7 @@ impl NodeWidget {
             self.buffer = vec![0;self.size.0 * self.size.1 * 4];
         }
 
-        let rect = (5, 5, self.size.0 - 5, self.size.1 - 10);
+        let rect = (5, 5, self.size.0 - 10, self.size.1 - 10);
 
         if self.dirty {
             for i in &mut self.buffer[..] { *i = 0 }
@@ -180,7 +180,7 @@ impl NodeWidget {
                     let height = atom_widget.get_height(context);
 
                     y += context.node_button_header_text_size as usize;
-                    atom_widget.set_rect((18, y, self.size.0 - 30, height), asset, context);
+                    atom_widget.set_rect((18, y, self.size.0 - 35, height), asset, context);
                     atom_widget.draw(buffer_frame, stride, anim_counter, asset, context);
 
                     y += height + 5;
@@ -188,9 +188,36 @@ impl NodeWidget {
 
                 // Draw terminals
 
+                let mut top_is_connected = false;
+                let mut left_is_connected = false;
+                if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
+                    for (_source_node_id , _source_connector, dest_node_id, dest_connector) in &behavior.data.connections {
+                        if *dest_node_id == self.id {
+                            if *dest_connector == BehaviorNodeConnector::Top {
+                                top_is_connected = true;
+                            }
+                            if *dest_connector == BehaviorNodeConnector::Left {
+                                left_is_connected = true;
+                            }
+                        }
+                    }
+                }
+
                 if let Some(top) = self.node_connector.get_mut(&BehaviorNodeConnector::Top) {
                     top.rect = (rect.2 / 2 - 6, 0, 12, 12);
-                    context.draw2d.draw_circle(buffer_frame, &top.rect, stride, &context.node_connector_color, 6.0);
+                    if left_is_connected == false {
+                        context.draw2d.draw_circle(buffer_frame, &top.rect, stride, &context.node_connector_color, 6.0);
+                    }
+                }
+                if let Some(right) = self.node_connector.get_mut(&BehaviorNodeConnector::Right) {
+                    right.rect = (rect.2 - 3, rect.3 / 2 + 5, 12, 12);
+                    context.draw2d.draw_circle(buffer_frame, &right.rect, stride, &context.node_connector_color, 6.0);
+                }
+                if let Some(left) = self.node_connector.get_mut(&BehaviorNodeConnector::Left) {
+                    left.rect = (0, rect.3 / 2 + 5, 12, 12);
+                    if top_is_connected == false {
+                        context.draw2d.draw_circle(buffer_frame, &left.rect, stride, &context.node_connector_color, 6.0);
+                    }
                 }
                 if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Bottom) {
                     bottom.rect = (rect.2 / 2 - 6, rect.3 - 2, 12, 12);

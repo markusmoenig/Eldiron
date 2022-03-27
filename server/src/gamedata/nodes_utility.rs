@@ -1,9 +1,9 @@
-use crate::gamedata::behavior:: { BehaviorInstance, BehaviorNodeType };
+use crate::gamedata::behavior:: { BehaviorNodeType };
 use crate::gamedata::GameData;
 use evalexpr::*;
 use rand::prelude::*;
 
-pub fn eval_expression_as_number(_inst: &mut BehaviorInstance, id: (usize, usize), data: &mut GameData) -> Option<f64> {
+pub fn eval_expression_as_number(id: (usize, usize), data: &mut GameData, value_id: &str) -> Option<f64> {
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
 
         // Insert the variables
@@ -25,7 +25,7 @@ pub fn eval_expression_as_number(_inst: &mut BehaviorInstance, id: (usize, usize
 
         // Evaluate the expression as a number
         if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
-            let exp = eval_with_context(&node.values.get("expression").unwrap().4, &cont);
+            let exp = eval_with_context(&node.values.get(value_id).unwrap().4, &cont);
             if exp.is_ok() {
                 let rc = exp.unwrap().as_number();
                 if rc.is_ok() {

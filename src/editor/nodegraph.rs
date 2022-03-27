@@ -227,19 +227,50 @@ impl NodeGraph {
                         let dest_rect = &self.get_node_rect(dest_index, true);
                         let dest_node = &self. nodes[dest_index];
 
-                        let source_connector = &source_node.node_connector[source_connector];
-                        let dest_connector = &dest_node.node_connector[dest_connector];
+                        let s_connector = &source_node.node_connector[source_connector];
+                        let d_connector = &dest_node.node_connector[dest_connector];
 
-                        let start_x = source_rect.0 + source_connector.rect.0 as isize + source_connector.rect.2 as isize / 2;
-                        let start_y = source_rect.1 + source_connector.rect.1 as isize + source_connector.rect.3 as isize;
+                        let start_x;
+                        let start_y;
 
-                        let end_x = dest_rect.0 + dest_connector.rect.0 as isize + dest_connector.rect.2 as isize / 2;
-                        let end_y = dest_rect.1 + dest_connector.rect.1 as isize + dest_connector.rect.3 as isize / 2;
+                        let control_start_x;
+                        let control_start_y;
+
+                        let control_end_x;
+                        let control_end_y;
+
+                        let end_x;
+                        let end_y;
+
+                        if *source_connector == BehaviorNodeConnector::Right {
+                            start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize;
+                            start_y = source_rect.1 + s_connector.rect.1 as isize + s_connector.rect.3 as isize / 2;
+                            control_start_x = start_x + 50;
+                            control_start_y = start_y;
+                        } else {
+                            start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize / 2;
+                            start_y = source_rect.1 + s_connector.rect.1 as isize + s_connector.rect.3 as isize;
+                            control_start_x = start_x;
+                            control_start_y = start_y + 50;
+                        }
+
+                        if *dest_connector == BehaviorNodeConnector::Left {
+                            end_x = dest_rect.0 + d_connector.rect.0 as isize + d_connector.rect.2 as isize / 2;
+                            end_y = dest_rect.1 + d_connector.rect.1 as isize + d_connector.rect.3 as isize / 2;
+                            control_end_x = end_x - 50;
+                            control_end_y = end_y;
+                        } else {
+                            end_x = dest_rect.0 + d_connector.rect.0 as isize + d_connector.rect.2 as isize / 2;
+                            end_y = dest_rect.1 + d_connector.rect.1 as isize + d_connector.rect.3 as isize / 2;
+                            control_end_x = end_x ;
+                            control_end_y = end_y - 50;
+                        }
 
                         //context.draw2d.draw_line_safe(&mut self.buffer[..], &(start_x, start_y), &(end_x, end_y), &safe_rect, safe_rect.2, &context.node_connector_color);
 
                         //path += format!("M {},{} L {},{}", start_x, start_y, end_x, end_y).as_str();
-                        path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, start_x, start_y + 50, end_x, end_y - 50, end_x, end_y).as_str();
+
+                        path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
                     }
                 }
 
@@ -545,8 +576,10 @@ impl NodeGraph {
                     // Add the connection in the order of source connector -> dest connector
                     if self.connector_is_source(dest_conn.0) {
                         behavior.data.connections.push((self.widget_index_to_node_id(dest_conn.1), dest_conn.0, self.widget_index_to_node_id(source_conn.1), source_conn.0));
+                        self.nodes[source_conn.1].dirty = true;
                     } else {
                         behavior.data.connections.push((self.widget_index_to_node_id(source_conn.1), source_conn.0, self.widget_index_to_node_id(dest_conn.1), dest_conn.0));
+                        self.nodes[dest_conn.1].dirty = true;
                     }
                 }
                 self.dest_conn = None;
@@ -868,6 +901,7 @@ impl NodeGraph {
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
@@ -894,6 +928,7 @@ impl NodeGraph {
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_data.behavior_type == BehaviorNodeType::Pathfinder {
@@ -905,10 +940,19 @@ impl NodeGraph {
             atom1.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()));
             node_widget.widgets.push(atom1);
 
+            let mut atom2 = AtomWidget::new(vec!["Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new_as_int("delay".to_string(), 0));
+            atom2.atom_data.text = "Delay".to_string();
+            let id = (behavior_data.id, node_data.id, "delay".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "1".to_string()));
+            node_widget.widgets.push(atom2);
+
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         }
     }
 

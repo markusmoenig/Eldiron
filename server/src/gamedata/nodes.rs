@@ -3,7 +3,7 @@ use crate::gamedata::behavior:: { BehaviorNodeConnector, BehaviorNodeType };
 use crate::gamedata::GameData;
 use crate::asset::TileUsage;
 
-//use crate::gamedata::nodes_utility::*;
+use crate::gamedata::nodes_utility::*;
 
 use pathfinding::prelude::bfs;
 
@@ -62,6 +62,21 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData
 
     let mut p : Option<(usize, isize, isize)> = None;
     let mut dp : Option<(usize, isize, isize)> = None;
+
+    if let Some(delay) = eval_expression_as_number(id, data, "delay") {
+        if let Some(behavior) = data.behaviors.get_mut(&id.0) {
+            if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
+                if let Some(value) = node.values.get_mut("delay") {
+                    if value.0 >= delay {
+                        value.0 = 0.0;
+                    } else {
+                        value.0 += 1.0;
+                        return BehaviorNodeConnector::Right;
+                    }
+                }
+            }
+        }
+    }
 
     if let Some(v) = &mut data.instances[instance_index].position {
         p = Some(*v);
