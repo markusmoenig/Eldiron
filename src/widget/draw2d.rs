@@ -279,7 +279,7 @@ impl Draw2D {
     }
 
     /// Returns the size of the given text
-    fn get_text_size(&self, font: &Font, size: f32, text: &str) -> (usize, usize) {
+    pub fn get_text_size(&self, font: &Font, size: f32, text: &str) -> (usize, usize) {
 
         let scale = Scale::uniform(size);
         let v_metrics = font.v_metrics(scale);

@@ -31,6 +31,8 @@ pub struct GameData {
     pub nodes                   : HashMap<BehaviorNodeType, NodeCall>,
 
     pub instances               : Vec<BehaviorInstance>,
+
+    pub say                     : Vec<String>,
 }
 
 impl GameData {
@@ -148,6 +150,8 @@ impl GameData {
             nodes,
 
             instances               : vec![],
+
+            say                     : vec![],
         }
     }
 
@@ -257,7 +261,7 @@ impl GameData {
                 }
             }
 
-            let mut instance = BehaviorInstance {id: 0, behavior_id: id, tree_ids: to_execute.clone(), values: HashMap::new(), in_progress_id: None, position, tile};
+            let mut instance = BehaviorInstance {id: 0, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), values: HashMap::new(), in_progress_id: None, position, tile};
 
             // Make sure id is unique
             let mut has_id_already = true;
@@ -296,6 +300,7 @@ impl GameData {
 
     /// Game tick
     pub fn tick(&mut self) {
+        self.say = vec![];
         for index in 0..self.instances.len() {
             let trees = self.instances[index].tree_ids.clone();
             for node_id in &trees {

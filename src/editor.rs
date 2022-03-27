@@ -19,6 +19,7 @@ mod areaoptions;
 mod behavioroptions;
 mod node;
 mod node_preview;
+mod statusbar;
 pub mod dialog;
 
 use crate::editor::toolbar::ToolBar;
@@ -31,6 +32,7 @@ use crate::editor::nodegraph::{ NodeGraph, GraphMode, GraphType };
 
 use self::dialog::{DialogState, DialogEntry};
 use self::tilemapoptions::TileMapOptions;
+use self::statusbar::StatusBar;
 
 #[derive (PartialEq)]
 enum EditorState {
@@ -67,7 +69,9 @@ pub struct Editor {
     mouse_pos                       : (usize, usize),
     mouse_hover_pos                 : (usize, usize),
 
-    dialog                          : DialogWidget
+    dialog                          : DialogWidget,
+
+    status_bar                      : StatusBar,
 }
 
 impl ScreenWidget for Editor {
@@ -151,7 +155,9 @@ impl ScreenWidget for Editor {
 
             left_width,
             mouse_pos               : (0,0),
-            mouse_hover_pos         : (0,0)
+            mouse_hover_pos         : (0,0),
+
+            status_bar              : StatusBar::new(),
         }
     }
 
@@ -210,14 +216,17 @@ impl ScreenWidget for Editor {
         if self.state == EditorState::BehaviorDetail {
             self.behavior_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_behavior_details.draw(frame, anim_counter, asset, &mut self.context);
+            self.status_bar.draw(frame, anim_counter, asset, &mut self.context);
         }
 
+        // Drag and drop
         if let Some(drag_context) = &self.context.drag_context {
             if let Some(mut buffer) = drag_context.buffer {
                 self.context.draw2d.blend_slice_safe(frame, &mut buffer[..], &(self.mouse_pos.0 as isize - drag_context.offset.0, self.mouse_pos.1 as isize - drag_context.offset.1, 180, 32), self.context.width, &self.rect);
             }
         }
 
+        // Dialog
         if self.context.dialog_state != DialogState::Closed {
             self.dialog.rect.0 = (self.context.width - self.dialog.rect.2) / 2;
             self.dialog.draw(frame, anim_counter, asset, &mut self.context);

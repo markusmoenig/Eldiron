@@ -896,7 +896,7 @@ impl NodeGraph {
             atom1.atom_data.text = "Expression".to_string();
             let id = (behavior_data.id, node_data.id, "expression".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "1 > 0".to_string()));
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "false".to_string()));
             node_widget.widgets.push(atom1);
 
             node_widget.color = context.color_green.clone();

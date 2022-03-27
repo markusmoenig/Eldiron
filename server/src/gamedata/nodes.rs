@@ -50,11 +50,12 @@ pub fn expression(_instance_index: usize, id: (usize, usize), data: &mut GameDat
 }
 
 /// say
-pub fn say(_instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
+pub fn say(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
         if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
             if let Some(value) = node.values.get("text") {
-                println!("{}", value.4);
+                //println!("{}", value.4);
+                data.say.push(format!("{} says \"{}\".", data.instances[instance_index].name, value.4));
             }
         }
     }
