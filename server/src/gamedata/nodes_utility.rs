@@ -3,7 +3,7 @@ use crate::gamedata::GameData;
 use evalexpr::*;
 use rand::prelude::*;
 
-pub fn eval_expression_as_number(id: (usize, usize), data: &mut GameData, value_id: &str) -> Option<f64> {
+pub fn eval_expression_as_number(id: (usize, usize), data: &mut GameData, value_id: &str, default: f64) -> f64 {
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
 
         // Insert the variables
@@ -29,7 +29,7 @@ pub fn eval_expression_as_number(id: (usize, usize), data: &mut GameData, value_
             if exp.is_ok() {
                 let rc = exp.unwrap().as_number();
                 if rc.is_ok() {
-                    return Some(rc.unwrap());
+                    return rc.unwrap();
                 }
             }
             /*
@@ -46,5 +46,5 @@ pub fn eval_expression_as_number(id: (usize, usize), data: &mut GameData, value_
             }*/
         }
     }
-    None
+    default
 }
