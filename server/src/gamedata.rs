@@ -284,6 +284,17 @@ impl GameData {
         0
     }
 
+    /// Returns the tile at the given position
+    pub fn get_tile_at(&self, pos: (usize, isize, isize)) -> Option<(usize, usize, usize, TileUsage)> {
+        if let Some(area) = self.areas.get(&pos.0) {
+            if let Some(value) = area.get_value((pos.1, pos.2)) {
+                return Some(value.clone());
+            }
+        }
+        None
+    }
+
+    /// Game tick
     pub fn tick(&mut self) {
         for index in 0..self.instances.len() {
             let trees = self.instances[index].tree_ids.clone();
@@ -293,6 +304,7 @@ impl GameData {
         }
     }
 
+    /// Clear the game instances
     pub fn clear_instances(&mut self) {
         self.instances = vec![];
     }

@@ -1,7 +1,11 @@
 
 use crate::gamedata::behavior:: { BehaviorNodeConnector, BehaviorNodeType };
 use crate::gamedata::GameData;
+use crate::asset::TileUsage;
+
 //use crate::gamedata::nodes_utility::*;
+
+use pathfinding::prelude::bfs;
 
 use evalexpr::*;
 use rand::prelude::*;
@@ -54,10 +58,59 @@ pub fn say(_instance_index: usize, id: (usize, usize), data: &mut GameData) -> B
 }
 
 /// Pathfinder
-pub fn pathfinder(instance_index: usize, _id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
-    if let Some(position) = &mut data.instances[instance_index].position {
-        position.1 += 1;
-        data.instances[instance_index].position = Some(*position);
+pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
+
+    let mut p : Option<(usize, isize, isize)> = None;
+    let mut dp : Option<(usize, isize, isize)> = None;
+
+    if let Some(v) = &mut data.instances[instance_index].position {
+        p = Some(*v);
     }
-    BehaviorNodeConnector::Bottom
+
+    if let Some(behavior) = data.behaviors.get_mut(&id.0) {
+        if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
+            if let Some(value) = node.values.get("destination") {
+                dp = Some((value.0 as usize, value.1 as isize, value.2 as isize));
+            }
+        }
+    }
+
+    if let Some(p) = p {
+
+        let can_go = |x: isize, y: isize| -> bool {
+
+            if let Some(tile) = data.get_tile_at((p.0, x, y)) {
+                if tile.3 == TileUsage::Environment {
+                    return true;
+                }
+            }
+            false
+        };
+
+        if let Some(dp) = dp {
+
+            let result = bfs(&(p.1, p.2),
+                                |&(x, y)| {
+                                let mut v : Vec<(isize, isize)> = vec![];
+                                if can_go(x + 1, y) { v.push((x + 1, y))};
+                                if can_go(x, y + 1) { v.push((x, y + 1))};
+                                if can_go(x - 1, y) { v.push((x - 1, y))};
+                                if can_go(x, y - 1) { v.push((x, y - 1))};
+                                v
+                                },
+                                |&p| p.0 == dp.1 && p.1 == dp.2);
+
+            if let Some(result) = result {
+                //println!("{:?}", result);
+                if result.len() > 1 {
+                    data.instances[instance_index].position = Some((p.0, result[1].0, result[1].1));
+                    return BehaviorNodeConnector::Right;
+                } else
+                if result.len() == 1 && dp.1 == result[0].0 && dp.2 == result[0].1 {
+                    return BehaviorNodeConnector::Success;
+                }
+            }
+        }
+    }
+    BehaviorNodeConnector::Fail
 }
