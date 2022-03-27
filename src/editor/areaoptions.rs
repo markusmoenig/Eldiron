@@ -21,8 +21,13 @@ impl AreaOptions {
 
         let mut tilemaps_slider_button = AtomWidget::new(tilemap_names, AtomWidgetType::ToolBarSliderButton,
         AtomData::new_as_int("Tilemaps".to_string(), 0));
-        tilemaps_slider_button.set_rect((rect.0 + 10, rect.1 + 10, rect.2 - 10, 40), asset, context);
+        tilemaps_slider_button.set_rect((rect.0 + 10, rect.1 + 10, rect.2 - 20, 40), asset, context);
         widgets.push(tilemaps_slider_button);
+
+        let mut remap_button = AtomWidget::new(vec!["Remap".to_string()], AtomWidgetType::LargeButton,
+        AtomData::new_as_int("remap".to_string(), 0));
+        remap_button.set_rect((rect.0 + 40, rect.1 + rect.3 - 200, rect.2 - 80, 40), asset, context);
+        widgets.push(remap_button);
 
     //     let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     // AtomData::new_as_int("GroupedList".to_string(), 0));

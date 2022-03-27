@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 
 use crate::asset::tileset::TileUsage;
+use crate::asset::Asset;
 
 #[derive(Serialize, Deserialize)]
 pub struct GameAreaData {
@@ -106,5 +107,19 @@ impl GameArea {
         let x = self.data.min_pos.0 + (self.data.max_pos.0 - self.data.min_pos.0) / 2 - visible_tiles.0 as isize / 2;
         let y = self.data.min_pos.1 + (self.data.max_pos.1 - self.data.min_pos.1) / 2 - visible_tiles.1 as isize / 2;
         (x, y)
+    }
+
+    /// Remaps the TileUsage field of the tiles
+    pub fn remap(&mut self, asset: &mut Asset) {
+        let mut tiles : HashMap<(isize, isize), (usize, usize, usize, TileUsage)> = HashMap::new();
+        let ids: Vec<&(isize, isize)> = self.data.tiles.keys().collect();
+        for id in &ids {
+            let value = &self.data.tiles[id];
+            let tile = asset.get_tile(&(value.0, value.1, value.2));
+
+            tiles.insert(**id, (value.0, value.1, value.2, tile.usage));
+        }
+        self.data.tiles = tiles;
+        self.save_data();
     }
 }

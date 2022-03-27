@@ -386,6 +386,11 @@ impl ScreenWidget for Editor {
                             } else {
                                 self.area_tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], Some(atom.curr_index - 1), &asset);
                             }
+                        } else
+                        if atom.atom_data.id == "remap" {
+                            if let Some(area) = self.context.data.areas.get_mut(&self.area_widget.area_id) {
+                                area.remap(asset);
+                            }
                         }
                     }
                     consumed = true;
