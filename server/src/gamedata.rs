@@ -33,6 +33,7 @@ pub struct GameData {
     pub instances               : Vec<BehaviorInstance>,
 
     pub say                     : Vec<String>,
+    pub executed_connections    : Vec<(usize, BehaviorNodeConnector)>
 }
 
 impl GameData {
@@ -152,6 +153,7 @@ impl GameData {
             instances               : vec![],
 
             say                     : vec![],
+            executed_connections    : vec![],
         }
     }
 
@@ -247,7 +249,7 @@ impl GameData {
 
                     for c in &behavior.data.connections {
                         if c.0 == *id {
-                            to_execute.push(c.2);
+                            to_execute.push(c.0);
                         }
                     }
                 } else
@@ -301,6 +303,7 @@ impl GameData {
     /// Game tick
     pub fn tick(&mut self) {
         self.say = vec![];
+        self.executed_connections = vec![];
         for index in 0..self.instances.len() {
             let trees = self.instances[index].tree_ids.clone();
             for node_id in &trees {
@@ -312,6 +315,8 @@ impl GameData {
     /// Clear the game instances
     pub fn clear_instances(&mut self) {
         self.instances = vec![];
+        self.say = vec![];
+        self.executed_connections = vec![];
     }
 
     /// Executes the given node and follows the connection chain
@@ -328,17 +333,20 @@ impl GameData {
                 if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
                     let behavior_id = self.instances[instance_index].behavior_id.clone();
                     connector = Some(node_call(instance_index, (behavior_id, node_id), self));
+                } else {
+                    connector = Some(BehaviorNodeConnector::Bottom);
                 }
             }
         }
 
-        // Search the connections if we can find an ongoing node connection
+        // Search the connections to check if we can find an ongoing node connection
         if let Some(connector) = connector {
             if let Some(behavior) = self.behaviors.get_mut(&self.instances[instance_index].behavior_id) {
 
                 for c in &behavior.data.connections {
                     if c.0 == node_id && c.1 == connector {
                         connected_node_id = Some(c.2);
+                        self.executed_connections.push((c.0, c.1));
                     }
                 }
             }

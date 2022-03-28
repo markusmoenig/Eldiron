@@ -214,6 +214,9 @@ impl NodeGraph {
                 let mut mask : Vec<u8> = vec![0; safe_rect.2 * safe_rect.3];
                 let mut path : String = "".to_string();
 
+                let mut orange_mask : Vec<u8> = vec![0; safe_rect.2 * safe_rect.3];
+                let mut orange_path : String = "".to_string();
+
                 // Draw connections
                 if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
 
@@ -255,22 +258,22 @@ impl NodeGraph {
                         }
 
                         if *dest_connector == BehaviorNodeConnector::Left {
-                            end_x = dest_rect.0 + d_connector.rect.0 as isize + d_connector.rect.2 as isize / 2;
+                            end_x = dest_rect.0 + d_connector.rect.0 as isize + 1;
                             end_y = dest_rect.1 + d_connector.rect.1 as isize + d_connector.rect.3 as isize / 2;
                             control_end_x = end_x - 50;
                             control_end_y = end_y;
                         } else {
                             end_x = dest_rect.0 + d_connector.rect.0 as isize + d_connector.rect.2 as isize / 2;
-                            end_y = dest_rect.1 + d_connector.rect.1 as isize + d_connector.rect.3 as isize / 2;
+                            end_y = dest_rect.1 + d_connector.rect.1 as isize + 1;
                             control_end_x = end_x ;
                             control_end_y = end_y - 50;
                         }
 
-                        //context.draw2d.draw_line_safe(&mut self.buffer[..], &(start_x, start_y), &(end_x, end_y), &safe_rect, safe_rect.2, &context.node_connector_color);
-
-                        //path += format!("M {},{} L {},{}", start_x, start_y, end_x, end_y).as_str();
-
-                        path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
+                        if context.data.executed_connections.contains(&(*source_node_id, *source_connector)) {
+                            orange_path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
+                        } else {
+                            path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
+                        }
                     }
                 }
 
@@ -297,12 +300,11 @@ impl NodeGraph {
                         end_y = node_rect.1 + connector.rect.1 as isize + connector.rect.3 as isize / 2;
                     }
 
-                    //context.draw2d.draw_line_safe(&mut self.buffer[..], &(start_x, start_y), &(end_x, end_y), &safe_rect, safe_rect.2, &context.node_connector_color);
                     path += format!("M {},{} L {},{}", start_x, start_y, end_x, end_y).as_str();
                 }
 
                 // Draw the path if not empty
-                if !path.is_empty() {
+                if !path.is_empty() || !orange_path.is_empty() {
                     Mask::new(path.as_str())
                     .size(safe_rect.2 as u32, safe_rect.3 as u32)
                     .style(
@@ -311,6 +313,18 @@ impl NodeGraph {
                     .render_into(&mut mask, None);
 
                     context.draw2d.blend_mask(&mut self.buffer[..], &safe_rect, safe_rect.2, &mask[..], &(safe_rect.2, safe_rect.3), &context.node_connector_color);
+                }
+
+                // Draw the orange path if not empty
+                if !orange_path.is_empty() {
+                    Mask::new(orange_path.as_str())
+                    .size(safe_rect.2 as u32, safe_rect.3 as u32)
+                    .style(
+                        Stroke::new(2.0)
+                    )
+                    .render_into(&mut orange_mask, None);
+
+                    context.draw2d.blend_mask(&mut self.buffer[..], &safe_rect, safe_rect.2, &orange_mask[..], &(safe_rect.2, safe_rect.3), &context.color_orange);
                 }
 
                 // Render the preview widget
