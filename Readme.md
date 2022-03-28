@@ -81,7 +81,7 @@ While the basic functionality of the area editor is working, many functions are 
 * Assigning tiles to groups
 * Sooner or later we need layers
 
-## Behavior View (10% Done)
+## Behavior View (25% Done)
 
 ![behavior_screenshot](images/behavior.png)
 
