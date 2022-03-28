@@ -41,7 +41,7 @@ impl StatusBar {
             self.text = context.data.say[0].clone();
             self.start_time = self.get_time();
             self.size.0 = context.draw2d.get_text_size(&asset.open_sans, 24.0, &self.text.as_str()).0 + 20;
-
+            self.dirty = true;
         }
 
         if self.text.is_empty() {

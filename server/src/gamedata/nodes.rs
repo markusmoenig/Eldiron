@@ -76,7 +76,13 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData
                     value.0 = 0.0;
                 } else {
                     value.0 += 1.0;
-                    return BehaviorNodeConnector::Right;
+                    if let Some(value) = &mut get_value((id.0, id.1, "destination"), data) {
+                        if value.3 == 0.0 {
+                            return BehaviorNodeConnector::Right;
+                        } else {
+                            return BehaviorNodeConnector::Success;
+                        }
+                    }
                 }
             }
         }
@@ -123,9 +129,17 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData
                 //println!("{:?}", result);
                 if result.len() > 1 {
                     data.instances[instance_index].position = Some((p.0, result[1].0, result[1].1));
+                    if let Some(value) = &mut get_value((id.0, id.1, "destination"), data) {
+                        value.3 = 0.0;
+                        set_value((id.0, id.1, "destination"), data, value.clone());
+                    }
                     return BehaviorNodeConnector::Right;
                 } else
                 if result.len() == 1 && dp.1 == result[0].0 && dp.2 == result[0].1 {
+                    if let Some(value) = &mut get_value((id.0, id.1, "destination"), data) {
+                        value.3 = 1.0;
+                        set_value((id.0, id.1, "destination"), data, value.clone());
+                    }
                     return BehaviorNodeConnector::Success;
                 }
             }
