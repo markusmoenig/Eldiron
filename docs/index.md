@@ -5,7 +5,7 @@ Create RPGs for every platform with Eldiron.
 
 ![screenshot](moody_goes_raiding_2.gif)
 
-The game creator is cross platform and should run on all Desktops. The game engine will work on Desktops but also on iOS and Android devices and any other device Rust compiles on. It is designed from the ground up to be extremely portable.
+Eldiron is cross platform and runs on all Desktops. The game client will work on Desktops but also on iOS and Android devices and any other device Rust compiles on. It is designed from the ground up to be extremely portable.
 
 Eldiron comes with a range of freely usable tilemaps for environment and characters, however you can of course use your own tilemaps, see the instructions below.
 
