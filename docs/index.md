@@ -5,25 +5,15 @@ Create RPGs for every platform with Eldiron.
 
 ![screenshot](moody_goes_raiding_2.gif)
 
+Eldiron v1 will be able to create games similar to Ultima 4 and Ultima 5 or every RPG or tactical game utilizing square tiles.
+
 Eldiron is cross platform and runs on all Desktops. The game client will work on Desktops but also on iOS and Android devices and any other device Rust compiles on. It is designed from the ground up to be extremely portable.
 
 Eldiron comes with a range of freely usable tilemaps for environment and characters, however you can of course use your own tilemaps, see the instructions below.
 
-The game engine contains a client and server modules, although currently no multi-player options exist yet, the code has been written with multi-player support in mind from the ground up.
+The game engine contains client and server modules, although currently no multi-player options exist yet, the code has been written with multi-player support in mind from the ground up.
 
 Join the community on [Discord](https://discord.gg/ZrNj6baSZU).
-
-## Design Goals
-
-* Run everywhere.
-* Keep the engine design flexible, so even if I target Ultima 4 / 5 games (or any game with square tiles) for v1, it will be possible to add support for other perspectives and game types after v1.
-* Develop the engine design with multi-player support in mind from the ground up (instances or MMORPGs etc).
-* Provide a set of game assets so that users can instantly start their own games.
-* Develop a node based Behavior AI system which is easy to use but powerful enough to handle every possible aspect of an RPG (combat, crafting, farming, exploration etc.).
-
-## Why ?
-
-I played the Ultima games day and night in my youth so I decided to create my own similar games as I have some time to spare (what could be a better hobby ?), and on the way also develop a game creator for this type of game which I need for my own game anyway.
 
 ## Installation
 
