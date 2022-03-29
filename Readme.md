@@ -6,9 +6,9 @@ Eldiron is a creator for classic RPGs written in Rust. Eldiron v1 will be able t
 
 [![MIT License](https://img.shields.io/apm/l/atomic-design-ui.svg?)](https://github.com/tterb/atomic-design-ui/blob/master/LICENSEs) [![version](https://img.shields.io/badge/version-0.1-red.svg)](https://shields.io/) [![macOS](https://svgshare.com/i/ZjP.svg)](https://svgshare.com/i/ZjP.svg) [![Windows](https://svgshare.com/i/ZhY.svg)](https://svgshare.com/i/ZhY.svg) [![Linux](https://svgshare.com/i/Zhy.svg)](https://svgshare.com/i/Zhy.svg)
 
-![screenshot](images/moody_goes_raiding_2.gif)
+![screenshot](docs/moody_goes_raiding_2.gif)
 
-The game creator (which contains the game engine) is cross platform and should run on all Desktops. The game engine will work on Desktops but also on iOS and Android devices and any other device Rust compiles on. It is designed from the ground up to be extremely portable.
+The game creator is cross platform and should run on all Desktops. The game engine will work on Desktops but also on iOS and Android devices and any other device Rust compiles on. It is designed from the ground up to be extremely portable.
 
 Eldiron comes with a range of freely usable tilemaps for environment and characters, however you can of course use your own tilemaps, see the instructions below.
 
@@ -36,7 +36,7 @@ After you successfully installed Rust, check out this repository (or download th
 
 ## The Tiles View (90% Done)
 
-![tiles_screenshot](images/tiles.png)
+![tiles_screenshot](docs/tiles.png)
 
 In the Tiles view you can assign roles and animations to individual tiles in the currently available tilemaps.
 
@@ -66,7 +66,7 @@ Note that the behavior and look for tiles in a certain area or for a given tile 
 
 ## Areas View (30% Done)
 
-![areas_screenshot](images/screen.png)
+![areas_screenshot](docs/screen.png)
 
 In the areas view you create specific in-game areas like a dungeon, the world itself or cities.
 
@@ -83,7 +83,7 @@ While the basic functionality of the area editor is working, many functions are 
 
 ## Behavior View (25% Done)
 
-![behavior_screenshot](images/behavior.png)
+![behavior_screenshot](docs/behavior.png)
 
 In this view you will be able to create any kind of behavior for characters (combat, progression, crafting) or tiles (spawning, traps etc.).
 
