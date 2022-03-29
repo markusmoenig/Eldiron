@@ -4,7 +4,8 @@
 
 Eldiron is a creator for classic RPGs written in Rust. Eldiron v1 will be able to create games similar to Ultima 4 and 5 but with a modern twist and features.
 
-[![MIT License](https://img.shields.io/apm/l/atomic-design-ui.svg?)](https://github.com/tterb/atomic-design-ui/blob/master/LICENSEs) [![version](https://img.shields.io/badge/version-0.1-red.svg)](https://shields.io/) [![macOS](https://svgshare.com/i/ZjP.svg)](https://svgshare.com/i/ZjP.svg) [![Windows](https://svgshare.com/i/ZhY.svg)](https://svgshare.com/i/ZhY.svg) [![Linux](https://svgshare.com/i/Zhy.svg)](https://svgshare.com/i/Zhy.svg)
+[![MIT License](https://img.shields.io/apm/l/atomic-design-ui.svg?)](https://github.com/tterb/atomic-design-ui/blob/master/LICENSEs) [![version](https://img.shields.io/badge/version-0.1-red.svg)](https://shields.io/) [![macOS](https://svgshare.com/i/ZjP.svg)](https://svgshare.com/i/ZjP.svg) [![Windows](https://svgshare.com/i/ZhY.svg)](https://svgshare.com/i/ZhY.svg) [![Linux](https://svgshare.com/i/Zhy.svg)](https://svgshare.com/i/Zhy.svg) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Patreon](https://badgen.net/badge/icon/patreon?icon=patreon&label)](https://patreon.com/eldiron)
+
 
 ![screenshot](docs/moody_goes_raiding_2.gif)
 
@@ -14,7 +15,7 @@ Eldiron comes with a range of freely usable tilemaps for environment and charact
 
 The game engine contains a client and server modules, although currently no multi-player options exist yet, the code has been written with multi-player support in mind from the ground up.
 
-Join the community on [Discord](https://discord.gg/ybfTnqy8).
+Join the community on [Discord](https://discord.gg/ZrNj6baSZU).
 
 ## Design Goals
 
@@ -33,6 +34,8 @@ I played the Ultima games day and night in my youth so I decided to create my ow
 Eldiron is written in Rust, to run it you have to install Rust and its package manager cargo. Please follow the instructions on this [page](https://www.rust-lang.org/tools/install).
 
 After you successfully installed Rust, check out this repository (or download the source via a .zip file), open a terminal, navigate to the Eldiron directory and start Eldiron with `cargo run --release`.
+
+At a later stage I will provide pre-build binaries for each platform.
 
 ## The Tiles View (90% Done)
 
@@ -103,4 +106,4 @@ The source and all assets I commissioned for Eldiron are licensed under the MIT.
 
 ## Support
 
-You can support the Eldiron project by becoming a [Patreon](https://patreon.com/eldiron). I am also looking for art donations. If interested contact me on [Discord](https://discord.gg/ybfTnqy8).
+You can support the Eldiron project by becoming a [Patreon](https://patreon.com/eldiron). I am also looking for art donations. If interested contact me on [Discord](https://discord.gg/ZrNj6baSZU).

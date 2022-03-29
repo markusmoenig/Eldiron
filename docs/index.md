@@ -1,9 +1,9 @@
+[![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Patreon](https://badgen.net/badge/icon/patreon?icon=patreon&label)](https://patreon.com/eldiron)
+
 
 Create RPGs for every platform with Eldiron.
 
 ![screenshot](moody_goes_raiding_2.gif)
-
-[Installation](installation.html).
 
 The game creator is cross platform and should run on all Desktops. The game engine will work on Desktops but also on iOS and Android devices and any other device Rust compiles on. It is designed from the ground up to be extremely portable.
 
@@ -11,7 +11,7 @@ Eldiron comes with a range of freely usable tilemaps for environment and charact
 
 The game engine contains a client and server modules, although currently no multi-player options exist yet, the code has been written with multi-player support in mind from the ground up.
 
-Join the community on [Discord](https://discord.gg/ybfTnqy8).
+Join the community on [Discord](https://discord.gg/ZrNj6baSZU).
 
 ## Design Goals
 
@@ -30,6 +30,8 @@ I played the Ultima games day and night in my youth so I decided to create my ow
 Eldiron is written in Rust, to run it you have to install Rust and its package manager cargo. Please follow the instructions on this [page](https://www.rust-lang.org/tools/install).
 
 After you successfully installed Rust, check out this repository (or download the source via a .zip file), open a terminal, navigate to the Eldiron directory and start Eldiron with `cargo run --release`.
+
+At a later stage I will provide pre-build binaries for each platform.
 
 ## The Tiles View (90% Done)
 
@@ -100,4 +102,4 @@ The source and all assets I commissioned for Eldiron are licensed under the MIT.
 
 ## Support
 
-You can support the Eldiron project by becoming a [Patreon](https://patreon.com/eldiron). I am also looking for art donations. If interested contact me on [Discord](https://discord.gg/ybfTnqy8).
+You can support the Eldiron project by becoming a [Patreon](https://patreon.com/eldiron). I am also looking for art donations. If interested contact me on [Discord](https://discord.gg/ZrNj6baSZU).
