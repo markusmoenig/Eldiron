@@ -3,6 +3,7 @@ use crate::gamedata::GameData;
 use evalexpr::*;
 use rand::prelude::*;
 
+/// Retrieves a node instance value
 pub fn get_value(id: (usize, usize, &str), data: &mut GameData) -> Option<(f64, f64, f64, f64, String)> {
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
         if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
@@ -14,6 +15,7 @@ pub fn get_value(id: (usize, usize, &str), data: &mut GameData) -> Option<(f64, 
     None
 }
 
+/// Sets a node instance value
 pub fn set_value(id: (usize, usize, &str), data: &mut GameData, value: (f64, f64, f64, f64, String)) {
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
         if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
@@ -24,6 +26,7 @@ pub fn set_value(id: (usize, usize, &str), data: &mut GameData, value: (f64, f64
     }
 }
 
+/// Evaluates a node expression as a number
 pub fn eval_expression_as_number(id: (usize, usize), data: &mut GameData, value_id: &str, default: f64) -> f64 {
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
 

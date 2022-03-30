@@ -10,6 +10,8 @@ use server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNod
 use server::{asset::Asset };
 use crate::editor::ScreenContext;
 
+use itertools::Itertools;
+
 #[derive(PartialEq)]
 pub enum GraphMode {
     Overview,
@@ -41,14 +43,16 @@ pub struct NodeGraph {
     source_conn                 : Option<(BehaviorNodeConnector,usize)>,
     dest_conn                   : Option<(BehaviorNodeConnector,usize)>,
 
-    mouse_pos                   : (usize, usize),
-
     pub clicked                 : bool,
 
     pub preview                 : Option<NodePreviewWidget>,
     preview_drag_start          : (isize, isize),
 
-    mouse_hover_pos             : (usize, usize)
+    mouse_pos                   : (usize, usize),
+    mouse_hover_pos             : (usize, usize),
+
+    behavior_tree_indices       : Vec<usize>,
+    curr_behavior_tree_index    : Option<usize>,
 }
 
 impl NodeGraph {
@@ -56,26 +60,29 @@ impl NodeGraph {
     pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext, graph_type: GraphType, nodes: Vec<NodeWidget>) -> Self {
         Self {
             rect,
-            dirty               : true,
-            buffer              : vec![0;rect.2 * rect.3 * 4],
-            graph_mode          : GraphMode::Overview,
+            dirty                       : true,
+            buffer                      : vec![0;rect.2 * rect.3 * 4],
+            graph_mode                  : GraphMode::Overview,
             graph_type,
             nodes,
-            offset              : (0, 0),
-            drag_index          : None,
-            drag_offset         : (0, 0),
-            drag_node_pos       : (0, 0),
+            offset                      : (0, 0),
+            drag_index                  : None,
+            drag_offset                 : (0, 0),
+            drag_node_pos               : (0, 0),
 
-            mouse_pos           : (0,0),
-            clicked             : false,
+            clicked                     : false,
 
-            source_conn         : None,
-            dest_conn           : None,
+            source_conn                 : None,
+            dest_conn                   : None,
 
-            preview             : None,
-            preview_drag_start  : (0,0),
+            preview                     : None,
+            preview_drag_start          : (0,0),
 
-            mouse_hover_pos     : (0, 0)
+            mouse_pos                   : (0,0),
+            mouse_hover_pos             : (0, 0),
+
+            behavior_tree_indices       : vec![],
+            curr_behavior_tree_index    : None,
         }
     }
 
@@ -161,6 +168,14 @@ impl NodeGraph {
                                 let offset = area.get_center_offset_for_visible_size((10, 10));
                                 context.draw2d.draw_area(&mut preview_buffer[..], area, &(0, 0, 100, 100), &offset, 100, 10, anim_counter, asset);
                             }
+                        } else
+                        if self.graph_type == GraphType::Behavior {
+                            // Draw the main behavior tile
+                            if let Some(tile_id) = context.data.get_behavior_default_tile(context.curr_behavior_node_id) {
+                                if let Some(map)= asset.tileset.maps.get_mut(&tile_id.0) {
+                                    context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.1, tile_id.2), 0, 100);
+                                }
+                            }
                         }
 
                         self.nodes[index].draw_overview(frame, anim_counter, asset, context, selected, &preview_buffer);
@@ -210,7 +225,6 @@ impl NodeGraph {
                 context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[corner_index].buffer[..], &rect, safe_rect.2, &safe_rect);
 
                 // --
-
                 let mut mask : Vec<u8> = vec![0; safe_rect.2 * safe_rect.3];
                 let mut path : String = "".to_string();
 
@@ -333,6 +347,34 @@ impl NodeGraph {
                     preview.rect = (self.rect.0 + self.rect.2 - preview.size.0, self.rect.1, preview.size.0, preview.size.1);
                     preview.graph_offset = (preview.rect.0 as isize, preview.rect.1 as isize);
                     context.draw2d.blend_slice(&mut self.buffer[..], &mut preview.buffer[..], &(self.rect.2 - preview.size.0, 0, preview.size.0, preview.size.1), safe_rect.2);
+                }
+
+                // Render the behavior tree buttons
+                let left_start = 180;
+                let mut total_width = safe_rect.2 - left_start - 5;
+                if let Some(preview) = &mut self.preview {
+                    total_width -= preview.size.0;
+                }
+                let mut bt_rect = (left_start, 3, 170, 25);
+                for bt_index in &self.behavior_tree_indices {
+
+                    let mut selected = false;
+                    if let Some(curr_index) = self.curr_behavior_tree_index {
+                        if curr_index == *bt_index {
+                            selected = true;
+                        }
+                    }
+
+                    let color = if selected { [125, 125, 125, 255] } else {context.color_gray };
+                    context.draw2d.draw_rounded_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &((bt_rect.2) as f64, (bt_rect.3) as f64), &color, &(0.0, 0.0, 0.0, 0.0));
+
+                    context.draw2d.draw_text_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &asset.open_sans, 20.0, &self.nodes[*bt_index].text[0], &context.color_white, &color, crate::draw2d::TextAlignment::Center);
+
+                    bt_rect.0 += 171;
+                    if (bt_rect.0 + bt_rect.2) - left_start > total_width {
+                        bt_rect.0 = left_start;
+                        bt_rect.1 += 26;
+                    }
                 }
             }
         }
@@ -818,10 +860,13 @@ impl NodeGraph {
     /// Set the behavior id, this will take the bevhavior node data and create node widgets
     pub fn set_behavior_id(&mut self, _id: usize, context: &ScreenContext) {
         self.nodes = vec![];
+        self.behavior_tree_indices = vec![];
+        self.curr_behavior_tree_index = None;
         if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
-            for (_id, node_data) in &behavior.data.nodes {
-                let mut node_widget = NodeWidget::new_from_behavior_data(&behavior.data, node_data);
-                self.init_node_widget(&behavior.data, node_data, &mut node_widget, context);
+            let sorted_keys = behavior.data.nodes.keys().sorted();
+            for i in sorted_keys {
+                let mut node_widget = NodeWidget::new_from_behavior_data(&behavior.data,  &behavior.data.nodes[i]);
+                self.init_node_widget(&behavior.data, &behavior.data.nodes[i], &mut node_widget, context);
                 self.nodes.push(node_widget);
             }
         }
@@ -902,6 +947,12 @@ impl NodeGraph {
             node_widget.widgets.push(atom1);
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+
+            // Add the node to the behavior tree ids
+            self.behavior_tree_indices.push(self.nodes.len());
+            if self.curr_behavior_tree_index == None {
+                self.curr_behavior_tree_index = Some(self.nodes.len());
+            }
         } else
         if node_data.behavior_type == BehaviorNodeType::Expression {
 
