@@ -17,6 +17,8 @@ Eldiron comes with a range of freely usable tilemaps for environment and charact
 
 The game engine contains client and server modules, although currently no multi-player options exist yet, the code has been written with multi-player support in mind from the ground up.
 
+Support for retro 3D areas like dungeons is upcoming. In general I want to explore many different ways to display and create content, from procedurally created tiles to 3D assets. These kind of features will get implemented over time.
+
 Join the community on [Discord](https://discord.gg/ZrNj6baSZU).
 
 ## Installation
