@@ -37,6 +37,11 @@ impl StatusBar {
     /// Draw the node
     pub fn draw(&mut self, frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
 
+        if context.is_running == false {
+            self.clear();
+            return;
+        }
+
         if context.data.say.len() > 0 {
             self.text = context.data.say[0].clone();
             self.start_time = self.get_time();
@@ -69,6 +74,12 @@ impl StatusBar {
         }
         context.draw2d.copy_slice(frame, &self.buffer[..], &(180, context.height - self.size.1, self.size.0, self.size.1), context.width);
         self.dirty = false;
+    }
+
+    // Clears the content
+    pub fn clear(&mut self) {
+        self.text = "".to_string();
+        self.start_time = 0;
     }
 
     /// Gets the current time in milliseconds
