@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Copy, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum BehaviorNodeType {
     BehaviorType,
     BehaviorTree,

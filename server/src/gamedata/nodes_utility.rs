@@ -34,7 +34,13 @@ pub fn eval_expression_as_number(id: (usize, usize), data: &mut GameData, value_
         let mut cont = HashMapContext::new();
         for n in &behavior.data.nodes {
             if n.1.behavior_type == BehaviorNodeType::VariableNumber {
-                let t = format!("{} = {}", n.1.name, n.1.values.get("value").unwrap().0);
+
+                let mut value : f64 = 0.0;
+                if let Some(v) = n.1.values.get("value") {
+                    value = v.0;
+                }
+
+                let t = format!("{} = {}", n.1.name, value);
                 let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
             }
         }

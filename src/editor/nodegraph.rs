@@ -52,7 +52,10 @@ pub struct NodeGraph {
     mouse_hover_pos             : (usize, usize),
 
     behavior_tree_indices       : Vec<usize>,
+    behavior_tree_rects         : Vec<(usize, usize, usize, usize)>,
     curr_behavior_tree_index    : Option<usize>,
+
+    visible_node_ids            : Vec<usize>
 }
 
 impl NodeGraph {
@@ -82,7 +85,10 @@ impl NodeGraph {
             mouse_hover_pos             : (0, 0),
 
             behavior_tree_indices       : vec![],
+            behavior_tree_rects         : vec![],
             curr_behavior_tree_index    : None,
+
+            visible_node_ids            : vec![]
         }
     }
 
@@ -198,20 +204,24 @@ impl NodeGraph {
                         continue;
                     }
 
-                    if self.nodes[index].dirty {
+                    // We only draw nodes which are marked visible, i.e. connected to the current behavior tree or unconnected nodes
+                    if self.visible_node_ids.contains(&self.widget_index_to_node_id(index)) {
 
-                        let mut selected = false;
+                        if self.nodes[index].dirty {
 
-                        if self.nodes[index].id == context.curr_behavior_node_id {
-                            selected = true;
+                            let mut selected = false;
+
+                            if self.nodes[index].id == context.curr_behavior_node_id {
+                                selected = true;
+                            }
+
+                            self.nodes[index].draw(frame, anim_counter, asset, context, selected);
                         }
 
-                        self.nodes[index].draw(frame, anim_counter, asset, context, selected);
+                        let rect= self.get_node_rect(index, true);
+                        self.nodes[index].graph_offset = (rect.0, rect.1);
+                        context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, safe_rect.2, &safe_rect);
                     }
-
-                    let rect= self.get_node_rect(index, true);
-                    self.nodes[index].graph_offset = (rect.0, rect.1);
-                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, safe_rect.2, &safe_rect);
                 }
 
                 // Corner node
@@ -236,57 +246,59 @@ impl NodeGraph {
 
                     for (source_node_id , source_connector, dest_node_id, dest_connector) in &behavior.data.connections {
 
-                        let source_index = self.node_id_to_widget_index(source_node_id.clone());
-                        let source_rect = &self.get_node_rect(source_index, true);
-                        let source_node = &self. nodes[source_index];
+                        if self.visible_node_ids.contains(source_node_id) {
+                            let source_index = self.node_id_to_widget_index(source_node_id.clone());
+                            let source_rect = &self.get_node_rect(source_index, true);
+                            let source_node = &self. nodes[source_index];
 
-                        let dest_index = self.node_id_to_widget_index(dest_node_id.clone());
-                        let dest_rect = &self.get_node_rect(dest_index, true);
-                        let dest_node = &self. nodes[dest_index];
+                            let dest_index = self.node_id_to_widget_index(dest_node_id.clone());
+                            let dest_rect = &self.get_node_rect(dest_index, true);
+                            let dest_node = &self. nodes[dest_index];
 
-                        let s_connector = &source_node.node_connector[source_connector];
-                        let d_connector = &dest_node.node_connector[dest_connector];
+                            let s_connector = &source_node.node_connector[source_connector];
+                            let d_connector = &dest_node.node_connector[dest_connector];
 
-                        let start_x;
-                        let start_y;
+                            let start_x;
+                            let start_y;
 
-                        let control_start_x;
-                        let control_start_y;
+                            let control_start_x;
+                            let control_start_y;
 
-                        let control_end_x;
-                        let control_end_y;
+                            let control_end_x;
+                            let control_end_y;
 
-                        let end_x;
-                        let end_y;
+                            let end_x;
+                            let end_y;
 
-                        if *source_connector == BehaviorNodeConnector::Right {
-                            start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize;
-                            start_y = source_rect.1 + s_connector.rect.1 as isize + s_connector.rect.3 as isize / 2;
-                            control_start_x = start_x + 50;
-                            control_start_y = start_y;
-                        } else {
-                            start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize / 2;
-                            start_y = source_rect.1 + s_connector.rect.1 as isize + s_connector.rect.3 as isize;
-                            control_start_x = start_x;
-                            control_start_y = start_y + 50;
-                        }
+                            if *source_connector == BehaviorNodeConnector::Right {
+                                start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize;
+                                start_y = source_rect.1 + s_connector.rect.1 as isize + s_connector.rect.3 as isize / 2;
+                                control_start_x = start_x + 50;
+                                control_start_y = start_y;
+                            } else {
+                                start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize / 2;
+                                start_y = source_rect.1 + s_connector.rect.1 as isize + s_connector.rect.3 as isize;
+                                control_start_x = start_x;
+                                control_start_y = start_y + 50;
+                            }
 
-                        if *dest_connector == BehaviorNodeConnector::Left {
-                            end_x = dest_rect.0 + d_connector.rect.0 as isize + 1;
-                            end_y = dest_rect.1 + d_connector.rect.1 as isize + d_connector.rect.3 as isize / 2;
-                            control_end_x = end_x - 50;
-                            control_end_y = end_y;
-                        } else {
-                            end_x = dest_rect.0 + d_connector.rect.0 as isize + d_connector.rect.2 as isize / 2;
-                            end_y = dest_rect.1 + d_connector.rect.1 as isize + 1;
-                            control_end_x = end_x ;
-                            control_end_y = end_y - 50;
-                        }
+                            if *dest_connector == BehaviorNodeConnector::Left {
+                                end_x = dest_rect.0 + d_connector.rect.0 as isize + 1;
+                                end_y = dest_rect.1 + d_connector.rect.1 as isize + d_connector.rect.3 as isize / 2;
+                                control_end_x = end_x - 50;
+                                control_end_y = end_y;
+                            } else {
+                                end_x = dest_rect.0 + d_connector.rect.0 as isize + d_connector.rect.2 as isize / 2;
+                                end_y = dest_rect.1 + d_connector.rect.1 as isize + 1;
+                                control_end_x = end_x ;
+                                control_end_y = end_y - 50;
+                            }
 
-                        if context.data.executed_connections.contains(&(*source_node_id, *source_connector)) {
-                            orange_path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
-                        } else {
-                            path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
+                            if context.data.executed_connections.contains(&(*source_node_id, *source_connector)) {
+                                orange_path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
+                            } else {
+                                path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
+                            }
                         }
                     }
                 }
@@ -350,6 +362,9 @@ impl NodeGraph {
                 }
 
                 // Render the behavior tree buttons
+
+                self.behavior_tree_rects = vec![];
+
                 let left_start = 180;
                 let mut total_width = safe_rect.2 - left_start - 5;
                 if let Some(preview) = &mut self.preview {
@@ -367,6 +382,8 @@ impl NodeGraph {
 
                     let color = if selected { [125, 125, 125, 255] } else {context.color_gray };
                     context.draw2d.draw_rounded_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &((bt_rect.2) as f64, (bt_rect.3) as f64), &color, &(0.0, 0.0, 0.0, 0.0));
+
+                    self.behavior_tree_rects.push(bt_rect.clone());
 
                     context.draw2d.draw_text_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &asset.open_sans, 20.0, &self.nodes[*bt_index].text[0], &context.color_white, &color, crate::draw2d::TextAlignment::Center);
 
@@ -508,6 +525,15 @@ impl NodeGraph {
         } else
         if self.graph_mode == GraphMode::Detail {
 
+            for index in 0..self.behavior_tree_rects.len() {
+                if context.contains_pos_for((pos.0 - self.rect.0, pos.1 - self.rect.1), self.behavior_tree_rects[index]) {
+                    self.curr_behavior_tree_index = Some(self.behavior_tree_indices[index]);
+                    self.check_node_visibility(context);
+                    self.dirty = true;
+                    return true;
+                }
+            }
+
             for index in 0..self.nodes.len() {
 
                 if self.nodes[index].is_corner_node {
@@ -516,35 +542,38 @@ impl NodeGraph {
 
                 let rect= self.get_node_rect(index, false);
 
-                if context.contains_pos_for_isize(pos, rect) {
+                if self.visible_node_ids.contains(&self.widget_index_to_node_id(index)) {
 
-                    // Check for node terminals
-                    for (conn, connector) in &self.nodes[index].node_connector {
-                        let c_rect = (pos.0  as isize - rect.0, pos.1 as isize - rect.1);
-                        if c_rect.0 > 0 && c_rect.1 > 0 {
-                            if context.contains_pos_for((c_rect.0 as usize, c_rect.1 as usize), connector.rect) {
-                                self.source_conn = Some((*conn, index));
+                    if context.contains_pos_for_isize(pos, rect) {
 
-                                return true;
+                        // Check for node terminals
+                        for (conn, connector) in &self.nodes[index].node_connector {
+                            let c_rect = (pos.0  as isize - rect.0, pos.1 as isize - rect.1);
+                            if c_rect.0 > 0 && c_rect.1 > 0 {
+                                if context.contains_pos_for((c_rect.0 as usize, c_rect.1 as usize), connector.rect) {
+                                    self.source_conn = Some((*conn, index));
+
+                                    return true;
+                                }
                             }
                         }
-                    }
 
-                    self.drag_index = Some(index);
-                    self.drag_offset = (pos.0 as isize, pos.1 as isize);
-                    self.drag_node_pos= (self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize);
+                        self.drag_index = Some(index);
+                        self.drag_offset = (pos.0 as isize, pos.1 as isize);
+                        self.drag_node_pos= (self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize);
 
-                    if self.graph_type == GraphType::Behavior {
-                        if context.curr_behavior_node_id != self.nodes[index].id {
+                        if self.graph_type == GraphType::Behavior {
+                            if context.curr_behavior_node_id != self.nodes[index].id {
 
-                            let sel_index = self.node_id_to_widget_index(context.curr_behavior_node_id);
+                                let sel_index = self.node_id_to_widget_index(context.curr_behavior_node_id);
 
-                            self.nodes[sel_index].dirty = true;
-                            context.curr_behavior_node_id = self.nodes[index].id;
-                            self.nodes[index].dirty = true;
-                            self.dirty = true;
-                            self.clicked = true;
-                            return true;
+                                self.nodes[sel_index].dirty = true;
+                                context.curr_behavior_node_id = self.nodes[index].id;
+                                self.nodes[index].dirty = true;
+                                self.dirty = true;
+                                self.clicked = true;
+                                return true;
+                            }
                         }
                     }
                 }
@@ -767,24 +796,26 @@ impl NodeGraph {
             for index in 0..self.nodes.len() {
                 let rect= self.get_node_rect(index, false);
 
-                if context.contains_pos_for_isize(pos, rect) {
+                if self.visible_node_ids.contains(&self.widget_index_to_node_id(index)) {
+                    if context.contains_pos_for_isize(pos, rect) {
 
-                    // Check for node terminals
-                    for (conn, connector) in &self.nodes[index].node_connector {
-                        let c_rect = (pos.0  as isize - rect.0, pos.1 as isize - rect.1);
-                        if c_rect.0 > 0 && c_rect.1 > 0 {
+                        // Check for node terminals
+                        for (conn, connector) in &self.nodes[index].node_connector {
+                            let c_rect = (pos.0  as isize - rect.0, pos.1 as isize - rect.1);
+                            if c_rect.0 > 0 && c_rect.1 > 0 {
 
-                            if context.contains_pos_for((c_rect.0 as usize, c_rect.1 as usize), connector.rect) {
+                                if context.contains_pos_for((c_rect.0 as usize, c_rect.1 as usize), connector.rect) {
 
-                                // Check if nodes are different
-                                if index != source.1 {
+                                    // Check if nodes are different
+                                    if index != source.1 {
 
-                                    let source1 = self.connector_is_source(source.0);
-                                    let source2 = self.connector_is_source(*conn);
+                                        let source1 = self.connector_is_source(source.0);
+                                        let source2 = self.connector_is_source(*conn);
 
-                                    // We can connect if the two connectors are sourcee and dest
-                                    if source1 != source2 {
-                                        self.dest_conn = Some((*conn, index));
+                                        // We can connect if the two connectors are sourcee and dest
+                                        if source1 != source2 {
+                                            self.dest_conn = Some((*conn, index));
+                                        }
                                     }
                                 }
                             }
@@ -870,6 +901,7 @@ impl NodeGraph {
                 self.nodes.push(node_widget);
             }
         }
+        self.check_node_visibility(context);
     }
 
     /// Adds a node of the type identified by its name
@@ -908,6 +940,7 @@ impl NodeGraph {
             self.nodes.push(node);
         }
 
+        self.check_node_visibility(context);
         self.dirty = true;
     }
 
@@ -1104,6 +1137,7 @@ impl NodeGraph {
             }
             behavior.save_data();
         }
+        self.check_node_visibility(context);
     }
 
     /// Disconnect the node from all connections
@@ -1140,6 +1174,58 @@ impl NodeGraph {
 
                         break;
                     }
+                }
+            }
+        }
+    }
+
+    /// Checks the visibility of a node
+    pub fn check_node_visibility(&mut self, context: &ScreenContext) {
+
+        self.visible_node_ids = vec![];
+
+        if let Some(tree_index) =  self.curr_behavior_tree_index {
+
+            let tree_id = self.widget_index_to_node_id(tree_index);
+            self.visible_node_ids.push(tree_id);
+            self.mark_connections_visible(tree_id, context);
+
+            // Find unconnected nodes and mark them visible
+            for index in 0..self.nodes.len() {
+
+                let mut connected = false;
+                if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
+
+                    // Skip behavior tree nodes
+                    if let Some(node_data) = behavior.data.nodes.get(&self.widget_index_to_node_id(index)) {
+                        if node_data.behavior_type == BehaviorNodeType::BehaviorTree {
+                            continue;
+                        }
+                    }
+
+                    // Check if node is connected
+                    for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
+                        if self.nodes[index].id == *source_node_id || self.nodes[index].id == *dest_node_id {
+                            connected = true;
+                            break;
+                        }
+                    }
+                }
+
+                if connected == false {
+                    self.visible_node_ids.push(self.nodes[index].id);
+                }
+            }
+        }
+    }
+
+    /// Marks all connected nodes as visible
+    pub fn mark_connections_visible(&mut self, id: usize, context: &ScreenContext) {
+        if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
+            for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
+                if *source_node_id == id {
+                    self.visible_node_ids.push(*dest_node_id);
+                    self.mark_connections_visible(*dest_node_id, context);
                 }
             }
         }
