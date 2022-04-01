@@ -532,6 +532,10 @@ impl Draw2D {
             }
         }
 
+        // Draw center mark
+
+        self.draw_rect_outline(frame, &(rect.0 + left_offset + x_tiles as usize / 2 * tile_size, rect.1 + top_offset + y_tiles as usize / 2 * tile_size, tile_size, tile_size), stride, context.color_red);
+
         offset
     }
 
