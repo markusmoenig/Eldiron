@@ -54,7 +54,6 @@ impl GameData {
 
             if md.is_dir() {
                 let mut area = GameArea::new(path);
-
                 areas_names.push(area.name.clone());
 
                 // Make sure we create a unique id (check if the id already exists in the set)
@@ -103,34 +102,37 @@ impl GameData {
             let path = &path.unwrap().path();
             let md = metadata(path).unwrap();
 
-            if md.is_dir() {
-                let mut behavior = GameBehavior::new(path);
+            if md.is_file() {
+                if let Some(name) = path::Path::new(&path).extension() {
+                    if name == "json" || name == "JSON" {
+                        let mut behavior = GameBehavior::new(path);
+                        behaviors_names.push(behavior.name.clone());
 
-                behaviors_names.push(behavior.name.clone());
+                        // Make sure we create a unique id (check if the id already exists in the set)
+                        let mut has_id_already = true;
+                        while has_id_already {
 
-                // Make sure we create a unique id (check if the id already exists in the set)
-                let mut has_id_already = true;
-                while has_id_already {
+                            has_id_already = false;
+                            for (key, _value) in &behaviors {
+                                if key == &behavior.data.id {
+                                    has_id_already = true;
+                                }
+                            }
 
-                    has_id_already = false;
-                    for (key, _value) in &behaviors {
-                        if key == &behavior.data.id {
-                            has_id_already = true;
+                            if has_id_already {
+                                behavior.data.id += 1;
+                            }
                         }
-                    }
 
-                    if has_id_already {
-                        behavior.data.id += 1;
+                        if behavior.data.nodes.len() == 0 {
+                            behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                            behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                            behavior.save_data();
+                        }
+                        behaviors_ids.push(behavior.data.id);
+                        behaviors.insert(behavior.data.id, behavior);
                     }
                 }
-
-                if behavior.data.nodes.len() == 0 {
-                    behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
-                    behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
-                    behavior.save_data();
-                }
-                behaviors_ids.push(behavior.data.id);
-                behaviors.insert(behavior.data.id, behavior);
             }
         }
 

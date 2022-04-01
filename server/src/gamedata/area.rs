@@ -13,7 +13,6 @@ use crate::asset::Asset;
 pub struct GameAreaData {
     #[serde(with = "vectorize")]
     pub tiles           : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
-    pub instance_ids    : Vec<usize>,
     pub id              : usize,
     pub curr_pos        : (isize, isize),
     pub min_pos         : (isize, isize),
@@ -32,13 +31,13 @@ impl GameArea {
         let name = path::Path::new(&path).file_stem().unwrap().to_str().unwrap();
 
         // Gets the content of the settings file
-        let json_path = path.join( format!("{}{}", name, ".json"));
+        let json_path = path.join( format!("{}{}", "level0", ".json"));
         let contents = fs::read_to_string( json_path )
             .unwrap_or("".to_string());
 
         // Construct the json settings
         let data = serde_json::from_str(&contents)
-            .unwrap_or(GameAreaData { tiles: HashMap::new(), instance_ids: vec![], id: 0, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000) });
+            .unwrap_or(GameAreaData { tiles: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000) });
 
         Self {
             name        : name.to_string(),
@@ -49,7 +48,7 @@ impl GameArea {
 
     /// Save the TileAreaData to file
     pub fn save_data(&self) {
-        let json_path = self.path.join( format!("{}{}", self.name, ".json"));
+        let json_path = self.path.join( format!("{}{}", "level0", ".json"));
         let json = serde_json::to_string(&self.data).unwrap();
         fs::write(json_path, json)
             .expect("Unable to write area file");

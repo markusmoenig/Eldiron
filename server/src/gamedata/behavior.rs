@@ -75,8 +75,7 @@ impl GameBehavior {
         let name = path::Path::new(&path).file_stem().unwrap().to_str().unwrap();
 
         // Gets the content of the settings file
-        let json_path = path.join( format!("{}{}", name, ".json"));
-        let contents = fs::read_to_string( json_path )
+        let contents = fs::read_to_string( path )
             .unwrap_or("".to_string());
 
         // Construct the json settings
@@ -92,9 +91,8 @@ impl GameBehavior {
 
     /// Save the GameBehaviorData to file
     pub fn save_data(&self) {
-        let json_path = self.path.join( format!("{}{}", self.name, ".json"));
         let json = serde_json::to_string(&self.data).unwrap();
-        fs::write(json_path, json)
+        fs::write(self.path.clone(), json)
             .expect("Unable to write area file");
     }
 
