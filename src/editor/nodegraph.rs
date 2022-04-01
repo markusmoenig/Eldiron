@@ -270,29 +270,41 @@ impl NodeGraph {
                             let end_x;
                             let end_y;
 
+                            let sdx : f64;
+                            let sdy : f64;
+                            let edx : f64;
+                            let edy : f64;
+
                             if *source_connector == BehaviorNodeConnector::Right {
                                 start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize;
                                 start_y = source_rect.1 + s_connector.rect.1 as isize + s_connector.rect.3 as isize / 2;
-                                control_start_x = start_x + 50;
-                                control_start_y = start_y;
+                                sdx = 1.0; sdy = 0.0;
                             } else {
                                 start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize / 2;
                                 start_y = source_rect.1 + s_connector.rect.1 as isize + s_connector.rect.3 as isize;
-                                control_start_x = start_x;
-                                control_start_y = start_y + 50;
+                                sdx = 0.0; sdy = 1.0;
                             }
 
                             if *dest_connector == BehaviorNodeConnector::Left {
                                 end_x = dest_rect.0 + d_connector.rect.0 as isize + 1;
                                 end_y = dest_rect.1 + d_connector.rect.1 as isize + d_connector.rect.3 as isize / 2;
-                                control_end_x = end_x - 50;
-                                control_end_y = end_y;
+                                edx = -1.0; edy = 0.0;
                             } else {
                                 end_x = dest_rect.0 + d_connector.rect.0 as isize + d_connector.rect.2 as isize / 2;
                                 end_y = dest_rect.1 + d_connector.rect.1 as isize + 1;
-                                control_end_x = end_x ;
-                                control_end_y = end_y - 50;
+                                edx = 0.0; edy = -1.0;
                             }
+
+                            let dx = start_x - end_x;
+                            let dy = start_y - end_y;
+
+                            let d = ((dx * dx + dy * dy) as f64).sqrt().clamp(0.0, 50.0);
+
+                            control_start_x = start_x + (sdx * d) as isize;
+                            control_start_y = start_y + (sdy * d) as isize;
+
+                            control_end_x = end_x + (edx * d) as isize;
+                            control_end_y = end_y + (edy * d) as isize;
 
                             if context.data.executed_connections.contains(&(*source_node_id, *source_connector)) {
                                 orange_path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
@@ -380,7 +392,7 @@ impl NodeGraph {
                         }
                     }
 
-                    let color = if selected { [125, 125, 125, 255] } else {context.color_gray };
+                    let color = if selected { context.color_gray } else {context.color_black };
                     context.draw2d.draw_rounded_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &((bt_rect.2) as f64, (bt_rect.3) as f64), &color, &(0.0, 0.0, 0.0, 0.0));
 
                     self.behavior_tree_rects.push(bt_rect.clone());
