@@ -1,5 +1,5 @@
 
-use crate::gamedata::behavior:: { BehaviorNodeConnector, BehaviorNodeType };
+use crate::gamedata::behavior:: { BehaviorNodeConnector };
 use crate::gamedata::GameData;
 use crate::asset::TileUsage;
 
@@ -11,18 +11,14 @@ use evalexpr::*;
 use rand::prelude::*;
 
 /// expression
-pub fn expression(_instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
+pub fn expression(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
 
         // Insert the variables
         let mut cont = HashMapContext::new();
-        for n in &behavior.data.nodes {
-            if n.1.behavior_type == BehaviorNodeType::VariableNumber {
-                if let Some(value) = n.1.values.get("value") {
-                    let t = format!("{} = {}", n.1.name, value.0);
-                    let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
-                }
-            }
+        for (key, value) in &data.instances[instance_index].values {
+            let t = format!("{} = {}", key, value);
+            let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
         }
 
         // d2 - d20
@@ -49,6 +45,12 @@ pub fn expression(_instance_index: usize, id: (usize, usize), data: &mut GameDat
     BehaviorNodeConnector::Fail
 }
 
+/// Sets a variable to an expression value
+pub fn set_variable(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
+    eval_expression_as_variable(instance_index, id, data, "value");
+    BehaviorNodeConnector::Bottom
+}
+
 /// say
 pub fn say(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
@@ -68,7 +70,7 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData
     let mut p : Option<(usize, isize, isize)> = None;
     let mut dp : Option<(usize, isize, isize)> = None;
 
-    let delay= eval_expression_as_number(id, data, "delay", 1.0);
+    let delay= eval_expression_as_number(instance_index, id, data, "delay", 1.0);
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
         if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
             if let Some(value) = node.values.get_mut("delay") {
@@ -76,7 +78,7 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData
                     value.0 = 0.0;
                 } else {
                     value.0 += 1.0;
-                    if let Some(value) = &mut get_value((id.0, id.1, "destination"), data) {
+                    if let Some(value) = &mut get_node_value((id.0, id.1, "destination"), data) {
                         if value.3 == 0.0 {
                             return BehaviorNodeConnector::Right;
                         } else {
@@ -129,16 +131,16 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData
                 //println!("{:?}", result);
                 if result.len() > 1 {
                     data.instances[instance_index].position = Some((p.0, result[1].0, result[1].1));
-                    if let Some(value) = &mut get_value((id.0, id.1, "destination"), data) {
+                    if let Some(value) = &mut get_node_value((id.0, id.1, "destination"), data) {
                         value.3 = 0.0;
-                        set_value((id.0, id.1, "destination"), data, value.clone());
+                        set_node_value((id.0, id.1, "destination"), data, value.clone());
                     }
                     return BehaviorNodeConnector::Right;
                 } else
                 if result.len() == 1 && dp.1 == result[0].0 && dp.2 == result[0].1 {
-                    if let Some(value) = &mut get_value((id.0, id.1, "destination"), data) {
+                    if let Some(value) = &mut get_node_value((id.0, id.1, "destination"), data) {
                         value.3 = 1.0;
-                        set_value((id.0, id.1, "destination"), data, value.clone());
+                        set_node_value((id.0, id.1, "destination"), data, value.clone());
                     }
                     return BehaviorNodeConnector::Success;
                 }

@@ -18,6 +18,7 @@ pub enum DialogEntry {
     NodeNumber,
     NodeExpression,
     NodeExpressionValue,
+    NodeExpressionVariable,
     NodeText,
     NodeName,
     NodeTile,
@@ -94,7 +95,7 @@ impl DialogWidget {
                 if context.dialog_entry == DialogEntry::NodeNumber {
                     self.text = format!("{}", context.dialog_node_behavior_value.0);
                 } else
-                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeName {
+                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeExpressionVariable || context.dialog_entry == DialogEntry::NodeExpressionVariable || context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeName {
                     self.text = context.dialog_node_behavior_value.4.clone();
                 } else
                 if context.dialog_entry == DialogEntry::NodeTile {
@@ -145,7 +146,7 @@ impl DialogWidget {
                         self.widgets[1].state = WidgetState::Normal;
                     }
                 } else
-                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue {
+                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeExpressionVariable {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Expression".to_string(), &context.color_white, &context.color_black);
 
                     let mut cont = HashMapContext::new();
@@ -153,7 +154,11 @@ impl DialogWidget {
                     if let Some(behavior) = context.data.behaviors.get_mut(&behavior_id) {
                         for n in &behavior.data.nodes {
                             if n.1.behavior_type == BehaviorNodeType::VariableNumber {
-                                let t = format!("{} = {}", n.1.name, n.1.values.get("value").unwrap().0);
+                                let mut value : f64 = 0.0;
+                                if let Some(v) = n.1.values.get("value") {
+                                    value = v.0;
+                                }
+                                let t = format!("{} = {}", n.1.name, value);
                                 let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
                             }
                         }
@@ -169,6 +174,12 @@ impl DialogWidget {
                     let mut has_error = false;
                     if context.dialog_entry == DialogEntry::NodeExpression {
                         let exp = eval_boolean_with_context(&self.text, &cont);
+                        if exp.is_err(){
+                            has_error = true;
+                        }
+                    } else
+                    if context.dialog_entry == DialogEntry::NodeExpressionVariable {
+                        let exp = eval_empty_with_context_mut(&self.text, &mut cont);
                         if exp.is_err(){
                             has_error = true;
                         }
@@ -241,14 +252,18 @@ impl DialogWidget {
                 return true;
             }
         } else
-        if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue {
+        if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeExpressionVariable {
 
             let mut cont = HashMapContext::new();
             let behavior_id = context.dialog_node_behavior_id.0.clone();
             if let Some(behavior) = context.data.behaviors.get_mut(&behavior_id) {
                 for n in &behavior.data.nodes {
                     if n.1.behavior_type == BehaviorNodeType::VariableNumber {
-                        let t = format!("{} = {}", n.1.name, n.1.values.get("value").unwrap().0);
+                        let mut value : f64 = 0.0;
+                        if let Some(v) = n.1.values.get("value") {
+                            value = v.0;
+                        }
+                        let t = format!("{} = {}", n.1.name, value);
                         let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
                     }
                 }
@@ -265,6 +280,12 @@ impl DialogWidget {
             if context.dialog_entry == DialogEntry::NodeExpression {
                 let exp = eval_boolean_with_context(&self.text, &cont);
                 if exp.is_err() {
+                    has_error = true;
+                }
+            } else
+            if context.dialog_entry == DialogEntry::NodeExpressionVariable {
+                let exp = eval_empty_with_context_mut(&self.text, &mut cont);
+                if exp.is_err(){
                     has_error = true;
                 }
             } else {

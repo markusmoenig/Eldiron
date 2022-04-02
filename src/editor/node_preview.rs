@@ -157,7 +157,7 @@ impl NodePreviewWidget {
 
                 if atom_widget.atom_data.id == "run" {
                     if context.is_running == false {
-                        context.data.create_behavior(context.curr_behavior_index);
+                        context.data.create_behavior_instance(context.curr_behavior_index);
                         context.is_running = true;
                         atom_widget.text[0] = "Stop".to_string();
                     } else {

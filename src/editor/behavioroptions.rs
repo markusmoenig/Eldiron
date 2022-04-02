@@ -33,7 +33,7 @@ impl BehaviorOptions {
     AtomData::new_as_int("NodeList".to_string(), 0));
         node_list.drag_enabled = true;
 
-        node_list.add_group_list(context.color_green, context.color_light_green, vec!["Behavior Tree".to_string(), "Expression".to_string()]);
+        node_list.add_group_list(context.color_green, context.color_light_green, vec!["Behavior Tree".to_string(), "Expression".to_string(), "Set Variable".to_string()]);
 
         node_list.add_group_list(context.color_orange, context.color_light_orange, vec!["Number".to_string(), "Position".to_string() ]);
 

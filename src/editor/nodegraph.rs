@@ -931,6 +931,7 @@ impl NodeGraph {
                 "Position" => BehaviorNodeType::VariablePosition,
                 "Say" => BehaviorNodeType::Say,
                 "Pathfinder" => BehaviorNodeType::Pathfinder,
+                "Set Variable" => BehaviorNodeType::SetVariableValue,
                 _ => BehaviorNodeType::BehaviorTree
             };
 
@@ -1000,7 +1001,6 @@ impl NodeGraph {
             }
         } else
         if node_data.behavior_type == BehaviorNodeType::Expression {
-
             let mut atom1 = AtomWidget::new(vec!["Expression".to_string()], AtomWidgetType::NodeExpressionButton,
             AtomData::new_as_int("expression".to_string(), 0));
             atom1.atom_data.text = "Expression".to_string();
@@ -1014,6 +1014,19 @@ impl NodeGraph {
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_data.behavior_type == BehaviorNodeType::SetVariableValue {
+            let mut atom1 = AtomWidget::new(vec!["Expression Value".to_string()], AtomWidgetType::NodeExpressionVariableButton,
+            AtomData::new_as_int("value".to_string(), 0));
+            atom1.atom_data.text = "Expression Value".to_string();
+            let id = (behavior_data.id, node_data.id, "value".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()));
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_data.behavior_type == BehaviorNodeType::VariableNumber {
 

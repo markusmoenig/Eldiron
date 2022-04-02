@@ -138,6 +138,7 @@ impl GameData {
 
         let mut nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
         nodes.insert(BehaviorNodeType::Expression, nodes::expression);
+        nodes.insert(BehaviorNodeType::SetVariableValue, nodes::set_variable);
         nodes.insert(BehaviorNodeType::Say, nodes::say);
         nodes.insert(BehaviorNodeType::Pathfinder, nodes::pathfinder);
 
@@ -237,13 +238,14 @@ impl GameData {
         json
     }
 
-    /// Create a new behavior of the given id and return it's id
-    pub fn create_behavior(&mut self, id: usize) -> usize {
+    /// Create a new behavior instance for the given id and return it's id
+    pub fn create_behavior_instance(&mut self, id: usize) -> usize {
 
         let mut to_execute : Vec<usize> = vec![];
 
         let mut position : Option<(usize, isize, isize)> = None;
         let mut tile     : Option<(usize, usize, usize)> = None;
+        let mut values   : HashMap<String, f64> = HashMap::new();
 
         if let Some(behavior) = self.behaviors.get_mut(&id) {
             for (id, node) in &behavior.data.nodes {
@@ -262,10 +264,17 @@ impl GameData {
                     if let Some(value )= node.values.get(&"tile".to_string()) {
                         tile = Some((value.0 as usize, value.1 as usize, value.2 as usize));
                     }
+                } else
+                if node.behavior_type == BehaviorNodeType::VariableNumber {
+                    if let Some(value )= node.values.get(&"value".to_string()) {
+                        values.insert(node.name.clone(), value.0.clone());
+                    } else {
+                        values.insert(node.name.clone(), 0.0);
+                    }
                 }
             }
 
-            let mut instance = BehaviorInstance {id: 0, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), values: HashMap::new(), in_progress_id: None, position, tile};
+            let mut instance = BehaviorInstance {id: 0, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), values, in_progress_id: None, position, tile};
 
             // Make sure id is unique
             let mut has_id_already = true;

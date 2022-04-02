@@ -1,10 +1,24 @@
-use crate::gamedata::behavior:: { BehaviorNodeType };
 use crate::gamedata::GameData;
 use evalexpr::*;
 use rand::prelude::*;
 
-/// Retrieves a node instance value
-pub fn get_value(id: (usize, usize, &str), data: &mut GameData) -> Option<(f64, f64, f64, f64, String)> {
+/// Retrieves a number instance value
+pub fn get_number_variable(instance_index: usize, variable: String, data: &mut GameData) -> Option<f64> {
+    if let Some(value) = data.instances[instance_index].values.get(&variable) {
+        return Some(value.clone());
+    }
+    None
+}
+
+/// Sets a number instance value
+pub fn set_number_variable(instance_index: usize, variable: String, value: f64, data: &mut GameData) {
+    if let Some(v) = data.instances[instance_index].values.get_mut(&variable) {
+        *v = value;
+    }
+}
+
+/// Retrieves a node value
+pub fn get_node_value(id: (usize, usize, &str), data: &mut GameData) -> Option<(f64, f64, f64, f64, String)> {
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
         if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
             if let Some(value) = node.values.get_mut(id.2) {
@@ -15,8 +29,8 @@ pub fn get_value(id: (usize, usize, &str), data: &mut GameData) -> Option<(f64, 
     None
 }
 
-/// Sets a node instance value
-pub fn set_value(id: (usize, usize, &str), data: &mut GameData, value: (f64, f64, f64, f64, String)) {
+/// Sets a node value
+pub fn set_node_value(id: (usize, usize, &str), data: &mut GameData, value: (f64, f64, f64, f64, String)) {
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
         if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
             if let Some(v) = node.values.get_mut(id.2) {
@@ -27,25 +41,17 @@ pub fn set_value(id: (usize, usize, &str), data: &mut GameData, value: (f64, f64
 }
 
 /// Evaluates a node expression as a number
-pub fn eval_expression_as_number(id: (usize, usize), data: &mut GameData, value_id: &str, default: f64) -> f64 {
+pub fn eval_expression_as_number(instance_index: usize, id: (usize, usize), data: &mut GameData, value_id: &str, default: f64) -> f64 {
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
 
         // Insert the variables
         let mut cont = HashMapContext::new();
-        for n in &behavior.data.nodes {
-            if n.1.behavior_type == BehaviorNodeType::VariableNumber {
-
-                let mut value : f64 = 0.0;
-                if let Some(v) = n.1.values.get("value") {
-                    value = v.0;
-                }
-
-                let t = format!("{} = {}", n.1.name, value);
-                let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
-            }
+        for (key, value) in &data.instances[instance_index].values {
+            let t = format!("{} = {}", key, value);
+            let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
         }
 
-        // d1 - d2
+        // d1 - d20
         let mut rng = thread_rng();
         for d in (2..=20).step_by(2) {
             let random = rng.gen_range(1..=d);
@@ -77,4 +83,57 @@ pub fn eval_expression_as_number(id: (usize, usize), data: &mut GameData, value_
         }
     }
     default
+}
+
+/// Evaluates a node expression as a variable value
+pub fn eval_expression_as_variable(instance_index: usize, id: (usize, usize), data: &mut GameData, value_id: &str) {
+    if let Some(behavior) = data.behaviors.get_mut(&id.0) {
+
+        // Insert the variables
+        let mut cont = HashMapContext::new();
+        for (key, value) in &data.instances[instance_index].values {
+            let t = format!("{} = {}", key, value);
+            let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
+        }
+
+        // d1 - d20
+        let mut rng = thread_rng();
+        for d in (2..=20).step_by(2) {
+            let random = rng.gen_range(1..=d);
+            let t = format!("{} = {}", format!("d{}", d), random);
+            let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
+        }
+
+        // Evaluate the expression as a number
+        if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
+            let exp = eval_empty_with_context_mut(&node.values.get(value_id).unwrap().4, &mut cont);
+            if exp.is_ok() {
+
+                let mut key_to_change: Option<String> = None;
+                let mut new_value : Option<f64> = None;
+
+                for (key, value) in &data.instances[instance_index].values {
+                    if let Some(v) = cont.get_value(key) {
+                        //println!("here {}", v);
+                        let n = v.as_number();
+                        if n.is_ok() {
+                            let nn = n.unwrap();
+                            if nn != *value {
+                                key_to_change = Some(key.clone());
+                                new_value = Some(nn);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if let Some(key) = key_to_change {
+                    if let Some(value) = new_value {
+                        data.instances[instance_index].values.insert(key, value);
+                        //println!("{:?}", data.instances[instance_index].values);
+                    }
+                }
+            }
+        }
+    }
 }

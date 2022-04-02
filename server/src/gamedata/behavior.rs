@@ -13,6 +13,7 @@ pub enum BehaviorNodeType {
     Expression,
     VariableNumber,
     VariablePosition,
+    SetVariableValue,
     Pathfinder,
     Say,
 }
@@ -43,7 +44,9 @@ pub struct BehaviorInstance {
     pub id                      : usize,
     pub behavior_id             : usize,
     pub tree_ids                : Vec<usize>,
-    pub values                  : HashMap<String, (f64, f64, f64, f64)>,
+
+    // Number variables
+    pub values                  : HashMap<String, f64>,
 
     pub name                    : String,
 
