@@ -495,6 +495,14 @@ impl AtomWidget {
             // Draw Open Menu
             self.content_rect = (self.rect.0 + self.emb_offset.0 as usize, self.rect.1 + self.emb_offset.1 as usize + (self.rect.3 - context.node_button_height) / 2, self.rect.2, context.node_button_height * self.text.len());
 
+            if self.content_rect.0 + self.content_rect.2 >= context.width {
+                self.content_rect.0 -= (self.content_rect.0 + self.content_rect.2) - context.width;
+            }
+
+            if self.content_rect.1 + self.content_rect.3 >= context.height {
+                self.content_rect.1 -= (self.content_rect.1 + self.content_rect.3) - context.height;
+            }
+
             context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, context.width, &(self.content_rect.2 as f64 - 1.0, self.content_rect.3 as f64 - 1.0), & &context.color_black, &context.node_button_rounding, &context.color_light_gray, 1.5);
 
             let mut r = self.content_rect.clone();
@@ -529,6 +537,14 @@ impl AtomWidget {
 
             // Draw Open Menu
             self.content_rect = (self.rect.0 + self.emb_offset.0 as usize, self.rect.1 + self.emb_offset.1 as usize + self.rect.3 + 2, 140, context.node_button_height * self.text.len());
+
+            if self.content_rect.0 + self.content_rect.2 >= context.width {
+                self.content_rect.0 -= (self.content_rect.0 + self.content_rect.2) - context.width;
+            }
+
+            if self.content_rect.1 + self.content_rect.3 >= context.height {
+                self.content_rect.1 -= (self.content_rect.1 + self.content_rect.3) - context.height;
+            }
 
             context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, context.width, &(self.content_rect.2 as f64 - 1.0, self.content_rect.3 as f64 - 1.0), & &context.color_black, &context.node_button_rounding, &context.color_light_gray, 1.5);
 
