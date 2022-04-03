@@ -35,7 +35,7 @@ impl BehaviorOptions {
 
         node_list.add_group_list(context.color_green, context.color_light_green, vec!["Behavior Tree".to_string(), "Expression".to_string(), "Set Variable".to_string()]);
 
-        node_list.add_group_list(context.color_orange, context.color_light_orange, vec!["Number".to_string(), "Position".to_string() ]);
+        node_list.add_group_list(context.color_orange, context.color_light_orange, vec!["Number".to_string(),/* "Position".to_string()*/ ]);
 
         node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Pathfinder".to_string(), "Say".to_string() ]);
 

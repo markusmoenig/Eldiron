@@ -155,6 +155,8 @@ impl AtomWidget {
         let rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
         let buffer_frame = &mut self.buffer[..];
 
+        //println!("here atom 000000 {:?}", self.atom_widget_type);
+
         if self.dirty {
 
             // Toolbar
@@ -311,7 +313,17 @@ impl AtomWidget {
 
                 let fill_color = if self.state == WidgetState::Clicked { context.color_node_dark_gray } else { context.color_node_light_gray };
 
-                let v = self.atom_data.data.0.round();
+                let mut v = self.atom_data.data.0.round();
+
+                if context.is_running  {
+                    if let Some(my_id) = &self.behavior_id {
+                        for index in 0..context.data.changed_variables.len() {
+                            if context.data.changed_variables[index].1 == my_id.0 && context.data.changed_variables[index].2 == my_id.1 {
+                                v = context.data.changed_variables[index].3;
+                            }
+                        }
+                    }
+                }
 
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &fill_color, 1.5);

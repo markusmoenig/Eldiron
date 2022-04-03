@@ -36,6 +36,9 @@ pub struct NodePreviewWidget {
     pub clicked_area_id         : Option<(usize, isize, isize)>,
 
     pub curr_area_index         : usize,
+
+    // Indicates that preview stopped running
+    pub just_stopped_running    : bool
 }
 
 impl NodePreviewWidget {
@@ -82,6 +85,8 @@ impl NodePreviewWidget {
             clicked_area_id     : None,
 
             curr_area_index     : 0,
+
+            just_stopped_running: false,
         }
     }
 
@@ -164,6 +169,7 @@ impl NodePreviewWidget {
                         context.data.clear_instances();
                         context.is_running = false;
                         atom_widget.text[0] = "Run Behavior".to_string();
+                        self.just_stopped_running = true;
                     }
                 }
 

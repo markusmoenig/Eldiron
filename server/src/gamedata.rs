@@ -32,8 +32,10 @@ pub struct GameData {
 
     pub instances               : Vec<BehaviorInstance>,
 
+    // These are fields which provide feedback to the editor / game while running
     pub say                     : Vec<String>,
-    pub executed_connections    : Vec<(usize, BehaviorNodeConnector)>
+    pub executed_connections    : Vec<(usize, BehaviorNodeConnector)>,
+    pub changed_variables       : Vec<(usize, usize, usize, f64)>, // A variable has been changed: instance index, behavior id, node id, new value
 }
 
 impl GameData {
@@ -157,6 +159,7 @@ impl GameData {
 
             say                     : vec![],
             executed_connections    : vec![],
+            changed_variables       : vec![],
         }
     }
 
@@ -315,6 +318,7 @@ impl GameData {
     pub fn tick(&mut self) {
         self.say = vec![];
         self.executed_connections = vec![];
+        self.changed_variables = vec![];
         for index in 0..self.instances.len() {
             let trees = self.instances[index].tree_ids.clone();
             for node_id in &trees {
@@ -328,6 +332,7 @@ impl GameData {
         self.instances = vec![];
         self.say = vec![];
         self.executed_connections = vec![];
+        self.changed_variables = vec![];
     }
 
     /// Executes the given node and follows the connection chain

@@ -207,6 +207,19 @@ impl NodeGraph {
                     // We only draw nodes which are marked visible, i.e. connected to the current behavior tree or unconnected nodes
                     if self.visible_node_ids.contains(&self.widget_index_to_node_id(index)) {
 
+                        // If the preview is running, check if this node represents a variable which has been changed
+                        // And if yes, marks it for redraw
+                        if context.is_running {
+                            for i in 0..context.data.changed_variables.len() {
+                                if context.data.changed_variables[i].2 == self.nodes[index].id {
+                                    self.nodes[index].dirty = true;
+                                    for w in 0..self.nodes[index].widgets.len() {
+                                        self.nodes[index].widgets[w].dirty = true;
+                                    }
+                                }
+                            }
+                        }
+
                         if self.nodes[index].dirty {
 
                             let mut selected = false;
@@ -537,6 +550,7 @@ impl NodeGraph {
         } else
         if self.graph_mode == GraphMode::Detail {
 
+            // Check the behavior tree selector at the top
             for index in 0..self.behavior_tree_rects.len() {
                 if context.contains_pos_for((pos.0 - self.rect.0, pos.1 - self.rect.1), self.behavior_tree_rects[index]) {
                     self.curr_behavior_tree_index = Some(self.behavior_tree_indices[index]);
@@ -592,11 +606,24 @@ impl NodeGraph {
             }
 
             // Check Preview
-
             let mut clicked_area_id : Option<(usize, isize, isize)> = None;
             if let Some(preview) = &mut self.preview {
                 if context.contains_pos_for(pos, preview.rect) {
                     if preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context) {
+
+                        // Stopped running ?
+                        if preview.just_stopped_running {
+
+                            // If preview just stopped running, mark all variables as dirty (as they may have changed)
+                            for index in 0..self.nodes.len() {
+                                if self.nodes[index].widgets.len() == 1 && self.nodes[index].widgets[0].atom_widget_type == AtomWidgetType::NodeIntButton {
+                                    self.nodes[index].dirty = true;
+                                    self.nodes[index].widgets[0].dirty = true;
+                                    self.dirty = true;
+                                }
+                            }
+                            preview.just_stopped_running = false;
+                        }
 
                         // Area id clicked ?
                         if let Some(area_id) = preview.clicked_area_id {
@@ -625,16 +652,20 @@ impl NodeGraph {
         // Check the atom widgets
         for index in 0..self.nodes.len() {
 
-            let rect= self.get_node_rect(index, false);
-            if context.contains_pos_for_isize(pos, rect) {
+            // Only if the node is visible
+            if self.visible_node_ids.contains(&self.widget_index_to_node_id(index)) {
 
-                let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
+                let rect= self.get_node_rect(index, false);
+                if context.contains_pos_for_isize(pos, rect) {
 
-                if self.nodes[index].mouse_down(local, asset, context) {
-                    self.dirty = true;
-                    return true;
+                    let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
+
+                    if self.nodes[index].mouse_down(local, asset, context) {
+                        self.dirty = true;
+                        return true;
+                    }
+                    break;
                 }
-                break;
             }
         }
 

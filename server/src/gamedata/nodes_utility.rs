@@ -2,6 +2,8 @@ use crate::gamedata::GameData;
 use evalexpr::*;
 use rand::prelude::*;
 
+use super::behavior::BehaviorNodeType;
+
 /// Retrieves a number instance value
 pub fn get_number_variable(instance_index: usize, variable: String, data: &mut GameData) -> Option<f64> {
     if let Some(value) = data.instances[instance_index].values.get(&variable) {
@@ -85,7 +87,7 @@ pub fn eval_expression_as_number(instance_index: usize, id: (usize, usize), data
     default
 }
 
-/// Evaluates a node expression as a variable value
+/// Evaluates a node expression as a variable value and assign it
 pub fn eval_expression_as_variable(instance_index: usize, id: (usize, usize), data: &mut GameData, value_id: &str) {
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
 
@@ -129,8 +131,17 @@ pub fn eval_expression_as_variable(instance_index: usize, id: (usize, usize), da
 
                 if let Some(key) = key_to_change {
                     if let Some(value) = new_value {
-                        data.instances[instance_index].values.insert(key, value);
-                        //println!("{:?}", data.instances[instance_index].values);
+
+                        data.instances[instance_index].values.insert(key.clone(), value);
+
+                        // Insert the node id of the changed variable to the list
+                        // Note: Only need todo when run in editor
+                        for (_index, node) in &behavior.data.nodes {
+                            if node.name == key && node.behavior_type == BehaviorNodeType::VariableNumber {
+                                data.changed_variables.push((instance_index, behavior.data.id, node.id, value));
+                                //println!("{:?}", (instance_index, behavior.data.id, node.id));
+                            }
+                        }
                     }
                 }
             }
