@@ -436,15 +436,17 @@ impl AtomWidget {
                             color = self.groups[g_index].color;
                         }
 
-                        if i_index == 0 {
-                            rounding.0 = 0.0;
-                            rounding.2 = 0.0;
-                        } else
-                        if i_index == &self.groups[g_index].items.len() - 1 {
-                            rounding.1 = 0.0;
-                            rounding.3 = 0.0;
-                        } else {
-                            rounding = (0.0, 0.0, 0.0, 0.0);
+                        if self.groups[g_index].items.len() > 1 {
+                            if i_index == 0 {
+                                rounding.0 = 0.0;
+                                rounding.2 = 0.0;
+                            } else
+                            if i_index == &self.groups[g_index].items.len() - 1  {
+                                rounding.1 = 0.0;
+                                rounding.3 = 0.0;
+                            } else {
+                                rounding = (0.0, 0.0, 0.0, 0.0);
+                            }
                         }
 
                         context.draw2d.draw_rounded_rect(buffer_frame, &r, rect.2, &(self.rect.2 as f64, 32.0), &color, &rounding);
