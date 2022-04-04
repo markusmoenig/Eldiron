@@ -503,6 +503,11 @@ impl NodeGraph {
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
+        // Clicked outside ?
+        if pos.0 < self.rect.0 || pos.1 < self.rect.1 {
+            return false;
+        }
+
         if self.graph_mode == GraphMode::Overview {
             for index in 0..self.nodes.len() {
                 let rect= self.get_node_rect(index, false);

@@ -4,9 +4,11 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::File;
 use std::path;
+use std::fs::metadata;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use rand::prelude::*;
 
 // Tile implementation
 
@@ -75,7 +77,7 @@ impl TileMap {
 
         // Construct the json settings
         let settings = serde_json::from_str(&contents)
-            .unwrap_or(TileMapSettings { grid_size: 16, tiles: HashMap::new(), id: 0, default_tile: None } );
+            .unwrap_or(TileMapSettings { grid_size: 16, tiles: HashMap::new(), id: thread_rng().gen_range(1..=u32::MAX) as usize, default_tile: None } );
 
         TileMap {
             pixels          : info.0,
@@ -150,37 +152,47 @@ impl TileSet {
         let mut maps_ids    : Vec<usize> = vec![];
 
         for path in paths {
+
             // Generate the tile map for this dir element
+            let path = &path.unwrap().path();
+            let md = metadata(path).unwrap();
 
-            let mut tile_map = TileMap::new(&path.unwrap().path());
-            if tile_map.width != 0 {
-                maps_names.push(tile_map.get_name());
+            if md.is_file() {
+                if let Some(name) = path::Path::new(&path).extension() {
+                    if name == "png" || name == "PNG" {
 
-                // Make sure we create a unique id (check if the id already exists in the set)
-                let mut has_id_already = true;
-                while has_id_already {
+                        let mut tile_map = TileMap::new(&path);
+                        if tile_map.width != 0 {
+                            maps_names.push(tile_map.get_name());
 
-                    has_id_already = false;
-                    for (key, _value) in &maps {
-                        if key == &tile_map.settings.id {
-                            has_id_already = true;
+                            // Make sure we create a unique id (check if the id already exists in the set)
+                            let mut has_id_already = true;
+                            while has_id_already {
+
+                                has_id_already = false;
+                                for (key, _value) in &maps {
+                                    if key == &tile_map.settings.id {
+                                        has_id_already = true;
+                                    }
+                                }
+
+                                if has_id_already {
+                                    tile_map.settings.id += 1;
+                                }
+                            }
+
+                            maps_ids.push(tile_map.settings.id);
+
+                            // If the tilemap has no tiles we assume it's new and we save the settings
+                            if tile_map.settings.tiles.len() == 0 {
+                                tile_map.save_settings();
+                            }
+
+                            // Insert the tilemap
+                            maps.insert(tile_map.settings.id, tile_map);
                         }
                     }
-
-                    if has_id_already {
-                        tile_map.settings.id += 1;
-                    }
                 }
-
-                maps_ids.push(tile_map.settings.id);
-
-                // If the tilemap has no tiles we assume it's new and we save the settings
-                if tile_map.settings.tiles.len() == 0 {
-                    tile_map.save_settings();
-                }
-
-                // Insert the tilemap
-                maps.insert(tile_map.settings.id, tile_map);
             }
         }
 

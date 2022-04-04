@@ -472,9 +472,7 @@ impl AtomWidget {
             // Draw Open Menu
             self.content_rect = (self.rect.0, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2, context.toolbar_button_height * self.text.len());
 
-            context.draw2d.draw_rect(frame, &self.content_rect, rect.2, &context.color_black);
-
-            context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, rect.2, &(self.content_rect.2 as f64 - 1.0, self.content_rect.3 as f64 - 1.0), & &context.color_black, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
+            context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, rect.2, &(self.content_rect.2 as f64 - 1.0, self.content_rect.3 as f64 - 1.0), &context.color_black, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
 
             let mut r = self.content_rect.clone();
             r.3 = context.toolbar_button_height;
@@ -517,7 +515,7 @@ impl AtomWidget {
                 self.content_rect.1 -= (self.content_rect.1 + self.content_rect.3) - context.height;
             }
 
-            context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, context.width, &(self.content_rect.2 as f64 - 1.0, self.content_rect.3 as f64 - 1.0), & &context.color_black, &context.node_button_rounding, &context.color_light_gray, 1.5);
+            context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, context.width, &(self.content_rect.2 as f64 - 1.0, self.content_rect.3 as f64 - 1.0), &context.color_black, &context.node_button_rounding, &context.color_light_gray, 1.5);
 
             let mut r = self.content_rect.clone();
             r.3 = context.node_button_height;
