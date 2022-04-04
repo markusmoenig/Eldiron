@@ -194,6 +194,7 @@ impl NodeGraph {
                 // Detail View
 
                 let mut corner_index = 0;
+                let mut variables : Vec<usize> = vec![];
 
                 // Draw nodes
                 for index in 0..self.nodes.len() {
@@ -204,30 +205,18 @@ impl NodeGraph {
                         continue;
                     }
 
+                    // Check for variable node
+                    if self.nodes[index].is_variable_node {
+                        variables.push(index);
+                        continue;
+                    }
+
                     // We only draw nodes which are marked visible, i.e. connected to the current behavior tree or unconnected nodes
                     if self.visible_node_ids.contains(&self.widget_index_to_node_id(index)) {
 
-                        // If the preview is running, check if this node represents a variable which has been changed
-                        // And if yes, marks it for redraw
-                        if context.is_running {
-                            for i in 0..context.data.changed_variables.len() {
-                                if context.data.changed_variables[i].2 == self.nodes[index].id {
-                                    self.nodes[index].dirty = true;
-                                    for w in 0..self.nodes[index].widgets.len() {
-                                        self.nodes[index].widgets[w].dirty = true;
-                                    }
-                                }
-                            }
-                        }
-
                         if self.nodes[index].dirty {
 
-                            let mut selected = false;
-
-                            if self.nodes[index].id == context.curr_behavior_node_id {
-                                selected = true;
-                            }
-
+                            let selected = if self.nodes[index].id == context.curr_behavior_node_id { true } else { false };
                             self.nodes[index].draw(frame, anim_counter, asset, context, selected);
                         }
 
@@ -246,6 +235,34 @@ impl NodeGraph {
                 self.nodes[corner_index].graph_offset = (rect.0, rect.1);
                 self.nodes[corner_index].graph_offset = (rect.0, rect.1);
                 context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[corner_index].buffer[..], &rect, safe_rect.2, &safe_rect);
+
+                for index in 0..variables.len() {
+
+                    let vindex = variables[index];
+
+                    // If the preview is running, check if this node represents a variable which has been changed
+                    // And if yes, marks it for redraw
+                    if context.is_running {
+                        for i in 0..context.data.changed_variables.len() {
+                            if context.data.changed_variables[i].2 == self.nodes[vindex].id {
+                                self.nodes[vindex].dirty = true;
+                                for w in 0..self.nodes[vindex].widgets.len() {
+                                    self.nodes[vindex].widgets[w].dirty = true;
+                                }
+                            }
+                        }
+                    }
+
+                    if self.nodes[vindex].dirty {
+                        let selected = if self.nodes[index].id == context.curr_behavior_node_id { true } else { false };
+                        self.nodes[vindex].draw(frame, anim_counter, asset, context, selected);
+                    }
+
+                    let rect= self.get_node_rect(vindex, true);
+                    self.nodes[vindex].graph_offset = (rect.0, rect.1);
+                    self.nodes[vindex].graph_offset = (rect.0, rect.1);
+                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[vindex].buffer[..], &rect, safe_rect.2, &safe_rect);
+                }
 
                 // --
                 let mut mask : Vec<u8> = vec![0; safe_rect.2 * safe_rect.3];
@@ -460,6 +477,21 @@ impl NodeGraph {
             y = -7;
         }
 
+        if self.nodes[node_index].is_variable_node {
+            x = -7;
+            y = 130;
+
+            for i in 0..self.nodes.len() {
+                if i < node_index {
+                    if self.nodes[i].is_variable_node {
+                        y += 36;
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+
         if relative == false {
             x += self.rect.0 as isize;
             y += self.rect.1 as isize;
@@ -502,6 +534,8 @@ impl NodeGraph {
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+
+        let mut rc = false;
 
         // Clicked outside ?
         if pos.0 < self.rect.0 || pos.1 < self.rect.1 {
@@ -603,7 +637,7 @@ impl NodeGraph {
                                 self.nodes[index].dirty = true;
                                 self.dirty = true;
                                 self.clicked = true;
-                                return true;
+                                rc = true;
                             }
                         }
                     }
@@ -674,7 +708,7 @@ impl NodeGraph {
             }
         }
 
-        false
+        rc
     }
 
     pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
@@ -727,11 +761,11 @@ impl NodeGraph {
             let rect= self.get_node_rect(index, false);
             let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
 
-            let mut menu_activated : Option<usize> = None;
+            let mut menu_activated : Option<String> = None;
             if let Some(menu) = &mut self.nodes[index].menu {
                 if menu.mouse_up(local, asset, context) {
                     if menu.new_selection.is_some() {
-                        menu_activated = Some(menu.curr_index);
+                        menu_activated = Some(menu.text[menu.curr_index].clone());
                         menu.dirty = true;
                         self.dirty = true;
                     }
@@ -741,25 +775,22 @@ impl NodeGraph {
             // If a menu was activated, mark the node as dirty
             if let Some(menu_activated) = menu_activated {
                 self.nodes[index].dirty = true;
-                match menu_activated {
-                    0 => {
-                        // Rename node
-                        context.dialog_state = DialogState::Opening;
-                        context.dialog_height = 0;
-                        context.target_fps = 60;
-                        context.dialog_entry = DialogEntry::NodeName;
-                        context.dialog_node_behavior_id = (self.nodes[index].id, 0, "".to_string());
-                        context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].text[0].clone());
-                    },
-                    1 => {
-                        // Disconnect node
-                        self.disconnect_node(self.nodes[index].id, context);
-                    },
-                    2 => {
-                        // Delete node
-                        self.delete_node(self.nodes[index].id, context);
-                    }
-                    _ => {},
+                if  "Rename".to_string() == menu_activated {
+                    // Rename node
+                    context.dialog_state = DialogState::Opening;
+                    context.dialog_height = 0;
+                    context.target_fps = 60;
+                    context.dialog_entry = DialogEntry::NodeName;
+                    context.dialog_node_behavior_id = (self.nodes[index].id, 0, "".to_string());
+                    context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].text[0].clone());
+                } else
+                if "Disconnect".to_string() == menu_activated {
+                    // Disconnect node
+                    self.disconnect_node(self.nodes[index].id, context);
+                } else
+                if "Delete".to_string() == menu_activated {
+                    // Delete node
+                    self.delete_node(self.nodes[index].id, context);
                 }
                 return true;
             }
@@ -1012,7 +1043,14 @@ impl NodeGraph {
         }
 
         // Node menu
-        let mut node_menu_atom = AtomWidget::new(vec!["Rename".to_string(), "Disconnect".to_string(), "Delete".to_string()], AtomWidgetType::NodeMenu,
+
+        let mut menu_text : Vec<String> = vec!["Rename".to_string()];
+        if node_data.behavior_type != BehaviorNodeType::VariableNumber {
+            menu_text.push( "Disconnect".to_string());
+        }
+        menu_text.push( "Delete".to_string());
+
+        let mut node_menu_atom = AtomWidget::new(menu_text, AtomWidgetType::NodeMenu,
         AtomData::new_as_int("menu".to_string(), 0));
         node_menu_atom.atom_data.text = "menu".to_string();
         let id = (behavior_data.id, node_data.id, "menu".to_string());
@@ -1062,6 +1100,7 @@ impl NodeGraph {
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_data.behavior_type == BehaviorNodeType::VariableNumber {
@@ -1075,6 +1114,7 @@ impl NodeGraph {
             node_widget.widgets.push(atom1);
 
             node_widget.color = context.color_orange.clone();
+            node_widget.is_variable_node = true;
         } else
         if node_data.behavior_type == BehaviorNodeType::Say {
             let mut atom1 = AtomWidget::new(vec!["Text".to_string()], AtomWidgetType::NodeTextButton,
