@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use rand::prelude::*;
 
 use std::fs;
 use std::path;
@@ -53,8 +54,6 @@ pub struct BehaviorInstance {
     // For character
     pub position                : Option<(usize, isize, isize)>,
     pub tile                    : Option<(usize, usize, usize)>,
-
-    pub in_progress_id          : Option<usize>
 }
 
 #[derive(Serialize, Deserialize)]
@@ -83,7 +82,7 @@ impl GameBehavior {
 
         // Construct the json settings
         let data = serde_json::from_str(&contents)
-            .unwrap_or(GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: 0, name: "New Behavior".to_string() });
+            .unwrap_or(GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string() });
 
         Self {
             name        : name.to_string(),
@@ -107,7 +106,7 @@ impl GameBehavior {
             name,
             values: HashMap::new(),
             id: 0,
-            position: (100, 100),
+            position: (250, 50),
         };
 
         if behavior_type == BehaviorNodeType::BehaviorType {

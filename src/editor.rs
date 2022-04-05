@@ -82,7 +82,7 @@ impl ScreenWidget for Editor {
     fn new(asset: &Asset, width: usize, height: usize) -> Self where Self: Sized {
 
         let left_width = 180_usize;
-        let mut context = ScreenContext::new(width, height);
+        let context = ScreenContext::new(width, height);
 
         let toolbar = ToolBar::new(vec!(), (0,0, width, context.toolbar_height), asset, &context);
 
@@ -121,8 +121,8 @@ impl ScreenWidget for Editor {
         let behavior_overview_options = BehaviorOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
 
         let mut behavior_nodes = vec![];
-        for (index, behavior) in context.data.behaviors.iter().enumerate() {
-            let node = NodeWidget::new(vec![behavior.1.name.to_string()],
+        for (index, behavior_name) in context.data.behaviors_names.iter().enumerate() {
+            let node = NodeWidget::new(vec![behavior_name.to_string()],
              NodeUserData { position: (100, 50 + 150 * index as isize) });
             behavior_nodes.push(node);
         }
@@ -131,10 +131,8 @@ impl ScreenWidget for Editor {
         let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, GraphType::Behavior, vec![]);
 
         node_graph_behavior_details.set_mode(GraphMode::Detail, &context);
-        node_graph_behavior_details.set_behavior_id(0, &mut context);
 
         let dialog = DialogWidget::new(asset, &context);
-
 
         Self {
             rect                    : (0, 0, width, height),
@@ -249,7 +247,12 @@ impl ScreenWidget for Editor {
             } else
             if self.state == EditorState::BehaviorOverview {
                 if self.context.dialog_entry == DialogEntry::NewName {
-                    println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
+                    //println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
+                    self.context.data.create_behavior(self.context.dialog_new_name.clone(), 0);
+                    let node = NodeWidget::new(vec![self.context.dialog_new_name.clone()],
+                    NodeUserData { position: (100, 50 + 150 * self.node_graph_behavior.nodes.len() as isize) });
+                    self.node_graph_behavior.nodes.push(node);
+                    self.node_graph_behavior.dirty = true;
                 }
             }
             self.context.dialog_entry = DialogEntry::None;
@@ -334,7 +337,7 @@ impl ScreenWidget for Editor {
                 if self.toolbar.widgets[3].right_selected {
                     self.node_graph_behavior.set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::BehaviorDetail;
-                    self.node_graph_behavior.mark_all_dirty();
+                    self.node_graph_behavior_details.set_behavior_id(self.context.data.behaviors_ids[self.context.curr_behavior_index] , &mut self.context);
                 }
 
                 self.toolbar.widgets[1].selected = false;
@@ -479,6 +482,11 @@ impl ScreenWidget for Editor {
                     self.node_graph_areas.changed_selection(self.context.curr_area_index, self.toolbar.widgets[0].curr_index);
                     self.context.curr_area_index = self.toolbar.widgets[0].curr_index;
                     self.area_widget.set_area_id(self.context.data.areas_ids[self.context.curr_area_index]);
+                } else
+                if self.state == EditorState::BehaviorOverview || self.state == EditorState::BehaviorDetail {
+                    self.node_graph_behavior.changed_selection(self.context.curr_behavior_index, self.toolbar.widgets[0].curr_index);
+                    self.context.curr_behavior_index = self.toolbar.widgets[0].curr_index;
+                    self.node_graph_behavior_details.set_behavior_id(self.context.data.behaviors_ids[self.context.curr_behavior_index] , &mut self.context);
                 }
                 self.toolbar.widgets[0].new_selection = None;
             }
@@ -526,7 +534,7 @@ impl ScreenWidget for Editor {
                     self.context.dialog_height = 0;
                     self.context.target_fps = 60;
                     self.context.dialog_entry = DialogEntry::NewName;
-                    self.context.dialog_new_name = "New Behavior Name".to_string();
+                    self.context.dialog_new_name = "Enter Name".to_string();
                     self.context.dialog_new_name_type = format!("NewBehavior_{}", drag_context.text);
                     self.context.dialog_new_node_position = position;
                 }

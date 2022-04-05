@@ -47,8 +47,8 @@ impl GameData {
         let mut areas_names = vec![];
         let mut areas_ids = vec![];
 
-        let tilemaps_path = path::Path::new("game").join("areas");
-        let paths = fs::read_dir(tilemaps_path).unwrap();
+        let area_path = path::Path::new("game").join("areas");
+        let paths = fs::read_dir(area_path).unwrap();
 
         for path in paths {
             let path = &path.unwrap().path();
@@ -175,6 +175,22 @@ impl GameData {
         area.set_value(pos, value);
     }
 
+    /// Create a new behavior
+    pub fn create_behavior(&mut self, name: String, _behavior_type: usize) {
+
+        let path = path::Path::new("game").join("behavior").join(name.clone() + ".json");
+
+        let mut behavior = GameBehavior::new(&path);
+        behavior.data.name = name.clone();
+
+        self.behaviors_names.push(behavior.name.clone());
+        self.behaviors_ids.push(behavior.data.id);
+
+        behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+        behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+        behavior.save_data();
+    }
+
     /// Sets the value for the given behavior id
     pub fn set_behavior_id_value(&mut self, id: (usize, usize, String), value: (f64, f64, f64, f64, String)) {
         if let Some(behavior) = self.behaviors.get_mut(&id.0) {
@@ -235,7 +251,7 @@ impl GameData {
         None
     }
 
-    /// Create save data and return it
+    /// Save data and return it
     pub fn save(&self) -> String {
         let json = serde_json::to_string(&self.instances).unwrap();
         json
@@ -277,7 +293,7 @@ impl GameData {
                 }
             }
 
-            let mut instance = BehaviorInstance {id: 0, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), values, in_progress_id: None, position, tile};
+            let mut instance = BehaviorInstance {id: 0, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), values, position, tile};
 
             // Make sure id is unique
             let mut has_id_already = true;

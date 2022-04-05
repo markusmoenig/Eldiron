@@ -27,11 +27,11 @@ pub enum GraphType {
 
 pub struct NodeGraph {
     pub rect                    : (usize, usize, usize, usize),
-    dirty                       : bool,
+    pub dirty                   : bool,
     buffer                      : Vec<u8>,
     graph_mode                  : GraphMode,
     graph_type                  : GraphType,
-    nodes                       : Vec<NodeWidget>,
+    pub nodes                   : Vec<NodeWidget>,
 
     pub offset                  : (isize, isize),
 
@@ -177,7 +177,7 @@ impl NodeGraph {
                         } else
                         if self.graph_type == GraphType::Behavior {
                             // Draw the main behavior tile
-                            if let Some(tile_id) = context.data.get_behavior_default_tile(context.curr_behavior_node_id) {
+                            if let Some(tile_id) = context.data.get_behavior_default_tile(context.data.behaviors_ids[index]) {
                                 if let Some(map)= asset.tileset.maps.get_mut(&tile_id.0) {
                                     context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.1, tile_id.2), 0, 100);
                                 }
@@ -968,11 +968,13 @@ impl NodeGraph {
     }
 
     /// Set the behavior id, this will take the bevhavior node data and create node widgets
-    pub fn set_behavior_id(&mut self, _id: usize, context: &ScreenContext) {
+    pub fn set_behavior_id(&mut self, id: usize, context: &ScreenContext) {
+
         self.nodes = vec![];
         self.behavior_tree_indices = vec![];
         self.curr_behavior_tree_index = None;
-        if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
+
+        if let Some(behavior) = context.data.behaviors.get(&id) {
             let sorted_keys = behavior.data.nodes.keys().sorted();
             for i in sorted_keys {
                 let mut node_widget = NodeWidget::new_from_behavior_data(&behavior.data,  &behavior.data.nodes[i]);
@@ -980,6 +982,7 @@ impl NodeGraph {
                 self.nodes.push(node_widget);
             }
         }
+        self.dirty = true;
         self.check_node_visibility(context);
     }
 

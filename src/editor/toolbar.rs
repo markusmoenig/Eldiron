@@ -17,10 +17,10 @@ impl Widget for ToolBar {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
-        let mut item_slider_button = AtomWidget::new(asset.tileset.maps_names.clone(), AtomWidgetType::ToolBarMenuButton,
+        let mut item_button = AtomWidget::new(asset.tileset.maps_names.clone(), AtomWidgetType::ToolBarMenuButton,
         AtomData::new_as_int("Game".to_string(), 0));
-        item_slider_button.set_rect((rect.0 + 10, rect.1, 200, rect.3), asset, context);
-        widgets.push(item_slider_button);
+        item_button.set_rect((rect.0 + 10, rect.1, 200, rect.3), asset, context);
+        widgets.push(item_button);
 
         let mut tiles_button = AtomWidget::new(vec!["Tiles".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new_as_int("Tiles".to_string(), 0));
