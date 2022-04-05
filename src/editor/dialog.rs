@@ -22,6 +22,7 @@ pub enum DialogEntry {
     NodeText,
     NodeName,
     NodeTile,
+    NewName,
 }
 
 #[derive(PartialEq, Debug)]
@@ -103,6 +104,9 @@ impl DialogWidget {
                     self.text = "".to_string();
                     self.tile_selector_widget.grid_size = 24;
                     self.tile_selector_widget.selected = Some((context.dialog_node_behavior_value.0 as usize, context.dialog_node_behavior_value.1 as usize, context.dialog_node_behavior_value.2 as usize, TileUsage::Character));
+                } else
+                if context.dialog_entry == DialogEntry::NewName {
+                    self.text = context.dialog_new_name.clone();
                 } else {
                 }
             }
@@ -199,6 +203,9 @@ impl DialogWidget {
                 } else
                 if context.dialog_entry == DialogEntry::NodeText {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Text".to_string(), &context.color_white, &context.color_black);
+                } else
+                if context.dialog_entry == DialogEntry::NewName {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Name".to_string(), &context.color_white, &context.color_black);
                 } else
                 if context.dialog_entry == DialogEntry::NodeName {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Node Name".to_string(), &context.color_white, &context.color_black);
@@ -303,6 +310,10 @@ impl DialogWidget {
         if context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeName {
             context.dialog_node_behavior_value.4 = self.text.clone();
             context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());
+            return true;
+        } else
+        if context.dialog_entry == DialogEntry::NewName {
+            context.dialog_new_name = self.text.clone();
             return true;
         } else
         if context.dialog_entry == DialogEntry::NodeTile {

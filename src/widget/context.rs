@@ -80,6 +80,9 @@ pub struct ScreenContext {
     pub dialog_entry                    : DialogEntry,
     pub dialog_node_behavior_id         : (usize, usize, String),
     pub dialog_node_behavior_value      : (f64, f64, f64, f64, String),
+    pub dialog_new_name_type            : String,
+    pub dialog_new_name                 : String,
+    pub dialog_new_node_position        : (isize, isize),
 
     pub active_position_id              : Option<(usize, usize, String)>,
 
@@ -197,6 +200,9 @@ impl ScreenContext {
             dialog_entry                : DialogEntry::None,
             dialog_node_behavior_id     : (0, 0, "".to_string()),
             dialog_node_behavior_value  : (0.0, 0.0, 0.0, 0.0, "".to_string()),
+            dialog_new_name_type        : "".to_string(),
+            dialog_new_name             : "".to_string(),
+            dialog_new_node_position    : (0,0),
 
             active_position_id          : None,
             jump_to_position            : None,
