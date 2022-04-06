@@ -7,7 +7,7 @@ use zeno::{Mask, Stroke};
 
 use server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode, BehaviorNodeConnector};
 
-use server::{asset::Asset };
+use server::asset::Asset;
 use crate::editor::ScreenContext;
 
 use itertools::Itertools;
@@ -162,7 +162,7 @@ impl NodeGraph {
                         let mut preview_buffer = vec![0; 100 * 100 * 4];
                         if self.graph_type == GraphType::Tiles {
                             // For tile maps draw the default_tile
-                            if let Some(map)= asset.tileset.maps.get_mut(&index) {
+                            if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[index]) {
                                 if let Some(default_tile) = map.settings.default_tile {
                                     context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &default_tile, 0, 100);
                                 }
@@ -170,7 +170,7 @@ impl NodeGraph {
                         } else
                         if self.graph_type == GraphType::Areas {
                             // For Areas draw the center of the map
-                            if let Some(area)= context.data.areas.get_mut(&index) {
+                            if let Some(area)= context.data.areas.get_mut(&context.data.areas_ids[index]) {
                                 let offset = area.get_center_offset_for_visible_size((10, 10));
                                 context.draw2d.draw_area(&mut preview_buffer[..], area, &(0, 0, 100, 100), &offset, 100, 10, anim_counter, asset);
                             }
@@ -272,7 +272,7 @@ impl NodeGraph {
                 let mut orange_path : String = "".to_string();
 
                 // Draw connections
-                if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
+                if let Some(behavior) = context.data.behaviors.get(&context.data.behaviors_ids[context.curr_behavior_index]) {
 
                     for (source_node_id , source_connector, dest_node_id, dest_connector) in &behavior.data.connections {
 
@@ -718,7 +718,7 @@ impl NodeGraph {
 
             // Save the new node position
             if self.graph_type == GraphType::Behavior && self.graph_mode == GraphMode::Detail {
-                if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
+                if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[context.curr_behavior_index]) {
 
                     for node_widget in &self.nodes {
                         if node_widget.id == context.curr_behavior_node_id {
@@ -738,7 +738,7 @@ impl NodeGraph {
         if let Some(source_conn) = &self.source_conn {
             if let Some(dest_conn) = &self.dest_conn {
 
-                if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
+                if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[context.curr_behavior_index]) {
 
                     // Add the connection in the order of source connector -> dest connector
                     if self.connector_is_source(dest_conn.0) {
@@ -797,7 +797,7 @@ impl NodeGraph {
 
             if self.nodes[index].mouse_up(local, asset, context) {
                 self.dirty = true;
-                if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
+                if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[context.curr_behavior_index]) {
                     behavior.save_data();
                 }
                 return true;
@@ -976,6 +976,7 @@ impl NodeGraph {
 
         if let Some(behavior) = context.data.behaviors.get(&id) {
             let sorted_keys = behavior.data.nodes.keys().sorted();
+
             for i in sorted_keys {
                 let mut node_widget = NodeWidget::new_from_behavior_data(&behavior.data,  &behavior.data.nodes[i]);
                 self.init_node_widget(&behavior.data, &behavior.data.nodes[i], &mut node_widget, context);
@@ -993,7 +994,7 @@ impl NodeGraph {
         let mut id : usize = 0;
 
         // Create the node
-        if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
+        if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[context.curr_behavior_index]) {
 
             let node_type = match name.as_str() {
                 "Expression" => BehaviorNodeType::Expression,
@@ -1018,7 +1019,7 @@ impl NodeGraph {
 
         // Add the atom widgets
         if let Some(mut node) = node_widget {
-            let behavior = context.data.behaviors.get(&context.curr_behavior_index).unwrap();
+            let behavior = context.data.behaviors.get(&context.data.behaviors_ids[context.curr_behavior_index]).unwrap();
             self.init_node_widget(&behavior.data, &behavior.data.nodes.get(&id).unwrap(), &mut node, context);
             self.nodes.push(node);
         }
@@ -1225,7 +1226,7 @@ impl NodeGraph {
     /// Disconnect the node from all connections
     fn disconnect_node(&mut self, id: usize, context: &mut ScreenContext) {
 
-        if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
+        if let Some(behavior) = context.data.behaviors.get_mut(&context.data.areas_ids[context.curr_behavior_index]) {
             let mut nothing_to_remove = false;
             while nothing_to_remove == false {
                 nothing_to_remove = true;
@@ -1257,7 +1258,7 @@ impl NodeGraph {
         }
 
         // Remove node data
-        if let Some(behavior) = context.data.behaviors.get_mut(&context.curr_behavior_index) {
+        if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[context.curr_behavior_index]) {
             behavior.data.nodes.remove(&id);
             behavior.save_data();
         }
@@ -1288,7 +1289,7 @@ impl NodeGraph {
 
         self.visible_node_ids = vec![];
 
-        if let Some(tree_index) =  self.curr_behavior_tree_index {
+        if let Some(tree_index) = self.curr_behavior_tree_index {
 
             let tree_id = self.widget_index_to_node_id(tree_index);
             self.visible_node_ids.push(tree_id);
@@ -1298,7 +1299,7 @@ impl NodeGraph {
             for index in 0..self.nodes.len() {
 
                 let mut connected = false;
-                if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
+                if let Some(behavior) = context.data.behaviors.get(&context.data.behaviors_ids[context.curr_behavior_index]) {
 
                     // Skip behavior tree nodes
                     if let Some(node_data) = behavior.data.nodes.get(&self.widget_index_to_node_id(index)) {
@@ -1325,7 +1326,7 @@ impl NodeGraph {
 
     /// Marks all connected nodes as visible
     pub fn mark_connections_visible(&mut self, id: usize, context: &ScreenContext) {
-        if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
+        if let Some(behavior) = context.data.behaviors.get(&context.data.behaviors_ids[context.curr_behavior_index]) {
             for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
                 if *source_node_id == id {
                     self.visible_node_ids.push(*dest_node_id);

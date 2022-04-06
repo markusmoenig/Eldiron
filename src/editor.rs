@@ -253,6 +253,8 @@ impl ScreenWidget for Editor {
                     NodeUserData { position: (100, 50 + 150 * self.node_graph_behavior.nodes.len() as isize) });
                     self.node_graph_behavior.nodes.push(node);
                     self.node_graph_behavior.dirty = true;
+                    self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
+                    self.toolbar.widgets[0].dirty = true;
                 }
             }
             self.context.dialog_entry = DialogEntry::None;
@@ -534,7 +536,7 @@ impl ScreenWidget for Editor {
                     self.context.dialog_height = 0;
                     self.context.target_fps = 60;
                     self.context.dialog_entry = DialogEntry::NewName;
-                    self.context.dialog_new_name = "Enter Name".to_string();
+                    self.context.dialog_new_name = "New Behavior".to_string();
                     self.context.dialog_new_name_type = format!("NewBehavior_{}", drag_context.text);
                     self.context.dialog_new_node_position = position;
                 }

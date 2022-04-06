@@ -189,6 +189,8 @@ impl GameData {
         behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
         behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
         behavior.save_data();
+
+        self.behaviors.insert(behavior.data.id, behavior);
     }
 
     /// Sets the value for the given behavior id
@@ -260,6 +262,7 @@ impl GameData {
     /// Create a new behavior instance for the given id and return it's id
     pub fn create_behavior_instance(&mut self, id: usize) -> usize {
 
+        print!("id {}", id);
         let mut to_execute : Vec<usize> = vec![];
 
         let mut position : Option<(usize, isize, isize)> = None;
