@@ -253,8 +253,13 @@ impl ScreenWidget for Editor {
                 if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
                     //println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
                     self.context.data.create_behavior(self.context.dialog_new_name.clone(), 0);
-                    let node = NodeWidget::new(vec![self.context.dialog_new_name.clone()],
+
+                    let mut node = NodeWidget::new(vec![self.context.dialog_new_name.clone()],
                     NodeUserData { position: (100, 50 + 150 * self.node_graph_behavior.nodes.len() as isize) });
+
+                    let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
+                    node.menu = Some(node_menu_atom);
+
                     self.node_graph_behavior.nodes.push(node);
                     self.node_graph_behavior.dirty = true;
                     self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
@@ -262,7 +267,9 @@ impl ScreenWidget for Editor {
                 } else {
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {
-
+                            if let Some(behavior) = self.context.data.behaviors.get_mut(&self.context.data.behaviors_ids[self.context.curr_behavior_index]) {
+                                behavior.rename(self.context.dialog_node_behavior_value.4.clone());
+                            }
                         }
                     }
                     self.node_graph_behavior.update_from_dialog(&mut self.context);
@@ -525,6 +532,14 @@ impl ScreenWidget for Editor {
             }
             if self.node_graph_behavior.mouse_up(pos, asset, &mut self.context) {
                 consumed = true;
+
+                // In case a behavior was deleted
+                if self.toolbar.widgets[0].text.len() != self.context.data.behaviors_names.len() {
+                    self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
+                    self.context.curr_behavior_index = 0;
+                    self.toolbar.widgets[0].dirty = true;
+                    self.toolbar.widgets[0].curr_index = 0;
+                }
             }
         } else
         if self.state == EditorState::BehaviorDetail {

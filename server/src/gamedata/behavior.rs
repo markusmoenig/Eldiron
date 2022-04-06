@@ -133,4 +133,10 @@ impl GameBehavior {
         self.data.nodes.insert(node.id, node);
         id
     }
+
+    /// Rename the behavior
+    pub fn rename(&mut self, name: String) {
+        self.name = name.clone();
+        let _ = std::fs::rename(self.path.clone(), path::Path::new("game").join("behavior").join(name + ".json"));
+    }
 }

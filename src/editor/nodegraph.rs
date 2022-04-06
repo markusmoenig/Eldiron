@@ -806,8 +806,11 @@ impl NodeGraph {
                         context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].text[0].clone());
                     } else
                     if "Delete".to_string() == menu_activated {
-                        // Delete node
-                        //self.delete_node(self.nodes[index].id, context);
+                        if self.nodes.len() > 1 {
+                            self.nodes.remove(context.curr_behavior_index);
+                            context.data.delete_behavior(&context.curr_behavior_index);
+                            self.nodes[0].dirty = true;
+                        }
                     }
                 }
 

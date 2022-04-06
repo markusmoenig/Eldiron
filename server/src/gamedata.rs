@@ -354,6 +354,19 @@ impl GameData {
         self.changed_variables = vec![];
     }
 
+    /// Delete the behavior of the given id
+    pub fn delete_behavior(&mut self, index: &usize) {
+        let id = self.behaviors_ids[*index].clone();
+
+        if let Some(behavior) = self.behaviors.get(&id) {
+            let _ = std::fs::remove_file(behavior.path.clone());
+        }
+
+        self.behaviors_names.remove(*index);
+        self.behaviors_ids.remove(*index);
+        self.behaviors.remove(&id);
+    }
+
     /// Executes the given node and follows the connection chain
     fn execute_node(&mut self, instance_index: usize, node_id: usize) {
 
