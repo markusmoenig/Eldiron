@@ -267,7 +267,7 @@ impl NodeWidget {
     }
 
     /// Draw an overview node
-    pub fn draw_overview(&mut self, _frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool, preview_buffer: &[u8]) {
+    pub fn draw_overview(&mut self, _frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool, preview_buffer: &[u8]) {
 
         if self.buffer.is_empty() {
             self.buffer = vec![0;self.size.0 * self.size.1 * 4];
@@ -287,6 +287,13 @@ impl NodeWidget {
 
             if selected {
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &[0,0,0,0], &(20.0, 20.0, 20.0, 20.0), &context.color_light_white, 1.5);
+            }
+
+            // Draw menu
+
+            if let Some(menu) = &mut self.menu {
+                menu.set_rect((self.size.0 - 37, 12, 20, 20), asset, context);
+                menu.draw(buffer_frame, rect.2, anim_counter, asset, context);
             }
 
             context.draw2d.blend_slice(buffer_frame, preview_buffer, &(10, 10, 100, 100), rect.2);

@@ -122,8 +122,12 @@ impl ScreenWidget for Editor {
 
         let mut behavior_nodes = vec![];
         for (index, behavior_name) in context.data.behaviors_names.iter().enumerate() {
-            let node = NodeWidget::new(vec![behavior_name.to_string()],
+            let mut node = NodeWidget::new(vec![behavior_name.to_string()],
              NodeUserData { position: (100, 50 + 150 * index as isize) });
+
+            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
+            node.menu = Some(node_menu_atom);
+
             behavior_nodes.push(node);
         }
         let node_graph_behavior = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, GraphType::Behavior, behavior_nodes);
@@ -246,7 +250,7 @@ impl ScreenWidget for Editor {
                 }
             } else
             if self.state == EditorState::BehaviorOverview {
-                if self.context.dialog_entry == DialogEntry::NewName {
+                if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
                     //println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
                     self.context.data.create_behavior(self.context.dialog_new_name.clone(), 0);
                     let node = NodeWidget::new(vec![self.context.dialog_new_name.clone()],
@@ -255,6 +259,13 @@ impl ScreenWidget for Editor {
                     self.node_graph_behavior.dirty = true;
                     self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
                     self.toolbar.widgets[0].dirty = true;
+                } else {
+                    if self.context.dialog_entry == DialogEntry::NodeName {
+                        if self.context.dialog_accepted == true {
+
+                        }
+                    }
+                    self.node_graph_behavior.update_from_dialog(&mut self.context);
                 }
             }
             self.context.dialog_entry = DialogEntry::None;
@@ -510,6 +521,9 @@ impl ScreenWidget for Editor {
         } else
         if self.state == EditorState::BehaviorOverview {
             if self.behavior_overview_options.mouse_up(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if self.node_graph_behavior.mouse_up(pos, asset, &mut self.context) {
                 consumed = true;
             }
         } else

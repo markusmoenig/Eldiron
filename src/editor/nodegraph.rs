@@ -188,6 +188,8 @@ impl NodeGraph {
                     }
 
                     let rect= self.get_node_rect(index, true);
+                    self.nodes[index].graph_offset = (rect.0, rect.1);
+                    self.nodes[index].graph_offset = (rect.0, rect.1);
                     context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, safe_rect.2, &safe_rect);
                 }
             } else {
@@ -583,7 +585,23 @@ impl NodeGraph {
                         }
                     }
 
-                    return true;
+                    rc = true;
+                }
+            }
+
+            // Check the nodes
+            for index in 0..self.nodes.len() {
+
+                let rect= self.get_node_rect(index, false);
+                if context.contains_pos_for_isize(pos, rect) {
+
+                    let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
+
+                    if self.nodes[index].mouse_down(local, asset, context) {
+                        self.dirty = true;
+                        return true;
+                    }
+                    break;
                 }
             }
         } else
@@ -686,24 +704,24 @@ impl NodeGraph {
                     context.active_position_id = None;
                 }
             }
-        }
 
-        // Check the atom widgets
-        for index in 0..self.nodes.len() {
+            // Check the nodes
+            for index in 0..self.nodes.len() {
 
-            // Only if the node is visible
-            if self.visible_node_ids.contains(&self.widget_index_to_node_id(index)) {
+                // Only if the node is visible
+                if self.visible_node_ids.contains(&self.widget_index_to_node_id(index)) {
 
-                let rect= self.get_node_rect(index, false);
-                if context.contains_pos_for_isize(pos, rect) {
+                    let rect= self.get_node_rect(index, false);
+                    if context.contains_pos_for_isize(pos, rect) {
 
-                    let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
+                        let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
 
-                    if self.nodes[index].mouse_down(local, asset, context) {
-                        self.dirty = true;
-                        return true;
+                        if self.nodes[index].mouse_down(local, asset, context) {
+                            self.dirty = true;
+                            return true;
+                        }
+                        break;
                     }
-                    break;
                 }
             }
         }
@@ -712,6 +730,7 @@ impl NodeGraph {
     }
 
     pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+
         if self.drag_index != None {
             self.drag_index = None;
             context.target_fps = context.default_fps;
@@ -775,23 +794,43 @@ impl NodeGraph {
             // If a menu was activated, mark the node as dirty
             if let Some(menu_activated) = menu_activated {
                 self.nodes[index].dirty = true;
-                if  "Rename".to_string() == menu_activated {
-                    // Rename node
-                    context.dialog_state = DialogState::Opening;
-                    context.dialog_height = 0;
-                    context.target_fps = 60;
-                    context.dialog_entry = DialogEntry::NodeName;
-                    context.dialog_node_behavior_id = (self.nodes[index].id, 0, "".to_string());
-                    context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].text[0].clone());
-                } else
-                if "Disconnect".to_string() == menu_activated {
-                    // Disconnect node
-                    self.disconnect_node(self.nodes[index].id, context);
-                } else
-                if "Delete".to_string() == menu_activated {
-                    // Delete node
-                    self.delete_node(self.nodes[index].id, context);
+
+                if self.graph_type == GraphType::Behavior && self.graph_mode == GraphMode::Overview {
+                    if  "Rename".to_string() == menu_activated {
+                        // Rename node
+                        context.dialog_state = DialogState::Opening;
+                        context.dialog_height = 0;
+                        context.target_fps = 60;
+                        context.dialog_entry = DialogEntry::NodeName;
+                        context.dialog_node_behavior_id = (self.nodes[index].id, 0, "".to_string());
+                        context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].text[0].clone());
+                    } else
+                    if "Delete".to_string() == menu_activated {
+                        // Delete node
+                        //self.delete_node(self.nodes[index].id, context);
+                    }
                 }
+
+                if self.graph_type == GraphType::Behavior && self.graph_mode == GraphMode::Detail {
+                    if  "Rename".to_string() == menu_activated {
+                        // Rename node
+                        context.dialog_state = DialogState::Opening;
+                        context.dialog_height = 0;
+                        context.target_fps = 60;
+                        context.dialog_entry = DialogEntry::NodeName;
+                        context.dialog_node_behavior_id = (self.nodes[index].id, 0, "".to_string());
+                        context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].text[0].clone());
+                    } else
+                    if "Disconnect".to_string() == menu_activated {
+                        // Disconnect node
+                        self.disconnect_node(self.nodes[index].id, context);
+                    } else
+                    if "Delete".to_string() == menu_activated {
+                        // Delete node
+                        self.delete_node(self.nodes[index].id, context);
+                    }
+                }
+
                 return true;
             }
 

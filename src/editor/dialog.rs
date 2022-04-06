@@ -340,12 +340,14 @@ impl DialogWidget {
                 WidgetKey::Escape => {
                     context.dialog_state = DialogState::Closing;
                     context.target_fps = 60;
+                    context.dialog_accepted = false;
                     return  true;
                 },
                 WidgetKey::Return => {
                     if self.accept_value(context) {
                         context.dialog_state = DialogState::Closing;
                         context.target_fps = 60;
+                        context.dialog_accepted = true;
                         return  true;
                     }
                 },
@@ -396,11 +398,13 @@ impl DialogWidget {
                 if self.clicked_id == "Cancel" {
                     context.dialog_state = DialogState::Closing;
                     context.target_fps = 60;
+                    context.dialog_accepted = false;
                 } else
                 if self.clicked_id == "Accept" {
                     if self.accept_value(context) {
                         context.dialog_state = DialogState::Closing;
                         context.target_fps = 60;
+                        context.dialog_accepted = true;
                     }
                 }
 

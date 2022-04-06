@@ -83,6 +83,7 @@ pub struct ScreenContext {
     pub dialog_new_name_type            : String,
     pub dialog_new_name                 : String,
     pub dialog_new_node_position        : (isize, isize),
+    pub dialog_accepted                 : bool,
 
     pub active_position_id              : Option<(usize, usize, String)>,
 
@@ -203,6 +204,7 @@ impl ScreenContext {
             dialog_new_name_type        : "".to_string(),
             dialog_new_name             : "".to_string(),
             dialog_new_node_position    : (0,0),
+            dialog_accepted             : false,
 
             active_position_id          : None,
             jump_to_position            : None,
