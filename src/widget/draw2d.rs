@@ -203,26 +203,61 @@ impl Draw2D {
 
     /// Draws a text aligned inside a rect
     pub fn draw_text_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4], background: &[u8;4], align: TextAlignment) {
-        if text.trim_end().is_empty() { return; }
+
+        let mut text_to_use = text.trim_end().to_string().clone();
+        if text_to_use.trim_end().is_empty() { return; }
+
+        let mut text_size = self.get_text_size(font, size, text_to_use.as_str());
+
+        let mut add_trail = false;
+        // Text is too long ??
+        while text_size.0 > rect.2 {
+            text_to_use.pop();
+            text_size = self.get_text_size(font, size, (text_to_use.clone() + "...").as_str());
+            add_trail = true;
+        }
+
+        if add_trail {
+            text_to_use = text_to_use + "...";
+        }
+
         if align == TextAlignment::Left {
-            self.draw_text(frame, &(rect.0, rect.1), stride, font, size, text, color, background);
+            let y =  rect.1 + (rect.3 - text_size.1) / 2;
+            self.draw_text(frame, &(rect.0, y), stride, font, size, text_to_use.as_str(), color, background);
         } else
         if align == TextAlignment::Center {
-            let text_size = self.get_text_size(font, size, text.trim_end());
             let x =  rect.0 + (rect.2 - text_size.0) / 2;
             let y =  rect.1 + (rect.3 - text_size.1) / 2;
-            self.draw_text(frame, &(x, y), stride, font, size, text, color, background);
+            self.draw_text(frame, &(x, y), stride, font, size, text_to_use.as_str(), color, background);
         }
     }
 
     /// Blends a text aligned inside a rect and blends it with the existing background
     pub fn blend_text_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4], align: TextAlignment) {
-        if text.trim_end().is_empty() { return; }
+
+        let mut text_to_use = text.trim_end().to_string().clone();
+        if text_to_use.trim_end().is_empty() { return; }
+
+        let mut text_size = self.get_text_size(font, size, text_to_use.as_str());
+
+        let mut add_trail = false;
+        // Text is too long ??
+        while text_size.0 > rect.2 {
+            text_to_use.pop();
+            text_size = self.get_text_size(font, size, (text_to_use.clone() + "...").as_str());
+            add_trail = true;
+        }
+
+        if add_trail {
+            text_to_use = text_to_use + "...";
+        }
+
         if align == TextAlignment::Left {
-            self.blend_text(frame, &(rect.0, rect.1), stride, font, size, text, color);
+            let y =  rect.1 + (rect.3 - text_size.1) / 2;
+            self.blend_text(frame, &(rect.0, y), stride, font, size, text_to_use.as_str(), color);
         } else
         if align == TextAlignment::Center {
-            let text_size = self.get_text_size(font, size, text.trim_end());
+            let text_size = self.get_text_size(font, size, text_to_use.as_str());
             let x =  rect.0 + (rect.2 - text_size.0) / 2;
             let y =  rect.1 + (rect.3 - text_size.1) / 2;
             self.blend_text(frame, &(x, y), stride, font, size, text, color);
