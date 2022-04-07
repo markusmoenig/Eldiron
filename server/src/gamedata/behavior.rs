@@ -46,9 +46,6 @@ pub struct BehaviorInstance {
     pub behavior_id             : usize,
     pub tree_ids                : Vec<usize>,
 
-    // Number variables
-    pub values                  : HashMap<String, f64>,
-
     pub name                    : String,
 
     // For character

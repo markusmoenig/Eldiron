@@ -14,7 +14,7 @@ pub struct ScreenDragContext {
     pub buffer                          : Option<[u8; 180 * 32 * 4]>
 }
 
-pub struct ScreenContext {
+pub struct ScreenContext<'a> {
     pub draw2d                          : Draw2D,
 
     pub target_fps                      : usize,
@@ -23,7 +23,7 @@ pub struct ScreenContext {
     pub width                           : usize,
     pub height                          : usize,
 
-    pub data                            : GameData,
+    pub data                            : GameData<'a>,
 
     pub toolbar_height                  : usize,
     pub toolbar_button_height           : usize,
@@ -98,7 +98,7 @@ pub struct ScreenContext {
     pub menu_mask                       : [u8;20*20],
 }
 
-impl ScreenContext {
+impl ScreenContext<'_> {
 
     pub fn new(width: usize, height: usize) -> Self {
 

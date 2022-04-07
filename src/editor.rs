@@ -47,10 +47,10 @@ enum EditorState {
 }
 
 /// The Editor struct
-pub struct Editor {
+pub struct Editor<'a> {
     rect                            : (usize, usize, usize, usize),
     state                           : EditorState,
-    context                         : ScreenContext,
+    context                         : ScreenContext<'a>,
     toolbar                         : ToolBar,
 
     tilemap_options                 : TileMapOptions,
@@ -77,7 +77,7 @@ pub struct Editor {
     status_bar                      : StatusBar,
 }
 
-impl ScreenWidget for Editor {
+impl ScreenWidget for Editor<'_> {
 
     fn new(asset: &Asset, width: usize, height: usize) -> Self where Self: Sized {
 

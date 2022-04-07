@@ -2,7 +2,7 @@ use crate::gamedata::GameData;
 
 /// Retrieves a number instance value
 pub fn get_number_variable(instance_index: usize, variable: String, data: &mut GameData) -> Option<f64> {
-    if let Some(value) = data.instances[instance_index].values.get(&variable) {
+    if let Some(value) = data.scopes[instance_index].get_value::<f64>(&variable) {
         return Some(value.clone());
     }
     None
@@ -10,9 +10,7 @@ pub fn get_number_variable(instance_index: usize, variable: String, data: &mut G
 
 /// Sets a number instance value
 pub fn set_number_variable(instance_index: usize, variable: String, value: f64, data: &mut GameData) {
-    if let Some(v) = data.instances[instance_index].values.get_mut(&variable) {
-        *v = value;
-    }
+    data.scopes[instance_index].set_value(&variable, value);
 }
 
 /// Retrieves a node value

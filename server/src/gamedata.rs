@@ -4,6 +4,8 @@ pub mod nodes;
 pub mod nodes_utility;
 pub mod script;
 
+use rhai::{ Engine, Scope };
+
 use std::collections::HashMap;
 use std::fs::metadata;
 
@@ -20,7 +22,7 @@ use self::behavior::{BehaviorNodeType};
 
 type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData) -> behavior::BehaviorNodeConnector;
 
-pub struct GameData {
+pub struct GameData<'a> {
     pub areas                   : HashMap<usize, GameArea>,
     pub areas_names             : Vec<String>,
     pub areas_ids               : Vec<usize>,
@@ -33,13 +35,18 @@ pub struct GameData {
 
     pub instances               : Vec<BehaviorInstance>,
 
+    pub engine                  : Engine,
+    pub scopes                  : Vec<Scope<'a>>,
+
+    pub runs_in_editor          : bool,
+
     // These are fields which provide feedback to the editor / game while running
     pub say                     : Vec<String>,
     pub executed_connections    : Vec<(usize, BehaviorNodeConnector)>,
     pub changed_variables       : Vec<(usize, usize, usize, f64)>, // A variable has been changed: instance index, behavior id, node id, new value
 }
 
-impl GameData {
+impl GameData<'_> {
 
     pub fn new() -> Self {
 
@@ -158,6 +165,11 @@ impl GameData {
 
             instances               : vec![],
 
+            engine                  : Engine::new(),
+            scopes                  : vec![],
+
+            runs_in_editor          : true,
+
             say                     : vec![],
             executed_connections    : vec![],
             changed_variables       : vec![],
@@ -268,7 +280,14 @@ impl GameData {
 
         let mut position : Option<(usize, isize, isize)> = None;
         let mut tile     : Option<(usize, usize, usize)> = None;
-        let mut values   : HashMap<String, f64> = HashMap::new();
+
+        let mut scope = Scope::new();
+
+        // Insert Dices
+        for d in (2..=20).step_by(2) {
+            scope.push( format!("d{}", d), 0.0 as f64);
+        }
+        scope.push( "d100", 0.0 as f64);
 
         if let Some(behavior) = self.behaviors.get_mut(&id) {
             for (id, node) in &behavior.data.nodes {
@@ -290,35 +309,21 @@ impl GameData {
                 } else
                 if node.behavior_type == BehaviorNodeType::VariableNumber {
                     if let Some(value )= node.values.get(&"value".to_string()) {
-                        values.insert(node.name.clone(), value.0.clone());
+                        scope.push(node.name.clone(), value.0.clone());
                     } else {
-                        values.insert(node.name.clone(), 0.0);
+                        scope.push(node.name.clone(), 0.0_f64);
                     }
                 }
             }
 
-            let mut instance = BehaviorInstance {id: 0, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), values, position, tile};
+            let index = self.instances.len();
 
-            // Make sure id is unique
-            let mut has_id_already = true;
-            while has_id_already {
+            let instance = BehaviorInstance {id: index.clone(), name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile};
 
-                has_id_already = false;
-                for index in 0..self.instances.len() {
-                    if self.instances[index].id == instance.id {
-                        has_id_already = true;
-                    }
-                }
+            self.instances.push(instance);
+            self.scopes.push(scope);
 
-                if has_id_already {
-                    instance.id += 1;
-                }
-            }
-
-            let instance_id = instance.id.clone();
-            self.instances.insert(instance_id, instance);
-
-            return id;
+            return index;
         }
 
         0
@@ -350,6 +355,7 @@ impl GameData {
     /// Clear the game instances
     pub fn clear_instances(&mut self) {
         self.instances = vec![];
+        self.scopes = vec![];
         self.say = vec![];
         self.executed_connections = vec![];
         self.changed_variables = vec![];
