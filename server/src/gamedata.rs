@@ -2,6 +2,7 @@ pub mod area;
 pub mod behavior;
 pub mod nodes;
 pub mod nodes_utility;
+pub mod script;
 
 use std::collections::HashMap;
 use std::fs::metadata;

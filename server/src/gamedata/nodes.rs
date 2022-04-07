@@ -4,62 +4,36 @@ use crate::gamedata::GameData;
 use crate::asset::TileUsage;
 
 use crate::gamedata::nodes_utility::*;
+use crate::gamedata::script::*;
 
 use pathfinding::prelude::bfs;
 
-use evalexpr::*;
-use rand::prelude::*;
-
 /// expression
 pub fn expression(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
-    if let Some(behavior) = data.behaviors.get_mut(&id.0) {
-
-        // Insert the variables
-        let mut cont = HashMapContext::new();
-        for (key, value) in &data.instances[instance_index].values {
-            let t = format!("{} = {}", key, value);
-            let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
-        }
-
-        // d2 - d20
-        let mut rng = thread_rng();
-        for d in (2..=20).step_by(2) {
-            let random = rng.gen_range(1..=d);
-            let t = format!("{} = {}", format!("d{}", d), random);
-            let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
-        }
-
-        // Evaluate the expression
-        if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
-            if let Some(value) = node.values.get("expression") {
-                let exp = eval_boolean_with_context(&value.4, &cont);
-                if exp.is_ok() {
-                    if exp == Ok(true) {
-                        return BehaviorNodeConnector::Success;
-                    }
-                }
+    if let Some(value) = get_node_value((id.0, id.1, "expression"), data) {
+        let rc = eval_bool_expression_instance(instance_index, value.4.as_str(), data);
+        if let Some(rc) = rc {
+            if rc == true {
+                return BehaviorNodeConnector::Success;
             }
         }
     }
-
     BehaviorNodeConnector::Fail
 }
 
 /// Sets a variable to an expression value
 pub fn set_variable(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
-    eval_expression_as_variable(instance_index, id, data, "value");
+    if let Some(value) = get_node_value((id.0, id.1, "value"), data) {
+        eval_dynamic_expression_instance(instance_index, id, value.4.as_str(), data);
+    }
     BehaviorNodeConnector::Bottom
 }
 
 /// say
 pub fn say(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
-    if let Some(behavior) = data.behaviors.get_mut(&id.0) {
-        if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
-            if let Some(value) = node.values.get("text") {
-                //println!("{}", value.4);
-                data.say.push(format!("{} says \"{}\".", data.instances[instance_index].name, value.4));
-            }
-        }
+    if let Some(value) = get_node_value((id.0, id.1, "text"), data) {
+        //println!("{}", value.4);
+        data.say.push(format!("{} says \"{}\".", data.instances[instance_index].name, value.4));
     }
     BehaviorNodeConnector::Bottom
 }
@@ -70,7 +44,14 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData
     let mut p : Option<(usize, isize, isize)> = None;
     let mut dp : Option<(usize, isize, isize)> = None;
 
-    let delay= eval_expression_as_number(instance_index, id, data, "delay", 1.0);
+    let mut delay : f64 = 1.0;
+    if let Some(value) = get_node_value((id.0, id.1, "delay"), data) {
+        let rc = eval_number_expression_instance(instance_index, value.4.as_str(), data);
+        if let Some(rc) = rc {
+            delay = rc;
+        }
+    }
+
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
         if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
             if let Some(value) = node.values.get_mut("delay") {

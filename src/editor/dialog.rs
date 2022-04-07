@@ -1,5 +1,4 @@
 use server::asset::Asset;
-use server::gamedata::behavior::BehaviorNodeType;
 
 use crate::atom::{ AtomWidget, AtomWidgetType, AtomData };
 use crate::widget::{ WidgetKey, WidgetState };
@@ -8,9 +7,6 @@ use crate::tileselector::TileSelectorWidget;
 use crate::tileset::TileUsage;
 
 use crate::context::ScreenContext;
-
-use evalexpr::*;
-use rand::prelude::*;
 
 #[derive(PartialEq, Debug)]
 pub enum DialogEntry {
@@ -153,43 +149,21 @@ impl DialogWidget {
                 if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeExpressionVariable {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Expression".to_string(), &context.color_white, &context.color_black);
 
-                    let mut cont = HashMapContext::new();
                     let behavior_id = context.dialog_node_behavior_id.0.clone();
-                    if let Some(behavior) = context.data.behaviors.get_mut(&behavior_id) {
-                        for n in &behavior.data.nodes {
-                            if n.1.behavior_type == BehaviorNodeType::VariableNumber {
-                                let mut value : f64 = 0.0;
-                                if let Some(v) = n.1.values.get("value") {
-                                    value = v.0;
-                                }
-                                let t = format!("{} = {}", n.1.name, value);
-                                let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
-                            }
-                        }
-                    }
-                    // d1 - d2
-                    let mut rng = thread_rng();
-                    for d in (2..=20).step_by(2) {
-                        let random = rng.gen_range(1..=d);
-                        let t = format!("{} = {}", format!("d{}", d), random);
-                        let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
-                    }
 
                     let mut has_error = false;
                     if context.dialog_entry == DialogEntry::NodeExpression {
-                        let exp = eval_boolean_with_context(&self.text, &cont);
-                        if exp.is_err(){
+                        if server::gamedata::script::eval_bool_expression_behavior(self.text.as_str(), behavior_id, &mut context.data) == None {
                             has_error = true;
                         }
                     } else
                     if context.dialog_entry == DialogEntry::NodeExpressionVariable {
-                        let exp = eval_empty_with_context_mut(&self.text, &mut cont);
-                        if exp.is_err(){
+
+                        if server::gamedata::script::eval_dynamic_expression_behavior(self.text.as_str(), behavior_id, &mut context.data) == false {
                             has_error = true;
                         }
                     } else {
-                        let exp = eval_with_context(&self.text, &cont);
-                        if exp.is_err(){
+                        if server::gamedata::script::eval_number_expression_behavior(self.text.as_str(), behavior_id, &mut context.data) == None {
                             has_error = true;
                         }
                     }
@@ -261,43 +235,21 @@ impl DialogWidget {
         } else
         if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeExpressionVariable {
 
-            let mut cont = HashMapContext::new();
             let behavior_id = context.dialog_node_behavior_id.0.clone();
-            if let Some(behavior) = context.data.behaviors.get_mut(&behavior_id) {
-                for n in &behavior.data.nodes {
-                    if n.1.behavior_type == BehaviorNodeType::VariableNumber {
-                        let mut value : f64 = 0.0;
-                        if let Some(v) = n.1.values.get("value") {
-                            value = v.0;
-                        }
-                        let t = format!("{} = {}", n.1.name, value);
-                        let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
-                    }
-                }
-            }
-            // d1 - d2
-            let mut rng = thread_rng();
-            for d in (2..=20).step_by(2) {
-                let random = rng.gen_range(1..=d);
-                let t = format!("{} = {}", format!("d{}", d), random);
-                let _ = eval_empty_with_context_mut(t.as_str(), &mut cont);
-            }
             let mut has_error = false;
 
             if context.dialog_entry == DialogEntry::NodeExpression {
-                let exp = eval_boolean_with_context(&self.text, &cont);
-                if exp.is_err() {
+                if server::gamedata::script::eval_bool_expression_behavior(self.text.as_str(), behavior_id, &mut context.data) == None {
                     has_error = true;
                 }
             } else
             if context.dialog_entry == DialogEntry::NodeExpressionVariable {
-                let exp = eval_empty_with_context_mut(&self.text, &mut cont);
-                if exp.is_err(){
+
+                if server::gamedata::script::eval_dynamic_expression_behavior(self.text.as_str(), behavior_id, &mut context.data) == false {
                     has_error = true;
                 }
             } else {
-                let exp = eval_with_context(&self.text, &cont);
-                if exp.is_err() {
+                if server::gamedata::script::eval_number_expression_behavior(self.text.as_str(), behavior_id, &mut context.data) == None {
                     has_error = true;
                 }
             }
