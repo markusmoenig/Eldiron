@@ -1044,7 +1044,7 @@ impl NodeGraph {
                 "Position" => BehaviorNodeType::VariablePosition,
                 "Say" => BehaviorNodeType::Say,
                 "Pathfinder" => BehaviorNodeType::Pathfinder,
-                "Set Variable" => BehaviorNodeType::SetVariableValue,
+                "Set Variable" => BehaviorNodeType::Script,
                 _ => BehaviorNodeType::BehaviorTree
             };
 
@@ -1135,11 +1135,11 @@ impl NodeGraph {
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
-        if node_data.behavior_type == BehaviorNodeType::SetVariableValue {
-            let mut atom1 = AtomWidget::new(vec!["Expression Value".to_string()], AtomWidgetType::NodeExpressionVariableButton,
-            AtomData::new_as_int("value".to_string(), 0));
-            atom1.atom_data.text = "Expression Value".to_string();
-            let id = (behavior_data.id, node_data.id, "value".to_string());
+        if node_data.behavior_type == BehaviorNodeType::Script {
+            let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScriptButton,
+            AtomData::new_as_int("script".to_string(), 0));
+            atom1.atom_data.text = "Script".to_string();
+            let id = (behavior_data.id, node_data.id, "script".to_string());
             atom1.behavior_id = Some(id.clone());
             atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()));
             node_widget.widgets.push(atom1);

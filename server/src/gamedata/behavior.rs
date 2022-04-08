@@ -14,7 +14,7 @@ pub enum BehaviorNodeType {
     Expression,
     VariableNumber,
     VariablePosition,
-    SetVariableValue,
+    Script,
     Pathfinder,
     Say,
 }
@@ -42,13 +42,37 @@ pub struct BehaviorNode {
 
 #[derive(Serialize, Deserialize, PartialEq)]
 pub struct BehaviorInstance {
+
+    // The instance id (unique)
     pub id                      : usize,
+
+    // The behavior id for this instance
     pub behavior_id             : usize,
+
+    // The ids of the behavior tree nodes for this instance
     pub tree_ids                : Vec<usize>,
 
+    // The name of the instance
     pub name                    : String,
 
-    // For character
+    // Store number variables.
+    // This is for serialization only / deserialization only, not used at runtime
+    pub number_values           : HashMap<String, f64>,
+
+    // An instance id of the entity we are currently interacting with
+    pub locked_on               : Option<usize>,
+
+    // Instance ids of the entities we are currently engaged in combat with
+    pub engaged_with            : Vec<usize>,
+
+    // Temporary values nodes can use to store instance data, these are NOT saved, i.e. emptied before saving.
+    // The key is the node id.
+    pub node_values             : HashMap<usize, (f64, f64, f64, f64, String)>,
+
+    // State values to optionally store game state related to this instance. This data is saved.
+    pub state_values            : HashMap<String, (f64, f64, f64, f64, String)>,
+
+    // For characters, the 2D position id and the currently displayed tile id.
     pub position                : Option<(usize, isize, isize)>,
     pub tile                    : Option<(usize, usize, usize)>,
 }

@@ -197,7 +197,7 @@ pub fn eval_number_expression_behavior(expression: &str, behavior_id: usize, dat
 
 /// Evaluates a boolean expression for the given behavior.
 /// This is used to verify an expression in the expression editor and not used in game (which would be instance based).
-pub fn eval_dynamic_expression_behavior(expression: &str, behavior_id: usize, data: &mut GameData) -> bool {
+pub fn eval_dynamic_script_behavior(expression: &str, behavior_id: usize, data: &mut GameData) -> bool {
 
     let mut scope = Scope::new();
 

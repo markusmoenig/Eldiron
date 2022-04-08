@@ -18,6 +18,8 @@ use itertools::Itertools;
 use std::path;
 use std::fs;
 
+use rand::prelude::*;
+
 use self::behavior::{BehaviorNodeType};
 
 type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData) -> behavior::BehaviorNodeConnector;
@@ -148,7 +150,7 @@ impl GameData<'_> {
 
         let mut nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
         nodes.insert(BehaviorNodeType::Expression, nodes::expression);
-        nodes.insert(BehaviorNodeType::SetVariableValue, nodes::set_variable);
+        nodes.insert(BehaviorNodeType::Script, nodes::script);
         nodes.insert(BehaviorNodeType::Say, nodes::say);
         nodes.insert(BehaviorNodeType::Pathfinder, nodes::pathfinder);
 
@@ -275,7 +277,6 @@ impl GameData<'_> {
     /// Create a new behavior instance for the given id and return it's id
     pub fn create_behavior_instance(&mut self, id: usize) -> usize {
 
-        print!("id {}", id);
         let mut to_execute : Vec<usize> = vec![];
 
         let mut position : Option<(usize, isize, isize)> = None;
@@ -318,7 +319,22 @@ impl GameData<'_> {
 
             let index = self.instances.len();
 
-            let instance = BehaviorInstance {id: index.clone(), name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile};
+            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, locked_on: None, engaged_with: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new()};
+
+            // Make sure id is unique
+            let mut has_id_already = true;
+            while has_id_already {
+                has_id_already = false;
+                for index in 0..self.instances.len() {
+                    if self.instances[index].id == instance.id {
+                        has_id_already = true;
+                    }
+                }
+
+                if has_id_already {
+                    instance.id += 1;
+                }
+            }
 
             self.instances.push(instance);
             self.scopes.push(scope);

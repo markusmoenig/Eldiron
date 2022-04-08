@@ -14,7 +14,7 @@ pub enum DialogEntry {
     NodeNumber,
     NodeExpression,
     NodeExpressionValue,
-    NodeExpressionVariable,
+    NodeScript,
     NodeText,
     NodeName,
     NodeTile,
@@ -92,7 +92,7 @@ impl DialogWidget {
                 if context.dialog_entry == DialogEntry::NodeNumber {
                     self.text = format!("{}", context.dialog_node_behavior_value.0);
                 } else
-                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeExpressionVariable || context.dialog_entry == DialogEntry::NodeExpressionVariable || context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeName {
+                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript || context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeName {
                     self.text = context.dialog_node_behavior_value.4.clone();
                 } else
                 if context.dialog_entry == DialogEntry::NodeTile {
@@ -146,7 +146,7 @@ impl DialogWidget {
                         self.widgets[1].state = WidgetState::Normal;
                     }
                 } else
-                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeExpressionVariable {
+                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Expression".to_string(), &context.color_white, &context.color_black);
 
                     let behavior_id = context.dialog_node_behavior_id.0.clone();
@@ -157,9 +157,8 @@ impl DialogWidget {
                             has_error = true;
                         }
                     } else
-                    if context.dialog_entry == DialogEntry::NodeExpressionVariable {
-
-                        if server::gamedata::script::eval_dynamic_expression_behavior(self.text.as_str(), behavior_id, &mut context.data) == false {
+                    if context.dialog_entry == DialogEntry::NodeScript {
+                        if server::gamedata::script::eval_dynamic_script_behavior(self.text.as_str(), behavior_id, &mut context.data) == false {
                             has_error = true;
                         }
                     } else {
@@ -233,7 +232,7 @@ impl DialogWidget {
                 return true;
             }
         } else
-        if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeExpressionVariable {
+        if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript {
 
             let behavior_id = context.dialog_node_behavior_id.0.clone();
             let mut has_error = false;
@@ -243,9 +242,9 @@ impl DialogWidget {
                     has_error = true;
                 }
             } else
-            if context.dialog_entry == DialogEntry::NodeExpressionVariable {
+            if context.dialog_entry == DialogEntry::NodeScript {
 
-                if server::gamedata::script::eval_dynamic_expression_behavior(self.text.as_str(), behavior_id, &mut context.data) == false {
+                if server::gamedata::script::eval_dynamic_script_behavior(self.text.as_str(), behavior_id, &mut context.data) == false {
                     has_error = true;
                 }
             } else {
