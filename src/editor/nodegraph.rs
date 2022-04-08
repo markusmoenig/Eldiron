@@ -1010,7 +1010,7 @@ impl NodeGraph {
     }
 
     /// Set the behavior id, this will take the bevhavior node data and create node widgets
-    pub fn set_behavior_id(&mut self, id: usize, context: &ScreenContext) {
+    pub fn set_behavior_id(&mut self, id: usize, context: &mut ScreenContext) {
 
         self.nodes = vec![];
         self.behavior_tree_indices = vec![];
@@ -1027,6 +1027,7 @@ impl NodeGraph {
         }
         self.dirty = true;
         self.check_node_visibility(context);
+        context.jump_to_position = context.data.get_behavior_default_position(id);
     }
 
     /// Adds a node of the type identified by its name

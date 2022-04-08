@@ -35,7 +35,10 @@ pub struct GameData<'a> {
 
     pub nodes                   : HashMap<BehaviorNodeType, NodeCall>,
 
+    // All instances
     pub instances               : Vec<BehaviorInstance>,
+    // Currently active instances
+    pub active_instance_indices : Vec<usize>,
 
     pub engine                  : Engine,
     pub scopes                  : Vec<Scope<'a>>,
@@ -166,6 +169,7 @@ impl GameData<'_> {
             nodes,
 
             instances               : vec![],
+            active_instance_indices : vec![],
 
             engine                  : Engine::new(),
             scopes                  : vec![],
@@ -274,6 +278,26 @@ impl GameData<'_> {
         json
     }
 
+    /// Creates all behavior instances
+    pub fn create_behavior_instances(&mut self) {
+        self.active_instance_indices = vec![];
+        for index in 0..self.behaviors_ids.len() {
+            self.create_behavior_instance(self.behaviors_ids[index]);
+        }
+    }
+
+    /// Activate the instances for the given area
+    pub fn activate_area_instances(&mut self, area_id: usize) {
+        self.active_instance_indices = vec![];
+        for index in 0..self.instances.len() {
+            if let Some(position) = self.instances[index].position {
+                if position.0 == area_id {
+                    self.active_instance_indices.push(index);
+                }
+            }
+        }
+    }
+
     /// Create a new behavior instance for the given id and return it's id
     pub fn create_behavior_instance(&mut self, id: usize) -> usize {
 
@@ -360,10 +384,11 @@ impl GameData<'_> {
         self.say = vec![];
         self.executed_connections = vec![];
         self.changed_variables = vec![];
-        for index in 0..self.instances.len() {
-            let trees = self.instances[index].tree_ids.clone();
+        for index in 0..self.active_instance_indices.len() {
+            let inst_index = self.active_instance_indices[index];
+            let trees = self.instances[inst_index].tree_ids.clone();
             for node_id in &trees {
-                self.execute_node(index, node_id.clone());
+                self.execute_node(inst_index, node_id.clone());
             }
         }
     }
@@ -375,6 +400,7 @@ impl GameData<'_> {
         self.say = vec![];
         self.executed_connections = vec![];
         self.changed_variables = vec![];
+        self.active_instance_indices = vec![];
     }
 
     /// Delete the behavior of the given id

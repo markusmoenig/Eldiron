@@ -45,7 +45,7 @@ impl NodePreviewWidget {
 
     pub fn new(context: &ScreenContext) -> Self {
 
-        let run_button = AtomWidget::new(vec!["Run Behavior".to_string()], AtomWidgetType::LargeButton,
+        let run_button = AtomWidget::new(vec!["Run Area".to_string()], AtomWidgetType::LargeButton,
         AtomData::new_as_int("run".to_string(), 0));
 
         let mut areas_button = AtomWidget::new(context.data.areas_names.clone(), AtomWidgetType::MenuButton,
@@ -120,7 +120,7 @@ impl NodePreviewWidget {
             context.draw2d.draw_rect(buffer_frame, &(rect.2-2, 0, 2, rect.3 - 1), stride, &context.color_black);
             context.draw2d.draw_rect(buffer_frame, &(1, 1, 1, 1), stride, &[65, 65, 65, 255]);
 
-            self.widgets[0].set_rect((20, 4, 140, 32), asset, context);
+            self.widgets[0].set_rect((20, 4, 120, 32), asset, context);
             self.widgets[0].draw(buffer_frame, stride, anim_counter, asset, context);
 
             self.widgets[1].set_rect((15, self.size.1 - 50, self.size.0 - 20, 25), asset, context);
@@ -137,7 +137,7 @@ impl NodePreviewWidget {
             if let Some(area) = context.data.areas.get(&area_id) {
 
                 if context.is_running {
-                    self.area_offset = context.draw2d.draw_area_centered_with_instances(buffer_frame, area, &self.area_rect, 0, stride, 32, anim_counter, asset, context);
+                    self.area_offset = context.draw2d.draw_area_centered_with_instances(buffer_frame, area, &self.area_rect, context.curr_behavior_index, stride, 32, anim_counter, asset, context);
                 } else
                 if let Some(position) = &self.curr_position {
                     self.area_offset = context.draw2d.draw_area_centered_with_behavior(buffer_frame, area, &self.area_rect, &(position.1 - self.area_scroll_offset.0, position.2 - self.area_scroll_offset.1), stride, 32, 0, asset, context);
@@ -162,13 +162,15 @@ impl NodePreviewWidget {
 
                 if atom_widget.atom_data.id == "run" {
                     if context.is_running == false {
-                        context.data.create_behavior_instance(context.data.behaviors_ids[context.curr_behavior_index]);
+                        context.data.create_behavior_instances();
+                        context.data.activate_area_instances(context.data.areas_ids[self.curr_area_index]);
+                        //context.data.create_behavior_instance(context.data.behaviors_ids[context.curr_behavior_index]);
                         context.is_running = true;
                         atom_widget.text[0] = "Stop".to_string();
                     } else {
                         context.data.clear_instances();
                         context.is_running = false;
-                        atom_widget.text[0] = "Run Behavior".to_string();
+                        atom_widget.text[0] = "Run Area".to_string();
                         self.just_stopped_running = true;
                     }
                 }
@@ -254,6 +256,6 @@ impl NodePreviewWidget {
     pub fn _stop(&mut self, context: &mut ScreenContext) {
         context.data.clear_instances();
         context.is_running = false;
-        self.widgets[0].text[0] = "Run Behavior".to_string();
+        self.widgets[0].text[0] = "Run Area".to_string();
     }
 }

@@ -24,7 +24,7 @@ pub fn expression(instance_index: usize, id: (usize, usize), data: &mut GameData
 /// script
 pub fn script(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
     if let Some(value) = get_node_value((id.0, id.1, "script"), data) {
-        eval_dynamic_expression_instance(instance_index, id, value.4.as_str(), data);
+        eval_dynamic_script_instance(instance_index, id, value.4.as_str(), data);
     }
     BehaviorNodeConnector::Bottom
 }

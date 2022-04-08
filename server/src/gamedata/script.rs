@@ -1,5 +1,5 @@
 
-use rhai::{ Scope, Dynamic };
+use rhai::{ Engine, Scope, Dynamic };
 use rand::prelude::*;
 
 use super::behavior::BehaviorNodeType;
@@ -46,14 +46,18 @@ pub fn eval_number_expression_instance(instance_index: usize, expression: &str, 
     None
 }
 
-/// Evaluates a dynamic expression in the given instance.
-pub fn eval_dynamic_expression_instance(instance_index: usize, id: (usize, usize), expression: &str, data: &mut GameData) -> bool {
+/// Evaluates a dynamic script in the given instance.
+pub fn eval_dynamic_script_instance(instance_index: usize, id: (usize, usize), expression: &str, data: &mut GameData) -> bool {
 
     if data.runs_in_editor {
         return eval_dynamic_expression_instance_editor(instance_index, id, expression, data);
     }
 
     update_dices(instance_index, data);
+
+    data.engine.register_fn("inc", |x: f64| {    // closure is also OK!
+        x + 1.0
+    });
 
     let r = data.engine.eval_with_scope::<Dynamic>(&mut data.scopes[instance_index], expression);
     if r.is_ok() {
@@ -121,6 +125,7 @@ pub fn eval_dynamic_expression_instance_editor(instance_index: usize, id: (usize
 /// This is used to verify an expression in the expression editor and not used in game (which would be instance based).
 pub fn eval_bool_expression_behavior(expression: &str, behavior_id: usize, data: &mut GameData) -> Option<bool> {
 
+    let engine = Engine::new();
     let mut scope = Scope::new();
 
     // Dices
@@ -145,7 +150,7 @@ pub fn eval_bool_expression_behavior(expression: &str, behavior_id: usize, data:
     }
     //println!("{:?}", scope);
 
-    let r = data.engine.eval_expression_with_scope::<bool>(&mut scope, expression);
+    let r = engine.eval_expression_with_scope::<bool>(&mut scope, expression);
 
     if r.is_ok() {
         return Some(r.unwrap());
@@ -160,6 +165,7 @@ pub fn eval_bool_expression_behavior(expression: &str, behavior_id: usize, data:
 /// This is used to verify an expression in the expression editor and not used in game (which would be instance based).
 pub fn eval_number_expression_behavior(expression: &str, behavior_id: usize, data: &mut GameData) -> Option<f64> {
 
+    let engine = Engine::new();
     let mut scope = Scope::new();
 
     // Dices
@@ -184,7 +190,7 @@ pub fn eval_number_expression_behavior(expression: &str, behavior_id: usize, dat
     }
     //println!("{:?}", scope);
 
-    let r = data.engine.eval_expression_with_scope::<f64>(&mut scope, expression);
+    let r = engine.eval_expression_with_scope::<f64>(&mut scope, expression);
 
     if r.is_ok() {
         return Some(r.unwrap());
@@ -199,6 +205,7 @@ pub fn eval_number_expression_behavior(expression: &str, behavior_id: usize, dat
 /// This is used to verify an expression in the expression editor and not used in game (which would be instance based).
 pub fn eval_dynamic_script_behavior(expression: &str, behavior_id: usize, data: &mut GameData) -> bool {
 
+    let engine = Engine::new();
     let mut scope = Scope::new();
 
     // Dices
@@ -223,7 +230,7 @@ pub fn eval_dynamic_script_behavior(expression: &str, behavior_id: usize, data: 
     }
     //println!("{:?}", scope);
 
-    let r = data.engine.eval_with_scope::<Dynamic>(&mut scope, expression);
+    let r = engine.eval_with_scope::<Dynamic>(&mut scope, expression);
 
     if r.is_ok() {
         return true;
