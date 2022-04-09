@@ -35,3 +35,10 @@ pub fn set_node_value(id: (usize, usize, &str), data: &mut GameData, value: (f64
         }
     }
 }
+
+/// Computes the distance between two locations
+pub fn compute_distance(p0: &(usize, isize, isize), p1: &(usize, isize, isize)) -> f64 {
+    let dx = p0.1 - p1.1;
+    let dy = p0.2 - p1.2;
+    ((dx * dx + dy * dy) as f64).sqrt()
+}

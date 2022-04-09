@@ -17,6 +17,9 @@ pub enum BehaviorNodeType {
     Script,
     Pathfinder,
     Say,
+    Lookout,
+    CloseIn,
+    Attack,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -60,7 +63,7 @@ pub struct BehaviorInstance {
     pub number_values           : HashMap<String, f64>,
 
     // An instance id of the entity we are currently interacting with
-    pub locked_on               : Option<usize>,
+    pub target                  : Option<usize>,
 
     // Instance ids of the entities we are currently engaged in combat with
     pub engaged_with            : Vec<usize>,

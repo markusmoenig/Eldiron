@@ -156,6 +156,9 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::Script, nodes::script);
         nodes.insert(BehaviorNodeType::Say, nodes::say);
         nodes.insert(BehaviorNodeType::Pathfinder, nodes::pathfinder);
+        nodes.insert(BehaviorNodeType::Lookout, nodes::lookout);
+        nodes.insert(BehaviorNodeType::CloseIn, nodes::close_in);
+        nodes.insert(BehaviorNodeType::Attack, nodes::attack);
 
         Self {
             areas,
@@ -343,7 +346,7 @@ impl GameData<'_> {
 
             let index = self.instances.len();
 
-            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, locked_on: None, engaged_with: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new()};
+            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target: None, engaged_with: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new()};
 
             // Make sure id is unique
             let mut has_id_already = true;

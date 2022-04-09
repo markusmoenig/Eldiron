@@ -1045,7 +1045,10 @@ impl NodeGraph {
                 "Position" => BehaviorNodeType::VariablePosition,
                 "Say" => BehaviorNodeType::Say,
                 "Pathfinder" => BehaviorNodeType::Pathfinder,
-                "Set Variable" => BehaviorNodeType::Script,
+                "Script" => BehaviorNodeType::Script,
+                "Lookout" => BehaviorNodeType::Lookout,
+                "Close In" => BehaviorNodeType::CloseIn,
+                "Attack" => BehaviorNodeType::Attack,
                 _ => BehaviorNodeType::BehaviorTree
             };
 
@@ -1186,12 +1189,57 @@ impl NodeGraph {
             atom1.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()));
             node_widget.widgets.push(atom1);
 
-            let mut atom2 = AtomWidget::new(vec!["Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new_as_int("delay".to_string(), 0));
-            atom2.atom_data.text = "Delay".to_string();
-            let id = (behavior_data.id, node_data.id, "delay".to_string());
+            let mut atom2 = AtomWidget::new(vec!["Speed".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new_as_int("speed".to_string(), 0));
+            atom2.atom_data.text = "Speed".to_string();
+            let id = (behavior_data.id, node_data.id, "speed".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "1".to_string()));
+            atom2.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "8".to_string()));
+            node_widget.widgets.push(atom2);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_data.behavior_type == BehaviorNodeType::Lookout {
+            let mut atom1 = AtomWidget::new(vec!["Expression".to_string()], AtomWidgetType::NodeExpressionButton,
+            AtomData::new_as_int("expression".to_string(), 0));
+            atom1.atom_data.text = "Expression".to_string();
+            let id = (behavior_data.id, node_data.id, "expression".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()));
+            node_widget.widgets.push(atom1);
+
+            let mut atom2 = AtomWidget::new(vec!["Max Distance".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new_as_int("max_distance".to_string(), 0));
+            atom2.atom_data.text = "Max Distance".to_string();
+            let id = (behavior_data.id, node_data.id, "max_distance".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "7".to_string()));
+            node_widget.widgets.push(atom2);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_data.behavior_type == BehaviorNodeType::CloseIn {
+            let mut atom1 = AtomWidget::new(vec!["To Distance".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new_as_int("to_distance".to_string(), 0));
+            atom1.atom_data.text = "To Distance".to_string();
+            let id = (behavior_data.id, node_data.id, "to_distance".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "1".to_string()));
+            node_widget.widgets.push(atom1);
+
+            let mut atom2 = AtomWidget::new(vec!["Speed".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new_as_int("speed".to_string(), 0));
+            atom2.atom_data.text = "Speed".to_string();
+            let id = (behavior_data.id, node_data.id, "speed".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "8".to_string()));
             node_widget.widgets.push(atom2);
 
             node_widget.color = context.color_blue.clone();
@@ -1269,7 +1317,7 @@ impl NodeGraph {
     /// Disconnect the node from all connections
     fn disconnect_node(&mut self, id: usize, context: &mut ScreenContext) {
 
-        if let Some(behavior) = context.data.behaviors.get_mut(&context.data.areas_ids[context.curr_behavior_index]) {
+        if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[context.curr_behavior_index]) {
             let mut nothing_to_remove = false;
             while nothing_to_remove == false {
                 nothing_to_remove = true;

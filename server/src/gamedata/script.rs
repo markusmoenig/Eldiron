@@ -36,9 +36,15 @@ pub fn eval_number_expression_instance(instance_index: usize, expression: &str, 
 
     update_dices(instance_index, data);
 
-    let r = data.engine.eval_expression_with_scope::<f64>(&mut data.scopes[instance_index], expression);
+    let r = data.engine.eval_expression_with_scope::<Dynamic>(&mut data.scopes[instance_index], expression);
     if r.is_ok() {
-        return Some(r.unwrap());
+        let nn = r.unwrap().clone();
+        if let Some(n) = nn.as_float().ok() {
+            return Some(n);
+        }
+        if let Some(n) = nn.as_int().ok() {
+            return Some(n as f64);
+        }
     } else {
         println!("{:?}", r);
     }
@@ -190,10 +196,16 @@ pub fn eval_number_expression_behavior(expression: &str, behavior_id: usize, dat
     }
     //println!("{:?}", scope);
 
-    let r = engine.eval_expression_with_scope::<f64>(&mut scope, expression);
+    let r = engine.eval_expression_with_scope::<Dynamic>(&mut scope, expression);
 
     if r.is_ok() {
-        return Some(r.unwrap());
+        let nn = r.unwrap().clone();
+        if let Some(n) = nn.as_float().ok() {
+            return Some(n);
+        }
+        if let Some(n) = nn.as_int().ok() {
+            return Some(n as f64);
+        }
     } else {
         println!("{:?}", r);
     }
