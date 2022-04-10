@@ -3,7 +3,6 @@ use crate::editor::ScreenContext;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-
 pub struct StatusBar {
     pub rect                    : (usize, usize, usize, usize),
 

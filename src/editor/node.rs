@@ -218,7 +218,7 @@ impl NodeWidget {
 
                 let mut top_is_connected = false;
                 let mut left_is_connected = false;
-                if let Some(behavior) = context.data.behaviors.get(&context.curr_behavior_index) {
+                if let Some(behavior) = context.data.behaviors.get(&context.data.behaviors_ids[context.curr_behavior_index]) {
                     for (_source_node_id , _source_connector, dest_node_id, dest_connector) in &behavior.data.connections {
                         if *dest_node_id == self.id {
                             if *dest_connector == BehaviorNodeConnector::Top {

@@ -1247,6 +1247,20 @@ impl NodeGraph {
             node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_data.behavior_type == BehaviorNodeType::Attack {
+            let mut atom1 = AtomWidget::new(vec!["Variable".to_string()], AtomWidgetType::NodeTextButton,
+            AtomData::new_as_int("variable".to_string(), 0));
+            atom1.atom_data.text = "Variable".to_string();
+            let id = (behavior_data.id, node_data.id, "variable".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "HP".to_string()));
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         }
     }
 
@@ -1410,6 +1424,11 @@ impl NodeGraph {
 
                 if connected == false {
                     self.visible_node_ids.push(self.nodes[index].id);
+                } else {
+                    // If node is connected go up the tree to see if they are standalone nodes (i.e. not connectected to any behavior tree)
+                    if self.belongs_to_standalone_branch(self.nodes[index].id, context) {
+                        self.visible_node_ids.push(self.nodes[index].id);
+                    }
                 }
             }
         }
@@ -1425,5 +1444,25 @@ impl NodeGraph {
                 }
             }
         }
+    }
+
+    /// Checks if the given node id is part of an unconnected branch.
+    pub fn belongs_to_standalone_branch(&mut self, id: usize, context: &ScreenContext) -> bool {
+        if let Some(behavior) = context.data.behaviors.get(&context.data.behaviors_ids[context.curr_behavior_index]) {
+
+            for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
+                if *dest_node_id == id {
+                    return self.belongs_to_standalone_branch(*source_node_id, context);
+                }
+            }
+
+            if let Some(node_data) = behavior.data.nodes.get(&id) {
+                if node_data.behavior_type != BehaviorNodeType::BehaviorTree {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 }

@@ -31,19 +31,21 @@ impl Widget for ToolBar {
         let mut areas_button = AtomWidget::new(vec!["Areas".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new_as_int("Areas".to_string(), 0));
         areas_button.set_rect((rect.0 + 360, rect.1, 140, rect.3), asset, context);
-        // areas_button.selected = true;
         widgets.push(areas_button);
 
         let mut behavior_button = AtomWidget::new(vec!["Behavior".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new_as_int("Areas".to_string(), 0));
         behavior_button.set_rect((rect.0 + 510, rect.1, 165, rect.3), asset, context);
-        // areas_button.selected = true;
         widgets.push(behavior_button);
+
+        let mut systems_button = AtomWidget::new(vec!["Systems".to_string()], AtomWidgetType::ToolBarSwitchButton,
+        AtomData::new_as_int("Systems".to_string(), 0));
+        systems_button.set_rect((rect.0 + 685, rect.1, 165, rect.3), asset, context);
+        widgets.push(systems_button);
 
         let mut items_button = AtomWidget::new(vec!["Items and Spells".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new_as_int("Items".to_string(), 0));
-        items_button.set_rect((rect.0 + 685, rect.1, 235, rect.3), asset, context);
-        // areas_button.selected = true;
+        items_button.set_rect((rect.0 + 685 + 175, rect.1, 235, rect.3), asset, context);
         widgets.push(items_button);
 
         let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarButton,
