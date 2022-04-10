@@ -512,7 +512,7 @@ impl NodeGraph {
                     self.nodes[node_index].dirty = true;
                     self.dirty = true;
 
-                    context.data.set_behavior_node_name((context.curr_behavior_index, context.dialog_node_behavior_id.0),context.dialog_node_behavior_value.4.clone());
+                    context.data.set_behavior_node_name((context.data.behaviors_ids[context.curr_behavior_index], context.dialog_node_behavior_id.0),context.dialog_node_behavior_value.4.clone());
                     break;
                 }
             }

@@ -225,7 +225,7 @@ impl GameData<'_> {
         }
     }
 
-    /// Sets the value for the given behavior id
+    /// Sets the name for the given node
     pub fn set_behavior_node_name(&mut self, id: (usize, usize), value: String) {
         if let Some(behavior) = self.behaviors.get_mut(&id.0) {
             if let Some(node) = behavior.data.nodes.get_mut(&id.1) {

@@ -149,9 +149,9 @@ impl DialogWidget {
                 if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Expression".to_string(), &context.color_white, &context.color_black);
 
+                    let has_error = false;
+                    /*
                     let behavior_id = context.dialog_node_behavior_id.0.clone();
-
-                    let mut has_error = false;
                     if context.dialog_entry == DialogEntry::NodeExpression {
                         if server::gamedata::script::eval_bool_expression_behavior(self.text.as_str(), behavior_id, &mut context.data) == None {
                             has_error = true;
@@ -165,7 +165,7 @@ impl DialogWidget {
                         if server::gamedata::script::eval_number_expression_behavior(self.text.as_str(), behavior_id, &mut context.data) == None {
                             has_error = true;
                         }
-                    }
+                    }*/
                     if has_error {
                         border_color = context.color_red;
                         self.widgets[1].state = WidgetState::Disabled;
@@ -234,9 +234,10 @@ impl DialogWidget {
         } else
         if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript {
 
-            let behavior_id = context.dialog_node_behavior_id.0.clone();
-            let mut has_error = false;
+            let has_error = false;
 
+            /*
+            let behavior_id = context.dialog_node_behavior_id.0.clone();
             if context.dialog_entry == DialogEntry::NodeExpression {
                 if server::gamedata::script::eval_bool_expression_behavior(self.text.as_str(), behavior_id, &mut context.data) == None {
                     has_error = true;
@@ -252,6 +253,7 @@ impl DialogWidget {
                     has_error = true;
                 }
             }
+            */
             if has_error == false {
                 context.dialog_node_behavior_value.4 = self.text.clone();
                 context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());

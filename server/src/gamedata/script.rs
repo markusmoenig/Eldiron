@@ -16,6 +16,17 @@ fn update_dices(instance_index: usize, data: &mut GameData) {
     data.scopes[instance_index].set_value( "d100", rng.gen_range(1..=100) as f64);
 }
 
+/// Updates the dices for the givem scope
+pub fn update_dices_scope(scope: &mut Scope) {
+    // Dices
+    let mut rng = thread_rng();
+    for d in (2..=20).step_by(2) {
+        let random = rng.gen_range(1..=d);
+        scope.set_value( format!("d{}", d), random as f64);
+    }
+    scope.set_value( "d100", rng.gen_range(1..=100) as f64);
+}
+
 /// Evaluates a boolean expression in the given instance.
 pub fn eval_bool_expression_instance(instance_index: usize, expression: &str, data: &mut GameData) -> Option<bool> {
 
@@ -60,10 +71,6 @@ pub fn eval_dynamic_script_instance(instance_index: usize, id: (usize, usize), e
     }
 
     update_dices(instance_index, data);
-
-    data.engine.register_fn("inc", |x: f64| {    // closure is also OK!
-        x + 1.0
-    });
 
     let r = data.engine.eval_with_scope::<Dynamic>(&mut data.scopes[instance_index], expression);
     if r.is_ok() {
@@ -140,6 +147,7 @@ pub fn eval_bool_expression_behavior(expression: &str, behavior_id: usize, data:
         let random = rng.gen_range(1..=d);
         scope.push( format!("d{}", d), random as f64);
     }
+
     scope.push( "d100", rng.gen_range(1..=100) as f64);
 
     // Number Variables

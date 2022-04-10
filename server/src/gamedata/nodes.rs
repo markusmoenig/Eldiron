@@ -124,12 +124,16 @@ pub fn lookout(instance_index: usize, id: (usize, usize), data: &mut GameData) -
         }
     }
 
-    // TODO, evaluate the expression
-
-    for inst_ind in &chars {
-        //println!("targetting {}", data.instances[*inst_ind].name);
-        data.instances[instance_index].target = Some(*inst_ind);
-        return BehaviorNodeConnector::Success;
+    if let Some(value) = get_node_value((id.0, id.1, "expression"), data) {
+        for inst_ind in &chars {
+            let r = data.engine.eval_expression_with_scope::<bool>(&mut  data.scopes[*inst_ind], &value.4);
+            if let Some(rc) = r.ok() {
+                if rc {
+                    data.instances[instance_index].target = Some(*inst_ind);
+                    return BehaviorNodeConnector::Success;
+                }
+            }
+        }
     }
 
     data.instances[instance_index].target = None;
