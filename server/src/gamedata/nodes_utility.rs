@@ -46,18 +46,49 @@ pub fn compute_distance(p0: &(usize, isize, isize), p1: &(usize, isize, isize)) 
     ((dx * dx + dy * dy) as f64).sqrt()
 }
 
-pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp: Option<(usize, isize, isize)>, data: &mut GameData) -> BehaviorNodeConnector {
+pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp: Option<(usize, isize, isize)>, exclude_dp: bool, data: &mut GameData) -> BehaviorNodeConnector {
+
+    // Cache the character positions
+    let mut char_positions : Vec<(usize, isize, isize)> = vec![];
+
+    for inst_index in &data.active_instance_indices {
+        if *inst_index != instance_index {
+            if let Some(pos) = data.instances[*inst_index].position {
+                if exclude_dp == false {
+                    char_positions.push(pos);
+                } else {
+                    // Exclude dp, otherwise the Close In tracking function does not find a route
+                    if let Some(dp) = dp {
+                        if dp != pos {
+                            char_positions.push(pos);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     if let Some(p) = p {
 
         let can_go = |x: isize, y: isize| -> bool {
 
+            // Check tiles
             if let Some(tile) = data.get_tile_at((p.0, x, y)) {
-                if tile.3 == TileUsage::Environment {
-                    return true;
+                if tile.3 != TileUsage::Environment {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+
+            // Check characters
+            for char_p in &char_positions {
+                if char_p.1 == x && char_p.2 == y {
+                    return false;
                 }
             }
-            false
+
+            true
         };
 
         if let Some(dp) = dp {
@@ -74,7 +105,6 @@ pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp:
                                 |&p| p.0 == dp.1 && p.1 == dp.2);
 
             if let Some(result) = result {
-                //println!("{:?}", result);
                 if result.len() > 1 {
                     data.instances[instance_index].position = Some((p.0, result[1].0, result[1].1));
                     return BehaviorNodeConnector::Right;

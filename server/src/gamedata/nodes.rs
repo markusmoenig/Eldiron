@@ -89,7 +89,7 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData
         return BehaviorNodeConnector::Success;
     }
 
-    walk_towards(instance_index, p, dp, data)
+    walk_towards(instance_index, p, dp,false, data)
 }
 
 /// Lookout
@@ -199,7 +199,7 @@ pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut GameData) 
         return BehaviorNodeConnector::Success;
     }
 
-    walk_towards(instance_index, p, dp, data)
+    walk_towards(instance_index, p, dp, true, data)
 }
 
 /// Attack
