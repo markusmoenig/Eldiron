@@ -222,13 +222,13 @@ impl DialogWidget {
             let int_value = self.text.parse::<i64>();
             if int_value.is_ok() {
                 context.dialog_node_behavior_value.0 = int_value.unwrap() as f64;
-                context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());
+                context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
                 return true;
             }
             let float_value = self.text.parse::<f64>();
             if float_value.is_ok() {
                 context.dialog_node_behavior_value.0 = float_value.unwrap();
-                context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());
+                context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
                 return true;
             }
         } else
@@ -256,13 +256,13 @@ impl DialogWidget {
             */
             if has_error == false {
                 context.dialog_node_behavior_value.4 = self.text.clone();
-                context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());
+                context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
                 return true;
             }
         } else
         if context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeName {
             context.dialog_node_behavior_value.4 = self.text.clone();
-            context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone());
+            context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
             return true;
         } else
         if context.dialog_entry == DialogEntry::NewName {

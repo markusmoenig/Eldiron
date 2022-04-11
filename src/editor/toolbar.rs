@@ -43,9 +43,9 @@ impl Widget for ToolBar {
         systems_button.set_rect((rect.0 + 685, rect.1, 165, rect.3), asset, context);
         widgets.push(systems_button);
 
-        let mut items_button = AtomWidget::new(vec!["Items and Spells".to_string()], AtomWidgetType::ToolBarSwitchButton,
+        let mut items_button = AtomWidget::new(vec!["Items".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new_as_int("Items".to_string(), 0));
-        items_button.set_rect((rect.0 + 685 + 175, rect.1, 235, rect.3), asset, context);
+        items_button.set_rect((rect.0 + 685 + 175, rect.1, 140, rect.3), asset, context);
         widgets.push(items_button);
 
         let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarButton,

@@ -8,6 +8,16 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Copy, Clone, Debug)]
+pub enum BehaviorType {
+    Tiles,
+    Areas,
+    Behaviors,
+    Systems,
+    Items,
+    GameLogic,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum BehaviorNodeType {
     BehaviorType,
     BehaviorTree,

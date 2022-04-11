@@ -3,9 +3,13 @@ use crate::tileselector::TileSelectorWidget;
 use crate::editor::areaoptions::AreaOptions;
 use crate::editor::behavioroptions::BehaviorOptions;
 use crate::editor::behavior_overview_options::BehaviorOverviewOptions;
+use crate::editor::systemsoptions::SystemsOptions;
+use crate::editor::systems_overview_options::SystemsOverviewOptions;
 use crate::editor::areawidget::AreaWidget;
 use crate::widget:: {ScreenWidget, Widget, WidgetState, WidgetKey};
 use crate::tileset::TileUsage;
+
+use server::gamedata::behavior::{ BehaviorType };
 
 use crate::editor::dialog::DialogWidget;
 
@@ -19,6 +23,8 @@ mod areawidget;
 mod areaoptions;
 mod behavioroptions;
 mod behavior_overview_options;
+mod systemsoptions;
+mod systems_overview_options;
 mod node;
 mod node_preview;
 mod statusbar;
@@ -30,7 +36,7 @@ use tilemapwidget::TileMapWidget;
 use crate::context::ScreenContext;
 use crate::editor::node::NodeUserData;
 use crate::editor::node::NodeWidget;
-use crate::editor::nodegraph::{ NodeGraph, GraphMode, GraphType };
+use crate::editor::nodegraph::{ NodeGraph, GraphMode };
 
 use self::dialog::{DialogState, DialogEntry};
 use self::tilemapoptions::TileMapOptions;
@@ -43,7 +49,9 @@ enum EditorState {
     AreaOverview,
     AreaDetail,
     BehaviorOverview,
-    BehaviorDetail
+    BehaviorDetail,
+    SystemsOverview,
+    SystemsDetail
 }
 
 /// The Editor struct
@@ -63,10 +71,15 @@ pub struct Editor<'a> {
     behavior_options                : BehaviorOptions,
     behavior_overview_options       : BehaviorOverviewOptions,
 
+    systems_options                 : SystemsOptions,
+    systems_overview_options        : SystemsOverviewOptions,
+
     node_graph_tiles                : NodeGraph,
     node_graph_areas                : NodeGraph,
     node_graph_behavior             : NodeGraph,
     node_graph_behavior_details     : NodeGraph,
+    node_graph_systems              : NodeGraph,
+    node_graph_systems_details      : NodeGraph,
 
     left_width                      : usize,
     mouse_pos                       : (usize, usize),
@@ -97,7 +110,7 @@ impl ScreenWidget for Editor<'_> {
             tile_nodes.push(node);
         }
 
-        let node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, GraphType::Tiles, tile_nodes);
+        let node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, BehaviorType::Tiles, tile_nodes);
 
         // Area views and nodes
 
@@ -112,7 +125,7 @@ impl ScreenWidget for Editor<'_> {
             area_nodes.push(node);
         }
 
-        let node_graph_areas = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, GraphType::Areas, area_nodes);
+        let node_graph_areas = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, BehaviorType::Areas, area_nodes);
 
         // Behavior nodegraph
 
@@ -130,11 +143,33 @@ impl ScreenWidget for Editor<'_> {
 
             behavior_nodes.push(node);
         }
-        let node_graph_behavior = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, GraphType::Behavior, behavior_nodes);
+        let node_graph_behavior = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Behaviors, behavior_nodes);
 
-        let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, GraphType::Behavior, vec![]);
+        let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Behaviors, vec![]);
 
         node_graph_behavior_details.set_mode(GraphMode::Detail, &context);
+
+        // Systems nodegraph
+
+        let systems_options = SystemsOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
+        let systems_overview_options = SystemsOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
+        let mut systems_nodes = vec![];
+        for (index, system_name) in context.data.systems_names.iter().enumerate() {
+            let mut node = NodeWidget::new(vec![system_name.to_string()],
+             NodeUserData { position: (100, 50 + 150 * index as isize) });
+
+            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
+            node.menu = Some(node_menu_atom);
+
+            systems_nodes.push(node);
+        }
+        let node_graph_systems = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, systems_nodes);
+
+        let mut node_graph_systems_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, vec![]);
+
+        node_graph_systems_details.set_mode(GraphMode::Detail, &context);
 
         let dialog = DialogWidget::new(asset, &context);
 
@@ -154,10 +189,15 @@ impl ScreenWidget for Editor<'_> {
             behavior_options,
             behavior_overview_options,
 
+            systems_options,
+            systems_overview_options,
+
             node_graph_tiles,
             node_graph_areas,
             node_graph_behavior,
             node_graph_behavior_details,
+            node_graph_systems,
+            node_graph_systems_details,
 
             dialog,
 
@@ -195,10 +235,15 @@ impl ScreenWidget for Editor<'_> {
         self.behavior_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
         self.behavior_overview_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
 
+        self.systems_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
+        self.systems_overview_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
+
         self.node_graph_tiles.resize(width, height - self.context.toolbar_height, &self.context);
         self.node_graph_areas.resize(width, height - self.context.toolbar_height, &self.context);
         self.node_graph_behavior.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
         self.node_graph_behavior_details.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
+        self.node_graph_systems.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
+        self.node_graph_systems_details.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset) {
@@ -229,6 +274,15 @@ impl ScreenWidget for Editor<'_> {
         if self.state == EditorState::BehaviorDetail {
             self.behavior_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_behavior_details.draw(frame, anim_counter, asset, &mut self.context);
+            self.status_bar.draw(frame, anim_counter, asset, &mut self.context);
+        } else
+        if self.state == EditorState::SystemsOverview {
+            self.systems_overview_options.draw(frame, anim_counter, asset, &mut self.context);
+            self.node_graph_systems.draw(frame, anim_counter, asset, &mut self.context);
+        } else
+        if self.state == EditorState::SystemsDetail {
+            self.systems_options.draw(frame, anim_counter, asset, &mut self.context);
+            self.node_graph_systems_details.draw(frame, anim_counter, asset, &mut self.context);
             self.status_bar.draw(frame, anim_counter, asset, &mut self.context);
         }
 
@@ -277,6 +331,32 @@ impl ScreenWidget for Editor<'_> {
                     }
                     self.node_graph_behavior.update_from_dialog(&mut self.context);
                 }
+            } else
+            if self.state == EditorState::SystemsOverview {
+                if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
+                    //println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
+                    self.context.data.create_system(self.context.dialog_new_name.clone(), 0);
+
+                    let mut node = NodeWidget::new(vec![self.context.dialog_new_name.clone()],
+                    NodeUserData { position: (100, 50 + 150 * self.node_graph_systems.nodes.len() as isize) });
+
+                    let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
+                    node.menu = Some(node_menu_atom);
+
+                    self.node_graph_systems.nodes.push(node);
+                    self.node_graph_systems.dirty = true;
+                    self.toolbar.widgets[0].text = self.context.data.systems_names.clone();
+                    self.toolbar.widgets[0].dirty = true;
+                } else {
+                    if self.context.dialog_entry == DialogEntry::NodeName {
+                        if self.context.dialog_accepted == true {
+                            if let Some(behavior) = self.context.data.behaviors.get_mut(&self.context.data.behaviors_ids[self.context.curr_behavior_index]) {
+                                behavior.rename(self.context.dialog_node_behavior_value.4.clone());
+                            }
+                        }
+                    }
+                    self.node_graph_behavior.update_from_dialog(&mut self.context);
+                }
             }
             self.context.dialog_entry = DialogEntry::None;
         }
@@ -314,14 +394,14 @@ impl ScreenWidget for Editor<'_> {
                 if self.toolbar.widgets[1].right_selected {
                     self.node_graph_tiles.set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::TilesDetail;
+                    self.context.curr_graph_type = BehaviorType::Tiles;
                 }
 
-                self.toolbar.widgets[2].selected = false;
-                self.toolbar.widgets[2].right_selected = false;
-                self.toolbar.widgets[3].selected = false;
-                self.toolbar.widgets[3].right_selected = false;
-                self.toolbar.widgets[2].dirty = true;
-                self.toolbar.widgets[3].dirty = true;
+                for i in 2..=5 {
+                    self.toolbar.widgets[i].selected = false;
+                    self.toolbar.widgets[i].right_selected = false;
+                    self.toolbar.widgets[i].dirty = true;
+                }
 
                 self.toolbar.widgets[0].text = asset.tileset.maps_names.clone();
                 self.toolbar.widgets[0].curr_index = self.context.curr_tileset_index;
@@ -337,14 +417,15 @@ impl ScreenWidget for Editor<'_> {
                 if self.toolbar.widgets[2].right_selected {
                     self.node_graph_areas.set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::AreaDetail;
+                    self.context.curr_graph_type = BehaviorType::Areas;
                 }
 
-                self.toolbar.widgets[1].selected = false;
-                self.toolbar.widgets[1].right_selected = false;
-                self.toolbar.widgets[3].selected = false;
-                self.toolbar.widgets[3].right_selected = false;
-                self.toolbar.widgets[1].dirty = true;
-                self.toolbar.widgets[3].dirty = true;
+                for i in 1..=5 {
+                    if i == 2 { continue; }
+                    self.toolbar.widgets[i].selected = false;
+                    self.toolbar.widgets[i].right_selected = false;
+                    self.toolbar.widgets[i].dirty = true;
+                }
 
                 self.toolbar.widgets[0].text = self.context.data.areas_names.clone();
                 self.toolbar.widgets[0].curr_index = self.context.curr_area_index;
@@ -360,15 +441,41 @@ impl ScreenWidget for Editor<'_> {
                 if self.toolbar.widgets[3].right_selected {
                     self.node_graph_behavior.set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::BehaviorDetail;
+                    self.context.curr_graph_type = BehaviorType::Behaviors;
                     self.node_graph_behavior_details.set_behavior_id(self.context.data.behaviors_ids[self.context.curr_behavior_index] , &mut self.context);
                 }
 
-                self.toolbar.widgets[1].selected = false;
-                self.toolbar.widgets[1].right_selected = false;
-                self.toolbar.widgets[1].dirty = true;
-                self.toolbar.widgets[2].selected = false;
-                self.toolbar.widgets[2].right_selected = false;
-                self.toolbar.widgets[2].dirty = true;
+                for i in 1..=5 {
+                    if i == 3 { continue; }
+                    self.toolbar.widgets[i].selected = false;
+                    self.toolbar.widgets[i].right_selected = false;
+                    self.toolbar.widgets[i].dirty = true;
+                }
+
+                self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
+                self.toolbar.widgets[0].curr_index = self.context.curr_behavior_index;
+                self.toolbar.widgets[0].dirty = true;
+            } else
+            // Systems Button
+            if self.toolbar.widgets[4].clicked {
+                if self.toolbar.widgets[4].selected {
+                    self.node_graph_systems.set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.state = EditorState::SystemsOverview;
+                    self.node_graph_systems.mark_all_dirty();
+                } else
+                if self.toolbar.widgets[4].right_selected {
+                    self.node_graph_systems.set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.state = EditorState::SystemsDetail;
+                    self.context.curr_graph_type = BehaviorType::Systems;
+                    self.node_graph_systems_details.set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
+                }
+
+                for i in 1..=5 {
+                    if i == 4 { continue; }
+                    self.toolbar.widgets[i].selected = false;
+                    self.toolbar.widgets[i].right_selected = false;
+                    self.toolbar.widgets[i].dirty = true;
+                }
 
                 self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
                 self.toolbar.widgets[0].curr_index = self.context.curr_behavior_index;
@@ -480,6 +587,27 @@ impl ScreenWidget for Editor<'_> {
                 consumed = true;
             }
         }
+        if consumed == false && self.state == EditorState::SystemsOverview {
+            if consumed == false && self.systems_overview_options.mouse_down(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if consumed == false && self.node_graph_systems.mouse_down(pos, asset, &mut self.context) {
+                consumed = true;
+                if self.node_graph_systems.clicked {
+                    self.toolbar.widgets[0].curr_index = self.context.curr_systems_index;
+                    self.toolbar.widgets[0].dirty = true;
+                    self.node_graph_behavior.clicked = false;
+                }
+            }
+        }
+        if consumed == false && self.state == EditorState::SystemsDetail {
+            if consumed == false && self.systems_options.mouse_down(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if consumed == false && self.node_graph_systems_details.mouse_down(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+        }
 
         consumed
     }
@@ -510,6 +638,11 @@ impl ScreenWidget for Editor<'_> {
                     self.node_graph_behavior.changed_selection(self.context.curr_behavior_index, self.toolbar.widgets[0].curr_index);
                     self.context.curr_behavior_index = self.toolbar.widgets[0].curr_index;
                     self.node_graph_behavior_details.set_behavior_id(self.context.data.behaviors_ids[self.context.curr_behavior_index] , &mut self.context);
+                } else
+                if self.state == EditorState::SystemsOverview || self.state == EditorState::SystemsDetail {
+                    self.node_graph_systems.changed_selection(self.context.curr_systems_index, self.toolbar.widgets[0].curr_index);
+                    self.context.curr_systems_index = self.toolbar.widgets[0].curr_index;
+                    self.node_graph_systems_details.set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
                 }
                 self.toolbar.widgets[0].new_selection = None;
             }
@@ -552,6 +685,30 @@ impl ScreenWidget for Editor<'_> {
             if self.node_graph_behavior_details.mouse_up(pos, asset, &mut self.context) {
                 consumed = true;
             }
+        } else
+        if self.state == EditorState::SystemsOverview {
+            if self.systems_overview_options.mouse_up(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if self.node_graph_systems.mouse_up(pos, asset, &mut self.context) {
+                consumed = true;
+
+                // In case a behavior was deleted
+                if self.toolbar.widgets[0].text.len() != self.context.data.systems_names.len() {
+                    self.toolbar.widgets[0].text = self.context.data.systems_names.clone();
+                    self.context.curr_systems_index = 0;
+                    self.toolbar.widgets[0].dirty = true;
+                    self.toolbar.widgets[0].curr_index = 0;
+                }
+            }
+        } else
+        if self.state == EditorState::SystemsDetail {
+            if self.systems_options.mouse_up(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if self.node_graph_systems_details.mouse_up(pos, asset, &mut self.context) {
+                consumed = true;
+            }
         }
 
         // Node Drag ?
@@ -581,7 +738,34 @@ impl ScreenWidget for Editor<'_> {
 
                     self.node_graph_behavior_details.add_node_of_name(drag_context.text.clone(), position, &mut self.context);
                 }
+            } else
+            if self.state == EditorState::SystemsOverview {
+                if self.context.contains_pos_for(pos, self.node_graph_systems.rect) {
+
+                    let mut position = (pos.0 as isize, pos.1 as isize);
+                    position.0 -= self.node_graph_systems.rect.0 as isize + self.node_graph_systems.offset.0 + drag_context.offset.0;
+                    position.1 -= self.node_graph_systems.rect.1 as isize + self.node_graph_systems.offset.1 + drag_context.offset.1;
+
+                    self.context.dialog_state = DialogState::Opening;
+                    self.context.dialog_height = 0;
+                    self.context.target_fps = 60;
+                    self.context.dialog_entry = DialogEntry::NewName;
+                    self.context.dialog_new_name = "New System".to_string();
+                    self.context.dialog_new_name_type = format!("NewBehavior_{}", drag_context.text);
+                    self.context.dialog_new_node_position = position;
+                }
+            } else
+            if self.state == EditorState::SystemsDetail {
+                if self.context.contains_pos_for(pos, self.node_graph_systems_details.rect) {
+                    let mut position = (pos.0 as isize, pos.1 as isize);
+                    position.0 -= self.node_graph_systems_details.rect.0 as isize + self.node_graph_systems_details.offset.0 + drag_context.offset.0;
+                    position.1 -= self.node_graph_systems_details.rect.1 as isize + self.node_graph_systems_details.offset.1 + drag_context.offset.1;
+
+                    self.node_graph_systems_details.add_node_of_name(drag_context.text.clone(), position, &mut self.context);
+                }
             }
+
+
             // Cleanup DnD
             self.context.drag_context = None;
             self.context.target_fps = self.context.default_fps;
@@ -647,6 +831,22 @@ impl ScreenWidget for Editor<'_> {
             if consumed == false && self.node_graph_behavior_details.mouse_dragged(pos, asset, &mut self.context) {
                 consumed = true;
             }
+        } else
+        if self.state == EditorState::SystemsOverview {
+            if consumed == false && self.systems_overview_options.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if consumed == false && self.node_graph_systems.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+        } else
+        if self.state == EditorState::SystemsDetail {
+            if consumed == false && self.systems_options.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if consumed == false && self.node_graph_systems_details.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }
         }
         self.mouse_pos = pos.clone();
         consumed
@@ -676,6 +876,11 @@ impl ScreenWidget for Editor<'_> {
         } else
         if self.state == EditorState::BehaviorDetail {
             if consumed == false && self.node_graph_behavior_details.mouse_hover(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+        } else
+        if self.state == EditorState::SystemsDetail {
+            if consumed == false && self.node_graph_systems_details.mouse_hover(pos, asset, &mut self.context) {
                 consumed = true;
             }
         }
@@ -722,6 +927,16 @@ impl ScreenWidget for Editor<'_> {
         } else
         if self.state == EditorState::BehaviorDetail {
             if consumed == false && self.node_graph_behavior_details.mouse_wheel(delta, asset, &mut self.context) {
+                consumed = true;
+            }
+        } else
+        if self.state == EditorState::SystemsOverview {
+            if consumed == false && self.node_graph_systems.mouse_wheel(delta, asset, &mut self.context) {
+                consumed = true;
+            }
+        } else
+        if self.state == EditorState::SystemsDetail {
+            if consumed == false && self.node_graph_systems_details.mouse_wheel(delta, asset, &mut self.context) {
                 consumed = true;
             }
         }

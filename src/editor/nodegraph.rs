@@ -5,7 +5,7 @@ use crate::editor::dialog::{ DialogState, DialogEntry };
 
 use zeno::{Mask, Stroke};
 
-use server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode, BehaviorNodeConnector};
+use server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode, BehaviorNodeConnector, BehaviorType };
 
 use server::asset::Asset;
 use crate::editor::ScreenContext;
@@ -18,19 +18,12 @@ pub enum GraphMode {
     Detail
 }
 
-#[derive(PartialEq)]
-pub enum GraphType {
-    Tiles,
-    Areas,
-    Behavior,
-}
-
 pub struct NodeGraph {
     pub rect                    : (usize, usize, usize, usize),
     pub dirty                   : bool,
     buffer                      : Vec<u8>,
     graph_mode                  : GraphMode,
-    graph_type                  : GraphType,
+    graph_type                  : BehaviorType,
     pub nodes                   : Vec<NodeWidget>,
 
     pub offset                  : (isize, isize),
@@ -60,7 +53,7 @@ pub struct NodeGraph {
 
 impl NodeGraph {
 
-    pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext, graph_type: GraphType, nodes: Vec<NodeWidget>) -> Self {
+    pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext, graph_type: BehaviorType, nodes: Vec<NodeWidget>) -> Self {
         Self {
             rect,
             dirty                       : true,
@@ -142,25 +135,35 @@ impl NodeGraph {
 
                     let mut selected = false;
 
-                    if self.graph_type == GraphType::Tiles {
+                    if self.graph_type == BehaviorType::Tiles {
                         if index == context.curr_tileset_index {
                             selected = true;
                         }
                     } else
-                    if self.graph_type == GraphType::Areas {
+                    if self.graph_type == BehaviorType::Areas {
                         if index == context.curr_area_index {
                             selected = true;
                         }
                     } else
-                    if self.graph_type == GraphType::Behavior {
+                    if self.graph_type == BehaviorType::Behaviors {
                         if index == context.curr_behavior_index {
+                            selected = true;
+                        }
+                    } else
+                    if self.graph_type == BehaviorType::Systems {
+                        if index == context.curr_systems_index {
+                            selected = true;
+                        }
+                    }
+                    if self.graph_type == BehaviorType::Items {
+                        if index == context.curr_items_index {
                             selected = true;
                         }
                     }
 
                     if self.nodes[index].dirty {
                         let mut preview_buffer = vec![0; 100 * 100 * 4];
-                        if self.graph_type == GraphType::Tiles {
+                        if self.graph_type == BehaviorType::Tiles {
                             // For tile maps draw the default_tile
                             if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[index]) {
                                 if let Some(default_tile) = map.settings.default_tile {
@@ -168,14 +171,14 @@ impl NodeGraph {
                                 }
                             }
                         } else
-                        if self.graph_type == GraphType::Areas {
+                        if self.graph_type == BehaviorType::Areas {
                             // For Areas draw the center of the map
                             if let Some(area)= context.data.areas.get_mut(&context.data.areas_ids[index]) {
                                 let offset = area.get_center_offset_for_visible_size((10, 10));
                                 context.draw2d.draw_area(&mut preview_buffer[..], area, &(0, 0, 100, 100), &offset, 100, 10, anim_counter, asset);
                             }
                         } else
-                        if self.graph_type == GraphType::Behavior {
+                        if self.graph_type == BehaviorType::Behaviors {
                             // Draw the main behavior tile
                             if let Some(tile_id) = context.data.get_behavior_default_tile(context.data.behaviors_ids[index]) {
                                 if let Some(map)= asset.tileset.maps.get_mut(&tile_id.0) {
@@ -192,10 +195,11 @@ impl NodeGraph {
                     self.nodes[index].graph_offset = (rect.0, rect.1);
                     context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, safe_rect.2, &safe_rect);
                 }
-            } else {
+            } else
+            if self.nodes.len() > 0 {
                 // Detail View
 
-                let mut corner_index = 0;
+                let mut corner_index : Option<usize> = None;
                 let mut variables : Vec<usize> = vec![];
 
                 // Draw nodes
@@ -203,7 +207,7 @@ impl NodeGraph {
 
                     // Check for corner node
                     if self.nodes[index].is_corner_node {
-                        corner_index = index;
+                        corner_index = Some(index);
                         continue;
                     }
 
@@ -218,7 +222,7 @@ impl NodeGraph {
 
                         if self.nodes[index].dirty {
 
-                            let selected = if self.nodes[index].id == context.curr_behavior_node_id { true } else { false };
+                            let selected = if self.nodes[index].id == self.get_curr_node_id(context) { true } else { false };
                             self.nodes[index].draw(frame, anim_counter, asset, context, selected);
                         }
 
@@ -228,15 +232,17 @@ impl NodeGraph {
                     }
                 }
 
-                // Corner node
-                if self.nodes[corner_index].dirty {
-                    self.nodes[corner_index].draw(frame, anim_counter, asset, context, false);
-                }
+                // Corner node if available
+                if let Some(corner_index) = corner_index {
+                    if self.nodes[corner_index].dirty {
+                        self.nodes[corner_index].draw(frame, anim_counter, asset, context, false);
+                    }
 
-                let rect= self.get_node_rect(corner_index, true);
-                self.nodes[corner_index].graph_offset = (rect.0, rect.1);
-                self.nodes[corner_index].graph_offset = (rect.0, rect.1);
-                context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[corner_index].buffer[..], &rect, safe_rect.2, &safe_rect);
+                    let rect= self.get_node_rect(corner_index, true);
+                    self.nodes[corner_index].graph_offset = (rect.0, rect.1);
+                    self.nodes[corner_index].graph_offset = (rect.0, rect.1);
+                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[corner_index].buffer[..], &rect, safe_rect.2, &safe_rect);
+                }
 
                 for index in 0..variables.len() {
 
@@ -256,7 +262,7 @@ impl NodeGraph {
                     }
 
                     if self.nodes[vindex].dirty {
-                        let selected = if self.nodes[index].id == context.curr_behavior_node_id { true } else { false };
+                        let selected = if self.nodes[index].id == self.get_curr_node_id(context) { true } else { false };
                         self.nodes[vindex].draw(frame, anim_counter, asset, context, selected);
                     }
 
@@ -274,7 +280,7 @@ impl NodeGraph {
                 let mut orange_path : String = "".to_string();
 
                 // Draw connections
-                if let Some(behavior) = context.data.behaviors.get(&context.data.behaviors_ids[context.curr_behavior_index]) {
+                if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
 
                     for (source_node_id , source_connector, dest_node_id, dest_connector) in &behavior.data.connections {
 
@@ -512,7 +518,7 @@ impl NodeGraph {
                     self.nodes[node_index].dirty = true;
                     self.dirty = true;
 
-                    context.data.set_behavior_node_name((context.data.behaviors_ids[context.curr_behavior_index], context.dialog_node_behavior_id.0),context.dialog_node_behavior_value.4.clone());
+                    context.data.set_behavior_node_name((self.get_curr_behavior_id(context), context.dialog_node_behavior_id.0),context.dialog_node_behavior_value.4.clone(), self.graph_type);
                     break;
                 }
             }
@@ -554,7 +560,7 @@ impl NodeGraph {
                     self.drag_offset = (pos.0 as isize, pos.1 as isize);
                     self.drag_node_pos= (self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize);
 
-                    if self.graph_type == GraphType::Tiles {
+                    if self.graph_type == BehaviorType::Tiles {
                         if context.curr_tileset_index != index {
 
                             self.nodes[context.curr_tileset_index].dirty = true;
@@ -564,7 +570,7 @@ impl NodeGraph {
                             self.clicked = true;
                         }
                     }
-                    if self.graph_type == GraphType::Areas {
+                    if self.graph_type == BehaviorType::Areas {
                         if context.curr_area_index != index {
 
                             self.nodes[context.curr_area_index].dirty = true;
@@ -574,11 +580,31 @@ impl NodeGraph {
                             self.clicked = true;
                         }
                     }
-                    if self.graph_type == GraphType::Behavior {
+                    if self.graph_type == BehaviorType::Behaviors {
                         if context.curr_behavior_index != index {
 
                             self.nodes[context.curr_behavior_index].dirty = true;
                             context.curr_behavior_index = index;
+                            self.nodes[index].dirty = true;
+                            self.dirty = true;
+                            self.clicked = true;
+                        }
+                    }
+                    if self.graph_type == BehaviorType::Systems {
+                        if context.curr_systems_index != index {
+
+                            self.nodes[context.curr_systems_index].dirty = true;
+                            context.curr_systems_index = index;
+                            self.nodes[index].dirty = true;
+                            self.dirty = true;
+                            self.clicked = true;
+                        }
+                    }
+                    if self.graph_type == BehaviorType::Items {
+                        if context.curr_items_index != index {
+
+                            self.nodes[context.curr_items_index].dirty = true;
+                            context.curr_items_index = index;
                             self.nodes[index].dirty = true;
                             self.dirty = true;
                             self.clicked = true;
@@ -645,18 +671,24 @@ impl NodeGraph {
                         self.drag_offset = (pos.0 as isize, pos.1 as isize);
                         self.drag_node_pos= (self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize);
 
-                        if self.graph_type == GraphType::Behavior {
-                            if context.curr_behavior_node_id != self.nodes[index].id {
+                        if self.get_curr_node_id(context) != self.nodes[index].id {
 
-                                let sel_index = self.node_id_to_widget_index(context.curr_behavior_node_id);
+                            let sel_index = self.node_id_to_widget_index(self.get_curr_node_id(context));
 
-                                self.nodes[sel_index].dirty = true;
+                            self.nodes[sel_index].dirty = true;
+                            if self.graph_type == BehaviorType::Behaviors {
                                 context.curr_behavior_node_id = self.nodes[index].id;
-                                self.nodes[index].dirty = true;
-                                self.dirty = true;
-                                self.clicked = true;
-                                rc = true;
+                            } else
+                            if self.graph_type == BehaviorType::Systems {
+                                context.curr_systems_node_id = self.nodes[index].id;
+                            } else
+                            if self.graph_type == BehaviorType::Items {
+                                context.curr_items_node_id = self.nodes[index].id;
                             }
+                            self.nodes[index].dirty = true;
+                            self.dirty = true;
+                            self.clicked = true;
+                            rc = true;
                         }
                     }
                 }
@@ -736,13 +768,13 @@ impl NodeGraph {
             context.target_fps = context.default_fps;
 
             // Save the new node position
-            if self.graph_type == GraphType::Behavior && self.graph_mode == GraphMode::Detail {
-                if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[context.curr_behavior_index]) {
-
+            if self.graph_mode == GraphMode::Detail {
+                let curr_node_id = self.get_curr_node_id(context);
+                if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
                     for node_widget in &self.nodes {
                         if node_widget.id == context.curr_behavior_node_id {
                             let position = node_widget.user_data.position.clone();
-                            if let Some(behavior_node) = behavior.data.nodes.get_mut(&context.curr_behavior_node_id) {
+                            if let Some(behavior_node) = behavior.data.nodes.get_mut(&curr_node_id) {
                                 behavior_node.position = position;
                                 behavior.save_data();
                                 break;
@@ -757,7 +789,7 @@ impl NodeGraph {
         if let Some(source_conn) = &self.source_conn {
             if let Some(dest_conn) = &self.dest_conn {
 
-                if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[context.curr_behavior_index]) {
+                if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
 
                     // Add the connection in the order of source connector -> dest connector
                     if self.connector_is_source(dest_conn.0) {
@@ -795,7 +827,7 @@ impl NodeGraph {
             if let Some(menu_activated) = menu_activated {
                 self.nodes[index].dirty = true;
 
-                if self.graph_type == GraphType::Behavior && self.graph_mode == GraphMode::Overview {
+                if self.graph_type == BehaviorType::Behaviors && self.graph_mode == GraphMode::Overview {
                     if  "Rename".to_string() == menu_activated {
                         // Rename node
                         context.dialog_state = DialogState::Opening;
@@ -814,7 +846,7 @@ impl NodeGraph {
                     }
                 }
 
-                if self.graph_type == GraphType::Behavior && self.graph_mode == GraphMode::Detail {
+                if self.graph_type == BehaviorType::Behaviors && self.graph_mode == GraphMode::Detail {
                     if  "Rename".to_string() == menu_activated {
                         // Rename node
                         context.dialog_state = DialogState::Opening;
@@ -839,7 +871,7 @@ impl NodeGraph {
 
             if self.nodes[index].mouse_up(local, asset, context) {
                 self.dirty = true;
-                if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[context.curr_behavior_index]) {
+                if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
                     behavior.save_data();
                 }
                 return true;
@@ -1016,7 +1048,7 @@ impl NodeGraph {
         self.behavior_tree_indices = vec![];
         self.curr_behavior_tree_index = None;
 
-        if let Some(behavior) = context.data.behaviors.get(&id) {
+        if let Some(behavior) = context.data.get_behavior(id, self.graph_type) {
             let sorted_keys = behavior.data.nodes.keys().sorted();
 
             for i in sorted_keys {
@@ -1037,7 +1069,7 @@ impl NodeGraph {
         let mut id : usize = 0;
 
         // Create the node
-        if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[context.curr_behavior_index]) {
+        if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
 
             let node_type = match name.as_str() {
                 "Expression" => BehaviorNodeType::Expression,
@@ -1065,8 +1097,18 @@ impl NodeGraph {
 
         // Add the atom widgets
         if let Some(mut node) = node_widget {
-            let behavior = context.data.behaviors.get(&context.data.behaviors_ids[context.curr_behavior_index]).unwrap();
-            self.init_node_widget(&behavior.data, &behavior.data.nodes.get(&id).unwrap(), &mut node, context);
+            if self.graph_type == BehaviorType::Behaviors {
+                let behavior = context.data.behaviors.get(&context.data.behaviors_ids[context.curr_behavior_index]).unwrap();
+                self.init_node_widget(&behavior.data, &behavior.data.nodes.get(&id).unwrap(), &mut node, context);
+            } else
+            if self.graph_type == BehaviorType::Systems {
+                let behavior = context.data.systems.get(&context.data.systems_ids[context.curr_systems_index]).unwrap();
+                self.init_node_widget(&behavior.data, &behavior.data.nodes.get(&id).unwrap(), &mut node, context);
+            } else
+            if self.graph_type == BehaviorType::Items {
+                let behavior = context.data.items.get(&context.data.items_ids[context.curr_items_index]).unwrap();
+                self.init_node_widget(&behavior.data, &behavior.data.nodes.get(&id).unwrap(), &mut node, context);
+            }
             self.nodes.push(node);
         }
 
@@ -1280,7 +1322,7 @@ impl NodeGraph {
             node_widget.widgets.remove(1);
         }
 
-        if self.graph_type == GraphType::Behavior {
+        if self.graph_type == BehaviorType::Behaviors {
             if type_index == 0 {
                 // Character
 
@@ -1331,7 +1373,7 @@ impl NodeGraph {
     /// Disconnect the node from all connections
     fn disconnect_node(&mut self, id: usize, context: &mut ScreenContext) {
 
-        if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[context.curr_behavior_index]) {
+        if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
             let mut nothing_to_remove = false;
             while nothing_to_remove == false {
                 nothing_to_remove = true;
@@ -1363,7 +1405,7 @@ impl NodeGraph {
         }
 
         // Remove node data
-        if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[context.curr_behavior_index]) {
+        if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
             behavior.data.nodes.remove(&id);
             behavior.save_data();
         }
@@ -1380,7 +1422,7 @@ impl NodeGraph {
                         self.nodes[index].dirty = true;
                         self.dirty = true;
 
-                        context.data.set_behavior_id_value(node_atom_id.clone(), data.clone());
+                        context.data.set_behavior_id_value(node_atom_id.clone(), data.clone(), self.graph_type);
 
                         break;
                     }
@@ -1404,7 +1446,7 @@ impl NodeGraph {
             for index in 0..self.nodes.len() {
 
                 let mut connected = false;
-                if let Some(behavior) = context.data.behaviors.get(&context.data.behaviors_ids[context.curr_behavior_index]) {
+                if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
 
                     // Skip behavior tree nodes
                     if let Some(node_data) = behavior.data.nodes.get(&self.widget_index_to_node_id(index)) {
@@ -1436,7 +1478,7 @@ impl NodeGraph {
 
     /// Marks all connected nodes as visible
     pub fn mark_connections_visible(&mut self, id: usize, context: &ScreenContext) {
-        if let Some(behavior) = context.data.behaviors.get(&context.data.behaviors_ids[context.curr_behavior_index]) {
+        if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
             for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
                 if *source_node_id == id {
                     self.visible_node_ids.push(*dest_node_id);
@@ -1448,7 +1490,7 @@ impl NodeGraph {
 
     /// Checks if the given node id is part of an unconnected branch.
     pub fn belongs_to_standalone_branch(&mut self, id: usize, context: &ScreenContext) -> bool {
-        if let Some(behavior) = context.data.behaviors.get(&context.data.behaviors_ids[context.curr_behavior_index]) {
+        if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
 
             for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
                 if *dest_node_id == id {
@@ -1464,5 +1506,33 @@ impl NodeGraph {
         }
 
         false
+    }
+
+    /// Returns the behavior id for the current behavior and graph type
+    fn get_curr_behavior_id(&self, context: &ScreenContext) -> usize {
+        if self.graph_type == BehaviorType::Behaviors {
+            return context.data.behaviors_ids[context.curr_behavior_index];
+        } else
+        if self.graph_type == BehaviorType::Systems {
+            return context.data.systems_ids[context.curr_systems_index];
+        } else
+        if self.graph_type == BehaviorType::Items {
+            return context.data.items_ids[context.curr_items_index];
+        }
+        0
+    }
+
+    /// Returns the current node id for the given graph type
+    fn get_curr_node_id(&self, context: &ScreenContext) -> usize {
+        if self.graph_type == BehaviorType::Behaviors {
+            return context.curr_behavior_node_id
+        } else
+        if self.graph_type == BehaviorType::Systems {
+            return context.curr_systems_node_id
+        } else
+        if self.graph_type == BehaviorType::Items {
+            return context.curr_items_node_id
+        }
+        0
     }
 }

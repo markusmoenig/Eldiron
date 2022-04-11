@@ -350,7 +350,7 @@ impl NodeWidget {
                 for index in 0..self.widgets.len() {
                     if let Some(widget_id) = self.widgets[index].behavior_id.clone() {
                         if id == widget_id {
-                            context.data.set_behavior_id_value(id.clone(), self.widgets[index].atom_data.data.clone());
+                            context.data.set_behavior_id_value(id.clone(), self.widgets[index].atom_data.data.clone(), context.curr_graph_type);
                         }
                     }
                 }

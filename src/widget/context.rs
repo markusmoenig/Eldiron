@@ -4,6 +4,8 @@ use server::gamedata::GameData;
 use crate::editor::dialog::{ DialogState, DialogEntry };
 use crate::TileUsage;
 
+use server::gamedata::behavior::BehaviorType;
+
 use zeno::{Mask, Stroke};
 
 #[derive(PartialEq)]
@@ -73,7 +75,15 @@ pub struct ScreenContext<'a> {
     pub curr_behavior_index             : usize,
     pub curr_behavior_node_id           : usize,
 
+    pub curr_systems_index              : usize,
+    pub curr_systems_node_id            : usize,
+
+    pub curr_items_index                : usize,
+    pub curr_items_node_id              : usize,
+
     pub drag_context                    : Option<ScreenDragContext>,
+
+    pub curr_graph_type                 : BehaviorType,
 
     pub dialog_state                    : DialogState,
     pub dialog_height                   : usize,
@@ -183,6 +193,8 @@ impl ScreenContext<'_> {
 
             drag_context                : None,
 
+            curr_graph_type             : BehaviorType::Behaviors,
+
             // Tiles
             curr_tileset_index          : 0,
             curr_tile                   : None,
@@ -195,6 +207,14 @@ impl ScreenContext<'_> {
             // Behaviors
             curr_behavior_index         : 0,
             curr_behavior_node_id       : 0,
+
+            // Systems
+            curr_systems_index          : 0,
+            curr_systems_node_id        : 0,
+
+            // Items
+            curr_items_index            : 0,
+            curr_items_node_id          : 0,
 
             dialog_state                : DialogState::Closed,
             dialog_height               : 0,

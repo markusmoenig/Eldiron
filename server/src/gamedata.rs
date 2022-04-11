@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::fs::metadata;
 
 use crate::gamedata::area::GameArea;
-use crate::gamedata::behavior::{ BehaviorNodeConnector, BehaviorInstance, GameBehavior };
+use crate::gamedata::behavior::{ BehaviorNodeConnector, BehaviorInstance, GameBehavior, BehaviorNodeType, BehaviorType };
 use crate::asset::TileUsage;
 
 use itertools::Itertools;
@@ -19,8 +19,6 @@ use std::path;
 use std::fs;
 
 use rand::prelude::*;
-
-use self::behavior::{BehaviorNodeType};
 
 type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData) -> behavior::BehaviorNodeConnector;
 
@@ -32,6 +30,14 @@ pub struct GameData<'a> {
     pub behaviors               : HashMap<usize, GameBehavior>,
     pub behaviors_names         : Vec<String>,
     pub behaviors_ids           : Vec<usize>,
+
+    pub systems                 : HashMap<usize, GameBehavior>,
+    pub systems_names           : Vec<String>,
+    pub systems_ids             : Vec<usize>,
+
+    pub items                   : HashMap<usize, GameBehavior>,
+    pub items_names             : Vec<String>,
+    pub items_ids               : Vec<usize>,
 
     pub nodes                   : HashMap<BehaviorNodeType, NodeCall>,
 
@@ -151,6 +157,100 @@ impl GameData<'_> {
             }
         }
 
+        // Systems
+
+        let systems_path = path::Path::new("game").join("systems");
+        let paths = fs::read_dir(systems_path).unwrap();
+
+        let mut systems: HashMap<usize, GameBehavior> = HashMap::new();
+        let mut systems_names = vec![];
+        let mut systems_ids = vec![];
+
+        for path in paths {
+            let path = &path.unwrap().path();
+            let md = metadata(path).unwrap();
+
+            if md.is_file() {
+                if let Some(name) = path::Path::new(&path).extension() {
+                    if name == "json" || name == "JSON" {
+                        let mut system = GameBehavior::new(path);
+                        systems_names.push(system.name.clone());
+
+                        // Make sure we create a unique id (check if the id already exists in the set)
+                        let mut has_id_already = true;
+                        while has_id_already {
+
+                            has_id_already = false;
+                            for (key, _value) in &systems {
+                                if key == &system.data.id {
+                                    has_id_already = true;
+                                }
+                            }
+
+                            if has_id_already {
+                                system.data.id += 1;
+                            }
+                        }
+
+                        if system.data.nodes.len() == 0 {
+                            // behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                            // behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                            // behavior.save_data();
+                        }
+                        systems_ids.push(system.data.id);
+                        systems.insert(system.data.id, system);
+                    }
+                }
+            }
+        }
+
+        // Items
+
+        let item_path = path::Path::new("game").join("items");
+        let paths = fs::read_dir(item_path).unwrap();
+
+        let mut items: HashMap<usize, GameBehavior> = HashMap::new();
+        let mut items_names = vec![];
+        let mut items_ids = vec![];
+
+        for path in paths {
+            let path = &path.unwrap().path();
+            let md = metadata(path).unwrap();
+
+            if md.is_file() {
+                if let Some(name) = path::Path::new(&path).extension() {
+                    if name == "json" || name == "JSON" {
+                        let mut item = GameBehavior::new(path);
+                        items_names.push(item.name.clone());
+
+                        // Make sure we create a unique id (check if the id already exists in the set)
+                        let mut has_id_already = true;
+                        while has_id_already {
+
+                            has_id_already = false;
+                            for (key, _value) in &behaviors {
+                                if key == &item.data.id {
+                                    has_id_already = true;
+                                }
+                            }
+
+                            if has_id_already {
+                                item.data.id += 1;
+                            }
+                        }
+
+                        if item.data.nodes.len() == 0 {
+                            // behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                            // behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                            // behavior.save_data();
+                        }
+                        items_ids.push(item.data.id);
+                        items.insert(item.data.id, item);
+                    }
+                }
+            }
+        }
+
         let mut nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
         nodes.insert(BehaviorNodeType::Expression, nodes::expression);
         nodes.insert(BehaviorNodeType::Script, nodes::script);
@@ -168,6 +268,14 @@ impl GameData<'_> {
             behaviors,
             behaviors_names,
             behaviors_ids,
+
+            systems,
+            systems_names,
+            systems_ids,
+
+            items,
+            items_names,
+            items_ids,
 
             nodes,
 
@@ -215,9 +323,26 @@ impl GameData<'_> {
         self.behaviors.insert(behavior.data.id, behavior);
     }
 
+    /// Create a new system
+    pub fn create_system(&mut self, name: String, _behavior_type: usize) {
+
+        let path = path::Path::new("game").join("systems").join(name.clone() + ".json");
+
+        let mut system = GameBehavior::new(&path);
+        system.data.name = name.clone();
+
+        self.systems_names.push(system.name.clone());
+        self.systems_ids.push(system.data.id);
+
+        system.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+        system.save_data();
+
+        self.systems.insert(system.data.id, system);
+    }
+
     /// Sets the value for the given behavior id
-    pub fn set_behavior_id_value(&mut self, id: (usize, usize, String), value: (f64, f64, f64, f64, String)) {
-        if let Some(behavior) = self.behaviors.get_mut(&id.0) {
+    pub fn set_behavior_id_value(&mut self, id: (usize, usize, String), value: (f64, f64, f64, f64, String), behavior_type: BehaviorType) {
+        if let Some(behavior) = self.get_mut_behavior(id.0, behavior_type) {
             if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
                 node.values.insert(id.2.clone(), value);
                 behavior.save_data();
@@ -226,8 +351,8 @@ impl GameData<'_> {
     }
 
     /// Sets the name for the given node
-    pub fn set_behavior_node_name(&mut self, id: (usize, usize), value: String) {
-        if let Some(behavior) = self.behaviors.get_mut(&id.0) {
+    pub fn set_behavior_node_name(&mut self, id: (usize, usize), value: String, behavior_type: BehaviorType) {
+        if let Some(behavior) = self.get_mut_behavior(id.0, behavior_type) {
             if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
                 node.name = value;
                 behavior.save_data();
@@ -456,5 +581,33 @@ impl GameData<'_> {
         if let Some(connected_node_id) = connected_node_id {
             self.execute_node(instance_index, connected_node_id);
         }
+    }
+
+    /// Gets the behavior for the given behaviortype
+    pub fn get_behavior(&self, id: usize, behavior_type: BehaviorType) -> Option<&GameBehavior> {
+        if behavior_type == BehaviorType::Behaviors {
+            return self.behaviors.get(&id);
+        } else
+        if behavior_type == BehaviorType::Systems {
+            return self.systems.get(&id);
+        } else
+        if behavior_type == BehaviorType::Items {
+            return self.items.get(&id);
+        }
+        None
+    }
+
+    /// Gets the mutable behavior for the given behaviortype
+    pub fn get_mut_behavior(&mut self, id: usize, behavior_type: BehaviorType) -> Option<&mut GameBehavior> {
+        if behavior_type == BehaviorType::Behaviors {
+            return self.behaviors.get_mut(&id);
+        } else
+        if behavior_type == BehaviorType::Systems {
+            return self.systems.get_mut(&id);
+        } else
+        if behavior_type == BehaviorType::Items {
+            return self.items.get_mut(&id);
+        }
+        None
     }
 }
