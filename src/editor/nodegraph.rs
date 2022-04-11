@@ -827,7 +827,7 @@ impl NodeGraph {
             if let Some(menu_activated) = menu_activated {
                 self.nodes[index].dirty = true;
 
-                if self.graph_type == BehaviorType::Behaviors && self.graph_mode == GraphMode::Overview {
+                if self.graph_mode == GraphMode::Overview {
                     if  "Rename".to_string() == menu_activated {
                         // Rename node
                         context.dialog_state = DialogState::Opening;
@@ -839,14 +839,20 @@ impl NodeGraph {
                     } else
                     if "Delete".to_string() == menu_activated {
                         if self.nodes.len() > 1 {
-                            self.nodes.remove(context.curr_behavior_index);
-                            context.data.delete_behavior(&context.curr_behavior_index);
+                            if self.graph_type == BehaviorType::Behaviors {
+                                self.nodes.remove(context.curr_behavior_index);
+                                context.data.delete_behavior(&context.curr_behavior_index);
+                            } else
+                            if self.graph_type == BehaviorType::Systems {
+                                self.nodes.remove(context.curr_systems_index);
+                                context.data.delete_system(&context.curr_systems_index);
+                            }
                             self.nodes[0].dirty = true;
                         }
                     }
                 }
 
-                if self.graph_type == BehaviorType::Behaviors && self.graph_mode == GraphMode::Detail {
+                if self.graph_mode == GraphMode::Detail {
                     if  "Rename".to_string() == menu_activated {
                         // Rename node
                         context.dialog_state = DialogState::Opening;

@@ -169,8 +169,8 @@ impl GameBehavior {
     }
 
     /// Rename the behavior
-    pub fn rename(&mut self, name: String) {
+    pub fn rename(&mut self, name: String, path: String) {
         self.name = name.clone();
-        let _ = std::fs::rename(self.path.clone(), path::Path::new("game").join("behavior").join(name + ".json"));
+        let _ = std::fs::rename(self.path.clone(), path::Path::new("game").join(path).join(name + ".json"));
     }
 }

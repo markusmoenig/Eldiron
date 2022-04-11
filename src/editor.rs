@@ -306,6 +306,13 @@ impl ScreenWidget for Editor<'_> {
                     self.node_graph_behavior_details.update_from_dialog(&mut self.context);
                 }
             } else
+            if self.state == EditorState::SystemsDetail {
+                if self.context.dialog_entry == DialogEntry::NodeTile {
+                    self.node_graph_systems_details.set_node_atom_data(self.context.dialog_node_behavior_id.clone(), self.context.dialog_node_behavior_value.clone(), &mut self.context);
+                } else {
+                    self.node_graph_systems_details.update_from_dialog(&mut self.context);
+                }
+            } else
             if self.state == EditorState::BehaviorOverview {
                 if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
                     //println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
@@ -325,7 +332,7 @@ impl ScreenWidget for Editor<'_> {
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {
                             if let Some(behavior) = self.context.data.behaviors.get_mut(&self.context.data.behaviors_ids[self.context.curr_behavior_index]) {
-                                behavior.rename(self.context.dialog_node_behavior_value.4.clone());
+                                behavior.rename(self.context.dialog_node_behavior_value.4.clone(), "behavior".to_string());
                             }
                         }
                     }
@@ -350,12 +357,12 @@ impl ScreenWidget for Editor<'_> {
                 } else {
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {
-                            if let Some(behavior) = self.context.data.behaviors.get_mut(&self.context.data.behaviors_ids[self.context.curr_behavior_index]) {
-                                behavior.rename(self.context.dialog_node_behavior_value.4.clone());
+                            if let Some(system) = self.context.data.systems.get_mut(&self.context.data.systems_ids[self.context.curr_systems_index]) {
+                                system.rename(self.context.dialog_node_behavior_value.4.clone(), "systems".to_string());
                             }
                         }
                     }
-                    self.node_graph_behavior.update_from_dialog(&mut self.context);
+                    self.node_graph_systems.update_from_dialog(&mut self.context);
                 }
             }
             self.context.dialog_entry = DialogEntry::None;

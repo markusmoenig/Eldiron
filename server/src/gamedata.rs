@@ -544,6 +544,19 @@ impl GameData<'_> {
         self.behaviors.remove(&id);
     }
 
+    /// Delete the system of the given id
+    pub fn delete_system(&mut self, index: &usize) {
+        let id = self.systems_ids[*index].clone();
+
+        if let Some(system) = self.systems.get(&id) {
+            let _ = std::fs::remove_file(system.path.clone());
+        }
+
+        self.systems_names.remove(*index);
+        self.systems_ids.remove(*index);
+        self.systems.remove(&id);
+    }
+
     /// Executes the given node and follows the connection chain
     fn execute_node(&mut self, instance_index: usize, node_id: usize) {
 
