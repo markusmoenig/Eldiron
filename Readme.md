@@ -24,6 +24,25 @@ Join the community on [Discord](https://discord.gg/ZrNj6baSZU).
 
 I also try to maintain a development blog on [YouTube](https://www.youtube.com/channel/UCCmrO356zLQv_m8dPEqBUfA).
 
+## Updates
+
+#### 12th April '22
+
+[![IMAGE ALT TEXT](http://img.youtube.com/vi/Qt9cgmQjN-4/0.jpg)](http://www.youtube.com/watch?v=Qt9cgmQjN-4 "Orc closes in on Moody")
+
+An orc is on the lookout for a character which has an *Align* variable greater than 0. He can only see a maximum distance of 5 so he has to wait until somebody passes by. In this case Moody passes by and the Orc is closing in on him.
+
+Newly added features:
+
+* Named behavior trees can be selected via the tab bar at the top of the node graph.
+* New *Lookout* and *Close In* nodes.
+* *Expression* and *Script* nodes now have a full scripting system behind them.
+* New Systems editor where soon the user can create systems for Combat, Magic, Crafting and so on. Systems will allow the implementation of basic mechanics every character can utilize.
+
+Coming soon:
+
+* The *System* node will allow to call a behavior tree inside a System, like Combat -> Melee and the behavior tree will handle the combat mechanics.
+
 ## Installation
 
 Eldiron is written in Rust, to run it you have to install Rust and its package manager cargo. Please follow the instructions on this [page](https://www.rust-lang.org/tools/install).
