@@ -24,6 +24,8 @@ Support for retro 3D areas like dungeons is upcoming. In general I want to explo
 
 Join the community on [Discord](https://discord.gg/ZrNj6baSZU).
 
+Below on this page is an overview of the functionality of Eldiron. However I am creating a full set of documentation in the [Wiki](https://github.com/markusmoenig/Eldiron/wiki). Please refer to the Wiki for more detailed information, the Wiki will grow over time as more functionality is added.
+
 <!---
 I also try to maintain a development blog on [YouTube](https://www.youtube.com/channel/UCCmrO356zLQv_m8dPEqBUfA).
 -->
@@ -51,7 +53,7 @@ Coming soon:
 
 Eldiron is written in Rust, to run it you have to install Rust and its package manager cargo. Please follow the instructions on this [page](https://www.rust-lang.org/tools/install).
 
-After you successfully installed Rust, check out this repository (or download the source via a .zip file), open a terminal, navigate to the Eldiron directory and start Eldiron with `cargo run --release`.
+After you successfully installed Rust, clone this repository (or download the source via a .zip file), open a terminal, navigate to the Eldiron directory and start Eldiron with `cargo run --release`.
 
 At a later stage I will provide pre-build binaries for each platform.
 
@@ -87,7 +89,7 @@ Note that the behavior and look for tiles in a certain area or for a given tile 
 
 ## Areas View (30% Done)
 
-![areas_screenshot](docs/screen.png)
+![areas_screenshot](docs/areas.png)
 
 In the areas view you create specific in-game areas like a dungeon, the world itself or cities.
 
