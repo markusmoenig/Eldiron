@@ -6,6 +6,7 @@ use std::path;
 use std::path::PathBuf;
 
 use std::collections::HashMap;
+use itertools::Itertools;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum BehaviorType {
@@ -29,7 +30,7 @@ pub enum BehaviorNodeType {
     Say,
     Lookout,
     CloseIn,
-    Attack,
+    SystemsCall,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -172,5 +173,21 @@ impl GameBehavior {
     pub fn rename(&mut self, name: String, path: String) {
         self.name = name.clone();
         let _ = std::fs::rename(self.path.clone(), path::Path::new("game").join(path).join(name + ".json"));
+    }
+
+    /// Get the names of the behavior tree nodes.
+    pub fn get_behavior_tree_names(&self) -> Vec<String> {
+        let mut names : Vec<String> = vec![];
+
+        let sorted_keys = self.data.nodes.keys().sorted();
+
+        for i in sorted_keys {
+            if self.data.nodes[i].behavior_type == BehaviorNodeType:: BehaviorTree {
+                names.push( self.data.nodes[i].name.clone() );
+            }
+
+        }
+
+        names
     }
 }

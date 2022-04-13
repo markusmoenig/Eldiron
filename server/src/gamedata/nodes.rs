@@ -206,7 +206,7 @@ pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut GameData) 
     walk_towards(instance_index, p, dp, true, data)
 }
 
-/// Attack
-pub fn attack(_instance_index: usize, _id: (usize, usize), _data: &mut GameData) -> BehaviorNodeConnector {
+/// Systems Call
+pub fn systems_call(_instance_index: usize, _id: (usize, usize), _data: &mut GameData) -> BehaviorNodeConnector {
     BehaviorNodeConnector::Fail
 }

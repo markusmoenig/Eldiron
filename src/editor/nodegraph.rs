@@ -1086,7 +1086,7 @@ impl NodeGraph {
                 "Script" => BehaviorNodeType::Script,
                 "Lookout" => BehaviorNodeType::Lookout,
                 "Close In" => BehaviorNodeType::CloseIn,
-                "Attack" => BehaviorNodeType::Attack,
+                "Systems Call" => BehaviorNodeType::SystemsCall,
                 _ => BehaviorNodeType::BehaviorTree
             };
 
@@ -1296,14 +1296,33 @@ impl NodeGraph {
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
-        if node_data.behavior_type == BehaviorNodeType::Attack {
-            let mut atom1 = AtomWidget::new(vec!["Variable".to_string()], AtomWidgetType::NodeTextButton,
-            AtomData::new_as_int("variable".to_string(), 0));
-            atom1.atom_data.text = "Variable".to_string();
-            let id = (behavior_data.id, node_data.id, "variable".to_string());
+        if node_data.behavior_type == BehaviorNodeType::SystemsCall {
+
+            let mut atom1 = AtomWidget::new(context.data.systems_names.clone(), AtomWidgetType::NodeMenuButton,
+            AtomData::new_as_int("system".to_string(), 0));
+            atom1.atom_data.text = "System".to_string();
+            let id = (behavior_data.id, node_data.id, "system".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "HP".to_string()));
+            let behavior_id =  context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string())).0 as usize;
+            atom1.curr_index = behavior_id.clone();
             node_widget.widgets.push(atom1);
+
+            let mut tree_names : Vec<String> = vec![];
+            if context.data.systems_names.len() > 0 {
+                if let Some(behavior) = context.data.get_behavior(context.data.systems_ids[behavior_id], BehaviorType::Systems) {
+                    tree_names = behavior.get_behavior_tree_names();
+                }
+            }
+
+            let mut atom2 = AtomWidget::new(tree_names, AtomWidgetType::NodeMenuButton,
+            AtomData::new_as_int("tree".to_string(), 0));
+            atom2.atom_data.text = "Tree".to_string();
+            let id = (behavior_data.id, node_data.id, "tree".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string())).0 as usize;
+            node_widget.widgets.push(atom2);
+
+            node_widget.color = context.color_blue.clone();
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );

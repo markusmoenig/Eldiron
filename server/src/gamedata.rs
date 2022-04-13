@@ -258,7 +258,7 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::Pathfinder, nodes::pathfinder);
         nodes.insert(BehaviorNodeType::Lookout, nodes::lookout);
         nodes.insert(BehaviorNodeType::CloseIn, nodes::close_in);
-        nodes.insert(BehaviorNodeType::Attack, nodes::attack);
+        nodes.insert(BehaviorNodeType::SystemsCall, nodes::systems_call);
 
         Self {
             areas,
