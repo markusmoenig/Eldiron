@@ -96,14 +96,14 @@ impl NodeGraph {
     }
 
     pub fn set_mode(&mut self, mode: GraphMode, context: &ScreenContext) {
-        if mode == GraphMode::Detail && self.preview.is_none() {
+        if mode == GraphMode::Detail && self.graph_type == BehaviorType::Behaviors && self.preview.is_none() {
             self.preview = Some(NodePreviewWidget::new(context));
         }
         self.graph_mode = mode;
     }
 
     pub fn set_mode_and_rect(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &ScreenContext) {
-        if mode == GraphMode::Detail && self.preview.is_none() {
+        if mode == GraphMode::Detail && self.graph_type == BehaviorType::Behaviors && self.preview.is_none() {
             self.preview = Some(NodePreviewWidget::new(context));
         }
         self.graph_mode = mode;
@@ -415,7 +415,7 @@ impl NodeGraph {
 
                 self.behavior_tree_rects = vec![];
 
-                let left_start = 180;
+                let left_start = if self.graph_type == BehaviorType::Behaviors { 180 } else { 5 };
                 let mut total_width = safe_rect.2 - left_start - 5;
                 if let Some(preview) = &mut self.preview {
                     total_width -= preview.size.0;

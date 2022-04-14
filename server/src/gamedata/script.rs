@@ -12,11 +12,11 @@ struct InstanceVariables {
 }
 
 impl InstanceVariables {
-    fn get_number(&mut self, index: String) -> i64 {
-        self.numbers[&index] as i64
+    fn get_number(&mut self, index: String) -> f64 {
+        self.numbers[&index]
     }
-    fn set_number(&mut self, index: String, value: i64) {
-        self.numbers.insert(index, value as f64);
+    fn set_number(&mut self, index: String, value: f64) {
+        self.numbers.insert(index, value);
     }
 
     fn new() -> Self {
@@ -117,7 +117,6 @@ pub fn eval_dynamic_expression_instance_editor(instance_index: usize, id: (usize
     update_dices(instance_index, data);
 
     // Add indexer
-
     if let Some(target_index) = data.instances[instance_index].target {
         engine.register_type::<InstanceVariables>()
             .register_fn("new_instance", InstanceVariables::new)
@@ -145,7 +144,6 @@ pub fn eval_dynamic_expression_instance_editor(instance_index: usize, id: (usize
                 }
             }
 
-            println!("{:?}", target);
             data.scopes[instance_index].set_value("target", target);
         }
     }
@@ -154,6 +152,29 @@ pub fn eval_dynamic_expression_instance_editor(instance_index: usize, id: (usize
 
     let r = engine.eval_with_scope::<Dynamic>(&mut data.scopes[instance_index], expression);
     if r.is_ok() {
+
+        // Read out the target variables and if changed apply them
+        if let Some(target_index) = data.instances[instance_index].target {
+            if let Some(target) = data.scopes[instance_index].get_value::<InstanceVariables>("target") {
+                if let Some(behavior) = data.behaviors.get_mut(&data.instances[target_index].behavior_id) {
+                    for (_index, node) in &behavior.data.nodes {
+                        if node.behavior_type == BehaviorNodeType::VariableNumber {
+
+                            let o = data.scopes[target_index].get_value::<f64>(node.name.as_str());
+                            let n = target.numbers.get(&node.name);
+
+                            if n.is_some() && o.is_some() && o.unwrap() != *n.unwrap() {
+                                let value = n.unwrap().clone();
+                                data.scopes[target_index].set_value(node.name.clone(), value);
+                                data.changed_variables.push((target_index, behavior.data.id, node.id, value));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        //
 
         let mut key_to_change: Option<String> = None;
         let mut new_value : Option<f64> = None;
