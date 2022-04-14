@@ -1,4 +1,4 @@
-use crate::gamedata::{ GameData, BehaviorNodeConnector };
+use crate::gamedata::{ GameData, BehaviorNodeConnector, BehaviorType };
 use crate::asset::TileUsage;
 
 use pathfinding::prelude::bfs;
@@ -25,11 +25,22 @@ pub fn set_number_variable(instance_index: usize, variable: String, value: f64, 
 }
 
 /// Retrieves a node value
-pub fn get_node_value(id: (usize, usize, &str), data: &mut GameData) -> Option<(f64, f64, f64, f64, String)> {
-    if let Some(behavior) = data.behaviors.get_mut(&id.0) {
-        if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
-            if let Some(value) = node.values.get_mut(id.2) {
-                return Some(value.clone());
+pub fn get_node_value(id: (usize, usize, &str), data: &mut GameData, behavior_type: BehaviorType) -> Option<(f64, f64, f64, f64, String)> {
+    if behavior_type == BehaviorType::Behaviors {
+        if let Some(behavior) = data.behaviors.get_mut(&id.0) {
+            if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
+                if let Some(value) = node.values.get_mut(id.2) {
+                    return Some(value.clone());
+                }
+            }
+        }
+    } else
+    if behavior_type == BehaviorType::Systems {
+        if let Some(system) = data.systems.get_mut(&id.0) {
+            if let Some(node) = system.data.nodes.get_mut(&id.1) {
+                if let Some(value) = node.values.get_mut(id.2) {
+                    return Some(value.clone());
+                }
             }
         }
     }
@@ -37,11 +48,22 @@ pub fn get_node_value(id: (usize, usize, &str), data: &mut GameData) -> Option<(
 }
 
 /// Sets a node value
-pub fn set_node_value(id: (usize, usize, &str), data: &mut GameData, value: (f64, f64, f64, f64, String)) {
-    if let Some(behavior) = data.behaviors.get_mut(&id.0) {
-        if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
-            if let Some(v) = node.values.get_mut(id.2) {
-                *v = value;
+pub fn set_node_value(id: (usize, usize, &str), data: &mut GameData, value: (f64, f64, f64, f64, String), behavior_type: BehaviorType) {
+    if behavior_type == BehaviorType::Behaviors {
+        if let Some(behavior) = data.behaviors.get_mut(&id.0) {
+            if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
+                if let Some(v) = node.values.get_mut(id.2) {
+                    *v = value;
+                }
+            }
+        }
+    } else
+    if behavior_type == BehaviorType::Systems {
+        if let Some(system) = data.systems.get_mut(&id.0) {
+            if let Some(node) = system.data.nodes.get_mut(&id.1) {
+                if let Some(v) = node.values.get_mut(id.2) {
+                    *v = value;
+                }
             }
         }
     }

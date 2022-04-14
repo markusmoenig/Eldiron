@@ -4,7 +4,7 @@ pub mod nodes;
 pub mod nodes_utility;
 pub mod script;
 
-use rhai::{ Engine, Scope };
+use rhai::{ Scope };
 
 use std::collections::HashMap;
 use std::fs::metadata;
@@ -20,7 +20,7 @@ use std::fs;
 
 use rand::prelude::*;
 
-type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData) -> behavior::BehaviorNodeConnector;
+type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> behavior::BehaviorNodeConnector;
 
 pub struct GameData<'a> {
     pub areas                   : HashMap<usize, GameArea>,
@@ -46,7 +46,6 @@ pub struct GameData<'a> {
     // Currently active instances
     pub active_instance_indices : Vec<usize>,
 
-    pub engine                  : Engine,
     pub scopes                  : Vec<Scope<'a>>,
 
     pub runs_in_editor          : bool,
@@ -282,7 +281,6 @@ impl GameData<'_> {
             instances               : vec![],
             active_instance_indices : vec![],
 
-            engine                  : Engine::new(),
             scopes                  : vec![],
 
             runs_in_editor          : true,
@@ -361,8 +359,8 @@ impl GameData<'_> {
     }
 
     /// Gets the value of the behavior id
-    pub fn get_behavior_id_value(&self, id: (usize, usize, String), def: (f64, f64, f64, f64, String)) -> (f64, f64, f64, f64, String) {
-        if let Some(behavior) = self.behaviors.get(&id.0) {
+    pub fn get_behavior_id_value(&self, id: (usize, usize, String), def: (f64, f64, f64, f64, String), behavior_type: BehaviorType) -> (f64, f64, f64, f64, String) {
+        if let Some(behavior) = self.get_behavior(id.0, behavior_type) {
             if let Some(node) = behavior.data.nodes.get(&id.1) {
                 if let Some(v) = node.values.get(&id.2) {
                     return v.clone();
@@ -570,7 +568,7 @@ impl GameData<'_> {
 
                 if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
                     let behavior_id = self.instances[instance_index].behavior_id.clone();
-                    connector = Some(node_call(instance_index, (behavior_id, node_id), self));
+                    connector = Some(node_call(instance_index, (behavior_id, node_id), self, BehaviorType::Behaviors));
                 } else {
                     connector = Some(BehaviorNodeConnector::Bottom);
                 }
@@ -609,7 +607,7 @@ impl GameData<'_> {
 
                 if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
                     let behavior_id = self.instances[instance_index].behavior_id.clone();
-                    connector = Some(node_call(instance_index, (behavior_id, node_id), self));
+                    connector = Some(node_call(instance_index, (behavior_id, node_id), self, BehaviorType::Systems));
                 } else {
                     connector = Some(BehaviorNodeConnector::Bottom);
                 }

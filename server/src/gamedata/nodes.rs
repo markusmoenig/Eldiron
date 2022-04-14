@@ -1,12 +1,16 @@
+use rhai::{ Engine };
+
 use crate::gamedata::behavior:: { BehaviorNodeConnector };
 use crate::gamedata::GameData;
 
 use crate::gamedata::nodes_utility::*;
 use crate::gamedata::script::*;
 
+use super::behavior::BehaviorType;
+
 /// expression
-pub fn expression(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
-    if let Some(value) = get_node_value((id.0, id.1, "expression"), data) {
+pub fn expression(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    if let Some(value) = get_node_value((id.0, id.1, "expression"), data, behavior_type) {
         let rc = eval_bool_expression_instance(instance_index, value.4.as_str(), data);
         if let Some(rc) = rc {
             if rc == true {
@@ -18,16 +22,16 @@ pub fn expression(instance_index: usize, id: (usize, usize), data: &mut GameData
 }
 
 /// script
-pub fn script(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
-    if let Some(value) = get_node_value((id.0, id.1, "script"), data) {
+pub fn script(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    if let Some(value) = get_node_value((id.0, id.1, "script"), data, behavior_type) {
         eval_dynamic_script_instance(instance_index, id, value.4.as_str(), data);
     }
     BehaviorNodeConnector::Bottom
 }
 
 /// say
-pub fn say(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
-    if let Some(value) = get_node_value((id.0, id.1, "text"), data) {
+pub fn say(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type) {
         data.say.push(format!("{} says \"{}\".", data.instances[instance_index].name, value.4));
     } else {
         data.say.push(format!("{} says \"{}\".", data.instances[instance_index].name, "Hello".to_string()));
@@ -36,7 +40,7 @@ pub fn say(instance_index: usize, id: (usize, usize), data: &mut GameData) -> Be
 }
 
 /// Pathfinder
-pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
+pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let mut p : Option<(usize, isize, isize)> = None;
     let mut dp : Option<(usize, isize, isize)> = None;
@@ -59,7 +63,7 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData
     }
 
     let mut speed : f64 = 8.0;
-    if let Some(value) = get_node_value((id.0, id.1, "speed"), data) {
+    if let Some(value) = get_node_value((id.0, id.1, "speed"), data, behavior_type) {
         let rc = eval_number_expression_instance(instance_index, value.4.as_str(), data);
         if let Some(rc) = rc {
             speed = rc;
@@ -94,10 +98,10 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData
 }
 
 /// Lookout
-pub fn lookout(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
+pub fn lookout(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let mut max_distance : f64 = 7.0;
-    if let Some(value) = get_node_value((id.0, id.1, "max_distance"), data) {
+    if let Some(value) = get_node_value((id.0, id.1, "max_distance"), data, behavior_type) {
         let rc = eval_number_expression_instance(instance_index, value.4.as_str(), data);
         if let Some(rc) = rc {
             max_distance = rc;
@@ -125,9 +129,10 @@ pub fn lookout(instance_index: usize, id: (usize, usize), data: &mut GameData) -
         }
     }
 
-    if let Some(value) = get_node_value((id.0, id.1, "expression"), data) {
+    if let Some(value) = get_node_value((id.0, id.1, "expression"), data, behavior_type) {
         for inst_ind in &chars {
-            let r = data.engine.eval_expression_with_scope::<bool>(&mut  data.scopes[*inst_ind], &value.4);
+            let engine = Engine::new();
+            let r = engine.eval_expression_with_scope::<bool>(&mut  data.scopes[*inst_ind], &value.4);
             if let Some(rc) = r.ok() {
                 if rc {
                     data.instances[instance_index].target = Some(*inst_ind);
@@ -142,7 +147,7 @@ pub fn lookout(instance_index: usize, id: (usize, usize), data: &mut GameData) -
 }
 
 /// CloseIn
-pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
+pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let mut p : Option<(usize, isize, isize)> = None;
     let mut dp : Option<(usize, isize, isize)> = None;
@@ -150,7 +155,7 @@ pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut GameData) 
     let mut distance = 100000_f64;
     let mut to_distance = 1_f64;
 
-    if let Some(value) = get_node_value((id.0, id.1, "to_distance"), data) {
+    if let Some(value) = get_node_value((id.0, id.1, "to_distance"), data, behavior_type) {
         let rc = eval_number_expression_instance(instance_index, value.4.as_str(), data);
         if let Some(rc) = rc {
             to_distance = rc;
@@ -173,7 +178,7 @@ pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut GameData) 
     }
 
     let mut speed : f64 = 8.0;
-    if let Some(value) = get_node_value((id.0, id.1, "speed"), data) {
+    if let Some(value) = get_node_value((id.0, id.1, "speed"), data, behavior_type) {
         let rc = eval_number_expression_instance(instance_index, value.4.as_str(), data);
         if let Some(rc) = rc {
             speed = rc;
@@ -208,18 +213,18 @@ pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut GameData) 
 }
 
 /// Systems Call
-pub fn systems_call(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
+pub fn systems_call(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let systems_id : Option<usize>;
     let mut systems_tree_id : Option<usize> = None;
 
-    if let Some(value) = get_node_value((id.0, id.1, "system"), data) {
+    if let Some(value) = get_node_value((id.0, id.1, "system"), data, behavior_type) {
         systems_id = Some(data.systems_ids[value.0 as usize]);
     } else {
         systems_id = Some(data.systems_ids[0]);
     }
 
-    if let Some(value) = get_node_value((id.0, id.1, "tree"), data) {
+    if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
         systems_tree_id = Some(value.0 as usize);
     }
 

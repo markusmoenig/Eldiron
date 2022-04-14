@@ -772,15 +772,7 @@ impl NodeGraph {
                 let curr_node_id = self.get_curr_node_id(context);
                 if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
                     for node_widget in &self.nodes {
-
-                        let compare_with = match self.graph_type {
-                            BehaviorType::Behaviors => context.curr_behavior_node_id,
-                            BehaviorType::Systems => context.curr_systems_node_id,
-                            BehaviorType::Items => context.curr_items_node_id,
-                            _ => 0,
-                        };
-
-                        if node_widget.id == compare_with {
+                        if node_widget.id == curr_node_id {
                             let position = node_widget.user_data.position.clone();
                             if let Some(behavior_node) = behavior.data.nodes.get_mut(&curr_node_id) {
                                 behavior_node.position = position;
@@ -1142,7 +1134,7 @@ impl NodeGraph {
             atom1.atom_data.text = "Type".to_string();
             let id = (behavior_data.id, node_data.id, "type".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string())).0 as usize;
+            atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type).0 as usize;
             node_widget.widgets.push(atom1);
             node_widget.color = context.color_black.clone();
 
@@ -1171,7 +1163,7 @@ impl NodeGraph {
             atom1.atom_data.text = "Execute".to_string();
             let id = (behavior_data.id, node_data.id, "execute".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string())).0 as usize;
+            atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type).0 as usize;
             node_widget.widgets.push(atom1);
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
@@ -1188,7 +1180,7 @@ impl NodeGraph {
             atom1.atom_data.text = "Expression".to_string();
             let id = (behavior_data.id, node_data.id, "expression".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "false".to_string()));
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "false".to_string()), self.graph_type);
             node_widget.widgets.push(atom1);
 
             node_widget.color = context.color_green.clone();
@@ -1203,7 +1195,7 @@ impl NodeGraph {
             atom1.atom_data.text = "Script".to_string();
             let id = (behavior_data.id, node_data.id, "script".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()));
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
             node_widget.widgets.push(atom1);
 
             node_widget.color = context.color_green.clone();
@@ -1218,7 +1210,7 @@ impl NodeGraph {
             atom1.atom_data.text = "Value".to_string();
             let id = (behavior_data.id, node_data.id, "value".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()));
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
             node_widget.widgets.push(atom1);
 
             node_widget.color = context.color_orange.clone();
@@ -1230,7 +1222,7 @@ impl NodeGraph {
             atom1.atom_data.text = "Text".to_string();
             let id = (behavior_data.id, node_data.id, "text".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Hello".to_string()));
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Hello".to_string()), self.graph_type);
             node_widget.widgets.push(atom1);
 
             node_widget.color = context.color_blue.clone();
@@ -1244,7 +1236,7 @@ impl NodeGraph {
             atom1.atom_data.text = "Destination".to_string();
             let id = (behavior_data.id, node_data.id, "destination".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()));
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
             node_widget.widgets.push(atom1);
 
             let mut atom2 = AtomWidget::new(vec!["Speed".to_string()], AtomWidgetType::NodeExpressionValueButton,
@@ -1252,7 +1244,7 @@ impl NodeGraph {
             atom2.atom_data.text = "Speed".to_string();
             let id = (behavior_data.id, node_data.id, "speed".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "8".to_string()));
+            atom2.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "8".to_string()), self.graph_type);
             node_widget.widgets.push(atom2);
 
             node_widget.color = context.color_blue.clone();
@@ -1267,7 +1259,7 @@ impl NodeGraph {
             atom1.atom_data.text = "Expression".to_string();
             let id = (behavior_data.id, node_data.id, "expression".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()));
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
             node_widget.widgets.push(atom1);
 
             let mut atom2 = AtomWidget::new(vec!["Max Distance".to_string()], AtomWidgetType::NodeExpressionValueButton,
@@ -1275,7 +1267,7 @@ impl NodeGraph {
             atom2.atom_data.text = "Max Distance".to_string();
             let id = (behavior_data.id, node_data.id, "max_distance".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "7".to_string()));
+            atom2.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "7".to_string()), self.graph_type);
             node_widget.widgets.push(atom2);
 
             node_widget.color = context.color_blue.clone();
@@ -1289,7 +1281,7 @@ impl NodeGraph {
             atom1.atom_data.text = "To Distance".to_string();
             let id = (behavior_data.id, node_data.id, "to_distance".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "1".to_string()));
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "1".to_string()), self.graph_type);
             node_widget.widgets.push(atom1);
 
             let mut atom2 = AtomWidget::new(vec!["Speed".to_string()], AtomWidgetType::NodeExpressionValueButton,
@@ -1297,7 +1289,7 @@ impl NodeGraph {
             atom2.atom_data.text = "Speed".to_string();
             let id = (behavior_data.id, node_data.id, "speed".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "8".to_string()));
+            atom2.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "8".to_string()), self.graph_type);
             node_widget.widgets.push(atom2);
 
             node_widget.color = context.color_blue.clone();
@@ -1313,7 +1305,7 @@ impl NodeGraph {
             atom1.atom_data.text = "System".to_string();
             let id = (behavior_data.id, node_data.id, "system".to_string());
             atom1.behavior_id = Some(id.clone());
-            let behavior_id =  context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string())).0 as usize;
+            let behavior_id =  context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type).0 as usize;
             atom1.curr_index = behavior_id.clone();
             node_widget.widgets.push(atom1);
 
@@ -1329,7 +1321,7 @@ impl NodeGraph {
             atom2.atom_data.text = "Tree".to_string();
             let id = (behavior_data.id, node_data.id, "tree".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string())).0 as usize;
+            atom2.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type).0 as usize;
             node_widget.widgets.push(atom2);
 
             node_widget.color = context.color_blue.clone();
@@ -1367,7 +1359,7 @@ impl NodeGraph {
                 position_atom.atom_data.text = "position".to_string();
                 let id = (behavior_data.id, node_data.id, "position".to_string());
                 position_atom.behavior_id = Some(id.clone());
-                position_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()));
+                position_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
                 node_widget.widgets.push(position_atom);
 
                 // Default Character Tile
@@ -1376,7 +1368,7 @@ impl NodeGraph {
                 tile_atom.atom_data.text = "tile".to_string();
                 let id = (behavior_data.id, node_data.id, "tile".to_string());
                 tile_atom.behavior_id = Some(id.clone());
-                tile_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()));
+                tile_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
                 node_widget.widgets.push(tile_atom);
             }
         }
