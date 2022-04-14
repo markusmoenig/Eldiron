@@ -596,6 +596,45 @@ impl GameData<'_> {
         }
     }
 
+        /// Executes the given systems node and follows the connection chain
+    fn execute_systems_node(&mut self, instance_index: usize, node_id: usize) {
+
+        let mut connector : Option<BehaviorNodeConnector> = None;
+        let mut connected_node_id : Option<usize> = None;
+
+        // Call the node and get the resulting BehaviorNodeConnector
+        if let Some(system) = self.systems.get_mut(&self.instances[instance_index].behavior_id) {
+            if let Some(node) = system.data.nodes.get_mut(&node_id) {
+                //println!("Executing:: {}", node.name);
+
+                if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
+                    let behavior_id = self.instances[instance_index].behavior_id.clone();
+                    connector = Some(node_call(instance_index, (behavior_id, node_id), self));
+                } else {
+                    connector = Some(BehaviorNodeConnector::Bottom);
+                }
+            }
+        }
+
+        // Search the connections to check if we can find an ongoing node connection
+        if let Some(connector) = connector {
+            if let Some(system) = self.systems.get_mut(&self.instances[instance_index].behavior_id) {
+
+                for c in &system.data.connections {
+                    if c.0 == node_id && c.1 == connector {
+                        connected_node_id = Some(c.2);
+                        self.executed_connections.push((c.0, c.1));
+                    }
+                }
+            }
+        }
+
+        // And if yes execute it
+        if let Some(connected_node_id) = connected_node_id {
+            self.execute_systems_node(instance_index, connected_node_id);
+        }
+    }
+
     /// Gets the behavior for the given behaviortype
     pub fn get_behavior(&self, id: usize, behavior_type: BehaviorType) -> Option<&GameBehavior> {
         if behavior_type == BehaviorType::Behaviors {

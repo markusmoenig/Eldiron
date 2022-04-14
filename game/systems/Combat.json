@@ -1,1 +1,1 @@
-{"nodes":{"0":{"behavior_type":"BehaviorTree","name":"Melee","values":{},"id":0,"position":[247,50]}},"connections":[],"id":2325012647,"name":"Combat"}
+{"nodes":{"0":{"behavior_type":"BehaviorTree","name":"Melee","values":{},"id":0,"position":[262,71]},"1":{"behavior_type":"Script","name":"Script","values":{},"id":1,"position":[229,230]}},"connections":[[0,"Bottom",1,"Top"]],"id":2325012647,"name":"Combat"}

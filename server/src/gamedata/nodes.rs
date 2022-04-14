@@ -28,8 +28,9 @@ pub fn script(instance_index: usize, id: (usize, usize), data: &mut GameData) ->
 /// say
 pub fn say(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
     if let Some(value) = get_node_value((id.0, id.1, "text"), data) {
-        //println!("{}", value.4);
         data.say.push(format!("{} says \"{}\".", data.instances[instance_index].name, value.4));
+    } else {
+        data.say.push(format!("{} says \"{}\".", data.instances[instance_index].name, "Hello".to_string()));
     }
     BehaviorNodeConnector::Bottom
 }
@@ -207,6 +208,31 @@ pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut GameData) 
 }
 
 /// Systems Call
-pub fn systems_call(_instance_index: usize, _id: (usize, usize), _data: &mut GameData) -> BehaviorNodeConnector {
-    BehaviorNodeConnector::Fail
+pub fn systems_call(instance_index: usize, id: (usize, usize), data: &mut GameData) -> BehaviorNodeConnector {
+
+    let systems_id : Option<usize>;
+    let mut systems_tree_id : Option<usize> = None;
+
+    if let Some(value) = get_node_value((id.0, id.1, "system"), data) {
+        systems_id = Some(data.systems_ids[value.0 as usize]);
+    } else {
+        systems_id = Some(data.systems_ids[0]);
+    }
+
+    if let Some(value) = get_node_value((id.0, id.1, "tree"), data) {
+        systems_tree_id = Some(value.0 as usize);
+    }
+
+    if let Some(systems_id) = systems_id {
+        if let Some(systems_tree_id) = systems_tree_id {
+            //println!("{} {}", systems_id, systems_tree_id);
+
+            let buffer = data.instances[instance_index].behavior_id;
+            data.instances[instance_index].behavior_id = systems_id;
+            data.execute_systems_node(instance_index, systems_tree_id);
+            data.instances[instance_index].behavior_id = buffer;
+        }
+    }
+
+    BehaviorNodeConnector::Bottom
 }

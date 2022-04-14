@@ -772,7 +772,15 @@ impl NodeGraph {
                 let curr_node_id = self.get_curr_node_id(context);
                 if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
                     for node_widget in &self.nodes {
-                        if node_widget.id == context.curr_behavior_node_id {
+
+                        let compare_with = match self.graph_type {
+                            BehaviorType::Behaviors => context.curr_behavior_node_id,
+                            BehaviorType::Systems => context.curr_systems_node_id,
+                            BehaviorType::Items => context.curr_items_node_id,
+                            _ => 0,
+                        };
+
+                        if node_widget.id == compare_with {
                             let position = node_widget.user_data.position.clone();
                             if let Some(behavior_node) = behavior.data.nodes.get_mut(&curr_node_id) {
                                 behavior_node.position = position;
@@ -795,9 +803,11 @@ impl NodeGraph {
                     if self.connector_is_source(dest_conn.0) {
                         behavior.data.connections.push((self.widget_index_to_node_id(dest_conn.1), dest_conn.0, self.widget_index_to_node_id(source_conn.1), source_conn.0));
                         self.nodes[source_conn.1].dirty = true;
+                        behavior.save_data();
                     } else {
                         behavior.data.connections.push((self.widget_index_to_node_id(source_conn.1), source_conn.0, self.widget_index_to_node_id(dest_conn.1), dest_conn.0));
                         self.nodes[dest_conn.1].dirty = true;
+                        behavior.save_data();
                     }
                 }
                 self.dest_conn = None;
