@@ -1,5 +1,3 @@
-use rhai::{ Engine };
-
 use crate::gamedata::behavior:: { BehaviorNodeConnector };
 use crate::gamedata::GameData;
 
@@ -72,22 +70,7 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData
 
     // Apply the speed delay
     let delay = 10.0 - speed.clamp(0.0, 10.0);
-    if let Some(behavior) = data.behaviors.get_mut(&id.0) {
-        if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
-            if let Some(value) = node.values.get_mut("speed") {
-                if value.0 >= delay {
-                    value.0 = 0.0;
-                } else {
-                    value.0 += 1.0;
-                    if distance > 0.0 {
-                        return BehaviorNodeConnector::Right;
-                    } else {
-                        return BehaviorNodeConnector::Success;
-                    }
-                }
-            }
-        }
-    }
+    data.instances[instance_index].sleep_cycles = delay as usize;
 
     // Success if we reached the to_distance already
     if distance == 0.0 {
@@ -131,8 +114,7 @@ pub fn lookout(instance_index: usize, id: (usize, usize), data: &mut GameData, b
 
     if let Some(value) = get_node_value((id.0, id.1, "expression"), data, behavior_type) {
         for inst_ind in &chars {
-            let engine = Engine::new();
-            let r = engine.eval_expression_with_scope::<bool>(&mut  data.scopes[*inst_ind], &value.4);
+            let r = data.engine.eval_expression_with_scope::<bool>(&mut  data.scopes[*inst_ind], &value.4);
             if let Some(rc) = r.ok() {
                 if rc {
                     data.instances[instance_index].target = Some(*inst_ind);
@@ -187,22 +169,7 @@ pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut GameData, 
 
     // Apply the speed delay
     let delay = 10.0 - speed.clamp(0.0, 10.0);
-    if let Some(behavior) = data.behaviors.get_mut(&id.0) {
-        if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
-            if let Some(value) = node.values.get_mut("speed") {
-                if value.0 >= delay {
-                    value.0 = 0.0;
-                } else {
-                    value.0 += 1.0;
-                    if distance > to_distance {
-                        return BehaviorNodeConnector::Right;
-                    } else {
-                        return BehaviorNodeConnector::Success;
-                    }
-                }
-            }
-        }
-    }
+    data.instances[instance_index].sleep_cycles = delay as usize;
 
     // Success if we reached the to_distance already
     if distance <= to_distance {

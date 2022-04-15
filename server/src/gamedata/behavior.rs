@@ -76,6 +76,8 @@ pub struct BehaviorInstance {
     // An instance id of the entity we are currently interacting with
     pub target                  : Option<usize>,
 
+    pub sleep_cycles            : usize,
+
     // Instance ids of the entities we are currently engaged in combat with
     pub engaged_with            : Vec<usize>,
 

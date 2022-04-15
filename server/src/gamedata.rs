@@ -4,7 +4,7 @@ pub mod nodes;
 pub mod nodes_utility;
 pub mod script;
 
-use rhai::{ Scope };
+use rhai::{ Engine, Scope };
 
 use std::collections::HashMap;
 use std::fs::metadata;
@@ -40,6 +40,8 @@ pub struct GameData<'a> {
     pub items_ids               : Vec<usize>,
 
     pub nodes                   : HashMap<BehaviorNodeType, NodeCall>,
+
+    pub engine                  : Engine,
 
     // All instances
     pub instances               : Vec<BehaviorInstance>,
@@ -278,6 +280,8 @@ impl GameData<'_> {
 
             nodes,
 
+            engine                  : Engine::new(),
+
             instances               : vec![],
             active_instance_indices : vec![],
 
@@ -469,7 +473,7 @@ impl GameData<'_> {
 
             let index = self.instances.len();
 
-            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target: None, engaged_with: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new()};
+            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target: None, engaged_with: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0};
 
             // Make sure id is unique
             let mut has_id_already = true;
@@ -512,6 +516,12 @@ impl GameData<'_> {
         self.changed_variables = vec![];
         for index in 0..self.active_instance_indices.len() {
             let inst_index = self.active_instance_indices[index];
+
+            if self.instances[inst_index].sleep_cycles > 0 {
+                self.instances[inst_index].sleep_cycles -= 1;
+                continue;
+            }
+
             let trees = self.instances[inst_index].tree_ids.clone();
             for node_id in &trees {
                 self.execute_node(inst_index, node_id.clone());
