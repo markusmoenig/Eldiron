@@ -24,7 +24,9 @@ itertools = "0.10.2"
 zeno = "0.2.1"
 rand = "0.8.5"
 pathfinding = "3.0.11"
-rhai = "*"
+#rhai = "*"
+rhai = { git = "https://github.com/rhaiscript/rhai/" }
+
 
 #[dependencies.uuid]
 #version = "1.0.0-alpha.1"
