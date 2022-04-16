@@ -13,10 +13,15 @@ struct InstanceVariables {
 
 impl InstanceVariables {
     fn get_number(&mut self, index: String) -> f64 {
-        self.numbers[&index]
+        if let Some(value) = self.numbers.get(&index) {
+            return *value;
+        }
+        0.0
     }
     fn set_number(&mut self, index: String, value: f64) {
-        self.numbers.insert(index, value);
+        if self.numbers.contains_key(&index) {
+            self.numbers.insert(index, value);
+        }
     }
 
     fn new() -> Self {
@@ -112,7 +117,7 @@ pub fn eval_dynamic_expression_instance_editor(instance_index: usize, id: (usize
     update_dices(instance_index, data);
 
     // Add indexer
-    if let Some(target_index) = data.instances[instance_index].target {
+    if let Some(target_index) = data.instances[instance_index].target_instance_index {
         data.engine.register_type::<InstanceVariables>()
             .register_fn("new_instance", InstanceVariables::new)
             .register_indexer_get(InstanceVariables::get_number)
@@ -143,7 +148,7 @@ pub fn eval_dynamic_expression_instance_editor(instance_index: usize, id: (usize
     if r.is_ok() {
 
         // Read out the target variables and if changed apply them
-        if let Some(target_index) = data.instances[instance_index].target {
+        if let Some(target_index) = data.instances[instance_index].target_instance_index {
             if let Some(target) = data.scopes[instance_index].get_value::<InstanceVariables>("target") {
                 if let Some(behavior) = data.behaviors.get_mut(&data.instances[target_index].behavior_id) {
                     for (_index, node) in &behavior.data.nodes {

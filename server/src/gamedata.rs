@@ -20,6 +20,8 @@ use std::fs;
 
 use rand::prelude::*;
 
+use self::nodes_utility::get_node_value;
+
 type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> behavior::BehaviorNodeConnector;
 
 pub struct GameData<'a> {
@@ -259,7 +261,8 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::Pathfinder, nodes::pathfinder);
         nodes.insert(BehaviorNodeType::Lookout, nodes::lookout);
         nodes.insert(BehaviorNodeType::CloseIn, nodes::close_in);
-        nodes.insert(BehaviorNodeType::SystemsCall, nodes::systems_call);
+        nodes.insert(BehaviorNodeType::CallSystem, nodes::call_system);
+        nodes.insert(BehaviorNodeType::CallBehavior, nodes::call_behavior);
 
         Self {
             areas,
@@ -473,7 +476,7 @@ impl GameData<'_> {
 
             let index = self.instances.len();
 
-            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target: None, engaged_with: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0};
+            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, engaged_with: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0};
 
             // Make sure id is unique
             let mut has_id_already = true;
@@ -524,6 +527,14 @@ impl GameData<'_> {
 
             let trees = self.instances[inst_index].tree_ids.clone();
             for node_id in &trees {
+
+                // Only execute trees here with an "Always" execute setting (0)
+                if let Some(value)= get_node_value((self.instances[inst_index].behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors) {
+                    if value.0 != 0.0 {
+                        continue;
+                    }
+                }
+
                 self.execute_node(inst_index, node_id.clone());
             }
         }
@@ -611,12 +622,12 @@ impl GameData<'_> {
         let mut connected_node_id : Option<usize> = None;
 
         // Call the node and get the resulting BehaviorNodeConnector
-        if let Some(system) = self.systems.get_mut(&self.instances[instance_index].behavior_id) {
+        if let Some(system) = self.systems.get_mut(&self.instances[instance_index].systems_id) {
             if let Some(node) = system.data.nodes.get_mut(&node_id) {
                 //println!("Executing:: {}", node.name);
 
                 if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
-                    let behavior_id = self.instances[instance_index].behavior_id.clone();
+                    let behavior_id = self.instances[instance_index].systems_id.clone();
                     connector = Some(node_call(instance_index, (behavior_id, node_id), self, BehaviorType::Systems));
                 } else {
                     connector = Some(BehaviorNodeConnector::Bottom);
@@ -626,7 +637,7 @@ impl GameData<'_> {
 
         // Search the connections to check if we can find an ongoing node connection
         if let Some(connector) = connector {
-            if let Some(system) = self.systems.get_mut(&self.instances[instance_index].behavior_id) {
+            if let Some(system) = self.systems.get_mut(&self.instances[instance_index].systems_id) {
 
                 for c in &system.data.connections {
                     if c.0 == node_id && c.1 == connector {

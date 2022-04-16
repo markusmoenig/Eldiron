@@ -1,4 +1,4 @@
-use crate::gamedata::behavior:: { BehaviorNodeConnector };
+use crate::gamedata::behavior:: { BehaviorNodeConnector, BehaviorNodeType };
 use crate::gamedata::GameData;
 
 use crate::gamedata::nodes_utility::*;
@@ -117,14 +117,14 @@ pub fn lookout(instance_index: usize, id: (usize, usize), data: &mut GameData, b
             let r = data.engine.eval_expression_with_scope::<bool>(&mut  data.scopes[*inst_ind], &value.4);
             if let Some(rc) = r.ok() {
                 if rc {
-                    data.instances[instance_index].target = Some(*inst_ind);
+                    data.instances[instance_index].target_instance_index = Some(*inst_ind);
                     return BehaviorNodeConnector::Success;
                 }
             }
         }
     }
 
-    data.instances[instance_index].target = None;
+    data.instances[instance_index].target_instance_index = None;
     BehaviorNodeConnector::Fail
 }
 
@@ -148,7 +148,7 @@ pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut GameData, 
         p = Some(*v);
     }
 
-    let target_index = data.instances[instance_index].target;
+    let target_index = data.instances[instance_index].target_instance_index;
 
     if let Some(target_index) = target_index {
         if let Some(v) = &mut data.instances[target_index].position {
@@ -180,31 +180,99 @@ pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut GameData, 
 }
 
 /// Systems Call
-pub fn systems_call(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn call_system(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    let systems_id : Option<usize>;
+    let mut systems_id : Option<usize> = None;
     let mut systems_tree_id : Option<usize> = None;
 
-    if let Some(value) = get_node_value((id.0, id.1, "system"), data, behavior_type) {
-        systems_id = Some(data.systems_ids[value.0 as usize]);
+    // Try to get from node_values
+    if let Some(node_value) = data.instances[instance_index].node_values.get(&(behavior_type, id.1)) {
+        systems_id = Some(node_value.0 as usize);
+        systems_tree_id = Some(node_value.1 as usize);
     } else {
-        systems_id = Some(data.systems_ids[0]);
-    }
 
-    if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
-        systems_tree_id = Some(value.0 as usize);
-    }
+        // The id's were not yet computed search the system trees, get the ids and store them.
+        if let Some(value) = get_node_value((id.0, id.1, "system"), data, behavior_type) {
+            for (index, name) in data.systems_names.iter().enumerate() {
+                if *name == value.4 {
+                    systems_id = Some(data.systems_ids[index]);
+                    break
+                }
+            }
+        }
 
-    if let Some(systems_id) = systems_id {
-        if let Some(systems_tree_id) = systems_tree_id {
-            //println!("{} {}", systems_id, systems_tree_id);
-
-            let buffer = data.instances[instance_index].behavior_id;
-            data.instances[instance_index].behavior_id = systems_id;
-            data.execute_systems_node(instance_index, systems_tree_id);
-            data.instances[instance_index].behavior_id = buffer;
+        if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
+            if let Some(systems_id) = systems_id {
+                if let Some(system) = data.systems.get(&systems_id) {
+                    for (node_id, node) in &system.data.nodes {
+                        if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == value.4 {
+                            systems_tree_id = Some(*node_id);
+                             data.instances[instance_index].node_values.insert((behavior_type, id.1), (systems_id as f64, *node_id as f64, 0.0, 0.0, "".to_string()));
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 
-    BehaviorNodeConnector::Bottom
+    //println!("systems id {:?}", systems_id);
+    //println!("systems_tree_id id {:?}", systems_tree_id);
+
+    if let Some(systems_id) = systems_id {
+        if let Some(systems_tree_id) = systems_tree_id {
+            data.instances[instance_index].systems_id = systems_id;
+            data.execute_systems_node(instance_index, systems_tree_id);
+            return BehaviorNodeConnector::Success;
+        }
+    }
+
+    BehaviorNodeConnector::Fail
+}
+
+/// Behavior Call
+pub fn call_behavior(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut behavior_instance : Option<usize> = None;
+    let mut behavior_tree_id : Option<usize> = None;
+
+    // We cannot precompute this as the values for the target may change
+
+    // The id's were not yet computed search the system trees, get the ids and store them.
+    if let Some(value) = get_node_value((id.0, id.1, "execute_for"), data, behavior_type) {
+        if value.0 == 0.0 {
+            // Run the behavior on myself
+            behavior_instance = Some(instance_index);
+        } else {
+            // Run the behavior on the target
+            if let Some(target_index) = data.instances[instance_index].target_instance_index {
+                behavior_instance = Some(target_index);
+            }
+        }
+    }
+
+    if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
+        if let Some(behavior_instance) = behavior_instance {
+            if let Some(behavior) = data.behaviors.get(&data.instances[behavior_instance].behavior_id) {
+                for (node_id, node) in &behavior.data.nodes {
+                    if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == value.4 {
+                        behavior_tree_id = Some(*node_id);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    //println!("behavior instance {:?}", behavior_instance);
+    //println!("behavior_tree_id id {:?}", behavior_tree_id);
+
+    if let Some(behavior_instance) = behavior_instance {
+        if let Some(behavior_tree_id) = behavior_tree_id {
+            data.execute_node(behavior_instance, behavior_tree_id);
+            return BehaviorNodeConnector::Success;
+        }
+    }
+
+    BehaviorNodeConnector::Fail
 }

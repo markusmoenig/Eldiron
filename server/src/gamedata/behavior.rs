@@ -30,7 +30,8 @@ pub enum BehaviorNodeType {
     Say,
     Lookout,
     CloseIn,
-    SystemsCall,
+    CallSystem,
+    CallBehavior,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -63,6 +64,9 @@ pub struct BehaviorInstance {
     // The behavior id for this instance
     pub behavior_id             : usize,
 
+    // The current systems id
+    pub systems_id              : usize,
+
     // The ids of the behavior tree nodes for this instance
     pub tree_ids                : Vec<usize>,
 
@@ -74,16 +78,17 @@ pub struct BehaviorInstance {
     pub number_values           : HashMap<String, f64>,
 
     // An instance id of the entity we are currently interacting with
-    pub target                  : Option<usize>,
+    pub target_instance_index   : Option<usize>,
 
+    // The number of ticks this instance is skipping
     pub sleep_cycles            : usize,
 
     // Instance ids of the entities we are currently engaged in combat with
     pub engaged_with            : Vec<usize>,
 
     // Temporary values nodes can use to store instance data, these are NOT saved, i.e. emptied before saving.
-    // The key is the node id.
-    pub node_values             : HashMap<usize, (f64, f64, f64, f64, String)>,
+    // The key is the behavior type and node id.
+    pub node_values             : HashMap<(BehaviorType, usize), (f64, f64, f64, f64, String)>,
 
     // State values to optionally store game state related to this instance. This data is saved.
     pub state_values            : HashMap<String, (f64, f64, f64, f64, String)>,
