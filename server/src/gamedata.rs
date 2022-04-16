@@ -447,6 +447,11 @@ impl GameData<'_> {
         }
         scope.push( "d100", 0.0 as f64);
 
+        // Default values
+        scope.push("_value1", 0.0_f64);
+        scope.push("_value2", 0.0_f64);
+        scope.push("_value3", 0.0_f64);
+
         if let Some(behavior) = self.behaviors.get_mut(&id) {
             for (id, node) in &behavior.data.nodes {
                 if node.behavior_type == BehaviorNodeType::BehaviorTree {
