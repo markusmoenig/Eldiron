@@ -32,6 +32,7 @@ pub enum BehaviorNodeType {
     CloseIn,
     CallSystem,
     CallBehavior,
+    Sequence
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -42,6 +43,8 @@ pub enum BehaviorNodeConnector {
     Success,
     Bottom,
     Left,
+    Bottom1,
+    Bottom2,
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]

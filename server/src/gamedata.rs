@@ -590,81 +590,155 @@ impl GameData<'_> {
     }
 
     /// Executes the given node and follows the connection chain
-    fn execute_node(&mut self, instance_index: usize, node_id: usize) {
+    fn execute_node(&mut self, instance_index: usize, node_id: usize) -> Option<BehaviorNodeConnector> {
 
-        let mut connector : Option<BehaviorNodeConnector> = None;
-        let mut connected_node_id : Option<usize> = None;
+        let mut connectors : Vec<BehaviorNodeConnector> = vec![];
+        let mut connected_node_ids : Vec<usize> = vec![];
+        let mut possibly_executed_connections : Vec<(usize, BehaviorNodeConnector)> = vec![];
+
+        let mut is_sequence = false;
+        let mut rc : Option<BehaviorNodeConnector> = None;
 
         // Call the node and get the resulting BehaviorNodeConnector
         if let Some(behavior) = self.behaviors.get_mut(&self.instances[instance_index].behavior_id) {
             if let Some(node) = behavior.data.nodes.get_mut(&node_id) {
                 // println!("Executing:: {}", node.name);
 
-                if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
-                    let behavior_id = self.instances[instance_index].behavior_id.clone();
-                    connector = Some(node_call(instance_index, (behavior_id, node_id), self, BehaviorType::Behaviors));
+                // Handle special nodes
+                if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                    connectors.push(BehaviorNodeConnector::Bottom1);
+                    connectors.push(BehaviorNodeConnector::Bottom);
+                    connectors.push(BehaviorNodeConnector::Bottom2);
+                } else
+                if node.behavior_type == BehaviorNodeType::Sequence {
+                    connectors.push(BehaviorNodeConnector::Bottom1);
+                    connectors.push(BehaviorNodeConnector::Bottom);
+                    connectors.push(BehaviorNodeConnector::Bottom2);
+                    is_sequence = true;
                 } else {
-                    connector = Some(BehaviorNodeConnector::Bottom);
+                    if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
+                        let behavior_id = self.instances[instance_index].behavior_id.clone();
+                        let connector = node_call(instance_index, (behavior_id, node_id), self, BehaviorType::Behaviors);
+                        rc = Some(connector);
+                        connectors.push(connector);
+                    } else {
+                        connectors.push(BehaviorNodeConnector::Bottom);
+                    }
                 }
             }
         }
 
         // Search the connections to check if we can find an ongoing node connection
-        if let Some(connector) = connector {
+        for connector in connectors {
             if let Some(behavior) = self.behaviors.get_mut(&self.instances[instance_index].behavior_id) {
 
                 for c in &behavior.data.connections {
                     if c.0 == node_id && c.1 == connector {
-                        connected_node_id = Some(c.2);
-                        self.executed_connections.push((c.0, c.1));
+                        connected_node_ids.push(c.2);
+                        if is_sequence == false {
+                            self.executed_connections.push((c.0, c.1));
+                        } else {
+                            possibly_executed_connections.push((c.0, c.1));
+                        }
                     }
                 }
             }
         }
 
         // And if yes execute it
-        if let Some(connected_node_id) = connected_node_id {
-            self.execute_node(instance_index, connected_node_id);
+        for (index, connected_node_id) in connected_node_ids.iter().enumerate() {
+
+            // If this is a sequence, mark this connection as executed
+            if is_sequence {
+                self.executed_connections.push(possibly_executed_connections[index]);
+            }
+
+            if let Some(connector) = self.execute_node(instance_index, *connected_node_id) {
+                if is_sequence {
+                    // Inside a sequence break out if the connector is not Success
+                    if connector != BehaviorNodeConnector::Success {
+                        break;
+                    }
+                }
+            }
         }
+        rc
     }
 
         /// Executes the given systems node and follows the connection chain
-    fn execute_systems_node(&mut self, instance_index: usize, node_id: usize) {
+    fn execute_systems_node(&mut self, instance_index: usize, node_id: usize) -> Option<BehaviorNodeConnector> {
 
-        let mut connector : Option<BehaviorNodeConnector> = None;
-        let mut connected_node_id : Option<usize> = None;
+        let mut connectors : Vec<BehaviorNodeConnector> = vec![];
+        let mut connected_node_ids : Vec<usize> = vec![];
+        let mut possibly_executed_connections : Vec<(usize, BehaviorNodeConnector)> = vec![];
+
+        let mut is_sequence = false;
+        let mut rc : Option<BehaviorNodeConnector> = None;
 
         // Call the node and get the resulting BehaviorNodeConnector
         if let Some(system) = self.systems.get_mut(&self.instances[instance_index].systems_id) {
             if let Some(node) = system.data.nodes.get_mut(&node_id) {
-                //println!("Executing:: {}", node.name);
+                // println!("Executing:: {}", node.name);
 
-                if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
-                    let behavior_id = self.instances[instance_index].systems_id.clone();
-                    connector = Some(node_call(instance_index, (behavior_id, node_id), self, BehaviorType::Systems));
+                // Handle special nodes
+                if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                    connectors.push(BehaviorNodeConnector::Bottom1);
+                    connectors.push(BehaviorNodeConnector::Bottom);
+                    connectors.push(BehaviorNodeConnector::Bottom2);
+                } else
+                if node.behavior_type == BehaviorNodeType::Sequence {
+                    connectors.push(BehaviorNodeConnector::Bottom1);
+                    connectors.push(BehaviorNodeConnector::Bottom);
+                    connectors.push(BehaviorNodeConnector::Bottom2);
+                    is_sequence = true;
                 } else {
-                    connector = Some(BehaviorNodeConnector::Bottom);
+                    if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
+                        let systems_id = self.instances[instance_index].systems_id.clone();
+                        let connector = node_call(instance_index, (systems_id, node_id), self, BehaviorType::Systems);
+                        rc = Some(connector);
+                        connectors.push(connector);
+                    } else {
+                        connectors.push(BehaviorNodeConnector::Bottom);
+                    }
                 }
             }
         }
 
         // Search the connections to check if we can find an ongoing node connection
-        if let Some(connector) = connector {
+        for connector in connectors {
             if let Some(system) = self.systems.get_mut(&self.instances[instance_index].systems_id) {
 
                 for c in &system.data.connections {
                     if c.0 == node_id && c.1 == connector {
-                        connected_node_id = Some(c.2);
-                        self.executed_connections.push((c.0, c.1));
+                        connected_node_ids.push(c.2);
+                        if is_sequence == false {
+                            self.executed_connections.push((c.0, c.1));
+                        } else {
+                            possibly_executed_connections.push((c.0, c.1));
+                        }
                     }
                 }
             }
         }
 
         // And if yes execute it
-        if let Some(connected_node_id) = connected_node_id {
-            self.execute_systems_node(instance_index, connected_node_id);
+        for (index, connected_node_id) in connected_node_ids.iter().enumerate() {
+
+            // If this is a sequence, mark this connection as executed
+            if is_sequence {
+                self.executed_connections.push(possibly_executed_connections[index]);
+            }
+
+            if let Some(connector) = self.execute_systems_node(instance_index, *connected_node_id) {
+                if is_sequence {
+                    // Inside a sequence break out if the connector is not Success
+                    if connector != BehaviorNodeConnector::Success {
+                        break;
+                    }
+                }
+            }
         }
+        rc
     }
 
     /// Gets the behavior for the given behaviortype

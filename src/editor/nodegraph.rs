@@ -1090,6 +1090,7 @@ impl NodeGraph {
                 "Close In" => BehaviorNodeType::CloseIn,
                 "Call System" => BehaviorNodeType::CallSystem,
                 "Call Behavior" => BehaviorNodeType::CallBehavior,
+                "Sequence" => BehaviorNodeType::Sequence,
                 _ => BehaviorNodeType::BehaviorTree
             };
 
@@ -1168,12 +1169,21 @@ impl NodeGraph {
             node_widget.widgets.push(atom1);
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom1, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
 
             // Add the node to the behavior tree ids
             self.behavior_tree_indices.push(self.nodes.len());
             if self.curr_behavior_tree_index == None {
                 self.curr_behavior_tree_index = Some(self.nodes.len());
             }
+        } else
+        if node_data.behavior_type == BehaviorNodeType::Sequence {
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom1, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_data.behavior_type == BehaviorNodeType::Expression {
             let mut atom1 = AtomWidget::new(vec!["Expression".to_string()], AtomWidgetType::NodeExpressionButton,
@@ -1419,7 +1429,7 @@ impl NodeGraph {
 
     /// Returns true if the node connector is a source connector (Right or Bottom)
     pub fn connector_is_source(&self, connector: BehaviorNodeConnector) -> bool {
-        if connector == BehaviorNodeConnector::Right || connector == BehaviorNodeConnector::Bottom || connector == BehaviorNodeConnector::Success || connector == BehaviorNodeConnector::Fail {
+        if connector == BehaviorNodeConnector::Right || connector == BehaviorNodeConnector::Bottom || connector == BehaviorNodeConnector::Success || connector == BehaviorNodeConnector::Fail || connector == BehaviorNodeConnector::Bottom1 || connector == BehaviorNodeConnector::Bottom2 {
             return true;
         }
         false

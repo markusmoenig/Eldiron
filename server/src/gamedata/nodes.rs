@@ -1,3 +1,5 @@
+use pathfinding::num_traits::ToPrimitive;
+
 use crate::gamedata::behavior:: { BehaviorNodeConnector, BehaviorNodeType };
 use crate::gamedata::GameData;
 
@@ -57,6 +59,7 @@ pub fn message(instance_index: usize, id: (usize, usize), data: &mut GameData, b
         if let Some(target_index) = data.instances[instance_index].target_instance_index {
             data.scopes[instance_index].push("Target", data.instances[target_index].name.clone());
         }
+        data.engine.register_fn("to_string", |x: f64| format!("{}", x.to_isize().unwrap()));
         let r = data.engine.eval_with_scope::<String>(&mut data.scopes[instance_index], format!("`{}`", text).as_str());
         if let Some(rc) = r.ok() {
             text = rc;

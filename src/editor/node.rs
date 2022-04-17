@@ -122,6 +122,10 @@ impl NodeWidget {
             height = 44;
         }
 
+        if self.widgets.is_empty() == true {
+            height -= 2;
+        }
+
         self.size.1 = height;
 
         if self.buffer.is_empty() {
@@ -182,7 +186,9 @@ impl NodeWidget {
 
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), title_color, rounding, &context.color_gray, 1.5);
 
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(rect.0, rect.1 + title_size, rect.2, rect.3 - title_size), stride, &((rect.2 - 1) as f64, (rect.3 - title_size ) as f64 - 2.5), back_color, rounding, &context.color_gray, 0.0);
+                if self.widgets.is_empty() == false {
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(rect.0, rect.1 + title_size, rect.2, rect.3 - title_size), stride, &((rect.2 - 1) as f64, (rect.3 - title_size ) as f64 - 2.5), back_color, rounding, &context.color_gray, 0.0);
+                }
 
                 if selected {
                     context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3) as f64 - 2.5), &[0,0,0,0], rounding, &context.color_light_white, 1.5);
@@ -247,10 +253,20 @@ impl NodeWidget {
                         context.draw2d.draw_circle(buffer_frame, &left.rect, stride, &context.node_connector_color, 6.0);
                     }
                 }
+
                 if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Bottom) {
                     bottom.rect = (rect.2 / 2 - 6, rect.3 - 2, 12, 12);
                     context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0);
                 }
+                if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Bottom1) {
+                    bottom.rect = (rect.2 / 2 - 6 - 30, rect.3 - 2, 12, 12);
+                    context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0);
+                }
+                if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Bottom2) {
+                    bottom.rect = (rect.2 / 2 - 6 + 30, rect.3 - 2, 12, 12);
+                    context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0);
+                }
+
                 if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Success) {
                     bottom.rect = (rect.2 / 2 - 6 - 30, rect.3 - 2, 12, 12);
                     context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.color_green, 6.0);
