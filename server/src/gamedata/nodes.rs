@@ -28,13 +28,49 @@ pub fn script(instance_index: usize, id: (usize, usize), data: &mut GameData, be
     BehaviorNodeConnector::Bottom
 }
 
-/// say
-pub fn say(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-    if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type) {
-        data.messages.push((format!("{} says \"{}\".", data.instances[instance_index].name, value.4), MessageType::Say));
-    } else {
-        data.messages.push((format!("{} says \"{}\".", data.instances[instance_index].name, "Hello".to_string()), MessageType::Say));
+/// message
+pub fn message(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut message_type : MessageType = MessageType::Status;
+    let mut text;
+
+    // Message Type
+    if let Some(value) = get_node_value((id.0, id.1, "type"), data, behavior_type) {
+        message_type = match value.0 as usize {
+            1 => MessageType::Say,
+            2 => MessageType::Yell,
+            3 => MessageType::Private,
+            4 => MessageType::Debug,
+            _ => MessageType::Status
+        }
     }
+
+    if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type) {
+        text = value.4;
+    } else {
+        text = "Hello".to_string();
+    }
+
+    // Do I need to evaluate the script for variables ?
+    if text.contains("${") {
+        data.scopes[instance_index].push("Self", data.instances[instance_index].name.clone());
+        if let Some(target_index) = data.instances[instance_index].target_instance_index {
+            data.scopes[instance_index].push("Target", data.instances[target_index].name.clone());
+        }
+        let r = data.engine.eval_with_scope::<String>(&mut data.scopes[instance_index], format!("`{}`", text).as_str());
+        if let Some(rc) = r.ok() {
+            text = rc;
+        }
+    }
+
+    // Formating if needed
+    text = match message_type {
+        MessageType::Say => format!("{} says \"{}\".", data.instances[instance_index].name, text),
+        _ => text
+    };
+
+    // Output it
+    data.messages.push((text,  message_type));
     BehaviorNodeConnector::Bottom
 }
 

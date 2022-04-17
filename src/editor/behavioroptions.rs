@@ -29,7 +29,7 @@ impl BehaviorOptions {
 
         node_list.add_group_list(context.color_orange, context.color_light_orange, vec!["Number".to_string(),/* "Position".to_string()*/ ]);
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec![ "Close In".to_string(), "Lookout".to_string(), "Pathfinder".to_string(), "Call Behavior".to_string(), "Call System".to_string(), "Say".to_string() ]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec![ "Close In".to_string(), "Lookout".to_string(), "Pathfinder".to_string(), "Call Behavior".to_string(), "Call System".to_string(), "Message".to_string() ]);
 
         node_list.set_rect(rect, asset, context);
         widgets.push(node_list);

@@ -26,8 +26,10 @@ type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameDat
 
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum MessageType {
+    Status,
     Say,
     Yell,
+    Private,
     Debug,
     Error,
 }
@@ -265,7 +267,7 @@ impl GameData<'_> {
         let mut nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
         nodes.insert(BehaviorNodeType::Expression, nodes::expression);
         nodes.insert(BehaviorNodeType::Script, nodes::script);
-        nodes.insert(BehaviorNodeType::Say, nodes::say);
+        nodes.insert(BehaviorNodeType::Message, nodes::message);
         nodes.insert(BehaviorNodeType::Pathfinder, nodes::pathfinder);
         nodes.insert(BehaviorNodeType::Lookout, nodes::lookout);
         nodes.insert(BehaviorNodeType::CloseIn, nodes::close_in);
@@ -456,9 +458,9 @@ impl GameData<'_> {
         scope.push( "d100", 0.0 as f64);
 
         // Default values
-        scope.push("_value1", 0.0_f64);
-        scope.push("_value2", 0.0_f64);
-        scope.push("_value3", 0.0_f64);
+        scope.push("Value1", 0.0_f64);
+        scope.push("Value2", 0.0_f64);
+        scope.push("Value3", 0.0_f64);
 
         if let Some(behavior) = self.behaviors.get_mut(&id) {
             for (id, node) in &behavior.data.nodes {

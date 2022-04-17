@@ -27,7 +27,7 @@ pub enum BehaviorNodeType {
     VariablePosition,
     Script,
     Pathfinder,
-    Say,
+    Message,
     Lookout,
     CloseIn,
     CallSystem,
