@@ -164,9 +164,9 @@ impl NodePreviewWidget {
                     if context.is_running == false {
                         context.data.create_behavior_instances();
                         context.data.activate_area_instances(context.data.areas_ids[self.curr_area_index]);
-                        //context.data.create_behavior_instance(context.data.behaviors_ids[context.curr_behavior_index]);
                         context.is_running = true;
                         atom_widget.text[0] = "Stop".to_string();
+                        context.data.messages = vec![];
                     } else {
                         context.data.clear_instances();
                         context.is_running = false;

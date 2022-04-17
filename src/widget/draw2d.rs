@@ -140,8 +140,8 @@ impl Draw2D {
                     let t = self.fill_mask(d);
 
                     let background = &[frame[i], frame[i+1], frame[i+2], 255];
-                    let mixed_color = self.mix_color(&background, &color, t);
-
+                    let mut mixed_color = self.mix_color(&background, &color, t * (color[3] as f64 / 255.0));
+                    mixed_color[3] = (mixed_color[3] as f64 * (color[3] as f64 / 255.0)) as u8;
                     frame[i..i + 4].copy_from_slice(&mixed_color);
                 }
             }
@@ -281,7 +281,7 @@ impl Draw2D {
                     let d = (x as usize + bounding_box.min.x as usize + pos.0) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1) * (stride as usize) * 4;
                     if v > 0.0 {
                         //frame[d..d + 4].copy_from_slice(&self.mix_color(&background, &color, self.smoothstep(0.0, 1.0, v as f64)));
-                        frame[d..d + 4].copy_from_slice(&self.mix_color(&background, &color, v as f64));
+                        frame[d..d + 4].copy_from_slice(&self.mix_color(&background, &color, v as f64));// * (color[3] as f64 / 255.0)));
                     }
                 });
             }

@@ -6,6 +6,7 @@ use crate::editor::behavior_overview_options::BehaviorOverviewOptions;
 use crate::editor::systemsoptions::SystemsOptions;
 use crate::editor::systems_overview_options::SystemsOverviewOptions;
 use crate::editor::areawidget::AreaWidget;
+use crate::editor::log::LogWidget;
 use crate::widget:: {ScreenWidget, Widget, WidgetState, WidgetKey};
 use crate::tileset::TileUsage;
 
@@ -29,6 +30,7 @@ mod node;
 mod node_preview;
 mod statusbar;
 pub mod dialog;
+mod log;
 
 use crate::editor::toolbar::ToolBar;
 use tilemapwidget::TileMapWidget;
@@ -60,6 +62,7 @@ pub struct Editor<'a> {
     state                           : EditorState,
     context                         : ScreenContext<'a>,
     toolbar                         : ToolBar,
+    log                             : LogWidget,
 
     tilemap_options                 : TileMapOptions,
     tilemap                         : TileMapWidget,
@@ -80,6 +83,9 @@ pub struct Editor<'a> {
     node_graph_behavior_details     : NodeGraph,
     node_graph_systems              : NodeGraph,
     node_graph_systems_details      : NodeGraph,
+
+    log_drag_start_pos              : Option<(usize, usize)>,
+    log_drag_start_rect             : (isize, isize),
 
     left_width                      : usize,
     mouse_pos                       : (usize, usize),
@@ -171,13 +177,18 @@ impl ScreenWidget for Editor<'_> {
 
         node_graph_systems_details.set_mode(GraphMode::Detail, &context);
 
+        //
+
         let dialog = DialogWidget::new(asset, &context);
+
+        let log = LogWidget::new(&context);
 
         Self {
             rect                    : (0, 0, width, height),
             state                   : EditorState::TilesOverview,
             context,
             toolbar,
+            log,
 
             tilemap_options,
             tilemap,
@@ -198,6 +209,9 @@ impl ScreenWidget for Editor<'_> {
             node_graph_behavior_details,
             node_graph_systems,
             node_graph_systems_details,
+
+            log_drag_start_pos      : None,
+            log_drag_start_rect     : (0, 0),
 
             dialog,
 
@@ -275,6 +289,8 @@ impl ScreenWidget for Editor<'_> {
             self.behavior_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_behavior_details.draw(frame, anim_counter, asset, &mut self.context);
             self.status_bar.draw(frame, anim_counter, asset, &mut self.context);
+            self.log.draw(frame, anim_counter, asset, &mut self.context);
+            self.context.draw2d.blend_slice_safe(frame, &self.log.buffer[..], &self.log.rect, self.context.width, &self.node_graph_behavior_details.rect);
         } else
         if self.state == EditorState::SystemsOverview {
             self.systems_overview_options.draw(frame, anim_counter, asset, &mut self.context);
@@ -283,7 +299,7 @@ impl ScreenWidget for Editor<'_> {
         if self.state == EditorState::SystemsDetail {
             self.systems_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_systems_details.draw(frame, anim_counter, asset, &mut self.context);
-            self.status_bar.draw(frame, anim_counter, asset, &mut self.context);
+            //self.status_bar.draw(frame, anim_counter, asset, &mut self.context);
         }
 
         // Drag and drop
@@ -590,6 +606,11 @@ impl ScreenWidget for Editor<'_> {
             if consumed == false && self.behavior_options.mouse_down(pos, asset, &mut self.context) {
                 consumed = true;
             }
+            if consumed == false && self.context.contains_pos_for_isize(pos, self.log.rect) {
+                consumed = true;
+                self.log_drag_start_pos = Some(pos.clone());
+                self.log_drag_start_rect = (self.log.rect.0, self.log.rect.1);
+            }
             if consumed == false && self.node_graph_behavior_details.mouse_down(pos, asset, &mut self.context) {
                 consumed = true;
             }
@@ -624,6 +645,8 @@ impl ScreenWidget for Editor<'_> {
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.mouse_up(pos, asset, &mut self.context);
         }
+
+        self.log_drag_start_pos = None;
 
         let mut consumed = false;
         if self.toolbar.mouse_up(pos, asset, &mut self.context) {
@@ -785,6 +808,12 @@ impl ScreenWidget for Editor<'_> {
 
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.mouse_dragged(pos, asset, &mut self.context);
+        }
+
+        if let Some(log_drag_start_pos) = self.log_drag_start_pos {
+            self.log.rect.0 = self.log_drag_start_rect.0 - (log_drag_start_pos.0 as isize - pos.0 as isize);
+            self.log.rect.1 = self.log_drag_start_rect.1 - (log_drag_start_pos.1 as isize - pos.1 as isize);
+            return true;
         }
 
         let mut consumed = false;

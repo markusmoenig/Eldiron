@@ -41,12 +41,13 @@ impl StatusBar {
             return;
         }
 
+        /*
         if context.data.say.len() > 0 {
             self.text = context.data.say[0].clone();
             self.start_time = self.get_time();
             self.size.0 = context.draw2d.get_text_size(&asset.open_sans, 24.0, &self.text.as_str()).0 + 20;
             self.dirty = true;
-        }
+        }*/
 
         if self.text.is_empty() {
             return;
@@ -73,6 +74,7 @@ impl StatusBar {
         }
         context.draw2d.copy_slice(frame, &self.buffer[..], &(180, context.height - self.size.1, self.size.0, self.size.1), context.width);
         self.dirty = false;
+
     }
 
     // Clears the content

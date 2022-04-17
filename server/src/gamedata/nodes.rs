@@ -4,6 +4,7 @@ use crate::gamedata::GameData;
 use crate::gamedata::nodes_utility::*;
 use crate::gamedata::script::*;
 
+use super::MessageType;
 use super::behavior::BehaviorType;
 
 /// expression
@@ -30,9 +31,9 @@ pub fn script(instance_index: usize, id: (usize, usize), data: &mut GameData, be
 /// say
 pub fn say(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
     if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type) {
-        data.say.push(format!("{} says \"{}\".", data.instances[instance_index].name, value.4));
+        data.messages.push((format!("{} says \"{}\".", data.instances[instance_index].name, value.4), MessageType::Say));
     } else {
-        data.say.push(format!("{} says \"{}\".", data.instances[instance_index].name, "Hello".to_string()));
+        data.messages.push((format!("{} says \"{}\".", data.instances[instance_index].name, "Hello".to_string()), MessageType::Say));
     }
     BehaviorNodeConnector::Bottom
 }

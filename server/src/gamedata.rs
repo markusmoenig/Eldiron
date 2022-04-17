@@ -24,6 +24,14 @@ use self::nodes_utility::get_node_value;
 
 type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> behavior::BehaviorNodeConnector;
 
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
+pub enum MessageType {
+    Say,
+    Yell,
+    Debug,
+    Error,
+}
+
 pub struct GameData<'a> {
     pub areas                   : HashMap<usize, GameArea>,
     pub areas_names             : Vec<String>,
@@ -55,7 +63,7 @@ pub struct GameData<'a> {
     pub runs_in_editor          : bool,
 
     // These are fields which provide feedback to the editor / game while running
-    pub say                     : Vec<String>,
+    pub messages                : Vec<(String, MessageType)>,
     pub executed_connections    : Vec<(usize, BehaviorNodeConnector)>,
     pub changed_variables       : Vec<(usize, usize, usize, f64)>, // A variable has been changed: instance index, behavior id, node id, new value
 }
@@ -292,7 +300,7 @@ impl GameData<'_> {
 
             runs_in_editor          : true,
 
-            say                     : vec![],
+            messages                : vec![],
             executed_connections    : vec![],
             changed_variables       : vec![],
         }
@@ -519,7 +527,6 @@ impl GameData<'_> {
 
     /// Game tick
     pub fn tick(&mut self) {
-        self.say = vec![];
         self.executed_connections = vec![];
         self.changed_variables = vec![];
         for index in 0..self.active_instance_indices.len() {
@@ -549,7 +556,6 @@ impl GameData<'_> {
     pub fn clear_instances(&mut self) {
         self.instances = vec![];
         self.scopes = vec![];
-        self.say = vec![];
         self.executed_connections = vec![];
         self.changed_variables = vec![];
         self.active_instance_indices = vec![];
