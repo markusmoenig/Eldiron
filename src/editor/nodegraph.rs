@@ -344,7 +344,7 @@ impl NodeGraph {
                             control_end_x = end_x + (edx * d) as isize;
                             control_end_y = end_y + (edy * d) as isize;
 
-                            if context.data.executed_connections.contains(&(*source_node_id, *source_connector)) {
+                            if context.data.executed_connections.contains(&(self.graph_type, *source_node_id, *source_connector)) {
                                 orange_path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
                             } else {
                                 path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();

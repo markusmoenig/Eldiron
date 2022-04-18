@@ -139,13 +139,15 @@ pub fn lookout(instance_index: usize, id: (usize, usize), data: &mut GameData, b
         for index in 0..data.active_instance_indices.len() {
             let inst_index = data.active_instance_indices[index];
             if inst_index != instance_index {
-                if let Some(pos) = data.instances[inst_index].position {
-                    let dx = position.1 - pos.1;
-                    let dy = position.2 - pos.2;
-                    let d = ((dx * dx + dy * dy) as f64).sqrt();
-                    if d <= max_distance {
-                        chars.push(inst_index);
-                        //println!("distance {}", d);
+                if data.instances[inst_index].state == BehaviorInstanceState::Normal {
+                    if let Some(pos) = data.instances[inst_index].position {
+                        let dx = position.1 - pos.1;
+                        let dy = position.2 - pos.2;
+                        let d = ((dx * dx + dy * dy) as f64).sqrt();
+                        if d <= max_distance {
+                            chars.push(inst_index);
+                            //println!("distance {}", d);
+                        }
                     }
                 }
             }

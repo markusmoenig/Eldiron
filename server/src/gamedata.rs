@@ -66,7 +66,7 @@ pub struct GameData<'a> {
 
     // These are fields which provide feedback to the editor / game while running
     pub messages                : Vec<(String, MessageType)>,
-    pub executed_connections    : Vec<(usize, BehaviorNodeConnector)>,
+    pub executed_connections    : Vec<(BehaviorType, usize, BehaviorNodeConnector)>,
     pub changed_variables       : Vec<(usize, usize, usize, f64)>, // A variable has been changed: instance index, behavior id, node id, new value
 }
 
@@ -608,7 +608,7 @@ impl GameData<'_> {
 
         let mut connectors : Vec<BehaviorNodeConnector> = vec![];
         let mut connected_node_ids : Vec<usize> = vec![];
-        let mut possibly_executed_connections : Vec<(usize, BehaviorNodeConnector)> = vec![];
+        let mut possibly_executed_connections : Vec<(BehaviorType, usize, BehaviorNodeConnector)> = vec![];
 
         let mut is_sequence = false;
         let mut rc : Option<BehaviorNodeConnector> = None;
@@ -650,9 +650,9 @@ impl GameData<'_> {
                     if c.0 == node_id && c.1 == connector {
                         connected_node_ids.push(c.2);
                         if is_sequence == false {
-                            self.executed_connections.push((c.0, c.1));
+                            self.executed_connections.push((BehaviorType::Behaviors, c.0, c.1));
                         } else {
-                            possibly_executed_connections.push((c.0, c.1));
+                            possibly_executed_connections.push((BehaviorType::Behaviors, c.0, c.1));
                         }
                     }
                 }
@@ -684,7 +684,7 @@ impl GameData<'_> {
 
         let mut connectors : Vec<BehaviorNodeConnector> = vec![];
         let mut connected_node_ids : Vec<usize> = vec![];
-        let mut possibly_executed_connections : Vec<(usize, BehaviorNodeConnector)> = vec![];
+        let mut possibly_executed_connections : Vec<(BehaviorType, usize, BehaviorNodeConnector)> = vec![];
 
         let mut is_sequence = false;
         let mut rc : Option<BehaviorNodeConnector> = None;
@@ -726,9 +726,9 @@ impl GameData<'_> {
                     if c.0 == node_id && c.1 == connector {
                         connected_node_ids.push(c.2);
                         if is_sequence == false {
-                            self.executed_connections.push((c.0, c.1));
+                            self.executed_connections.push((BehaviorType::Systems, c.0, c.1));
                         } else {
-                            possibly_executed_connections.push((c.0, c.1));
+                            possibly_executed_connections.push((BehaviorType::Systems, c.0, c.1));
                         }
                     }
                 }

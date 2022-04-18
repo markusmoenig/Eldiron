@@ -3,6 +3,8 @@ use crate::asset::TileUsage;
 
 use pathfinding::prelude::bfs;
 
+use super::behavior::BehaviorInstanceState;
+
 /// Retrieves a number instance value
 pub fn get_number_variable(instance_index: usize, variable: String, data: &mut GameData) -> Option<f64> {
     if let Some(value) = data.scopes[instance_index].get_value::<f64>(&variable) {
@@ -83,14 +85,17 @@ pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp:
 
     for inst_index in &data.active_instance_indices {
         if *inst_index != instance_index {
-            if let Some(pos) = data.instances[*inst_index].position {
-                if exclude_dp == false {
-                    char_positions.push(pos);
-                } else {
-                    // Exclude dp, otherwise the Close In tracking function does not find a route
-                    if let Some(dp) = dp {
-                        if dp != pos {
-                            char_positions.push(pos);
+            // Only track if the state is normal
+            if data.instances[*inst_index].state == BehaviorInstanceState::Normal {
+                if let Some(pos) = data.instances[*inst_index].position {
+                    if exclude_dp == false {
+                        char_positions.push(pos);
+                    } else {
+                        // Exclude dp, otherwise the Close In tracking function does not find a route
+                        if let Some(dp) = dp {
+                            if dp != pos {
+                                char_positions.push(pos);
+                            }
                         }
                     }
                 }
