@@ -1090,6 +1090,8 @@ impl NodeGraph {
                 "Close In" => BehaviorNodeType::CloseIn,
                 "Call System" => BehaviorNodeType::CallSystem,
                 "Call Behavior" => BehaviorNodeType::CallBehavior,
+                "Lock Tree" => BehaviorNodeType::LockTree,
+                "Unlock" => BehaviorNodeType::UnlockTree,
                 "Sequence" => BehaviorNodeType::Sequence,
                 _ => BehaviorNodeType::BehaviorTree
             };
@@ -1160,7 +1162,7 @@ impl NodeGraph {
         node_widget.menu = Some(node_menu_atom);
 
         if node_data.behavior_type == BehaviorNodeType::BehaviorTree {
-            let mut atom1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Demand".to_string()], AtomWidgetType::NodeMenuButton,
+            let mut atom1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Target".to_string()], AtomWidgetType::NodeMenuButton,
             AtomData::new_as_int("execute".to_string(), 0));
             atom1.atom_data.text = "Execute".to_string();
             let id = (behavior_data.id, node_data.id, "execute".to_string());
@@ -1344,7 +1346,21 @@ impl NodeGraph {
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_data.behavior_type == BehaviorNodeType::CallBehavior {
+            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+            AtomData::new_as_int("tree".to_string(), 0));
+            atom1.atom_data.text = "Tree Name".to_string();
+            let id = (behavior_data.id, node_data.id, "tree".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
+            node_widget.widgets.push(atom1);
 
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_data.behavior_type == BehaviorNodeType::LockTree {
             let mut atom1 = AtomWidget::new(vec!["Self".to_string(), "Target".to_string()], AtomWidgetType::NodeMenuButton,
             AtomData::new_as_int("execute_for".to_string(), 0));
             atom1.atom_data.text = "Execute For".to_string();
@@ -1362,12 +1378,25 @@ impl NodeGraph {
             node_widget.widgets.push(atom2);
 
             node_widget.color = context.color_blue.clone();
-
-            node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_data.behavior_type == BehaviorNodeType::UnlockTree {
+
+            let mut atom1 = AtomWidget::new(vec!["Self".to_string(), "Target".to_string()], AtomWidgetType::NodeMenuButton,
+            AtomData::new_as_int("execute_for".to_string(), 0));
+            atom1.atom_data.text = "Execute For".to_string();
+            let id = (behavior_data.id, node_data.id, "execute_for".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type).0 as usize;
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         }
     }
 

@@ -273,6 +273,7 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::CloseIn, nodes::close_in);
         nodes.insert(BehaviorNodeType::CallSystem, nodes::call_system);
         nodes.insert(BehaviorNodeType::CallBehavior, nodes::call_behavior);
+        nodes.insert(BehaviorNodeType::LockTree, nodes::lock_tree);
 
         Self {
             areas,
@@ -491,7 +492,7 @@ impl GameData<'_> {
 
             let index = self.instances.len();
 
-            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, engaged_with: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0};
+            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0};
 
             // Make sure id is unique
             let mut has_id_already = true;
@@ -539,17 +540,22 @@ impl GameData<'_> {
                 continue;
             }
 
-            let trees = self.instances[inst_index].tree_ids.clone();
-            for node_id in &trees {
+            // Has a locked tree ?
+            if let Some(locked_tree) = self.instances[inst_index].locked_tree {
+                    self.execute_node(inst_index, locked_tree);
+            } else {
+                // Unlocked, execute all valid trees
+                let trees = self.instances[inst_index].tree_ids.clone();
+                for node_id in &trees {
 
-                // Only execute trees here with an "Always" execute setting (0)
-                if let Some(value)= get_node_value((self.instances[inst_index].behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors) {
-                    if value.0 != 0.0 {
-                        continue;
+                    // Only execute trees here with an "Always" execute setting (0)
+                    if let Some(value)= get_node_value((self.instances[inst_index].behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors) {
+                        if value.0 != 0.0 {
+                            continue;
+                        }
                     }
+                    self.execute_node(inst_index, node_id.clone());
                 }
-
-                self.execute_node(inst_index, node_id.clone());
             }
         }
     }

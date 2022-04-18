@@ -273,11 +273,12 @@ pub fn call_system(instance_index: usize, id: (usize, usize), data: &mut GameDat
 /// Behavior Call
 pub fn call_behavior(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    let mut behavior_instance : Option<usize> = None;
+    let behavior_instance : Option<usize> = Some(instance_index);
     let mut behavior_tree_id : Option<usize> = None;
 
-    // We cannot precompute this as the values for the target may change
+    // TODO: Precompute this
 
+    /*
     // The id's were not yet computed search the system trees, get the ids and store them.
     if let Some(value) = get_node_value((id.0, id.1, "execute_for"), data, behavior_type) {
         if value.0 == 0.0 {
@@ -290,6 +291,7 @@ pub fn call_behavior(instance_index: usize, id: (usize, usize), data: &mut GameD
             }
         }
     }
+    */
 
     if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
         if let Some(behavior_instance) = behavior_instance {
@@ -313,6 +315,59 @@ pub fn call_behavior(instance_index: usize, id: (usize, usize), data: &mut GameD
             return BehaviorNodeConnector::Success;
         }
     }
+    BehaviorNodeConnector::Fail
+}
 
+/// Lock Tree
+pub fn lock_tree(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut behavior_instance : Option<usize> = None;
+    let mut behavior_tree_id : Option<usize> = None;
+    let mut is_target = false;
+
+    // We cannot precompute this as the values for the target may change
+
+    // The id's were not yet computed search the system trees, get the ids and store them.
+    if let Some(value) = get_node_value((id.0, id.1, "execute_for"), data, behavior_type) {
+        if value.0 == 0.0 {
+            // Run the behavior on myself
+            behavior_instance = Some(instance_index);
+        } else {
+            // Run the behavior on the target
+            if let Some(target_index) = data.instances[instance_index].target_instance_index {
+                behavior_instance = Some(target_index);
+                is_target = true;
+            }
+        }
+    }
+
+    if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
+        if let Some(behavior_instance) = behavior_instance {
+            if let Some(behavior) = data.behaviors.get(&data.instances[behavior_instance].behavior_id) {
+                for (node_id, node) in &behavior.data.nodes {
+                    if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == value.4 {
+                        behavior_tree_id = Some(*node_id);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    //println!("behavior instance {:?}", behavior_instance);
+    //println!("behavior_tree_id id {:?}", behavior_tree_id);
+
+    if let Some(behavior_instance) = behavior_instance {
+        if let Some(behavior_tree_id) = behavior_tree_id {
+
+            // Lock the tree
+            data.instances[behavior_instance].locked_tree = Some(behavior_tree_id);
+            if is_target {
+                // If we call lock on a target, we target ourself for the target
+                data.instances[behavior_instance].target_instance_index = Some(instance_index);
+            }
+            return BehaviorNodeConnector::Success;
+        }
+    }
     BehaviorNodeConnector::Fail
 }

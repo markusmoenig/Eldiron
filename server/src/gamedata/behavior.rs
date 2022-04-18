@@ -32,7 +32,9 @@ pub enum BehaviorNodeType {
     CloseIn,
     CallSystem,
     CallBehavior,
-    Sequence
+    Sequence,
+    LockTree,
+    UnlockTree,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -86,8 +88,11 @@ pub struct BehaviorInstance {
     // The number of ticks this instance is skipping
     pub sleep_cycles            : usize,
 
-    // Instance ids of the entities we are currently engaged in combat with
-    pub engaged_with            : Vec<usize>,
+    // The locked tree, only this tree will be executed.
+    pub locked_tree             : Option<usize>,
+
+    // Instance ids of the entities in our party (including self)
+    pub party                   : Vec<usize>,
 
     // Temporary values nodes can use to store instance data, these are NOT saved, i.e. emptied before saving.
     // The key is the behavior type and node id.
