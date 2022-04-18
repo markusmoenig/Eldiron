@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::fs::metadata;
 
 use crate::gamedata::area::GameArea;
-use crate::gamedata::behavior::{ BehaviorNodeConnector, BehaviorInstance, GameBehavior, BehaviorNodeType, BehaviorType };
+use crate::gamedata::behavior::{ BehaviorNodeConnector, BehaviorInstance, GameBehavior, BehaviorNodeType, BehaviorType, BehaviorInstanceState };
 use crate::asset::TileUsage;
 
 use itertools::Itertools;
@@ -274,6 +274,8 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::CallSystem, nodes::call_system);
         nodes.insert(BehaviorNodeType::CallBehavior, nodes::call_behavior);
         nodes.insert(BehaviorNodeType::LockTree, nodes::lock_tree);
+        nodes.insert(BehaviorNodeType::UnlockTree, nodes::unlock_tree);
+        nodes.insert(BehaviorNodeType::SetState, nodes::set_state);
 
         Self {
             areas,
@@ -492,7 +494,7 @@ impl GameData<'_> {
 
             let index = self.instances.len();
 
-            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0};
+            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0};
 
             // Make sure id is unique
             let mut has_id_already = true;
@@ -535,8 +537,14 @@ impl GameData<'_> {
         for index in 0..self.active_instance_indices.len() {
             let inst_index = self.active_instance_indices[index];
 
+            // Skip Sleep cycles
             if self.instances[inst_index].sleep_cycles > 0 {
                 self.instances[inst_index].sleep_cycles -= 1;
+                continue;
+            }
+
+            // Killed or Purged: Skip
+            if self.instances[inst_index].state == BehaviorInstanceState::Purged || self.instances[inst_index].state == BehaviorInstanceState::Killed {
                 continue;
             }
 
@@ -662,7 +670,7 @@ impl GameData<'_> {
             if let Some(connector) = self.execute_node(instance_index, *connected_node_id) {
                 if is_sequence {
                     // Inside a sequence break out if the connector is not Success
-                    if connector != BehaviorNodeConnector::Success {
+                    if connector == BehaviorNodeConnector::Fail || connector == BehaviorNodeConnector::Right {
                         break;
                     }
                 }
@@ -738,7 +746,7 @@ impl GameData<'_> {
             if let Some(connector) = self.execute_systems_node(instance_index, *connected_node_id) {
                 if is_sequence {
                     // Inside a sequence break out if the connector is not Success
-                    if connector != BehaviorNodeConnector::Success {
+                    if connector == BehaviorNodeConnector::Fail || connector == BehaviorNodeConnector::Right {
                         break;
                     }
                 }

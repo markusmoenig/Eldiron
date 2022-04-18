@@ -7,7 +7,7 @@ use crate::gamedata::nodes_utility::*;
 use crate::gamedata::script::*;
 
 use super::MessageType;
-use super::behavior::BehaviorType;
+use super::behavior::{BehaviorType, BehaviorInstanceState};
 
 /// expression
 pub fn expression(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
@@ -370,4 +370,74 @@ pub fn lock_tree(instance_index: usize, id: (usize, usize), data: &mut GameData,
         }
     }
     BehaviorNodeConnector::Fail
+}
+
+/// Unlock Tree
+pub fn unlock_tree(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut behavior_instance : Option<usize> = None;
+
+    // The id's were not yet computed search the system trees, get the ids and store them.
+    if let Some(value) = get_node_value((id.0, id.1, "execute_for"), data, behavior_type) {
+        if value.0 == 0.0 {
+            // Run the behavior on myself
+            behavior_instance = Some(instance_index);
+        } else {
+            // Run the behavior on the target
+            if let Some(target_index) = data.instances[instance_index].target_instance_index {
+                behavior_instance = Some(target_index);
+            }
+        }
+    }
+
+    if let Some(behavior_instance) = behavior_instance {
+        // Unlock the tree
+        data.instances[behavior_instance].locked_tree = None;
+        data.instances[behavior_instance].target_instance_index = None;
+    }
+    BehaviorNodeConnector::Bottom
+}
+
+/// Set State
+pub fn set_state(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut behavior_instance : Option<usize> = None;
+
+    // The id's were not yet computed search the system trees, get the ids and store them.
+    if let Some(value) = get_node_value((id.0, id.1, "for"), data, behavior_type) {
+        if value.0 == 0.0 {
+            // Run set state on myself
+            behavior_instance = Some(instance_index);
+        } else {
+            // Run the behavior on the target
+            if let Some(target_index) = data.instances[instance_index].target_instance_index {
+                behavior_instance = Some(target_index);
+            }
+        }
+    }
+
+    if let Some(value) = get_node_value((id.0, id.1, "state"), data, behavior_type) {
+        if let Some(behavior_instance) = behavior_instance {
+            //println!("behavior instance {:?}", behavior_instance);
+            data.instances[behavior_instance].state = match value.0 as isize {
+                1 => BehaviorInstanceState::Hidden,
+                2 => BehaviorInstanceState::Killed,
+                3 => BehaviorInstanceState::Purged,
+
+                _ => BehaviorInstanceState::Normal,
+            };
+
+            // If != normal, clean this instance from all targets
+            if data.instances[behavior_instance].state != BehaviorInstanceState::Normal {
+                for i in 0..data.instances.len() {
+                    if data.instances[i].target_instance_index == Some(behavior_instance) {
+                        data.instances[i].target_instance_index = None;
+                        data.instances[i].locked_tree = None;
+                    }
+                }
+            }
+        }
+    }
+
+    BehaviorNodeConnector::Bottom
 }

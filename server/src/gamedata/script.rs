@@ -40,7 +40,7 @@ fn update_dices(instance_index: usize, data: &mut GameData) {
     data.scopes[instance_index].set_value( "d100", rng.gen_range(1..=100) as f64);
 }
 
-/// Updates the dices for the givem scope
+/// Updates the dices for the given scope
 pub fn update_dices_scope(scope: &mut Scope) {
     // Dices
     let mut rng = thread_rng();
@@ -51,15 +51,61 @@ pub fn update_dices_scope(scope: &mut Scope) {
     scope.set_value( "d100", rng.gen_range(1..=100) as f64);
 }
 
-// pub fn create_character_struct(character_index: usize, data: &mut GameData) -> CharacterVariables {
+pub fn add_target_to_scope(instance_index: usize, data: &mut GameData) {
+    // Add indexer
+    if let Some(target_index) = data.instances[instance_index].target_instance_index {
+        data.engine.register_type::<InstanceVariables>()
+            .register_fn("new_instance", InstanceVariables::new)
+            .register_indexer_get(InstanceVariables::get_number)
+            .register_indexer_set(InstanceVariables::set_number);
 
 
-// }
+        let original_target = data.scopes[target_index].clone();
+        let mut target = InstanceVariables::new();
+
+        if let Some(behavior) = data.get_mut_behavior(data.instances[target_index].behavior_id, BehaviorType::Behaviors) {
+            for (_index, node) in &behavior.data.nodes {
+                if node.behavior_type == BehaviorNodeType::VariableNumber {
+
+                    if let Some(v) = original_target.get_value::<f64>(node.name.as_str()) {
+                        target.numbers.insert(node.name.clone(), v);
+                    }
+                }
+            }
+        }
+
+        data.scopes[instance_index].set_value("target", target);
+    }
+}
+
+/// Read out the target variables and if changed apply them
+pub fn apply_scope_to_target(instance_index: usize, data: &mut GameData) {
+    if let Some(target_index) = data.instances[instance_index].target_instance_index {
+        if let Some(target) = data.scopes[instance_index].get_value::<InstanceVariables>("target") {
+            if let Some(behavior) = data.behaviors.get_mut(&data.instances[target_index].behavior_id) {
+                for (_index, node) in &behavior.data.nodes {
+                    if node.behavior_type == BehaviorNodeType::VariableNumber {
+
+                        let o = data.scopes[target_index].get_value::<f64>(node.name.as_str());
+                        let n = target.numbers.get(&node.name);
+
+                        if n.is_some() && o.is_some() && o.unwrap() != *n.unwrap() {
+                            let value = n.unwrap().clone();
+                            data.scopes[target_index].set_value(node.name.clone(), value);
+                            data.changed_variables.push((target_index, behavior.data.id, node.id, value));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 /// Evaluates a boolean expression in the given instance.
 pub fn eval_bool_expression_instance(instance_index: usize, expression: &str, data: &mut GameData) -> Option<bool> {
 
     update_dices(instance_index, data);
+    add_target_to_scope(instance_index, data);
 
     let r = data.engine.eval_expression_with_scope::<bool>(&mut  data.scopes[instance_index], expression);
     if r.is_ok() {
@@ -75,6 +121,7 @@ pub fn eval_bool_expression_instance(instance_index: usize, expression: &str, da
 pub fn eval_number_expression_instance(instance_index: usize, expression: &str, data: &mut GameData) -> Option<f64> {
 
     update_dices(instance_index, data);
+    add_target_to_scope(instance_index, data);
 
     let r = data.engine.eval_expression_with_scope::<Dynamic>(&mut data.scopes[instance_index], expression);
     if r.is_ok() {
@@ -100,9 +147,11 @@ pub fn eval_dynamic_script_instance(instance_index: usize, id: (usize, usize), e
     }
 
     update_dices(instance_index, data);
+    add_target_to_scope(instance_index, data);
 
     let r = data.engine.eval_with_scope::<Dynamic>(&mut data.scopes[instance_index], expression);
     if r.is_ok() {
+        apply_scope_to_target(instance_index, data);
         return true
     } else {
         println!("{:?}", r);
@@ -115,60 +164,14 @@ pub fn eval_dynamic_script_instance(instance_index: usize, id: (usize, usize), e
 pub fn eval_dynamic_expression_instance_editor(instance_index: usize, id: (usize, usize), expression: &str, data: &mut GameData) -> bool {
 
     update_dices(instance_index, data);
-
-    // Add indexer
-    if let Some(target_index) = data.instances[instance_index].target_instance_index {
-        data.engine.register_type::<InstanceVariables>()
-            .register_fn("new_instance", InstanceVariables::new)
-            .register_indexer_get(InstanceVariables::get_number)
-            .register_indexer_set(InstanceVariables::set_number);
-
-
-        let original_target = data.scopes[target_index].clone();
-        let mut target = InstanceVariables::new();
-
-        if let Some(behavior) = data.get_mut_behavior(data.instances[target_index].behavior_id, BehaviorType::Behaviors) {
-            for (_index, node) in &behavior.data.nodes {
-                if node.behavior_type == BehaviorNodeType::VariableNumber {
-
-                    if let Some(v) = original_target.get_value::<f64>(node.name.as_str()) {
-                        target.numbers.insert(node.name.clone(), v);
-                    }
-                }
-            }
-        }
-
-        data.scopes[instance_index].set_value("target", target);
-
-    }
+    add_target_to_scope(instance_index, data);
 
     let original = data.scopes[instance_index].clone();
 
     let r = data.engine.eval_with_scope::<Dynamic>(&mut data.scopes[instance_index], expression);
     if r.is_ok() {
 
-        // Read out the target variables and if changed apply them
-        if let Some(target_index) = data.instances[instance_index].target_instance_index {
-            if let Some(target) = data.scopes[instance_index].get_value::<InstanceVariables>("target") {
-                if let Some(behavior) = data.behaviors.get_mut(&data.instances[target_index].behavior_id) {
-                    for (_index, node) in &behavior.data.nodes {
-                        if node.behavior_type == BehaviorNodeType::VariableNumber {
-
-                            let o = data.scopes[target_index].get_value::<f64>(node.name.as_str());
-                            let n = target.numbers.get(&node.name);
-
-                            if n.is_some() && o.is_some() && o.unwrap() != *n.unwrap() {
-                                let value = n.unwrap().clone();
-                                data.scopes[target_index].set_value(node.name.clone(), value);
-                                data.changed_variables.push((target_index, behavior.data.id, node.id, value));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        //
+        apply_scope_to_target(instance_index, data);
 
         let mut key_to_change: Option<String> = None;
         let mut new_value : Option<f64> = None;

@@ -35,6 +35,7 @@ pub enum BehaviorNodeType {
     Sequence,
     LockTree,
     UnlockTree,
+    SetState,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -60,11 +61,22 @@ pub struct BehaviorNode {
     pub position                : (isize, isize),
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
+pub enum BehaviorInstanceState {
+    Normal,
+    Hidden,
+    Killed,
+    Purged,
+}
+
 #[derive(Serialize, Deserialize, PartialEq)]
 pub struct BehaviorInstance {
 
     // The instance id (unique)
     pub id                      : usize,
+
+    // The instance state
+    pub state                   : BehaviorInstanceState,
 
     // The behavior id for this instance
     pub behavior_id             : usize,

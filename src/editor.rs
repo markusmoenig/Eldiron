@@ -225,12 +225,12 @@ impl ScreenWidget for Editor<'_> {
 
     /// Update the editor
     fn update(&mut self) {
-        //let start = self.get_time();
+        // let start = self.get_time();
         if self.state == EditorState::BehaviorDetail {
             self.node_graph_behavior_details.update(&mut self.context);
         }
-        //let stop = self.get_time();
-        //println!("update time {:?}", stop - start);
+        // let stop = self.get_time();
+        // println!("update time {:?}", stop - start);
     }
 
     fn resize(&mut self, width: usize, height: usize) {

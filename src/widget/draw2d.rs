@@ -4,6 +4,7 @@ use rusttype::{point, Font, Scale};
 use server::asset::TileMap;
 use server::asset::Asset;
 use server::gamedata::area::GameArea;
+use server::gamedata::behavior::BehaviorInstanceState;
 
 use super::context::ScreenContext;
 
@@ -607,6 +608,10 @@ impl Draw2D {
             }
 
             for index in 0..context.data.instances.len() {
+
+                if context.data.instances[index].state == BehaviorInstanceState::Killed || context.data.instances[index].state == BehaviorInstanceState::Purged {
+                    continue;
+                }
 
                 if let Some(position) = context.data.instances[index].position {
                     if let Some(tile) = context.data.instances[index].tile {
