@@ -503,8 +503,8 @@ impl ScreenWidget for Editor<'_> {
                     self.toolbar.widgets[i].dirty = true;
                 }
 
-                self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
-                self.toolbar.widgets[0].curr_index = self.context.curr_behavior_index;
+                self.toolbar.widgets[0].text = self.context.data.systems_names.clone();
+                self.toolbar.widgets[0].curr_index = self.context.curr_systems_index;
                 self.toolbar.widgets[0].dirty = true;
             }
             consumed = true;
