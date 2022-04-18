@@ -1094,6 +1094,7 @@ impl NodeGraph {
                 "Unlock" => BehaviorNodeType::UnlockTree,
                 "Sequence" => BehaviorNodeType::Sequence,
                 "Set State" => BehaviorNodeType::SetState,
+                "Linear" => BehaviorNodeType::Linear,
                 _ => BehaviorNodeType::BehaviorTree
             };
 
@@ -1180,6 +1181,13 @@ impl NodeGraph {
             if self.curr_behavior_tree_index == None {
                 self.curr_behavior_tree_index = Some(self.nodes.len());
             }
+        } else
+        if node_data.behavior_type == BehaviorNodeType::Linear {
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom1, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_data.behavior_type == BehaviorNodeType::Sequence {
             node_widget.color = context.color_green.clone();

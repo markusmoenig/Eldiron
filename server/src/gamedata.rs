@@ -619,7 +619,7 @@ impl GameData<'_> {
                 // println!("Executing:: {}", node.name);
 
                 // Handle special nodes
-                if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                if node.behavior_type == BehaviorNodeType::BehaviorTree || node.behavior_type == BehaviorNodeType::Linear {
                     connectors.push(BehaviorNodeConnector::Bottom1);
                     connectors.push(BehaviorNodeConnector::Bottom);
                     connectors.push(BehaviorNodeConnector::Bottom2);
@@ -695,7 +695,7 @@ impl GameData<'_> {
                 // println!("Executing:: {}", node.name);
 
                 // Handle special nodes
-                if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                if node.behavior_type == BehaviorNodeType::BehaviorTree || node.behavior_type == BehaviorNodeType::Linear {
                     connectors.push(BehaviorNodeConnector::Bottom1);
                     connectors.push(BehaviorNodeConnector::Bottom);
                     connectors.push(BehaviorNodeConnector::Bottom2);
