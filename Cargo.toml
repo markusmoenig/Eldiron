@@ -26,3 +26,4 @@ rand = "0.8.5"
 pathfinding = "3.0.11"
 #rhai = "*"
 rhai = { git = "https://github.com/rhaiscript/rhai/" }
+regex = "1.5"

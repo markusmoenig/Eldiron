@@ -5,6 +5,7 @@ use std::{collections::HashMap};
 
 use super::behavior::{ BehaviorNodeType, BehaviorType };
 use crate::gamedata::GameData;
+use regex::bytes::Regex;
 
 #[derive(Debug, Clone)]
 struct InstanceVariables {
@@ -51,6 +52,7 @@ pub fn update_dices_scope(scope: &mut Scope) {
     scope.set_value( "d100", rng.gen_range(1..=100) as f64);
 }
 
+/// Adds the given target variables to the scope
 pub fn add_target_to_scope(instance_index: usize, data: &mut GameData) {
     // Add indexer
     if let Some(target_index) = data.instances[instance_index].target_instance_index {
@@ -101,13 +103,29 @@ pub fn apply_scope_to_target(instance_index: usize, data: &mut GameData) {
     }
 }
 
+/// Replace the target strings
+/// TODO This should not be evaluated each time but the result should be stored
+pub fn replace_target_variables(input: String) -> String {
+    let output = input.clone();
+    if input.contains("${Target}") {
+        if let Some(re) = Regex::new(r"\$\{Target\}.(?P<v>\w*)").ok() {
+            let t = re.replace_all(output.as_bytes(), "target[\"$v\"]".as_bytes());
+            if let Some(tt) = std::str::from_utf8(t.as_ref()).ok() {
+                return tt.to_string();
+            }
+        }
+    }
+    output
+}
+
 /// Evaluates a boolean expression in the given instance.
-pub fn eval_bool_expression_instance(instance_index: usize, expression: &str, data: &mut GameData) -> Option<bool> {
+pub fn eval_bool_expression_instance(instance_index: usize, expression: String, data: &mut GameData) -> Option<bool> {
 
     update_dices(instance_index, data);
     add_target_to_scope(instance_index, data);
+    let script = replace_target_variables(expression);
 
-    let r = data.engine.eval_expression_with_scope::<bool>(&mut  data.scopes[instance_index], expression);
+    let r = data.engine.eval_expression_with_scope::<bool>(&mut  data.scopes[instance_index], script.as_str());
     if r.is_ok() {
         return Some(r.unwrap());
     } else {
@@ -118,12 +136,13 @@ pub fn eval_bool_expression_instance(instance_index: usize, expression: &str, da
 }
 
 /// Evaluates a numerical expression in the given instance.
-pub fn eval_number_expression_instance(instance_index: usize, expression: &str, data: &mut GameData) -> Option<f64> {
+pub fn eval_number_expression_instance(instance_index: usize, expression: String, data: &mut GameData) -> Option<f64> {
 
     update_dices(instance_index, data);
     add_target_to_scope(instance_index, data);
+    let script = replace_target_variables(expression.to_string());
 
-    let r = data.engine.eval_expression_with_scope::<Dynamic>(&mut data.scopes[instance_index], expression);
+    let r = data.engine.eval_expression_with_scope::<Dynamic>(&mut data.scopes[instance_index], script.as_str());
     if r.is_ok() {
         let nn = r.unwrap().clone();
         if let Some(n) = nn.as_float().ok() {
@@ -140,7 +159,7 @@ pub fn eval_number_expression_instance(instance_index: usize, expression: &str, 
 }
 
 /// Evaluates a dynamic script in the given instance.
-pub fn eval_dynamic_script_instance(instance_index: usize, id: (usize, usize), expression: &str, data: &mut GameData) -> bool {
+pub fn eval_dynamic_script_instance(instance_index: usize, id: (usize, usize), expression: String, data: &mut GameData) -> bool {
 
     if data.runs_in_editor {
         return eval_dynamic_expression_instance_editor(instance_index, id, expression, data);
@@ -148,8 +167,9 @@ pub fn eval_dynamic_script_instance(instance_index: usize, id: (usize, usize), e
 
     update_dices(instance_index, data);
     add_target_to_scope(instance_index, data);
+    let script = replace_target_variables(expression.to_string());
 
-    let r = data.engine.eval_with_scope::<Dynamic>(&mut data.scopes[instance_index], expression);
+    let r = data.engine.eval_with_scope::<Dynamic>(&mut data.scopes[instance_index], script.as_str());
     if r.is_ok() {
         apply_scope_to_target(instance_index, data);
         return true
@@ -161,14 +181,15 @@ pub fn eval_dynamic_script_instance(instance_index: usize, id: (usize, usize), e
 }
 
 /// Evaluates a numerical expression in the given instance in the editor. We have to send the editor the variables which have been updated for visual disolay.
-pub fn eval_dynamic_expression_instance_editor(instance_index: usize, id: (usize, usize), expression: &str, data: &mut GameData) -> bool {
+pub fn eval_dynamic_expression_instance_editor(instance_index: usize, id: (usize, usize), expression: String, data: &mut GameData) -> bool {
 
     update_dices(instance_index, data);
     add_target_to_scope(instance_index, data);
+    let script = replace_target_variables(expression.to_string());
 
     let original = data.scopes[instance_index].clone();
 
-    let r = data.engine.eval_with_scope::<Dynamic>(&mut data.scopes[instance_index], expression);
+    let r = data.engine.eval_with_scope::<Dynamic>(&mut data.scopes[instance_index], script.as_str());
     if r.is_ok() {
 
         apply_scope_to_target(instance_index, data);
