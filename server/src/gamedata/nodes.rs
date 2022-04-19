@@ -1,5 +1,3 @@
-use pathfinding::num_traits::ToPrimitive;
-
 use crate::gamedata::behavior:: { BehaviorNodeConnector, BehaviorNodeType };
 use crate::gamedata::GameData;
 
@@ -56,7 +54,6 @@ pub fn message(instance_index: usize, id: (usize, usize), data: &mut GameData, b
         if let Some(target_index) = data.instances[instance_index].target_instance_index {
             data.scopes[instance_index].push("Target", data.instances[target_index].name.clone());
         }
-        data.engine.register_fn("to_string", |x: f64| format!("{}", x.to_isize().unwrap()));
         let r = data.engine.eval_with_scope::<String>(&mut data.scopes[instance_index], format!("`{}`", text).as_str());
         if let Some(rc) = r.ok() {
             text = rc;
@@ -145,14 +142,12 @@ pub fn lookout(instance_index: usize, id: (usize, usize), data: &mut GameData, b
         }
     }
 
-    if let Some(value) = get_node_value((id.0, id.1, "expression"), data, behavior_type) {
-        for inst_ind in &chars {
-            let r = data.engine.eval_expression_with_scope::<bool>(&mut  data.scopes[*inst_ind], &value.4);
-            if let Some(rc) = r.ok() {
-                if rc {
-                    data.instances[instance_index].target_instance_index = Some(*inst_ind);
-                    return BehaviorNodeConnector::Success;
-                }
+    // Evaluate the expression on the characters who are in range
+    for inst_ind in &chars {
+        if let Some(rc) = eval_bool_expression_instance(*inst_ind, (behavior_type, id.0, id.1, "expression".to_string()), data) {
+            if rc {
+                data.instances[instance_index].target_instance_index = Some(*inst_ind);
+                return BehaviorNodeConnector::Success;
             }
         }
     }

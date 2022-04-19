@@ -298,6 +298,10 @@ impl GameData<'_> {
             Ok(None)
         });
 
+        // Display f64 as ints
+        use pathfinding::num_traits::ToPrimitive;
+        engine.register_fn("to_string", |x: f64| format!("{}", x.to_isize().unwrap()));
+
         Self {
             areas,
             areas_names,
