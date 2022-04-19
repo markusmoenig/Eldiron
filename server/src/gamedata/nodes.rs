@@ -11,12 +11,11 @@ use super::behavior::{BehaviorType, BehaviorInstanceState};
 
 /// expression
 pub fn expression(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-    if let Some(value) = get_node_value((id.0, id.1, "expression"), data, behavior_type) {
-        let rc = eval_bool_expression_instance(instance_index, value.4, data);
-        if let Some(rc) = rc {
-            if rc == true {
-                return BehaviorNodeConnector::Success;
-            }
+
+    let rc = eval_bool_expression_instance(instance_index, (behavior_type, id.0, id.1, "expression".to_string()), data);
+    if let Some(rc) = rc {
+        if rc == true {
+            return BehaviorNodeConnector::Success;
         }
     }
     BehaviorNodeConnector::Fail
@@ -24,9 +23,7 @@ pub fn expression(instance_index: usize, id: (usize, usize), data: &mut GameData
 
 /// script
 pub fn script(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-    if let Some(value) = get_node_value((id.0, id.1, "script"), data, behavior_type) {
-        eval_dynamic_script_instance(instance_index, id, value.4, data);
-    }
+    _ = eval_dynamic_script_instance(instance_index, (behavior_type, id.0, id.1, "script".to_string()), data);
     BehaviorNodeConnector::Bottom
 }
 
@@ -101,11 +98,8 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData
     }
 
     let mut speed : f64 = 8.0;
-    if let Some(value) = get_node_value((id.0, id.1, "speed"), data, behavior_type) {
-        let rc = eval_number_expression_instance(instance_index, value.4, data);
-        if let Some(rc) = rc {
-            speed = rc;
-        }
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
+        speed = rc;
     }
 
     // Apply the speed delay
@@ -124,11 +118,8 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData
 pub fn lookout(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let mut max_distance : f64 = 7.0;
-    if let Some(value) = get_node_value((id.0, id.1, "max_distance"), data, behavior_type) {
-        let rc = eval_number_expression_instance(instance_index, value.4, data);
-        if let Some(rc) = rc {
-            max_distance = rc;
-        }
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "max_distance".to_string()), data) {
+        max_distance = rc;
     }
 
     // Find the chars within the given distance
@@ -179,11 +170,8 @@ pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut GameData, 
     let mut distance = 100000_f64;
     let mut to_distance = 1_f64;
 
-    if let Some(value) = get_node_value((id.0, id.1, "to_distance"), data, behavior_type) {
-        let rc = eval_number_expression_instance(instance_index, value.4, data);
-        if let Some(rc) = rc {
-            to_distance = rc;
-        }
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "to_distance".to_string()), data) {
+        to_distance = rc;
     }
 
     if let Some(v) = &mut data.instances[instance_index].position {
@@ -202,11 +190,8 @@ pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut GameData, 
     }
 
     let mut speed : f64 = 8.0;
-    if let Some(value) = get_node_value((id.0, id.1, "speed"), data, behavior_type) {
-        let rc = eval_number_expression_instance(instance_index, value.4, data);
-        if let Some(rc) = rc {
-            speed = rc;
-        }
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
+        speed = rc;
     }
 
     // Apply the speed delay

@@ -4,7 +4,7 @@ pub mod nodes;
 pub mod nodes_utility;
 pub mod script;
 
-use rhai::{ Engine, Scope };
+use rhai::{ Engine, Scope, AST };
 
 use std::collections::HashMap;
 use std::fs::metadata;
@@ -60,7 +60,10 @@ pub struct GameData<'a> {
     // Currently active instances
     pub active_instance_indices : Vec<usize>,
 
+    // Script scopes
     pub scopes                  : Vec<Scope<'a>>,
+    // Script ast's, id is (BehaviorType, BehaviorId, BehaviorNodeID, AtomParameterID)
+    pub ast                     : HashMap<(BehaviorType, usize, usize, String), AST>,
 
     pub runs_in_editor          : bool,
 
@@ -277,6 +280,24 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::UnlockTree, nodes::unlock_tree);
         nodes.insert(BehaviorNodeType::SetState, nodes::set_state);
 
+        let mut engine = Engine::new();
+
+        // Variable resolver for d??? -> random(???)
+        engine.on_var(|name, _index, _context| {
+
+            if name.starts_with("d") {
+                let mut s = name.to_string();
+                s.remove(0);
+                if let Some(n) = s.parse::<i64>().ok() {
+                    let mut rng = thread_rng();
+                    let random = rng.gen_range(1..=n) as f64;
+                    //println!{"d{} {}",n, random};
+                    return Ok(Some(random.into()));
+                }
+            }
+            Ok(None)
+        });
+
         Self {
             areas,
             areas_names,
@@ -296,12 +317,13 @@ impl GameData<'_> {
 
             nodes,
 
-            engine                  : Engine::new(),
+            engine,
 
             instances               : vec![],
             active_instance_indices : vec![],
 
             scopes                  : vec![],
+            ast                     : HashMap::new(),
 
             runs_in_editor          : true,
 
@@ -572,6 +594,7 @@ impl GameData<'_> {
     pub fn clear_instances(&mut self) {
         self.instances = vec![];
         self.scopes = vec![];
+        self.ast = HashMap::new();
         self.executed_connections = vec![];
         self.changed_variables = vec![];
         self.active_instance_indices = vec![];
