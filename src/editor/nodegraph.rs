@@ -28,9 +28,9 @@ pub struct NodeGraph {
 
     pub offset                  : (isize, isize),
 
-    drag_index                  : Option<usize>,
+    drag_indices                : Vec<usize>,
     drag_offset                 : (isize, isize),
-    drag_node_pos               : (isize, isize),
+    drag_node_pos               : Vec<(isize, isize)>,
 
     // For connecting nodes
     source_conn                 : Option<(BehaviorNodeConnector,usize)>,
@@ -62,9 +62,9 @@ impl NodeGraph {
             graph_type,
             nodes,
             offset                      : (0, 0),
-            drag_index                  : None,
+            drag_indices                : vec![],
             drag_offset                 : (0, 0),
-            drag_node_pos               : (0, 0),
+            drag_node_pos               : vec![],
 
             clicked                     : false,
 
@@ -556,9 +556,9 @@ impl NodeGraph {
 
                 if context.contains_pos_for_isize(pos, rect) {
 
-                    self.drag_index = Some(index);
                     self.drag_offset = (pos.0 as isize, pos.1 as isize);
-                    self.drag_node_pos= (self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize);
+                    self.drag_node_pos = vec!((self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize));
+                    self.drag_indices = vec![index];
 
                     if self.graph_type == BehaviorType::Tiles {
                         if context.curr_tileset_index != index {
@@ -667,9 +667,10 @@ impl NodeGraph {
                             }
                         }
 
-                        self.drag_index = Some(index);
                         self.drag_offset = (pos.0 as isize, pos.1 as isize);
-                        self.drag_node_pos= (self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize);
+                        self.drag_node_pos = vec!((self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize));
+                        self.drag_indices = vec![index];
+                        self.collect_drag_children_indices(self.widget_index_to_node_id(index), &context);
 
                         if self.get_curr_node_id(context) != self.nodes[index].id {
 
@@ -763,26 +764,25 @@ impl NodeGraph {
 
     pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
-        if self.drag_index != None {
-            self.drag_index = None;
+        if self.drag_indices.is_empty() == false {
             context.target_fps = context.default_fps;
 
             // Save the new node position
             if self.graph_mode == GraphMode::Detail {
-                let curr_node_id = self.get_curr_node_id(context);
                 if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
                     for node_widget in &self.nodes {
-                        if node_widget.id == curr_node_id {
+                        if self.drag_indices.contains(&self.node_id_to_widget_index(node_widget.id)) {
                             let position = node_widget.user_data.position.clone();
-                            if let Some(behavior_node) = behavior.data.nodes.get_mut(&curr_node_id) {
+                            if let Some(behavior_node) = behavior.data.nodes.get_mut(&node_widget.id) {
                                 behavior_node.position = position;
-                                behavior.save_data();
-                                break;
                             }
                         }
                     }
+                    behavior.save_data();
                 }
             }
+            self.drag_indices = vec![];
+            self.drag_node_pos = vec![];
         }
 
         // Node connection
@@ -938,13 +938,16 @@ impl NodeGraph {
         }
 
         // Dragging a node
-        if let Some(index) = self.drag_index {
+        if self.drag_indices.is_empty() == false {
             let dx = pos.0 as isize - self.drag_offset.0;
             let dy = pos.1 as isize - self.drag_offset.1;
 
-            self.nodes[index].user_data.position.0 = self.drag_node_pos.0 + dx;
-            self.nodes[index].user_data.position.1 = self.drag_node_pos.1 + dy;
-            self.dirty = true;
+            for offset in 0..self.drag_indices.len() {
+                let index = self.drag_indices[offset];
+                self.nodes[index].user_data.position.0 = self.drag_node_pos[offset].0 + dx;
+                self.nodes[index].user_data.position.1 = self.drag_node_pos[offset].1 + dy;
+                self.dirty = true;
+            }
 
             context.target_fps = 60;
 
@@ -1631,6 +1634,22 @@ impl NodeGraph {
         }
 
         false
+    }
+
+    /// Collects the children indices of the given node id so that they can all be dragged at once
+    pub fn collect_drag_children_indices(&mut self, id: usize, context: &ScreenContext) {
+        if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
+            for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
+                if *source_node_id == id {
+                    let index = self.node_id_to_widget_index(*dest_node_id);
+                    if self.drag_indices.contains(&index) == false {
+                        self.drag_indices.push(index);
+                        self.drag_node_pos.push((self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize));
+                    }
+                    self.collect_drag_children_indices(*dest_node_id, context);
+                }
+            }
+        }
     }
 
     /// Returns the behavior id for the current behavior and graph type
