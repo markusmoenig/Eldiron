@@ -318,6 +318,10 @@ impl ScreenWidget for Editor<'_> {
             self.dialog.draw(frame, anim_counter, asset, &mut self.context);
         } else
         if self.context.dialog_entry != DialogEntry::None {
+
+            if self.state == EditorState::TilesDetail && self.context.dialog_entry == DialogEntry::Tags && self.context.dialog_accepted == true {
+                self.tilemap_options.set_tags(self.context.dialog_new_name.clone(), asset, &self.context);
+            } else
             if self.state == EditorState::BehaviorDetail {
                 if self.context.dialog_entry == DialogEntry::NodeTile {
                     self.node_graph_behavior_details.set_node_atom_data(self.context.dialog_node_behavior_id.clone(), self.context.dialog_node_behavior_value.clone(), &mut self.context);

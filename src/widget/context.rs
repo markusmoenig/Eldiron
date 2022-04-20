@@ -102,7 +102,8 @@ pub struct ScreenContext<'a> {
     pub is_running                      : bool,
 
     // Masks
-    pub right_arrow_mask                : [u8;10*10],
+    pub left_arrow_mask                 : [u8;12*14],
+    pub right_arrow_mask                : [u8;12*14],
     pub menu_triangle_mask              : [u8;10*10],
     pub preview_arc_mask                : [u8;20*20],
     pub menu_mask                       : [u8;20*20],
@@ -112,9 +113,17 @@ impl ScreenContext<'_> {
 
     pub fn new(width: usize, height: usize) -> Self {
 
-        let mut right_arrow_mask = [0u8; 10 * 10];
-        Mask::new("M 0,0 10,5 0,10")
-            .size(10, 10)
+        let mut left_arrow_mask = [0u8; 12 * 14];
+        Mask::new("M 12,0 0,7 12,14")
+            .size(12, 14)
+            .style(
+                Stroke::new(2.0)
+            )
+            .render_into(&mut left_arrow_mask, None);
+
+        let mut right_arrow_mask = [0u8; 12 * 14];
+        Mask::new("M 0,0 12,7 0,14")
+            .size(12, 14)
             .style(
                 Stroke::new(2.0)
             )
@@ -232,6 +241,7 @@ impl ScreenContext<'_> {
             is_running                  : false,
 
             // UI Masks
+            left_arrow_mask,
             right_arrow_mask,
             menu_triangle_mask,
             preview_arc_mask,

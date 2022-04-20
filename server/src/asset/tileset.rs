@@ -28,7 +28,9 @@ pub enum TileUsage {
 #[derive(Serialize, Deserialize)]
 pub struct Tile {
     pub usage               : TileUsage,
-    pub anim_tiles          : Vec<(usize, usize)>
+    pub anim_tiles          : Vec<(usize, usize)>,
+    pub tags                : String,
+    pub role                : usize,
 }
 
 // TileMap implementation
@@ -91,9 +93,9 @@ impl TileMap {
     /// Get the tile for the given id
     pub fn get_tile(&self, tile_id: &(usize, usize)) -> Tile {
         if let Some(t) = self.settings.tiles.get(&tile_id) {
-            Tile { usage: t.usage.clone(), anim_tiles: t.anim_tiles.clone() }
+            Tile { usage: t.usage.clone(), anim_tiles: t.anim_tiles.clone(), tags: t.tags.clone(), role: t.role.clone() }
         } else {
-            Tile { usage: TileUsage::Environment, anim_tiles: vec![] }
+            Tile { usage: TileUsage::Environment, anim_tiles: vec![], tags: "".to_string(), role: 0 }
         }
     }
 

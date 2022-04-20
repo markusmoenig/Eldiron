@@ -63,6 +63,7 @@ pub enum AtomWidgetType {
     Button,
     GroupedList,
     MenuButton,
+    TagsButton,
 }
 
 pub struct AtomWidget {
@@ -175,11 +176,14 @@ impl AtomWidget {
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                 let fill_color = &context.color_black;//if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
-                context.draw2d.draw_text_rect(buffer_frame, &(rect.0, rect.1, rect.2 - 10, rect.3), rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+
+                context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 20, rect.1, rect.2 - 40, rect.3), rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
 
                 // Right Arrow
-                let color = if self.state == WidgetState::Hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
-                context.draw2d.blend_mask(buffer_frame, &(rect.2 - 24, 16, rect.2, rect.3), rect.2, &context.right_arrow_mask[..], &(10, 10), &color);
+                let left_color = if self.has_hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
+                let right_color = if self.right_has_hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
+                context.draw2d.blend_mask(buffer_frame, &(rect.2 + 14, 16, rect.2, rect.3), rect.2, &context.left_arrow_mask[..], &(12, 14), &left_color);
+                context.draw2d.blend_mask(buffer_frame, &(rect.2 - 26, 16, rect.2, rect.3), rect.2, &context.right_arrow_mask[..], &(12, 14), &right_color);
             }  else
             if self.atom_widget_type == AtomWidgetType::ToolBarSwitchButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
@@ -405,7 +409,7 @@ impl AtomWidget {
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.button_rounding, &context.color_light_gray, 1.5);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
             } else
-            if self.atom_widget_type == AtomWidgetType::Button {
+            if self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton{
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
 
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
@@ -598,7 +602,7 @@ impl AtomWidget {
             return false;
         }
         if self.contains_pos(pos) {
-            if self.atom_widget_type == AtomWidgetType::ToolBarButton ||  self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeIntButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeIntButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
@@ -615,10 +619,7 @@ impl AtomWidget {
             } else
             if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton || self.atom_widget_type == AtomWidgetType::NodeSliderButton {
                 self.clicked = true;
-                self.curr_index += 1;
-                self.curr_index %= self.text.len();
-                self.dirty = true;
-                self.atom_data.data.0 = self.curr_index as f64;
+                self.state = WidgetState::Clicked;
                 return true;
             } else
             if self.atom_widget_type == AtomWidgetType::NodeIntSlider {
@@ -713,6 +714,22 @@ impl AtomWidget {
             self.clicked = false;
             self.dirty = true;
 
+            if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton {
+                if self.right_has_hover {
+                    self.curr_index += 1;
+                    self.curr_index %= self.text.len();
+                    self.new_selection = Some(self.curr_index);
+                } else
+                if self.has_hover {
+                    if self.curr_index > 0 {
+                        self.curr_index -= 1;
+                    } else {
+                        self.curr_index = self.text.len() - 1;
+                    }
+                    self.new_selection = Some(self.curr_index);
+                }
+                self.atom_data.data.0 = self.curr_index as f64;
+            } else
             if self.atom_widget_type == AtomWidgetType::NodeIntButton {
                 context.dialog_state = DialogState::Opening;
                 context.dialog_height = 0;
@@ -760,6 +777,13 @@ impl AtomWidget {
                 context.dialog_entry = DialogEntry::NodeTile;
                 context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
                 context.dialog_node_behavior_value = self.atom_data.data.clone();
+            } else
+            if self.atom_widget_type == AtomWidgetType::TagsButton {
+                context.dialog_state = DialogState::Opening;
+                context.dialog_height = 0;
+                context.target_fps = 60;
+                context.dialog_entry = DialogEntry::Tags;
+                context.dialog_new_name = self.text[0].clone();
             }
 
             if self.state == WidgetState::Clicked {
@@ -837,7 +861,7 @@ impl AtomWidget {
     }
 
     pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::ToolBarMenuButton || self.atom_widget_type == AtomWidgetType::ToolBarSliderButton {
+        if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::ToolBarMenuButton {
             if self.contains_pos_for(pos, self.content_rect) {
                 if self.state != WidgetState::Disabled {
                     if self.state != WidgetState::Hover {
@@ -850,6 +874,52 @@ impl AtomWidget {
                 if self.state != WidgetState::Disabled {
                     if self.state == WidgetState::Hover {
                         self.state = WidgetState::Normal;
+                        self.dirty = true;
+                        return true;
+                    }
+                }
+            }
+        } else
+        if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton {
+            if self.contains_pos_for(pos, self.content_rect) {
+                if self.state != WidgetState::Disabled {
+                    if self.has_hover == false {
+                        if pos.0 < self.rect.0 + 36 {
+                            self.has_hover = true;
+                            self.dirty = true;
+                            return true;
+                        }
+                    } else {
+                        if pos.0 > self.rect.0 + 36 {
+                            self.has_hover = false;
+                            self.dirty = true;
+                            return true;
+                        }
+                    }
+
+                    if self.right_has_hover == false {
+                        if pos.0 > self.rect.0 + self.rect.2 - 36 {
+                            self.right_has_hover = true;
+                            self.dirty = true;
+                            return true;
+                        }
+                    } else {
+                        if pos.0 < self.rect.0 + self.rect.2 - 36 {
+                            self.right_has_hover = false;
+                            self.dirty = true;
+                            return true;
+                        }
+                    }
+                }
+            } else {
+                if self.state != WidgetState::Disabled {
+                    if self.has_hover == true {
+                        self.has_hover = false;
+                        self.dirty = true;
+                        return true;
+                    }
+                    if self.right_has_hover == true {
+                        self.right_has_hover = false;
                         self.dirty = true;
                         return true;
                     }

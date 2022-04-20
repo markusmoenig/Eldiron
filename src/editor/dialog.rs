@@ -19,6 +19,7 @@ pub enum DialogEntry {
     NodeName,
     NodeTile,
     NewName,
+    Tags
 }
 
 #[derive(PartialEq, Debug)]
@@ -101,7 +102,7 @@ impl DialogWidget {
                     self.tile_selector_widget.grid_size = 24;
                     self.tile_selector_widget.selected = Some((context.dialog_node_behavior_value.0 as usize, context.dialog_node_behavior_value.1 as usize, context.dialog_node_behavior_value.2 as usize, TileUsage::Character));
                 } else
-                if context.dialog_entry == DialogEntry::NewName {
+                if context.dialog_entry == DialogEntry::NewName || context.dialog_entry == DialogEntry::Tags {
                     self.text = context.dialog_new_name.clone();
                 } else {
                 }
@@ -179,6 +180,9 @@ impl DialogWidget {
                 } else
                 if context.dialog_entry == DialogEntry::NewName {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Name".to_string(), &context.color_white, &context.color_black);
+                } else
+                if context.dialog_entry == DialogEntry::Tags {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Tags".to_string(), &context.color_white, &context.color_black);
                 } else
                 if context.dialog_entry == DialogEntry::NodeName {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Node Name".to_string(), &context.color_white, &context.color_black);
@@ -266,6 +270,10 @@ impl DialogWidget {
             return true;
         } else
         if context.dialog_entry == DialogEntry::NewName {
+            context.dialog_new_name = self.text.clone();
+            return true;
+        } else
+        if context.dialog_entry == DialogEntry::Tags {
             context.dialog_new_name = self.text.clone();
             return true;
         } else

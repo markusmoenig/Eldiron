@@ -28,22 +28,28 @@ impl TileMapOptions {
         group_list.set_rect(rect, asset, context);
         widgets.push(group_list);
 
+        let mut tags_button = AtomWidget::new(vec!["".to_string()], AtomWidgetType::TagsButton,
+            AtomData::new_as_int("Tags".to_string(), 0));
+        tags_button.state = WidgetState::Disabled;
+        tags_button.set_rect((rect.0 + 10, rect.1 + 280 + 30, rect.2 - 20, 40), asset, context);
+        widgets.push(tags_button);
+
         let mut set_anim_button = AtomWidget::new(vec!["Set Anim".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Set Anim".to_string(), 0));
         set_anim_button.state = WidgetState::Disabled;
-        set_anim_button.set_rect((rect.0 + 10, rect.1 + 280 + 30, rect.2 - 20, 40), asset, context);
+        set_anim_button.set_rect((rect.0 + 10, rect.1 + 280 + 80, rect.2 - 20, 40), asset, context);
         widgets.push(set_anim_button);
 
         let mut clear_anim_button = AtomWidget::new(vec!["Clear Anim".to_string()], AtomWidgetType::Button,
         AtomData::new_as_int("Clear Anim".to_string(), 0));
         clear_anim_button.state = WidgetState::Disabled;
-        clear_anim_button.set_rect((rect.0 + 10, rect.1 + 315 + 30, rect.2 - 20, 40), asset, context);
+        clear_anim_button.set_rect((rect.0 + 10, rect.1 + 315 + 80, rect.2 - 20, 40), asset, context);
         widgets.push(clear_anim_button);
 
         let mut set_default_button = AtomWidget::new(vec!["Set Default".to_string()], AtomWidgetType::Button,
         AtomData::new_as_int("Set Default".to_string(), 0));
         set_default_button.state = WidgetState::Disabled;
-        set_default_button.set_rect((rect.0 + 10, rect.1 + 370 + 30, rect.2 - 20, 40), asset, context);
+        set_default_button.set_rect((rect.0 + 10, rect.1 + 370 + 80, rect.2 - 20, 40), asset, context);
         widgets.push(set_default_button);
 
         Self {
@@ -195,10 +201,13 @@ impl TileMapOptions {
                 TileUsage::Effect => self.widgets[0].curr_item_index = 7,
                 TileUsage::Icon => self.widgets[0].curr_item_index = 8,
             }
+            self.widgets[1].text[0] = tile.tags;
         } else {
             self.widgets[0].curr_item_index = 0;
+            self.widgets[1].text[0] = "".to_string();
         }
         self.widgets[0].dirty = true;
+        self.widgets[1].dirty = true;
     }
 
     /// Sets the tile anim for the current tile
@@ -255,6 +264,24 @@ impl TileMapOptions {
 
             map.settings.default_tile = context.curr_tile;
             map.save_settings();
+        }
+    }
+
+    /// Set the tags
+    pub fn set_tags(&mut self, tags: String, asset: &mut Asset, context: &ScreenContext) {
+
+        if let Some(selection) = context.curr_tile {
+            if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
+                let mut tile = map.get_tile(&selection);
+
+                self.widgets[1].text[0] = tags.clone();
+                self.widgets[1].dirty = true;
+
+                tile.tags = tags;
+
+                map.set_tile(selection, tile);
+                map.save_settings();
+            }
         }
     }
 }

@@ -17,7 +17,7 @@ impl Widget for ToolBar {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
-        let mut item_button = AtomWidget::new(asset.tileset.maps_names.clone(), AtomWidgetType::ToolBarMenuButton,
+        let mut item_button = AtomWidget::new(asset.tileset.maps_names.clone(), AtomWidgetType::ToolBarSliderButton,
         AtomData::new_as_int("Game".to_string(), 0));
         item_button.set_rect((rect.0 + 10, rect.1, 200, rect.3), asset, context);
         widgets.push(item_button);
