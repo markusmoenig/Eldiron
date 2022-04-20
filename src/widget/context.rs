@@ -69,8 +69,8 @@ pub struct ScreenContext<'a> {
     pub curr_tile                       : Option<(usize, usize)>,
     pub selection_end                   : Option<(usize, usize)>,
 
-    pub curr_area_index                 : usize,
-    pub curr_area_tile                  : Option<(usize, usize, usize, TileUsage)>,
+    pub curr_region_index               : usize,
+    pub curr_region_tile                : Option<(usize, usize, usize, TileUsage)>,
 
     pub curr_behavior_index             : usize,
     pub curr_behavior_node_id           : usize,
@@ -201,8 +201,8 @@ impl ScreenContext<'_> {
             selection_end               : None,
 
             // Areas
-            curr_area_index             : 0,
-            curr_area_tile              : None,
+            curr_region_index           : 0,
+            curr_region_tile            : None,
 
             // Behaviors
             curr_behavior_index         : 0,

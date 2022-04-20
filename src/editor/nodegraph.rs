@@ -140,8 +140,8 @@ impl NodeGraph {
                             selected = true;
                         }
                     } else
-                    if self.graph_type == BehaviorType::Areas {
-                        if index == context.curr_area_index {
+                    if self.graph_type == BehaviorType::Regions {
+                        if index == context.curr_region_index {
                             selected = true;
                         }
                     } else
@@ -171,11 +171,11 @@ impl NodeGraph {
                                 }
                             }
                         } else
-                        if self.graph_type == BehaviorType::Areas {
-                            // For Areas draw the center of the map
-                            if let Some(area)= context.data.areas.get_mut(&context.data.areas_ids[index]) {
-                                let offset = area.get_center_offset_for_visible_size((10, 10));
-                                context.draw2d.draw_area(&mut preview_buffer[..], area, &(0, 0, 100, 100), &offset, 100, 10, anim_counter, asset);
+                        if self.graph_type == BehaviorType::Regions {
+                            // For regions draw the center of the map
+                            if let Some(region)= context.data.regions.get_mut(&context.data.regions_ids[index]) {
+                                let offset = region.get_center_offset_for_visible_size((10, 10));
+                                context.draw2d.draw_region(&mut preview_buffer[..], region, &(0, 0, 100, 100), &offset, 100, 10, anim_counter, asset);
                             }
                         } else
                         if self.graph_type == BehaviorType::Behaviors {
@@ -570,11 +570,11 @@ impl NodeGraph {
                             self.clicked = true;
                         }
                     }
-                    if self.graph_type == BehaviorType::Areas {
-                        if context.curr_area_index != index {
+                    if self.graph_type == BehaviorType::Regions {
+                        if context.curr_region_index != index {
 
-                            self.nodes[context.curr_area_index].dirty = true;
-                            context.curr_area_index = index;
+                            self.nodes[context.curr_region_index].dirty = true;
+                            context.curr_region_index = index;
                             self.nodes[index].dirty = true;
                             self.dirty = true;
                             self.clicked = true;
@@ -696,7 +696,7 @@ impl NodeGraph {
             }
 
             // Check Preview
-            let mut clicked_area_id : Option<(usize, isize, isize)> = None;
+            let mut clicked_region_id : Option<(usize, isize, isize)> = None;
             if let Some(preview) = &mut self.preview {
                 if context.contains_pos_for(pos, preview.rect) {
                     if preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context) {
@@ -715,10 +715,10 @@ impl NodeGraph {
                             preview.just_stopped_running = false;
                         }
 
-                        // Area id clicked ?
-                        if let Some(area_id) = preview.clicked_area_id {
-                            clicked_area_id = Some(area_id);
-                            preview.clicked_area_id = None;
+                        // Region id clicked ?
+                        if let Some(region_id) = preview.clicked_region_id {
+                            clicked_region_id = Some(region_id);
+                            preview.clicked_region_id = None;
                         }
 
                         if preview.clicked {
@@ -731,9 +731,9 @@ impl NodeGraph {
                 }
             }
 
-            if let Some(clicked_area_id) = clicked_area_id {
+            if let Some(clicked_region_id) = clicked_region_id {
                 if let Some(active_position_id) = &context.active_position_id {
-                    self.set_node_atom_data(active_position_id.clone(), (clicked_area_id.0 as f64, clicked_area_id.1 as f64, clicked_area_id.2 as f64, 0.0, "".to_string()), context);
+                    self.set_node_atom_data(active_position_id.clone(), (clicked_region_id.0 as f64, clicked_region_id.1 as f64, clicked_region_id.2 as f64, 0.0, "".to_string()), context);
                     context.active_position_id = None;
                 }
             }
@@ -1139,7 +1139,7 @@ impl NodeGraph {
         if node_data.behavior_type == BehaviorNodeType::BehaviorType {
             node_widget.is_corner_node = true;
 
-            let mut atom1 = AtomWidget::new(vec!["Character".to_string(), "Area".to_string(), "Module".to_string()], AtomWidgetType::NodeMenuButton,AtomData::new_as_int("type".to_string(), 0));
+            let mut atom1 = AtomWidget::new(vec!["Character".to_string()], AtomWidgetType::NodeMenuButton,AtomData::new_as_int("type".to_string(), 0));
             atom1.atom_data.text = "Type".to_string();
             let id = (behavior_data.id, node_data.id, "type".to_string());
             atom1.behavior_id = Some(id.clone());

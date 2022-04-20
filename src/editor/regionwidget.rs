@@ -3,9 +3,9 @@ use server::asset::{ Asset };
 
 use crate::widget::context::ScreenContext;
 
-pub struct AreaWidget {
+pub struct RegionWidget {
     pub rect                : (usize, usize, usize, usize),
-    pub area_id             : usize,
+    pub region_id           : usize,
 
     grid_size               : usize,
 
@@ -15,13 +15,13 @@ pub struct AreaWidget {
     pub clicked             : Option<(isize, isize)>,
 }
 
-impl AreaWidget {
+impl RegionWidget {
 
     pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext) -> Self {
 
         Self {
             rect,
-            area_id                 : 0,
+            region_id               : 0,
             grid_size               : 32,
 
             offset                  : (0, 0),
@@ -45,14 +45,14 @@ impl AreaWidget {
         //let grid = (rect.2 / grid_size, rect.3 / grid_size);
         //let max_tiles = grid.0 * grid.1;
 
-        let area = context.data.areas.get(&self.area_id).unwrap();
+        let region = context.data.regions.get(&self.region_id).unwrap();
 
         let x_tiles = (rect.2 / grid_size) as isize;
         let y_tiles = (rect.3 / grid_size) as isize;
 
         for y in 0..y_tiles {
             for x in 0..x_tiles {
-                if let Some(value) = area.get_value((x - self.offset.0, y - self.offset.1)) {
+                if let Some(value) = region.get_value((x - self.offset.0, y - self.offset.1)) {
                     let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
 
                     let map = asset.get_map_of_id(value.0);
@@ -108,7 +108,7 @@ impl AreaWidget {
     }
 
     /// Sets a new map index
-    pub fn set_area_id(&mut self, id: usize) {
-        self.area_id = id;
+    pub fn set_region_id(&mut self, id: usize) {
+        self.region_id = id;
     }
 }

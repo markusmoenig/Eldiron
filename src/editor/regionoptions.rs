@@ -5,12 +5,12 @@ use crate::widget::atom::AtomWidget;
 use crate::widget::atom::AtomWidgetType;
 use crate::widget::context::ScreenContext;
 
-pub struct AreaOptions {
+pub struct RegionOptions {
     rect                    : (usize, usize, usize, usize),
     pub widgets             : Vec<AtomWidget>,
 }
 
-impl AreaOptions {
+impl RegionOptions {
 
     pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
 
@@ -54,7 +54,7 @@ impl AreaOptions {
            atom.draw(frame, context.width, anim_counter, asset, context);
         }
 
-        if let Some(tile) = &context.curr_area_tile {
+        if let Some(tile) = &context.curr_region_tile {
             context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + self.rect.3 - 140), asset.get_map_of_id(tile.0), context.width, &(tile.1, tile.2), anim_counter, 100);
 
             context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 40, self.rect.2, 30), context.width, &asset.open_sans, 20.0, &format!("({}, {}, {})", tile.0, tile.1, tile.2), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);

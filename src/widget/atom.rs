@@ -363,9 +363,9 @@ impl AtomWidget {
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &context.color_black, &context.node_button_rounding, &border_color, 1.5);
 
                 if self.atom_data.data.0 >= 0.0 {
-                    if let Some(area) = context.data.areas.get(&(self.atom_data.data.0 as usize)) {
+                    if let Some(region) = context.data.regions.get(&(self.atom_data.data.0 as usize)) {
                         let center = (self.atom_data.data.1 as isize, self.atom_data.data.2 as isize);
-                        context.draw2d.draw_area_centered_with_behavior(buffer_frame, area, &(4, 1, rect.2 - 8, rect.3 - 2), &center, rect.2, 14, 0, asset, context);
+                        context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &(4, 1, rect.2 - 8, rect.3 - 2), &center, rect.2, 14, 0, asset, context);
                     }
                 }
             } else

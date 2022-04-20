@@ -1,4 +1,4 @@
-pub mod area;
+pub mod region;
 pub mod behavior;
 pub mod nodes;
 pub mod nodes_utility;
@@ -9,7 +9,7 @@ use rhai::{ Engine, Scope, AST };
 use std::collections::HashMap;
 use std::fs::metadata;
 
-use crate::gamedata::area::GameArea;
+use crate::gamedata::region::GameRegion;
 use crate::gamedata::behavior::{ BehaviorNodeConnector, BehaviorInstance, GameBehavior, BehaviorNodeType, BehaviorType, BehaviorInstanceState };
 use crate::asset::TileUsage;
 
@@ -35,9 +35,9 @@ pub enum MessageType {
 }
 
 pub struct GameData<'a> {
-    pub areas                   : HashMap<usize, GameArea>,
-    pub areas_names             : Vec<String>,
-    pub areas_ids               : Vec<usize>,
+    pub regions                 : HashMap<usize, GameRegion>,
+    pub regions_names           : Vec<String>,
+    pub regions_ids             : Vec<usize>,
 
     pub behaviors               : HashMap<usize, GameBehavior>,
     pub behaviors_names         : Vec<String>,
@@ -77,52 +77,52 @@ impl GameData<'_> {
 
     pub fn new() -> Self {
 
-        // Create the tile areas
-        let mut areas: HashMap<usize, GameArea> = HashMap::new();
-        let mut areas_names = vec![];
-        let mut areas_ids = vec![];
+        // Create the tile regions
+        let mut regions: HashMap<usize, GameRegion> = HashMap::new();
+        let mut regions_names = vec![];
+        let mut regions_ids = vec![];
 
-        let area_path = path::Path::new("game").join("areas");
-        let paths = fs::read_dir(area_path).unwrap();
+        let region_path = path::Path::new("game").join("regions");
+        let paths = fs::read_dir(region_path).unwrap();
 
         for path in paths {
             let path = &path.unwrap().path();
             let md = metadata(path).unwrap();
 
             if md.is_dir() {
-                let mut area = GameArea::new(path);
-                areas_names.push(area.name.clone());
+                let mut region = GameRegion::new(path);
+                regions_names.push(region.name.clone());
 
                 // Make sure we create a unique id (check if the id already exists in the set)
                 let mut has_id_already = true;
                 while has_id_already {
 
                     has_id_already = false;
-                    for (key, _value) in &areas {
-                        if key == &area.data.id {
+                    for (key, _value) in &regions {
+                        if key == &region.data.id {
                             has_id_already = true;
                         }
                     }
 
                     if has_id_already {
-                        area.data.id += 1;
+                        region.data.id += 1;
                     }
                 }
 
-                area.calc_dimensions();
+                region.calc_dimensions();
 
-                areas_ids.push(area.data.id);
-                areas.insert(area.data.id, area);
+                regions_ids.push(region.data.id);
+                regions.insert(region.data.id, region);
             }
         }
 
-        let sorted_keys= areas.keys().sorted();
+        let sorted_keys= regions.keys().sorted();
         for key in sorted_keys {
-            let area = &areas[key];
+            let region = &regions[key];
 
-            // If the area has no tiles we assume it's new and we save the data
-            if area.data.tiles.len() == 0 {
-                area.save_data();
+            // If the region has no tiles we assume it's new and we save the data
+            if region.data.tiles.len() == 0 {
+                region.save_data();
             }
         }
 
@@ -303,9 +303,9 @@ impl GameData<'_> {
         engine.register_fn("to_string", |x: f64| format!("{}", x.to_isize().unwrap()));
 
         Self {
-            areas,
-            areas_names,
-            areas_ids,
+            regions,
+            regions_names,
+            regions_ids,
 
             behaviors,
             behaviors_names,
@@ -337,16 +337,16 @@ impl GameData<'_> {
         }
     }
 
-    /// Sets a value in the current area
-    pub fn save_area(&self, id: usize) {
-        let area = &mut self.areas.get(&id).unwrap();
-        area.save_data();
+    /// Sets a value in the current region
+    pub fn save_region(&self, id: usize) {
+        let region = &mut self.regions.get(&id).unwrap();
+        region.save_data();
     }
 
-    /// Sets a value in the area
-    pub fn set_area_value(&mut self, id: usize, pos: (isize, isize), value: (usize, usize, usize, TileUsage)) {
-        let area = &mut self.areas.get_mut(&id).unwrap();
-        area.set_value(pos, value);
+    /// Sets a value in the region
+    pub fn set_region_value(&mut self, id: usize, pos: (isize, isize), value: (usize, usize, usize, TileUsage)) {
+        let region = &mut self.regions.get_mut(&id).unwrap();
+        region.set_value(pos, value);
     }
 
     /// Create a new behavior
@@ -458,12 +458,12 @@ impl GameData<'_> {
         }
     }
 
-    /// Activate the instances for the given area
-    pub fn activate_area_instances(&mut self, area_id: usize) {
+    /// Activate the instances for the given region
+    pub fn activate_region_instances(&mut self, region_id: usize) {
         self.active_instance_indices = vec![];
         for index in 0..self.instances.len() {
             if let Some(position) = self.instances[index].position {
-                if position.0 == area_id {
+                if position.0 == region_id {
                     self.active_instance_indices.push(index);
                 }
             }
@@ -548,8 +548,8 @@ impl GameData<'_> {
 
     /// Returns the tile at the given position
     pub fn get_tile_at(&self, pos: (usize, isize, isize)) -> Option<(usize, usize, usize, TileUsage)> {
-        if let Some(area) = self.areas.get(&pos.0) {
-            if let Some(value) = area.get_value((pos.1, pos.2)) {
+        if let Some(region) = self.regions.get(&pos.0) {
+            if let Some(value) = region.get_value((pos.1, pos.2)) {
                 return Some(value.clone());
             }
         }

@@ -3,7 +3,7 @@ use rusttype::{point, Font, Scale};
 
 use server::asset::TileMap;
 use server::asset::Asset;
-use server::gamedata::area::GameArea;
+use server::gamedata::region::GameRegion;
 use server::gamedata::behavior::BehaviorInstanceState;
 
 use super::context::ScreenContext;
@@ -499,8 +499,8 @@ impl Draw2D {
         }
     }
 
-    /// Draws the given area with the given offset into the rectangle
-    pub fn draw_area(&self, frame: &mut [u8], area: &GameArea, rect: &(usize, usize, usize, usize), offset: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset) {
+    /// Draws the given region with the given offset into the rectangle
+    pub fn draw_region(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), offset: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset) {
         let left_offset = (rect.2 % tile_size) / 2;
         let top_offset = (rect.3 % tile_size) / 2;
 
@@ -509,7 +509,7 @@ impl Draw2D {
 
         for y in 0..y_tiles {
             for x in 0..x_tiles {
-                if let Some(value) = area.get_value((x + offset.0, y + offset.1)) {
+                if let Some(value) = region.get_value((x + offset.0, y + offset.1)) {
                     let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
                     let map = asset.get_map_of_id(value.0);
@@ -519,8 +519,8 @@ impl Draw2D {
         }
     }
 
-    /// Draws the given area centered at the given center and returns the top left offset into the area
-    pub fn draw_area_centered_with_behavior(&self, frame: &mut [u8], area: &GameArea, rect: &(usize, usize, usize, usize), center: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {
+    /// Draws the given region centered at the given center and returns the top left offset into the region
+    pub fn draw_region_centered_with_behavior(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), center: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {
         let left_offset = (rect.2 % tile_size) / 2;
         let top_offset = (rect.3 % tile_size) / 2;
 
@@ -535,7 +535,7 @@ impl Draw2D {
         // Draw Environment
         for y in 0..y_tiles {
             for x in 0..x_tiles {
-                if let Some(value) = area.get_value((x + offset.0, y + offset.1)) {
+                if let Some(value) = region.get_value((x + offset.0, y + offset.1)) {
                     let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
                     let map = asset.get_map_of_id(value.0);
@@ -547,8 +547,8 @@ impl Draw2D {
         // Draw Behaviors
         for (id, _behavior) in &context.data.behaviors {
             if let Some(position) = context.data.get_behavior_default_position(*id) {
-                // In the same area ?
-                if position.0 == area.data.id {
+                // In the same region ?
+                if position.0 == region.data.id {
 
                     // Row check
                     if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
@@ -575,8 +575,8 @@ impl Draw2D {
         offset
     }
 
-        /// Draws the given area centered at the given center and returns the top left offset into the area
-        pub fn draw_area_centered_with_instances(&self, frame: &mut [u8], area: &GameArea, rect: &(usize, usize, usize, usize), index_to_center: usize, stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {
+        /// Draws the given region centered at the given center and returns the top left offset into the region
+        pub fn draw_region_centered_with_instances(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), index_to_center: usize, stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {
             let left_offset = (rect.2 % tile_size) / 2;
             let top_offset = (rect.3 % tile_size) / 2;
 
@@ -588,7 +588,7 @@ impl Draw2D {
                 center.0 = position.1;
                 center.1 = position.2;
             } else {
-                return area.data.min_pos.clone();
+                return region.data.min_pos.clone();
             }
             let mut offset = center.clone();
 
@@ -598,7 +598,7 @@ impl Draw2D {
             // Draw Environment
             for y in 0..y_tiles {
                 for x in 0..x_tiles {
-                    if let Some(value) = area.get_value((x + offset.0, y + offset.1)) {
+                    if let Some(value) = region.get_value((x + offset.0, y + offset.1)) {
                         let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
                         let map = asset.get_map_of_id(value.0);
@@ -615,8 +615,8 @@ impl Draw2D {
 
                 if let Some(position) = context.data.instances[index].position {
                     if let Some(tile) = context.data.instances[index].tile {
-                        // In the same area ?
-                        if position.0 == area.data.id {
+                        // In the same region ?
+                        if position.0 == region.data.id {
 
                             // Row check
                             if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {

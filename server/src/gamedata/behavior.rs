@@ -11,7 +11,7 @@ use itertools::Itertools;
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum BehaviorType {
     Tiles,
-    Areas,
+    Regions,
     Behaviors,
     Systems,
     Items,

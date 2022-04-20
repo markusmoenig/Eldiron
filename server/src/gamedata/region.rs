@@ -10,7 +10,7 @@ use crate::asset::tileset::TileUsage;
 use crate::asset::Asset;
 
 #[derive(Serialize, Deserialize)]
-pub struct GameAreaData {
+pub struct GameRegionData {
     #[serde(with = "vectorize")]
     pub tiles           : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
     pub id              : usize,
@@ -19,13 +19,13 @@ pub struct GameAreaData {
     pub max_pos         : (isize, isize),
 }
 
-pub struct GameArea {
+pub struct GameRegion {
     pub name            : String,
     pub path            : PathBuf,
-    pub data            : GameAreaData,
+    pub data            : GameRegionData,
 }
 
-impl GameArea {
+impl GameRegion {
     pub fn new(path: &PathBuf) -> Self {
 
         let name = path::Path::new(&path).file_stem().unwrap().to_str().unwrap();
@@ -37,7 +37,7 @@ impl GameArea {
 
         // Construct the json settings
         let data = serde_json::from_str(&contents)
-            .unwrap_or(GameAreaData { tiles: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000) });
+            .unwrap_or(GameRegionData { tiles: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000) });
 
         Self {
             name        : name.to_string(),
