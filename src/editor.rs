@@ -280,7 +280,7 @@ impl ScreenWidget for Editor<'_> {
             self.node_graph_regions.draw(frame, anim_counter, asset, &mut self.context);
         } else
         if self.state == EditorState::RegionDetail {
-            self.region_options.draw(frame, anim_counter, asset, &mut self.context);
+            self.region_options.draw(frame, anim_counter, asset, &mut self.context, &mut self.region_widget, &mut self.region_tile_selector);
             self.region_widget.draw(frame, anim_counter, asset, &mut self.context);
             self.region_tile_selector.draw(frame, self.context.width, anim_counter, asset, &mut self.context);
         } else
@@ -553,12 +553,8 @@ impl ScreenWidget for Editor<'_> {
             }
         } else
         if consumed == false && self.state == EditorState::RegionDetail {
-            for atom in &mut self.region_options.widgets {
-                if atom.mouse_down(pos, asset, &mut self.context) {
-                    if atom.clicked {
-                    }
-                    consumed = true;
-                }
+            if consumed == false && self.region_options.mouse_down(pos, asset, &mut self.context, &mut self.region_widget, &mut self.region_tile_selector) {
+                consumed = true;
             }
             if consumed == false && self.region_tile_selector.mouse_down(pos, asset, &mut self.context) {
                 consumed = true;
@@ -688,45 +684,9 @@ impl ScreenWidget for Editor<'_> {
             }
         } else
         if self.state == EditorState::RegionDetail {
-
-            let mut mode = self.region_options.widgets[0].curr_index;
-
-            for atom in &mut self.region_options.widgets {
-                if atom.mouse_up(pos, asset, &mut self.context) {
-
-                    if atom.new_selection.is_some() {
-                        if atom.atom_data.id == "Mode" {
-                            mode = atom.curr_index;
-                        }
-                    }
-                    consumed = true;
-                }
+            if self.region_options.mouse_up(pos, asset, &mut self.context, &mut self.region_widget, &mut self.region_tile_selector) {
+                consumed = true;
             }
-
-            // Tiles Mode
-            if mode == 0 {
-                for atom in &mut self.region_options.widgets {
-                    if atom.mouse_up(pos, asset, &mut self.context) {
-                        if atom.new_selection.is_some() {
-                            if atom.atom_data.id == "Tilemaps" {
-                                if atom.curr_index == 0 {
-                                    self.region_tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], None, &asset);
-                                } else {
-                                    self.region_tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], Some(atom.curr_index - 1), &asset);
-                                }
-                                atom.dirty = true;
-                            } else
-                            if atom.atom_data.id == "remap" {
-                                if let Some(region) = self.context.data.regions.get_mut(&self.region_widget.region_id) {
-                                    region.remap(asset);
-                                }
-                            }
-                        }
-                        consumed = true;
-                    }
-                }
-            }
-
         } else
         if self.state == EditorState::BehaviorOverview {
             if self.behavior_overview_options.mouse_up(pos, asset, &mut self.context) {
@@ -942,7 +902,7 @@ impl ScreenWidget for Editor<'_> {
             }
         } else
         if self.state == EditorState::RegionDetail {
-            if consumed == false && self.region_options.mouse_hover(pos, asset, &mut self.context) {
+            if consumed == false && self.region_options.mouse_hover(pos, asset, &mut self.context, &mut self.region_widget, &mut self.region_tile_selector) {
                 consumed = true;
             }
         } else

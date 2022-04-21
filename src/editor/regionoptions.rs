@@ -5,6 +5,10 @@ use crate::widget::atom::AtomWidget;
 use crate::widget::atom::AtomWidgetType;
 use crate::widget::context::ScreenContext;
 
+use crate::editor::RegionWidget;
+use crate::editor::TileSelectorWidget;
+use crate::tileset::TileUsage;
+
 pub struct RegionOptions {
     rect                    : (usize, usize, usize, usize),
     pub widgets             : Vec<AtomWidget>,
@@ -53,7 +57,7 @@ impl RegionOptions {
         self.rect.3 = height;
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _region_widget: &mut RegionWidget, _region_tile_selector: &mut TileSelectorWidget) {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
 
         let mode = self.widgets[0].curr_index;
@@ -75,15 +79,61 @@ impl RegionOptions {
         }
     }
 
-    pub fn _mouse_down(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _region_widget: &mut RegionWidget, _region_tile_selector: &mut TileSelectorWidget) -> bool {
+        for atom in &mut self.widgets {
+            if atom.mouse_down(pos, asset, context) {
+                if atom.clicked {
+                }
+                return true;
+            }
+        }
         false
     }
 
-    pub fn _mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, region_widget: &mut RegionWidget, region_tile_selector: &mut TileSelectorWidget) -> bool {
+        #![allow(unused_assignments)]
+
+        let mut mode = self.widgets[0].curr_index;
+
+        for atom in &mut self.widgets {
+            if atom.mouse_up(pos, asset, context) {
+
+                if atom.new_selection.is_some() {
+                    if atom.atom_data.id == "Mode" {
+                        mode = atom.curr_index;
+                    }
+                }
+                return true;
+            }
+        }
+
+        // Tiles Mode
+        if mode == 0 {
+            for atom in &mut self.widgets {
+                if atom.mouse_up(pos, asset, context) {
+                    if atom.new_selection.is_some() {
+                        if atom.atom_data.id == "Tilemaps" {
+                            if atom.curr_index == 0 {
+                                region_tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], None, &asset);
+                            } else {
+                                region_tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], Some(atom.curr_index - 1), &asset);
+                            }
+                            atom.dirty = true;
+                        } else
+                        if atom.atom_data.id == "remap" {
+                            if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
+                                region.remap(asset);
+                            }
+                        }
+                    }
+                    return true;
+                }
+            }
+        }
         false
     }
 
-    pub fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    pub fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _region_widget: &mut RegionWidget, _region_tile_selector: &mut TileSelectorWidget) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_hover(pos, asset, context) {
                 return true;

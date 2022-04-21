@@ -1139,7 +1139,7 @@ impl NodeGraph {
         if node_data.behavior_type == BehaviorNodeType::BehaviorType {
             node_widget.is_corner_node = true;
 
-            let mut atom1 = AtomWidget::new(vec!["Character".to_string()], AtomWidgetType::NodeMenuButton,AtomData::new_as_int("type".to_string(), 0));
+            let mut atom1 = AtomWidget::new(vec!["Hero".to_string()], AtomWidgetType::NodeMenuButton,AtomData::new_as_int("type".to_string(), 0));
             atom1.atom_data.text = "Type".to_string();
             let id = (behavior_data.id, node_data.id, "type".to_string());
             atom1.behavior_id = Some(id.clone());
