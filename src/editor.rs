@@ -547,7 +547,7 @@ impl ScreenWidget for Editor<'_> {
                 if self.node_graph_regions.clicked {
                     self.toolbar.widgets[0].curr_index = self.context.curr_region_index;
                     self.toolbar.widgets[0].dirty = true;
-                    self.region_widget.set_region_id(self.context.data.regions_ids[self.context.curr_region_index]);
+                    self.region_widget.set_region_id(self.context.data.regions_ids[self.context.curr_region_index], &mut self.context, &mut self.region_options);
                     self.node_graph_regions.clicked = false;
                 }
             }
@@ -565,18 +565,7 @@ impl ScreenWidget for Editor<'_> {
                     self.context.curr_region_tile = None;
                 }
             }
-            if consumed == false && self.region_widget.mouse_down(pos, asset, &mut self.context) {
-
-                if let Some(clicked) = self.region_widget.clicked {
-                    if let Some(selected) = &self.region_tile_selector.selected {
-
-                        if let Some(region) = self.context.data.regions.get_mut(&self.region_widget.region_id) {
-                            region.set_value(clicked, selected.clone());
-                            region.save_data();
-                        }
-                    }
-
-                }
+            if consumed == false && self.region_widget.mouse_down(pos, asset, &mut self.context, &mut self.region_options, &mut self.region_tile_selector) {
                 consumed = true;
             }
         }
@@ -653,7 +642,7 @@ impl ScreenWidget for Editor<'_> {
                 if self.state == EditorState::RegionOverview || self.state == EditorState::RegionDetail {
                     self.node_graph_regions.changed_selection(self.context.curr_region_index, self.toolbar.widgets[0].curr_index);
                     self.context.curr_region_index = self.toolbar.widgets[0].curr_index;
-                    self.region_widget.set_region_id(self.context.data.regions_ids[self.context.curr_region_index]);
+                    self.region_widget.set_region_id(self.context.data.regions_ids[self.context.curr_region_index], &mut self.context, &mut self.region_options);
                 } else
                 if self.state == EditorState::BehaviorOverview || self.state == EditorState::BehaviorDetail {
                     self.node_graph_behavior.changed_selection(self.context.curr_behavior_index, self.toolbar.widgets[0].curr_index);
@@ -685,6 +674,9 @@ impl ScreenWidget for Editor<'_> {
         } else
         if self.state == EditorState::RegionDetail {
             if self.region_options.mouse_up(pos, asset, &mut self.context, &mut self.region_widget, &mut self.region_tile_selector) {
+                consumed = true;
+            }
+            if self.region_widget.mouse_up(pos, asset, &mut self.context, &mut self.region_options, &mut self.region_tile_selector) {
                 consumed = true;
             }
         } else
@@ -834,17 +826,7 @@ impl ScreenWidget for Editor<'_> {
             }
         } else
         if self.state == EditorState::RegionDetail {
-            if consumed == false && self.region_widget.mouse_dragged(pos, asset, &mut self.context) {
-
-                if let Some(clicked) = self.region_widget.clicked {
-                    if let Some(selected) = &self.region_tile_selector.selected {
-
-                        if let Some(region) = self.context.data.regions.get_mut(&self.region_widget.region_id) {
-                            region.set_value(clicked, selected.clone());
-                            region.save_data();
-                        }
-                    }
-                }
+            if consumed == false && self.region_widget.mouse_dragged(pos, asset, &mut self.context, &mut self.region_options, &mut self.region_tile_selector) {
                 consumed = true;
             }
         } else
@@ -903,6 +885,9 @@ impl ScreenWidget for Editor<'_> {
         } else
         if self.state == EditorState::RegionDetail {
             if consumed == false && self.region_options.mouse_hover(pos, asset, &mut self.context, &mut self.region_widget, &mut self.region_tile_selector) {
+                consumed = true;
+            }
+            if consumed == false && self.region_widget.mouse_hover(pos, asset, &mut self.context, &mut self.region_options, &mut self.region_tile_selector) {
                 consumed = true;
             }
         } else

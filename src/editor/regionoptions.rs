@@ -9,11 +9,19 @@ use crate::editor::RegionWidget;
 use crate::editor::TileSelectorWidget;
 use crate::tileset::TileUsage;
 
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
+pub enum RegionEditorMode {
+    Tiles,
+    Areas,
+    Behavior
+}
+
 pub struct RegionOptions {
     rect                    : (usize, usize, usize, usize),
     pub widgets             : Vec<AtomWidget>,
 
     pub tile_widgets        : Vec<AtomWidget>,
+    pub area_widgets        : Vec<AtomWidget>,
 }
 
 impl RegionOptions {
@@ -32,23 +40,47 @@ impl RegionOptions {
         let mut tile_widgets : Vec<AtomWidget> = vec![];
 
         let mut tilemap_names = asset.tileset.maps_names.clone();
-        tilemap_names.insert(0, "Tilemaps: All".to_string());
+        tilemap_names.insert(0, "All".to_string());
 
-        let mut tilemaps_slider_button = AtomWidget::new(tilemap_names, AtomWidgetType::ToolBarSliderButton,
-        AtomData::new_as_int("Tilemaps".to_string(), 0));
-        tilemaps_slider_button.set_rect((rect.0 + 10, rect.1 + 60, rect.2 - 20, 40), asset, context);
-        tile_widgets.push(tilemaps_slider_button);
+        let mut tilemaps_button = AtomWidget::new(tilemap_names, AtomWidgetType::MenuButton,
+        AtomData::new_as_int("tilemaps".to_string(), 0));
+        tilemaps_button.atom_data.text = "Tilemaps".to_string();
+        tilemaps_button.set_rect((rect.0 + 10, rect.1 + 80, rect.2 - 20, 25), asset, context);
+        tile_widgets.push(tilemaps_button);
 
         let mut remap_button = AtomWidget::new(vec!["Remap".to_string()], AtomWidgetType::LargeButton,
         AtomData::new_as_int("remap".to_string(), 0));
         remap_button.set_rect((rect.0 + 40, rect.1 + rect.3 - 200, rect.2 - 80, 40), asset, context);
         tile_widgets.push(remap_button);
 
+
+        let mut area_widgets : Vec<AtomWidget> = vec![];
+
+        let mut regions_button = AtomWidget::new(vec![], AtomWidgetType::MenuButton,
+        AtomData::new_as_int("region".to_string(), 0));
+        regions_button.atom_data.text = "Region".to_string();
+        regions_button.set_rect((rect.0 + 10, rect.1 + 80, rect.2 - 20, 25), asset, context);
+        area_widgets.push(regions_button);
+
+        let mut add_area_button = AtomWidget::new(vec!["Add Area".to_string()], AtomWidgetType::Button,
+            AtomData::new_as_int("Add Area".to_string(), 0));
+        //add_area_button.state = WidgetState::Disabled;
+        add_area_button.set_rect((rect.0 + 10, rect.1 + 110, rect.2 - 20, 40), asset, context);
+
+        let mut del_area_button = AtomWidget::new(vec!["Delete".to_string()], AtomWidgetType::Button,
+            AtomData::new_as_int("Delete".to_string(), 0));
+        //add_area_button.state = WidgetState::Disabled;
+        del_area_button.set_rect((rect.0 + 10, rect.1 + 145, rect.2 - 20, 40), asset, context);
+
+        area_widgets.push(add_area_button);
+        area_widgets.push(del_area_button);
+
         Self {
             rect,
             widgets,
 
             tile_widgets,
+            area_widgets,
         }
     }
 
@@ -68,6 +100,11 @@ impl RegionOptions {
 
         if mode == 0 {
             for atom in &mut self.tile_widgets {
+                atom.draw(frame, context.width, anim_counter, asset, context);
+            }
+        } else
+        if mode == 1 {
+            for atom in &mut self.area_widgets {
                 atom.draw(frame, context.width, anim_counter, asset, context);
             }
         }
@@ -140,5 +177,16 @@ impl RegionOptions {
             }
         }
         false
+    }
+
+    /// Returns the current editor mode
+    pub fn get_editor_mode(&self) -> RegionEditorMode {
+        let mode = self.widgets[0].curr_index;
+
+        match mode {
+            1 => RegionEditorMode::Areas,
+            2 => RegionEditorMode::Behavior,
+            _ => RegionEditorMode::Tiles
+        }
     }
 }

@@ -10,6 +10,13 @@ use crate::asset::tileset::TileUsage;
 use crate::asset::Asset;
 
 #[derive(Serialize, Deserialize)]
+pub struct RegionArea {
+    pub name            : String,
+    pub area            : Vec<(isize, isize)>,
+    pub graph           : String,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct GameRegionData {
     #[serde(with = "vectorize")]
     pub tiles           : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
@@ -17,6 +24,7 @@ pub struct GameRegionData {
     pub curr_pos        : (isize, isize),
     pub min_pos         : (isize, isize),
     pub max_pos         : (isize, isize),
+    pub areas           : Vec<RegionArea>,
 }
 
 pub struct GameRegion {
@@ -37,7 +45,7 @@ impl GameRegion {
 
         // Construct the json settings
         let data = serde_json::from_str(&contents)
-            .unwrap_or(GameRegionData { tiles: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000) });
+            .unwrap_or(GameRegionData { tiles: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000), areas: vec![] });
 
         Self {
             name        : name.to_string(),
@@ -120,5 +128,16 @@ impl GameRegion {
         }
         self.data.tiles = tiles;
         self.save_data();
+    }
+
+    /// Get area names
+    pub fn get_area_names(&self) -> Vec<String> {
+        let mut names : Vec<String> = vec![];
+
+        for area in &self.data.areas {
+            names.push(area.name.clone());
+        }
+
+        names
     }
 }
