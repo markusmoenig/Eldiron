@@ -114,17 +114,20 @@ impl TileSelectorWidget {
 
             let screen_x = self.rect.2 / grid_size;
 
-            let x = (pos.0 - self.rect.0 - self.screen_offset.0) / grid_size;
-            let y = (pos.1 - self.rect.1 - self.screen_offset.1) / grid_size;
-            let tile_offset = x + y * screen_x + self.line_offset * screen_x;
+            if pos.0 >= self.rect.0 + self.screen_offset.0 && pos.1 > self.rect.1 + self.screen_offset.1 {
 
-            if let Some(tiles) = &self.tiles {
-                if tile_offset < tiles.len() {
-                    let tile_ref = tiles[tile_offset].clone();
-                    self.selected = Some(tile_ref);
+                let x = (pos.0 - self.rect.0 - self.screen_offset.0) / grid_size;
+                let y = (pos.1 - self.rect.1 - self.screen_offset.1) / grid_size;
+                let tile_offset = x + y * screen_x + self.line_offset * screen_x;
+
+                if let Some(tiles) = &self.tiles {
+                    if tile_offset < tiles.len() {
+                        let tile_ref = tiles[tile_offset].clone();
+                        self.selected = Some(tile_ref);
+                    }
                 }
+                return true;
             }
-            return true;
         }
         false
     }

@@ -8,7 +8,6 @@ use crate::editor::systems_overview_options::SystemsOverviewOptions;
 use crate::editor::regionwidget::RegionWidget;
 use crate::editor::log::LogWidget;
 use crate::widget:: {ScreenWidget, Widget, WidgetState, WidgetKey};
-use crate::tileset::TileUsage;
 
 use server::gamedata::behavior::{ BehaviorType };
 
@@ -69,7 +68,6 @@ pub struct Editor<'a> {
 
     region_options                  : RegionOptions,
     region_widget                   : RegionWidget,
-    region_tile_selector            : TileSelectorWidget,
 
     behavior_options                : BehaviorOptions,
     behavior_overview_options       : BehaviorOverviewOptions,
@@ -121,9 +119,7 @@ impl ScreenWidget for Editor<'_> {
         // Region views and nodes
 
         let region_options = RegionOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
-        let region_widget = RegionWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height - 250), asset, &context);
-        let mut region_tile_selector = TileSelectorWidget::new(vec!(), (left_width, region_widget.rect.1 + region_widget.rect.3, width - left_width, 250), asset, &context);
-        region_tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], None, &asset);
+        let region_widget = RegionWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
 
         let mut region_nodes = vec![];
         for (index, t) in context.data.regions_names.iter().enumerate() {
@@ -195,7 +191,6 @@ impl ScreenWidget for Editor<'_> {
 
             region_options,
             region_widget,
-            region_tile_selector,
 
             behavior_options,
             behavior_overview_options,
@@ -245,9 +240,7 @@ impl ScreenWidget for Editor<'_> {
         self.tilemap.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
 
         self.region_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
-        self.region_widget.rect = (self.left_width, self.context.toolbar_height, width - self.left_width, height - self.context.toolbar_height - 250);
-        self.region_tile_selector.rect = (self.left_width, self.region_widget.rect.1 + self.region_widget.rect.3, width - self.left_width, 250);
-        self.region_tile_selector.resize(width - self.left_width, 250);
+        self.region_widget.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
 
         self.behavior_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
         self.behavior_overview_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
@@ -280,9 +273,8 @@ impl ScreenWidget for Editor<'_> {
             self.node_graph_regions.draw(frame, anim_counter, asset, &mut self.context);
         } else
         if self.state == EditorState::RegionDetail {
-            self.region_options.draw(frame, anim_counter, asset, &mut self.context, &mut self.region_widget, &mut self.region_tile_selector);
+            self.region_options.draw(frame, anim_counter, asset, &mut self.context, &mut self.region_widget);
             self.region_widget.draw(frame, anim_counter, asset, &mut self.context);
-            self.region_tile_selector.draw(frame, self.context.width, anim_counter, asset, &mut self.context);
         } else
         if self.state == EditorState::BehaviorOverview {
             self.behavior_overview_options.draw(frame, anim_counter, asset, &mut self.context);
@@ -553,19 +545,10 @@ impl ScreenWidget for Editor<'_> {
             }
         } else
         if consumed == false && self.state == EditorState::RegionDetail {
-            if consumed == false && self.region_options.mouse_down(pos, asset, &mut self.context, &mut self.region_widget, &mut self.region_tile_selector) {
+            if consumed == false && self.region_options.mouse_down(pos, asset, &mut self.context, &mut self.region_widget) {
                 consumed = true;
             }
-            if consumed == false && self.region_tile_selector.mouse_down(pos, asset, &mut self.context) {
-                consumed = true;
-
-                if let Some(selected) = &self.region_tile_selector.selected {
-                    self.context.curr_region_tile = Some(selected.clone());
-                } else {
-                    self.context.curr_region_tile = None;
-                }
-            }
-            if consumed == false && self.region_widget.mouse_down(pos, asset, &mut self.context, &mut self.region_options, &mut self.region_tile_selector) {
+            if consumed == false && self.region_widget.mouse_down(pos, asset, &mut self.context, &mut self.region_options) {
                 consumed = true;
             }
         }
@@ -673,10 +656,10 @@ impl ScreenWidget for Editor<'_> {
             }
         } else
         if self.state == EditorState::RegionDetail {
-            if self.region_options.mouse_up(pos, asset, &mut self.context, &mut self.region_widget, &mut self.region_tile_selector) {
+            if self.region_options.mouse_up(pos, asset, &mut self.context, &mut self.region_widget) {
                 consumed = true;
             }
-            if self.region_widget.mouse_up(pos, asset, &mut self.context, &mut self.region_options, &mut self.region_tile_selector) {
+            if self.region_widget.mouse_up(pos, asset, &mut self.context, &mut self.region_options) {
                 consumed = true;
             }
         } else
@@ -826,7 +809,7 @@ impl ScreenWidget for Editor<'_> {
             }
         } else
         if self.state == EditorState::RegionDetail {
-            if consumed == false && self.region_widget.mouse_dragged(pos, asset, &mut self.context, &mut self.region_options, &mut self.region_tile_selector) {
+            if consumed == false && self.region_widget.mouse_dragged(pos, asset, &mut self.context, &mut self.region_options) {
                 consumed = true;
             }
         } else
@@ -884,10 +867,10 @@ impl ScreenWidget for Editor<'_> {
             }
         } else
         if self.state == EditorState::RegionDetail {
-            if consumed == false && self.region_options.mouse_hover(pos, asset, &mut self.context, &mut self.region_widget, &mut self.region_tile_selector) {
+            if consumed == false && self.region_options.mouse_hover(pos, asset, &mut self.context, &mut self.region_widget) {
                 consumed = true;
             }
-            if consumed == false && self.region_widget.mouse_hover(pos, asset, &mut self.context, &mut self.region_options, &mut self.region_tile_selector) {
+            if consumed == false && self.region_widget.mouse_hover(pos, asset, &mut self.context, &mut self.region_options) {
                 consumed = true;
             }
         } else
@@ -931,9 +914,6 @@ impl ScreenWidget for Editor<'_> {
         } else
         if self.state == EditorState::RegionDetail {
             if consumed == false && self.context.contains_pos_for(self.mouse_hover_pos,self.region_widget.rect) && self.region_widget.mouse_wheel(delta, asset, &mut self.context) {
-                consumed = true;
-            }
-            if consumed == false && self.context.contains_pos_for(self.mouse_hover_pos,self.region_tile_selector.rect) && self.region_tile_selector.mouse_wheel(delta, asset, &mut self.context) {
                 consumed = true;
             }
         } else

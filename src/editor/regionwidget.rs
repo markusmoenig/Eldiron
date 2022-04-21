@@ -1,5 +1,5 @@
 use server::asset::{ Asset };
-//use server::asset::tileset::TileUsage;
+use server::asset::tileset::TileUsage;
 
 use crate::widget::context::ScreenContext;
 use crate::editor::TileSelectorWidget;
@@ -16,12 +16,18 @@ pub struct RegionWidget {
     offset                  : (isize, isize),
     screen_offset           : (usize, usize),
 
+    pub tile_selector       : TileSelectorWidget,
+
+    mouse_hover_pos         : (usize, usize),
     pub clicked             : Option<(isize, isize)>,
 }
 
 impl RegionWidget {
 
-    pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext) -> Self {
+    pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
+
+        let mut tile_selector = TileSelectorWidget::new(vec!(), (rect.0, rect.1 + rect.3 - 250, rect.2, 250), asset, &context);
+        tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], None, &asset);
 
         Self {
             rect,
@@ -31,14 +37,26 @@ impl RegionWidget {
             offset                  : (0, 0),
             screen_offset           : (0, 0),
 
+            tile_selector,
+
+            mouse_hover_pos         : (0, 0),
             clicked                 : None,
         }
+    }
+
+    pub fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
+        self.rect.2 = width;
+        self.rect.3 = height;
+
+        self.tile_selector.rect = (self.rect.0, self.rect.1 + self.rect.3 - 250, width, 250);
+        self.tile_selector.resize(width, 250);
     }
 
     pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &[0,0,0,255]);
 
-        let rect = self.rect;
+        let mut rect = self.rect;
+        rect.3 -= 250;
         let grid_size = self.grid_size;
 
         let left_offset = (self.rect.2 % grid_size) / 2;
@@ -65,9 +83,18 @@ impl RegionWidget {
                 }
             }
         }
+
+        self.tile_selector.draw(frame, context.width, anim_counter, asset, context);
     }
 
-    pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext, region_options: &mut RegionOptions,  region_tile_selector: &mut TileSelectorWidget) -> bool {
+    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, region_options: &mut RegionOptions) -> bool {
+
+        if context.contains_pos_for(pos, self.tile_selector.rect) {
+            if self.tile_selector.mouse_down(pos, asset, context) {
+                return true;
+            }
+        }
+
         if context.contains_pos_for(pos, self.rect) {
 
             let grid_size = self.grid_size;
@@ -80,7 +107,7 @@ impl RegionWidget {
             let editor_mode = region_options.get_editor_mode();
 
             if editor_mode == RegionEditorMode::Tiles {
-                if let Some(selected) = &region_tile_selector.selected {
+                if let Some(selected) = &self.tile_selector.selected {
                     if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                         region.set_value((x,y), selected.clone());
                         region.save_data();
@@ -93,20 +120,31 @@ impl RegionWidget {
 
             return true;
         }
+
+        if self.tile_selector.mouse_down(pos, asset, context) {
+
+            if let Some(selected) = &self.tile_selector.selected {
+                context.curr_region_tile = Some(selected.clone());
+            } else {
+                context.curr_region_tile = None;
+            }
+        }
+
         false
     }
 
-    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _region_options: &mut RegionOptions,  _region_tile_selector: &mut TileSelectorWidget) -> bool {
+    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _region_options: &mut RegionOptions) -> bool {
         self.clicked = None;
 
         false
     }
 
-    pub fn mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _region_options: &mut RegionOptions,  _region_tile_selector: &mut TileSelectorWidget) -> bool {
+    pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _region_options: &mut RegionOptions) -> bool {
+        self.mouse_hover_pos = pos.clone();
         false
     }
 
-    pub fn mouse_dragged(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext, region_options: &mut RegionOptions,  region_tile_selector: &mut TileSelectorWidget) -> bool {
+    pub fn mouse_dragged(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext, region_options: &mut RegionOptions) -> bool {
         if context.contains_pos_for(pos, self.rect) {
 
             let grid_size = self.grid_size;
@@ -120,7 +158,7 @@ impl RegionWidget {
                 let editor_mode = region_options.get_editor_mode();
 
                 if editor_mode == RegionEditorMode::Tiles {
-                    if let Some(selected) = &region_tile_selector.selected {
+                    if let Some(selected) = &self.tile_selector.selected {
                         if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                             region.set_value((x,y), selected.clone());
                             region.save_data();
@@ -134,9 +172,12 @@ impl RegionWidget {
         false
     }
 
-    pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        self.offset.0 -= delta.0 / self.grid_size as isize;
-        self.offset.1 += delta.1 / self.grid_size as isize;
+    pub fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+        if context.contains_pos_for(self.mouse_hover_pos, self.tile_selector.rect) && self.tile_selector.mouse_wheel(delta, asset, context) {
+        } else {
+            self.offset.0 -= delta.0 / self.grid_size as isize;
+            self.offset.1 += delta.1 / self.grid_size as isize;
+        }
         true
     }
 

@@ -6,7 +6,6 @@ use crate::widget::atom::AtomWidgetType;
 use crate::widget::context::ScreenContext;
 
 use crate::editor::RegionWidget;
-use crate::editor::TileSelectorWidget;
 use crate::tileset::TileUsage;
 
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
@@ -89,7 +88,7 @@ impl RegionOptions {
         self.rect.3 = height;
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _region_widget: &mut RegionWidget, _region_tile_selector: &mut TileSelectorWidget) {
+    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _region_widget: &mut RegionWidget) {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
 
         let mode = self.widgets[0].curr_index;
@@ -116,7 +115,7 @@ impl RegionOptions {
         }
     }
 
-    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _region_widget: &mut RegionWidget, _region_tile_selector: &mut TileSelectorWidget) -> bool {
+    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _region_widget: &mut RegionWidget) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_down(pos, asset, context) {
                 if atom.clicked {
@@ -127,7 +126,7 @@ impl RegionOptions {
         false
     }
 
-    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, region_widget: &mut RegionWidget, region_tile_selector: &mut TileSelectorWidget) -> bool {
+    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, region_widget: &mut RegionWidget) -> bool {
         #![allow(unused_assignments)]
 
         let mut mode = self.widgets[0].curr_index;
@@ -151,9 +150,9 @@ impl RegionOptions {
                     if atom.new_selection.is_some() {
                         if atom.atom_data.id == "Tilemaps" {
                             if atom.curr_index == 0 {
-                                region_tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], None, &asset);
+                                region_widget.tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], None, &asset);
                             } else {
-                                region_tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], Some(atom.curr_index - 1), &asset);
+                                region_widget.tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], Some(atom.curr_index - 1), &asset);
                             }
                             atom.dirty = true;
                         } else
@@ -170,7 +169,7 @@ impl RegionOptions {
         false
     }
 
-    pub fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _region_widget: &mut RegionWidget, _region_tile_selector: &mut TileSelectorWidget) -> bool {
+    pub fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _region_widget: &mut RegionWidget) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_hover(pos, asset, context) {
                 return true;
