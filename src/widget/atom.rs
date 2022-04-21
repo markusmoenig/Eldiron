@@ -103,7 +103,9 @@ pub struct AtomWidget {
     pub drag_context            : Option<ScreenDragContext>,
 
     // For embedded atoms (in a node), provide the offset to the absolute position
-    pub emb_offset              : (isize, isize)
+    pub emb_offset              : (isize, isize),
+
+    pub custom_color            : Option<[u8;4]>
 }
 
 impl AtomWidget {
@@ -140,7 +142,8 @@ impl AtomWidget {
             drag_enabled        : false,
             drag_context        : None,
 
-            emb_offset          : (0,0)
+            emb_offset          : (0,0),
+            custom_color        : None,
         }
     }
 
@@ -165,28 +168,46 @@ impl AtomWidget {
             if self.atom_widget_type == AtomWidgetType::ToolBarButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
 
+                let mut border_color = context.color_light_gray;
+                if let Some(custom_color) = self.custom_color {
+                    border_color = custom_color;
+                }
+
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                 let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
             if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
 
+                let mut border_color = context.color_light_gray;
+                if let Some(custom_color) = self.custom_color {
+                    border_color = custom_color;
+                }
+
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                 let fill_color = &context.color_black;//if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
 
-                context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 20, rect.1, rect.2 - 40, rect.3), rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+                context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 30, rect.1, rect.2 - 60, rect.3), rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
 
                 // Right Arrow
+
+                let arrow_y = rect.3 / 2 - 7;
+
                 let left_color = if self.has_hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
                 let right_color = if self.right_has_hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
-                context.draw2d.blend_mask(buffer_frame, &(rect.2 + 14, 16, rect.2, rect.3), rect.2, &context.left_arrow_mask[..], &(12, 14), &left_color);
-                context.draw2d.blend_mask(buffer_frame, &(rect.2 - 26, 16, rect.2, rect.3), rect.2, &context.right_arrow_mask[..], &(12, 14), &right_color);
+                context.draw2d.blend_mask(buffer_frame, &(rect.2 + 14, arrow_y, 12, 14), rect.2, &context.left_arrow_mask[..], &(12, 14), &left_color);
+                context.draw2d.blend_mask(buffer_frame, &(rect.2 - 26, arrow_y, 12, 14), rect.2, &context.right_arrow_mask[..], &(12, 14), &right_color);
             }  else
             if self.atom_widget_type == AtomWidgetType::ToolBarSwitchButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
+
+                let mut border_color = context.color_light_gray;
+                if let Some(custom_color) = self.custom_color {
+                    border_color = custom_color;
+                }
 
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
 
@@ -196,10 +217,10 @@ impl AtomWidget {
                 left_rect.2 = div;
 
                 // Draw Right part
-                let mut fill_color = &context.color_black;
-                if self.right_has_hover  { fill_color = &context.color_light_gray } if self.right_selected { fill_color = &context.color_gray };
+                let mut fill_color = context.color_black;
+                if self.right_has_hover  { fill_color = context.color_light_gray } if self.right_selected { fill_color = context.color_gray };
 
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
 
                 let mut y_pos = rect.3 / 2 - 7;
                 for y in 0_usize..3_usize {
@@ -212,10 +233,10 @@ impl AtomWidget {
 
                 // Draw left part
 
-                fill_color = &context.color_black;
-                if self.has_hover  { fill_color = &context.color_light_gray } if self.selected { fill_color = &context.color_gray };
+                fill_color = context.color_black;
+                if self.has_hover  { fill_color = context.color_light_gray } if self.selected { fill_color = context.color_gray };
 
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &left_rect, rect.2, &((div - 1) as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &left_rect, rect.2, &((div - 1) as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
                 left_rect.0 += 5;
                 context.draw2d.draw_text_rect(buffer_frame, &left_rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
 
@@ -415,7 +436,13 @@ impl AtomWidget {
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                 let fill_color = if self.state != WidgetState::Clicked { &context.color_black } else { &context.color_light_gray };
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.button_rounding, &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_light_gray}, 1.5);
-                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_white}, &fill_color, draw2d::TextAlignment::Center);
+
+                if self.text[0].is_empty() == false {
+                    context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_white}, &fill_color, draw2d::TextAlignment::Center);
+                } else
+                if self.atom_widget_type == AtomWidgetType::TagsButton {
+                    context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.button_text_size, &"Enter Tags".to_string(), &context.color_gray, &fill_color, draw2d::TextAlignment::Center);
+                }
             } else
             if self.atom_widget_type == AtomWidgetType::GroupedList {
 

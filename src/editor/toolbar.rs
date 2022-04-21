@@ -26,31 +26,37 @@ impl Widget for ToolBar {
         AtomData::new_as_int("Tiles".to_string(), 0));
         tiles_button.set_rect((rect.0 + 220, rect.1, 130, rect.3), asset, context);
         tiles_button.selected = true;
+        tiles_button.custom_color = Some([44, 145, 209, 255]);
         widgets.push(tiles_button);
 
         let mut areas_button = AtomWidget::new(vec!["Regions".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new_as_int("Regions".to_string(), 0));
         areas_button.set_rect((rect.0 + 360, rect.1, 155, rect.3), asset, context);
+        areas_button.custom_color = Some([217, 64, 51, 255]);
         widgets.push(areas_button);
 
         let mut behavior_button = AtomWidget::new(vec!["Behavior".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new_as_int("Areas".to_string(), 0));
         behavior_button.set_rect((rect.0 + 525, rect.1, 165, rect.3), asset, context);
+        behavior_button.custom_color = Some([47, 219, 37, 255]);
         widgets.push(behavior_button);
 
         let mut systems_button = AtomWidget::new(vec!["Systems".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new_as_int("Systems".to_string(), 0));
         systems_button.set_rect((rect.0 + 700, rect.1, 165, rect.3), asset, context);
+        systems_button.custom_color = Some([23, 158, 101, 255]);
         widgets.push(systems_button);
 
         let mut items_button = AtomWidget::new(vec!["Items".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new_as_int("Items".to_string(), 0));
         items_button.set_rect((rect.0 + 700 + 175, rect.1, 140, rect.3), asset, context);
+        items_button.custom_color = Some([205, 142, 67, 255]);
         widgets.push(items_button);
 
         let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarButton,
             AtomData::new_as_int("Game".to_string(), 0));
         game_button.set_rect((rect.2 - 110, rect.1, 100, rect.3), asset, context);
+        game_button.custom_color = Some([215, 30, 146, 255]);
         widgets.push(game_button);
 
         Self {

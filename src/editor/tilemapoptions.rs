@@ -24,7 +24,7 @@ impl TileMapOptions {
 
         group_list.state = WidgetState::Disabled;
 
-        group_list.add_group_list(context.color_green, context.color_light_green, vec!["Unused".to_string(), "Environment".to_string(), "Road".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string(), "Icon".to_string()]);
+        group_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Unused".to_string(), "Environment".to_string(), "Road".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string(), "Icon".to_string()]);
         group_list.set_rect(rect, asset, context);
         widgets.push(group_list);
 
