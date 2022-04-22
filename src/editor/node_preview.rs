@@ -48,7 +48,7 @@ impl NodePreviewWidget {
         let run_button = AtomWidget::new(vec!["Run".to_string()], AtomWidgetType::LargeButton,
         AtomData::new_as_int("run".to_string(), 0));
 
-        let mut regions_button = AtomWidget::new(context.data.regions_names.clone(), AtomWidgetType::MenuButton,
+        let mut regions_button = AtomWidget::new(context.data.regions_names.clone(), AtomWidgetType::SmallMenuButton,
         AtomData::new_as_int("region".to_string(), 0));
         regions_button.atom_data.text = "Region".to_string();
         regions_button.curr_index = 0;

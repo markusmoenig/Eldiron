@@ -64,6 +64,7 @@ pub enum AtomWidgetType {
     GroupedList,
     MenuButton,
     TagsButton,
+    SmallMenuButton,
 }
 
 pub struct AtomWidget {
@@ -274,12 +275,12 @@ impl AtomWidget {
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.node_button_rounding, &context.color_light_gray, 1.5);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.node_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
-            if self.atom_widget_type == AtomWidgetType::NodeMenuButton || self.atom_widget_type == AtomWidgetType::MenuButton {
+            if self.atom_widget_type == AtomWidgetType::NodeMenuButton || self.atom_widget_type == AtomWidgetType::SmallMenuButton {
                 if self.state != WidgetState::Clicked {
                     self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.node_button_height) / 2, self.rect.2 - 2, context.node_button_height);
 
-                    let fill_color = if self.atom_widget_type == AtomWidgetType::MenuButton { context.color_black } else { context.color_node_light_gray };
-                    let border_color = if self.atom_widget_type == AtomWidgetType::MenuButton { context.color_light_gray } else { context.color_node_light_gray };
+                    let fill_color = if self.atom_widget_type == AtomWidgetType::SmallMenuButton { context.color_black } else { context.color_node_light_gray };
+                    let border_color = if self.atom_widget_type == AtomWidgetType::SmallMenuButton { context.color_light_gray } else { context.color_node_light_gray };
 
                     context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                     context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &border_color, 1.5);
@@ -302,8 +303,8 @@ impl AtomWidget {
 
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height);
 
-                let fill_color = if self.atom_widget_type == AtomWidgetType::MenuButton { context.color_black } else { context.color_node_dark_gray };
-                let border_color = if self.atom_widget_type == AtomWidgetType::MenuButton { context.color_light_gray } else { context.color_node_dark_gray };
+                let fill_color = if self.atom_widget_type == AtomWidgetType::SmallMenuButton { context.color_black } else { context.color_node_dark_gray };
+                let border_color = if self.atom_widget_type == AtomWidgetType::SmallMenuButton { context.color_light_gray } else { context.color_node_dark_gray };
 
                 let v = self.atom_data.data.0.round();
 
@@ -444,6 +445,26 @@ impl AtomWidget {
                     context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.button_text_size, &"Enter Tags".to_string(), &context.color_gray, &fill_color, draw2d::TextAlignment::Center);
                 }
             } else
+            if self.atom_widget_type == AtomWidgetType::MenuButton {
+                if self.state != WidgetState::Clicked {
+                    self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.node_button_height) / 2, self.rect.2 - 2, context.node_button_height);
+
+                    let fill_color = context.color_black;
+                    let border_color = if self.state != WidgetState::Disabled { context.color_light_gray } else { context.color_node_light_gray };
+
+                    context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &border_color, 1.5);
+
+                    if self.text.len() > 0 {
+                        context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+                    }
+
+                    // Triangle
+                    let color = if self.state == WidgetState::Hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
+
+                    context.draw2d.blend_mask(buffer_frame, &(rect.2 - 25, 17, rect.2, rect.3), rect.2, &context.menu_triangle_mask[..], &(10, 10), &color);
+                }
+            }  else
             if self.atom_widget_type == AtomWidgetType::GroupedList {
 
                 self.content_rect = (self.rect.0, self.rect.1, self.rect.2, self.rect.3);
@@ -535,7 +556,7 @@ impl AtomWidget {
                 r.1 += context.toolbar_button_height;
             }
         } else
-        if (self.atom_widget_type == AtomWidgetType::NodeMenuButton || self.atom_widget_type == AtomWidgetType::MenuButton) && self.state == WidgetState::Clicked {
+        if (self.atom_widget_type == AtomWidgetType::NodeMenuButton || self.atom_widget_type == AtomWidgetType::SmallMenuButton || self.atom_widget_type == AtomWidgetType::MenuButton) && self.state == WidgetState::Clicked {
 
             // Draw Open Menu
             self.content_rect = (self.rect.0 + self.emb_offset.0 as usize, self.rect.1 + self.emb_offset.1 as usize + (self.rect.3 - context.node_button_height) / 2, self.rect.2, context.node_button_height * self.text.len());
@@ -635,7 +656,7 @@ impl AtomWidget {
                 self.dirty = true;
                 return true;
             } else
-            if self.atom_widget_type == AtomWidgetType::ToolBarMenuButton || self.atom_widget_type == AtomWidgetType::NodeMenuButton || self.atom_widget_type == AtomWidgetType::MenuButton || self.atom_widget_type == AtomWidgetType::NodeMenu {
+            if self.atom_widget_type == AtomWidgetType::ToolBarMenuButton || self.atom_widget_type == AtomWidgetType::NodeMenuButton || self.atom_widget_type == AtomWidgetType::SmallMenuButton || self.atom_widget_type == AtomWidgetType::MenuButton || self.atom_widget_type == AtomWidgetType::NodeMenu {
                 if self.text.len() > 1 {
                     self.clicked = true;
                     self.state = WidgetState::Clicked;
@@ -846,7 +867,7 @@ impl AtomWidget {
             }
             return true;
         } else
-        if (self.atom_widget_type == AtomWidgetType::NodeMenuButton || self.atom_widget_type == AtomWidgetType::MenuButton || self.atom_widget_type == AtomWidgetType::NodeMenu) && self.state == WidgetState::Clicked {
+        if (self.atom_widget_type == AtomWidgetType::NodeMenuButton || self.atom_widget_type == AtomWidgetType::SmallMenuButton || self.atom_widget_type == AtomWidgetType::MenuButton || self.atom_widget_type == AtomWidgetType::NodeMenu) && self.state == WidgetState::Clicked {
 
             self.new_selection = None;
 

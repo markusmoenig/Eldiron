@@ -911,7 +911,7 @@ impl NodeGraph {
 
             let rect= self.get_node_rect(index, false);
             for atom in &mut self.nodes[index].widgets {
-                if atom.atom_widget_type == AtomWidgetType::MenuButton || atom.atom_widget_type == AtomWidgetType::NodeMenuButton {
+                if atom.atom_widget_type == AtomWidgetType::SmallMenuButton || atom.atom_widget_type == AtomWidgetType::NodeMenuButton {
                     if atom.mouse_dragged(pos, asset, context) {
                         return true;
                     }

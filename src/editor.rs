@@ -718,6 +718,15 @@ impl ScreenWidget for Editor<'_> {
         // Node Drag ?
         if let Some(drag_context) = &self.context.drag_context {
 
+            if self.state == EditorState::RegionDetail {
+                if self.context.contains_pos_for(pos, self.region_widget.area_graph.rect) {
+                    let mut position = (pos.0 as isize, pos.1 as isize);
+                    position.0 -= self.region_widget.area_graph.rect.0 as isize + self.region_widget.area_graph.offset.0 + drag_context.offset.0;
+                    position.1 -= self.region_widget.area_graph.rect.1 as isize + self.region_widget.area_graph.offset.1 + drag_context.offset.1;
+
+                    self.region_widget.area_graph.add_node_of_name(drag_context.text.clone(), position, &mut self.context);
+                }
+            } else
             if self.state == EditorState::BehaviorOverview {
                 if self.context.contains_pos_for(pos, self.node_graph_behavior.rect) {
 
@@ -812,6 +821,9 @@ impl ScreenWidget for Editor<'_> {
             }
         } else
         if self.state == EditorState::RegionDetail {
+            if consumed == false && self.region_options.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }
             if consumed == false && self.region_widget.mouse_dragged(pos, asset, &mut self.context, &mut self.region_options) {
                 consumed = true;
             }

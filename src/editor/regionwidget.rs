@@ -2,10 +2,9 @@ use server::asset::{ Asset };
 use server::asset::tileset::TileUsage;
 
 use crate::widget::context::ScreenContext;
-use crate::editor::TileSelectorWidget;
-use crate::editor::RegionOptions;
-
+use crate::editor::{ TileSelectorWidget, RegionOptions, NodeGraph, GraphMode };
 use super::regionoptions::RegionEditorMode;
+use server::gamedata::behavior::{ BehaviorType };
 
 pub struct RegionWidget {
     pub rect                : (usize, usize, usize, usize),
@@ -18,6 +17,8 @@ pub struct RegionWidget {
 
     pub tile_selector       : TileSelectorWidget,
 
+    pub area_graph          : NodeGraph,
+
     mouse_hover_pos         : (usize, usize),
     pub clicked             : Option<(isize, isize)>,
 }
@@ -26,8 +27,16 @@ impl RegionWidget {
 
     pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
 
-        let mut tile_selector = TileSelectorWidget::new(vec!(), (rect.0, rect.1 + rect.3 - 250, rect.2, 250), asset, &context);
+        let bottom_size = 250;
+
+        // Tile Selector
+        let mut tile_selector = TileSelectorWidget::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context);
         tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], None, &asset);
+
+        // Graph
+        let mut area_graph = NodeGraph::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context, BehaviorType::Regions, vec![]);
+
+        area_graph.set_mode(GraphMode::Detail, &context);
 
         Self {
             rect,
@@ -38,6 +47,7 @@ impl RegionWidget {
             screen_offset           : (0, 0),
 
             tile_selector,
+            area_graph,
 
             mouse_hover_pos         : (0, 0),
             clicked                 : None,
@@ -112,7 +122,7 @@ impl RegionWidget {
 
                                 let mut c = context.color_white.clone();
                                 if curr_area_index == area_index {
-                                    c[3] = 150;
+                                    c[3] = 50;
                                 } else {
                                     c[3] = 50;
                                 }
@@ -122,6 +132,9 @@ impl RegionWidget {
                     }
                 }
             }
+        } else
+        if editor_mode == RegionEditorMode::Behavior {
+            self.area_graph.draw(frame, anim_counter, asset, context);
         }
     }
 
@@ -137,28 +150,30 @@ impl RegionWidget {
 
             let grid_size = self.grid_size;
 
-            let x = ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
-            let y = ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;
+            if pos.0 > self.rect.0 + self.screen_offset.0 && pos.1 > self.rect.1 + self.screen_offset.1 {
+                let x = ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
+                let y = ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;
 
-            self.clicked = Some((x, y));
+                self.clicked = Some((x, y));
 
-            let editor_mode = region_options.get_editor_mode();
+                let editor_mode = region_options.get_editor_mode();
 
-            if editor_mode == RegionEditorMode::Tiles {
-                if let Some(selected) = &self.tile_selector.selected {
+                if editor_mode == RegionEditorMode::Tiles {
+                    if let Some(selected) = &self.tile_selector.selected {
+                        if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                            region.set_value((x,y), selected.clone());
+                            region.save_data();
+                        }
+                    }
+                } else
+                if editor_mode == RegionEditorMode::Areas {
                     if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                        region.set_value((x,y), selected.clone());
+                        let area = &mut region.data.areas[region_options.get_area_index()];
+                        if area.area.contains(&(x, y)) == false {
+                            area.area.push((x, y));
+                        }
                         region.save_data();
                     }
-                }
-            } else
-            if editor_mode == RegionEditorMode::Areas {
-                if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                    let area = &mut region.data.areas[region_options.get_area_index()];
-                    if area.area.contains(&(x, y)) == false {
-                        area.area.push((x, y));
-                    }
-                    region.save_data();
                 }
             }
 
@@ -193,19 +208,22 @@ impl RegionWidget {
 
             let grid_size = self.grid_size;
 
-            let x = ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
-            let y = ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;
+            if pos.0 > self.rect.0 + self.screen_offset.0 && pos.1 > self.rect.1 + self.screen_offset.1 {
 
-            if self.clicked != Some((x, y)) {
+                let x = ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
+                let y = ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;
 
-                self.clicked = Some((x, y));
-                let editor_mode = region_options.get_editor_mode();
+                if self.clicked != Some((x, y)) {
 
-                if editor_mode == RegionEditorMode::Tiles {
-                    if let Some(selected) = &self.tile_selector.selected {
-                        if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                            region.set_value((x,y), selected.clone());
-                            region.save_data();
+                    self.clicked = Some((x, y));
+                    let editor_mode = region_options.get_editor_mode();
+
+                    if editor_mode == RegionEditorMode::Tiles {
+                        if let Some(selected) = &self.tile_selector.selected {
+                            if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                                region.set_value((x,y), selected.clone());
+                                region.save_data();
+                            }
                         }
                     }
                 }
