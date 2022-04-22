@@ -44,6 +44,18 @@ impl Draw2D {
         }
     }
 
+    /// Blend the given rectangle
+    pub fn blend_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, color: &[u8; 4]) {
+        for y in rect.1..rect.1+rect.3 {
+            for x in rect.0..rect.0+rect.2 {
+                let i = x * 4 + y * stride * 4;
+
+                let background = &[frame[i], frame[i+1], frame[i+2], frame[i+3]];
+                frame[i..i + 4].copy_from_slice(&self.mix_color(&background, &color, color[3] as f64 / 255.0));
+            }
+        }
+    }
+
     /// Draws the outline of a given rectangle
     pub fn draw_rect_outline(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, color: [u8; 4]) {
 

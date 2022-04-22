@@ -274,7 +274,7 @@ impl ScreenWidget for Editor<'_> {
         } else
         if self.state == EditorState::RegionDetail {
             self.region_options.draw(frame, anim_counter, asset, &mut self.context, &mut self.region_widget);
-            self.region_widget.draw(frame, anim_counter, asset, &mut self.context);
+            self.region_widget.draw(frame, anim_counter, asset, &mut self.context, &mut self.region_options);
         } else
         if self.state == EditorState::BehaviorOverview {
             self.behavior_overview_options.draw(frame, anim_counter, asset, &mut self.context);
@@ -311,6 +311,9 @@ impl ScreenWidget for Editor<'_> {
         } else
         if self.context.dialog_entry != DialogEntry::None {
 
+            if self.state == EditorState::RegionDetail && self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
+                self.region_options.set_area_name(self.context.dialog_new_name.clone(), &mut self.context, &mut self.region_widget);
+            } else
             if self.state == EditorState::TilesDetail && self.context.dialog_entry == DialogEntry::Tags && self.context.dialog_accepted == true {
                 self.tilemap_options.set_tags(self.context.dialog_new_name.clone(), asset, &self.context);
             } else

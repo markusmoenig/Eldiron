@@ -52,11 +52,15 @@ impl RegionWidget {
         self.tile_selector.resize(width, 250);
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, region_options: &mut RegionOptions) {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &[0,0,0,255]);
 
+        let editor_mode = region_options.get_editor_mode();
+
         let mut rect = self.rect;
-        rect.3 -= 250;
+        if editor_mode != RegionEditorMode::Areas {
+            rect.3 -= 250;
+        }
         let grid_size = self.grid_size;
 
         let left_offset = (self.rect.2 % grid_size) / 2;
@@ -84,7 +88,41 @@ impl RegionWidget {
             }
         }
 
-        self.tile_selector.draw(frame, context.width, anim_counter, asset, context);
+        if editor_mode == RegionEditorMode::Tiles {
+            self.tile_selector.draw(frame, context.width, anim_counter, asset, context);
+        } else
+        if editor_mode == RegionEditorMode::Areas {
+            if let Some(region) = context.data.regions.get(&self.region_id) {
+
+                let x_tiles = (rect.2 / grid_size) as isize;
+                let y_tiles = (rect.3 / grid_size) as isize;
+
+                let curr_area_index = region_options.get_area_index();
+
+                for y in 0..y_tiles {
+                    for x in 0..x_tiles {
+
+                        let rx = x - self.offset.0;
+                        let ry = y - self.offset.1;
+
+                        for area_index in 0..region.data.areas.len() {
+
+                            if region.data.areas[area_index].area.contains(&(rx, ry)) {
+                                let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
+
+                                let mut c = context.color_white.clone();
+                                if curr_area_index == area_index {
+                                    c[3] = 150;
+                                } else {
+                                    c[3] = 50;
+                                }
+                                context.draw2d.blend_rect(frame, &(pos.0, pos.1, grid_size, grid_size), context.width, &c);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, region_options: &mut RegionOptions) -> bool {
@@ -115,7 +153,13 @@ impl RegionWidget {
                 }
             } else
             if editor_mode == RegionEditorMode::Areas {
-
+                if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                    let area = &mut region.data.areas[region_options.get_area_index()];
+                    if area.area.contains(&(x, y)) == false {
+                        area.area.push((x, y));
+                    }
+                    region.save_data();
+                }
             }
 
             return true;
