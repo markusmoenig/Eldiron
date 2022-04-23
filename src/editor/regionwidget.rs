@@ -17,7 +17,7 @@ pub struct RegionWidget {
 
     pub tile_selector       : TileSelectorWidget,
 
-    pub area_graph          : NodeGraph,
+    pub behavior_graph      : NodeGraph,
 
     mouse_hover_pos         : (usize, usize),
     pub clicked             : Option<(isize, isize)>,
@@ -34,9 +34,9 @@ impl RegionWidget {
         tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], None, &asset);
 
         // Graph
-        let mut area_graph = NodeGraph::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context, BehaviorType::Regions, vec![]);
+        let mut behavior_graph = NodeGraph::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context, BehaviorType::Regions, vec![]);
 
-        area_graph.set_mode(GraphMode::Detail, &context);
+        behavior_graph.set_mode(GraphMode::Detail, &context);
 
         Self {
             rect,
@@ -47,7 +47,7 @@ impl RegionWidget {
             screen_offset           : (0, 0),
 
             tile_selector,
-            area_graph,
+            behavior_graph,
 
             mouse_hover_pos         : (0, 0),
             clicked                 : None,
@@ -107,7 +107,7 @@ impl RegionWidget {
                 let x_tiles = (rect.2 / grid_size) as isize;
                 let y_tiles = (rect.3 / grid_size) as isize;
 
-                let curr_area_index = region_options.get_area_index();
+                let curr_area_index = context.curr_region_area_index;
 
                 for y in 0..y_tiles {
                     for x in 0..x_tiles {
@@ -134,7 +134,7 @@ impl RegionWidget {
             }
         } else
         if editor_mode == RegionEditorMode::Behavior {
-            self.area_graph.draw(frame, anim_counter, asset, context);
+            self.behavior_graph.draw(frame, anim_counter, asset, context);
         }
     }
 
@@ -168,7 +168,7 @@ impl RegionWidget {
                 } else
                 if editor_mode == RegionEditorMode::Areas {
                     if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                        let area = &mut region.data.areas[region_options.get_area_index()];
+                        let area = &mut region.data.areas[context.curr_region_area_index];
                         if area.area.contains(&(x, y)) == false {
                             area.area.push((x, y));
                         }
@@ -250,6 +250,10 @@ impl RegionWidget {
         if let Some(region) = context.data.regions.get_mut(&self.region_id) {
             region_options.area_widgets[0].text = region.get_area_names();
             region_options.area_widgets[0].dirty = true;
+            context.curr_region_area_index = 0;
+            if region.behaviors.len() > 0 {
+                self.behavior_graph.set_behavior_id(region.behaviors[0].data.id, context);
+            }
         }
     }
 }

@@ -9,11 +9,13 @@ use std::collections::HashMap;
 use crate::asset::tileset::TileUsage;
 use crate::asset::Asset;
 
+use super::behavior::GameBehavior;
+
 #[derive(Serialize, Deserialize)]
 pub struct RegionArea {
     pub name            : String,
     pub area            : Vec<(isize, isize)>,
-    pub graph           : String,
+    pub behavior        : usize,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -31,6 +33,7 @@ pub struct GameRegion {
     pub name            : String,
     pub path            : PathBuf,
     pub data            : GameRegionData,
+    pub behaviors       : Vec<GameBehavior>,
 }
 
 impl GameRegion {
@@ -47,10 +50,32 @@ impl GameRegion {
         let data = serde_json::from_str(&contents)
             .unwrap_or(GameRegionData { tiles: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000), areas: vec![] });
 
+        // Read the behaviors
+        let mut behaviors : Vec<GameBehavior> = vec![];
+        let area_path = path.clone();
+
+        if let Some(paths) = fs::read_dir(area_path).ok() {
+            for path in paths {
+                let path = &path.unwrap().path();
+                let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+                if file_name.starts_with("area_") {
+                    let behavior = GameBehavior::new(path);
+                    let mut name = behavior.name.clone();
+                    name.remove(0);
+                    name.remove(0);
+                    name.remove(0);
+                    name.remove(0);
+                    name.remove(0);
+                    behaviors.push(behavior);
+                }
+            }
+        }
+
         Self {
             name        : name.to_string(),
             path        : path.clone(),
             data,
+            behaviors
         }
     }
 
@@ -130,14 +155,28 @@ impl GameRegion {
         self.save_data();
     }
 
+    /// Create area
+    pub fn create_area(&mut self) -> usize {
+        let mut path = self.path.clone();
+        path.push("area_New Area.json");
+
+        let behavior = GameBehavior::new(&path);
+        let behavior_id = behavior.data.id.clone();
+        behavior.save_data();
+        self.behaviors.push(behavior);
+
+        let area = RegionArea { name: "New Area".to_string(), area: vec![], behavior: behavior_id.clone() };
+        self.data.areas.push(area);
+
+        behavior_id
+    }
+
     /// Get area names
     pub fn get_area_names(&self) -> Vec<String> {
         let mut names : Vec<String> = vec![];
-
         for area in &self.data.areas {
             names.push(area.name.clone());
         }
-
         names
     }
 }

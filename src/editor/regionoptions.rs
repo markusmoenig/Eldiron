@@ -9,8 +9,6 @@ use crate::widget::WidgetState;
 use crate::editor::RegionWidget;
 use crate::tileset::TileUsage;
 
-use server::gamedata::region::RegionArea;
-
 use crate::widget::*;
 use crate::widget::context::ScreenDragContext;
 
@@ -62,34 +60,27 @@ impl RegionOptions {
         // Area Widgets
         let mut area_widgets : Vec<AtomWidget> = vec![];
 
-        let mut regions_button = AtomWidget::new(vec![], AtomWidgetType::MenuButton,
-        AtomData::new_as_int("region".to_string(), 0));
-        regions_button.atom_data.text = "Region".to_string();
-        regions_button.set_rect((rect.0 + 10, rect.1 + 80, rect.2 - 20, 40), asset, context);
-        regions_button.state = WidgetState::Disabled;
-        area_widgets.push(regions_button);
-
         let mut add_area_button = AtomWidget::new(vec!["Add Area".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Add Area".to_string(), 0));
         //add_area_button.state = WidgetState::Disabled;
-        add_area_button.set_rect((rect.0 + 10, rect.1 + 140, rect.2 - 20, 40), asset, context);
+        add_area_button.set_rect((rect.0 + 10, rect.1 + 80, rect.2 - 20, 40), asset, context);
 
         let mut del_area_button = AtomWidget::new(vec!["Delete".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Delete".to_string(), 0));
         del_area_button.state = WidgetState::Disabled;
-        del_area_button.set_rect((rect.0 + 10, rect.1 + 175, rect.2 - 20, 40), asset, context);
+        del_area_button.set_rect((rect.0 + 10, rect.1 + 115, rect.2 - 20, 40), asset, context);
 
         let mut rename_area_button = AtomWidget::new(vec!["Rename".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Rename".to_string(), 0));
         rename_area_button.state = WidgetState::Disabled;
-        rename_area_button.set_rect((rect.0 + 10, rect.1 + 175 + 35, rect.2 - 20, 40), asset, context);
+        rename_area_button.set_rect((rect.0 + 10, rect.1 + 115 + 35, rect.2 - 20, 40), asset, context);
 
         let mut area_editing_mode = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new_as_int("EditingMode".to_string(), 0));
         area_editing_mode.drag_enabled = true;
 
-        area_editing_mode.add_group_list(context.color_black, context.color_gray, vec!["Add Tiles".to_string(), "Remove".to_string()]);
-        area_editing_mode.set_rect((rect.0 + 10, rect.1 + 270, rect.2 - 20, 200), asset, context);
+        area_editing_mode.add_group_list(context.color_black, context.color_gray, vec!["Select Area".to_string(), "Add Tiles".to_string(), "Remove".to_string()]);
+        area_editing_mode.set_rect((rect.0 + 10, rect.1 + 240, rect.2 - 20, 200), asset, context);
 
         area_widgets.push(add_area_button);
         area_widgets.push(del_area_button);
@@ -240,14 +231,15 @@ impl RegionOptions {
 
                     if atom.atom_data.id == "Add Area" {
                         if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
-                            let area = RegionArea { name: "New Area".to_string(), area: vec![], graph: "".to_string() };
-                            region.data.areas.push(area);
+                            let id = region.create_area();
+                            context.curr_region_area_index = region.behaviors.len() - 1;
+                            region_widget.behavior_graph.set_behavior_id(id, context);
                         }
                         self.update_area_ui(context, region_widget);
                     } else
                     if atom.atom_data.id == "Delete" {
                         if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
-                            region.data.areas.remove(self.area_widgets[0].curr_index);
+                            region.data.areas.remove(context.curr_region_area_index);
                         }
                         self.update_area_ui(context, region_widget);
                     } else
@@ -257,9 +249,9 @@ impl RegionOptions {
                         context.dialog_height = 0;
                         context.target_fps = 60;
                         context.dialog_entry = DialogEntry::NewName;
-                        context.dialog_new_name = self.area_widgets[0].text[0].clone();
-                        //if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
-                        //}
+                        if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
+                            context.dialog_new_name = region.get_area_names()[context.curr_region_area_index].clone();
+                        }
                         self.update_area_ui(context, region_widget);
                     }
 
@@ -355,36 +347,28 @@ impl RegionOptions {
             let area_count = region.data.areas.len();
 
             if area_count == 0 {
-                self.area_widgets[0].text = vec![];
-                self.area_widgets[0].curr_index = 0;
-                self.area_widgets[0].state = WidgetState::Disabled;
+                self.area_widgets[1].state = WidgetState::Disabled;
                 self.area_widgets[2].state = WidgetState::Disabled;
-                self.area_widgets[3].state = WidgetState::Disabled;
             } else {
-                self.area_widgets[0].text = region.get_area_names();
-                self.area_widgets[0].state = WidgetState::Normal;
+                self.area_widgets[1].state = WidgetState::Normal;
                 self.area_widgets[2].state = WidgetState::Normal;
-                self.area_widgets[3].state = WidgetState::Normal;
             }
 
             for a in &mut self.area_widgets {
                 a.dirty = true;
             }
 
+            context.curr_region_area_index = self.area_widgets[0].curr_index;
+
             region.save_data();
         }
-    }
-
-    /// Returns the current area index
-    pub fn get_area_index(&self) -> usize {
-        self.area_widgets[0].curr_index
     }
 
     /// Sets a new name for the current area
     pub fn set_area_name(&mut self, name: String, context: &mut ScreenContext, region_widget: &mut RegionWidget) {
 
         if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
-            region.data.areas[self.get_area_index()].name = name;
+            region.data.areas[context.curr_region_area_index].name = name;
             self.update_area_ui(context, region_widget);
         }
     }

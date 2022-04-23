@@ -443,6 +443,7 @@ impl ScreenWidget for Editor<'_> {
                     self.node_graph_regions.set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::RegionDetail;
                     self.context.curr_graph_type = BehaviorType::Regions;
+                    self.region_widget.set_region_id(self.context.data.regions_ids[self.context.curr_region_index], &mut self.context, &mut self.region_options);
                 }
 
                 for i in 1..=5 {
@@ -719,12 +720,12 @@ impl ScreenWidget for Editor<'_> {
         if let Some(drag_context) = &self.context.drag_context {
 
             if self.state == EditorState::RegionDetail {
-                if self.context.contains_pos_for(pos, self.region_widget.area_graph.rect) {
+                if self.context.contains_pos_for(pos, self.region_widget.behavior_graph.rect) {
                     let mut position = (pos.0 as isize, pos.1 as isize);
-                    position.0 -= self.region_widget.area_graph.rect.0 as isize + self.region_widget.area_graph.offset.0 + drag_context.offset.0;
-                    position.1 -= self.region_widget.area_graph.rect.1 as isize + self.region_widget.area_graph.offset.1 + drag_context.offset.1;
+                    position.0 -= self.region_widget.behavior_graph.rect.0 as isize + self.region_widget.behavior_graph.offset.0 + drag_context.offset.0;
+                    position.1 -= self.region_widget.behavior_graph.rect.1 as isize + self.region_widget.behavior_graph.offset.1 + drag_context.offset.1;
 
-                    self.region_widget.area_graph.add_node_of_name(drag_context.text.clone(), position, &mut self.context);
+                    self.region_widget.behavior_graph.add_node_of_name(drag_context.text.clone(), position, &mut self.context);
                 }
             } else
             if self.state == EditorState::BehaviorOverview {

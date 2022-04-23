@@ -784,6 +784,15 @@ impl GameData<'_> {
 
     /// Gets the behavior for the given behaviortype
     pub fn get_behavior(&self, id: usize, behavior_type: BehaviorType) -> Option<&GameBehavior> {
+        if behavior_type == BehaviorType::Regions {
+            for (_index, region) in &self.regions {
+                for index in 0..region.behaviors.len() {
+                    if region.behaviors[index].data.id == id {
+                        return Some(&region.behaviors[index]);
+                    }
+                }
+            }
+        } else
         if behavior_type == BehaviorType::Behaviors {
             return self.behaviors.get(&id);
         } else
@@ -798,6 +807,15 @@ impl GameData<'_> {
 
     /// Gets the mutable behavior for the given behaviortype
     pub fn get_mut_behavior(&mut self, id: usize, behavior_type: BehaviorType) -> Option<&mut GameBehavior> {
+        if behavior_type == BehaviorType::Regions {
+            for (_index, region) in &mut self.regions {
+                for index in 0..region.behaviors.len() {
+                    if region.behaviors[index].data.id == id {
+                        return Some(&mut region.behaviors[index]);
+                    }
+                }
+            }
+        } else
         if behavior_type == BehaviorType::Behaviors {
             return self.behaviors.get_mut(&id);
         } else

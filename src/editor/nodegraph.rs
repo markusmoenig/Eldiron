@@ -1079,6 +1079,8 @@ impl NodeGraph {
         let mut node_widget : Option<NodeWidget> =  None;
         let mut id : usize = 0;
 
+        println!("test {}", self.get_curr_behavior_id(context));
+
         // Create the node
         if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
 
@@ -1114,6 +1116,10 @@ impl NodeGraph {
 
         // Add the atom widgets
         if let Some(mut node) = node_widget {
+            if self.graph_type == BehaviorType::Regions {
+                let region = context.data.regions.get(&context.data.regions_ids[context.curr_region_index]).unwrap();
+                self.init_node_widget(&region.behaviors[context.curr_region_area_index].data, &region.behaviors[context.curr_region_area_index].data.nodes.get(&id).unwrap(), &mut node, context);
+            } else
             if self.graph_type == BehaviorType::Behaviors {
                 let behavior = context.data.behaviors.get(&context.data.behaviors_ids[context.curr_behavior_index]).unwrap();
                 self.init_node_widget(&behavior.data, &behavior.data.nodes.get(&id).unwrap(), &mut node, context);
@@ -1654,6 +1660,11 @@ impl NodeGraph {
 
     /// Returns the behavior id for the current behavior and graph type
     fn get_curr_behavior_id(&self, context: &ScreenContext) -> usize {
+        if self.graph_type == BehaviorType::Regions {
+            if let Some(region) = context.data.regions.get(&context.data.regions_ids[context.curr_region_index]) {
+                return region.behaviors[context.curr_region_area_index].data.id;
+            }
+        } else
         if self.graph_type == BehaviorType::Behaviors {
             return context.data.behaviors_ids[context.curr_behavior_index];
         } else
