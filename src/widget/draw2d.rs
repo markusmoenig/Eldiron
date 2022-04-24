@@ -235,12 +235,12 @@ impl Draw2D {
         }
 
         if align == TextAlignment::Left {
-            let y =  (((rect.1 + (rect.3 - text_size.1)) as f32 + 0.5) / 2.0).round() as usize;
+        let y =  rect.1 + ((((rect.3 - text_size.1)) as f32 + 0.5) / 2.0).round() as usize;
             self.draw_text(frame, &(rect.0, y), stride, font, size, text_to_use.as_str(), color, background);
         } else
         if align == TextAlignment::Center {
             let x =  rect.0 + (rect.2 - text_size.0) / 2;
-            let y =  (((rect.1 + (rect.3 - text_size.1)) as f32 + 0.5) / 2.0).round() as usize;
+            let y =  rect.1 + ((( (rect.3 - text_size.1)) as f32 + 0.5) / 2.0).round() as usize;
             self.draw_text(frame, &(x, y), stride, font, size, text_to_use.as_str(), color, background);
         }
     }
