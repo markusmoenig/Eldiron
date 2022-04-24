@@ -136,6 +136,16 @@ impl RegionWidget {
         if editor_mode == RegionEditorMode::Behavior {
             self.behavior_graph.draw(frame, anim_counter, asset, context);
         }
+
+        if self.mouse_hover_pos != (0,0) {
+            if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
+                let pos = (rect.0 + left_offset + ((id.0 + self.offset.0) as usize) * grid_size, rect.1 + top_offset + ((id.1 + self.offset.1) as usize) * grid_size);
+                if  pos.0 + grid_size < rect.0 + rect.2 && pos.1 + grid_size < rect.1 + rect.3 {
+                    context.draw2d.draw_rect_outline(frame, &(pos.0, pos.1, grid_size, grid_size), context.width, context.color_light_white);
+                    context.draw2d.draw_rect_outline(frame, &(pos.0 + 1, pos.1 + 1, grid_size - 2, grid_size - 2), context.width, context.color_black);
+                }
+            }
+        }
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, region_options: &mut RegionOptions) -> bool {
@@ -147,21 +157,14 @@ impl RegionWidget {
         }
 
         if context.contains_pos_for(pos, self.rect) {
-
-            let grid_size = self.grid_size;
-
-            if pos.0 > self.rect.0 + self.screen_offset.0 && pos.1 > self.rect.1 + self.screen_offset.1 {
-                let x = ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
-                let y = ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;
-
-                self.clicked = Some((x, y));
-
+            if let Some(id) = self.get_tile_id(pos) {
+                self.clicked = Some(id);
                 let editor_mode = region_options.get_editor_mode();
 
                 if editor_mode == RegionEditorMode::Tiles {
                     if let Some(selected) = &self.tile_selector.selected {
                         if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                            region.set_value((x,y), selected.clone());
+                            region.set_value(id, selected.clone());
                             region.save_data();
                         }
                     }
@@ -169,14 +172,13 @@ impl RegionWidget {
                 if editor_mode == RegionEditorMode::Areas {
                     if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                         let area = &mut region.data.areas[context.curr_region_area_index];
-                        if area.area.contains(&(x, y)) == false {
-                            area.area.push((x, y));
+                        if area.area.contains(&id) == false {
+                            area.area.push(id);
                         }
                         region.save_data();
                     }
                 }
             }
-
             return true;
         }
 
@@ -200,28 +202,22 @@ impl RegionWidget {
 
     pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _region_options: &mut RegionOptions) -> bool {
         self.mouse_hover_pos = pos.clone();
-        false
+        true
     }
 
     pub fn mouse_dragged(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext, region_options: &mut RegionOptions) -> bool {
         if context.contains_pos_for(pos, self.rect) {
 
-            let grid_size = self.grid_size;
+            if let Some(id) = self.get_tile_id(pos) {
+                if self.clicked != Some(id) {
 
-            if pos.0 > self.rect.0 + self.screen_offset.0 && pos.1 > self.rect.1 + self.screen_offset.1 {
-
-                let x = ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
-                let y = ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;
-
-                if self.clicked != Some((x, y)) {
-
-                    self.clicked = Some((x, y));
+                    self.clicked = Some(id);
                     let editor_mode = region_options.get_editor_mode();
 
                     if editor_mode == RegionEditorMode::Tiles {
                         if let Some(selected) = &self.tile_selector.selected {
                             if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                                region.set_value((x,y), selected.clone());
+                                region.set_value(id, selected.clone());
                                 region.save_data();
                             }
                         }
@@ -255,5 +251,16 @@ impl RegionWidget {
                 self.behavior_graph.set_behavior_id(region.behaviors[0].data.id, context);
             }
         }
+    }
+
+    /// Get the tile id
+    pub fn get_tile_id(&self, pos: (usize, usize)) -> Option<(isize, isize)> {
+        let grid_size = self.grid_size;
+        if pos.0 > self.rect.0 + self.screen_offset.0 && pos.1 > self.rect.1 + self.screen_offset.1 {
+            let x = ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
+            let y = ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;
+            return Some((x, y));
+        }
+        None
     }
 }
