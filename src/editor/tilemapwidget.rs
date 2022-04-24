@@ -10,8 +10,10 @@ pub struct TileMapWidget {
 
     screen_offset           : (usize, usize),
 
-    line_offset             : usize,
+    line_offset             : isize,
     max_line_offset         : usize,
+
+    mouse_wheel_delta       : isize,
 
     pub clicked             : bool,
 }
@@ -29,6 +31,8 @@ impl TileMapWidget {
 
             line_offset             : 0,
             max_line_offset         : 0,
+
+            mouse_wheel_delta       : 0,
 
             clicked                 : false
         }
@@ -77,7 +81,7 @@ impl TileMapWidget {
         let mut x_off = 0_usize;
         let mut y_off = 0_usize;
 
-        let offset = self.line_offset * screen_x;
+        let offset = self.line_offset as usize * screen_x;
 
         // Draw the tiles
         for tile in 0..tiles_per_page {
@@ -164,9 +168,11 @@ impl TileMapWidget {
     }
 
     pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        let mut o = self.line_offset as isize;
-        o += delta.1 / 16;
-        self.line_offset = o.clamp(0, self.max_line_offset as isize) as usize;
+        let grid_size = 32_isize;
+        self.mouse_wheel_delta += delta.1;
+        self.line_offset += self.mouse_wheel_delta / grid_size as isize;
+        self.line_offset = self.line_offset.clamp(0, self.max_line_offset as isize);
+        self.mouse_wheel_delta -= (self.mouse_wheel_delta / grid_size) * grid_size;
         true
     }
 
@@ -195,7 +201,7 @@ impl TileMapWidget {
         if screen_pos.0 > self.rect.0 + self.screen_offset.0 && screen_pos.1 > self.rect.1 + self.screen_offset.0 {
 
             let x = (screen_pos.0 - self.rect.0 - self.screen_offset.0) / scaled_grid_size;
-            let y = (screen_pos.1 - self.rect.1 - self.screen_offset.0) / scaled_grid_size + self.line_offset;
+            let y = (screen_pos.1 - self.rect.1 - self.screen_offset.0) / scaled_grid_size + self.line_offset as usize;
 
             let tile_offset = x + y * screen_x;
 

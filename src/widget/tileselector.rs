@@ -13,7 +13,9 @@ pub struct TileSelectorWidget {
     pub grid_size           : usize,
     pub selected            : Option<(usize, usize, usize, TileUsage)>,
 
-    line_offset             : usize,
+    mouse_wheel_delta       : isize,
+
+    line_offset             : isize,
     max_line_offset         : usize,
 }
 
@@ -29,6 +31,8 @@ impl TileSelectorWidget {
             grid_size                   : 32,
 
             selected                    : None,
+
+            mouse_wheel_delta           : 0,
 
             line_offset                 : 0,
             max_line_offset             : 0,
@@ -68,7 +72,7 @@ impl TileSelectorWidget {
             let mut x = self.rect.0 + left_offset;
             let mut y = self.rect.1 + top_offset;
 
-            let offset = self.line_offset * grid.0;
+            let offset = self.line_offset as usize * grid.0;
 
             for index in 0..max_tiles {
 
@@ -118,7 +122,7 @@ impl TileSelectorWidget {
 
                 let x = (pos.0 - self.rect.0 - self.screen_offset.0) / grid_size;
                 let y = (pos.1 - self.rect.1 - self.screen_offset.1) / grid_size;
-                let tile_offset = x + y * screen_x + self.line_offset * screen_x;
+                let tile_offset = x + y * screen_x + self.line_offset as usize * screen_x;
 
                 if let Some(tiles) = &self.tiles {
                     if tile_offset < tiles.len() {
@@ -140,9 +144,10 @@ impl TileSelectorWidget {
     }
 
     pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        let mut o = self.line_offset as isize;
-        o += delta.1 / 16;
-        self.line_offset = o.clamp(0, self.max_line_offset as isize) as usize;
+        self.mouse_wheel_delta += delta.1;
+        self.line_offset += self.mouse_wheel_delta / self.grid_size as isize;
+        self.line_offset = self.line_offset.clamp(0, self.max_line_offset as isize);
+        self.mouse_wheel_delta -= (self.mouse_wheel_delta / self.grid_size as isize) * self.grid_size as isize;
         true
     }
 

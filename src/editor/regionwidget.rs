@@ -19,6 +19,8 @@ pub struct RegionWidget {
 
     pub behavior_graph      : NodeGraph,
 
+    mouse_wheel_delta       : (isize, isize),
+
     mouse_hover_pos         : (usize, usize),
     pub clicked             : Option<(isize, isize)>,
 }
@@ -49,6 +51,7 @@ impl RegionWidget {
             tile_selector,
             behavior_graph,
 
+            mouse_wheel_delta       : (0, 0),
             mouse_hover_pos         : (0, 0),
             clicked                 : None,
         }
@@ -233,8 +236,14 @@ impl RegionWidget {
     pub fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         if context.contains_pos_for(self.mouse_hover_pos, self.tile_selector.rect) && self.tile_selector.mouse_wheel(delta, asset, context) {
         } else {
-            self.offset.0 -= delta.0 / self.grid_size as isize;
-            self.offset.1 += delta.1 / self.grid_size as isize;
+            self.mouse_wheel_delta.0 += delta.0;
+            self.mouse_wheel_delta.1 += delta.1;
+
+            self.offset.0 -= self.mouse_wheel_delta.0 / self.grid_size as isize;
+            self.offset.1 += self.mouse_wheel_delta.1 / self.grid_size as isize;
+
+            self.mouse_wheel_delta.0 -= (self.mouse_wheel_delta.0 / self.grid_size as isize) * self.grid_size as isize;
+            self.mouse_wheel_delta.1 -= (self.mouse_wheel_delta.1 / self.grid_size as isize) * self.grid_size as isize;
         }
         true
     }
