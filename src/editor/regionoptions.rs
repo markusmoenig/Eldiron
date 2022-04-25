@@ -34,10 +34,18 @@ impl RegionOptions {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
-        let mut mode_button = AtomWidget::new(vec!["Tiles".to_string(), "Areas".to_string(), "Nodes".to_string()], AtomWidgetType::ToolBarSliderButton,
-        AtomData::new_as_int("Mode".to_string(), 0));
-        mode_button.set_rect((rect.0 + 10, rect.1 + 10, rect.2 - 20, 40), asset, context);
-        mode_button.custom_color = Some([217, 64, 51, 255]);
+        // let mut mode_button = AtomWidget::new(vec!["Tiles".to_string(), "Areas".to_string(), "Nodes".to_string()], AtomWidgetType::ToolBarSliderButton,
+        // AtomData::new_as_int("Mode".to_string(), 0));
+        // mode_button.set_rect((rect.0 + 10, rect.1 + 10, rect.2 - 20, 40), asset, context);
+        // mode_button.custom_color = Some([217, 64, 51, 255]);
+        // widgets.push(mode_button);
+
+        let mut mode_button = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
+    AtomData::new_as_int("Mode".to_string(), 0));
+        mode_button.drag_enabled = true;
+
+        mode_button.add_group_list(context.color_orange, context.color_light_orange, vec!["Draw Tiles".to_string(), "Edit Areas".to_string(), "Area Behavior".to_string()]);
+        mode_button.set_rect((rect.0, rect.1 + 10, rect.2, 200), asset, context);
         widgets.push(mode_button);
 
         // Tile Widgets
@@ -49,7 +57,7 @@ impl RegionOptions {
         let mut tilemaps_button = AtomWidget::new(tilemap_names, AtomWidgetType::MenuButton,
         AtomData::new_as_int("tilemaps".to_string(), 0));
         tilemaps_button.atom_data.text = "Tilemaps".to_string();
-        tilemaps_button.set_rect((rect.0 + 10, rect.1 + 80, rect.2 - 20, 40), asset, context);
+        tilemaps_button.set_rect((rect.0 + 10, rect.1 + 130, rect.2 - 20, 40), asset, context);
         tile_widgets.push(tilemaps_button);
 
         let mut remap_button = AtomWidget::new(vec!["Remap".to_string()], AtomWidgetType::LargeButton,
@@ -60,34 +68,41 @@ impl RegionOptions {
         // Area Widgets
         let mut area_widgets : Vec<AtomWidget> = vec![];
 
+        let mut regions_button = AtomWidget::new(vec![], AtomWidgetType::MenuButton,
+        AtomData::new_as_int("Area".to_string(), 0));
+        regions_button.atom_data.text = "Area".to_string();
+        regions_button.set_rect((rect.0 + 10, rect.1 + 130, rect.2 - 20, 40), asset, context);
+        regions_button.state = WidgetState::Disabled;
+        area_widgets.push(regions_button);
+
         let mut add_area_button = AtomWidget::new(vec!["Add Area".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Add Area".to_string(), 0));
         //add_area_button.state = WidgetState::Disabled;
-        add_area_button.set_rect((rect.0 + 10, rect.1 + 80, rect.2 - 20, 40), asset, context);
+        add_area_button.set_rect((rect.0 + 10, rect.1 + 180, rect.2 - 20, 40), asset, context);
 
         let mut del_area_button = AtomWidget::new(vec!["Delete".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Delete".to_string(), 0));
         del_area_button.state = WidgetState::Disabled;
-        del_area_button.set_rect((rect.0 + 10, rect.1 + 115, rect.2 - 20, 40), asset, context);
+        del_area_button.set_rect((rect.0 + 10, rect.1 + 175 + 40, rect.2 - 20, 40), asset, context);
 
         let mut rename_area_button = AtomWidget::new(vec!["Rename".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Rename".to_string(), 0));
         rename_area_button.state = WidgetState::Disabled;
-        rename_area_button.set_rect((rect.0 + 10, rect.1 + 115 + 35, rect.2 - 20, 40), asset, context);
+        rename_area_button.set_rect((rect.0 + 10, rect.1 + 175 + 35 + 40, rect.2 - 20, 40), asset, context);
 
         let mut area_editing_mode = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new_as_int("EditingMode".to_string(), 0));
         area_editing_mode.drag_enabled = true;
 
-        area_editing_mode.add_group_list(context.color_black, context.color_gray, vec!["Select Area".to_string(), "Add Tiles".to_string(), "Remove".to_string()]);
-        area_editing_mode.set_rect((rect.0 + 10, rect.1 + 240, rect.2 - 20, 200), asset, context);
+        area_editing_mode.add_group_list(context.color_blue, context.color_light_blue, vec!["Add Mode".to_string(), "Remove".to_string()]);
+        area_editing_mode.set_rect((rect.0 + 10, rect.1 + 310, rect.2 - 20, 200), asset, context);
 
         area_widgets.push(add_area_button);
         area_widgets.push(del_area_button);
         area_widgets.push(rename_area_button);
         area_widgets.push(area_editing_mode);
 
-        // Behavior Widgets
+        // Area Behavior
 
         let mut behavior_widgets : Vec<AtomWidget> = vec![];
 
@@ -97,11 +112,7 @@ impl RegionOptions {
 
         node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Behavior Tree".to_string(), "Expression".to_string(), "Script".to_string(), "Linear".to_string(), "Sequence".to_string()]);
 
-        // node_list.add_group_list(context.color_orange, context.color_light_orange, vec!["Number".to_string(),/* "Position".to_string()*/ ]);
-
-        // node_list.add_group_list(context.color_blue, context.color_light_blue, vec![ "Close In".to_string(), "Lookout".to_string(), "Pathfinder".to_string(), "Call Behavior".to_string(), "Call System".to_string(), "Lock Tree".to_string(), "Unlock".to_string(), "Set State".to_string(), "Message".to_string() ]);
-
-        node_list.set_rect((rect.0, rect.1 + 80, rect.2, rect.3 - 80), asset, context);
+        node_list.set_rect((rect.0 + 10, rect.1 + 130, rect.2 - 20, rect.3 - 130), asset, context);
         behavior_widgets.push(node_list);
 
         Self {
@@ -131,7 +142,6 @@ impl RegionOptions {
         if mode == RegionEditorMode::Tiles {
             for atom in &mut self.tile_widgets {
                 atom.draw(frame, context.width, anim_counter, asset, context);
-                atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
             }
         } else
         if mode == RegionEditorMode::Areas {
@@ -150,13 +160,22 @@ impl RegionOptions {
 
             context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 40, self.rect.2, 30), context.width, &asset.open_sans, 20.0, &format!("({}, {}, {})", tile.0, tile.1, tile.2), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
         }
+
+        if mode == RegionEditorMode::Tiles {
+            for atom in &mut self.tile_widgets {
+                atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
+            }
+        } else
+        if mode == RegionEditorMode::Areas {
+            for atom in &mut self.area_widgets {
+                atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
+            }
+        }
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _region_widget: &mut RegionWidget) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_down(pos, asset, context) {
-                if atom.clicked {
-                }
                 return true;
             }
         }
@@ -229,6 +248,9 @@ impl RegionOptions {
             for atom in &mut self.area_widgets {
                 if atom.mouse_up(pos, asset, context) {
 
+                    if atom.atom_data.id == "Area" {
+                        self.update_area_ui(context, region_widget);
+                    } else
                     if atom.atom_data.id == "Add Area" {
                         if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
                             let id = region.create_area();
@@ -303,7 +325,7 @@ impl RegionOptions {
         false
     }
 
-    pub fn mouse_dragged(&mut self, _pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         let mode = self.get_editor_mode();
         if mode == RegionEditorMode::Behavior {
             if let Some(drag_context) = &self.behavior_widgets[0].drag_context {
@@ -325,12 +347,19 @@ impl RegionOptions {
                 self.behavior_widgets[0].drag_context = None;
             }
         }
+        if mode == RegionEditorMode::Areas {
+            for atom in &mut self.area_widgets {
+                if atom.mouse_dragged(pos, asset, context) {
+                    return true;
+                }
+            }
+        }
         false
     }
 
     /// Returns the current editor mode
     pub fn get_editor_mode(&self) -> RegionEditorMode {
-        let mode = self.widgets[0].curr_index;
+        let mode = self.widgets[0].curr_item_index;
 
         match mode {
             1 => RegionEditorMode::Areas,
@@ -347,11 +376,17 @@ impl RegionOptions {
             let area_count = region.data.areas.len();
 
             if area_count == 0 {
-                self.area_widgets[1].state = WidgetState::Disabled;
+                self.area_widgets[0].text = vec![];
+                self.area_widgets[0].curr_index = 0;
+                self.area_widgets[0].state = WidgetState::Disabled;
                 self.area_widgets[2].state = WidgetState::Disabled;
+                self.area_widgets[3].state = WidgetState::Disabled;
             } else {
+                self.area_widgets[0].text = region.get_area_names();
+                self.area_widgets[0].state = WidgetState::Normal;
                 self.area_widgets[1].state = WidgetState::Normal;
                 self.area_widgets[2].state = WidgetState::Normal;
+                self.area_widgets[3].state = WidgetState::Normal;
             }
 
             for a in &mut self.area_widgets {

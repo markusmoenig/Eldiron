@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use rand::prelude::*;
 
 use std::fs;
 use std::path;
@@ -14,6 +15,7 @@ use super::behavior::GameBehavior;
 #[derive(Serialize, Deserialize)]
 pub struct RegionArea {
     pub name            : String,
+    pub id              : usize,
     pub area            : Vec<(isize, isize)>,
     pub behavior        : usize,
 }
@@ -60,12 +62,6 @@ impl GameRegion {
                 let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
                 if file_name.starts_with("area_") {
                     let behavior = GameBehavior::new(path);
-                    let mut name = behavior.name.clone();
-                    name.remove(0);
-                    name.remove(0);
-                    name.remove(0);
-                    name.remove(0);
-                    name.remove(0);
                     behaviors.push(behavior);
                 }
             }
@@ -157,16 +153,20 @@ impl GameRegion {
 
     /// Create area
     pub fn create_area(&mut self) -> usize {
+
+        let area_id = thread_rng().gen_range(1..=u32::MAX) as usize;
         let mut path = self.path.clone();
-        path.push("area_New Area.json");
+        path.push(format!("area_{}.json", area_id));
 
         let behavior = GameBehavior::new(&path);
         let behavior_id = behavior.data.id.clone();
         behavior.save_data();
         self.behaviors.push(behavior);
 
-        let area = RegionArea { name: "New Area".to_string(), area: vec![], behavior: behavior_id.clone() };
+        let area = RegionArea { name: "New Area".to_string(), area: vec![], behavior: behavior_id.clone(), id: area_id };
         self.data.areas.push(area);
+
+        self.save_data();
 
         behavior_id
     }

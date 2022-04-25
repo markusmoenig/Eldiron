@@ -125,7 +125,7 @@ impl RegionWidget {
 
                                 let mut c = context.color_white.clone();
                                 if curr_area_index == area_index {
-                                    c[3] = 50;
+                                    c[3] = 100;
                                 } else {
                                     c[3] = 50;
                                 }
@@ -174,11 +174,13 @@ impl RegionWidget {
                 } else
                 if editor_mode == RegionEditorMode::Areas {
                     if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                        let area = &mut region.data.areas[context.curr_region_area_index];
-                        if area.area.contains(&id) == false {
-                            area.area.push(id);
+                        if region.data.areas.len() > 0 {
+                            let area = &mut region.data.areas[context.curr_region_area_index];
+                            if area.area.contains(&id) == false {
+                                area.area.push(id);
+                            }
+                            region.save_data();
                         }
-                        region.save_data();
                     }
                 }
             }
