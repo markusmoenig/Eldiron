@@ -269,19 +269,38 @@ impl TileMapOptions {
 
     /// Set the tags
     pub fn set_tags(&mut self, tags: String, asset: &mut Asset, context: &ScreenContext) {
+        let mut tiles : Vec<(usize, usize)> = vec![];
 
-        if let Some(selection) = context.curr_tile {
-            if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
-                let mut tile = map.get_tile(&selection);
+        if let Some(tile_id) = context.curr_tile {
+            let mut i = tile_id.clone();
 
-                self.widgets[1].text[0] = tags.clone();
-                self.widgets[1].dirty = true;
+            tiles.push(i);
 
-                tile.tags = tags;
-
-                map.set_tile(selection, tile);
-                map.save_settings();
+            // Collect all tiles in the selection
+            if let Some(selection_end) = context.selection_end {
+                if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
+                    while i.0 != selection_end.0 || i.1 != selection_end.1 {
+                        i.0 += 1;
+                        if i.0 >= map.max_tiles_per_row() {
+                            i.0 = 0;
+                            i.1 += 1;
+                        }
+                        tiles.push(i);
+                    }
+                }
             }
+        }
+
+        self.widgets[1].text[0] = tags.clone();
+        self.widgets[1].dirty = true;
+
+        if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
+            for tiles in &tiles {
+                let mut tile = map.get_tile(&tiles);
+                tile.tags = tags.clone();
+                map.set_tile(*tiles, tile);
+            }
+            map.save_settings();
         }
     }
 }
