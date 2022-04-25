@@ -12,7 +12,7 @@ use rand::prelude::*;
 
 // Tile implementation
 
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum TileUsage {
     Unused,
     Environment,

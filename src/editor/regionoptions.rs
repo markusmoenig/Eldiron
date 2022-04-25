@@ -60,9 +60,21 @@ impl RegionOptions {
         tilemaps_button.set_rect((rect.0 + 10, rect.1 + 130, rect.2 - 20, 40), asset, context);
         tile_widgets.push(tilemaps_button);
 
+        let mut tags_button = AtomWidget::new(vec!["".to_string()], AtomWidgetType::TagsButton,
+            AtomData::new_as_int("Tags".to_string(), 0));
+        tags_button.set_rect((rect.0 + 10, rect.1 + 165, rect.2 - 20, 40), asset, context);
+        tile_widgets.push(tags_button);
+
+        let mut usage_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
+    AtomData::new_as_int("UsageList".to_string(), 0));
+        usage_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Environment".to_string(), "Road".to_string(), "Blocking".to_string(), "Water".to_string()]);
+
+        usage_list.set_rect((rect.0 + 10, rect.1 + 210, rect.2 - 20, 200), asset, context);
+        tile_widgets.push(usage_list);
+
         let mut remap_button = AtomWidget::new(vec!["Remap".to_string()], AtomWidgetType::LargeButton,
         AtomData::new_as_int("remap".to_string(), 0));
-        remap_button.set_rect((rect.0 + 40, rect.1 + rect.3 - 200, rect.2 - 80, 40), asset, context);
+        remap_button.set_rect((rect.0 + 10, rect.1 + rect.3 - 200, rect.2 - 20, 40), asset, context);
         tile_widgets.push(remap_button);
 
         // Area Widgets
@@ -130,7 +142,7 @@ impl RegionOptions {
         self.rect.3 = height;
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _region_widget: &mut RegionWidget) {
+    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, region_widget: &mut RegionWidget) {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
 
         let mode = self.get_editor_mode();
@@ -155,13 +167,12 @@ impl RegionOptions {
             }
         }
 
-        if let Some(tile) = &context.curr_region_tile {
-            context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + self.rect.3 - 140), asset.get_map_of_id(tile.0), context.width, &(tile.1, tile.2), anim_counter, 100);
-
-            context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 40, self.rect.2, 30), context.width, &asset.open_sans, 20.0, &format!("({}, {}, {})", tile.0, tile.1, tile.2), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
-        }
-
         if mode == RegionEditorMode::Tiles {
+            if let Some(tile) = region_widget.tile_selector.selected.clone() {
+                context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + self.rect.3 - 140), asset.get_map_of_id(tile.0), context.width, &(tile.1, tile.2), anim_counter, 100);
+
+                context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 40, self.rect.2, 30), context.width, &asset.open_sans, 20.0, &format!("({}, {}, {})", tile.0, tile.1, tile.2), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
+            }
             for atom in &mut self.tile_widgets {
                 atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
             }
@@ -173,7 +184,7 @@ impl RegionOptions {
         }
     }
 
-    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _region_widget: &mut RegionWidget) -> bool {
+    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, region_widget: &mut RegionWidget) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_down(pos, asset, context) {
                 return true;
@@ -185,6 +196,9 @@ impl RegionOptions {
         if mode == RegionEditorMode::Tiles {
             for atom in &mut self.tile_widgets {
                 if atom.mouse_down(pos, asset, context) {
+                    if atom.atom_data.id == "UsageList" {
+                        region_widget.tile_selector.set_tile_type(vec![self.get_tile_usage()], self.get_tilemap_index(), self.get_tags(), &asset);
+                    }
                     return true;
                 }
             }
@@ -217,17 +231,20 @@ impl RegionOptions {
         }
 
         let mode = self.get_editor_mode();
+        let tags = self.get_tags();
+        let usage = self.get_tile_usage();
 
         // Tiles Mode
         if mode == RegionEditorMode::Tiles {
             for atom in &mut self.tile_widgets {
                 if atom.mouse_up(pos, asset, context) {
+
                     if atom.new_selection.is_some() {
                         if atom.atom_data.id == "Tilemaps" {
                             if atom.curr_index == 0 {
-                                region_widget.tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], None, &asset);
+                                region_widget.tile_selector.set_tile_type(vec![usage], None, tags, &asset);
                             } else {
-                                region_widget.tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], Some(atom.curr_index - 1), &asset);
+                                region_widget.tile_selector.set_tile_type(vec![usage], Some(atom.curr_index - 1), tags, &asset);
                             }
                             atom.dirty = true;
                         } else
@@ -346,7 +363,14 @@ impl RegionOptions {
                 }
                 self.behavior_widgets[0].drag_context = None;
             }
-        }
+        } else
+        if mode == RegionEditorMode::Tiles {
+            for atom in &mut self.tile_widgets {
+                if atom.mouse_dragged(pos, asset, context) {
+                    return true;
+                }
+            }
+        } else
         if mode == RegionEditorMode::Areas {
             for atom in &mut self.area_widgets {
                 if atom.mouse_dragged(pos, asset, context) {
@@ -406,5 +430,39 @@ impl RegionOptions {
             region.data.areas[context.curr_region_area_index].name = name;
             self.update_area_ui(context, region_widget);
         }
+    }
+
+    /// Get the current tile usage
+    pub fn get_tile_usage(&self) -> TileUsage {
+        match self.tile_widgets[2].curr_item_index {
+            1 => TileUsage::EnvRoad,
+            2 => TileUsage::EnvBlocking,
+            3 => TileUsage::Water,
+            _ => TileUsage::Environment,
+        }
+    }
+
+    /// Get the current tile_id if any
+    pub fn get_tilemap_index(&self) -> Option<usize> {
+        if self.tile_widgets[0].curr_index > 0 {
+            return Some(self.tile_widgets[0].curr_index - 1);
+        }
+        None
+    }
+
+    /// Get the current tags
+    pub fn get_tags(&self) -> Option<String> {
+        if self.tile_widgets[1].text[0].len() > 0 {
+            return Some(self.tile_widgets[1].text[0].clone());
+        }
+        None
+    }
+
+    /// Set the tags
+    pub fn set_tags(&mut self, tags: String, asset: &mut Asset, _context: &ScreenContext, region_widget: &mut RegionWidget) {
+        self.tile_widgets[1].text[0] = tags.clone().to_lowercase();
+        self.tile_widgets[1].dirty = true;
+
+        region_widget.tile_selector.set_tile_type(vec![self.get_tile_usage()], self.get_tilemap_index(), self.get_tags(), &asset);
     }
 }

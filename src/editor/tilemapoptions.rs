@@ -291,13 +291,13 @@ impl TileMapOptions {
             }
         }
 
-        self.widgets[1].text[0] = tags.clone();
+        self.widgets[1].text[0] = tags.clone().to_lowercase();
         self.widgets[1].dirty = true;
 
         if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
             for tiles in &tiles {
                 let mut tile = map.get_tile(&tiles);
-                tile.tags = tags.clone();
+                tile.tags = tags.clone().to_lowercase();
                 map.set_tile(*tiles, tile);
             }
             map.save_settings();

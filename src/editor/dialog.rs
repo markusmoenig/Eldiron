@@ -97,7 +97,7 @@ impl DialogWidget {
                     self.text = context.dialog_node_behavior_value.4.clone();
                 } else
                 if context.dialog_entry == DialogEntry::NodeTile {
-                    self.tile_selector_widget.set_tile_type(vec![TileUsage::Character, TileUsage::UtilityChar], None, &asset);
+                    self.tile_selector_widget.set_tile_type(vec![TileUsage::Character, TileUsage::UtilityChar], None, None, &asset);
                     self.text = "".to_string();
                     self.tile_selector_widget.grid_size = 24;
                     self.tile_selector_widget.selected = Some((context.dialog_node_behavior_value.0 as usize, context.dialog_node_behavior_value.1 as usize, context.dialog_node_behavior_value.2 as usize, TileUsage::Character));

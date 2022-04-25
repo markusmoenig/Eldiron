@@ -33,7 +33,7 @@ impl RegionWidget {
 
         // Tile Selector
         let mut tile_selector = TileSelectorWidget::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context);
-        tile_selector.set_tile_type(vec![TileUsage::Environment, TileUsage::EnvBlocking, TileUsage::Water], None, &asset);
+        tile_selector.set_tile_type(vec![TileUsage::Environment], None, None, &asset);
 
         // Graph
         let mut behavior_graph = NodeGraph::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context, BehaviorType::Regions, vec![]);
@@ -250,7 +250,7 @@ impl RegionWidget {
         true
     }
 
-    /// Sets a new map index
+    /// Sets a region id
     pub fn set_region_id(&mut self, id: usize, context: &mut ScreenContext, region_options: &mut RegionOptions) {
         self.region_id = id;
 

@@ -152,9 +152,15 @@ impl TileSelectorWidget {
     }
 
     /// Collects the tiles of the given type
-    pub fn set_tile_type(&mut self, tile_usage: Vec<TileUsage>, tilemap_id: Option<usize>, asset: &Asset) {
+    pub fn set_tile_type(&mut self, tile_usage: Vec<TileUsage>, tilemap_index: Option<usize>, tags: Option<String>, asset: &Asset) {
         let mut tiles : Vec<(usize, usize, usize, TileUsage)> = vec![];
         let sorted_keys= asset.tileset.maps.keys().sorted();
+
+        let mut tilemap_id : Option<usize> = None;
+
+        if let Some(tilemap_index) = tilemap_index {
+            tilemap_id = Some(asset.tileset.maps_ids[tilemap_index]);
+        }
 
         for key in sorted_keys {
             let map = &asset.tileset.maps[key];
@@ -165,7 +171,13 @@ impl TileSelectorWidget {
 
                 if tile_usage.contains(&tile.usage) {
                     if tilemap_id == None || tilemap_id.unwrap() == map.settings.id {
-                        tiles.push((map.settings.id, id.0, id.1, tile.usage));
+                        if tags.is_some() {
+                            if tile.tags.contains(&tags.clone().unwrap()) {
+                                tiles.push((map.settings.id, id.0, id.1, tile.usage));
+                            }
+                        } else {
+                            tiles.push((map.settings.id, id.0, id.1, tile.usage));
+                        }
                     }
                 }
             }

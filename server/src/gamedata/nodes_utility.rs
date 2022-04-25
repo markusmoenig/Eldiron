@@ -109,7 +109,7 @@ pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp:
 
             // Check tiles
             if let Some(tile) = data.get_tile_at((p.0, x, y)) {
-                if tile.3 != TileUsage::Environment {
+                if tile.3 == TileUsage::EnvBlocking || tile.3 == TileUsage::Water {
                     return false;
                 }
             } else {
