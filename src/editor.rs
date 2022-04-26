@@ -932,7 +932,7 @@ impl ScreenWidget for Editor<'_> {
             }
         } else
         if self.state == EditorState::RegionDetail {
-            if consumed == false && self.context.contains_pos_for(self.mouse_hover_pos,self.region_widget.rect) && self.region_widget.mouse_wheel(delta, asset, &mut self.context) {
+            if consumed == false && self.context.contains_pos_for(self.mouse_hover_pos,self.region_widget.rect) && self.region_widget.mouse_wheel(delta, asset, &mut self.context, &mut self.region_options) {
                 consumed = true;
             }
         } else

@@ -1100,6 +1100,12 @@ impl NodeGraph {
                 "Sequence" => BehaviorNodeType::Sequence,
                 "Set State" => BehaviorNodeType::SetState,
                 "Linear" => BehaviorNodeType::Linear,
+
+                "Enter Area" => BehaviorNodeType::EnterArea,
+                "Leave Area" => BehaviorNodeType::LeaveArea,
+                "Inside Area" => BehaviorNodeType::InsideArea,
+                "Spawn" => BehaviorNodeType::Spawn,
+
                 _ => BehaviorNodeType::BehaviorTree
             };
 
@@ -1171,6 +1177,8 @@ impl NodeGraph {
         let id = (behavior_data.id, node_data.id, "menu".to_string());
         node_menu_atom.behavior_id = Some(id.clone());
         node_widget.menu = Some(node_menu_atom);
+
+        // Behavior
 
         if node_data.behavior_type == BehaviorNodeType::BehaviorTree {
             let mut atom1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Target".to_string()], AtomWidgetType::NodeMenuButton,
@@ -1437,6 +1445,20 @@ impl NodeGraph {
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        } else
+
+        // Area
+        if node_data.behavior_type == BehaviorNodeType::InsideArea {
+            let mut atom1 = AtomWidget::new(vec!["Expression".to_string()], AtomWidgetType::NodeExpressionButton,
+            AtomData::new_as_int("expression".to_string(), 0));
+            atom1.atom_data.text = "Expression".to_string();
+            let id = (behavior_data.id, node_data.id, "expression".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "true".to_string()), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
         }
     }
 
@@ -1569,6 +1591,14 @@ impl NodeGraph {
     pub fn check_node_visibility(&mut self, context: &ScreenContext) {
 
         self.visible_node_ids = vec![];
+
+        if self.graph_type == BehaviorType::Regions {
+            // Regions all nodes are visible
+            for index in 0..self.nodes.len() {
+                self.visible_node_ids.push(self.widget_index_to_node_id(index));
+            }
+            return;
+        }
 
         if let Some(tree_index) = self.curr_behavior_tree_index {
 

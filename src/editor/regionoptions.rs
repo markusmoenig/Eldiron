@@ -116,7 +116,9 @@ impl RegionOptions {
     AtomData::new_as_int("NodeList".to_string(), 0));
         node_list.drag_enabled = true;
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Inside Area".to_string()]);
+        node_list.add_group_list(context.color_green, context.color_light_green, vec!["Enter Area".to_string(), "Leave Area".to_string(), "Inside Area".to_string()]);
+
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Displace".to_string(), "Spawn".to_string()]);
 
         node_list.set_rect((rect.0 + 10, rect.1 + 130, rect.2 - 20, rect.3 - 130), asset, context);
         behavior_widgets.push(node_list);

@@ -2,6 +2,7 @@ pub mod region;
 pub mod behavior;
 pub mod nodes;
 pub mod nodes_utility;
+pub mod nodes_area;
 pub mod script;
 
 use rhai::{ Engine, Scope, AST };
@@ -279,6 +280,8 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::LockTree, nodes::lock_tree);
         nodes.insert(BehaviorNodeType::UnlockTree, nodes::unlock_tree);
         nodes.insert(BehaviorNodeType::SetState, nodes::set_state);
+
+        nodes.insert(BehaviorNodeType::InsideArea, nodes_area::inside_area);
 
         let mut engine = Engine::new();
 

@@ -157,9 +157,22 @@ impl RegionWidget {
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, region_options: &mut RegionOptions) -> bool {
 
-        if context.contains_pos_for(pos, self.tile_selector.rect) {
+        let editor_mode = region_options.get_editor_mode();
+        let mut consumed = false;
+
+        if editor_mode == RegionEditorMode::Tiles {
             if self.tile_selector.mouse_down(pos, asset, context) {
-                return true;
+                consumed = true;
+                if let Some(selected) = &self.tile_selector.selected {
+                    context.curr_region_tile = Some(selected.clone());
+                } else {
+                    context.curr_region_tile = None;
+                }
+            }
+        } else
+        if editor_mode == RegionEditorMode::Behavior {
+            if context.contains_pos_for(pos, self.behavior_graph.rect) {
+                consumed = self.behavior_graph.mouse_down(pos, asset, context);
             }
         }
 
@@ -188,25 +201,25 @@ impl RegionWidget {
                     }
                 }
             }
-            return true;
+            consumed = true;
         }
 
-        if self.tile_selector.mouse_down(pos, asset, context) {
+        consumed
+    }
 
-            if let Some(selected) = &self.tile_selector.selected {
-                context.curr_region_tile = Some(selected.clone());
-            } else {
-                context.curr_region_tile = None;
+    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, region_options: &mut RegionOptions) -> bool {
+        self.clicked = None;
+
+        let editor_mode = region_options.get_editor_mode();
+        let mut consumed = false;
+
+        if editor_mode == RegionEditorMode::Behavior {
+            if context.contains_pos_for(pos, self.behavior_graph.rect) {
+                consumed = self.behavior_graph.mouse_up(pos, asset, context);
             }
         }
 
-        false
-    }
-
-    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _region_options: &mut RegionOptions) -> bool {
-        self.clicked = None;
-
-        false
+        consumed
     }
 
     pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _region_options: &mut RegionOptions) -> bool {
@@ -214,9 +227,18 @@ impl RegionWidget {
         true
     }
 
-    pub fn mouse_dragged(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext, region_options: &mut RegionOptions) -> bool {
-        if context.contains_pos_for(pos, self.rect) {
+    pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, region_options: &mut RegionOptions) -> bool {
 
+        let editor_mode = region_options.get_editor_mode();
+        let mut consumed = false;
+
+        if editor_mode == RegionEditorMode::Behavior {
+            if context.contains_pos_for(pos, self.behavior_graph.rect) {
+                consumed = self.behavior_graph.mouse_dragged(pos, asset, context);
+            }
+        }
+
+        if consumed == false && context.contains_pos_for(pos, self.rect) {
             if let Some(id) = self.get_tile_id(pos) {
                 if self.clicked != Some(id) {
 
@@ -234,14 +256,28 @@ impl RegionWidget {
                 }
             }
 
-            return true;
+            consumed = true;
         }
-        false
+
+        consumed
     }
 
-    pub fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
-        if context.contains_pos_for(self.mouse_hover_pos, self.tile_selector.rect) && self.tile_selector.mouse_wheel(delta, asset, context) {
-        } else {
+    pub fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext, region_options: &mut RegionOptions) -> bool {
+        let editor_mode = region_options.get_editor_mode();
+        let mut consumed = false;
+
+        if editor_mode == RegionEditorMode::Tiles {
+            if context.contains_pos_for(self.mouse_hover_pos, self.tile_selector.rect) && self.tile_selector.mouse_wheel(delta, asset, context) {
+                consumed = true;
+            }
+        } else
+        if editor_mode == RegionEditorMode::Behavior {
+            if context.contains_pos_for(self.mouse_hover_pos, self.behavior_graph.rect) && self.behavior_graph.mouse_wheel(delta, asset, context) {
+                consumed = true;
+            }
+        }
+
+        if consumed == false {
             self.mouse_wheel_delta.0 += delta.0;
             self.mouse_wheel_delta.1 += delta.1;
 
