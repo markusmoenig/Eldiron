@@ -34,12 +34,6 @@ impl RegionOptions {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
-        // let mut mode_button = AtomWidget::new(vec!["Tiles".to_string(), "Areas".to_string(), "Nodes".to_string()], AtomWidgetType::ToolBarSliderButton,
-        // AtomData::new_as_int("Mode".to_string(), 0));
-        // mode_button.set_rect((rect.0 + 10, rect.1 + 10, rect.2 - 20, 40), asset, context);
-        // mode_button.custom_color = Some([217, 64, 51, 255]);
-        // widgets.push(mode_button);
-
         let mut mode_button = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new_as_int("Mode".to_string(), 0));
         mode_button.drag_enabled = true;
@@ -122,7 +116,7 @@ impl RegionOptions {
     AtomData::new_as_int("NodeList".to_string(), 0));
         node_list.drag_enabled = true;
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Behavior Tree".to_string(), "Expression".to_string(), "Script".to_string(), "Linear".to_string(), "Sequence".to_string()]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Inside Area".to_string()]);
 
         node_list.set_rect((rect.0 + 10, rect.1 + 130, rect.2 - 20, rect.3 - 130), asset, context);
         behavior_widgets.push(node_list);
@@ -278,7 +272,7 @@ impl RegionOptions {
                     } else
                     if atom.atom_data.id == "Delete" {
                         if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
-                            region.data.areas.remove(context.curr_region_area_index);
+                            region.delete_area(context.curr_region_area_index);
                         }
                         self.update_area_ui(context, region_widget);
                     } else

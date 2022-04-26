@@ -171,6 +171,28 @@ impl GameRegion {
         behavior_id
     }
 
+    /// Deletes the given area
+    pub fn delete_area(&mut self, index: usize) {
+
+        let behavior_id = self.data.areas[index].behavior;
+
+        let mut behavior_index : Option<usize> = None;
+
+        for (index, b) in self.behaviors.iter().enumerate() {
+            if b.data.id == behavior_id {
+                behavior_index = Some(index);
+                break;
+            }
+        }
+
+        if let Some(behavior_index) = behavior_index {
+            self.data.areas.remove(index);
+            let _ = std::fs::remove_file(self.behaviors[behavior_index].path.clone());
+            self.behaviors.remove(behavior_index);
+        }
+        self.save_data();
+    }
+
     /// Get area names
     pub fn get_area_names(&self) -> Vec<String> {
         let mut names : Vec<String> = vec![];

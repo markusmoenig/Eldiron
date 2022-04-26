@@ -644,7 +644,6 @@ impl Draw2D {
                         }
                     }
                 }
-
             }
 
             offset

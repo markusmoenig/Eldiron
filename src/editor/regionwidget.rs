@@ -104,7 +104,7 @@ impl RegionWidget {
         if editor_mode == RegionEditorMode::Tiles {
             self.tile_selector.draw(frame, context.width, anim_counter, asset, context);
         } else
-        if editor_mode == RegionEditorMode::Areas {
+        if editor_mode == RegionEditorMode::Areas || editor_mode == RegionEditorMode::Behavior {
             if let Some(region) = context.data.regions.get(&self.region_id) {
 
                 let x_tiles = (rect.2 / grid_size) as isize;
@@ -127,6 +127,9 @@ impl RegionWidget {
                                 if curr_area_index == area_index {
                                     c[3] = 100;
                                 } else {
+                                    if editor_mode == RegionEditorMode::Areas {
+                                        continue;
+                                    }
                                     c[3] = 50;
                                 }
                                 context.draw2d.blend_rect(frame, &(pos.0, pos.1, grid_size, grid_size), context.width, &c);
@@ -135,7 +138,8 @@ impl RegionWidget {
                     }
                 }
             }
-        } else
+        }
+
         if editor_mode == RegionEditorMode::Behavior {
             self.behavior_graph.draw(frame, anim_counter, asset, context);
         }
