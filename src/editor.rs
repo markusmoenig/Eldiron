@@ -264,6 +264,14 @@ impl ScreenWidget for Editor<'_> {
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset) {
 
+        // To update the variables
+        if self.context.just_stopped_running {
+            self.node_graph_behavior_details.dirty = true;
+            if let Some(preview) = &mut self.node_graph_behavior_details.preview {
+                preview.dirty = true;
+            }
+        }
+
         //let start = self.get_time();
 
         self.controlbar.draw(frame, anim_counter, asset, &mut self.context);

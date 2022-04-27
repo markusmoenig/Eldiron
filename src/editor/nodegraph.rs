@@ -127,6 +127,19 @@ impl NodeGraph {
     pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
         let safe_rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
 
+        // Stopped running ?
+        if context.just_stopped_running {
+            // If preview just stopped running, mark all variables as dirty (as they may have changed)
+            for index in 0..self.nodes.len() {
+                if self.nodes[index].widgets.len() == 1 && self.nodes[index].widgets[0].atom_widget_type == AtomWidgetType::NodeIntButton {
+                    self.nodes[index].dirty = true;
+                    self.nodes[index].widgets[0].dirty = true;
+                    self.dirty = true;
+                }
+            }
+            context.just_stopped_running = false;
+        }
+
         if self.dirty {
             context.draw2d.draw_square_pattern(&mut self.buffer[..], &safe_rect, safe_rect.2, &[44, 44, 46, 255], &[56, 56, 56, 255], 40);
 
@@ -696,30 +709,16 @@ impl NodeGraph {
             }
 
             // Check Preview
-            let mut clicked_region_id : Option<(usize, isize, isize)> = None;
+            //let mut clicked_region_id : Option<(usize, isize, isize)> = None;
             if let Some(preview) = &mut self.preview {
                 if context.contains_pos_for(pos, preview.rect) {
                     if preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context) {
 
-                        // Stopped running ?
-                        if context.just_stopped_running {
-
-                            // If preview just stopped running, mark all variables as dirty (as they may have changed)
-                            for index in 0..self.nodes.len() {
-                                if self.nodes[index].widgets.len() == 1 && self.nodes[index].widgets[0].atom_widget_type == AtomWidgetType::NodeIntButton {
-                                    self.nodes[index].dirty = true;
-                                    self.nodes[index].widgets[0].dirty = true;
-                                    self.dirty = true;
-                                }
-                            }
-                            context.just_stopped_running = false;
-                        }
-
-                        // Region id clicked ?
-                        if let Some(region_id) = preview.clicked_region_id {
-                            clicked_region_id = Some(region_id);
-                            preview.clicked_region_id = None;
-                        }
+                        // // Region id clicked ?
+                        // if let Some(region_id) = preview.clicked_region_id {
+                        //     clicked_region_id = Some(region_id);
+                        //     preview.clicked_region_id = None;
+                        // }
 
                         if preview.clicked {
                             self.dirty = true;
@@ -731,12 +730,12 @@ impl NodeGraph {
                 }
             }
 
-            if let Some(clicked_region_id) = clicked_region_id {
-                if let Some(active_position_id) = &context.active_position_id {
-                    self.set_node_atom_data(active_position_id.clone(), (clicked_region_id.0 as f64, clicked_region_id.1 as f64, clicked_region_id.2 as f64, 0.0, "".to_string()), context);
-                    context.active_position_id = None;
-                }
-            }
+            // if let Some(clicked_region_id) = clicked_region_id {
+            //     if let Some(active_position_id) = &context.active_position_id {
+            //         self.set_node_atom_data(active_position_id.clone(), (clicked_region_id.0 as f64, clicked_region_id.1 as f64, clicked_region_id.2 as f64, 0.0, "".to_string()), context);
+            //         context.active_position_id = None;
+            //     }
+            // }
 
             // Check the nodes
             for index in 0..self.nodes.len() {
