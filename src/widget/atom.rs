@@ -92,6 +92,7 @@ pub struct AtomWidget {
     groups                      : Vec<GroupedList>,
     pub curr_group_index        : usize,
     pub curr_item_index         : usize,
+    pub centered_text           : bool,
 
     // For Menus
     pub new_selection           : Option<usize>,
@@ -135,6 +136,7 @@ impl AtomWidget {
             groups              : vec![],
             curr_group_index    : 0,
             curr_item_index     : 0,
+            centered_text       : false,
 
             new_selection       : None,
 
@@ -504,7 +506,11 @@ impl AtomWidget {
                         }
 
                         context.draw2d.draw_rounded_rect(buffer_frame, &r, rect.2, &(self.rect.2 as f64, 32.0), &color, &rounding);
-                        context.draw2d.draw_text(buffer_frame, &(r.0 + 25, r.1 + 4), rect.2, &asset.open_sans, context.button_text_size, &self.groups[g_index].items[i_index].text, &text_color, &color);
+                        if self.centered_text == false {
+                            context.draw2d.draw_text(buffer_frame, &(r.0 + 25, r.1 + 4), rect.2, &asset.open_sans, context.button_text_size, &self.groups[g_index].items[i_index].text, &text_color, &color);
+                        } else {
+                            context.draw2d.draw_text_rect(buffer_frame, &r, rect.2, &asset.open_sans, context.button_text_size, &self.groups[g_index].items[i_index].text, &text_color, &color, draw2d::TextAlignment::Center);
+                        }
 
                         self.groups[g_index].items[i_index].rect = r;
                         self.groups[g_index].items[i_index].rect.1 += self.rect.1;

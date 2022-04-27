@@ -173,10 +173,11 @@ impl RegionWidget {
         if editor_mode == RegionEditorMode::Behavior {
             if context.contains_pos_for(pos, self.behavior_graph.rect) {
                 consumed = self.behavior_graph.mouse_down(pos, asset, context);
+                return consumed;
             }
         }
 
-        if context.contains_pos_for(pos, self.rect) {
+        if consumed == false && context.contains_pos_for(pos, self.rect) {
             if let Some(id) = self.get_tile_id(pos) {
                 self.clicked = Some(id);
                 let editor_mode = region_options.get_editor_mode();
@@ -235,6 +236,7 @@ impl RegionWidget {
         if editor_mode == RegionEditorMode::Behavior {
             if context.contains_pos_for(pos, self.behavior_graph.rect) {
                 consumed = self.behavior_graph.mouse_dragged(pos, asset, context);
+                return consumed;
             }
         }
 

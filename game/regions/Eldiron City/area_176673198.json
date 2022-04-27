@@ -1,1 +1,1 @@
-{"nodes":{"0":{"behavior_type":"InsideArea","name":"Inside Area","values":{"expression":[0.0,0.0,0.0,0.0,"true"]},"id":0,"position":[87,52]}},"connections":[],"id":2700903487,"name":"New Behavior"}
+{"nodes":{"0":{"behavior_type":"InsideArea","name":"Inside Area","values":{"expression":[0.0,0.0,0.0,0.0,"true"]},"id":0,"position":[80,51]}},"connections":[],"id":2700903487,"name":"New Behavior"}

@@ -85,14 +85,15 @@ impl TileSelectorWidget {
                 let map = asset.get_map_of_id(tile.0);
                 context.draw2d.draw_animated_tile(frame, &(x, y), map, stride, &(tile.1, tile.2), anim_counter, self.grid_size);
 
-                let mut selected_drawn = false;
+                //let mut selected_drawn = false;
                 if let Some(selected) = &self.selected {
                     if selected.0 == map.settings.id && selected.1 == tile.1 && selected.2 == tile.2 {
                         context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_white);
-                        selected_drawn = true;
+                        //selected_drawn = true;
                     }
                 }
 
+                /*
                 if selected_drawn == false {
                     if tile.3 == TileUsage::EnvBlocking {
                         context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_red);
@@ -100,7 +101,7 @@ impl TileSelectorWidget {
                     if tile.3 == TileUsage::Water {
                         context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_blue);
                     }
-                }
+                }*/
 
                 x += self.grid_size;
                 if x + self.grid_size > self.rect.0 + self.rect.2 {

@@ -38,8 +38,9 @@ impl RegionOptions {
     AtomData::new_as_int("Mode".to_string(), 0));
         mode_button.drag_enabled = true;
 
-        mode_button.add_group_list(context.color_orange, context.color_light_orange, vec!["Draw Tiles".to_string(), "Edit Areas".to_string(), "Area Behavior".to_string()]);
+        mode_button.add_group_list([50, 50, 50, 255], [80, 80, 80, 255], vec!["Draw Tiles".to_string(), "Edit Areas".to_string(), "Area Behavior".to_string()]);
         mode_button.set_rect((rect.0, rect.1 + 10, rect.2, 200), asset, context);
+        mode_button.centered_text = true;
         widgets.push(mode_button);
 
         // Tile Widgets
@@ -116,9 +117,9 @@ impl RegionOptions {
     AtomData::new_as_int("NodeList".to_string(), 0));
         node_list.drag_enabled = true;
 
-        node_list.add_group_list(context.color_green, context.color_light_green, vec!["Enter Area".to_string(), "Leave Area".to_string(), "Inside Area".to_string()]);
+        node_list.add_group_list(context.color_green, context.color_light_green, vec!["Enter Area".to_string(), "Leave Area".to_string(), "Inside Area".to_string(), "Spawn".to_string()]);
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Displace".to_string(), "Spawn".to_string()]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Displace".to_string()]);
 
         node_list.set_rect((rect.0 + 10, rect.1 + 130, rect.2 - 20, rect.3 - 130), asset, context);
         behavior_widgets.push(node_list);
