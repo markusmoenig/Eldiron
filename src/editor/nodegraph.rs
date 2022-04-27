@@ -702,7 +702,7 @@ impl NodeGraph {
                     if preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context) {
 
                         // Stopped running ?
-                        if preview.just_stopped_running {
+                        if context.just_stopped_running {
 
                             // If preview just stopped running, mark all variables as dirty (as they may have changed)
                             for index in 0..self.nodes.len() {
@@ -712,7 +712,7 @@ impl NodeGraph {
                                     self.dirty = true;
                                 }
                             }
-                            preview.just_stopped_running = false;
+                            context.just_stopped_running = false;
                         }
 
                         // Region id clicked ?

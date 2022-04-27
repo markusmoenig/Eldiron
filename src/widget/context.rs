@@ -101,6 +101,7 @@ pub struct ScreenContext<'a> {
     pub jump_to_position                : Option<(usize, isize, isize)>,
 
     pub is_running                      : bool,
+    pub just_stopped_running            : bool,
 
     // Masks
     pub left_arrow_mask                 : [u8;12*14],
@@ -162,7 +163,7 @@ impl ScreenContext<'_> {
             data                        : GameData::new(),
 
             // Editor statics
-            toolbar_height              : 45,
+            toolbar_height              : 44 * 2,
             toolbar_button_height       : 35,
             toolbar_button_rounding     : (18.0, 18.0, 18.0, 18.0),
             toolbar_button_text_size    : 27.0,
@@ -241,6 +242,7 @@ impl ScreenContext<'_> {
             jump_to_position            : None,
 
             is_running                  : false,
+            just_stopped_running        : false,
 
             // UI Masks
             left_arrow_mask,

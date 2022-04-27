@@ -15,6 +15,7 @@ use crate::editor::dialog::DialogWidget;
 
 use server::asset::Asset;
 
+mod controlbar;
 mod toolbar;
 mod nodegraph;
 mod tilemapoptions;
@@ -32,6 +33,7 @@ pub mod dialog;
 mod log;
 
 use crate::editor::toolbar::ToolBar;
+use crate::editor::controlbar::ControlBar;
 use tilemapwidget::TileMapWidget;
 
 use crate::context::ScreenContext;
@@ -60,6 +62,7 @@ pub struct Editor<'a> {
     rect                            : (usize, usize, usize, usize),
     state                           : EditorState,
     context                         : ScreenContext<'a>,
+    controlbar                      : ControlBar,
     toolbar                         : ToolBar,
     log                             : LogWidget,
 
@@ -101,7 +104,8 @@ impl ScreenWidget for Editor<'_> {
         let left_width = 180_usize;
         let context = ScreenContext::new(width, height);
 
-        let toolbar = ToolBar::new(vec!(), (0,0, width, context.toolbar_height), asset, &context);
+        let controlbar = ControlBar::new(vec!(), (0,0, width, context.toolbar_height / 2), asset, &context);
+        let toolbar = ToolBar::new(vec!(), (0, context.toolbar_height / 2, width, context.toolbar_height / 2), asset, &context);
 
         // Tile views and nodes
 
@@ -183,6 +187,7 @@ impl ScreenWidget for Editor<'_> {
             rect                    : (0, 0, width, height),
             state                   : EditorState::TilesOverview,
             context,
+            controlbar,
             toolbar,
             log,
 
@@ -234,6 +239,7 @@ impl ScreenWidget for Editor<'_> {
     fn resize(&mut self, width: usize, height: usize) {
         self.context.width = width; self.rect.2 = width;
         self.context.height = height; self.rect.3 = height;
+        self.controlbar.resize(width, height, &self.context);
         self.toolbar.resize(width, height, &self.context);
 
         self.tilemap_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
@@ -260,6 +266,7 @@ impl ScreenWidget for Editor<'_> {
 
         //let start = self.get_time();
 
+        self.controlbar.draw(frame, anim_counter, asset, &mut self.context);
         self.toolbar.draw(frame, anim_counter, asset, &mut self.context);
 
         if self.state == EditorState::TilesOverview {
@@ -410,7 +417,11 @@ impl ScreenWidget for Editor<'_> {
         }
 
         let mut consumed = false;
-        if self.toolbar.mouse_down(pos, asset, &mut self.context) {
+
+        if self.controlbar.mouse_down(pos, asset, &mut self.context) {
+            consumed = true;
+        }
+        if consumed == false && self.toolbar.mouse_down(pos, asset, &mut self.context) {
 
             // Tile Button
             if self.toolbar.widgets[1].clicked {
@@ -619,6 +630,9 @@ impl ScreenWidget for Editor<'_> {
         self.log_drag_start_pos = None;
 
         let mut consumed = false;
+        if self.controlbar.mouse_up(pos, asset, &mut self.context) {
+            consumed = true;
+        }
         if self.toolbar.mouse_up(pos, asset, &mut self.context) {
 
             if self.toolbar.widgets[0].new_selection.is_some() {

@@ -55,7 +55,7 @@ impl Widget for ToolBar {
 
         let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarButton,
             AtomData::new_as_int("Game".to_string(), 0));
-        game_button.set_rect((rect.2 - 110, rect.1, 100, rect.3), asset, context);
+        game_button.set_rect((rect.0 + 725 + 175 + 150, rect.1, 100, rect.3), asset, context);
         game_button.custom_color = Some([215, 30, 146, 255]);
         widgets.push(game_button);
 
@@ -68,6 +68,7 @@ impl Widget for ToolBar {
     fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
         self.rect.3 = height;
+        //self.widgets[6].rect.0 = width - 110;
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {

@@ -81,6 +81,8 @@ pub struct AtomWidget {
     pub selected                : bool,
     has_hover                   : bool,
 
+    pub no_border               : bool,
+
     // For toolbar switches
     pub right_selected          : bool,
     right_has_hover             : bool,
@@ -127,6 +129,8 @@ impl AtomWidget {
 
             selected            : false,
             has_hover           : false,
+
+            no_border           : false,
 
             right_selected      : false,
             right_has_hover     : false,
@@ -177,9 +181,15 @@ impl AtomWidget {
                 }
 
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
-                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+                //let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
+                let fill_color = if self.state != WidgetState::Clicked { &context.color_black } else { &context.color_light_gray };
+
+                if self.no_border == false {
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
+                } else {
+                    context.draw2d.draw_rounded_rect(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding);
+                }
+                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[0], &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_white}, &fill_color, draw2d::TextAlignment::Center);
             }  else
             if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);

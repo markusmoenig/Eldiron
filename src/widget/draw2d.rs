@@ -506,7 +506,10 @@ impl Draw2D {
                 let d = pos.0 * 4 + sx * 4 + (sy + pos.1) * stride * 4;
                 let s = (x + g_pos.0) * 4 + (y + g_pos.1) * map.width * 4;
 
-                frame[d..d + 4].copy_from_slice(&[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]]);
+                let background = &[frame[d], frame[d+1], frame[d+2], frame[d+3]];
+                let c = self.mix_color(&background, &[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]], pixels[s+3] as f64 / 255.0);
+
+                frame[d..d + 4].copy_from_slice(&c);
             }
         }
     }

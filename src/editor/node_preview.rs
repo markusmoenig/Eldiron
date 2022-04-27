@@ -1,5 +1,5 @@
 use crate::Asset;
-use crate::atom:: { AtomWidget, AtomWidgetType, AtomData };
+use crate::atom:: { AtomWidget };
 use crate::editor::ScreenContext;
 
 pub struct NodePreviewWidget {
@@ -36,26 +36,20 @@ pub struct NodePreviewWidget {
     pub clicked_region_id         : Option<(usize, isize, isize)>,
 
     pub curr_region_index         : usize,
-
-    // Indicates that preview stopped running
-    pub just_stopped_running    : bool
 }
 
 impl NodePreviewWidget {
 
-    pub fn new(context: &ScreenContext) -> Self {
+    pub fn new(_context: &ScreenContext) -> Self {
 
-        let run_button = AtomWidget::new(vec!["Run".to_string()], AtomWidgetType::LargeButton,
-        AtomData::new_as_int("run".to_string(), 0));
-
-        let mut regions_button = AtomWidget::new(context.data.regions_names.clone(), AtomWidgetType::SmallMenuButton,
-        AtomData::new_as_int("region".to_string(), 0));
-        regions_button.atom_data.text = "Region".to_string();
-        regions_button.curr_index = 0;
+        // let mut regions_button = AtomWidget::new(context.data.regions_names.clone(), AtomWidgetType::SmallMenuButton,
+        // AtomData::new_as_int("region".to_string(), 0));
+        // regions_button.atom_data.text = "Region".to_string();
+        // regions_button.curr_index = 0;
 
         Self {
             rect                : (0,0,0,0),
-            widgets             : vec![run_button, regions_button],
+            widgets             : vec![],
             clicked             : false,
 
             id                  : 0,
@@ -65,7 +59,7 @@ impl NodePreviewWidget {
 
             disabled            : false,
 
-            size                : (300, 250),
+            size                : (310, 257),
 
             clicked_id          : None,
 
@@ -85,8 +79,6 @@ impl NodePreviewWidget {
             clicked_region_id     : None,
 
             curr_region_index     : 0,
-
-            just_stopped_running: false,
         }
     }
 
@@ -120,16 +112,16 @@ impl NodePreviewWidget {
             context.draw2d.draw_rect(buffer_frame, &(rect.2-2, 0, 2, rect.3 - 1), stride, &context.color_black);
             context.draw2d.draw_rect(buffer_frame, &(1, 1, 1, 1), stride, &[65, 65, 65, 255]);
 
-            self.widgets[0].set_rect((20, 4, 120, 32), asset, context);
-            self.widgets[0].draw(buffer_frame, stride, anim_counter, asset, context);
+            // self.widgets[0].set_rect((20, 4, 120, 32), asset, context);
+            // self.widgets[0].draw(buffer_frame, stride, anim_counter, asset, context);
 
-            self.widgets[1].set_rect((15, self.size.1 - 50, self.size.0 - 20, 25), asset, context);
-            self.widgets[1].draw(buffer_frame, stride, anim_counter, asset, context);
+            // self.widgets[1].set_rect((15, self.size.1 - 50, self.size.0 - 20, 25), asset, context);
+            // self.widgets[1].draw(buffer_frame, stride, anim_counter, asset, context);
 
             self.region_rect.0 = 10;
-            self.region_rect.1 = 50;
+            self.region_rect.1 = 5;
             self.region_rect.2 = rect.2 - 20;
-            self.region_rect.3 = rect.3 - 100;
+            self.region_rect.3 = rect.3 - 30;
 
             // Draw the region
             let region_id = context.data.regions_ids[self.curr_region_index];
@@ -159,22 +151,6 @@ impl NodePreviewWidget {
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         for atom_widget in &mut self.widgets {
             if atom_widget.mouse_down(pos, asset, context) {
-
-                if atom_widget.atom_data.id == "run" {
-                    if context.is_running == false {
-                        context.data.create_behavior_instances();
-                        context.data.activate_region_instances(context.data.regions_ids[self.curr_region_index]);
-                        context.is_running = true;
-                        atom_widget.text[0] = "Stop".to_string();
-                        context.data.messages = vec![];
-                    } else {
-                        context.data.clear_instances();
-                        context.is_running = false;
-                        atom_widget.text[0] = "Run".to_string();
-                        self.just_stopped_running = true;
-                    }
-                }
-
                 self.dirty = true;
                 self.clicked = true;
                 self.clicked_id = atom_widget.behavior_id.clone();
@@ -214,9 +190,9 @@ impl NodePreviewWidget {
                 self.dirty = true;
                 self.clicked = false;
 
-                if atom_widget.atom_data.text == "Region" {
-                    self.curr_region_index = atom_widget.curr_index;
-                }
+                // if atom_widget.atom_data.text == "Region" {
+                //     self.curr_region_index = atom_widget.curr_index;
+                // }
                 return true;
             }
         }
@@ -250,12 +226,5 @@ impl NodePreviewWidget {
         self.region_scroll_offset.1 += delta.1 / self.tile_size as isize;
         self.dirty = true;
         true
-    }
-
-    /// Stop running
-    pub fn _stop(&mut self, context: &mut ScreenContext) {
-        context.data.clear_instances();
-        context.is_running = false;
-        self.widgets[0].text[0] = "Run".to_string();
     }
 }
