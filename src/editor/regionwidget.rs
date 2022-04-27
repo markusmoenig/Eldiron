@@ -70,34 +70,35 @@ impl RegionWidget {
 
         let editor_mode = region_options.get_editor_mode();
 
-        let mut rect = self.rect;
+        let mut rect = self.rect.clone();
         if editor_mode != RegionEditorMode::Areas {
             rect.3 -= 250;
         }
         let grid_size = self.grid_size;
 
-        let left_offset = (self.rect.2 % grid_size) / 2;
-        let top_offset = (self.rect.3 % grid_size) / 2;
+        let left_offset = (rect.2 % grid_size) / 2;
+        let top_offset = (rect.3 % grid_size) / 2;
 
         self.screen_offset = (left_offset, top_offset);
 
-        //let grid = (rect.2 / grid_size, rect.3 / grid_size);
-        //let max_tiles = grid.0 * grid.1;
-
         if let Some(region) = context.data.regions.get(&self.region_id) {
 
-            let x_tiles = (rect.2 / grid_size) as isize;
-            let y_tiles = (rect.3 / grid_size) as isize;
+            if context.is_running == false {
+                let x_tiles = (rect.2 / grid_size) as isize;
+                let y_tiles = (rect.3 / grid_size) as isize;
 
-            for y in 0..y_tiles {
-                for x in 0..x_tiles {
-                    if let Some(value) = region.get_value((x - self.offset.0, y - self.offset.1)) {
-                        let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
+                for y in 0..y_tiles {
+                    for x in 0..x_tiles {
+                        if let Some(value) = region.get_value((x - self.offset.0, y - self.offset.1)) {
+                            let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
 
-                        let map = asset.get_map_of_id(value.0);
-                        context.draw2d.draw_animated_tile(frame, &pos, map,context.width,&(value.1, value.2), anim_counter, grid_size);
+                            let map = asset.get_map_of_id(value.0);
+                            context.draw2d.draw_animated_tile(frame, &pos, map,context.width,&(value.1, value.2), anim_counter, grid_size);
+                        }
                     }
                 }
+            } else {
+                context.draw2d.draw_region_with_instances(frame, region, &rect, &(-self.offset.0, -self.offset.1), context.width, grid_size, anim_counter, asset, context);
             }
         }
 

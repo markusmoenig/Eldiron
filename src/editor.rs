@@ -226,6 +226,9 @@ impl ScreenWidget for Editor<'_> {
     /// Update the editor
     fn update(&mut self) {
         // let start = self.get_time();
+        if self.state == EditorState::RegionDetail {
+            self.node_graph_systems_details.update(&mut self.context);
+        } else
         if self.state == EditorState::BehaviorDetail {
             self.node_graph_behavior_details.update(&mut self.context);
         } else

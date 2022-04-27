@@ -36,6 +36,7 @@ pub struct GameRegion {
     pub path            : PathBuf,
     pub data            : GameRegionData,
     pub behaviors       : Vec<GameBehavior>,
+    pub displacements   : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
 }
 
 impl GameRegion {
@@ -68,10 +69,11 @@ impl GameRegion {
         }
 
         Self {
-            name        : name.to_string(),
-            path        : path.clone(),
+            name                : name.to_string(),
+            path                : path.clone(),
             data,
-            behaviors
+            behaviors,
+            displacements       : HashMap::new(),
         }
     }
 

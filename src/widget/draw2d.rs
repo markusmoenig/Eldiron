@@ -590,65 +590,112 @@ impl Draw2D {
         offset
     }
 
-        /// Draws the given region centered at the given center and returns the top left offset into the region
-        pub fn draw_region_centered_with_instances(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), index_to_center: usize, stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {
-            let left_offset = (rect.2 % tile_size) / 2;
-            let top_offset = (rect.3 % tile_size) / 2;
+    /// Draws the given region centered at the given center and returns the top left offset into the region
+    pub fn draw_region_centered_with_instances(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), index_to_center: usize, stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {
+        let left_offset = (rect.2 % tile_size) / 2;
+        let top_offset = (rect.3 % tile_size) / 2;
 
-            let x_tiles = (rect.2 / tile_size) as isize;
-            let y_tiles = (rect.3 / tile_size) as isize;
+        let x_tiles = (rect.2 / tile_size) as isize;
+        let y_tiles = (rect.3 / tile_size) as isize;
 
-            let mut center = (0, 0);
-            if let Some(position) = context.data.instances[index_to_center].position {
-                center.0 = position.1;
-                center.1 = position.2;
-            } else {
-                return region.data.min_pos.clone();
-            }
-            let mut offset = center.clone();
+        let mut center = (0, 0);
+        if let Some(position) = context.data.instances[index_to_center].position {
+            center.0 = position.1;
+            center.1 = position.2;
+        } else {
+            return region.data.min_pos.clone();
+        }
+        let mut offset = center.clone();
 
-            offset.0 -= x_tiles / 2;
-            offset.1 -= y_tiles / 2;
+        offset.0 -= x_tiles / 2;
+        offset.1 -= y_tiles / 2;
 
-            // Draw Environment
-            for y in 0..y_tiles {
-                for x in 0..x_tiles {
-                    if let Some(value) = region.get_value((x + offset.0, y + offset.1)) {
-                        let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
+        // Draw Environment
+        for y in 0..y_tiles {
+            for x in 0..x_tiles {
+                if let Some(value) = region.get_value((x + offset.0, y + offset.1)) {
+                    let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
-                        let map = asset.get_map_of_id(value.0);
-                        self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
-                    }
+                    let map = asset.get_map_of_id(value.0);
+                    self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
                 }
             }
+        }
 
-            for index in 0..context.data.instances.len() {
+        for index in 0..context.data.instances.len() {
 
-                if context.data.instances[index].state == BehaviorInstanceState::Killed || context.data.instances[index].state == BehaviorInstanceState::Purged {
-                    continue;
-                }
+            if context.data.instances[index].state == BehaviorInstanceState::Killed || context.data.instances[index].state == BehaviorInstanceState::Purged {
+                continue;
+            }
 
-                if let Some(position) = context.data.instances[index].position {
-                    if let Some(tile) = context.data.instances[index].tile {
-                        // In the same region ?
-                        if position.0 == region.data.id {
+            if let Some(position) = context.data.instances[index].position {
+                if let Some(tile) = context.data.instances[index].tile {
+                    // In the same region ?
+                    if position.0 == region.data.id {
 
-                            // Row check
-                            if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
-                                // Column check
-                                if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
-                                    // Visible
-                                    let pos = (rect.0 + left_offset + ((position.1 - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.2 - offset.1) as usize) * tile_size);
+                        // Row check
+                        if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
+                            // Column check
+                            if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
+                                // Visible
+                                let pos = (rect.0 + left_offset + ((position.1 - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.2 - offset.1) as usize) * tile_size);
 
-                                    let map = asset.get_map_of_id(tile.0);
-                                    self.draw_animated_tile(frame, &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size);
-                                }
+                                let map = asset.get_map_of_id(tile.0);
+                                self.draw_animated_tile(frame, &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size);
                             }
                         }
                     }
                 }
             }
-
-            offset
         }
+
+        offset
+    }
+
+    /// Draws the given region with the given offset into the rectangle
+    pub fn draw_region_with_instances(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), offset: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) {
+        let left_offset = (rect.2 % tile_size) / 2;
+        let top_offset = (rect.3 % tile_size) / 2;
+
+        let x_tiles = (rect.2 / tile_size) as isize;
+        let y_tiles = (rect.3 / tile_size) as isize;
+
+        for y in 0..y_tiles {
+            for x in 0..x_tiles {
+                if let Some(value) = region.get_value((x + offset.0, y + offset.1)) {
+                    let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
+
+                    let map = asset.get_map_of_id(value.0);
+                    self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
+                }
+            }
+        }
+
+        for index in 0..context.data.instances.len() {
+
+            if context.data.instances[index].state == BehaviorInstanceState::Killed || context.data.instances[index].state == BehaviorInstanceState::Purged {
+                continue;
+            }
+
+            if let Some(position) = context.data.instances[index].position {
+                if let Some(tile) = context.data.instances[index].tile {
+                    // In the same region ?
+                    if position.0 == region.data.id {
+
+                        // Row check
+                        if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
+                            // Column check
+                            if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
+                                // Visible
+                                let pos = (rect.0 + left_offset + ((position.1 - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.2 - offset.1) as usize) * tile_size);
+
+                                let map = asset.get_map_of_id(tile.0);
+                                self.draw_animated_tile(frame, &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
