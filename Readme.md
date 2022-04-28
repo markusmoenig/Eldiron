@@ -36,7 +36,7 @@ I also try to maintain a development blog on [YouTube](https://www.youtube.com/c
 
 Newly added features:
 
-* Completely reworked Regions view, now has 3 modes for drawing tiles, editing area and assigning behavior nodes to areas.
+* Completely reworked the Regions view, now has 3 modes for drawing tiles, editing areas and assigning behavior nodes to areas.
 * Regions now support transparency and up to 4 layers of tiles.
 * Working Systems, every character can now call system behavior trees for common functionality (combat, crafting etc).
 
@@ -155,5 +155,5 @@ You can support the Eldiron project by becoming a [Patreon](https://patreon.com/
 
 ## Acknowledgements
 
-* [Aleksandr Makarov](@iknowkingrabbit) created the tilemaps which are currently shipped with Eldiron, you can see his work on [Twitch](https://iknowkingrabbit.itch.io).
+* [Aleksandr Makarov](https://twitter.com/iknowkingrabbit) created the tilemaps which are currently shipped with Eldiron, you can see his work on [Twitch](https://iknowkingrabbit.itch.io).
 
