@@ -4,19 +4,19 @@
 
 Create RPGs for every platform with Eldiron.
 
- Eldiron v1 will be able to create games similar to Ultima 4 and 5 (or any game with square tiles) but with modern features.
+ Eldiron v1 will be able to create games similar to the classic Ultima series but with modern features.
 
-[![MIT License](https://img.shields.io/apm/l/atomic-design-ui.svg?)](https://github.com/tterb/atomic-design-ui/blob/master/LICENSEs) [![version](https://img.shields.io/badge/version-0.3-red.svg)](https://shields.io/) [![macOS](https://svgshare.com/i/ZjP.svg)](https://svgshare.com/i/ZjP.svg) [![Windows](https://svgshare.com/i/ZhY.svg)](https://svgshare.com/i/ZhY.svg) [![Linux](https://svgshare.com/i/Zhy.svg)](https://svgshare.com/i/Zhy.svg) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Patreon](https://badgen.net/badge/icon/patreon?icon=patreon&label)](https://patreon.com/eldiron) [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/MarkusMoenig)
+[![MIT License](https://img.shields.io/apm/l/atomic-design-ui.svg?)](https://github.com/tterb/atomic-design-ui/blob/master/LICENSEs) [![version](https://img.shields.io/badge/version-0.5-red.svg)](https://shields.io/) [![macOS](https://svgshare.com/i/ZjP.svg)](https://svgshare.com/i/ZjP.svg) [![Windows](https://svgshare.com/i/ZhY.svg)](https://svgshare.com/i/ZhY.svg) [![Linux](https://svgshare.com/i/Zhy.svg)](https://svgshare.com/i/Zhy.svg) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Patreon](https://badgen.net/badge/icon/patreon?icon=patreon&label)](https://patreon.com/eldiron) [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/MarkusMoenig)
 
 <!---
 [![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/channel/UCCmrO356zLQv_m8dPEqBUfA)
 -->
 
-![screenshot](docs/moody_goes_raiding_2.gif)
+![screenshot](docs/moody_goes_raiding_3.gif)
 
-Eldiron is cross platform and runs on all Desktops. The game client will work on Desktops but also on iOS and Android devices and any other device Rust compiles on. It is designed from the ground up to be extremely portable.
+Eldiron is a cross platform RPG engine. Eldiron Creator itself runs on all Desktops (Mac, Windows and Linux) while the game clients also run on iOS and Android devices and on any other device Rust compiles on. The engine is designed from the ground up to be extremely portable.
 
-Eldiron comes with a range of freely usable tilemaps for environment and characters, however you can of course use your own tilemaps, see the instructions below.
+Eldiron comes with a range of freely usable tilemaps, however you can of course use your own tilemaps, see the instructions below. Note that only square tiles are supported.
 
 The game engine contains client and server modules, although currently no multi-player options exist yet, the code has been written with multi-player support in mind from the ground up.
 
@@ -32,11 +32,15 @@ I also try to maintain a development blog on [YouTube](https://www.youtube.com/c
 
 ## Updates
 
-#### 12th April '22
+#### Eldiron v0.5, 28th April '22
 
-[![IMAGE ALT TEXT](http://img.youtube.com/vi/Qt9cgmQjN-4/0.jpg)](http://www.youtube.com/watch?v=Qt9cgmQjN-4 "Orc closes in on Moody")
+Newly added features:
 
-An orc is on the lookout for a character which has an *Align* variable greater than 0. He can only see a maximum distance of 5 so he has to wait until somebody passes by. In this case Moody passes by and the Orc is closing in on him.
+* Completely reworked Regions view, now has 3 modes for drawing tiles, editing area and assigning behavior nodes to areas.
+* Regions now support transparency and up to 4 layers of tiles.
+* Working Systems, every character can now call system behavior trees for common functionality (combat, crafting etc).
+
+#### Eldiron v0.3, 12th April '22
 
 Newly added features:
 
@@ -44,10 +48,6 @@ Newly added features:
 * New *Lookout* and *Close In* nodes.
 * *Expression* and *Script* nodes now have a full scripting system behind them.
 * New Systems editor where soon the user can create systems for Combat, Magic, Crafting and so on. Systems will allow the implementation of basic mechanics every character can utilize.
-
-Coming soon:
-
-* The *System* node will allow to call a behavior tree inside a System, like Combat -> Melee and the behavior tree will handle the combat mechanics.
 
 ## Installation
 
@@ -57,17 +57,17 @@ After you successfully installed Rust, clone this repository (or download the so
 
 At a later stage I will provide pre-build binaries for each platform.
 
-## The Tiles View (90% Done)
+## Tiles View (95% Done)
 
-![tiles_screenshot](docs/tiles.png)
+![update_screenshot](docs/screen_tiles.png)
 
 In the Tiles view you can assign roles and animations to individual tiles in the currently available tilemaps.
 
 Eldiron reads all assets from the assets directory, this is a top level directory in this repository. If you want to add your own tilemaps to Eldiron you will need to paste the tilemap image into the assets/tilemaps directory. Note that right now only tilemaps with square tiles are supported.
 
-There are currently 2 tilemaps available, both with tiles in 16x16, the basic one contains tiles similar to Ultima 4 and the extended one has tiles similar to Ultima 5.
-
 You can multi-select a range of tiles (via mouse click and drag) and by clicking the *Set Anim* button you create an animation for the first tile in the range. The other tiles will be set to *Unused* by default.
+
+When you click the *Enter Tags* button you can assign **,** separated tags to a tile, like *cupboard* or *waterfall*. Tags are always lower case.
 
 The *Clear Anim* button will remove an animation sequence form the currently selected tile.
 
@@ -87,30 +87,55 @@ The roles a tile can have are:
 
 Note that the behavior and look for tiles in a certain area or for a given tile in general can be freely adjusted via the Behavior node system.
 
-## Areas View (30% Done)
+## The Regions View (70% Done)
 
-![areas_screenshot](docs/areas.png)
+Regions are game regions (like a city, dungeon or the world itself) or screen space regions (like a specific UI area).
 
-In the areas view you create specific in-game areas like a dungeon, the world itself or cities.
+The regions view has 3 different modes.
 
-At the bottom of the view you can see the environment tiles of the selected tilemap (or tilemaps).
+### Drawing Tiles
 
-Select a tile and click in the area to apply the tile to the area map.
+![screenshot](docs/screen_regions_tiles.png)
 
-While the basic functionality of the area editor is working, many functions are missing:
+At the bottom of the view you can select the tiles of the selected tilemap (or tilemaps). You will see all tiles you marked as *Environment*, *Road*, *Blocking* or *Water*.
+
+You can view all tiles of all tilemaps or select a specific tilemap. Also you can enter tags to only show tiles containing this specific tag. Useful for quickly finding tiles.
+
+Select a tile and click and drag in the region to apply the tile to the area map.
+
+While the basic functionality of the area editor is working, some functions are missing:
 
 * Undo / Redo
 * Rectangular operations (cut / copy / paste / move / copy) etc.
 * Assigning tiles to groups
-* Sooner or later we need layers
 
-## Behavior View (25% Done)
+### Editing Areas
 
-![behavior_screenshot](docs/behavior.png)
+![screenshot](docs/screen_regions_areas.png)
 
-In this view you will be able to create any kind of behavior for characters (combat, progression, crafting) or tiles (spawning, traps etc.).
+Areas are a named group of tiles inside a region. They are useful to mark specific game areas of interest (like a house of a character you want to mark or use in the Pathfinder node) or maybe you want to spawn monsters in the area, lay a trap or displace tiles.
 
-The node system is simple but powerful and should be accessible by everybody. This is where currently the main work is happening.
+You can add, delete or rename areas. In *Add Mode* new tiles are added to the area while in *Remove* mode tiles are removed from the area.
+
+### Area Behavior
+
+![screenshot](docs/screen_regions_behavior.png)
+
+You can assign behavior to a specific area in the view. For example in the above screenshot, if any character is inside the area around the door, the door icon is replaced with a floor icon to simulate an opening door.
+
+## Characters View (80% Done)
+
+![screenshot](docs/screen_characters.png)
+
+In this view you are able to create any kind of behavior for characters.
+
+## Systems View (80% Done)
+
+![screenshot](docs/screen_systems.png)
+
+The Systems view is similar to the *Characters* view. It's main function is to be able to create reusable behavior trees which can be invoked from any character. Like in the above screenshot is a basic implementation for a *Combat* system with a *Melee* tree. You would not want to create a combat system for every character, but a general one which uses the variables of the character to calculate damage dealt and received. You can of course still write customized individual AI for specific characters.
+
+But apart from Combat you can of course also implement other Systsems, like crafting or farming.
 
 ## Items View (0% Done)
 
@@ -124,6 +149,11 @@ A specialized node view for the overall game logic.
 
 The source and all assets I commissioned for Eldiron are licensed under the MIT. You can use the source and assets freely.
 
-## Support
+## Supporting Eldiron
 
 You can support the Eldiron project by becoming a [Patreon](https://patreon.com/eldiron). I am also looking for art donations. If interested contact me on [Discord](https://discord.gg/ZrNj6baSZU).
+
+## Acknowledgements
+
+* [Aleksandr Makarov](@iknowkingrabbit) created the tilemaps which are currently shipped with Eldiron, you can see his work on [Twitch](https://iknowkingrabbit.itch.io).
+
