@@ -89,11 +89,14 @@ impl RegionWidget {
 
                 for y in 0..y_tiles {
                     for x in 0..x_tiles {
-                        if let Some(value) = region.get_value((x - self.offset.0, y - self.offset.1)) {
-                            let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
+                        let values = region.get_value((x - self.offset.0, y - self.offset.1));
 
-                            let map = asset.get_map_of_id(value.0);
-                            context.draw2d.draw_animated_tile(frame, &pos, map,context.width,&(value.1, value.2), anim_counter, grid_size);
+                        if values.is_empty() == false {
+                            let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
+                            for value in values {
+                                let map = asset.get_map_of_id(value.0);
+                                context.draw2d.draw_animated_tile(frame, &pos, map,context.width,&(value.1, value.2), anim_counter, grid_size);
+                            }
                         }
                     }
                 }
@@ -186,7 +189,7 @@ impl RegionWidget {
                 if editor_mode == RegionEditorMode::Tiles {
                     if let Some(selected) = &self.tile_selector.selected {
                         if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                            region.set_value(id, selected.clone());
+                            region.set_value(region_options.get_layer(), id, selected.clone());
                             region.save_data();
                         }
                     }
@@ -251,7 +254,7 @@ impl RegionWidget {
                     if editor_mode == RegionEditorMode::Tiles {
                         if let Some(selected) = &self.tile_selector.selected {
                             if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                                region.set_value(id, selected.clone());
+                                region.set_value(region_options.get_layer(), id, selected.clone());
                                 region.save_data();
                             }
                         }

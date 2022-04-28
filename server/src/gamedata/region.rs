@@ -23,7 +23,13 @@ pub struct RegionArea {
 #[derive(Serialize, Deserialize)]
 pub struct GameRegionData {
     #[serde(with = "vectorize")]
-    pub tiles           : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
+    pub layer1          : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
+    #[serde(with = "vectorize")]
+    pub layer2          : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
+    #[serde(with = "vectorize")]
+    pub layer3          : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
+    #[serde(with = "vectorize")]
+    pub layer4          : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
     pub id              : usize,
     pub curr_pos        : (isize, isize),
     pub min_pos         : (isize, isize),
@@ -45,13 +51,13 @@ impl GameRegion {
         let name = path::Path::new(&path).file_stem().unwrap().to_str().unwrap();
 
         // Gets the content of the settings file
-        let json_path = path.join( format!("{}{}", "level0", ".json"));
+        let json_path = path.join( format!("{}{}", "level1", ".json"));
         let contents = fs::read_to_string( json_path )
             .unwrap_or("".to_string());
 
         // Construct the json settings
         let data = serde_json::from_str(&contents)
-            .unwrap_or(GameRegionData { tiles: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000), areas: vec![] });
+            .unwrap_or(GameRegionData { layer1: HashMap::new(), layer2: HashMap::new(), layer3: HashMap::new(), layer4: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000), areas: vec![] });
 
         // Read the behaviors
         let mut behaviors : Vec<GameBehavior> = vec![];
@@ -79,20 +85,48 @@ impl GameRegion {
 
     /// Save the TileAreaData to file
     pub fn save_data(&self) {
-        let json_path = self.path.join( format!("{}{}", "level0", ".json"));
-        let json = serde_json::to_string(&self.data).unwrap();
-        fs::write(json_path, json)
+        let json_path = self.path.join( format!("{}{}", "level1", ".json"));
+        if let Some(json) = serde_json::to_string(&self.data).ok() {
+            fs::write(json_path, json)
             .expect("Unable to write area file");
+        }
     }
 
-    /// Returns an optional tile value at the given position
-    pub fn get_value(&self, pos: (isize, isize)) -> Option<&(usize, usize, usize, TileUsage)> {
-        self.data.tiles.get(&pos)
+    /// Returns the layered tiles at the given position
+    pub fn get_value(&self, pos: (isize, isize)) -> Vec<(usize, usize, usize, TileUsage)> {
+        let mut rc = vec![];
+
+        if let Some(t) = self.data.layer1.get(&pos) {
+            rc.push(t.clone());
+        }
+        if let Some(t) = self.data.layer2.get(&pos) {
+            rc.push(t.clone());
+        }
+        if let Some(t) = self.data.layer3.get(&pos) {
+            rc.push(t.clone());
+        }
+        if let Some(t) = self.data.layer4.get(&pos) {
+            rc.push(t.clone());
+        }
+
+        rc
     }
 
     /// Sets a value at the given position
-    pub fn set_value(&mut self, pos: (isize, isize), value: (usize, usize, usize, TileUsage)) {
-        self.data.tiles.insert(pos, value);
+    pub fn set_value(&mut self, layer: usize, pos: (isize, isize), value: (usize, usize, usize, TileUsage)) {
+
+        if layer == 1 {
+            self.data.layer1.insert(pos, value);
+        } else
+        if layer == 2 {
+            self.data.layer2.insert(pos, value);
+        } else
+        if layer == 3 {
+            self.data.layer3.insert(pos, value);
+        } else
+        if layer == 4 {
+            self.data.layer4.insert(pos, value);
+        }
 
         if self.data.min_pos.0 > pos.0 {
             self.data.min_pos.0 = pos.0;
@@ -113,7 +147,7 @@ impl GameRegion {
         let mut min_pos = (10000, 10000);
         let mut max_pos = (-10000, -10000);
 
-        for (pos, _tile)  in &self.data.tiles {
+        for (pos, _tile)  in &self.data.layer1 {
             if min_pos.0 > pos.0 {
                 min_pos.0 = pos.0;
             }
@@ -142,14 +176,14 @@ impl GameRegion {
     /// Remaps the TileUsage field of the tiles
     pub fn remap(&mut self, asset: &mut Asset) {
         let mut tiles : HashMap<(isize, isize), (usize, usize, usize, TileUsage)> = HashMap::new();
-        let ids: Vec<&(isize, isize)> = self.data.tiles.keys().collect();
+        let ids: Vec<&(isize, isize)> = self.data.layer1.keys().collect();
         for id in &ids {
-            let value = &self.data.tiles[id];
+            let value = &self.data.layer1[id];
             let tile = asset.get_tile(&(value.0, value.1, value.2));
 
             tiles.insert(**id, (value.0, value.1, value.2, tile.usage));
         }
-        self.data.tiles = tiles;
+        self.data.layer1 = tiles;
         self.save_data();
     }
 

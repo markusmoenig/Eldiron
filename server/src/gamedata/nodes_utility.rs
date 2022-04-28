@@ -108,12 +108,12 @@ pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp:
         let can_go = |x: isize, y: isize| -> bool {
 
             // Check tiles
-            if let Some(tile) = data.get_tile_at((p.0, x, y)) {
+            let tiles = data.get_tile_at((p.0, x, y));
+            if tiles.is_empty() { return false; }
+            for tile in tiles {
                 if tile.3 == TileUsage::EnvBlocking || tile.3 == TileUsage::Water {
                     return false;
                 }
-            } else {
-                return false;
             }
 
             // Check characters

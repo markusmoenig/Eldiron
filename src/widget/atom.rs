@@ -65,6 +65,7 @@ pub enum AtomWidgetType {
     MenuButton,
     TagsButton,
     SmallMenuButton,
+    NumberRow,
 }
 
 pub struct AtomWidget {
@@ -528,6 +529,26 @@ impl AtomWidget {
                         y += 33;
                     }
                 }
+            } else
+            if self.atom_widget_type == AtomWidgetType::NumberRow {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.button_height) / 2, self.rect.2 - 2, context.button_height);
+
+                let cell_size = rect.3;
+                let mut spacing = rect.2 - self.text.len() * cell_size;
+                spacing /= self.text.len() - 1;
+
+                let mut x = rect.0;
+                for index in 0..self.text.len() {
+
+                    let r = (x, rect.1, cell_size, rect.3);
+
+                    let fill_color = if index != self.curr_index { &context.color_black } else { &context.color_light_gray };
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &((cell_size - 2) as f64, (cell_size - 2) as f64), &fill_color, &(0.0, 0.0, 0.0, 0.0), &context.color_light_gray, 1.5);
+
+                    context.draw2d.draw_text_rect(buffer_frame, &r, rect.2, &asset.open_sans, context.button_text_size, &self.text[index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+
+                    x += cell_size + spacing;
+                }
             }
         }
         self.dirty = false;
@@ -679,6 +700,29 @@ impl AtomWidget {
                     self.dirty = true;
                     self.new_selection = None;//Some(0);
                     return true;
+                }
+            } else
+            if self.atom_widget_type == AtomWidgetType::NumberRow {
+                let rect = self.rect;
+
+                let cell_size = rect.3;
+                let mut spacing = rect.2 - self.text.len() * cell_size;
+                spacing /= self.text.len() - 1;
+
+                let mut x = rect.0;
+                for index in 0..self.text.len() {
+                    let r = (x, rect.1, cell_size, rect.3);
+
+                    if context.contains_pos_for(pos, r) {
+                        if index != self.curr_index {
+                            self.clicked = true;
+                            self.state = WidgetState::Clicked;
+                            self.dirty = true;
+                            self.curr_index = index;
+                            return true;
+                        }
+                    }
+                    x += cell_size + spacing;
                 }
             } else
             if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton || self.atom_widget_type == AtomWidgetType::NodeSliderButton {

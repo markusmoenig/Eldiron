@@ -125,7 +125,7 @@ impl GameData<'_> {
             let region = &regions[key];
 
             // If the region has no tiles we assume it's new and we save the data
-            if region.data.tiles.len() == 0 {
+            if region.data.layer1.len() == 0 {
                 region.save_data();
             }
         }
@@ -353,9 +353,9 @@ impl GameData<'_> {
     }
 
     /// Sets a value in the region
-    pub fn set_region_value(&mut self, id: usize, pos: (isize, isize), value: (usize, usize, usize, TileUsage)) {
+    pub fn set_region_value(&mut self, layer: usize, id: usize, pos: (isize, isize), value: (usize, usize, usize, TileUsage)) {
         let region = &mut self.regions.get_mut(&id).unwrap();
-        region.set_value(pos, value);
+        region.set_value(layer, pos, value);
     }
 
     /// Create a new behavior
@@ -557,14 +557,12 @@ impl GameData<'_> {
         0
     }
 
-    /// Returns the tile at the given position
-    pub fn get_tile_at(&self, pos: (usize, isize, isize)) -> Option<(usize, usize, usize, TileUsage)> {
+    /// Returns the layered tiles at the given position
+    pub fn get_tile_at(&self, pos: (usize, isize, isize)) -> Vec<(usize, usize, usize, TileUsage)> {
         if let Some(region) = self.regions.get(&pos.0) {
-            if let Some(value) = region.get_value((pos.1, pos.2)) {
-                return Some(value.clone());
-            }
+            return region.get_value((pos.1, pos.2));
         }
-        None
+        vec![]
     }
 
     /// Game tick

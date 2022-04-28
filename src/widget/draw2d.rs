@@ -524,7 +524,8 @@ impl Draw2D {
 
         for y in 0..y_tiles {
             for x in 0..x_tiles {
-                if let Some(value) = region.get_value((x + offset.0, y + offset.1)) {
+                let values = region.get_value((x + offset.0, y + offset.1));
+                for value in values {
                     let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
                     let map = asset.get_map_of_id(value.0);
@@ -550,7 +551,9 @@ impl Draw2D {
         // Draw Environment
         for y in 0..y_tiles {
             for x in 0..x_tiles {
-                if let Some(value) = region.get_value((x + offset.0, y + offset.1)) {
+                let values = region.get_value((x + offset.0, y + offset.1));
+
+                for value in values {
                     let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
                     let map = asset.get_map_of_id(value.0);
@@ -613,7 +616,9 @@ impl Draw2D {
         // Draw Environment
         for y in 0..y_tiles {
             for x in 0..x_tiles {
-                if let Some(value) = region.get_value((x + offset.0, y + offset.1)) {
+
+                let values = region.get_value((x + offset.0, y + offset.1));
+                for value in values {
                     let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
                     let map = asset.get_map_of_id(value.0);
@@ -662,7 +667,9 @@ impl Draw2D {
 
         for y in 0..y_tiles {
             for x in 0..x_tiles {
-                if let Some(value) = region.get_value((x + offset.0, y + offset.1)) {
+                let values = region.get_value((x + offset.0, y + offset.1));
+
+                for value in values {
                     let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
                     let map = asset.get_map_of_id(value.0);

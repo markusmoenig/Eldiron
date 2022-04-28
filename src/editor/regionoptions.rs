@@ -23,6 +23,8 @@ pub struct RegionOptions {
     rect                    : (usize, usize, usize, usize),
     pub widgets             : Vec<AtomWidget>,
 
+    curr_layer              : usize,
+
     pub tile_widgets        : Vec<AtomWidget>,
     pub area_widgets        : Vec<AtomWidget>,
     pub behavior_widgets    : Vec<AtomWidget>,
@@ -66,6 +68,10 @@ impl RegionOptions {
 
         usage_list.set_rect((rect.0 + 10, rect.1 + 210, rect.2 - 20, 200), asset, context);
         tile_widgets.push(usage_list);
+
+        let mut layer_button = AtomWidget::new(vec!["1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()], AtomWidgetType::NumberRow, AtomData::new_as_int("Layer".to_string(), 0));
+        layer_button.set_rect((rect.0 + 10, rect.1 + 365, rect.2 - 20, 30), asset, context);
+        tile_widgets.push(layer_button);
 
         let mut remap_button = AtomWidget::new(vec!["Remap".to_string()], AtomWidgetType::LargeButton,
         AtomData::new_as_int("remap".to_string(), 0));
@@ -127,6 +133,8 @@ impl RegionOptions {
         Self {
             rect,
             widgets,
+
+            curr_layer                  : 1,
 
             tile_widgets,
             area_widgets,
@@ -195,6 +203,9 @@ impl RegionOptions {
                 if atom.mouse_down(pos, asset, context) {
                     if atom.atom_data.id == "UsageList" {
                         region_widget.tile_selector.set_tile_type(vec![self.get_tile_usage()], self.get_tilemap_index(), self.get_tags(), &asset);
+                    } else
+                    if atom.atom_data.id == "Layer" {
+                        self.curr_layer = atom.curr_index + 1;
                     }
                     return true;
                 }
@@ -453,6 +464,11 @@ impl RegionOptions {
             return Some(self.tile_widgets[1].text[0].clone());
         }
         None
+    }
+
+    /// Get the current layer
+    pub fn get_layer(&self) -> usize {
+        self.curr_layer
     }
 
     /// Set the tags
