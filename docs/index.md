@@ -5,7 +5,7 @@
 
 Create RPGs for every platform with Eldiron.
 
- Eldiron v1 will be able to create games similar to the classic Ultima series but with modern features.
+Eldiron v1 will be able to create games similar to the classic Ultima series but with modern features.
 
 ![screenshot](moody_goes_raiding_3.gif)
 
