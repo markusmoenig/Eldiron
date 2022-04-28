@@ -206,6 +206,11 @@ impl RegionOptions {
                     } else
                     if atom.atom_data.id == "Layer" {
                         self.curr_layer = atom.curr_index + 1;
+                    } else
+                    if atom.atom_data.id == "remap" {
+                        if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
+                            region.remap(asset);
+                        }
                     }
                     return true;
                 }
@@ -255,11 +260,6 @@ impl RegionOptions {
                                 region_widget.tile_selector.set_tile_type(vec![usage], Some(atom.curr_index - 1), tags, &asset);
                             }
                             atom.dirty = true;
-                        } else
-                        if atom.atom_data.id == "remap" {
-                            if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
-                                region.remap(asset);
-                            }
                         }
                     }
                     return true;
