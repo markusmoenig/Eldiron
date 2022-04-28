@@ -5,6 +5,8 @@
 
 Create RPGs for every platform with Eldiron.
 
+ Eldiron v1 will be able to create games similar to the classic Ultima series but with modern features.
+
 ![screenshot](moody_goes_raiding_3.gif)
 
 Eldiron is a cross platform RPG engine. Eldiron Creator itself runs on all Desktops (Mac, Windows and Linux) while the game clients also run on iOS and Android devices and on any other device Rust compiles on. The engine is designed from the ground up to be extremely portable.
