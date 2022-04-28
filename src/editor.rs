@@ -227,7 +227,7 @@ impl ScreenWidget for Editor<'_> {
     fn update(&mut self) {
         // let start = self.get_time();
         if self.state == EditorState::RegionDetail {
-            self.node_graph_systems_details.update(&mut self.context);
+            self.region_widget.behavior_graph.update(&mut self.context);
         } else
         if self.state == EditorState::BehaviorDetail {
             self.node_graph_behavior_details.update(&mut self.context);
@@ -337,6 +337,9 @@ impl ScreenWidget for Editor<'_> {
             } else
             if self.state == EditorState::RegionDetail && self.context.dialog_entry == DialogEntry::Tags && self.context.dialog_accepted == true {
                 self.region_options.set_tags(self.context.dialog_new_name.clone(), asset, &self.context, &mut self.region_widget);
+            } else
+            if self.state == EditorState::RegionDetail {
+                self.region_widget.behavior_graph.update_from_dialog(&mut self.context);
             } else
             if self.state == EditorState::BehaviorDetail {
                 if self.context.dialog_entry == DialogEntry::NodeTile {

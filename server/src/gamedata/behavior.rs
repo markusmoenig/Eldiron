@@ -42,6 +42,7 @@ pub enum BehaviorNodeType {
     EnterArea,
     LeaveArea,
     Spawn,
+    DisplaceTiles,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

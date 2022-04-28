@@ -94,6 +94,7 @@ pub struct ScreenContext<'a> {
     pub dialog_new_name_type            : String,
     pub dialog_new_name                 : String,
     pub dialog_new_node_position        : (isize, isize),
+    pub dialog_tile_usage               : Vec<TileUsage>,
     pub dialog_accepted                 : bool,
 
     pub active_position_id              : Option<(usize, usize, String)>,
@@ -236,6 +237,7 @@ impl ScreenContext<'_> {
             dialog_new_name_type        : "".to_string(),
             dialog_new_name             : "".to_string(),
             dialog_new_node_position    : (0,0),
+            dialog_tile_usage           : vec![],
             dialog_accepted             : false,
 
             active_position_id          : None,

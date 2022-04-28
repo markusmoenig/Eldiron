@@ -1104,6 +1104,7 @@ impl NodeGraph {
                 "Leave Area" => BehaviorNodeType::LeaveArea,
                 "Inside Area" => BehaviorNodeType::InsideArea,
                 "Spawn" => BehaviorNodeType::Spawn,
+                "Displace Tiles" => BehaviorNodeType::DisplaceTiles,
 
                 _ => BehaviorNodeType::BehaviorTree
             };
@@ -1458,6 +1459,27 @@ impl NodeGraph {
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_data.behavior_type == BehaviorNodeType::DisplaceTiles {
+
+            let mut tile_filter_atom = AtomWidget::new(vec!["Filter".to_string()], AtomWidgetType::NodeEnvTileButton,
+                    AtomData::new_as_int("filter".to_string(), 0));
+            tile_filter_atom.atom_data.text = "Filter".to_string();
+            let id = (behavior_data.id, node_data.id, "filter".to_string());
+            tile_filter_atom.behavior_id = Some(id.clone());
+            tile_filter_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
+            node_widget.widgets.push(tile_filter_atom);
+
+            let mut tile_atom = AtomWidget::new(vec!["Tile".to_string()], AtomWidgetType::NodeEnvTileButton,
+                    AtomData::new_as_int("tile".to_string(), 0));
+            tile_atom.atom_data.text = "Tile".to_string();
+            let id = (behavior_data.id, node_data.id, "tile".to_string());
+            tile_atom.behavior_id = Some(id.clone());
+            tile_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
+            node_widget.widgets.push(tile_atom);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
         }
     }
 

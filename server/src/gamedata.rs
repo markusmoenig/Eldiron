@@ -285,6 +285,7 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::SetState, nodes::set_state);
 
         nodes.insert(BehaviorNodeType::InsideArea, nodes_area::inside_area);
+        nodes.insert(BehaviorNodeType::DisplaceTiles, nodes_area::displace_tiles);
 
         let mut engine = Engine::new();
 

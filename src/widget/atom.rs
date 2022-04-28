@@ -1,6 +1,7 @@
 use crate::{widget::*, editor::dialog::{DialogState, DialogEntry}};
 
 use super::context::ScreenDragContext;
+use crate::TileUsage;
 
 pub struct GroupedList {
     color                       : [u8;4],
@@ -58,6 +59,7 @@ pub enum AtomWidgetType {
     NodeMenu,
     NodePositionButton,
     NodeCharTileButton,
+    NodeEnvTileButton,
     LargeButton,
     CheckButton,
     Button,
@@ -408,7 +410,7 @@ impl AtomWidget {
                     }
                 }
             } else
-            if self.atom_widget_type == AtomWidgetType::NodeCharTileButton {
+            if self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton {
 
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height);
 
@@ -687,7 +689,7 @@ impl AtomWidget {
             return false;
         }
         if self.contains_pos(pos) {
-            if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeIntButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeIntButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
@@ -885,6 +887,16 @@ impl AtomWidget {
                 context.dialog_entry = DialogEntry::NodeTile;
                 context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
                 context.dialog_node_behavior_value = self.atom_data.data.clone();
+                context.dialog_tile_usage = vec![TileUsage::Character, TileUsage::UtilityChar];
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodeEnvTileButton {
+                context.dialog_state = DialogState::Opening;
+                context.dialog_height = 0;
+                context.target_fps = 60;
+                context.dialog_entry = DialogEntry::NodeTile;
+                context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
+                context.dialog_node_behavior_value = self.atom_data.data.clone();
+                context.dialog_tile_usage = vec![TileUsage::Environment, TileUsage::EnvRoad, TileUsage::EnvBlocking, TileUsage::Water];
             } else
             if self.atom_widget_type == AtomWidgetType::TagsButton {
                 context.dialog_state = DialogState::Opening;

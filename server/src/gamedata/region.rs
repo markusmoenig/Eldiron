@@ -92,8 +92,32 @@ impl GameRegion {
         }
     }
 
-    /// Returns the layered tiles at the given position
+    /// Returns the layered tiles at the given position and checks for displacements
     pub fn get_value(&self, pos: (isize, isize)) -> Vec<(usize, usize, usize, TileUsage)> {
+        let mut rc = vec![];
+
+        if let Some(t) = self.displacements.get(&pos) {
+            rc.push(t.clone());
+        } else {
+            if let Some(t) = self.data.layer1.get(&pos) {
+                rc.push(t.clone());
+            }
+            if let Some(t) = self.data.layer2.get(&pos) {
+                rc.push(t.clone());
+            }
+            if let Some(t) = self.data.layer3.get(&pos) {
+                rc.push(t.clone());
+            }
+            if let Some(t) = self.data.layer4.get(&pos) {
+                rc.push(t.clone());
+            }
+        }
+        rc
+    }
+
+
+    /// Returns the layered tiles at the given position
+    pub fn get_value_without_displacements(&self, pos: (isize, isize)) -> Vec<(usize, usize, usize, TileUsage)> {
         let mut rc = vec![];
 
         if let Some(t) = self.data.layer1.get(&pos) {
@@ -108,7 +132,6 @@ impl GameRegion {
         if let Some(t) = self.data.layer4.get(&pos) {
             rc.push(t.clone());
         }
-
         rc
     }
 
