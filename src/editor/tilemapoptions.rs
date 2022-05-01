@@ -71,7 +71,7 @@ impl TileMapOptions {
         }
 
         if let Some(grid_pos) = context.curr_tile {
-            context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 80) / 2, self.rect.1 + self.rect.3 - 110), asset.get_map_of_id(context.curr_tileset_index), context.width, &grid_pos, anim_counter, 80);
+            context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 80) / 2, self.rect.1 + self.rect.3 - 110), asset.get_map_of_id(asset.tileset.maps_ids[context.curr_tileset_index]), context.width, &grid_pos, anim_counter, 80);
 
             context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 30, self.rect.2, 30), context.width, &asset.open_sans, 20.0, &format!("({}, {})", grid_pos.0, grid_pos.1), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
         }
@@ -114,7 +114,7 @@ impl TileMapOptions {
 
                             // Collect all tiles in the selection
                             if let Some(selection_end) = context.selection_end {
-                                if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
+                                if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
                                     while i.0 != selection_end.0 || i.1 != selection_end.1 {
                                         i.0 += 1;
                                         if i.0 >= map.max_tiles_per_row() {
@@ -127,10 +127,10 @@ impl TileMapOptions {
                             }
 
                             for id in &tiles {
-                                let mut tile = asset.get_tile(&(context.curr_tileset_index, id.0, id.1));
+                                let mut tile = asset.get_tile(&(asset.tileset.maps_ids[context.curr_tileset_index], id.0, id.1));
                                 tile.usage = usage.clone();
 
-                                if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
+                                if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
                                     map.set_tile(*id, tile);
                                     map.save_settings();
                                 }
@@ -189,7 +189,7 @@ impl TileMapOptions {
     /// Updates the group widget based on the selected tile
     pub fn adjust_tile_usage(&mut self, asset: &Asset, context: &ScreenContext) {
         if let Some(tile_id) = context.curr_tile {
-            let tile = asset.get_tile(&(context.curr_tileset_index, tile_id.0, tile_id.1));
+            let tile = asset.get_tile(&(asset.tileset.maps_ids[context.curr_tileset_index], tile_id.0, tile_id.1));
             match tile.usage {
                 TileUsage::Unused => self.widgets[0].curr_item_index = 0,
                 TileUsage::Environment => self.widgets[0].curr_item_index = 1,
@@ -214,7 +214,7 @@ impl TileMapOptions {
     pub fn set_anim(&mut self, asset: &mut Asset, context: &ScreenContext) {
         if let Some(selection) = context.curr_tile {
             if let Some(selection_end) = context.selection_end {
-                if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
+                if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
                     let mut tile = map.get_tile(&selection);
 
                     let mut anim_tiles : Vec<(usize, usize)> = vec![];
@@ -247,7 +247,7 @@ impl TileMapOptions {
     /// Clears the tile anim for the current tile
     pub fn clear_anim(&mut self, asset: &mut Asset, context: &ScreenContext) {
         if let Some(selection) = context.curr_tile {
-            if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
+            if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
                 let mut tile = map.get_tile(&selection);
 
                 tile.anim_tiles = vec![];
@@ -260,7 +260,7 @@ impl TileMapOptions {
 
     /// Sets the default tile for the current map
     pub fn set_default_tile(&mut self, asset: &mut Asset, context: &ScreenContext) {
-        if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
+        if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
 
             map.settings.default_tile = context.curr_tile;
             map.save_settings();
@@ -278,7 +278,7 @@ impl TileMapOptions {
 
             // Collect all tiles in the selection
             if let Some(selection_end) = context.selection_end {
-                if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
+                if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
                     while i.0 != selection_end.0 || i.1 != selection_end.1 {
                         i.0 += 1;
                         if i.0 >= map.max_tiles_per_row() {
@@ -294,7 +294,7 @@ impl TileMapOptions {
         self.widgets[1].text[0] = tags.clone().to_lowercase();
         self.widgets[1].dirty = true;
 
-        if let Some(map)= asset.tileset.maps.get_mut(&context.curr_tileset_index) {
+        if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
             for tiles in &tiles {
                 let mut tile = map.get_tile(&tiles);
                 tile.tags = tags.clone().to_lowercase();

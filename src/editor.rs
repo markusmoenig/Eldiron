@@ -8,7 +8,7 @@ use crate::editor::systems_overview_options::SystemsOverviewOptions;
 use crate::editor::regionwidget::RegionWidget;
 use crate::editor::log::LogWidget;
 use crate::widget:: {ScreenWidget, Widget, WidgetState, WidgetKey};
-
+use crate::atom:: { AtomWidget, AtomWidgetType, AtomData };
 use server::gamedata::behavior::{ BehaviorType };
 
 use crate::editor::dialog::DialogWidget;
@@ -114,7 +114,21 @@ impl ScreenWidget for Editor<'_> {
 
         let mut tile_nodes = vec![];
         for (index, t) in asset.tileset.maps_names.iter().enumerate() {
-            let node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: (100, 50 + 150 * index as isize) });
+            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: (100, 50 + 150 * index as isize) });
+
+            let mut size_text = "".to_string();
+            if let Some(tilemap) = asset.tileset.maps.get(&asset.tileset.maps_ids[index]) {
+                size_text = format!("{}", tilemap.settings.grid_size);
+            }
+
+            let mut size_atom = AtomWidget::new(vec!["Grid Size".to_string()], AtomWidgetType::NodeGridSizeButton,
+            AtomData::new_as_int("grid_size".to_string(), 0));
+            size_atom.atom_data.text = "GridSize".to_string();
+            size_atom.atom_data.data = (index as f64, 0.0, 0.0, 0.0, size_text);
+            size_atom.behavior_id = Some((index, 0, "".to_string()));
+            //size_atom.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Hello".to_string()), self.graph_type);
+            node.widgets.push(size_atom);
+
             tile_nodes.push(node);
         }
 
@@ -329,6 +343,20 @@ impl ScreenWidget for Editor<'_> {
         } else
         if self.context.dialog_entry != DialogEntry::None {
 
+            if self.state == EditorState::TilesOverview && self.context.dialog_entry == DialogEntry::NodeGridSize && self.context.dialog_accepted == true {
+                if let Some(value) = self.context.dialog_node_behavior_value.4.parse::<usize>().ok() {
+                    let index = self.context.dialog_node_behavior_value.0 as usize;
+                    if let Some(tilemap) = asset.tileset.maps.get_mut(&asset.tileset.maps_ids[index]) {
+                        tilemap.settings.grid_size = value;
+                        tilemap.save_settings();
+
+                        self.node_graph_tiles.nodes[index].widgets[0].atom_data.data.4 = self.context.dialog_node_behavior_value.4.clone();
+                        self.node_graph_tiles.nodes[index].widgets[0].dirty = true;
+                        self.node_graph_tiles.nodes[index].dirty = true;
+                        self.node_graph_tiles.dirty = true;
+                    }
+                }
+            } else
             if self.state == EditorState::RegionDetail && self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
                 self.region_options.set_area_name(self.context.dialog_new_name.clone(), &mut self.context, &mut self.region_widget);
             } else
@@ -448,6 +476,7 @@ impl ScreenWidget for Editor<'_> {
                     self.node_graph_tiles.set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::TilesDetail;
                     self.context.curr_graph_type = BehaviorType::Tiles;
+                    self.tilemap.set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
                 }
 
                 for i in 2..=5 {

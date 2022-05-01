@@ -201,7 +201,7 @@ impl TileMapWidget {
         if screen_pos.0 > self.rect.0 + self.screen_offset.0 && screen_pos.1 > self.rect.1 + self.screen_offset.0 {
 
             let x = (screen_pos.0 - self.rect.0 - self.screen_offset.0) / scaled_grid_size;
-            let y = (screen_pos.1 - self.rect.1 - self.screen_offset.0) / scaled_grid_size + self.line_offset as usize;
+            let y = (screen_pos.1 - self.rect.1 - self.screen_offset.1) / scaled_grid_size + self.line_offset as usize;
 
             let tile_offset = x + y * screen_x;
 

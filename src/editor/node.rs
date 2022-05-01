@@ -299,7 +299,19 @@ impl NodeWidget {
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(0, 0, self.size.1, self.size.1), rect.2, &((self.size.1 - 1) as f64, (self.size.1 - 1) as f64), &[0,0,0,255], &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
 
-            context.draw2d.draw_text_rect(buffer_frame, &(133, 75, self.size.0 - 146, 40), rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, &context.color_black, crate::draw2d::TextAlignment::Left);
+            context.draw2d.draw_text_rect(buffer_frame, &(133, 2, self.size.0 - 146, 40), rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, &context.color_black, crate::draw2d::TextAlignment::Left);
+
+            // Draw atoms
+
+            let mut y = 40_usize;
+            for atom_widget in &mut self.widgets {
+
+                let height = atom_widget.get_height(context);
+                atom_widget.set_rect((133, y, self.size.0 - 146, height), asset, context);
+                atom_widget.draw(buffer_frame, rect.2, anim_counter, asset, context);
+
+                y += height + 5;
+            }
 
             if selected {
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &[0,0,0,0], &(20.0, 20.0, 20.0, 20.0), &context.color_light_white, 1.5);

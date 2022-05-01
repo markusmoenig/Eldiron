@@ -19,7 +19,8 @@ pub enum DialogEntry {
     NodeName,
     NodeTile,
     NewName,
-    Tags
+    Tags,
+    NodeGridSize,
 }
 
 #[derive(PartialEq, Debug)]
@@ -93,7 +94,7 @@ impl DialogWidget {
                 if context.dialog_entry == DialogEntry::NodeNumber {
                     self.text = format!("{}", context.dialog_node_behavior_value.0);
                 } else
-                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript || context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeName {
+                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript || context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeGridSize || context.dialog_entry == DialogEntry::NodeName {
                     self.text = context.dialog_node_behavior_value.4.clone();
                 } else
                 if context.dialog_entry == DialogEntry::NodeTile {
@@ -177,6 +178,9 @@ impl DialogWidget {
                 } else
                 if context.dialog_entry == DialogEntry::NodeText {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Text".to_string(), &context.color_white, &context.color_black);
+                } else
+                if context.dialog_entry == DialogEntry::NodeGridSize {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Grid Size".to_string(), &context.color_white, &context.color_black);
                 } else
                 if context.dialog_entry == DialogEntry::NewName {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Name".to_string(), &context.color_white, &context.color_black);
@@ -267,6 +271,10 @@ impl DialogWidget {
         if context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeName {
             context.dialog_node_behavior_value.4 = self.text.clone();
             context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
+            return true;
+        } else
+        if context.dialog_entry == DialogEntry::NodeGridSize {
+            context.dialog_node_behavior_value.4 = self.text.clone();
             return true;
         } else
         if context.dialog_entry == DialogEntry::NewName {
