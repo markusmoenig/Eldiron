@@ -51,8 +51,8 @@ impl RegionOptions {
         let mut tilemap_names = asset.tileset.maps_names.clone();
         tilemap_names.insert(0, "All".to_string());
 
-        let mut tilemaps_button = AtomWidget::new(tilemap_names, AtomWidgetType::MenuButton,
-        AtomData::new_as_int("tilemaps".to_string(), 0));
+        let mut tilemaps_button = AtomWidget::new(tilemap_names, AtomWidgetType::SliderButton,
+        AtomData::new_as_int("Tilemaps".to_string(), 0));
         tilemaps_button.atom_data.text = "Tilemaps".to_string();
         tilemaps_button.set_rect((rect.0 + 10, rect.1 + 130, rect.2 - 20, 40), asset, context);
         tile_widgets.push(tilemaps_button);

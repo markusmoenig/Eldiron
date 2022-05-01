@@ -60,15 +60,16 @@ pub enum AtomWidgetType {
     NodePositionButton,
     NodeCharTileButton,
     NodeEnvTileButton,
+    NodeGridSizeButton,
     LargeButton,
     CheckButton,
     Button,
     GroupedList,
     MenuButton,
     TagsButton,
+    SliderButton,
     SmallMenuButton,
     NumberRow,
-    NodeGridSizeButton,
 }
 
 pub struct AtomWidget {
@@ -211,12 +212,12 @@ impl AtomWidget {
 
                 // Right Arrow
 
-                let arrow_y = rect.3 / 2 - 7;
+                let arrow_y = rect.3 / 2 - 9;
 
                 let left_color = if self.has_hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
                 let right_color = if self.right_has_hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
-                context.draw2d.blend_mask(buffer_frame, &(rect.2 + 14, arrow_y, 12, 14), rect.2, &context.left_arrow_mask[..], &(12, 14), &left_color);
-                context.draw2d.blend_mask(buffer_frame, &(rect.2 - 26, arrow_y, 12, 14), rect.2, &context.right_arrow_mask[..], &(12, 14), &right_color);
+                context.draw2d.blend_mask(buffer_frame, &(rect.2 + 14, arrow_y, 12, 14), rect.2, &context.left_arrow_mask[..], &(12, 18), &left_color);
+                context.draw2d.blend_mask(buffer_frame, &(rect.2 - 26, arrow_y, 12, 14), rect.2, &context.right_arrow_mask[..], &(12, 18), &right_color);
             }  else
             if self.atom_widget_type == AtomWidgetType::ToolBarSwitchButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
@@ -552,6 +553,29 @@ impl AtomWidget {
 
                     x += cell_size + spacing;
                 }
+            } else
+            if self.atom_widget_type == AtomWidgetType::SliderButton {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.button_height) / 2, self.rect.2 - 2, context.button_height);
+
+                let mut border_color = context.color_light_gray;
+                if let Some(custom_color) = self.custom_color {
+                    border_color = custom_color;
+                }
+
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                let fill_color = &context.color_black;//if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
+
+                context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 30, rect.1, rect.2 - 60, rect.3), rect.2, &asset.open_sans, context.button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+
+                // Right Arrow
+
+                let arrow_y = rect.3 / 2 - 6;
+
+                let left_color = if self.has_hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
+                let right_color = if self.right_has_hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
+                context.draw2d.blend_mask(buffer_frame, &(rect.2 + 14, arrow_y, 12, 14), rect.2, &context.left_arrow_mask_small[..], &(8, 12), &left_color);
+                context.draw2d.blend_mask(buffer_frame, &(rect.2 - 22, arrow_y, 12, 14), rect.2, &context.right_arrow_mask_small[..], &(8, 12), &right_color);
             }
         }
         self.dirty = false;
@@ -728,7 +752,7 @@ impl AtomWidget {
                     x += cell_size + spacing;
                 }
             } else
-            if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton || self.atom_widget_type == AtomWidgetType::NodeSliderButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton || self.atom_widget_type == AtomWidgetType::NodeSliderButton || self.atom_widget_type == AtomWidgetType::SliderButton {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 return true;
@@ -825,7 +849,7 @@ impl AtomWidget {
             self.clicked = false;
             self.dirty = true;
 
-            if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton || self.atom_widget_type == AtomWidgetType::SliderButton {
                 if self.right_has_hover {
                     self.curr_index += 1;
                     self.curr_index %= self.text.len();
@@ -1009,7 +1033,7 @@ impl AtomWidget {
                 }
             }
         } else
-        if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton {
+        if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton || self.atom_widget_type == AtomWidgetType::SliderButton {
             if self.contains_pos_for(pos, self.content_rect) {
                 if self.state != WidgetState::Disabled {
                     if self.has_hover == false {

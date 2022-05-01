@@ -105,8 +105,10 @@ pub struct ScreenContext<'a> {
     pub just_stopped_running            : bool,
 
     // Masks
-    pub left_arrow_mask                 : [u8;12*14],
-    pub right_arrow_mask                : [u8;12*14],
+    pub left_arrow_mask                 : [u8;12*18],
+    pub right_arrow_mask                : [u8;12*18],
+    pub left_arrow_mask_small           : [u8;8*12],
+    pub right_arrow_mask_small          : [u8;8*12],
     pub menu_triangle_mask              : [u8;10*10],
     pub preview_arc_mask                : [u8;20*20],
     pub menu_mask                       : [u8;20*20],
@@ -116,21 +118,37 @@ impl ScreenContext<'_> {
 
     pub fn new(width: usize, height: usize) -> Self {
 
-        let mut left_arrow_mask = [0u8; 12 * 14];
-        Mask::new("M 12,0 0,7 12,14")
-            .size(12, 14)
+        let mut left_arrow_mask = [0u8; 12 * 18];
+        Mask::new("M 12,0 0,9 12,18")
+            .size(12, 18)
             .style(
                 Stroke::new(2.0)
             )
             .render_into(&mut left_arrow_mask, None);
 
-        let mut right_arrow_mask = [0u8; 12 * 14];
-        Mask::new("M 0,0 12,7 0,14")
-            .size(12, 14)
+        let mut right_arrow_mask = [0u8; 12 * 18];
+        Mask::new("M 0,0 12,9 0,18")
+            .size(12, 18)
             .style(
                 Stroke::new(2.0)
             )
             .render_into(&mut right_arrow_mask, None);
+
+        let mut left_arrow_mask_small = [0u8; 8 * 12];
+        Mask::new("M 8,0 0,6 8,12")
+            .size(8, 12)
+            .style(
+                Stroke::new(2.0)
+            )
+            .render_into(&mut left_arrow_mask_small, None);
+
+        let mut right_arrow_mask_small = [0u8; 8 * 12];
+        Mask::new("M 0,0 8,6 0,12")
+            .size(8, 12)
+            .style(
+                Stroke::new(2.0)
+            )
+            .render_into(&mut right_arrow_mask_small, None);
 
         let mut menu_triangle_mask = [0u8; 10 * 10];
         Mask::new("M 0,0 10,0 5,7 0,0 Z")
@@ -249,6 +267,8 @@ impl ScreenContext<'_> {
             // UI Masks
             left_arrow_mask,
             right_arrow_mask,
+            left_arrow_mask_small,
+            right_arrow_mask_small,
             menu_triangle_mask,
             preview_arc_mask,
             menu_mask
