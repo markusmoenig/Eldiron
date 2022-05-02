@@ -53,7 +53,7 @@ impl Widget for ToolBar {
         items_button.custom_color = Some([205, 142, 67, 255]);
         widgets.push(items_button);
 
-        let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarButton,
+        let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarCheckButton,
             AtomData::new_as_int("Game".to_string(), 0));
         game_button.set_rect((rect.0 + 725 + 175 + 150, rect.1, 100, rect.3), asset, context);
         game_button.custom_color = Some([215, 30, 146, 255]);

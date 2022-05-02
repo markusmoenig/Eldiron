@@ -48,6 +48,7 @@ pub enum AtomWidgetType {
     ToolBarSliderButton,
     ToolBarMenuButton,
     ToolBarSwitchButton,
+    ToolBarCheckButton,
     NodeSliderButton,
     NodeMenuButton,
     NodeIntSlider,
@@ -85,6 +86,7 @@ pub struct AtomWidget {
 
     pub selected                : bool,
     has_hover                   : bool,
+    pub checked                 : bool,
 
     pub no_border               : bool,
 
@@ -134,6 +136,7 @@ impl AtomWidget {
 
             selected            : false,
             has_hover           : false,
+            checked             : false,
 
             no_border           : false,
 
@@ -177,7 +180,7 @@ impl AtomWidget {
 
             // Toolbar
 
-            if self.atom_widget_type == AtomWidgetType::ToolBarButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::ToolBarCheckButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.toolbar_button_height);
 
                 let mut border_color = context.color_light_gray;
@@ -186,8 +189,17 @@ impl AtomWidget {
                 }
 
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                //let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
-                let fill_color = if self.state != WidgetState::Clicked { &context.color_black } else { &context.color_light_gray };
+
+                let fill_color;
+                if self.atom_widget_type == AtomWidgetType::ToolBarButton {
+                    fill_color = if self.state != WidgetState::Clicked { &context.color_black } else { &context.color_light_gray };
+                } else {
+                    if self.state == WidgetState::Hover {
+                        fill_color = &context.color_light_gray;
+                    } else {
+                        fill_color = if self.checked == false { &context.color_black } else { &context.color_gray };
+                    }
+                }
 
                 if self.no_border == false {
                     context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
@@ -208,7 +220,9 @@ impl AtomWidget {
                 let fill_color = &context.color_black;//if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
 
-                context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 30, rect.1, rect.2 - 60, rect.3), rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+                if self.text.len() > 0 {
+                    context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 30, rect.1, rect.2 - 60, rect.3), rect.2, &asset.open_sans, context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+                }
 
                 // Right Arrow
 
@@ -720,6 +734,13 @@ impl AtomWidget {
                 self.dirty = true;
                 return true;
             } else
+            if self.atom_widget_type == AtomWidgetType::ToolBarCheckButton {
+                self.clicked = true;
+                self.state = WidgetState::Clicked;
+                self.dirty = true;
+                self.checked = !self.checked;
+                return true;
+            } else
             if self.atom_widget_type == AtomWidgetType::ToolBarMenuButton || self.atom_widget_type == AtomWidgetType::NodeMenuButton || self.atom_widget_type == AtomWidgetType::SmallMenuButton || self.atom_widget_type == AtomWidgetType::MenuButton || self.atom_widget_type == AtomWidgetType::NodeMenu {
                 if self.text.len() > 1 {
                     self.clicked = true;
@@ -1014,7 +1035,7 @@ impl AtomWidget {
     }
 
     pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::ToolBarMenuButton {
+        if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::ToolBarCheckButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::ToolBarMenuButton {
             if self.contains_pos_for(pos, self.content_rect) {
                 if self.state != WidgetState::Disabled {
                     if self.state != WidgetState::Hover {
