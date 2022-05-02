@@ -5,6 +5,8 @@ use crate::editor::behavioroptions::BehaviorOptions;
 use crate::editor::behavior_overview_options::BehaviorOverviewOptions;
 use crate::editor::systemsoptions::SystemsOptions;
 use crate::editor::systems_overview_options::SystemsOverviewOptions;
+use crate::editor::itemsoptions::ItemsOptions;
+use crate::editor::items_overview_options::ItemsOverviewOptions;
 use crate::editor::regionwidget::RegionWidget;
 use crate::editor::log::LogWidget;
 use crate::editor::gameoptions::GameOptions;
@@ -27,6 +29,8 @@ mod behavioroptions;
 mod behavior_overview_options;
 mod systemsoptions;
 mod systems_overview_options;
+mod itemsoptions;
+mod items_overview_options;
 mod node;
 mod node_preview;
 mod statusbar;
@@ -57,8 +61,8 @@ enum EditorState {
     BehaviorDetail,
     SystemsOverview,
     SystemsDetail,
-    _ItemsOverview,
-    _ItemsDetail,
+    ItemsOverview,
+    ItemsDetail,
     GameDetail
 }
 
@@ -83,6 +87,9 @@ pub struct Editor<'a> {
     systems_options                 : SystemsOptions,
     systems_overview_options        : SystemsOverviewOptions,
 
+    items_options                   : ItemsOptions,
+    items_overview_options          : ItemsOverviewOptions,
+
     game_options                    : GameOptions,
 
     node_graph_tiles                : NodeGraph,
@@ -91,7 +98,8 @@ pub struct Editor<'a> {
     node_graph_behavior_details     : NodeGraph,
     node_graph_systems              : NodeGraph,
     node_graph_systems_details      : NodeGraph,
-
+    node_graph_items                : NodeGraph,
+    node_graph_items_details        : NodeGraph,
     node_graph_game_details         : NodeGraph,
 
     log_drag_start_pos              : Option<(usize, usize)>,
@@ -199,6 +207,18 @@ impl ScreenWidget for Editor<'_> {
         let mut node_graph_systems_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, vec![]);
         node_graph_systems_details.set_mode(GraphMode::Detail, &context);
 
+        // Items nodegraph
+
+        let items_options = ItemsOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
+        let items_overview_options = ItemsOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
+        let items_nodes = vec![];
+
+        let node_graph_items = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Items, items_nodes);
+
+        let mut node_graph_items_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Items, vec![]);
+        node_graph_items_details.set_mode(GraphMode::Detail, &context);
 
         // Game NodeGraph
 
@@ -233,6 +253,9 @@ impl ScreenWidget for Editor<'_> {
             systems_options,
             systems_overview_options,
 
+            items_options,
+            items_overview_options,
+
             game_options,
 
             node_graph_tiles,
@@ -241,6 +264,8 @@ impl ScreenWidget for Editor<'_> {
             node_graph_behavior_details,
             node_graph_systems,
             node_graph_systems_details,
+            node_graph_items,
+            node_graph_items_details,
             node_graph_game_details,
 
             log_drag_start_pos      : None,
@@ -290,6 +315,9 @@ impl ScreenWidget for Editor<'_> {
         self.systems_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
         self.systems_overview_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
 
+        self.items_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
+        self.items_overview_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
+
         self.game_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
 
         self.node_graph_tiles.resize(width, height - self.context.toolbar_height, &self.context);
@@ -298,6 +326,8 @@ impl ScreenWidget for Editor<'_> {
         self.node_graph_behavior_details.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
         self.node_graph_systems.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
         self.node_graph_systems_details.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
+        self.node_graph_items.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
+        self.node_graph_items_details.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
         self.node_graph_game_details.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
     }
 
@@ -349,6 +379,14 @@ impl ScreenWidget for Editor<'_> {
             self.systems_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_systems_details.draw(frame, anim_counter, asset, &mut self.context);
             //self.status_bar.draw(frame, anim_counter, asset, &mut self.context);
+        } else
+        if self.state == EditorState::ItemsOverview {
+            self.items_overview_options.draw(frame, anim_counter, asset, &mut self.context);
+            self.node_graph_items.draw(frame, anim_counter, asset, &mut self.context);
+        } else
+        if self.state == EditorState::ItemsDetail {
+            self.items_options.draw(frame, anim_counter, asset, &mut self.context);
+            self.node_graph_items_details.draw(frame, anim_counter, asset, &mut self.context);
         } else
         if self.state == EditorState::GameDetail {
             self.game_options.draw(frame, anim_counter, asset, &mut self.context);
@@ -600,6 +638,33 @@ impl ScreenWidget for Editor<'_> {
                 self.toolbar.widgets[6].checked = false;
                 self.toolbar.widgets[6].dirty = true;
             } else
+            // Items Button
+            if self.toolbar.widgets[5].clicked {
+                if self.toolbar.widgets[5].selected {
+                    self.node_graph_items.set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.state = EditorState::ItemsOverview;
+                    self.node_graph_items.mark_all_dirty();
+                } else
+                if self.toolbar.widgets[5].right_selected {
+                    self.node_graph_items_details.set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.state = EditorState::ItemsDetail;
+                    self.context.curr_graph_type = BehaviorType::Items;
+                    //self.node_graph_items_details.set_behavior_id(self.context.data.items_ids[self.context.curr_items_index], &mut self.context);
+                }
+
+                for i in 1..5 {
+                    self.toolbar.widgets[i].selected = false;
+                    self.toolbar.widgets[i].right_selected = false;
+                    self.toolbar.widgets[i].dirty = true;
+                }
+
+                self.toolbar.widgets[0].text = self.context.data.items_names.clone();
+                self.toolbar.widgets[0].curr_index = self.context.curr_items_index;
+                self.toolbar.widgets[0].dirty = true;
+
+                self.toolbar.widgets[6].checked = false;
+                self.toolbar.widgets[6].dirty = true;
+            } else
             // Game Button
             if self.toolbar.widgets[6].clicked {
                 self.node_graph_game_details.set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
@@ -701,7 +766,7 @@ impl ScreenWidget for Editor<'_> {
                 if self.node_graph_systems.clicked {
                     self.toolbar.widgets[0].curr_index = self.context.curr_systems_index;
                     self.toolbar.widgets[0].dirty = true;
-                    self.node_graph_behavior.clicked = false;
+                    self.node_graph_systems.clicked = false;
                 }
             }
         }
@@ -710,6 +775,27 @@ impl ScreenWidget for Editor<'_> {
                 consumed = true;
             }
             if consumed == false && self.node_graph_systems_details.mouse_down(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+        }
+        if consumed == false && self.state == EditorState::ItemsOverview {
+            if consumed == false && self.items_overview_options.mouse_down(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if consumed == false && self.node_graph_items.mouse_down(pos, asset, &mut self.context) {
+                consumed = true;
+                if self.node_graph_items.clicked {
+                    self.toolbar.widgets[0].curr_index = self.context.curr_items_index;
+                    self.toolbar.widgets[0].dirty = true;
+                    self.node_graph_items.clicked = false;
+                }
+            }
+        }
+        if consumed == false && self.state == EditorState::ItemsDetail {
+            if consumed == false && self.items_options.mouse_down(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if consumed == false && self.node_graph_items_details.mouse_down(pos, asset, &mut self.context) {
                 consumed = true;
             }
         }
@@ -833,6 +919,30 @@ impl ScreenWidget for Editor<'_> {
                 consumed = true;
             }
             if self.node_graph_systems_details.mouse_up(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+        } else
+        if self.state == EditorState::ItemsOverview {
+            if self.items_overview_options.mouse_up(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if self.node_graph_items.mouse_up(pos, asset, &mut self.context) {
+                consumed = true;
+
+                // In case a behavior was deleted
+                if self.toolbar.widgets[0].text.len() != self.context.data.items_names.len() {
+                    self.toolbar.widgets[0].text = self.context.data.items_names.clone();
+                    self.context.curr_items_index = 0;
+                    self.toolbar.widgets[0].dirty = true;
+                    self.toolbar.widgets[0].curr_index = 0;
+                }
+            }
+        } else
+        if self.state == EditorState::ItemsDetail {
+            if self.items_options.mouse_up(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if self.node_graph_items_details.mouse_up(pos, asset, &mut self.context) {
                 consumed = true;
             }
         } else
@@ -987,6 +1097,22 @@ impl ScreenWidget for Editor<'_> {
                 consumed = true;
             }
             if consumed == false && self.node_graph_systems_details.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+        } else
+        if self.state == EditorState::ItemsOverview {
+            if consumed == false && self.items_overview_options.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if consumed == false && self.node_graph_items.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+        } else
+        if self.state == EditorState::ItemsDetail {
+            if consumed == false && self.items_options.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+            if consumed == false && self.node_graph_items_details.mouse_dragged(pos, asset, &mut self.context) {
                 consumed = true;
             }
         } else
