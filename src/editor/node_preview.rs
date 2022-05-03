@@ -158,7 +158,7 @@ impl NodePreviewWidget {
             }
         }
 
-        // Test dragging region
+        // Test widget resizing
         if context.contains_pos_for(pos, (0, self.size.1 - 20, 30, 20)) {
             self.drag_size = Some(self.size.clone());
             context.target_fps = 60;

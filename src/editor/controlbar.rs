@@ -76,6 +76,7 @@ impl Widget for ControlBar {
                 if atom_widget.atom_data.id == "Debug" {
                     if context.is_running == false {
                         context.data.create_behavior_instances();
+                        context.data.create_player_instance(context.player_id);
                         context.data.activate_region_instances(context.data.regions_ids[context.curr_region_index]);
                         context.is_running = true;
                         atom_widget.text[0] = "Stop".to_string();

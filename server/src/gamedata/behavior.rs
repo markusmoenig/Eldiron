@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use rand::prelude::*;
+use utilities::actions::PlayerAction;
 
 use std::fs;
 use std::path;
@@ -76,11 +77,20 @@ pub enum BehaviorInstanceState {
     Purged,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
+pub enum BehaviorInstanceType {
+    NonPlayerCharacter,
+    Player,
+}
+
 #[derive(Serialize, Deserialize, PartialEq)]
 pub struct BehaviorInstance {
 
     // The instance id (unique)
     pub id                      : usize,
+
+    // The instance state
+    pub instance_type           : BehaviorInstanceType,
 
     // The instance state
     pub state                   : BehaviorInstanceState,
@@ -123,6 +133,9 @@ pub struct BehaviorInstance {
     // For characters, the 2D position id and the currently displayed tile id.
     pub position                : Option<(usize, isize, isize)>,
     pub tile                    : Option<(usize, usize, usize)>,
+
+    /// The current player action
+    pub action                  : Option<PlayerAction>,
 }
 
 #[derive(Serialize, Deserialize)]

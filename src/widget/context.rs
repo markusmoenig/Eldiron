@@ -104,6 +104,8 @@ pub struct ScreenContext<'a> {
     pub is_running                      : bool,
     pub just_stopped_running            : bool,
 
+    pub player_id                       : usize,
+
     // Masks
     pub left_arrow_mask                 : [u8;12*18],
     pub right_arrow_mask                : [u8;12*18],
@@ -263,6 +265,8 @@ impl ScreenContext<'_> {
 
             is_running                  : false,
             just_stopped_running        : false,
+
+            player_id                   : 131313,
 
             // UI Masks
             left_arrow_mask,

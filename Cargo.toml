@@ -6,10 +6,9 @@ authors = ["Markus Moenig"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[workspace]
-
 [dependencies]
 server = { path = "server" }
+utilities = { path = "utilities" }
 env_logger = "0.9"
 log = "0.4"
 pixels = "0.9.0"

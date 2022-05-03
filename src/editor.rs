@@ -13,6 +13,7 @@ use crate::editor::gameoptions::GameOptions;
 use crate::widget:: {ScreenWidget, Widget, WidgetState, WidgetKey};
 use crate::atom:: { AtomWidget, AtomWidgetType, AtomData };
 use server::gamedata::behavior::{ BehaviorType };
+use utilities::actions::*;
 
 use crate::editor::dialog::DialogWidget;
 
@@ -297,6 +298,21 @@ impl ScreenWidget for Editor<'_> {
         // println!("update time {:?}", stop - start);
     }
 
+    fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset) -> bool {
+
+        if self.context.is_running {
+            if key == Some(WidgetKey::Up) {
+                if let Some(cmd) = pack_action(self.context.player_id, "Move".to_string(), PlayerDirection::North, "".to_string()) {
+                    self.context.data.execute_packed_instance_action(cmd);
+                }
+            }
+        } else
+        if self.context.dialog_state == DialogState::Open {
+            return self.dialog.key_down(char, key, asset, &mut self.context);
+        }
+        false
+    }
+
     fn resize(&mut self, width: usize, height: usize) {
         self.context.width = width; self.rect.2 = width;
         self.context.height = height; self.rect.3 = height;
@@ -507,13 +523,6 @@ impl ScreenWidget for Editor<'_> {
 
         //let stop = self.get_time();
         //println!("draw time {:?}", stop - start);
-    }
-
-    fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset) -> bool {
-        if self.context.dialog_state == DialogState::Open {
-            return self.dialog.key_down(char, key, asset, &mut self.context);
-        }
-        false
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
