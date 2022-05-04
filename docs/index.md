@@ -19,7 +19,9 @@ Support for retro 3D areas like dungeons is upcoming. In general I want to explo
 
 Join the community on [Discord](https://discord.gg/ZrNj6baSZU).
 
-Below on this page is an overview of the functionality of Eldiron. However I am creating a full set of documentation in the [Wiki](https://github.com/markusmoenig/Eldiron/wiki). Please refer to the Wiki for more detailed information, the Wiki will grow over time as more functionality is added.
+## Eldiron Book
+
+Below on this page is an overview of the functionality of Eldiron Creator. However I am currently working on the [Eldiron Book](https://book.eldiron.com). Please refer to the Book for more detailed information on the creator, the server and clients and the overall project.
 
 <!---
 I also try to maintain a development blog on [YouTube](https://www.youtube.com/channel/UCCmrO356zLQv_m8dPEqBUfA).
