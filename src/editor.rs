@@ -314,7 +314,22 @@ impl ScreenWidget for Editor<'_> {
 
         if self.context.is_running {
             if key == Some(WidgetKey::Up) {
-                if let Some(cmd) = pack_action(self.context.player_id, "Move".to_string(), PlayerDirection::North, "".to_string()) {
+                if let Some(cmd) = pack_action(self.context.player_id, "onMove".to_string(), PlayerDirection::North, "".to_string()) {
+                    self.context.data.execute_packed_instance_action(cmd);
+                }
+            } else
+            if key == Some(WidgetKey::Right) {
+                if let Some(cmd) = pack_action(self.context.player_id, "onMove".to_string(), PlayerDirection::East, "".to_string()) {
+                    self.context.data.execute_packed_instance_action(cmd);
+                }
+            } else
+            if key == Some(WidgetKey::Down) {
+                if let Some(cmd) = pack_action(self.context.player_id, "onMove".to_string(), PlayerDirection::South, "".to_string()) {
+                    self.context.data.execute_packed_instance_action(cmd);
+                }
+            } else
+            if key == Some(WidgetKey::Left) {
+                if let Some(cmd) = pack_action(self.context.player_id, "onMove".to_string(), PlayerDirection::West, "".to_string()) {
                     self.context.data.execute_packed_instance_action(cmd);
                 }
             }

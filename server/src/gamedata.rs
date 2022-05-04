@@ -310,6 +310,8 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::InsideArea, nodes_area::inside_area);
         nodes.insert(BehaviorNodeType::DisplaceTiles, nodes_area::displace_tiles);
 
+        nodes.insert(BehaviorNodeType::Move, nodes::player_move);
+
         let mut engine = Engine::new();
 
         // Variable resolver for d??? -> random(???)
@@ -913,7 +915,7 @@ impl GameData<'_> {
                     for id in &self.instances[inst_index].tree_ids {
                         if let Some(behavior) = self.get_behavior(self.instances[inst_index].behavior_id, BehaviorType::Behaviors) {
                             if let Some(node) = behavior.data.nodes.get(&id) {
-                                if node.name == format!("on{}", action.action) {
+                                if node.name == action.action {
                                     tree_id = Some(*id);
                                     break;
                                 }

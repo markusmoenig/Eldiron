@@ -1078,8 +1078,6 @@ impl NodeGraph {
         let mut node_widget : Option<NodeWidget> =  None;
         let mut id : usize = 0;
 
-        println!("test {}", self.get_curr_behavior_id(context));
-
         // Create the node
         if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
 
@@ -1099,6 +1097,7 @@ impl NodeGraph {
                 "Sequence" => BehaviorNodeType::Sequence,
                 "Set State" => BehaviorNodeType::SetState,
                 "Linear" => BehaviorNodeType::Linear,
+                "Move" => BehaviorNodeType::Move,
 
                 "Enter Area" => BehaviorNodeType::EnterArea,
                 "Leave Area" => BehaviorNodeType::LeaveArea,
@@ -1446,6 +1445,20 @@ impl NodeGraph {
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
+        if node_data.behavior_type == BehaviorNodeType::Move {
+            let mut atom1 = AtomWidget::new(vec!["Speed".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new_as_int("speed".to_string(), 0));
+            atom1.atom_data.text = "Speed".to_string();
+            let id = (behavior_data.id, node_data.id, "speed".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "8".to_string()), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_gray.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        }
 
         // Area
         if node_data.behavior_type == BehaviorNodeType::InsideArea {
@@ -1585,6 +1598,11 @@ impl NodeGraph {
         if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
             behavior.data.nodes.remove(&id);
             behavior.save_data();
+        }
+
+        // If this is an BehaviorTree remove it from the current indices
+        if let Some(index) = self.behavior_tree_indices.iter().position(|&x| x == id) {
+            self.behavior_tree_indices.remove(index);
         }
     }
 

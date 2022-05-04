@@ -38,12 +38,12 @@ pub enum BehaviorNodeType {
     UnlockTree,
     SetState,
     Linear,
-
     InsideArea,
     EnterArea,
     LeaveArea,
     Spawn,
     DisplaceTiles,
+    Move,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

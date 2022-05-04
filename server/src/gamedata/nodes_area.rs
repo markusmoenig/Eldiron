@@ -12,7 +12,7 @@ pub fn inside_area(_behavior_id: usize, id: (usize, usize), data: &mut GameData,
         for instance_index in &data.active_instance_indices {
             if let Some(position) = data.instances[*instance_index].position {
                 if region.data.areas[id.0].area.contains(&(position.1, position.2)) {
-                    println!("{} is in area", data.instances[*instance_index].name);
+                    println!("{} is in area {}", data.instances[*instance_index].name, region.data.areas[id.0].name);
                     return BehaviorNodeConnector::Right;
                 }
             }

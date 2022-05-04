@@ -1,3 +1,5 @@
+use utilities::actions::PlayerDirection;
+
 use crate::gamedata::behavior:: { BehaviorNodeConnector, BehaviorNodeType };
 use crate::gamedata::GameData;
 
@@ -422,4 +424,44 @@ pub fn set_state(instance_index: usize, id: (usize, usize), data: &mut GameData,
     }
 
     BehaviorNodeConnector::Bottom
+}
+
+/// Player: Move
+pub fn player_move(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut speed : f64 = 8.0;
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
+        speed = rc;
+    }
+
+    // Apply the speed delay
+    let delay = 10.0 - speed.clamp(0.0, 10.0);
+    data.instances[instance_index].sleep_cycles = delay as usize;
+
+    let mut dp:Option<(usize, isize, isize)> = None;
+    if let Some(p) = data.instances[instance_index].position {
+        if let Some(action) = &data.instances[instance_index].action {
+            if action.direction == PlayerDirection::North {
+                dp = Some((p.0, p.1, p.2 - 1));
+            } else
+            if action.direction == PlayerDirection::South {
+                dp = Some((p.0, p.1, p.2 + 1));
+            } else
+            if action.direction == PlayerDirection::East {
+                dp = Some((p.0, p.1 + 1, p.2));
+            } else
+            if action.direction == PlayerDirection::West {
+                dp = Some((p.0, p.1 - 1, p.2));
+            }
+        }
+    }
+
+    data.instances[instance_index].action = None;
+
+    let mut rc = walk_towards(instance_index, data.instances[instance_index].position, dp, false, data);
+    if rc == BehaviorNodeConnector::Right {
+        rc = BehaviorNodeConnector::Success;
+    }
+    //println!("rc {:?}", rc);
+    rc
 }
