@@ -125,6 +125,14 @@ impl ScreenWidget for Editor<'_> {
         let controlbar = ControlBar::new(vec!(), (0,0, width, context.toolbar_height / 2), asset, &context);
         let toolbar = ToolBar::new(vec!(), (0, context.toolbar_height / 2, width, context.toolbar_height / 2), asset, &context);
 
+        // Calculate an overview node position based on it's index
+        let get_pos = |index: usize, max_width: usize| -> (isize, isize) {
+            let item_width = (250 + 20) as isize;
+            let item_height = (120 + 20) as isize;
+            let per_row = max_width as isize % item_width;
+            (20 + (index as isize % per_row) * item_width, 20 + (index as isize / per_row) * item_height)
+        };
+
         // Tile views and nodes
 
         let tilemap_options = TileMapOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
@@ -132,7 +140,8 @@ impl ScreenWidget for Editor<'_> {
 
         let mut tile_nodes = vec![];
         for (index, t) in asset.tileset.maps_names.iter().enumerate() {
-            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: (100, 50 + 150 * index as isize) });
+            let p = get_pos(index, width - left_width);
+            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: p });
 
             let mut size_text = "".to_string();
             if let Some(tilemap) = asset.tileset.maps.get(&asset.tileset.maps_ids[index]) {
@@ -159,7 +168,8 @@ impl ScreenWidget for Editor<'_> {
 
         let mut region_nodes = vec![];
         for (index, t) in context.data.regions_names.iter().enumerate() {
-            let node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: (100, 50 + 150 * index as isize)});
+            let p = get_pos(index, width - left_width);
+            let node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: p});
             region_nodes.push(node);
         }
 
@@ -173,8 +183,9 @@ impl ScreenWidget for Editor<'_> {
 
         let mut behavior_nodes = vec![];
         for (index, behavior_name) in context.data.behaviors_names.iter().enumerate() {
+            let p = get_pos(index, width - left_width);
             let mut node = NodeWidget::new(vec![behavior_name.to_string()],
-             NodeUserData { position: (100, 50 + 150 * index as isize) });
+             NodeUserData { position: p });
 
             let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
             node.menu = Some(node_menu_atom);
@@ -195,8 +206,9 @@ impl ScreenWidget for Editor<'_> {
 
         let mut systems_nodes = vec![];
         for (index, system_name) in context.data.systems_names.iter().enumerate() {
+            let p = get_pos(index, width - left_width);
             let mut node = NodeWidget::new(vec![system_name.to_string()],
-             NodeUserData { position: (100, 50 + 150 * index as isize) });
+             NodeUserData { position: p });
 
             let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
             node.menu = Some(node_menu_atom);

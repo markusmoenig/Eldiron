@@ -186,6 +186,20 @@ impl GameData<'_> {
             }
         }
 
+        let mut player_index : Option<usize> = None;
+        for (index, b) in behaviors_names.iter().enumerate() {
+            if b == "Player" {
+                player_index = Some(index);
+            }
+        }
+
+        if let Some(player_index) = player_index {
+            let name = behaviors_names.remove(player_index);
+            let id = behaviors_ids.remove(player_index);
+            behaviors_names.insert(0, name);
+            behaviors_ids.insert(0, id);
+        }
+
         // Systems
 
         let systems_path = path::Path::new("game").join("systems");
