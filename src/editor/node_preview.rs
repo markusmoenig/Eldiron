@@ -129,7 +129,16 @@ impl NodePreviewWidget {
             if let Some(region) = context.data.regions.get(&region_id) {
 
                 if context.is_running {
-                    self.region_offset = context.draw2d.draw_region_centered_with_instances(buffer_frame, region, &self.region_rect, context.curr_behavior_index, stride, 32, anim_counter, asset, context);
+                    // Find the behavior instance for the current behavior id
+                    let mut inst_index = 0_usize;
+                    let behavior_id = context.data.behaviors_ids[context.curr_behavior_index];
+                    for index in 0..context.data.instances.len() {
+                        if context.data.instances[index].behavior_id == behavior_id {
+                            inst_index = index;
+                            break;
+                        }
+                    }
+                    self.region_offset = context.draw2d.draw_region_centered_with_instances(buffer_frame, region, &self.region_rect, inst_index, stride, 32, anim_counter, asset, context);
                 } else
                 if let Some(position) = &self.curr_position {
                     self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &self.region_rect, &(position.1 - self.region_scroll_offset.0, position.2 - self.region_scroll_offset.1), stride, 32, 0, asset, context);
