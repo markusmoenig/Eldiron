@@ -66,7 +66,7 @@ impl LogWidget {
                     break;
                 }
 
-                context.draw2d.draw_text_rect(buffer_frame, &(15, self.size.1 - 10 - (l+1) * (text_size as usize), self.size.0 - 30, text_size), rect.2, &asset.open_sans, text_size as f32, context.data.messages[available_messages - 1 - l].0.as_str(), &[w[0], w[1], w[2], 150], &[b[0], b[1], b[2], 150], crate::draw2d::TextAlignment::Left);
+                context.draw2d.draw_text_rect(buffer_frame, &(15, self.size.1 - 10 - (l+1) * (text_size as usize), self.size.0 - 30, text_size), rect.2, &asset.get_editor_font("OpenSans"), text_size as f32, context.data.messages[available_messages - 1 - l].0.as_str(), &[w[0], w[1], w[2], 150], &[b[0], b[1], b[2], 150], crate::draw2d::TextAlignment::Left);
             }
 
             self.drawn_lines = context.data.messages.len();

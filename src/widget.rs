@@ -25,7 +25,7 @@ pub enum WidgetKey {
 /// Top level screen widget
 pub trait ScreenWidget {
 
-    fn new(asset: &Asset, width: usize, height: usize) -> Self where Self: Sized;
+    fn new(asset: &mut Asset, width: usize, height: usize) -> Self where Self: Sized;
 
     fn update(&mut self);
     fn resize(&mut self, _width: usize, _height: usize) {

@@ -448,7 +448,7 @@ impl NodeGraph {
 
                     self.behavior_tree_rects.push(bt_rect.clone());
 
-                    context.draw2d.draw_text_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &asset.open_sans, 20.0, &self.nodes[*bt_index].text[0], &context.color_white, &color, crate::draw2d::TextAlignment::Center);
+                    context.draw2d.draw_text_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &asset.get_editor_font("OpenSans"), 20.0, &self.nodes[*bt_index].text[0], &context.color_white, &color, crate::draw2d::TextAlignment::Center);
 
                     bt_rect.0 += 171;
                     if (bt_rect.0 + bt_rect.2) - left_start > total_width {

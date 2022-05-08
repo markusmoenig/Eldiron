@@ -57,8 +57,8 @@ fn main() -> Result<(), Error> {
 
     let mut asset = Asset::new();
 
-    let game : Box<dyn ScreenWidget> = Box::new(Game::new(&asset, WIDTH, HEIGHT));
-    let editor : Box<dyn ScreenWidget> = Box::new(Editor::new(&asset, WIDTH, HEIGHT));
+    let game : Box<dyn ScreenWidget> = Box::new(Game::new(&mut asset, WIDTH, HEIGHT));
+    let editor : Box<dyn ScreenWidget> = Box::new(Editor::new(&mut asset, WIDTH, HEIGHT));
 
     let mut curr_screen = editor;
 

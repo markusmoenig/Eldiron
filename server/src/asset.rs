@@ -1,7 +1,7 @@
 
 pub mod tileset;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, collections::HashMap};
 
 use rusttype::{Font};
 
@@ -9,10 +9,9 @@ pub use tileset::*;
 
 pub struct Asset<'a> {
     pub tileset                 : TileSet,
-    //gohu_font_11              : Font<'a>,
-    //gohu_font_14                : Font<'a>,
-    pub open_sans               : Font<'a>,
-    pub grid_size               : u32,
+
+    pub game_fonts              : HashMap<String, Font<'a>>,
+    pub editor_fonts            : HashMap<String, Font<'a>>,
 }
 
 impl Asset<'_>  {
@@ -20,16 +19,51 @@ impl Asset<'_>  {
     pub fn new() -> Self where Self: Sized {
 
         Self {
-            tileset         : tileset::TileSet::new(),
-            //gohu_font_11    : Font::try_from_bytes(include_bytes!("../assets/fonts/gohufont-uni-11.ttf") as &[u8]).expect("Error constructing Font"),
-            //gohu_font_14    : Font::try_from_bytes(include_bytes!("../assets/fonts/Open_Sans/static/OpenSans/OpenSans-SemiBold.ttf") as &[u8]).expect("Error constructing Font"),
-            open_sans       : Font::try_from_bytes(include_bytes!("../../assets/fonts/Open_Sans/static/OpenSans/OpenSans-Regular.ttf") as &[u8]).expect("Error constructing Font"),
-            grid_size       : 32,
+            tileset             : tileset::TileSet::new(),
+            game_fonts          : HashMap::new(),
+            editor_fonts        : HashMap::new(),
         }
     }
 
+    /// Load editor font
+    pub fn load_editor_font<'a>(&mut self, name: String, resource_name: String) {
+        let path = std::path::Path::new("resources").join(resource_name);
+
+        if let Some(font_bytes) = std::fs::read(path).ok() {
+            let font: Option<Font<'_>> = Font::try_from_vec(font_bytes);
+            if let Some(font) = font {
+                self.editor_fonts.insert(name, font);
+            }
+        }
+    }
+
+    pub fn get_editor_font(&self, name: &str) -> &Font {
+        self.editor_fonts.get(name).unwrap()
+    }
+
+    /// Load the tilemaps from the given path
     pub fn load_from_path(&mut self, path: PathBuf) {
-        self.tileset = tileset::TileSet::load_from_path(path);
+        self.tileset = tileset::TileSet::load_from_path(path.clone());
+
+        // Collect the fonts
+
+        let font_path = path.join("assets").join("fonts");
+        let paths = std::fs::read_dir(font_path).unwrap();
+
+        for path in paths {
+            // Generate the tile map for this dir element
+            let path = &path.unwrap().path();
+
+            if path.is_file() && path.extension().map(|s| s == "ttf").unwrap_or(false) {
+
+                if let Some(font_bytes) = std::fs::read(path).ok() {
+                    let font: Option<Font<'_>> = Font::try_from_vec(font_bytes);
+                    if let Some(font) = font {
+                        self.game_fonts.insert(path.file_stem().unwrap().to_os_string().into_string().unwrap(), font);
+                    }
+                }
+            }
+        }
     }
 
     /// Returns the tilemap of the given id

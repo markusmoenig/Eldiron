@@ -161,7 +161,7 @@ impl NodeWidget {
 
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3) as f64 - 2.5), &context.color_black, rounding, &context.color_black, 1.5);
 
-                context.draw2d.draw_text(buffer_frame, &(20, 10), stride, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, &context.color_black);
+                context.draw2d.draw_text(buffer_frame, &(20, 10), stride, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[0], &context.color_white, &context.color_black);
 
                 if let Some(menu) = &mut self.menu {
                     menu.set_rect((0, 0, self.size.0 - 100, 40), asset, context);
@@ -196,7 +196,7 @@ impl NodeWidget {
                     context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3) as f64 - 2.5), &[0,0,0,0], rounding, &context.color_gray, 1.5);
                 }
 
-                context.draw2d.draw_text(buffer_frame, &(25, 10), stride, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, title_color);
+                context.draw2d.draw_text(buffer_frame, &(25, 10), stride, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[0], &context.color_white, title_color);
 
                 // Draw menu
 
@@ -209,7 +209,7 @@ impl NodeWidget {
 
                 let mut y = 42_usize;
                 for atom_widget in &mut self.widgets {
-                    context.draw2d.draw_text(buffer_frame, &(30, y), stride, &asset.open_sans, context.node_button_header_text_size, &atom_widget.atom_data.text, &[180, 180, 180, 255], &context.color_black);
+                    context.draw2d.draw_text(buffer_frame, &(30, y), stride, &asset.get_editor_font("OpenSans"), context.node_button_header_text_size, &atom_widget.atom_data.text, &[180, 180, 180, 255], &context.color_black);
 
                     let height = atom_widget.get_height(context);
 
@@ -299,7 +299,7 @@ impl NodeWidget {
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(0, 0, self.size.1, self.size.1), rect.2, &((self.size.1 - 1) as f64, (self.size.1 - 1) as f64), &[0,0,0,255], &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
 
-            context.draw2d.draw_text_rect(buffer_frame, &(133, 2, self.size.0 - 146, 40), rect.2, &asset.open_sans, context.button_text_size, &self.text[0], &context.color_white, &context.color_black, crate::draw2d::TextAlignment::Left);
+            context.draw2d.draw_text_rect(buffer_frame, &(133, 2, self.size.0 - 146, 40), rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[0], &context.color_white, &context.color_black, crate::draw2d::TextAlignment::Left);
 
             // Draw atoms
 

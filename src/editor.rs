@@ -120,7 +120,9 @@ pub struct Editor<'a> {
 
 impl ScreenWidget for Editor<'_> {
 
-    fn new(asset: &Asset, width: usize, height: usize) -> Self where Self: Sized {
+    fn new(asset: &mut Asset, width: usize, height: usize) -> Self where Self: Sized {
+
+        asset.load_editor_font("OpenSans".to_string(), "Open_Sans/static/OpenSans/OpenSans-Regular.ttf".to_string());
 
         let left_width = 180_usize;
         let mut context = ScreenContext::new(width, height);
@@ -1402,5 +1404,10 @@ impl ScreenWidget for Editor<'_> {
 
         self.game_options = game_options;
         self.node_graph_game_details = node_graph_game_details;
+
+        //
+
+        self.state = EditorState::TilesOverview;
+        self.toolbar.widgets[0].text = asset.tileset.maps_names.clone();
     }
 }

@@ -14,7 +14,7 @@ pub struct Game {
 
 impl ScreenWidget for Game  {
 
-    fn new(_asset: &Asset, _width: usize, _height: usize) -> Self where Self: Sized {
+    fn new(_asset: &mut Asset, _width: usize, _height: usize) -> Self where Self: Sized {
         Self {
             window          : GameState::StartMenu,
         }
