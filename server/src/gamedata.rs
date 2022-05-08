@@ -88,14 +88,14 @@ pub struct GameData<'a> {
 
 impl GameData<'_> {
 
-    pub fn new() -> Self {
+    pub fn load_from_path(path: path::PathBuf) -> Self {
 
         // Create the tile regions
         let mut regions: HashMap<usize, GameRegion> = HashMap::new();
         let mut regions_names = vec![];
         let mut regions_ids = vec![];
 
-        let region_path = path::Path::new("game").join("regions");
+        let region_path = path.join("game").join("regions");
         let paths = fs::read_dir(region_path).unwrap();
 
         for path in paths {
@@ -141,7 +141,7 @@ impl GameData<'_> {
 
         // Behaviors
 
-        let behavior_path = path::Path::new("game").join("behavior");
+        let behavior_path = path.join("game").join("behavior");
         let paths = fs::read_dir(behavior_path).unwrap();
 
         let mut behaviors: HashMap<usize, GameBehavior> = HashMap::new();
@@ -202,7 +202,7 @@ impl GameData<'_> {
 
         // Systems
 
-        let systems_path = path::Path::new("game").join("systems");
+        let systems_path = path.join("game").join("systems");
         let paths = fs::read_dir(systems_path).unwrap();
 
         let mut systems: HashMap<usize, GameBehavior> = HashMap::new();
@@ -249,7 +249,7 @@ impl GameData<'_> {
 
         // Items
 
-        let item_path = path::Path::new("game").join("items");
+        let item_path = path.join("game").join("items");
         let paths = fs::read_dir(item_path).unwrap();
 
         let mut items: HashMap<usize, GameBehavior> = HashMap::new();
@@ -333,6 +333,76 @@ impl GameData<'_> {
         // Display f64 as ints
         use pathfinding::num_traits::ToPrimitive;
         engine.register_fn("to_string", |x: f64| format!("{}", x.to_isize().unwrap()));
+
+        Self {
+            regions,
+            regions_names,
+            regions_ids,
+
+            behaviors,
+            behaviors_names,
+            behaviors_ids,
+
+            systems,
+            systems_names,
+            systems_ids,
+
+            items,
+            items_names,
+            items_ids,
+
+            nodes,
+
+            engine,
+
+            instances               : vec![],
+            active_instance_indices : vec![],
+
+            player_behavior_id      : 0,
+            player_ids_inst_indices : HashMap::new(),
+
+            curr_region_id          : 0,
+
+            scopes                  : vec![],
+            ast                     : HashMap::new(),
+
+            runs_in_editor          : true,
+
+            messages                : vec![],
+            executed_connections    : vec![],
+            changed_variables       : vec![],
+        }
+    }
+
+
+
+    pub fn new() -> Self {
+
+        let regions: HashMap<usize, GameRegion> = HashMap::new();
+        let regions_names = vec![];
+        let regions_ids = vec![];
+
+        // Behaviors
+
+        let behaviors: HashMap<usize, GameBehavior> = HashMap::new();
+        let behaviors_names = vec![];
+        let behaviors_ids = vec![];
+
+        // Systems
+
+        let systems: HashMap<usize, GameBehavior> = HashMap::new();
+        let systems_names = vec![];
+        let systems_ids = vec![];
+
+        // Items
+
+        let items: HashMap<usize, GameBehavior> = HashMap::new();
+        let items_names = vec![];
+        let items_ids = vec![];
+
+        //
+        let nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
+        let engine = Engine::new();
 
         Self {
             regions,

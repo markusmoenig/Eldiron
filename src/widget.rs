@@ -31,6 +31,9 @@ pub trait ScreenWidget {
     fn resize(&mut self, _width: usize, _height: usize) {
     }
 
+    fn load_project(&mut self, _path: std::path::PathBuf, _asset: &mut Asset) {
+    }
+
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset);
 
     fn key_down(&mut self, _char: Option<char>, _key: Option<WidgetKey>, _asset: &mut Asset) -> bool {

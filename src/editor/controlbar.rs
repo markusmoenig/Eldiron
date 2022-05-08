@@ -31,6 +31,14 @@ impl Widget for ControlBar {
         redo_button.set_rect((rect.0 + 100, rect.1, 80, rect.3), asset, context);
         widgets.push(redo_button);
 
+
+        let mut projects_button = AtomWidget::new(context.get_project_list(), AtomWidgetType::ToolBarSliderButton,
+            AtomData::new_as_int("Projects".to_string(), 0));
+        projects_button.no_border = true;
+        projects_button.state = WidgetState::Disabled;
+        projects_button.set_rect((rect.0 + 220, rect.1, 300, rect.3), asset, context);
+        widgets.push(projects_button);
+
         let mut play_button = AtomWidget::new(vec!["Play".to_string()], AtomWidgetType::ToolBarButton,
             AtomData::new_as_int("Play".to_string(), 0));
         play_button.no_border = true;

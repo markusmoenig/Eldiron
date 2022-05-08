@@ -143,11 +143,12 @@ pub struct TileSet {
 }
 
 impl TileSet {
-    pub fn new() -> TileSet {
+
+    pub fn load_from_path(path: PathBuf) -> TileSet {
 
         let mut maps : HashMap<usize, TileMap> = HashMap::new();
 
-        let tilemaps_path = path::Path::new("assets").join("tilemaps");
+        let tilemaps_path = path.join("assets").join("tilemaps");
         let paths = fs::read_dir(tilemaps_path).unwrap();
 
         let mut maps_names  : Vec<String> = vec![];
@@ -205,12 +206,16 @@ impl TileSet {
         }
     }
 
-    /*
-    /// Returns the tile of the given map id
-    pub fn get_tile(&self, map_id: (u32, u32, u32)) -> Option<Tile> {
-        if let Some(map) = self.maps.get(&map_id.0) {
-            return Some(map.get_tile((map_id.1, map_id.2)));
+    pub fn new() -> Self {
+
+        let maps        : HashMap<usize, TileMap> = HashMap::new();
+        let maps_names  : Vec<String> = vec![];
+        let maps_ids    : Vec<usize> = vec![];
+
+        Self {
+            maps,
+            maps_names,
+            maps_ids
         }
-        None
-    }*/
+    }
 }

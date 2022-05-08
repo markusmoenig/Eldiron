@@ -1,6 +1,8 @@
 
 pub mod tileset;
 
+use std::path::PathBuf;
+
 use rusttype::{Font};
 
 pub use tileset::*;
@@ -24,6 +26,10 @@ impl Asset<'_>  {
             open_sans       : Font::try_from_bytes(include_bytes!("../../assets/fonts/Open_Sans/static/OpenSans/OpenSans-Regular.ttf") as &[u8]).expect("Error constructing Font"),
             grid_size       : 32,
         }
+    }
+
+    pub fn load_from_path(&mut self, path: PathBuf) {
+        self.tileset = tileset::TileSet::load_from_path(path);
     }
 
     /// Returns the tilemap of the given id

@@ -54,6 +54,7 @@ use self::statusbar::StatusBar;
 
 #[derive (PartialEq)]
 enum EditorState {
+    Empty,
     TilesOverview,
     TilesDetail,
     RegionOverview,
@@ -113,6 +114,8 @@ pub struct Editor<'a> {
     dialog                          : DialogWidget,
 
     status_bar                      : StatusBar,
+
+    project_to_load                 : Option<std::path::PathBuf>
 }
 
 impl ScreenWidget for Editor<'_> {
@@ -120,60 +123,24 @@ impl ScreenWidget for Editor<'_> {
     fn new(asset: &Asset, width: usize, height: usize) -> Self where Self: Sized {
 
         let left_width = 180_usize;
-        let context = ScreenContext::new(width, height);
+        let mut context = ScreenContext::new(width, height);
 
         let controlbar = ControlBar::new(vec!(), (0,0, width, context.toolbar_height / 2), asset, &context);
         let toolbar = ToolBar::new(vec!(), (0, context.toolbar_height / 2, width, context.toolbar_height / 2), asset, &context);
-
-        // Calculate an overview node position based on it's index
-        let get_pos = |index: usize, max_width: usize| -> (isize, isize) {
-            let item_width = (250 + 20) as isize;
-            let item_height = (120 + 20) as isize;
-            let per_row = max_width as isize % item_width;
-            (20 + (index as isize % per_row) * item_width, 20 + (index as isize / per_row) * item_height)
-        };
 
         // Tile views and nodes
 
         let tilemap_options = TileMapOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
         let tilemap = TileMapWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
 
-        let mut tile_nodes = vec![];
-        for (index, t) in asset.tileset.maps_names.iter().enumerate() {
-            let p = get_pos(index, width - left_width);
-            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: p });
-
-            let mut size_text = "".to_string();
-            if let Some(tilemap) = asset.tileset.maps.get(&asset.tileset.maps_ids[index]) {
-                size_text = format!("{}", tilemap.settings.grid_size);
-            }
-
-            let mut size_atom = AtomWidget::new(vec!["Grid Size".to_string()], AtomWidgetType::NodeGridSizeButton,
-            AtomData::new_as_int("grid_size".to_string(), 0));
-            size_atom.atom_data.text = "GridSize".to_string();
-            size_atom.atom_data.data = (index as f64, 0.0, 0.0, 0.0, size_text);
-            size_atom.behavior_id = Some((index, 0, "".to_string()));
-            //size_atom.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Hello".to_string()), self.graph_type);
-            node.widgets.push(size_atom);
-
-            tile_nodes.push(node);
-        }
-
-        let node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, BehaviorType::Tiles, tile_nodes);
+        let node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, BehaviorType::Tiles, vec![]);
 
         // Region views and nodes
 
         let region_options = RegionOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
         let region_widget = RegionWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
 
-        let mut region_nodes = vec![];
-        for (index, t) in context.data.regions_names.iter().enumerate() {
-            let p = get_pos(index, width - left_width);
-            let node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: p});
-            region_nodes.push(node);
-        }
-
-        let node_graph_regions = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, BehaviorType::Regions, region_nodes);
+        let node_graph_regions = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, BehaviorType::Regions, vec![]);
 
         // Behavior nodegraph
 
@@ -181,18 +148,7 @@ impl ScreenWidget for Editor<'_> {
 
         let behavior_overview_options = BehaviorOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
 
-        let mut behavior_nodes = vec![];
-        for (index, behavior_name) in context.data.behaviors_names.iter().enumerate() {
-            let p = get_pos(index, width - left_width);
-            let mut node = NodeWidget::new(vec![behavior_name.to_string()],
-             NodeUserData { position: p });
-
-            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
-            node.menu = Some(node_menu_atom);
-
-            behavior_nodes.push(node);
-        }
-        let node_graph_behavior = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Behaviors, behavior_nodes);
+        let node_graph_behavior = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Behaviors, vec![]);
 
         let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Behaviors, vec![]);
 
@@ -204,18 +160,7 @@ impl ScreenWidget for Editor<'_> {
 
         let systems_overview_options = SystemsOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
 
-        let mut systems_nodes = vec![];
-        for (index, system_name) in context.data.systems_names.iter().enumerate() {
-            let p = get_pos(index, width - left_width);
-            let mut node = NodeWidget::new(vec![system_name.to_string()],
-             NodeUserData { position: p });
-
-            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
-            node.menu = Some(node_menu_atom);
-
-            systems_nodes.push(node);
-        }
-        let node_graph_systems = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, systems_nodes);
+        let node_graph_systems = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, vec![]);
 
         let mut node_graph_systems_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, vec![]);
         node_graph_systems_details.set_mode(GraphMode::Detail, &context);
@@ -226,9 +171,7 @@ impl ScreenWidget for Editor<'_> {
 
         let items_overview_options = ItemsOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
 
-        let items_nodes = vec![];
-
-        let node_graph_items = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Items, items_nodes);
+        let node_graph_items = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Items, vec![]);
 
         let mut node_graph_items_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Items, vec![]);
         node_graph_items_details.set_mode(GraphMode::Detail, &context);
@@ -243,12 +186,29 @@ impl ScreenWidget for Editor<'_> {
         //
 
         let dialog = DialogWidget::new(asset, &context);
-
         let log = LogWidget::new(&context);
+        let mut status_bar = StatusBar::new();
+
+        // Set current project
+
+        let mut project_to_load: Option<std::path::PathBuf> = None;
+        let project_list = context.get_project_list();
+
+        if project_list.is_empty() {
+            // Show Dialog to create a new project
+            context.dialog_state = DialogState::Opening;
+            context.dialog_height = 0;
+            context.target_fps = 60;
+            context.dialog_entry = DialogEntry::NewProjectName;
+            context.dialog_new_name = "New Game".to_string();
+        } else {
+            project_to_load = context.get_project_path(project_list[0].clone());
+            status_bar.add_message(format!("Loaded Documents >> Eldiron >> {}", project_list[0]));
+        }
 
         Self {
             rect                    : (0, 0, width, height),
-            state                   : EditorState::TilesOverview,
+            state                   :  EditorState::TilesOverview,
             context,
             controlbar,
             toolbar,
@@ -290,7 +250,9 @@ impl ScreenWidget for Editor<'_> {
             mouse_pos               : (0,0),
             mouse_hover_pos         : (0,0),
 
-            status_bar              : StatusBar::new(),
+            status_bar,
+
+            project_to_load,
         }
     }
 
@@ -386,11 +348,21 @@ impl ScreenWidget for Editor<'_> {
 
         //let start = self.get_time();
 
+        if self.project_to_load.is_some() {
+            self.load_project(self.project_to_load.clone().unwrap(), asset);
+            self.project_to_load = None;
+        }
+
         self.controlbar.draw(frame, anim_counter, asset, &mut self.context);
         self.toolbar.draw(frame, anim_counter, asset, &mut self.context);
 
+        if self.state == EditorState::Empty {
+            self.context.draw2d.draw_rect(frame, &self.node_graph_tiles.rect, self.context.width, &self.context.color_black);
+            self.status_bar.rect.0 = 0;
+        } else
         if self.state == EditorState::TilesOverview {
             self.node_graph_tiles.draw(frame, anim_counter, asset, &mut self.context);
+            self.status_bar.rect.0 = 0;
         } else
         if self.state == EditorState::TilesDetail {
             self.tilemap_options.draw(frame, anim_counter, asset, &mut self.context);
@@ -398,43 +370,52 @@ impl ScreenWidget for Editor<'_> {
         } else
         if self.state == EditorState::RegionOverview {
             self.node_graph_regions.draw(frame, anim_counter, asset, &mut self.context);
+            self.status_bar.rect.0 = 0;
         } else
         if self.state == EditorState::RegionDetail {
             self.region_options.draw(frame, anim_counter, asset, &mut self.context, &mut self.region_widget);
             self.region_widget.draw(frame, anim_counter, asset, &mut self.context, &mut self.region_options);
+            self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::BehaviorOverview {
             self.behavior_overview_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_behavior.draw(frame, anim_counter, asset, &mut self.context);
+            self.status_bar.rect.0 = 0;
         } else
         if self.state == EditorState::BehaviorDetail {
             self.behavior_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_behavior_details.draw(frame, anim_counter, asset, &mut self.context);
-            self.status_bar.draw(frame, anim_counter, asset, &mut self.context);
             self.log.draw(frame, anim_counter, asset, &mut self.context);
             self.context.draw2d.blend_slice_safe(frame, &self.log.buffer[..], &self.log.rect, self.context.width, &self.node_graph_behavior_details.rect);
+            self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::SystemsOverview {
             self.systems_overview_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_systems.draw(frame, anim_counter, asset, &mut self.context);
+            self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::SystemsDetail {
             self.systems_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_systems_details.draw(frame, anim_counter, asset, &mut self.context);
-            //self.status_bar.draw(frame, anim_counter, asset, &mut self.context);
+            self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::ItemsOverview {
             self.items_overview_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_items.draw(frame, anim_counter, asset, &mut self.context);
+            self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::ItemsDetail {
             self.items_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_items_details.draw(frame, anim_counter, asset, &mut self.context);
+            self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::GameDetail {
             self.game_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_game_details.draw(frame, anim_counter, asset, &mut self.context);
+            self.status_bar.rect.0 = 180;
         }
+
+        self.status_bar.draw(frame, anim_counter, asset, &mut self.context);
 
         // Drag and drop
         if let Some(drag_context) = &self.context.drag_context {
@@ -450,6 +431,19 @@ impl ScreenWidget for Editor<'_> {
         } else
         if self.context.dialog_entry != DialogEntry::None {
 
+            if self.context.dialog_entry == DialogEntry::NewProjectName {
+                match self.context.create_project(self.context.dialog_new_name.clone()) {
+                    Ok(path) => {
+                        self.context.curr_project_path = path;
+                        self.state = EditorState::TilesOverview;
+                        self.controlbar.widgets[2].text = self.context.get_project_list();
+                        self.controlbar.widgets[2].dirty = true;
+                        self.project_to_load = self.context.get_project_path(self.context.dialog_new_name.clone());
+                        self.status_bar.add_message(format!("Created Documents >> Eldiron >> {}", self.context.dialog_new_name.clone()));
+                    },
+                    Err(err) => print!("Error: {}", err)
+                }
+            } else
             if self.state == EditorState::TilesOverview && self.context.dialog_entry == DialogEntry::NodeGridSize && self.context.dialog_accepted == true {
                 if let Some(value) = self.context.dialog_node_behavior_value.4.parse::<usize>().ok() {
                     let index = self.context.dialog_node_behavior_value.0 as usize;
@@ -572,7 +566,7 @@ impl ScreenWidget for Editor<'_> {
                     self.state = EditorState::TilesOverview;
                     self.node_graph_tiles.mark_all_dirty();
                 } else
-                if self.toolbar.widgets[1].right_selected {
+                if self.toolbar.widgets[1].right_selected && asset.tileset.maps_ids.is_empty() == false {
                     self.state = EditorState::TilesDetail;
                     self.context.curr_graph_type = BehaviorType::Tiles;
                     self.tilemap.set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
@@ -1257,5 +1251,156 @@ impl ScreenWidget for Editor<'_> {
 
     fn get_target_fps(&self) -> usize {
         self.context.target_fps
+    }
+
+    /// Loads the project from the given path
+    fn load_project(&mut self, path: std::path::PathBuf, asset: &mut Asset) {
+        asset.load_from_path(path.clone());
+        self.context.data = server::gamedata::GameData::load_from_path(path.clone());
+
+        let left_width = 180_usize;
+        let width = self.rect.2;
+        let height = self.rect.3;
+        let context = &self.context;
+
+        // Calculate an overview node position based on it's index
+        let get_pos = |index: usize, max_width: usize| -> (isize, isize) {
+            let item_width = (250 + 20) as isize;
+            let item_height = (120 + 20) as isize;
+            let per_row = max_width as isize % item_width;
+            (20 + (index as isize % per_row) * item_width, 20 + (index as isize / per_row) * item_height)
+        };
+
+        // Tile views and nodes
+
+        let tilemap_options = TileMapOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let tilemap = TileMapWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
+
+        let mut tile_nodes = vec![];
+        for (index, t) in asset.tileset.maps_names.iter().enumerate() {
+            let p = get_pos(index, width - left_width);
+            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: p });
+
+            let mut size_text = "".to_string();
+            if let Some(tilemap) = asset.tileset.maps.get(&asset.tileset.maps_ids[index]) {
+                size_text = format!("{}", tilemap.settings.grid_size);
+            }
+
+            let mut size_atom = AtomWidget::new(vec!["Grid Size".to_string()], AtomWidgetType::NodeGridSizeButton,
+            AtomData::new_as_int("grid_size".to_string(), 0));
+            size_atom.atom_data.text = "GridSize".to_string();
+            size_atom.atom_data.data = (index as f64, 0.0, 0.0, 0.0, size_text);
+            size_atom.behavior_id = Some((index, 0, "".to_string()));
+            //size_atom.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Hello".to_string()), self.graph_type);
+            node.widgets.push(size_atom);
+            tile_nodes.push(node);
+        }
+
+        let node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, BehaviorType::Tiles, tile_nodes);
+
+        self.tilemap_options = tilemap_options;
+        self.tilemap = tilemap;
+        self.node_graph_tiles = node_graph_tiles;
+
+        // Region views and nodes
+
+        let region_options = RegionOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let region_widget = RegionWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
+
+        let mut region_nodes = vec![];
+        for (index, t) in context.data.regions_names.iter().enumerate() {
+            let p = get_pos(index, width - left_width);
+            let node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: p});
+            region_nodes.push(node);
+        }
+
+        let node_graph_regions = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, BehaviorType::Regions, region_nodes);
+
+        self.region_options = region_options;
+        self.region_widget = region_widget;
+        self.node_graph_regions = node_graph_regions;
+
+        // Behavior nodegraph
+
+        let behavior_options = BehaviorOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
+        let behavior_overview_options = BehaviorOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
+        let mut behavior_nodes = vec![];
+        for (index, behavior_name) in context.data.behaviors_names.iter().enumerate() {
+            let p = get_pos(index, width - left_width);
+            let mut node = NodeWidget::new(vec![behavior_name.to_string()],
+             NodeUserData { position: p });
+
+            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
+            node.menu = Some(node_menu_atom);
+
+            behavior_nodes.push(node);
+        }
+        let node_graph_behavior = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Behaviors, behavior_nodes);
+
+        let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Behaviors, vec![]);
+
+        node_graph_behavior_details.set_mode(GraphMode::Detail, &context);
+
+        self.behavior_options = behavior_options;
+        self.behavior_overview_options =  behavior_overview_options;
+        self.node_graph_behavior = node_graph_behavior;
+        self.node_graph_behavior_details = node_graph_behavior_details;
+
+        // Systems nodegraph
+
+        let systems_options = SystemsOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
+        let systems_overview_options = SystemsOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
+        let mut systems_nodes = vec![];
+        for (index, system_name) in context.data.systems_names.iter().enumerate() {
+            let p = get_pos(index, width - left_width);
+            let mut node = NodeWidget::new(vec![system_name.to_string()],
+             NodeUserData { position: p });
+
+            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
+            node.menu = Some(node_menu_atom);
+
+            systems_nodes.push(node);
+        }
+        let node_graph_systems = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, systems_nodes);
+
+        let mut node_graph_systems_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, vec![]);
+        node_graph_systems_details.set_mode(GraphMode::Detail, &context);
+
+        self.systems_options = systems_options;
+        self.systems_overview_options = systems_overview_options;
+        self.node_graph_systems = node_graph_systems;
+        self.node_graph_systems_details = node_graph_systems_details;
+
+        // Items nodegraph
+
+        let items_options = ItemsOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
+        let items_overview_options = ItemsOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
+        let items_nodes = vec![];
+
+        let node_graph_items = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Items, items_nodes);
+
+        let mut node_graph_items_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Items, vec![]);
+        node_graph_items_details.set_mode(GraphMode::Detail, &context);
+
+        self.items_options = items_options;
+        self.items_overview_options = items_overview_options;
+        self.node_graph_items = node_graph_items;
+        self.node_graph_items_details = node_graph_items_details;
+
+        // Game NodeGraph
+
+        let game_options = GameOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
+        let mut node_graph_game_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, vec![]);
+        node_graph_game_details.set_mode(GraphMode::Detail, &context);
+
+        self.game_options = game_options;
+        self.node_graph_game_details = node_graph_game_details;
     }
 }

@@ -8,6 +8,8 @@ use server::gamedata::behavior::BehaviorType;
 
 use zeno::{Mask, Stroke};
 
+use directories::{ UserDirs };
+
 #[derive(PartialEq)]
 pub struct ScreenDragContext {
     pub text                            : String,
@@ -114,6 +116,8 @@ pub struct ScreenContext<'a> {
     pub menu_triangle_mask              : [u8;10*10],
     pub preview_arc_mask                : [u8;20*20],
     pub menu_mask                       : [u8;20*20],
+
+    pub curr_project_path               : std::path::PathBuf
 }
 
 impl ScreenContext<'_> {
@@ -275,7 +279,9 @@ impl ScreenContext<'_> {
             right_arrow_mask_small,
             menu_triangle_mask,
             preview_arc_mask,
-            menu_mask
+            menu_mask,
+
+            curr_project_path           : std::path::Path::new("").to_path_buf()
         }
     }
 
@@ -295,5 +301,96 @@ impl ScreenContext<'_> {
         } else {
             false
         }
+    }
+
+    /// Create a new project
+    pub fn create_project(&mut self, name: String) -> Result<std::path::PathBuf, String> {
+
+        use std::fs;
+
+        if let Some(user_dirs) = UserDirs::new() {
+            if let Some(dir) = user_dirs.document_dir() {
+
+                let eldiron_path = dir.join("Eldiron");
+
+                // Check or create "Eldiron" directory
+                if fs::metadata(eldiron_path.clone()).is_ok() == false {
+                    // have to create dir
+                    let rc = fs::create_dir(eldiron_path.clone());
+
+                    if rc.is_err() {
+                        return Err("Could not create Eldiron directory.".to_string());
+                    }
+                }
+
+                // Create project directory
+                let project_path = eldiron_path.join(name);
+                // Check or create "Eldiron" directory
+                if fs::metadata(project_path.clone()).is_ok() == false {
+                    // have to create dir
+                    let rc = fs::create_dir(project_path.clone());
+
+                    if rc.is_err() {
+                        return Err("Could not create project directory.".to_string());
+                    }
+                }
+
+                // Copy asset directory
+                let asset_path = std::path::Path::new("assets");
+                let rc = fs_extra::dir::copy(asset_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
+                if rc.is_err() {
+                    return Err("Could not copy 'assets' directory".to_string());
+                }
+
+                // Copy game directory
+                let game_path = std::path::Path::new("game");
+                let rc = fs_extra::dir::copy(game_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
+                if rc.is_err() {
+                    return Err("Could not copy 'game' directory".to_string());
+                }
+
+                return Ok(project_path);
+            }
+        }
+
+        Err("Could not find Documents directory".to_string())
+    }
+
+    /// Returns a list of the current projects
+    pub fn get_project_list(&self) -> Vec<String> {
+
+        use std::fs;
+        let mut projects: Vec<String> = vec![];
+
+        if let Some(user_dirs) = UserDirs::new() {
+            if let Some(dir) = user_dirs.document_dir() {
+
+                let eldiron_path = dir.join("Eldiron");
+
+                // Check or create "Eldiron" directory
+                if fs::metadata(eldiron_path.clone()).is_ok() == true {
+                    if let Some(paths) = fs::read_dir(eldiron_path).ok() {
+                        for path in paths {
+                            let path = &path.unwrap().path();
+                            if path.is_dir() {
+                                let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+                                projects.push(file_name);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        projects
+    }
+
+    /// Returns the path for the given project name
+    pub fn get_project_path(&self, name: String) -> Option<std::path::PathBuf> {
+        if let Some(user_dirs) = UserDirs::new() {
+            if let Some(dir) = user_dirs.document_dir() {
+                return Some(dir.join("Eldiron").join(name));
+            }
+        }
+        None
     }
 }

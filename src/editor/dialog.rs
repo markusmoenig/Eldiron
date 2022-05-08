@@ -21,6 +21,7 @@ pub enum DialogEntry {
     NewName,
     Tags,
     NodeGridSize,
+    NewProjectName,
 }
 
 #[derive(PartialEq, Debug)]
@@ -103,7 +104,7 @@ impl DialogWidget {
                     self.tile_selector_widget.grid_size = 24;
                     self.tile_selector_widget.selected = Some((context.dialog_node_behavior_value.0 as usize, context.dialog_node_behavior_value.1 as usize, context.dialog_node_behavior_value.2 as usize, TileUsage::Character));
                 } else
-                if context.dialog_entry == DialogEntry::NewName || context.dialog_entry == DialogEntry::Tags {
+                if context.dialog_entry == DialogEntry::NewName || context.dialog_entry == DialogEntry::Tags || context.dialog_entry == DialogEntry::NewProjectName {
                     self.text = context.dialog_new_name.clone();
                 } else {
                 }
@@ -185,6 +186,9 @@ impl DialogWidget {
                 if context.dialog_entry == DialogEntry::NewName {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Name".to_string(), &context.color_white, &context.color_black);
                 } else
+                if context.dialog_entry == DialogEntry::NewProjectName {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"New Project".to_string(), &context.color_white, &context.color_black);
+                } else
                 if context.dialog_entry == DialogEntry::Tags {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.open_sans, 40.0, &"Tags".to_string(), &context.color_white, &context.color_black);
                 } else
@@ -212,6 +216,9 @@ impl DialogWidget {
                 self.widgets[1].set_rect((rect.2 - 140, rect.3 - 60, 120, 40), asset, context);
 
                 for atom in &mut self.widgets {
+                    if context.dialog_entry == DialogEntry::NewProjectName && atom.text[0] == "Cancel" {
+                        continue;
+                    }
                     atom.draw(buffer_frame, rect.2, anim_counter, asset, context);
                 }
             }
@@ -277,7 +284,7 @@ impl DialogWidget {
             context.dialog_node_behavior_value.4 = self.text.clone();
             return true;
         } else
-        if context.dialog_entry == DialogEntry::NewName {
+        if context.dialog_entry == DialogEntry::NewName || context.dialog_entry == DialogEntry::NewProjectName  {
             context.dialog_new_name = self.text.clone();
             return true;
         } else
@@ -367,9 +374,11 @@ impl DialogWidget {
                 self.dirty = true;
 
                 if self.clicked_id == "Cancel" {
-                    context.dialog_state = DialogState::Closing;
-                    context.target_fps = 60;
-                    context.dialog_accepted = false;
+                    if context.dialog_entry != DialogEntry::NewProjectName {
+                        context.dialog_state = DialogState::Closing;
+                        context.target_fps = 60;
+                        context.dialog_accepted = false;
+                    }
                 } else
                 if self.clicked_id == "Accept" {
                     if self.accept_value(context) {
