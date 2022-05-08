@@ -26,3 +26,5 @@ pathfinding = "3.0.11"
 #rhai = "*"
 rhai = { git = "https://github.com/rhaiscript/rhai/" }
 regex = "1.5"
+directories = "4.0"
+fs_extra = "1.2.0"
