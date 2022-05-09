@@ -726,6 +726,13 @@ impl ScreenWidget for Editor<'_> {
                     self.tilemap.set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
                     self.node_graph_tiles.clicked = false;
                 }
+                if self.node_graph_tiles.clicked_preview {
+                    self.state = EditorState::TilesDetail;
+                    self.node_graph_tiles.clicked_preview = false;
+                    self.toolbar.widgets[1].selected = false;
+                    self.toolbar.widgets[1].right_selected = true;
+                    self.toolbar.widgets[1].dirty = true;
+                }
             }
         } else
         if consumed == false && self.state == EditorState::TilesDetail {
@@ -753,6 +760,13 @@ impl ScreenWidget for Editor<'_> {
                     self.region_widget.set_region_id(self.context.data.regions_ids[self.context.curr_region_index], &mut self.context, &mut self.region_options);
                     self.node_graph_regions.clicked = false;
                 }
+                if self.node_graph_regions.clicked_preview {
+                    self.state = EditorState::RegionDetail;
+                    self.node_graph_regions.clicked_preview = false;
+                    self.toolbar.widgets[2].selected = false;
+                    self.toolbar.widgets[2].right_selected = true;
+                    self.toolbar.widgets[2].dirty = true;
+                }
             }
         } else
         if consumed == false && self.state == EditorState::RegionDetail {
@@ -773,6 +787,15 @@ impl ScreenWidget for Editor<'_> {
                     self.toolbar.widgets[0].curr_index = self.context.curr_behavior_index;
                     self.toolbar.widgets[0].dirty = true;
                     self.node_graph_behavior.clicked = false;
+                }
+                if self.node_graph_behavior.clicked_preview {
+                    self.state = EditorState::BehaviorDetail;
+                    self.node_graph_behavior.clicked_preview = false;
+                    self.toolbar.widgets[3].selected = false;
+                    self.toolbar.widgets[3].right_selected = true;
+                    self.toolbar.widgets[3].dirty = true;
+                    self.context.curr_behavior_index = self.toolbar.widgets[0].curr_index;
+                    self.node_graph_behavior_details.set_behavior_id(self.context.data.behaviors_ids[self.context.curr_behavior_index] , &mut self.context);
                 }
             }
         }
@@ -800,6 +823,15 @@ impl ScreenWidget for Editor<'_> {
                     self.toolbar.widgets[0].dirty = true;
                     self.node_graph_systems.clicked = false;
                 }
+                if self.node_graph_systems.clicked_preview {
+                    self.state = EditorState::SystemsDetail;
+                    self.node_graph_systems.clicked_preview = false;
+                    self.toolbar.widgets[4].selected = false;
+                    self.toolbar.widgets[4].right_selected = true;
+                    self.toolbar.widgets[4].dirty = true;
+                    self.context.curr_systems_index = self.toolbar.widgets[0].curr_index;
+                    self.node_graph_systems_details.set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
+                }
             }
         }
         if consumed == false && self.state == EditorState::SystemsDetail {
@@ -820,6 +852,15 @@ impl ScreenWidget for Editor<'_> {
                     self.toolbar.widgets[0].curr_index = self.context.curr_items_index;
                     self.toolbar.widgets[0].dirty = true;
                     self.node_graph_items.clicked = false;
+                }
+                if self.node_graph_items.clicked_preview {
+                    self.state = EditorState::ItemsDetail;
+                    self.node_graph_items.clicked_preview = false;
+                    self.toolbar.widgets[5].selected = false;
+                    self.toolbar.widgets[5].right_selected = true;
+                    self.toolbar.widgets[5].dirty = true;
+                    self.context.curr_systems_index = self.toolbar.widgets[0].curr_index;
+                    self.node_graph_systems_details.set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
                 }
             }
         }
@@ -1290,7 +1331,7 @@ impl ScreenWidget for Editor<'_> {
 
             let mut size_atom = AtomWidget::new(vec!["Grid Size".to_string()], AtomWidgetType::NodeGridSizeButton,
             AtomData::new_as_int("grid_size".to_string(), 0));
-            size_atom.atom_data.text = "GridSize".to_string();
+            size_atom.atom_data.text = "Grid Size".to_string();
             size_atom.atom_data.data = (index as f64, 0.0, 0.0, 0.0, size_text);
             size_atom.behavior_id = Some((index, 0, "".to_string()));
             //size_atom.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Hello".to_string()), self.graph_type);

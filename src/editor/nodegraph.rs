@@ -48,7 +48,9 @@ pub struct NodeGraph {
     behavior_tree_rects         : Vec<(usize, usize, usize, usize)>,
     curr_behavior_tree_index    : Option<usize>,
 
-    visible_node_ids            : Vec<usize>
+    visible_node_ids            : Vec<usize>,
+
+    pub clicked_preview         : bool,
 }
 
 impl NodeGraph {
@@ -81,7 +83,9 @@ impl NodeGraph {
             behavior_tree_rects         : vec![],
             curr_behavior_tree_index    : None,
 
-            visible_node_ids            : vec![]
+            visible_node_ids            : vec![],
+
+            clicked_preview             : false,
         }
     }
 
@@ -564,6 +568,7 @@ impl NodeGraph {
         }
 
         if self.graph_mode == GraphMode::Overview {
+            self.clicked_preview = false;
             for index in 0..self.nodes.len() {
                 let rect= self.get_node_rect(index, false);
 
@@ -622,6 +627,14 @@ impl NodeGraph {
                             self.dirty = true;
                             self.clicked = true;
                         }
+                    }
+
+                    // Test for click in preview area
+                    let dx = pos.0 as isize - rect.0;
+                    let dy = pos.1 as isize - rect.1;
+                    if dx >= 10 && dx <= 110 && dy >= 10 && dy <= 110 {
+                        self.clicked_preview = true;
+                        self.drag_indices = vec![];
                     }
 
                     rc = true;
