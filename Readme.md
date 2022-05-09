@@ -16,7 +16,7 @@ Eldiron v1 will be able to create games similar to the classic Ultima series but
 
 Eldiron is a cross platform RPG engine. Eldiron Creator itself runs on all Desktops (Mac, Windows and Linux) while the game clients also run on iOS and Android devices and on any other device Rust compiles on. The engine is designed from the ground up to be extremely portable.
 
-Eldiron comes with a range of freely usable tilemaps, however you can of course use your own tilemaps, see the instructions below. Note that only square tiles are supported.
+Eldiron comes with a range of freely usable tile-maps, however you can of course use your own maps.
 
 The game engine contains client and server modules, although currently no multi-player options exist yet, the code has been written with multi-player support in mind from the ground up.
 
