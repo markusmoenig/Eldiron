@@ -226,7 +226,8 @@ impl AtomWidget {
                 }
 
                 if self.text.len() > 0 {
-                    context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 30, rect.1, rect.2 - 60, rect.3), rect.2, &asset.get_editor_font("OpenSans"), context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+                    let text_color = if self.state == WidgetState::Disabled { &context.color_gray } else { &context.color_white };
+                    context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 30, rect.1, rect.2 - 60, rect.3), rect.2, &asset.get_editor_font("OpenSans"), context.toolbar_button_text_size, &self.text[self.curr_index], text_color, &fill_color, draw2d::TextAlignment::Center);
                 }
 
                 // Right Arrow

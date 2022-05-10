@@ -104,6 +104,7 @@ pub struct ScreenContext<'a> {
     pub jump_to_position                : Option<(usize, isize, isize)>,
 
     pub is_running                      : bool,
+    pub is_debugging                    : bool,
     pub just_stopped_running            : bool,
 
     pub player_id                       : usize,
@@ -268,6 +269,7 @@ impl ScreenContext<'_> {
             jump_to_position            : None,
 
             is_running                  : false,
+            is_debugging                : false,
             just_stopped_running        : false,
 
             player_id                   : 131313,

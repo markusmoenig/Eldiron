@@ -261,14 +261,18 @@ impl ScreenWidget for Editor<'_> {
     /// Update the editor
     fn update(&mut self) {
         // let start = self.get_time();
-        if self.state == EditorState::RegionDetail {
-            self.region_widget.behavior_graph.update(&mut self.context);
-        } else
-        if self.state == EditorState::BehaviorDetail {
-            self.node_graph_behavior_details.update(&mut self.context);
-        } else
-        if self.state == EditorState::SystemsDetail {
-            self.node_graph_systems_details.update(&mut self.context);
+        if self.context.is_debugging == true {
+            if self.state == EditorState::RegionDetail {
+                self.region_widget.behavior_graph.update(&mut self.context);
+            } else
+            if self.state == EditorState::BehaviorDetail {
+                self.node_graph_behavior_details.update(&mut self.context);
+            } else
+            if self.state == EditorState::SystemsDetail {
+                self.node_graph_systems_details.update(&mut self.context);
+            }
+        } else {
+            self.context.data.tick();
         }
         // let stop = self.get_time();
         // println!("update time {:?}", stop - start);
@@ -340,6 +344,36 @@ impl ScreenWidget for Editor<'_> {
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset) {
 
+        // let start = self.get_time();
+
+        // Playback
+        if self.context.is_running {
+
+            self.context.draw2d.draw_rect(frame, &self.rect, self.rect.2, &self.context.color_black);
+            self.controlbar.draw(frame, anim_counter, asset, &mut self.context);
+
+            let region_id = self.context.data.regions_ids[0];
+
+            if let Some(region) = self.context.data.regions.get(&region_id) {
+                // Find the behavior instance for the current behavior id
+                let mut inst_index = 0_usize;
+                let behavior_id = self.context.data.behaviors_ids[self.context.curr_behavior_index];
+                for index in 0..self.context.data.instances.len() {
+                    if self.context.data.instances[index].behavior_id == behavior_id {
+                        inst_index = index;
+                        break;
+                    }
+                }
+
+                _ = self.context.draw2d.draw_region_centered_with_instances(frame, region, &self.rect, inst_index, self.rect.2, 32, anim_counter, asset, &self.context);
+            }
+
+            // let stop = self.get_time();
+            // println!("draw time {:?}", stop - start);
+
+            return;
+        }
+
         // To update the variables
         if self.context.just_stopped_running {
             self.node_graph_behavior_details.dirty = true;
@@ -347,8 +381,6 @@ impl ScreenWidget for Editor<'_> {
                 preview.dirty = true;
             }
         }
-
-        //let start = self.get_time();
 
         if self.project_to_load.is_some() {
             self.load_project(self.project_to_load.clone().unwrap(), asset);
@@ -544,8 +576,8 @@ impl ScreenWidget for Editor<'_> {
         // Draw overlay
         self.toolbar.draw_overlay(frame, &self.rect, anim_counter, asset, &mut self.context);
 
-        //let stop = self.get_time();
-        //println!("draw time {:?}", stop - start);
+        // let stop = self.get_time();
+        // println!("draw time {:?}", stop - start);
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {

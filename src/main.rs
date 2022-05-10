@@ -41,7 +41,7 @@ fn main() -> Result<(), Error> {
         let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
 
         WindowBuilder::new()
-            .with_title("Eldiron")
+            .with_title("Eldiron Creator")
             .with_inner_size(size)
             .with_min_inner_size(size)
 

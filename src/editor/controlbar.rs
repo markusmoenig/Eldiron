@@ -6,6 +6,17 @@ use server::asset::Asset;
 use crate::widget::atom:: { AtomWidget, AtomWidgetType };
 use crate::widget::context::ScreenContext;
 
+
+#[derive(PartialEq, Eq, Hash)]
+enum ControlWidgets {
+    _Undo,
+    _Redo,
+    _ProjectSwitch,
+    _Help,
+    Play,
+    Debug,
+}
+
 pub struct ControlBar {
     rect                    : (usize, usize, usize, usize),
     pub widgets             : Vec<AtomWidget>,
@@ -49,7 +60,6 @@ impl Widget for ControlBar {
         let mut play_button = AtomWidget::new(vec!["Play".to_string()], AtomWidgetType::ToolBarButton,
             AtomData::new_as_int("Play".to_string(), 0));
         play_button.no_border = true;
-        play_button.state = WidgetState::Disabled;
         play_button.set_rect((rect.2 - 100 - 100, rect.1, 80, rect.3), asset, context);
         widgets.push(play_button);
 
@@ -95,17 +105,65 @@ impl Widget for ControlBar {
                 } else
                 if atom_widget.atom_data.id == "Debug" {
                     if context.is_running == false {
+                        context.data.runs_in_editor = true;
                         context.data.create_behavior_instances();
                         context.data.create_player_instance(context.player_id);
                         context.data.activate_region_instances(context.data.regions_ids[context.curr_region_index]);
                         context.is_running = true;
+                        context.is_debugging = true;
                         atom_widget.text[0] = "Stop".to_string();
                         context.data.messages = vec![];
+
+                        for index in 0..self.widgets.len() {
+                            if index != ControlWidgets::Debug as usize {
+                                self.widgets[index].state = WidgetState::Disabled;
+                                self.widgets[index].dirty = true;
+                            }
+                        }
                     } else {
                         context.data.clear_instances();
                         context.is_running = false;
+                        context.is_debugging = false;
                         atom_widget.text[0] = "Debug".to_string();
                         context.just_stopped_running = true;
+
+                        for index in 0..self.widgets.len() {
+                            if index != ControlWidgets::Debug as usize {
+                                self.widgets[index].state = WidgetState::Normal;
+                            }
+                            self.widgets[index].dirty = true;
+                        }
+                    }
+                } else
+                if atom_widget.atom_data.id == "Play" {
+                    if context.is_running == false {
+                        context.data.runs_in_editor = false;
+                        context.data.create_behavior_instances();
+                        context.data.create_player_instance(context.player_id);
+                        context.data.activate_region_instances(context.data.regions_ids[context.curr_region_index]);
+                        context.is_running = true;
+                        context.is_debugging = false;
+                        atom_widget.text[0] = "Stop".to_string();
+                        context.data.messages = vec![];
+
+                        for index in 0..self.widgets.len() {
+                            if index != ControlWidgets::Play as usize {
+                                self.widgets[index].state = WidgetState::Disabled;
+                                self.widgets[index].dirty = true;
+                            }
+                        }
+                    } else {
+                        context.data.clear_instances();
+                        context.is_running = false;
+                        atom_widget.text[0] = "Play".to_string();
+                        context.just_stopped_running = true;
+
+                        for index in 0..self.widgets.len() {
+                            if index != ControlWidgets::Play as usize {
+                                self.widgets[index].state = WidgetState::Normal;
+                            }
+                            self.widgets[index].dirty = true;
+                        }
                     }
                 }
                 return true;

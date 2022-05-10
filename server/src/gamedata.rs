@@ -366,7 +366,7 @@ impl GameData<'_> {
             scopes                  : vec![],
             ast                     : HashMap::new(),
 
-            runs_in_editor          : true,
+            runs_in_editor          : false,
 
             messages                : vec![],
             executed_connections    : vec![],
@@ -436,7 +436,7 @@ impl GameData<'_> {
             scopes                  : vec![],
             ast                     : HashMap::new(),
 
-            runs_in_editor          : true,
+            runs_in_editor          : false,
 
             messages                : vec![],
             executed_connections    : vec![],
