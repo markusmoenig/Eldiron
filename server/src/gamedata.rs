@@ -141,7 +141,7 @@ impl GameData<'_> {
 
         // Behaviors
 
-        let behavior_path = path.join("game").join("behavior");
+        let behavior_path = path.join("game").join("characters");
         let paths = fs::read_dir(behavior_path).unwrap();
 
         let mut behaviors: HashMap<usize, GameBehavior> = HashMap::new();

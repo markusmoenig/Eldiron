@@ -382,7 +382,7 @@ impl ScreenWidget for Editor<'_> {
         if self.state == EditorState::BehaviorOverview {
             self.behavior_overview_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_behavior.draw(frame, anim_counter, asset, &mut self.context);
-            self.status_bar.rect.0 = 0;
+            self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::BehaviorDetail {
             self.behavior_options.draw(frame, anim_counter, asset, &mut self.context);
