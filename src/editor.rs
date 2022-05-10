@@ -558,6 +558,15 @@ impl ScreenWidget for Editor<'_> {
 
         if self.controlbar.mouse_down(pos, asset, &mut self.context) {
             consumed = true;
+            if self.controlbar.show_help {
+                match self.state {
+                    EditorState::TilesOverview => _ = open::that("https://book.eldiron.com/tiles/overview.html"),
+                    EditorState::TilesDetail => _ = open::that("https://book.eldiron.com/tiles/details.html"),
+
+                    _ => _ = open::that("https://book.eldiron.com")
+                }
+                self.controlbar.show_help = false;
+            }
         }
         if consumed == false && self.toolbar.mouse_down(pos, asset, &mut self.context) {
 

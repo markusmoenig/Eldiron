@@ -9,6 +9,7 @@ use crate::widget::context::ScreenContext;
 pub struct ControlBar {
     rect                    : (usize, usize, usize, usize),
     pub widgets             : Vec<AtomWidget>,
+    pub show_help           : bool,
 }
 
 impl Widget for ControlBar {
@@ -39,6 +40,12 @@ impl Widget for ControlBar {
         projects_button.set_rect((rect.0 + 220, rect.1, 300, rect.3), asset, context);
         widgets.push(projects_button);
 
+        let mut help_button = AtomWidget::new(vec!["Help".to_string()], AtomWidgetType::ToolBarButton,
+            AtomData::new_as_int("Help".to_string(), 0));
+        help_button.no_border = true;
+        help_button.set_rect((rect.2 - 100 - 200, rect.1, 80, rect.3), asset, context);
+        widgets.push(help_button);
+
         let mut play_button = AtomWidget::new(vec!["Play".to_string()], AtomWidgetType::ToolBarButton,
             AtomData::new_as_int("Play".to_string(), 0));
         play_button.no_border = true;
@@ -55,6 +62,7 @@ impl Widget for ControlBar {
         Self {
             rect,
             widgets             : widgets,
+            show_help           : false,
         }
     }
 
@@ -81,6 +89,10 @@ impl Widget for ControlBar {
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         for atom_widget in &mut self.widgets {
             if atom_widget.mouse_down(pos, asset, context) {
+
+                if atom_widget.atom_data.id == "Help" {
+                    self.show_help = true;
+                } else
                 if atom_widget.atom_data.id == "Debug" {
                     if context.is_running == false {
                         context.data.create_behavior_instances();
