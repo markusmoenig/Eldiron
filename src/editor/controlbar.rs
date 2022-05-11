@@ -76,9 +76,8 @@ impl Widget for ControlBar {
         }
     }
 
-    fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
+    fn resize(&mut self, width: usize, _height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
-        self.rect.3 = height;
         self.widgets[0].rect.0 = width - 110;
     }
 

@@ -65,10 +65,8 @@ impl Widget for ToolBar {
         }
     }
 
-    fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
+    fn resize(&mut self, width: usize, _height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
-        self.rect.3 = height;
-        //self.widgets[6].rect.0 = width - 110;
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
