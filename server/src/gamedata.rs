@@ -96,36 +96,37 @@ impl GameData<'_> {
         let mut regions_ids = vec![];
 
         let region_path = path.join("game").join("regions");
-        let paths = fs::read_dir(region_path).unwrap();
+        if let Some(paths) = fs::read_dir(region_path).ok() {
 
-        for path in paths {
-            let path = &path.unwrap().path();
-            let md = metadata(path).unwrap();
+            for path in paths {
+                let path = &path.unwrap().path();
+                let md = metadata(path).unwrap();
 
-            if md.is_dir() {
-                let mut region = GameRegion::new(path);
-                regions_names.push(region.name.clone());
+                if md.is_dir() {
+                    let mut region = GameRegion::new(path);
+                    regions_names.push(region.name.clone());
 
-                // Make sure we create a unique id (check if the id already exists in the set)
-                let mut has_id_already = true;
-                while has_id_already {
+                    // Make sure we create a unique id (check if the id already exists in the set)
+                    let mut has_id_already = true;
+                    while has_id_already {
 
-                    has_id_already = false;
-                    for (key, _value) in &regions {
-                        if key == &region.data.id {
-                            has_id_already = true;
+                        has_id_already = false;
+                        for (key, _value) in &regions {
+                            if key == &region.data.id {
+                                has_id_already = true;
+                            }
+                        }
+
+                        if has_id_already {
+                            region.data.id += 1;
                         }
                     }
 
-                    if has_id_already {
-                        region.data.id += 1;
-                    }
+                    region.calc_dimensions();
+
+                    regions_ids.push(region.data.id);
+                    regions.insert(region.data.id, region);
                 }
-
-                region.calc_dimensions();
-
-                regions_ids.push(region.data.id);
-                regions.insert(region.data.id, region);
             }
         }
 
@@ -141,51 +142,53 @@ impl GameData<'_> {
 
         // Behaviors
 
-        let behavior_path = path.join("game").join("characters");
-        let paths = fs::read_dir(behavior_path).unwrap();
-
         let mut behaviors: HashMap<usize, GameBehavior> = HashMap::new();
         let mut behaviors_names = vec![];
         let mut behaviors_ids = vec![];
 
-        for path in paths {
-            let path = &path.unwrap().path();
-            let md = metadata(path).unwrap();
+        let behavior_path = path.join("game").join("characters");
+        if let Some(paths) = fs::read_dir(behavior_path).ok() {
 
-            if md.is_file() {
-                if let Some(name) = path::Path::new(&path).extension() {
-                    if name == "json" || name == "JSON" {
-                        let mut behavior = GameBehavior::new(path);
-                        behaviors_names.push(behavior.name.clone());
+            for path in paths {
+                let path = &path.unwrap().path();
+                let md = metadata(path).unwrap();
 
-                        // Make sure we create a unique id (check if the id already exists in the set)
-                        let mut has_id_already = true;
-                        while has_id_already {
+                if md.is_file() {
+                    if let Some(name) = path::Path::new(&path).extension() {
+                        if name == "json" || name == "JSON" {
+                            let mut behavior = GameBehavior::new(path);
+                            behaviors_names.push(behavior.name.clone());
 
-                            has_id_already = false;
-                            for (key, _value) in &behaviors {
-                                if key == &behavior.data.id {
-                                    has_id_already = true;
+                            // Make sure we create a unique id (check if the id already exists in the set)
+                            let mut has_id_already = true;
+                            while has_id_already {
+
+                                has_id_already = false;
+                                for (key, _value) in &behaviors {
+                                    if key == &behavior.data.id {
+                                        has_id_already = true;
+                                    }
+                                }
+
+                                if has_id_already {
+                                    behavior.data.id += 1;
                                 }
                             }
 
-                            if has_id_already {
-                                behavior.data.id += 1;
+                            if behavior.data.nodes.len() == 0 {
+                                behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                                behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                                behavior.save_data();
                             }
+                            behaviors_ids.push(behavior.data.id);
+                            behaviors.insert(behavior.data.id, behavior);
                         }
-
-                        if behavior.data.nodes.len() == 0 {
-                            behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
-                            behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
-                            behavior.save_data();
-                        }
-                        behaviors_ids.push(behavior.data.id);
-                        behaviors.insert(behavior.data.id, behavior);
                     }
                 }
             }
         }
 
+        // Make sure the Player character is always first in the list
         let mut player_index : Option<usize> = None;
         for (index, b) in behaviors_names.iter().enumerate() {
             if b == "Player" {
@@ -202,46 +205,47 @@ impl GameData<'_> {
 
         // Systems
 
-        let systems_path = path.join("game").join("systems");
-        let paths = fs::read_dir(systems_path).unwrap();
-
         let mut systems: HashMap<usize, GameBehavior> = HashMap::new();
         let mut systems_names = vec![];
         let mut systems_ids = vec![];
 
-        for path in paths {
-            let path = &path.unwrap().path();
-            let md = metadata(path).unwrap();
+        let systems_path = path.join("game").join("systems");
+        if let Some(paths) = fs::read_dir(systems_path).ok() {
 
-            if md.is_file() {
-                if let Some(name) = path::Path::new(&path).extension() {
-                    if name == "json" || name == "JSON" {
-                        let mut system = GameBehavior::new(path);
-                        systems_names.push(system.name.clone());
+            for path in paths {
+                let path = &path.unwrap().path();
+                let md = metadata(path).unwrap();
 
-                        // Make sure we create a unique id (check if the id already exists in the set)
-                        let mut has_id_already = true;
-                        while has_id_already {
+                if md.is_file() {
+                    if let Some(name) = path::Path::new(&path).extension() {
+                        if name == "json" || name == "JSON" {
+                            let mut system = GameBehavior::new(path);
+                            systems_names.push(system.name.clone());
 
-                            has_id_already = false;
-                            for (key, _value) in &systems {
-                                if key == &system.data.id {
-                                    has_id_already = true;
+                            // Make sure we create a unique id (check if the id already exists in the set)
+                            let mut has_id_already = true;
+                            while has_id_already {
+
+                                has_id_already = false;
+                                for (key, _value) in &systems {
+                                    if key == &system.data.id {
+                                        has_id_already = true;
+                                    }
+                                }
+
+                                if has_id_already {
+                                    system.data.id += 1;
                                 }
                             }
 
-                            if has_id_already {
-                                system.data.id += 1;
+                            if system.data.nodes.len() == 0 {
+                                // behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                                // behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                                // behavior.save_data();
                             }
+                            systems_ids.push(system.data.id);
+                            systems.insert(system.data.id, system);
                         }
-
-                        if system.data.nodes.len() == 0 {
-                            // behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
-                            // behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
-                            // behavior.save_data();
-                        }
-                        systems_ids.push(system.data.id);
-                        systems.insert(system.data.id, system);
                     }
                 }
             }
@@ -249,46 +253,47 @@ impl GameData<'_> {
 
         // Items
 
-        let item_path = path.join("game").join("items");
-        let paths = fs::read_dir(item_path).unwrap();
-
         let mut items: HashMap<usize, GameBehavior> = HashMap::new();
         let mut items_names = vec![];
         let mut items_ids = vec![];
 
-        for path in paths {
-            let path = &path.unwrap().path();
-            let md = metadata(path).unwrap();
+        let item_path = path.join("game").join("items");
+        if let Some(paths) = fs::read_dir(item_path).ok() {
 
-            if md.is_file() {
-                if let Some(name) = path::Path::new(&path).extension() {
-                    if name == "json" || name == "JSON" {
-                        let mut item = GameBehavior::new(path);
-                        items_names.push(item.name.clone());
+            for path in paths {
+                let path = &path.unwrap().path();
+                let md = metadata(path).unwrap();
 
-                        // Make sure we create a unique id (check if the id already exists in the set)
-                        let mut has_id_already = true;
-                        while has_id_already {
+                if md.is_file() {
+                    if let Some(name) = path::Path::new(&path).extension() {
+                        if name == "json" || name == "JSON" {
+                            let mut item = GameBehavior::new(path);
+                            items_names.push(item.name.clone());
 
-                            has_id_already = false;
-                            for (key, _value) in &behaviors {
-                                if key == &item.data.id {
-                                    has_id_already = true;
+                            // Make sure we create a unique id (check if the id already exists in the set)
+                            let mut has_id_already = true;
+                            while has_id_already {
+
+                                has_id_already = false;
+                                for (key, _value) in &behaviors {
+                                    if key == &item.data.id {
+                                        has_id_already = true;
+                                    }
+                                }
+
+                                if has_id_already {
+                                    item.data.id += 1;
                                 }
                             }
 
-                            if has_id_already {
-                                item.data.id += 1;
+                            if item.data.nodes.len() == 0 {
+                                // behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                                // behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                                // behavior.save_data();
                             }
+                            items_ids.push(item.data.id);
+                            items.insert(item.data.id, item);
                         }
-
-                        if item.data.nodes.len() == 0 {
-                            // behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
-                            // behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
-                            // behavior.save_data();
-                        }
-                        items_ids.push(item.data.id);
-                        items.insert(item.data.id, item);
                     }
                 }
             }
