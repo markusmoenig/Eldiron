@@ -743,6 +743,7 @@ impl ScreenWidget for Editor<'_> {
                 self.node_graph_game_details.set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                 self.state = EditorState::GameDetail;
                 self.context.curr_graph_type = BehaviorType::GameLogic;
+                self.toolbar.widgets[6].checked = true;
                 //self.node_graph_systems_details.set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
 
                 for i in 1..=5 {
