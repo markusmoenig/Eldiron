@@ -78,7 +78,6 @@ impl Widget for ControlBar {
 
     fn resize(&mut self, width: usize, _height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
-        self.widgets[0].rect.0 = width - 110;
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
