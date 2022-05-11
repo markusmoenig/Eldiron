@@ -8,6 +8,7 @@ use crate::editor::systems_overview_options::SystemsOverviewOptions;
 use crate::editor::itemsoptions::ItemsOptions;
 use crate::editor::items_overview_options::ItemsOverviewOptions;
 use crate::editor::regionwidget::RegionWidget;
+use crate::editor::region_overview_options::RegionOverviewOptions;
 use crate::editor::log::LogWidget;
 use crate::editor::gameoptions::GameOptions;
 use crate::widget:: {ScreenWidget, Widget, WidgetState, WidgetKey};
@@ -24,6 +25,7 @@ mod toolbar;
 mod nodegraph;
 mod tilemapoptions;
 mod tilemapwidget;
+mod region_overview_options;
 mod regionwidget;
 mod regionoptions;
 mod behavioroptions;
@@ -81,6 +83,7 @@ pub struct Editor<'a> {
     tilemap                         : TileMapWidget,
 
     region_options                  : RegionOptions,
+    region_overview_options         : RegionOverviewOptions,
     region_widget                   : RegionWidget,
 
     behavior_options                : BehaviorOptions,
@@ -140,9 +143,12 @@ impl ScreenWidget for Editor<'_> {
         // Region views and nodes
 
         let region_options = RegionOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
+        let region_overview_options = RegionOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
         let region_widget = RegionWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
 
-        let node_graph_regions = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, BehaviorType::Regions, vec![]);
+        let node_graph_regions = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Regions, vec![]);
 
         // Behavior nodegraph
 
@@ -220,6 +226,7 @@ impl ScreenWidget for Editor<'_> {
             tilemap,
 
             region_options,
+            region_overview_options,
             region_widget,
 
             behavior_options,
@@ -318,6 +325,7 @@ impl ScreenWidget for Editor<'_> {
         self.tilemap.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
 
         self.region_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
+        self.region_overview_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
         self.region_widget.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
 
         self.behavior_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
@@ -332,7 +340,7 @@ impl ScreenWidget for Editor<'_> {
         self.game_options.resize(self.left_width, height - self.context.toolbar_height, &self.context);
 
         self.node_graph_tiles.resize(width, height - self.context.toolbar_height, &self.context);
-        self.node_graph_regions.resize(width, height - self.context.toolbar_height, &self.context);
+        self.node_graph_regions.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
         self.node_graph_behavior.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
         self.node_graph_behavior_details.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
         self.node_graph_systems.resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
@@ -403,8 +411,9 @@ impl ScreenWidget for Editor<'_> {
             self.tilemap.draw(frame, anim_counter, asset, &mut self.context);
         } else
         if self.state == EditorState::RegionOverview {
+            self.region_overview_options.draw(frame, anim_counter, asset, &mut self.context);
             self.node_graph_regions.draw(frame, anim_counter, asset, &mut self.context);
-            self.status_bar.rect.0 = 0;
+            self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::RegionDetail {
             self.region_options.draw(frame, anim_counter, asset, &mut self.context, &mut self.region_widget);
@@ -491,6 +500,34 @@ impl ScreenWidget for Editor<'_> {
                         self.node_graph_tiles.dirty = true;
                     }
                 }
+            } else
+            if self.state == EditorState::RegionOverview {
+                if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
+                    println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
+                    /*
+                    self.context.data.create_behavior(self.context.dialog_new_name.clone(), 0);
+
+                    let mut node = NodeWidget::new(vec![self.context.dialog_new_name.clone()],
+                    NodeUserData { position: (100, 50 + 150 * self.node_graph_behavior.nodes.len() as isize) });
+
+                    let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
+                    node.menu = Some(node_menu_atom);
+
+                    self.node_graph_behavior.nodes.push(node);
+                    self.node_graph_behavior.dirty = true;
+                    self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
+                    self.toolbar.widgets[0].dirty = true;
+                    */
+                } /*else {
+                    if self.context.dialog_entry == DialogEntry::NodeName {
+                        if self.context.dialog_accepted == true {
+                            if let Some(behavior) = self.context.data.behaviors.get_mut(&self.context.data.behaviors_ids[self.context.curr_behavior_index]) {
+                                behavior.rename(self.context.dialog_node_behavior_value.4.clone(), "behavior".to_string());
+                            }
+                        }
+                    }
+                    self.node_graph_behavior.update_from_dialog(&mut self.context);
+                }*/
             } else
             if self.state == EditorState::RegionDetail && self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
                 self.region_options.set_area_name(self.context.dialog_new_name.clone(), &mut self.context, &mut self.region_widget);
@@ -631,7 +668,7 @@ impl ScreenWidget for Editor<'_> {
             // Region Button
             if self.toolbar.widgets[2].clicked {
                 if self.toolbar.widgets[2].selected {
-                    self.node_graph_regions.set_mode_and_rect( GraphMode::Overview, (0, self.rect.1 + self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.node_graph_regions.set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::RegionOverview;
                     self.node_graph_regions.mark_all_dirty();
                 } else
@@ -794,6 +831,9 @@ impl ScreenWidget for Editor<'_> {
             }
         } else
         if consumed == false && self.state == EditorState::RegionOverview {
+            if consumed == false && self.region_overview_options.mouse_down(pos, asset, &mut self.context) {
+                consumed = true;
+            }
             if consumed == false && self.node_graph_regions.mouse_down(pos, asset, &mut self.context) {
                 consumed = true;
                 if self.node_graph_regions.clicked {
@@ -981,6 +1021,11 @@ impl ScreenWidget for Editor<'_> {
                 consumed = true;
             }
         } else
+        if self.state == EditorState::RegionOverview {
+            if self.region_overview_options.mouse_up(pos, asset, &mut self.context) {
+                consumed = true;
+            }
+        }
         if self.state == EditorState::RegionDetail {
             if self.region_options.mouse_up(pos, asset, &mut self.context, &mut self.region_widget) {
                 consumed = true;
@@ -1073,6 +1118,22 @@ impl ScreenWidget for Editor<'_> {
         // Node Drag ?
         if let Some(drag_context) = &self.context.drag_context {
 
+            if self.state == EditorState::RegionOverview {
+                if self.context.contains_pos_for(pos, self.node_graph_behavior.rect) {
+
+                    let mut position = (pos.0 as isize, pos.1 as isize);
+                    position.0 -= self.node_graph_behavior.rect.0 as isize + self.node_graph_behavior.offset.0 + drag_context.offset.0;
+                    position.1 -= self.node_graph_behavior.rect.1 as isize + self.node_graph_behavior.offset.1 + drag_context.offset.1;
+
+                    self.context.dialog_state = DialogState::Opening;
+                    self.context.dialog_height = 0;
+                    self.context.target_fps = 60;
+                    self.context.dialog_entry = DialogEntry::NewName;
+                    self.context.dialog_new_name = format!("New {}", drag_context.text).to_string();
+                    self.context.dialog_new_name_type = format!("NewRegion_{}", drag_context.text);
+                    self.context.dialog_new_node_position = position;
+                }
+            } else
             if self.state == EditorState::RegionDetail {
                 if self.context.contains_pos_for(pos, self.region_widget.behavior_graph.rect) {
                     let mut position = (pos.0 as isize, pos.1 as isize);
@@ -1180,6 +1241,9 @@ impl ScreenWidget for Editor<'_> {
             }
         } else
         if self.state == EditorState::RegionOverview {
+            if consumed == false && self.region_overview_options.mouse_dragged(pos, asset, &mut self.context) {
+                consumed = true;
+            }
             if consumed == false && self.node_graph_regions.mouse_dragged(pos, asset, &mut self.context) {
                 consumed = true;
             }
@@ -1399,6 +1463,9 @@ impl ScreenWidget for Editor<'_> {
         // Region views and nodes
 
         let region_options = RegionOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
+        let region_overview_options = RegionOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
         let region_widget = RegionWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
 
         let mut region_nodes = vec![];
@@ -1408,9 +1475,10 @@ impl ScreenWidget for Editor<'_> {
             region_nodes.push(node);
         }
 
-        let node_graph_regions = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, BehaviorType::Regions, region_nodes);
+        let node_graph_regions = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Regions, region_nodes);
 
         self.region_options = region_options;
+        self.region_overview_options = region_overview_options;
         self.region_widget = region_widget;
         self.node_graph_regions = node_graph_regions;
 
