@@ -68,7 +68,7 @@ impl GameRegion {
                 let path = &path.unwrap().path();
                 let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
                 if file_name.starts_with("area_") {
-                    let behavior = GameBehavior::new(path);
+                    let behavior = GameBehavior::load_from_path(path);
                     behaviors.push(behavior);
                 }
             }
@@ -217,7 +217,7 @@ impl GameRegion {
         let mut path = self.path.clone();
         path.push(format!("area_{}.json", area_id));
 
-        let behavior = GameBehavior::new(&path);
+        let behavior = GameBehavior::load_from_path(&path);
         let behavior_id = behavior.data.id.clone();
         behavior.save_data();
         self.behaviors.push(behavior);

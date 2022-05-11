@@ -84,6 +84,8 @@ pub struct ScreenContext<'a> {
     pub curr_items_index                : usize,
     pub curr_items_node_id              : usize,
 
+    pub curr_game_node_id              : usize,
+
     pub drag_context                    : Option<ScreenDragContext>,
 
     pub curr_graph_type                 : BehaviorType,
@@ -253,6 +255,9 @@ impl ScreenContext<'_> {
             // Items
             curr_items_index            : 0,
             curr_items_node_id          : 0,
+
+            // Game
+            curr_game_node_id           : 0,
 
             dialog_state                : DialogState::Closed,
             dialog_height               : 0,

@@ -1149,6 +1149,11 @@ impl NodeGraph {
             if self.graph_type == BehaviorType::Items {
                 let behavior = context.data.items.get(&context.data.items_ids[context.curr_items_index]).unwrap();
                 self.init_node_widget(&behavior.data, &behavior.data.nodes.get(&id).unwrap(), &mut node, context);
+            } else
+            if self.graph_type == BehaviorType::GameLogic {
+                if let Some(behavior) = context.data.get_behavior(0, self.graph_type) {
+                    self.init_node_widget(&behavior.data, &behavior.data.nodes.get(&id).unwrap(), &mut node, context);
+                }
             }
             self.nodes.push(node);
         }
@@ -1769,6 +1774,9 @@ impl NodeGraph {
         } else
         if self.graph_type == BehaviorType::Items {
             return context.curr_items_node_id
+        } else
+        if self.graph_type == BehaviorType::GameLogic {
+            return context.curr_game_node_id
         }
         0
     }

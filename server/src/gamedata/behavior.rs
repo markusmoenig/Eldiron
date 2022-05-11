@@ -154,7 +154,7 @@ pub struct GameBehavior {
 }
 
 impl GameBehavior {
-    pub fn new(path: &PathBuf) -> Self {
+    pub fn load_from_path(path: &PathBuf) -> Self {
 
         let name = path::Path::new(&path).file_stem().unwrap().to_str().unwrap();
 
@@ -170,6 +170,15 @@ impl GameBehavior {
             name        : name.to_string(),
             path        : path.clone(),
             data,
+        }
+    }
+
+    pub fn new() -> Self {
+
+        Self {
+            name        : "name".to_string(),
+            path        : std::path::Path::new("").to_path_buf(),
+            data        : GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string() }
         }
     }
 

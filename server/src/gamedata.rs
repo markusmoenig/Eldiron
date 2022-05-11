@@ -4,6 +4,7 @@ pub mod nodes;
 pub mod nodes_utility;
 pub mod nodes_area;
 pub mod script;
+pub mod game;
 
 use rhai::{ Engine, Scope, AST };
 
@@ -23,6 +24,7 @@ use std::fs;
 use rand::prelude::*;
 
 use self::behavior::BehaviorInstanceType;
+use self::game::Game;
 use self::nodes_utility::get_node_value;
 
 use utilities::actions::*;
@@ -56,6 +58,8 @@ pub struct GameData<'a> {
     pub items_names             : Vec<String>,
     pub items_ids               : Vec<usize>,
 
+    pub game                    : Game,
+
     pub nodes                   : HashMap<BehaviorNodeType, NodeCall>,
 
     pub engine                  : Engine,
@@ -88,6 +92,7 @@ pub struct GameData<'a> {
 
 impl GameData<'_> {
 
+    // Load the game data from the given path
     pub fn load_from_path(path: path::PathBuf) -> Self {
 
         // Create the tile regions
@@ -156,7 +161,7 @@ impl GameData<'_> {
                 if md.is_file() {
                     if let Some(name) = path::Path::new(&path).extension() {
                         if name == "json" || name == "JSON" {
-                            let mut behavior = GameBehavior::new(path);
+                            let mut behavior = GameBehavior::load_from_path(path);
                             behaviors_names.push(behavior.name.clone());
 
                             // Make sure we create a unique id (check if the id already exists in the set)
@@ -219,7 +224,7 @@ impl GameData<'_> {
                 if md.is_file() {
                     if let Some(name) = path::Path::new(&path).extension() {
                         if name == "json" || name == "JSON" {
-                            let mut system = GameBehavior::new(path);
+                            let mut system = GameBehavior::load_from_path(path);
                             systems_names.push(system.name.clone());
 
                             // Make sure we create a unique id (check if the id already exists in the set)
@@ -267,7 +272,7 @@ impl GameData<'_> {
                 if md.is_file() {
                     if let Some(name) = path::Path::new(&path).extension() {
                         if name == "json" || name == "JSON" {
-                            let mut item = GameBehavior::new(path);
+                            let mut item = GameBehavior::load_from_path(path);
                             items_names.push(item.name.clone());
 
                             // Make sure we create a unique id (check if the id already exists in the set)
@@ -297,6 +302,13 @@ impl GameData<'_> {
                     }
                 }
             }
+        }
+
+        // Game
+
+        let game = Game::load_from_path(&path.clone());
+        if game.behavior.data.nodes.is_empty() {
+            game.save_data();
         }
 
         let mut nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
@@ -356,6 +368,8 @@ impl GameData<'_> {
             items_names,
             items_ids,
 
+            game,
+
             nodes,
 
             engine,
@@ -379,8 +393,7 @@ impl GameData<'_> {
         }
     }
 
-
-
+    // Create an empty structure
     pub fn new() -> Self {
 
         let regions: HashMap<usize, GameRegion> = HashMap::new();
@@ -405,6 +418,10 @@ impl GameData<'_> {
         let items_names = vec![];
         let items_ids = vec![];
 
+        // Game
+
+        let game = Game::new();
+
         //
         let nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
         let engine = Engine::new();
@@ -425,6 +442,8 @@ impl GameData<'_> {
             items,
             items_names,
             items_ids,
+
+            game,
 
             nodes,
 
@@ -467,7 +486,7 @@ impl GameData<'_> {
 
         let path = path::Path::new("game").join("behavior").join(name.clone() + ".json");
 
-        let mut behavior = GameBehavior::new(&path);
+        let mut behavior = GameBehavior::load_from_path(&path);
         behavior.data.name = name.clone();
 
         self.behaviors_names.push(behavior.name.clone());
@@ -485,7 +504,7 @@ impl GameData<'_> {
 
         let path = path::Path::new("game").join("systems").join(name.clone() + ".json");
 
-        let mut system = GameBehavior::new(&path);
+        let mut system = GameBehavior::load_from_path(&path);
         system.data.name = name.clone();
 
         self.systems_names.push(system.name.clone());
@@ -887,6 +906,9 @@ impl GameData<'_> {
         } else
         if behavior_type == BehaviorType::Items {
             return self.items.get(&id);
+        } else
+        if behavior_type == BehaviorType::GameLogic {
+            return Some(&self.game.behavior);
         }
         None
     }
@@ -910,6 +932,9 @@ impl GameData<'_> {
         } else
         if behavior_type == BehaviorType::Items {
             return self.items.get_mut(&id);
+        } else
+        if behavior_type == BehaviorType::GameLogic {
+            return Some(&mut self.game.behavior);
         }
         None
     }

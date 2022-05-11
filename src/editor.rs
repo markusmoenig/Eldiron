@@ -182,7 +182,7 @@ impl ScreenWidget for Editor<'_> {
 
         let game_options = GameOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
 
-        let mut node_graph_game_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, vec![]);
+        let mut node_graph_game_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::GameLogic, vec![]);
         node_graph_game_details.set_mode(GraphMode::Detail, &context);
 
         //
@@ -744,7 +744,7 @@ impl ScreenWidget for Editor<'_> {
                 self.state = EditorState::GameDetail;
                 self.context.curr_graph_type = BehaviorType::GameLogic;
                 self.toolbar.widgets[6].checked = true;
-                //self.node_graph_systems_details.set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
+                self.node_graph_game_details.set_behavior_id(0, &mut self.context);
 
                 for i in 1..=5 {
                     self.toolbar.widgets[i].selected = false;
@@ -1131,6 +1131,15 @@ impl ScreenWidget for Editor<'_> {
 
                     self.node_graph_systems_details.add_node_of_name(drag_context.text.clone(), position, &mut self.context);
                 }
+            } else
+            if self.state == EditorState::GameDetail {
+                if self.context.contains_pos_for(pos, self.node_graph_game_details.rect) {
+                    let mut position = (pos.0 as isize, pos.1 as isize);
+                    position.0 -= self.node_graph_game_details.rect.0 as isize + self.node_graph_game_details.offset.0 + drag_context.offset.0;
+                    position.1 -= self.node_graph_game_details.rect.1 as isize + self.node_graph_game_details.offset.1 + drag_context.offset.1;
+
+                    self.node_graph_game_details.add_node_of_name(drag_context.text.clone(), position, &mut self.context);
+                }
             }
 
 
@@ -1482,7 +1491,7 @@ impl ScreenWidget for Editor<'_> {
 
         let game_options = GameOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
 
-        let mut node_graph_game_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, vec![]);
+        let mut node_graph_game_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::GameLogic, vec![]);
         node_graph_game_details.set_mode(GraphMode::Detail, &context);
 
         self.game_options = game_options;
