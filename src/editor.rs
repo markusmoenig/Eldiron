@@ -1,4 +1,3 @@
-
 use crate::tileselector::TileSelectorWidget;
 use crate::editor::regionoptions::RegionOptions;
 use crate::editor::behavioroptions::BehaviorOptions;
@@ -22,7 +21,7 @@ use server::asset::Asset;
 
 mod controlbar;
 mod toolbar;
-mod nodegraph;
+pub mod nodegraph;
 mod tilemapoptions;
 mod tilemapwidget;
 mod region_overview_options;
@@ -40,19 +39,21 @@ mod statusbar;
 pub mod dialog;
 mod log;
 mod gameoptions;
+pub mod traits;
 
 use crate::editor::toolbar::ToolBar;
 use crate::editor::controlbar::ControlBar;
 use tilemapwidget::TileMapWidget;
 
 use crate::context::ScreenContext;
-use crate::editor::node::NodeUserData;
-use crate::editor::node::NodeWidget;
-use crate::editor::nodegraph::{ NodeGraph, GraphMode };
+use crate::editor::node::{ NodeUserData, NodeWidget };
+use crate::editor::nodegraph::NodeGraph;
 
 use self::dialog::{DialogState, DialogEntry};
 use self::tilemapoptions::TileMapOptions;
 use self::statusbar::StatusBar;
+
+use crate::editor::traits::{ EditorContent, GraphMode, EditorOptions };
 
 #[derive (PartialEq)]
 enum EditorState {
@@ -79,6 +80,11 @@ pub struct Editor<'a> {
     toolbar                         : ToolBar,
     log                             : LogWidget,
 
+    pub content                      : Vec<(Option<Box<dyn EditorOptions>>, Option<Box<dyn EditorContent>>)>,
+
+    pub content_index               : usize,
+    pub content_switch              : usize,
+
     tilemap_options                 : TileMapOptions,
     tilemap                         : TileMapWidget,
 
@@ -98,7 +104,7 @@ pub struct Editor<'a> {
     game_options                    : GameOptions,
 
     node_graph_tiles                : NodeGraph,
-    node_graph_regions                : NodeGraph,
+    node_graph_regions              : NodeGraph,
     node_graph_behavior             : NodeGraph,
     node_graph_behavior_details     : NodeGraph,
     node_graph_systems              : NodeGraph,
@@ -136,9 +142,9 @@ impl ScreenWidget for Editor<'_> {
         // Tile views and nodes
 
         let tilemap_options = TileMapOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
-        let tilemap = TileMapWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
+        let tilemap = TileMapWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Tiles, asset, &context);
 
-        let node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, BehaviorType::Tiles, vec![]);
+        let node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), BehaviorType::Tiles, asset, &context);
 
         // Region views and nodes
 
@@ -148,7 +154,7 @@ impl ScreenWidget for Editor<'_> {
 
         let region_widget = RegionWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
 
-        let node_graph_regions = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Regions, vec![]);
+        let node_graph_regions = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Regions, asset, &context );
 
         // Behavior nodegraph
 
@@ -156,9 +162,9 @@ impl ScreenWidget for Editor<'_> {
 
         let behavior_overview_options = BehaviorOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
 
-        let node_graph_behavior = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Behaviors, vec![]);
+        let node_graph_behavior = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Behaviors, asset, &context);
 
-        let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Behaviors, vec![]);
+        let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Behaviors, asset, &context);
 
         node_graph_behavior_details.set_mode(GraphMode::Detail, &context);
 
@@ -168,9 +174,9 @@ impl ScreenWidget for Editor<'_> {
 
         let systems_overview_options = SystemsOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
 
-        let node_graph_systems = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, vec![]);
+        let node_graph_systems = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Systems, asset, &context);
 
-        let mut node_graph_systems_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, vec![]);
+        let mut node_graph_systems_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Systems, asset, &context);
         node_graph_systems_details.set_mode(GraphMode::Detail, &context);
 
         // Items nodegraph
@@ -179,16 +185,16 @@ impl ScreenWidget for Editor<'_> {
 
         let items_overview_options = ItemsOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
 
-        let node_graph_items = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Items, vec![]);
+        let node_graph_items = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Items, asset, &context, );
 
-        let mut node_graph_items_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Items, vec![]);
+        let mut node_graph_items_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Items, asset, &context);
         node_graph_items_details.set_mode(GraphMode::Detail, &context);
 
         // Game NodeGraph
 
         let game_options = GameOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
 
-        let mut node_graph_game_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::GameLogic, vec![]);
+        let mut node_graph_game_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::GameLogic, asset, &context);
         node_graph_game_details.set_mode(GraphMode::Detail, &context);
 
         //
@@ -221,6 +227,10 @@ impl ScreenWidget for Editor<'_> {
             controlbar,
             toolbar,
             log,
+
+            content                 : vec![],
+            content_index           : 0,
+            content_switch          : 0,
 
             tilemap_options,
             tilemap,
@@ -398,21 +408,46 @@ impl ScreenWidget for Editor<'_> {
         self.controlbar.draw(frame, anim_counter, asset, &mut self.context);
         self.toolbar.draw(frame, anim_counter, asset, &mut self.context);
 
+
+        //
+
+        let index = self.content_index + self.content_switch;
+        let mut options : Option<Box<dyn EditorOptions>> = None;
+        let mut content : Option<Box<dyn EditorContent>> = None;
+
+        if let Some(element) = self.content.drain(index..index+1).next() {
+            options = element.0;
+            content = element.1;
+
+            if let Some(mut el_option) = options {
+                el_option.draw(frame, anim_counter, asset, &mut self.context, &mut content);
+                options = Some(el_option);
+            }
+
+            if let Some(mut el_content) = content {
+                el_content.draw(frame, anim_counter, asset, &mut self.context, &mut options);
+                content = Some(el_content);
+            }
+        }
+        self.content.insert(index, (options, content));
+
+        return;
+
         if self.state == EditorState::Empty {
             self.context.draw2d.draw_rect(frame, &self.node_graph_tiles.rect, self.context.width, &self.context.color_black);
             self.status_bar.rect.0 = 0;
         } else
         if self.state == EditorState::TilesOverview {
-            self.node_graph_tiles.draw(frame, anim_counter, asset, &mut self.context);
+            self.node_graph_tiles.draw(frame, anim_counter, asset, &mut self.context, &mut None);
             self.status_bar.rect.0 = 0;
         } else
         if self.state == EditorState::TilesDetail {
-            self.tilemap_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.tilemap.draw(frame, anim_counter, asset, &mut self.context);
+            self.tilemap_options.draw(frame, anim_counter, asset, &mut self.context, &mut None);
+            self.tilemap.draw(frame, anim_counter, asset, &mut self.context, &mut None);
         } else
         if self.state == EditorState::RegionOverview {
             self.region_overview_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_regions.draw(frame, anim_counter, asset, &mut self.context);
+            self.node_graph_regions.draw(frame, anim_counter, asset, &mut self.context, &mut None);
             self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::RegionDetail {
@@ -422,39 +457,39 @@ impl ScreenWidget for Editor<'_> {
         } else
         if self.state == EditorState::BehaviorOverview {
             self.behavior_overview_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_behavior.draw(frame, anim_counter, asset, &mut self.context);
+            self.node_graph_behavior.draw(frame, anim_counter, asset, &mut self.context, &mut None);
             self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::BehaviorDetail {
             self.behavior_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_behavior_details.draw(frame, anim_counter, asset, &mut self.context);
+            self.node_graph_behavior_details.draw(frame, anim_counter, asset, &mut self.context, &mut None);
             self.log.draw(frame, anim_counter, asset, &mut self.context);
             self.context.draw2d.blend_slice_safe(frame, &self.log.buffer[..], &self.log.rect, self.context.width, &self.node_graph_behavior_details.rect);
             self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::SystemsOverview {
             self.systems_overview_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_systems.draw(frame, anim_counter, asset, &mut self.context);
+            self.node_graph_systems.draw(frame, anim_counter, asset, &mut self.context, &mut None);
             self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::SystemsDetail {
             self.systems_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_systems_details.draw(frame, anim_counter, asset, &mut self.context);
+            self.node_graph_systems_details.draw(frame, anim_counter, asset, &mut self.context, &mut None);
             self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::ItemsOverview {
             self.items_overview_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_items.draw(frame, anim_counter, asset, &mut self.context);
+            self.node_graph_items.draw(frame, anim_counter, asset, &mut self.context, &mut None);
             self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::ItemsDetail {
             self.items_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_items_details.draw(frame, anim_counter, asset, &mut self.context);
+            self.node_graph_items_details.draw(frame, anim_counter, asset, &mut self.context, &mut None);
             self.status_bar.rect.0 = 180;
         } else
         if self.state == EditorState::GameDetail {
             self.game_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_game_details.draw(frame, anim_counter, asset, &mut self.context);
+            self.node_graph_game_details.draw(frame, anim_counter, asset, &mut self.context, &mut None);
             self.status_bar.rect.0 = 180;
         }
 
@@ -645,11 +680,13 @@ impl ScreenWidget for Editor<'_> {
                     self.node_graph_tiles.set_mode_and_rect( GraphMode::Overview, (0, self.rect.1 + self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::TilesOverview;
                     self.node_graph_tiles.mark_all_dirty();
+                    self.content_switch = 0;
                 } else
                 if self.toolbar.widgets[1].right_selected && asset.tileset.maps_ids.is_empty() == false {
                     self.state = EditorState::TilesDetail;
                     self.context.curr_graph_type = BehaviorType::Tiles;
                     self.tilemap.set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
+                    self.content_switch = 1;
                 }
 
                 for i in 2..=5 {
@@ -796,6 +833,31 @@ impl ScreenWidget for Editor<'_> {
             consumed = true;
         }
 
+        let index = self.content_index + self.content_switch;
+        let mut options : Option<Box<dyn EditorOptions>> = None;
+        let mut content : Option<Box<dyn EditorContent>> = None;
+
+        if let Some(element) = self.content.drain(index..index+1).next() {
+            options = element.0;
+            content = element.1;
+
+            if consumed == false {
+                if let Some(mut el_option) = options {
+                    consumed = el_option.mouse_down(pos, asset, &mut self.context, &mut content);
+                    options = Some(el_option);
+                }
+            }
+
+            if consumed == false {
+                if let Some(mut el_content) = content {
+                    consumed = el_content.mouse_down(pos, asset, &mut self.context, &mut options);
+                    content = Some(el_content);
+                }
+            }
+        }
+        self.content.insert(index, (options, content));
+
+        /*
         if consumed == false && self.state == EditorState::TilesOverview {
             if consumed == false && self.node_graph_tiles.mouse_down(pos, asset, &mut self.context) {
                 consumed = true;
@@ -961,7 +1023,7 @@ impl ScreenWidget for Editor<'_> {
             if consumed == false && self.node_graph_game_details.mouse_down(pos, asset, &mut self.context) {
                 consumed = true;
             }
-        }
+        }*/
 
         consumed
     }
@@ -1419,7 +1481,7 @@ impl ScreenWidget for Editor<'_> {
         let left_width = 180_usize;
         let width = self.rect.2;
         let height = self.rect.3;
-        let context = &self.context;
+        let context = &mut self.context;
 
         // Calculate an overview node position based on it's index
         let get_pos = |index: usize, max_width: usize| -> (isize, isize) {
@@ -1432,7 +1494,7 @@ impl ScreenWidget for Editor<'_> {
         // Tile views and nodes
 
         let tilemap_options = TileMapOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
-        let tilemap = TileMapWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context);
+        let tilemap = TileMapWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Tiles, asset, &context);
 
         let mut tile_nodes = vec![];
         for (index, t) in asset.tileset.maps_names.iter().enumerate() {
@@ -1454,11 +1516,43 @@ impl ScreenWidget for Editor<'_> {
             tile_nodes.push(node);
         }
 
-        let node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context, BehaviorType::Tiles, tile_nodes);
+        let mut node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), BehaviorType::Tiles, asset, &context);
+        node_graph_tiles.set_mode_and_nodes(GraphMode::Overview, tile_nodes, &context);
 
         self.tilemap_options = tilemap_options;
         self.tilemap = tilemap;
         self.node_graph_tiles = node_graph_tiles;
+
+        // --
+
+        let tilemap_options = TileMapOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let tilemap = TileMapWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Tiles, asset, &context);
+
+        let mut tile_nodes = vec![];
+        for (index, t) in asset.tileset.maps_names.iter().enumerate() {
+            let p = get_pos(index, width - left_width);
+            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: p });
+
+            let mut size_text = "".to_string();
+            if let Some(tilemap) = asset.tileset.maps.get(&asset.tileset.maps_ids[index]) {
+                size_text = format!("{}", tilemap.settings.grid_size);
+            }
+
+            let mut size_atom = AtomWidget::new(vec!["Grid Size".to_string()], AtomWidgetType::NodeGridSizeButton,
+            AtomData::new_as_int("grid_size".to_string(), 0));
+            size_atom.atom_data.text = "Grid Size".to_string();
+            size_atom.atom_data.data = (index as f64, 0.0, 0.0, 0.0, size_text);
+            size_atom.behavior_id = Some((index, 0, "".to_string()));
+            //size_atom.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Hello".to_string()), self.graph_type);
+            node.widgets.push(size_atom);
+            tile_nodes.push(node);
+        }
+
+        let mut node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), BehaviorType::Tiles, asset, &context);
+        node_graph_tiles.set_mode_and_nodes(GraphMode::Overview, tile_nodes, &context);
+
+        self.content.push( (None, Some(Box::new(node_graph_tiles))) );
+        self.content.push( (Some(Box::new(tilemap_options)), Some(Box::new(tilemap))) );
 
         // Region views and nodes
 
@@ -1475,7 +1569,8 @@ impl ScreenWidget for Editor<'_> {
             region_nodes.push(node);
         }
 
-        let node_graph_regions = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Regions, region_nodes);
+        let mut node_graph_regions = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Regions, asset, &context );
+        node_graph_regions.set_mode_and_nodes(GraphMode::Overview, region_nodes, &context);
 
         self.region_options = region_options;
         self.region_overview_options = region_overview_options;
@@ -1499,10 +1594,10 @@ impl ScreenWidget for Editor<'_> {
 
             behavior_nodes.push(node);
         }
-        let node_graph_behavior = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Behaviors, behavior_nodes);
+        let mut node_graph_behavior = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Behaviors, asset, &context);
+        node_graph_behavior.set_mode_and_nodes(GraphMode::Overview, behavior_nodes, &context);
 
-        let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Behaviors, vec![]);
-
+        let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Behaviors, asset, &context);
         node_graph_behavior_details.set_mode(GraphMode::Detail, &context);
 
         self.behavior_options = behavior_options;
@@ -1527,10 +1622,11 @@ impl ScreenWidget for Editor<'_> {
 
             systems_nodes.push(node);
         }
-        let node_graph_systems = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, systems_nodes);
+        let mut node_graph_systems = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Systems, asset, &context);
+        node_graph_systems.set_mode_and_nodes(GraphMode::Overview, systems_nodes, &context);
 
-        let mut node_graph_systems_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Systems, vec![]);
-        node_graph_systems_details.set_mode(GraphMode::Detail, &context);
+        let mut node_graph_systems_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Systems, asset, &context);
+        node_graph_systems_details.set_mode(GraphMode::Overview, &context);
 
         self.systems_options = systems_options;
         self.systems_overview_options = systems_overview_options;
@@ -1545,9 +1641,10 @@ impl ScreenWidget for Editor<'_> {
 
         let items_nodes = vec![];
 
-        let node_graph_items = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Items, items_nodes);
+        let mut node_graph_items = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Items, asset, &context);
+        node_graph_items.set_mode_and_nodes(GraphMode::Overview, items_nodes, &context);
 
-        let mut node_graph_items_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::Items, vec![]);
+        let mut node_graph_items_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Items, asset, &context);
         node_graph_items_details.set_mode(GraphMode::Detail, &context);
 
         self.items_options = items_options;
@@ -1559,7 +1656,7 @@ impl ScreenWidget for Editor<'_> {
 
         let game_options = GameOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
 
-        let mut node_graph_game_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), asset, &context, BehaviorType::GameLogic, vec![]);
+        let mut node_graph_game_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::GameLogic,  asset, &context);
         node_graph_game_details.set_mode(GraphMode::Detail, &context);
 
         self.game_options = game_options;

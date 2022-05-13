@@ -8,17 +8,13 @@ use zeno::{Mask, Stroke};
 use server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode, BehaviorNodeConnector, BehaviorType };
 
 use server::asset::Asset;
-use crate::editor::ScreenContext;
+use crate::editor::{ ScreenContext };
 
 use itertools::Itertools;
 
-#[derive(PartialEq)]
-pub enum GraphMode {
-    Overview,
-    Detail
-}
+use crate::editor::traits::{ EditorOptions, EditorContent, GraphMode };
 
-pub struct NodeGraph {
+pub struct NodeGraph  {
     pub rect                    : (usize, usize, usize, usize),
     pub dirty                   : bool,
     buffer                      : Vec<u8>,
@@ -53,16 +49,16 @@ pub struct NodeGraph {
     pub clicked_preview         : bool,
 }
 
-impl NodeGraph {
+impl EditorContent for NodeGraph  {
 
-    pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext, graph_type: BehaviorType, nodes: Vec<NodeWidget>) -> Self {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), behavior_type: BehaviorType, _asset: &Asset, _context: &ScreenContext) -> Self where Self: Sized  {
         Self {
             rect,
             dirty                       : true,
             buffer                      : vec![0;rect.2 * rect.3 * 4],
             graph_mode                  : GraphMode::Overview,
-            graph_type,
-            nodes,
+            graph_type                  : behavior_type,
+            nodes                       : vec![],
             offset                      : (0, 0),
             drag_indices                : vec![],
             drag_offset                 : (0, 0),
@@ -89,7 +85,7 @@ impl NodeGraph {
         }
     }
 
-    pub fn update(&mut self, context: &mut ScreenContext) {
+    fn update(&mut self, context: &mut ScreenContext) {
         if context.is_running {
             context.data.tick();
             self.dirty = true;
@@ -99,14 +95,14 @@ impl NodeGraph {
         }
     }
 
-    pub fn set_mode(&mut self, mode: GraphMode, context: &ScreenContext) {
+    fn set_mode(&mut self, mode: GraphMode, context: &ScreenContext) {
         if mode == GraphMode::Detail && self.graph_type == BehaviorType::Behaviors && self.preview.is_none() {
             self.preview = Some(NodePreviewWidget::new(context));
         }
         self.graph_mode = mode;
     }
 
-    pub fn set_mode_and_rect(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &ScreenContext) {
+    fn set_mode_and_rect(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &ScreenContext) {
         if mode == GraphMode::Detail && self.graph_type == BehaviorType::Behaviors && self.preview.is_none() {
             self.preview = Some(NodePreviewWidget::new(context));
         }
@@ -115,20 +111,20 @@ impl NodeGraph {
         self.resize(rect.2, rect.3, context)
     }
 
-    pub fn _set_mode_and_nodes(&mut self, mode: GraphMode, nodes: Vec<NodeWidget>, _context: &ScreenContext) {
+    fn set_mode_and_nodes(&mut self, mode: GraphMode, nodes: Vec<NodeWidget>, _context: &ScreenContext) {
         self.graph_mode = mode;
         self.nodes = nodes;
         self.mark_all_dirty();
     }
 
-    pub fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
+    fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
         self.buffer.resize(width * height * 4, 0);
         self.dirty = true;
         self.rect.2 = width;
         self.rect.3 = height;
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
         let safe_rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
 
         // Stopped running ?
@@ -526,7 +522,7 @@ impl NodeGraph {
     }
 
     /// Updates a node value from the dialog
-    pub fn update_from_dialog(&mut self, context: &mut ScreenContext) {
+    fn update_from_dialog(&mut self, context: &mut ScreenContext) {
         if context.dialog_entry == DialogEntry::NodeName {
             // Node based
             for node_index in 0..self.nodes.len() {
@@ -558,7 +554,7 @@ impl NodeGraph {
         }
     }
 
-    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) -> bool {
 
         let mut rc = false;
 
@@ -774,7 +770,7 @@ impl NodeGraph {
         rc
     }
 
-    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
         if self.drag_indices.is_empty() == false {
             context.target_fps = context.default_fps;
@@ -908,7 +904,7 @@ impl NodeGraph {
         false
     }
 
-    pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
         self.mouse_pos = pos.clone();
 
@@ -1023,7 +1019,7 @@ impl NodeGraph {
         false
     }
 
-    pub fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         if let Some(preview) = &mut self.preview {
             if context.contains_pos_for(self.mouse_hover_pos, preview.rect) {
                 preview.mouse_wheel(delta, asset, context);
@@ -1037,13 +1033,13 @@ impl NodeGraph {
         true
     }
 
-    pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         self.mouse_hover_pos = pos;
         false
     }
 
     /// Marks the two nodes as dirty
-    pub fn changed_selection(&mut self, old_selection: usize, new_selection: usize) {
+    fn changed_selection(&mut self, old_selection: usize, new_selection: usize) {
         if self.graph_mode == GraphMode::Overview {
             for index in 0..self.nodes.len() {
                 if index == old_selection || index == new_selection {
@@ -1055,7 +1051,7 @@ impl NodeGraph {
     }
 
     /// Mark all nodes as dirty
-    pub fn mark_all_dirty(&mut self) {
+    fn mark_all_dirty(&mut self) {
         if self.graph_mode == GraphMode::Overview {
             for index in 0..self.nodes.len() {
                 self.nodes[index].dirty = true;
@@ -1065,7 +1061,7 @@ impl NodeGraph {
     }
 
     /// Set the behavior id, this will take the bevhavior node data and create node widgets
-    pub fn set_behavior_id(&mut self, id: usize, context: &mut ScreenContext) {
+    fn set_behavior_id(&mut self, id: usize, context: &mut ScreenContext) {
 
         self.nodes = vec![];
         self.behavior_tree_indices = vec![];
@@ -1086,7 +1082,7 @@ impl NodeGraph {
     }
 
     /// Adds a node of the type identified by its name
-    pub fn add_node_of_name(&mut self, name: String, position: (isize, isize), context: &mut ScreenContext) {
+    fn add_node_of_name(&mut self, name: String, position: (isize, isize), context: &mut ScreenContext) {
 
         let mut node_widget : Option<NodeWidget> =  None;
         let mut id : usize = 0;
@@ -1163,7 +1159,7 @@ impl NodeGraph {
     }
 
     /// Inits the node widget (atom widgets, id)
-    pub fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
+    fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
 
         if node_data.behavior_type == BehaviorNodeType::BehaviorType {
             node_widget.is_corner_node = true;
@@ -1515,7 +1511,7 @@ impl NodeGraph {
     }
 
     /// Sets up the corner node widget
-    pub fn setup_corner_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
+    fn setup_corner_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
         let type_index : usize;
 
         // Get the type index
@@ -1556,12 +1552,12 @@ impl NodeGraph {
     }
 
     /// Converts the index of a node widget to a node id
-    pub fn widget_index_to_node_id(&self, index: usize) -> usize {
+    fn widget_index_to_node_id(&self, index: usize) -> usize {
         self.nodes[index].id
     }
 
     /// Converts the id of a node to a widget index
-    pub fn node_id_to_widget_index(&self, id: usize) -> usize {
+    fn node_id_to_widget_index(&self, id: usize) -> usize {
         for index in 0..self.nodes.len() {
             if self.nodes[index].id == id {
                 return index;
@@ -1571,7 +1567,7 @@ impl NodeGraph {
     }
 
     /// Returns true if the node connector is a source connector (Right or Bottom)
-    pub fn connector_is_source(&self, connector: BehaviorNodeConnector) -> bool {
+    fn connector_is_source(&self, connector: BehaviorNodeConnector) -> bool {
         if connector == BehaviorNodeConnector::Right || connector == BehaviorNodeConnector::Bottom || connector == BehaviorNodeConnector::Success || connector == BehaviorNodeConnector::Fail || connector == BehaviorNodeConnector::Bottom1 || connector == BehaviorNodeConnector::Bottom2 {
             return true;
         }
@@ -1625,7 +1621,7 @@ impl NodeGraph {
     }
 
     /// Sets the widget and behavior data for the given atom id
-    pub fn set_node_atom_data(&mut self, node_atom_id: (usize, usize, String), data: (f64, f64, f64, f64, String), context: &mut ScreenContext) {
+    fn set_node_atom_data(&mut self, node_atom_id: (usize, usize, String), data: (f64, f64, f64, f64, String), context: &mut ScreenContext) {
         for index in 0..self.nodes.len() {
             if self.nodes[index].id == node_atom_id.1 {
                 for atom_index in 0..self.nodes[index].widgets.len() {
@@ -1645,7 +1641,7 @@ impl NodeGraph {
     }
 
     /// Checks the visibility of a node
-    pub fn check_node_visibility(&mut self, context: &ScreenContext) {
+    fn check_node_visibility(&mut self, context: &ScreenContext) {
 
         self.visible_node_ids = vec![];
 
@@ -1698,7 +1694,7 @@ impl NodeGraph {
     }
 
     /// Marks all connected nodes as visible
-    pub fn mark_connections_visible(&mut self, id: usize, context: &ScreenContext) {
+    fn mark_connections_visible(&mut self, id: usize, context: &ScreenContext) {
         if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
             for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
                 if *source_node_id == id {
@@ -1710,7 +1706,7 @@ impl NodeGraph {
     }
 
     /// Checks if the given node id is part of an unconnected branch.
-    pub fn belongs_to_standalone_branch(&mut self, id: usize, context: &ScreenContext) -> bool {
+    fn belongs_to_standalone_branch(&mut self, id: usize, context: &ScreenContext) -> bool {
         if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
 
             for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
@@ -1730,7 +1726,7 @@ impl NodeGraph {
     }
 
     /// Collects the children indices of the given node id so that they can all be dragged at once
-    pub fn collect_drag_children_indices(&mut self, id: usize, context: &ScreenContext) {
+    fn collect_drag_children_indices(&mut self, id: usize, context: &ScreenContext) {
         if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
             for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
                 if *source_node_id == id {

@@ -3,19 +3,20 @@ use server::asset::Asset;
 
 use server::asset::tileset::TileUsage;
 
-use crate::widget::atom::AtomWidget;
-use crate::widget::atom::AtomWidgetType;
+use crate::widget::atom::{AtomWidget, AtomWidgetType};
 use crate::widget::context::ScreenContext;
 use crate::widget::WidgetState;
+
+use crate::editor::traits::{ EditorOptions, EditorContent };
 
 pub struct TileMapOptions {
     rect                    : (usize, usize, usize, usize),
     widgets                 : Vec<AtomWidget>,
 }
 
-impl TileMapOptions {
+impl EditorOptions for TileMapOptions {
 
-    pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self where Self: Sized {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
@@ -58,12 +59,12 @@ impl TileMapOptions {
         }
     }
 
-    pub fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
+    fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
         self.rect.3 = height;
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
 
         for atom in &mut self.widgets {
@@ -78,14 +79,14 @@ impl TileMapOptions {
     }
 
     // Sets the state of the widgets
-    pub fn set_state(&mut self, state: WidgetState) {
+    fn set_state(&mut self, state: WidgetState) {
         for a in &mut self.widgets {
             a.state = state.clone();
             a.dirty = true;
         }
     }
 
-    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_down(pos, asset, context) {
                 if atom.clicked {
@@ -155,7 +156,7 @@ impl TileMapOptions {
         false
     }
 
-    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         let mut consumed = false;
 
         for atom in &mut self.widgets {
@@ -166,7 +167,7 @@ impl TileMapOptions {
         consumed
     }
 
-    pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         let mut consumed = false;
 
         for atom in &mut self.widgets {
@@ -177,7 +178,7 @@ impl TileMapOptions {
         consumed
     }
 
-    pub fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_hover(pos, asset, context) {
                 return true;
@@ -187,7 +188,7 @@ impl TileMapOptions {
     }
 
     /// Updates the group widget based on the selected tile
-    pub fn adjust_tile_usage(&mut self, asset: &Asset, context: &ScreenContext) {
+    fn adjust_tile_usage(&mut self, asset: &Asset, context: &ScreenContext) {
         if let Some(tile_id) = context.curr_tile {
             let tile = asset.get_tile(&(asset.tileset.maps_ids[context.curr_tileset_index], tile_id.0, tile_id.1));
             match tile.usage {
@@ -211,7 +212,7 @@ impl TileMapOptions {
     }
 
     /// Sets the tile anim for the current tile
-    pub fn set_anim(&mut self, asset: &mut Asset, context: &ScreenContext) {
+    fn set_anim(&mut self, asset: &mut Asset, context: &ScreenContext) {
         if let Some(selection) = context.curr_tile {
             if let Some(selection_end) = context.selection_end {
                 if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
@@ -245,7 +246,7 @@ impl TileMapOptions {
     }
 
     /// Clears the tile anim for the current tile
-    pub fn clear_anim(&mut self, asset: &mut Asset, context: &ScreenContext) {
+    fn clear_anim(&mut self, asset: &mut Asset, context: &ScreenContext) {
         if let Some(selection) = context.curr_tile {
             if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
                 let mut tile = map.get_tile(&selection);
@@ -259,7 +260,7 @@ impl TileMapOptions {
     }
 
     /// Sets the default tile for the current map
-    pub fn set_default_tile(&mut self, asset: &mut Asset, context: &ScreenContext) {
+    fn set_default_tile(&mut self, asset: &mut Asset, context: &ScreenContext) {
         if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
 
             map.settings.default_tile = context.curr_tile;
@@ -268,7 +269,7 @@ impl TileMapOptions {
     }
 
     /// Set the tags
-    pub fn set_tags(&mut self, tags: String, asset: &mut Asset, context: &ScreenContext) {
+    fn set_tags(&mut self, tags: String, asset: &mut Asset, context: &ScreenContext) {
         let mut tiles : Vec<(usize, usize)> = vec![];
 
         if let Some(tile_id) = context.curr_tile {

@@ -1,7 +1,11 @@
 
 use server::asset::{ Asset };
 use server::asset::tileset::TileUsage;
+use server::gamedata::behavior::BehaviorType;
 use crate::widget::context::ScreenContext;
+use crate::widget:: { WidgetState };
+
+use crate::editor::{ EditorOptions, EditorContent };
 
 pub struct TileMapWidget {
     rect                    : (usize, usize, usize, usize),
@@ -18,9 +22,9 @@ pub struct TileMapWidget {
     pub clicked             : bool,
 }
 
-impl TileMapWidget {
+impl EditorContent for TileMapWidget {
 
-    pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext) -> Self {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _behavior_type: BehaviorType, _asset: &Asset, _context: &ScreenContext) -> Self {
 
         Self {
             rect,
@@ -38,12 +42,13 @@ impl TileMapWidget {
         }
     }
 
-    pub fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
+    fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
         self.rect.3 = height;
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
+
         //context.draw2d.draw_rect(frame, &self.rect, context.width, &[44, 44, 44, 255]);
         context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
         if asset.tileset.maps.is_empty() { return }
@@ -136,25 +141,38 @@ impl TileMapWidget {
         }
     }
 
-    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) -> bool {
 
         context.curr_tile = self.screen_to_map(asset, pos);
         self.clicked = true;
         context.selection_end = None;
 
+        if let Some(options) = options {
+            options.adjust_tile_usage(asset, context);
+
+            if context.curr_tile.is_some() {
+                options.set_state(WidgetState::Normal);
+            } else {
+                options.set_state(WidgetState::Disabled);
+            }
+        }
+        /*
+                }
+                if self.context.curr_tile.is_some() {
+                    self.tilemap_options.set_state(WidgetState::Normal);
+                } else {
+                    self.tilemap_options.set_state(WidgetState::Disabled);
+                }
+                */
         true
     }
 
-    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         let consumed = false;
         consumed
     }
 
-    pub fn _mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        false
-    }
-
-    pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
         if let Some(curr_id) = context.curr_tile {
             if let Some(end_pos) = self.screen_to_map(asset, pos) {
@@ -167,7 +185,7 @@ impl TileMapWidget {
         false
     }
 
-    pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         let grid_size = 32_isize;
         self.mouse_wheel_delta += delta.1;
         self.line_offset += self.mouse_wheel_delta / grid_size as isize;
@@ -177,7 +195,7 @@ impl TileMapWidget {
     }
 
     /// Sets a new map index
-    pub fn set_tilemap_id(&mut self, id: usize) {
+    fn set_tilemap_id(&mut self, id: usize) {
         self.tilemap_id = id;
         self.line_offset = 0;
     }

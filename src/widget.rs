@@ -22,41 +22,43 @@ pub enum WidgetKey {
     Space,
 }
 
+#[allow(unused)]
+
 /// Top level screen widget
 pub trait ScreenWidget {
 
     fn new(asset: &mut Asset, width: usize, height: usize) -> Self where Self: Sized;
 
     fn update(&mut self);
-    fn resize(&mut self, _width: usize, _height: usize) {
+    fn resize(&mut self, width: usize, height: usize) {
     }
 
-    fn load_project(&mut self, _path: std::path::PathBuf, _asset: &mut Asset) {
+    fn load_project(&mut self, path: std::path::PathBuf, asset: &mut Asset) {
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset);
 
-    fn key_down(&mut self, _char: Option<char>, _key: Option<WidgetKey>, _asset: &mut Asset) -> bool {
+    fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset) -> bool {
         false
     }
 
-    fn mouse_down(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
         false
     }
 
-    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
+    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
         false
     }
 
-    fn mouse_dragged(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
         false
     }
 
-    fn mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset) -> bool {
+    fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
         false
     }
 
-    fn mouse_wheel(&mut self, _delta: (isize, isize), _asset: &mut Asset) -> bool {
+    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset) -> bool {
         false
     }
 
@@ -85,34 +87,35 @@ pub enum WidgetState {
     Clicked,
 }
 
+#[allow(unused)]
 pub trait Widget {
 
     fn new(text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self where Self: Sized;
 
     fn update(&mut self) {}
-    fn resize(&mut self, _width: usize, _height: usize, _context: &ScreenContext) {
+    fn resize(&mut self, width: usize, height: usize, context: &ScreenContext) {
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext);
     fn draw_overlay(&mut self, frame: &mut [u8], rect: &(usize, usize, usize, usize), anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext);
 
-    fn mouse_down(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         false
     }
 
-    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         false
     }
 
-    fn mouse_dragged(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         false
     }
 
-    fn mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         false
     }
 
-    fn mouse_wheel(&mut self, _delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         false
     }
 

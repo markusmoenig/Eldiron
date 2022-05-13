@@ -6,6 +6,8 @@ use crate::editor::{ TileSelectorWidget, RegionOptions, NodeGraph, GraphMode };
 use super::regionoptions::RegionEditorMode;
 use server::gamedata::behavior::{ BehaviorType };
 
+use crate::editor::traits::EditorContent;
+
 pub struct RegionWidget {
     pub rect                : (usize, usize, usize, usize),
     pub region_id           : usize,
@@ -17,7 +19,7 @@ pub struct RegionWidget {
 
     pub tile_selector       : TileSelectorWidget,
 
-    pub behavior_graph      : NodeGraph,
+    pub behavior_graph      : Box::<NodeGraph>,
 
     mouse_wheel_delta       : (isize, isize),
 
@@ -36,7 +38,7 @@ impl RegionWidget {
         tile_selector.set_tile_type(vec![TileUsage::Environment], None, None, &asset);
 
         // Graph
-        let mut behavior_graph = NodeGraph::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context, BehaviorType::Regions, vec![]);
+        let mut behavior_graph = NodeGraph::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), BehaviorType::Regions, asset, &context);
 
         behavior_graph.set_mode(GraphMode::Detail, &context);
 
@@ -49,7 +51,7 @@ impl RegionWidget {
             screen_offset           : (0, 0),
 
             tile_selector,
-            behavior_graph,
+            behavior_graph          : Box::new(behavior_graph),
 
             mouse_wheel_delta       : (0, 0),
             mouse_hover_pos         : (0, 0),
@@ -145,7 +147,7 @@ impl RegionWidget {
         }
 
         if editor_mode == RegionEditorMode::Behavior {
-            self.behavior_graph.draw(frame, anim_counter, asset, context);
+            self.behavior_graph.draw(frame, anim_counter, asset, context, &mut None);
         }
 
         if self.mouse_hover_pos != (0,0) {
@@ -176,7 +178,7 @@ impl RegionWidget {
         } else
         if editor_mode == RegionEditorMode::Behavior {
             if context.contains_pos_for(pos, self.behavior_graph.rect) {
-                consumed = self.behavior_graph.mouse_down(pos, asset, context);
+                consumed = self.behavior_graph.mouse_down(pos, asset, context, &mut None);
                 return consumed;
             }
         }

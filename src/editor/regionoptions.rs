@@ -12,6 +12,8 @@ use crate::tileset::TileUsage;
 use crate::widget::*;
 use crate::widget::context::ScreenDragContext;
 
+use crate::editor::traits::EditorContent;
+
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum RegionEditorMode {
     Tiles,
