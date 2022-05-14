@@ -264,25 +264,29 @@ impl ScreenWidget for Editor<'_> {
 
         //
 
-        let index = self.context.content_index * 2 + self.context.content_switch;
-        let mut options : Option<Box<dyn EditorOptions>> = None;
-        let mut content : Option<Box<dyn EditorContent>> = None;
+        if self.content.is_empty() == false {
+            let index = self.context.content_index * 2 + self.context.content_switch;
+            let mut options : Option<Box<dyn EditorOptions>> = None;
+            let mut content : Option<Box<dyn EditorContent>> = None;
 
-        if let Some(element) = self.content.drain(index..index+1).next() {
-            options = element.0;
-            content = element.1;
+            if let Some(element) = self.content.drain(index..index+1).next() {
+                options = element.0;
+                content = element.1;
 
-            if let Some(mut el_option) = options {
-                el_option.draw(frame, anim_counter, asset, &mut self.context, &mut content);
-                options = Some(el_option);
+                if let Some(mut el_option) = options {
+                    el_option.draw(frame, anim_counter, asset, &mut self.context, &mut content);
+                    options = Some(el_option);
+                }
+
+                if let Some(mut el_content) = content {
+                    el_content.draw(frame, anim_counter, asset, &mut self.context, &mut options);
+                    content = Some(el_content);
+                }
             }
-
-            if let Some(mut el_content) = content {
-                el_content.draw(frame, anim_counter, asset, &mut self.context, &mut options);
-                content = Some(el_content);
-            }
+            self.content.insert(index, (options, content));
+        } else {
+            self.context.draw2d.draw_rect(frame, &self.rect, self.rect.2, &self.context.color_black);
         }
-        self.content.insert(index, (options, content));
 
         // Log
         if self.state == EditorState::BehaviorDetail {
