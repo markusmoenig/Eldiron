@@ -6,13 +6,12 @@ use crate::widget::atom::AtomWidgetType;
 use crate::widget::context::ScreenContext;
 use crate::widget::WidgetState;
 
-use crate::editor::RegionWidget;
 use crate::tileset::TileUsage;
 
 use crate::widget::*;
 use crate::widget::context::ScreenDragContext;
 
-use crate::editor::traits::EditorContent;
+use crate::editor::traits::{ EditorOptions, EditorContent };
 
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum RegionEditorMode {
@@ -32,9 +31,9 @@ pub struct RegionOptions {
     pub behavior_widgets    : Vec<AtomWidget>,
 }
 
-impl RegionOptions {
+impl EditorOptions for RegionOptions {
 
-    pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
@@ -144,12 +143,12 @@ impl RegionOptions {
         }
     }
 
-    pub fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
+    fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
         self.rect.3 = height;
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, region_widget: &mut RegionWidget) {
+    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
 
         let mode = self.get_editor_mode();
@@ -175,13 +174,15 @@ impl RegionOptions {
         }
 
         if mode == RegionEditorMode::Tiles {
-            if let Some(tile) = region_widget.tile_selector.selected.clone() {
-                context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + self.rect.3 - 140), asset.get_map_of_id(tile.0), context.width, &(tile.1, tile.2), anim_counter, 100);
+            if let Some(content) = content {
+                if let Some(tile) = content.get_selected_tile() {
+                    context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + self.rect.3 - 140), asset.get_map_of_id(tile.0), context.width, &(tile.1, tile.2), anim_counter, 100);
 
-                context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 40, self.rect.2, 30), context.width, &asset.get_editor_font("OpenSans"), 20.0, &format!("({}, {}, {})", tile.0, tile.1, tile.2), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
-            }
-            for atom in &mut self.tile_widgets {
-                atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
+                    context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 40, self.rect.2, 30), context.width, &asset.get_editor_font("OpenSans"), 20.0, &format!("({}, {}, {})", tile.0, tile.1, tile.2), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
+                }
+                for atom in &mut self.tile_widgets {
+                    atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
+                }
             }
         } else
         if mode == RegionEditorMode::Areas {
@@ -191,7 +192,7 @@ impl RegionOptions {
         }
     }
 
-    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, region_widget: &mut RegionWidget) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_down(pos, asset, context) {
                 return true;
@@ -203,15 +204,19 @@ impl RegionOptions {
         if mode == RegionEditorMode::Tiles {
             for atom in &mut self.tile_widgets {
                 if atom.mouse_down(pos, asset, context) {
-                    if atom.atom_data.id == "UsageList" {
-                        region_widget.tile_selector.set_tile_type(vec![self.get_tile_usage()], self.get_tilemap_index(), self.get_tags(), &asset);
-                    } else
-                    if atom.atom_data.id == "Layer" {
-                        self.curr_layer = atom.curr_index + 1;
-                    } else
-                    if atom.atom_data.id == "remap" {
-                        if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
-                            region.remap(asset);
+                    if let Some(content) = content {
+                        if atom.atom_data.id == "UsageList" {
+                            if let Some(tile_selector) = content.get_tile_selector() {
+                                tile_selector.set_tile_type(vec![self.get_tile_usage()], self.get_tilemap_index(), self.get_tags(), &asset);
+                            }
+                        } else
+                        if atom.atom_data.id == "Layer" {
+                            self.curr_layer = atom.curr_index + 1;
+                        } else
+                        if atom.atom_data.id == "remap" {
+                            if let Some(region) = context.data.regions.get_mut(&content.get_region_id()) {
+                                region.remap(asset);
+                            }
                         }
                     }
                     return true;
@@ -236,7 +241,7 @@ impl RegionOptions {
         false
     }
 
-    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, region_widget: &mut RegionWidget) -> bool {
+    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool {
 
         let mut mode_was_updated = false;
         for atom in &mut self.widgets {
@@ -256,13 +261,18 @@ impl RegionOptions {
 
                     if atom.new_selection.is_some() {
                         if atom.atom_data.id == "Tilemaps" {
-                            if atom.curr_index == 0 {
-                                region_widget.tile_selector.set_tile_type(vec![usage], None, tags, &asset);
-                            } else {
-                                region_widget.tile_selector.set_tile_type(vec![usage], Some(atom.curr_index - 1), tags, &asset);
+                            if let Some(el_content) = content {
+                                if let Some(tile_selector) = el_content.get_tile_selector() {
+                                    if atom.curr_index == 0 {
+                                        tile_selector.set_tile_type(vec![usage], None, tags, &asset);
+                                    } else {
+                                        tile_selector.set_tile_type(vec![usage], Some(atom.curr_index - 1), tags, &asset);
+                                    }
+                                    atom.dirty = true;
+                                }
                             }
-                            atom.dirty = true;
                         }
+
                     }
                     return true;
                 }
@@ -270,27 +280,33 @@ impl RegionOptions {
         } else
         if mode == RegionEditorMode::Areas {
             if mode_was_updated {
-                self.update_area_ui(context, region_widget);
+                self.update_area_ui(context, content);
             }
             for atom in &mut self.area_widgets {
                 if atom.mouse_up(pos, asset, context) {
 
                     if atom.atom_data.id == "Area" {
-                        self.update_area_ui(context, region_widget);
+                        self.update_area_ui(context, content);
                     } else
                     if atom.atom_data.id == "Add Area" {
-                        if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
-                            let id = region.create_area();
-                            context.curr_region_area_index = region.behaviors.len() - 1;
-                            region_widget.behavior_graph.set_behavior_id(id, context);
+                        if let Some(el_content) = content {
+                            if let Some(region) = context.data.regions.get_mut(&el_content.get_region_id()) {
+                                let id = region.create_area();
+                                context.curr_region_area_index = region.behaviors.len() - 1;
+                                if let Some(graph) = el_content.get_behavior_graph() {
+                                    graph.set_behavior_id(id, context);
+                                }
+                            }
                         }
-                        self.update_area_ui(context, region_widget);
+                        self.update_area_ui(context, content);
                     } else
                     if atom.atom_data.id == "Delete" {
-                        if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
-                            region.delete_area(context.curr_region_area_index);
+                        if let Some(el_content) = content {
+                            if let Some(region) = context.data.regions.get_mut(&el_content.get_region_id()) {
+                                region.delete_area(context.curr_region_area_index);
+                            }
                         }
-                        self.update_area_ui(context, region_widget);
+                        self.update_area_ui(context, content);
                     } else
                     if atom.atom_data.id == "Rename" {
                         use crate::editor::dialog::{DialogState, DialogEntry};
@@ -298,10 +314,12 @@ impl RegionOptions {
                         context.dialog_height = 0;
                         context.target_fps = 60;
                         context.dialog_entry = DialogEntry::NewName;
-                        if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
-                            context.dialog_new_name = region.get_area_names()[context.curr_region_area_index].clone();
+                        if let Some(el_content) = content {
+                            if let Some(region) = context.data.regions.get_mut(&el_content.get_region_id()) {
+                                context.dialog_new_name = region.get_area_names()[context.curr_region_area_index].clone();
+                            }
                         }
-                        self.update_area_ui(context, region_widget);
+                        self.update_area_ui(context, content);
                     }
 
                     return true;
@@ -319,7 +337,7 @@ impl RegionOptions {
         false
     }
 
-    pub fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _region_widget: &mut RegionWidget) -> bool {
+    fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_hover(pos, asset, context) {
                 return true;
@@ -352,7 +370,8 @@ impl RegionOptions {
         false
     }
 
-    pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
+
         let mode = self.get_editor_mode();
         if mode == RegionEditorMode::Behavior {
             if let Some(drag_context) = &self.behavior_widgets[0].drag_context {
@@ -392,7 +411,7 @@ impl RegionOptions {
     }
 
     /// Returns the current editor mode
-    pub fn get_editor_mode(&self) -> RegionEditorMode {
+    fn get_editor_mode(&self) -> RegionEditorMode {
         let mode = self.widgets[0].curr_item_index;
 
         match mode {
@@ -403,47 +422,51 @@ impl RegionOptions {
     }
 
     /// Update the area ui
-    pub fn update_area_ui(&mut self, context: &mut ScreenContext, region_widget: &mut RegionWidget) {
+    fn update_area_ui(&mut self, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {
 
-        if let Some(region) = context.data.regions.get(&region_widget.region_id) {
+        if let Some(content) = content {
+            if let Some(region) = context.data.regions.get(&content.get_region_id()) {
 
-            let area_count = region.data.areas.len();
+                let area_count = region.data.areas.len();
 
-            if area_count == 0 {
-                self.area_widgets[0].text = vec![];
-                self.area_widgets[0].curr_index = 0;
-                self.area_widgets[0].state = WidgetState::Disabled;
-                self.area_widgets[2].state = WidgetState::Disabled;
-                self.area_widgets[3].state = WidgetState::Disabled;
-            } else {
-                self.area_widgets[0].text = region.get_area_names();
-                self.area_widgets[0].state = WidgetState::Normal;
-                self.area_widgets[1].state = WidgetState::Normal;
-                self.area_widgets[2].state = WidgetState::Normal;
-                self.area_widgets[3].state = WidgetState::Normal;
+                if area_count == 0 {
+                    self.area_widgets[0].text = vec![];
+                    self.area_widgets[0].curr_index = 0;
+                    self.area_widgets[0].state = WidgetState::Disabled;
+                    self.area_widgets[2].state = WidgetState::Disabled;
+                    self.area_widgets[3].state = WidgetState::Disabled;
+                } else {
+                    self.area_widgets[0].text = region.get_area_names();
+                    self.area_widgets[0].state = WidgetState::Normal;
+                    self.area_widgets[1].state = WidgetState::Normal;
+                    self.area_widgets[2].state = WidgetState::Normal;
+                    self.area_widgets[3].state = WidgetState::Normal;
+                }
+
+                for a in &mut self.area_widgets {
+                    a.dirty = true;
+                }
+
+                context.curr_region_area_index = self.area_widgets[0].curr_index;
+
+                region.save_data();
             }
-
-            for a in &mut self.area_widgets {
-                a.dirty = true;
-            }
-
-            context.curr_region_area_index = self.area_widgets[0].curr_index;
-
-            region.save_data();
         }
     }
 
     /// Sets a new name for the current area
-    pub fn set_area_name(&mut self, name: String, context: &mut ScreenContext, region_widget: &mut RegionWidget) {
+    fn set_area_name(&mut self, name: String, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {
 
-        if let Some(region) = context.data.regions.get_mut(&region_widget.region_id) {
-            region.data.areas[context.curr_region_area_index].name = name;
-            self.update_area_ui(context, region_widget);
+        if let Some(el_content) = content {
+            if let Some(region) = context.data.regions.get_mut(&el_content.get_region_id()) {
+                region.data.areas[context.curr_region_area_index].name = name;
+                self.update_area_ui(context, content);
+            }
         }
     }
 
     /// Get the current tile usage
-    pub fn get_tile_usage(&self) -> TileUsage {
+    fn get_tile_usage(&self) -> TileUsage {
         match self.tile_widgets[2].curr_item_index {
             1 => TileUsage::EnvRoad,
             2 => TileUsage::EnvBlocking,
@@ -453,7 +476,7 @@ impl RegionOptions {
     }
 
     /// Get the current tile_id if any
-    pub fn get_tilemap_index(&self) -> Option<usize> {
+    fn get_tilemap_index(&self) -> Option<usize> {
         if self.tile_widgets[0].curr_index > 0 {
             return Some(self.tile_widgets[0].curr_index - 1);
         }
@@ -461,7 +484,7 @@ impl RegionOptions {
     }
 
     /// Get the current tags
-    pub fn get_tags(&self) -> Option<String> {
+    fn get_tags(&self) -> Option<String> {
         if self.tile_widgets[1].text[0].len() > 0 {
             return Some(self.tile_widgets[1].text[0].clone());
         }
@@ -469,15 +492,26 @@ impl RegionOptions {
     }
 
     /// Get the current layer
-    pub fn get_layer(&self) -> usize {
+    fn get_layer(&self) -> usize {
         self.curr_layer
     }
 
     /// Set the tags
-    pub fn set_tags(&mut self, tags: String, asset: &mut Asset, _context: &ScreenContext, region_widget: &mut RegionWidget) {
+    fn set_region_tags(&mut self, tags: String, asset: &mut Asset, _context: &ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {
+
         self.tile_widgets[1].text[0] = tags.clone().to_lowercase();
         self.tile_widgets[1].dirty = true;
 
-        region_widget.tile_selector.set_tile_type(vec![self.get_tile_usage()], self.get_tilemap_index(), self.get_tags(), &asset);
+        if let Some(content) = content {
+            if let Some(tile_selector) = content.get_tile_selector() {
+                tile_selector.set_tile_type(vec![self.get_tile_usage()], self.get_tilemap_index(), self.get_tags(), &asset);
+            }
+        }
+    }
+
+    /// Sets the area names
+    fn set_area_names(&mut self, names: Vec<String>) {
+        self.area_widgets[0].text = names;
+        self.area_widgets[0].dirty = true;
     }
 }

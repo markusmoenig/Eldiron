@@ -2,8 +2,10 @@ use crate::editor::node::{NodeConnector, NodeWidget};
 use crate::atom:: { AtomData, AtomWidget, AtomWidgetType };
 use crate::editor::node_preview::NodePreviewWidget;
 use crate::editor::dialog::{ DialogState, DialogEntry };
+use crate::widget::Widget;
 
 use zeno::{Mask, Stroke};
+use crate::editor::ToolBar;
 
 use server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode, BehaviorNodeConnector, BehaviorType };
 
@@ -45,8 +47,6 @@ pub struct NodeGraph  {
     curr_behavior_tree_index    : Option<usize>,
 
     visible_node_ids            : Vec<usize>,
-
-    pub clicked_preview         : bool,
 }
 
 impl EditorContent for NodeGraph  {
@@ -80,8 +80,6 @@ impl EditorContent for NodeGraph  {
             curr_behavior_tree_index    : None,
 
             visible_node_ids            : vec![],
-
-            clicked_preview             : false,
         }
     }
 
@@ -554,7 +552,7 @@ impl EditorContent for NodeGraph  {
         }
     }
 
-    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool {
 
         let mut rc = false;
 
@@ -564,7 +562,6 @@ impl EditorContent for NodeGraph  {
         }
 
         if self.graph_mode == GraphMode::Overview {
-            self.clicked_preview = false;
             for index in 0..self.nodes.len() {
                 let rect= self.get_node_rect(index, false);
 
@@ -582,6 +579,21 @@ impl EditorContent for NodeGraph  {
                             self.nodes[index].dirty = true;
                             self.dirty = true;
                             self.clicked = true;
+
+                            if let Some(toolbar) = toolbar {
+                                if let Some(atom) = toolbar.get_atom_at_index(0) {
+                                    atom.curr_index = index;
+                                    atom.dirty = true;
+                                }
+                            }
+                        }
+
+                        // Test for click in preview area
+                        let dx = pos.0 as isize - rect.0;
+                        let dy = pos.1 as isize - rect.1;
+                        if dx >= 10 && dx <= 110 && dy >= 10 && dy <= 110 {
+                            context.content_switch = 1;
+                            self.drag_indices = vec![];
                         }
                     }
                     if self.graph_type == BehaviorType::Regions {
@@ -623,14 +635,6 @@ impl EditorContent for NodeGraph  {
                             self.dirty = true;
                             self.clicked = true;
                         }
-                    }
-
-                    // Test for click in preview area
-                    let dx = pos.0 as isize - rect.0;
-                    let dy = pos.1 as isize - rect.1;
-                    if dx >= 10 && dx <= 110 && dy >= 10 && dy <= 110 {
-                        self.clicked_preview = true;
-                        self.drag_indices = vec![];
                     }
 
                     rc = true;
@@ -770,7 +774,7 @@ impl EditorContent for NodeGraph  {
         rc
     }
 
-    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
         if self.drag_indices.is_empty() == false {
             context.target_fps = context.default_fps;
@@ -904,7 +908,7 @@ impl EditorContent for NodeGraph  {
         false
     }
 
-    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
         self.mouse_pos = pos.clone();
 
@@ -1019,7 +1023,7 @@ impl EditorContent for NodeGraph  {
         false
     }
 
-    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
         if let Some(preview) = &mut self.preview {
             if context.contains_pos_for(self.mouse_hover_pos, preview.rect) {
                 preview.mouse_wheel(delta, asset, context);
@@ -1033,7 +1037,7 @@ impl EditorContent for NodeGraph  {
         true
     }
 
-    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
         self.mouse_hover_pos = pos;
         false
     }
@@ -1740,6 +1744,17 @@ impl EditorContent for NodeGraph  {
             }
         }
     }
+
+    /// Get the node vec
+    fn get_nodes(&mut self) -> Option<&mut Vec<NodeWidget>> {
+        Some(&mut self.nodes)
+    }
+
+    /// Get the rect
+    fn get_rect(&self) -> (usize, usize, usize, usize) { self.rect.clone() }
+
+    /// Get the offset
+    fn get_offset(&self) -> (isize, isize) { self.offset.clone() }
 
     /// Returns the behavior id for the current behavior and graph type
     fn get_curr_behavior_id(&self, context: &ScreenContext) -> usize {

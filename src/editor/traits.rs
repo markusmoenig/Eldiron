@@ -4,15 +4,15 @@ use server::asset::Asset;
 
 use crate::editor::ScreenContext;
 use crate::WidgetState;
+use crate::editor::{ ToolBar, TileSelectorWidget, NodeGraph };
+
+use crate::editor::regionoptions::RegionEditorMode;
+use crate::TileUsage;
 
 #[allow(unused)]
 pub trait EditorOptions {
 
     fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self where Self: Sized;
-
-        fn test(&mut self) {
-            println!("test");
-        }
 
     fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext);
 
@@ -20,13 +20,13 @@ pub trait EditorOptions {
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool;
 
-    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool;
+    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool;
 
-    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool;
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool;
 
-    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool { false }
+    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool { false }
 
-    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool { false }
+    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool { false }
 
     // Sets the state of the atom widgets
     fn set_state(&mut self, state: WidgetState) {}
@@ -48,6 +48,35 @@ pub trait EditorOptions {
 
     /// Set the tile tags
     fn set_tags(&mut self, tags: String, asset: &mut Asset, context: &ScreenContext) {}
+
+    // For RegionOptions
+
+    /// Returns the current region editor mode
+    fn get_editor_mode(&self) -> RegionEditorMode { RegionEditorMode::Tiles }
+
+    /// Update the area ui
+    fn update_area_ui(&mut self, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {}
+
+    /// Sets a new name for the current area
+    fn set_area_name(&mut self, name: String, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {}
+
+    /// Get the current tile usage
+    fn get_tile_usage(&self) -> TileUsage { TileUsage::Environment }
+
+    /// Get the current tile_id if any
+    fn get_tilemap_index(&self) -> Option<usize> { None }
+
+    /// Get the current tags
+    fn get_tags(&self) -> Option<String> { None }
+
+    /// Get the current layer
+    fn get_layer(&self) -> usize { 0 }
+
+    /// Set the tags
+    fn set_region_tags(&mut self, tags: String, asset: &mut Asset, context: &ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {}
+
+    /// Sets the area names
+    fn set_area_names(&mut self, names: Vec<String>) {}
 }
 
 #[derive(PartialEq)]
@@ -65,15 +94,15 @@ pub trait EditorContent {
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>);
 
-    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) -> bool;
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool;
 
-    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool;
+    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool;
 
-    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool;
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool;
 
-    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool;
+    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool;
 
-    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool { false }
+    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool { false }
 
 
     // For TileMapWidget
@@ -83,6 +112,28 @@ pub trait EditorContent {
 
     /// Converts a screen position to a map grid position
     fn screen_to_map(&self, asset: &Asset, screen_pos: (usize, usize)) -> Option<(usize, usize)> { None }
+
+    // For RegionWidget
+
+
+    /// Sets a region id
+    fn set_region_id(&mut self, id: usize, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {}
+
+    /// Get the tile id
+    fn get_tile_id(&self, pos: (usize, usize)) -> Option<(isize, isize)> { None }
+
+    /// Returns the selected tile
+    fn get_selected_tile(&self) -> Option<(usize, usize, usize, TileUsage)> { None }
+
+    /// Return the tile selector
+    fn get_tile_selector(&mut self) -> Option<&mut TileSelectorWidget> { None }
+
+    /// Returns the region_id
+    fn get_region_id(&self) -> usize { 0 }
+
+    /// Return the behavior graph
+    fn get_behavior_graph(&mut self) -> Option<&mut NodeGraph> { None }
+
 
     // For NodeGraphs
 
@@ -151,4 +202,16 @@ pub trait EditorContent {
 
     /// Returns the current node id for the given graph type
     fn get_curr_node_id(&self, context: &ScreenContext) -> usize { 0 }
+
+    /// Marks the node graph for redraw
+    fn set_dirty(&mut self) {}
+
+    /// Gets the node vec
+    fn get_nodes(&mut self) -> Option<&mut Vec<NodeWidget>> { None }
+
+    /// Get the rect
+    fn get_rect(&self) -> (usize, usize, usize, usize) { (0,0,0,0) }
+
+    /// Get the offset
+    fn get_offset(&self) -> (isize, isize) { (0,0) }
 }

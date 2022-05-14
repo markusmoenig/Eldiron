@@ -25,7 +25,7 @@ pub struct ControlBar {
 
 impl Widget for ControlBar {
 
-    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self where Self: Sized {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &mut ScreenContext) -> Self where Self: Sized {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 

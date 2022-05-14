@@ -3,6 +3,7 @@ use server::asset::{ Asset };
 use server::asset::tileset::TileUsage;
 use server::gamedata::behavior::BehaviorType;
 use crate::widget::context::ScreenContext;
+use crate::editor::ToolBar;
 use crate::widget:: { WidgetState };
 
 use crate::editor::{ EditorOptions, EditorContent };
@@ -18,8 +19,6 @@ pub struct TileMapWidget {
     max_line_offset         : usize,
 
     mouse_wheel_delta       : isize,
-
-    pub clicked             : bool,
 }
 
 impl EditorContent for TileMapWidget {
@@ -37,8 +36,6 @@ impl EditorContent for TileMapWidget {
             max_line_offset         : 0,
 
             mouse_wheel_delta       : 0,
-
-            clicked                 : false
         }
     }
 
@@ -54,7 +51,7 @@ impl EditorContent for TileMapWidget {
         if asset.tileset.maps.is_empty() { return }
 
         let scale = self.scale;
-        let map = &asset.tileset.maps[&(self.tilemap_id)];
+        let map = &asset.tileset.maps[&self.tilemap_id];
         let scaled_grid_size = (map.settings.grid_size as f32 * scale) as usize;
 
         //context.draw2d.draw_square_pattern(frame, &self.rect, self.rect.2, &[44, 44, 46, 255], &[56, 56, 56, 255], scaled_grid_size);
@@ -141,10 +138,9 @@ impl EditorContent for TileMapWidget {
         }
     }
 
-    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
         context.curr_tile = self.screen_to_map(asset, pos);
-        self.clicked = true;
         context.selection_end = None;
 
         if let Some(options) = options {
@@ -156,23 +152,15 @@ impl EditorContent for TileMapWidget {
                 options.set_state(WidgetState::Disabled);
             }
         }
-        /*
-                }
-                if self.context.curr_tile.is_some() {
-                    self.tilemap_options.set_state(WidgetState::Normal);
-                } else {
-                    self.tilemap_options.set_state(WidgetState::Disabled);
-                }
-                */
         true
     }
 
-    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
         let consumed = false;
         consumed
     }
 
-    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
         if let Some(curr_id) = context.curr_tile {
             if let Some(end_pos) = self.screen_to_map(asset, pos) {
@@ -185,7 +173,7 @@ impl EditorContent for TileMapWidget {
         false
     }
 
-    fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
         let grid_size = 32_isize;
         self.mouse_wheel_delta += delta.1;
         self.line_offset += self.mouse_wheel_delta / grid_size as isize;

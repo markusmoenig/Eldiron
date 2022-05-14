@@ -13,7 +13,7 @@ pub struct ToolBar {
 
 impl Widget for ToolBar {
 
-    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self where Self: Sized {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &mut ScreenContext) -> Self where Self: Sized {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
@@ -123,5 +123,11 @@ impl Widget for ToolBar {
 
     fn get_rect(&self) -> &(usize, usize, usize, usize) {
         return &self.rect;
+    }
+
+    fn get_atom_at_index(&mut self, index: usize) -> Option<&mut AtomWidget> {
+        if index < self.widgets.len() {
+            Some(&mut self.widgets[index])
+        } else { None }
     }
 }

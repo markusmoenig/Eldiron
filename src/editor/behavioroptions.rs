@@ -8,6 +8,8 @@ use crate::widget::atom::AtomWidget;
 use crate::widget::atom::AtomWidgetType;
 use crate::widget::context::ScreenContext;
 
+use crate::editor::{ EditorOptions, EditorContent };
+
 pub struct BehaviorOptions {
     rect                    : (usize, usize, usize, usize),
     pub widgets             : Vec<AtomWidget>,
@@ -15,9 +17,9 @@ pub struct BehaviorOptions {
     pub drag_context        : Option<ScreenDragContext>,
 }
 
-impl BehaviorOptions {
+impl EditorOptions for BehaviorOptions {
 
-    pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
@@ -43,12 +45,12 @@ impl BehaviorOptions {
         }
     }
 
-    pub fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
+    fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
         self.rect.3 = height;
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
 
         for atom in &mut self.widgets {
@@ -56,7 +58,7 @@ impl BehaviorOptions {
         }
     }
 
-    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_down(pos, asset, context) {
                 if atom.clicked {
@@ -70,7 +72,7 @@ impl BehaviorOptions {
         false
     }
 
-    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
         let mut consumed = false;
         for atom in &mut self.widgets {
             if atom.mouse_up(pos, asset, context) {
@@ -80,7 +82,7 @@ impl BehaviorOptions {
         consumed
     }
 
-    pub fn mouse_dragged(&mut self, _pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_dragged(&mut self, _pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
         if let Some(drag_context) = &self.widgets[0].drag_context {
             if context.drag_context == None {
 
@@ -99,10 +101,6 @@ impl BehaviorOptions {
             }
             self.widgets[0].drag_context = None;
         }
-        false
-    }
-
-    pub fn _mouse_hover(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         false
     }
 }

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use server::asset::Asset;
 
-use self::context::ScreenContext;
+use self::{context::ScreenContext, atom::AtomWidget};
 
 pub mod context;
 pub mod draw2d;
@@ -90,7 +90,7 @@ pub enum WidgetState {
 #[allow(unused)]
 pub trait Widget {
 
-    fn new(text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self where Self: Sized;
+    fn new(text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &mut ScreenContext) -> Self where Self: Sized;
 
     fn update(&mut self) {}
     fn resize(&mut self, width: usize, height: usize, context: &ScreenContext) {
@@ -119,12 +119,9 @@ pub trait Widget {
         false
     }
 
-    //fn set_cb(&mut self) {
-    //}
-
-    //fn set_cb<T: FnMut()>(&mut self, f: T) {
-        // { self.f = Some(Box::new(f)//); }
-    //}
+    fn get_atom_at_index(&mut self, index: usize) -> Option<&mut AtomWidget> {
+        None
+    }
 
     fn contains_pos(&self, pos: (usize, usize)) -> bool {
         let rect = self.get_rect();

@@ -156,7 +156,7 @@ impl EditorOptions for TileMapOptions {
         false
     }
 
-    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
         let mut consumed = false;
 
         for atom in &mut self.widgets {
@@ -167,7 +167,7 @@ impl EditorOptions for TileMapOptions {
         consumed
     }
 
-    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
         let mut consumed = false;
 
         for atom in &mut self.widgets {
@@ -178,7 +178,7 @@ impl EditorOptions for TileMapOptions {
         consumed
     }
 
-    fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_hover(pos, asset, context) {
                 return true;
