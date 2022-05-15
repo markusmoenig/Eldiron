@@ -27,6 +27,8 @@ pub struct RegionWidget {
 
     mouse_hover_pos         : (usize, usize),
     pub clicked             : Option<(isize, isize)>,
+
+    selector_size           : usize,
 }
 
 impl EditorContent for RegionWidget {
@@ -58,6 +60,8 @@ impl EditorContent for RegionWidget {
             mouse_wheel_delta       : (0, 0),
             mouse_hover_pos         : (0, 0),
             clicked                 : None,
+
+            selector_size           : 250,
         }
     }
 
@@ -65,8 +69,8 @@ impl EditorContent for RegionWidget {
         self.rect.2 = width;
         self.rect.3 = height;
 
-        self.tile_selector.rect = (self.rect.0, self.rect.1 + self.rect.3 - 250, width, 250);
-        self.tile_selector.resize(width, 250);
+        self.tile_selector.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.selector_size, width, self.selector_size);
+        self.tile_selector.resize(width, self.selector_size);
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
@@ -331,7 +335,9 @@ impl EditorContent for RegionWidget {
     /// Get the tile id
     fn get_tile_id(&self, pos: (usize, usize)) -> Option<(isize, isize)> {
         let grid_size = self.grid_size;
-        if pos.0 > self.rect.0 + self.screen_offset.0 && pos.1 > self.rect.1 + self.screen_offset.1 {
+        if pos.0 > self.rect.0 + self.screen_offset.0 && pos.1 > self.rect.1 + self.screen_offset.1
+        && pos.0 < self.rect.0 + self.rect.2 - self.screen_offset.0  && pos.1 < self.rect.1 + self.rect.3 - self.screen_offset.1 - self.selector_size
+        {
             let x = ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
             let y = ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;
             return Some((x, y));

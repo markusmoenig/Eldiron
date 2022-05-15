@@ -251,9 +251,10 @@ impl ScreenWidget for Editor<'_> {
         // To update the variables
         if self.context.just_stopped_running {
             self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_dirty();
-            //if let Some(preview) = &mut self.node_graph_behavior_details.preview {
-            //    preview.dirty = true;
-            //}
+
+            if let Some(preview) = self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().get_preview_widget() {
+                preview.dirty = true;
+            }
         }
 
         // Do we need to load a new project ?
@@ -1621,5 +1622,7 @@ impl ScreenWidget for Editor<'_> {
 
         self.state = EditorState::TilesOverview;
         self.toolbar.widgets[0].text = asset.tileset.maps_names.clone();
+        self.controlbar.widgets[2].state = WidgetState::Normal;
+        self.controlbar.widgets[2].dirty = true;
     }
 }

@@ -9,6 +9,8 @@ use crate::editor::{ ToolBar, TileSelectorWidget, NodeGraph };
 use crate::editor::regionoptions::RegionEditorMode;
 use crate::TileUsage;
 
+use super::node_preview::NodePreviewWidget;
+
 #[allow(unused)]
 pub trait EditorOptions {
 
@@ -214,4 +216,8 @@ pub trait EditorContent {
 
     /// Get the offset
     fn get_offset(&self) -> (isize, isize) { (0,0) }
+
+    /// Get the preview widget
+    fn get_preview_widget(&mut self) -> Option<&mut NodePreviewWidget> { None }
+
 }

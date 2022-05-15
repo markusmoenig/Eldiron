@@ -1761,6 +1761,14 @@ impl EditorContent for NodeGraph  {
         self.dirty = true;
     }
 
+    /// Get the preview widget
+    fn get_preview_widget(&mut self) -> Option<&mut NodePreviewWidget> {
+        if self.preview.is_some() {
+            return self.preview.as_mut();
+        }
+        None
+    }
+
     /// Returns the behavior id for the current behavior and graph type
     fn get_curr_behavior_id(&self, context: &ScreenContext) -> usize {
         if self.graph_type == BehaviorType::Regions {
