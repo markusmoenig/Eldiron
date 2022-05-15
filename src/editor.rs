@@ -55,7 +55,7 @@ use self::statusbar::StatusBar;
 
 use crate::editor::traits::{ EditorContent, GraphMode, EditorOptions };
 
-#[derive (PartialEq)]
+#[derive (PartialEq, Copy, Clone)]
 enum EditorState {
     TilesOverview,
     TilesDetail,
@@ -155,11 +155,11 @@ impl ScreenWidget for Editor<'_> {
         }
     }
 
-    /// Update the editor
+    /// Game tick if the game is running
     fn update(&mut self) {
         // let start = self.get_time();
         if self.context.is_debugging == true {
-            self.content[self.context.content_index * 2 + self.context.content_switch].1.as_mut().unwrap().update(&mut self.context);
+            self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context);
         } else {
             self.context.data.tick();
         }
@@ -167,6 +167,7 @@ impl ScreenWidget for Editor<'_> {
         // println!("update time {:?}", stop - start);
     }
 
+    /// A key was pressed
     fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset) -> bool {
 
         if self.context.is_running {
@@ -197,6 +198,7 @@ impl ScreenWidget for Editor<'_> {
         false
     }
 
+    // Resize the editor
     fn resize(&mut self, width: usize, height: usize) {
         self.context.width = width; self.rect.2 = width;
         self.context.height = height; self.rect.3 = height;
@@ -206,13 +208,14 @@ impl ScreenWidget for Editor<'_> {
         for index in 0..self.content.len() {
             if self.content[index].0.is_some() {
                 self.content[index].0.as_mut().unwrap().resize(self.left_width, height - self.context.toolbar_height, &self.context);
-                self.content[index].1.as_mut().unwrap().resize(width, height - self.context.toolbar_height, &self.context);
-            } else {
                 self.content[index].1.as_mut().unwrap().resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
+            } else {
+                self.content[index].1.as_mut().unwrap().resize(width, height - self.context.toolbar_height, &self.context);
             }
         }
     }
 
+    /// Draw the editor
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset) {
 
         // let start = self.get_time();
@@ -265,7 +268,7 @@ impl ScreenWidget for Editor<'_> {
         //
 
         if self.content.is_empty() == false {
-            let index = self.context.content_index * 2 + self.context.content_switch;
+            let index = self.state as usize;
             let mut options : Option<Box<dyn EditorOptions>> = None;
             let mut content : Option<Box<dyn EditorContent>> = None;
 
@@ -276,6 +279,9 @@ impl ScreenWidget for Editor<'_> {
                 if let Some(mut el_option) = options {
                     el_option.draw(frame, anim_counter, asset, &mut self.context, &mut content);
                     options = Some(el_option);
+                    self.status_bar.rect.0 = self.left_width;
+                } else {
+                    self.status_bar.rect.0 = 0;
                 }
 
                 if let Some(mut el_content) = content {
@@ -294,67 +300,7 @@ impl ScreenWidget for Editor<'_> {
             self.context.draw2d.blend_slice_safe(frame, &self.log.buffer[..], &self.log.rect, self.context.width, &self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().get_rect());
         }
 
-        /*
-        if self.state == EditorState::Empty {
-            self.context.draw2d.draw_rect(frame, &self.node_graph_tiles.rect, self.context.width, &self.context.color_black);
-            self.status_bar.rect.0 = 0;
-        } else
-        if self.state == EditorState::TilesOverview {
-            self.node_graph_tiles.draw(frame, anim_counter, asset, &mut self.context, &mut None);
-            self.status_bar.rect.0 = 0;
-        } else
-        if self.state == EditorState::TilesDetail {
-            self.tilemap_options.draw(frame, anim_counter, asset, &mut self.context, &mut None);
-            self.tilemap.draw(frame, anim_counter, asset, &mut self.context, &mut None);
-        } else
-        if self.state == EditorState::RegionOverview {
-            self.region_overview_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_regions.draw(frame, anim_counter, asset, &mut self.context, &mut None);
-            self.status_bar.rect.0 = 180;
-        } else
-        if self.state == EditorState::RegionDetail {
-            self.region_options.draw(frame, anim_counter, asset, &mut self.context, &mut self.region_widget);
-            self.region_widget.draw(frame, anim_counter, asset, &mut self.context, &mut self.region_options);
-            self.status_bar.rect.0 = 180;
-        } else
-        if self.state == EditorState::BehaviorOverview {
-            self.behavior_overview_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_behavior.draw(frame, anim_counter, asset, &mut self.context, &mut None);
-            self.status_bar.rect.0 = 180;
-        } else
-        if self.state == EditorState::BehaviorDetail {
-            self.behavior_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_behavior_details.draw(frame, anim_counter, asset, &mut self.context, &mut None);
-            self.log.draw(frame, anim_counter, asset, &mut self.context);
-            self.context.draw2d.blend_slice_safe(frame, &self.log.buffer[..], &self.log.rect, self.context.width, &self.node_graph_behavior_details.rect);
-            self.status_bar.rect.0 = 180;
-        } else
-        if self.state == EditorState::SystemsOverview {
-            self.systems_overview_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_systems.draw(frame, anim_counter, asset, &mut self.context, &mut None);
-            self.status_bar.rect.0 = 180;
-        } else
-        if self.state == EditorState::SystemsDetail {
-            self.systems_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_systems_details.draw(frame, anim_counter, asset, &mut self.context, &mut None);
-            self.status_bar.rect.0 = 180;
-        } else
-        if self.state == EditorState::ItemsOverview {
-            self.items_overview_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_items.draw(frame, anim_counter, asset, &mut self.context, &mut None);
-            self.status_bar.rect.0 = 180;
-        } else
-        if self.state == EditorState::ItemsDetail {
-            self.items_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_items_details.draw(frame, anim_counter, asset, &mut self.context, &mut None);
-            self.status_bar.rect.0 = 180;
-        } else
-        if self.state == EditorState::GameDetail {
-            self.game_options.draw(frame, anim_counter, asset, &mut self.context);
-            self.node_graph_game_details.draw(frame, anim_counter, asset, &mut self.context, &mut None);
-            self.status_bar.rect.0 = 180;
-        }*/
-
+        // Status bar
         self.status_bar.draw(frame, anim_counter, asset, &mut self.context);
 
         // Drag and drop
@@ -391,33 +337,31 @@ impl ScreenWidget for Editor<'_> {
                         tilemap.settings.grid_size = value;
                         tilemap.save_settings();
 
-                        /* TODO
-                        self.node_graph_tiles.nodes[index].widgets[0].atom_data.data.4 = self.context.dialog_node_behavior_value.4.clone();
-                        self.node_graph_tiles.nodes[index].widgets[0].dirty = true;
-                        self.node_graph_tiles.nodes[index].dirty = true;
-                        self.node_graph_tiles.dirty = true;
-                        */
+                        // Update the node and its widget with the new value
+                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[index].widgets[0].atom_data.data.4 = self.context.dialog_node_behavior_value.4.clone();
+                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[index].widgets[0].dirty = true;
+                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[index].dirty = true;
+                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().set_dirty();
                     }
                 }
             } else
             if self.state == EditorState::RegionOverview {
                 if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
                     println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
-                    /*
+
                     self.context.data.create_behavior(self.context.dialog_new_name.clone(), 0);
 
                     let mut node = NodeWidget::new(vec![self.context.dialog_new_name.clone()],
-                    NodeUserData { position: (100, 50 + 150 * self.node_graph_behavior.nodes.len() as isize) });
+                    NodeUserData { position: (100, 50 + 150 * self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().len() as isize) });
 
                     let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
                     node.menu = Some(node_menu_atom);
 
-                    self.node_graph_behavior.nodes.push(node);
-                    self.node_graph_behavior.dirty = true;
+                    self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
+                    self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().set_dirty();
                     self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
                     self.toolbar.widgets[0].dirty = true;
-                    */
-                } /*else {
+                } else {
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {
                             if let Some(behavior) = self.context.data.behaviors.get_mut(&self.context.data.behaviors_ids[self.context.curr_behavior_index]) {
@@ -425,20 +369,59 @@ impl ScreenWidget for Editor<'_> {
                             }
                         }
                     }
-                    self.node_graph_behavior.update_from_dialog(&mut self.context);
-                }*/
+                    self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
+                }
             } else
             if self.state == EditorState::RegionDetail && self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
-                //self.region_options.set_area_name(self.context.dialog_new_name.clone(), &mut self.context, &mut self.region_widget);
+                let index = EditorState::RegionDetail as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
+
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
+
+                    if let Some(mut el_option) = options {
+                        el_option.set_area_name(self.context.dialog_new_name.clone(), &mut self.context, &mut content);
+                        options = Some(el_option);
+                    }
+                }
+                self.content.insert(index, (options, content));
             } else
             if self.state == EditorState::TilesDetail && self.context.dialog_entry == DialogEntry::Tags && self.context.dialog_accepted == true {
-                //TODO self.tilemap_options.set_tags(self.context.dialog_new_name.clone(), asset, &self.context);
+                let index = EditorState::TilesDetail as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
+
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
+
+                    if let Some(mut el_option) = options {
+                        el_option.set_tags(self.context.dialog_new_name.clone(), asset, &self.context);
+                        options = Some(el_option);
+                    }
+                }
+                self.content.insert(index, (options, content));
             } else
             if self.state == EditorState::RegionDetail && self.context.dialog_entry == DialogEntry::Tags && self.context.dialog_accepted == true {
-                //self.region_options.set_tags(self.context.dialog_new_name.clone(), asset, &self.context, &mut self.region_widget);
+                let index = EditorState::RegionDetail as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
+
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
+
+                    if let Some(mut el_option) = options {
+                        el_option.set_tags(self.context.dialog_new_name.clone(), asset, &self.context);//, &mut content);
+                        options = Some(el_option);
+                    }
+                }
+                self.content.insert(index, (options, content));
             } else
             if self.state == EditorState::RegionDetail {
-                //self.region_widget.behavior_graph.update_from_dialog(&mut self.context);
+                self.content[EditorState::RegionDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
             } else
             if self.state == EditorState::BehaviorDetail {
                 if self.context.dialog_entry == DialogEntry::NodeTile {
@@ -544,18 +527,12 @@ impl ScreenWidget for Editor<'_> {
                     self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (0, self.rect.1 + self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::TilesOverview;
                     self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().mark_all_dirty();
-
-                    self.context.content_index = 0;
-                    self.context.content_switch = 0;
                 } else
                 if self.toolbar.widgets[EditorState::TilesDetail as usize].right_selected && asset.tileset.maps_ids.is_empty() == false {
                     self.state = EditorState::TilesDetail;
                     self.context.curr_graph_type = BehaviorType::Tiles;
 
                     self.content[EditorState::TilesDetail as usize].1.as_mut().unwrap().set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
-
-                    self.context.content_index = 0;
-                    self.context.content_switch = 1;
                 }
 
                 for i in 2..=5 {
@@ -577,9 +554,6 @@ impl ScreenWidget for Editor<'_> {
                     self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::RegionOverview;
                     self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().mark_all_dirty();
-
-                    self.context.content_index = 1;
-                    self.context.content_switch = 0;
                 } else
                 if self.toolbar.widgets[2].right_selected {
                     self.state = EditorState::RegionDetail;
@@ -598,9 +572,6 @@ impl ScreenWidget for Editor<'_> {
                         }
                     }
                     self.content.insert(index, (options, content));
-
-                    self.context.content_index = 1;
-                    self.context.content_switch = 1;
                 }
 
                 for i in 1..=5 {
@@ -623,18 +594,12 @@ impl ScreenWidget for Editor<'_> {
                     self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::BehaviorOverview;
                     self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().mark_all_dirty();
-
-                    self.context.content_index = 2;
-                    self.context.content_switch = 0;
                 } else
                 if self.toolbar.widgets[3].right_selected {
                     self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::BehaviorDetail;
                     self.context.curr_graph_type = BehaviorType::Behaviors;
                     self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.behaviors_ids[self.context.curr_behavior_index] , &mut self.context);
-
-                    self.context.content_index = 2;
-                    self.context.content_switch = 1;
                 }
 
                 for i in 1..=5 {
@@ -657,18 +622,12 @@ impl ScreenWidget for Editor<'_> {
                     self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::SystemsOverview;
                     self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().mark_all_dirty();
-
-                    self.context.content_index = 3;
-                    self.context.content_switch = 0;
                 } else
                 if self.toolbar.widgets[4].right_selected {
                     self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::SystemsDetail;
                     self.context.curr_graph_type = BehaviorType::Systems;
                     self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
-
-                    self.context.content_index = 3;
-                    self.context.content_switch = 1;
                 }
 
                 for i in 1..=5 {
@@ -691,18 +650,12 @@ impl ScreenWidget for Editor<'_> {
                     self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::ItemsOverview;
                     self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().mark_all_dirty();
-
-                    self.context.content_index = 4;
-                    self.context.content_switch = 0;
                 } else
                 if self.toolbar.widgets[5].right_selected {
                     self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::ItemsDetail;
                     self.context.curr_graph_type = BehaviorType::Items;
                     //self.node_graph_items_details.set_behavior_id(self.context.data.items_ids[self.context.curr_items_index], &mut self.context);
-
-                    self.context.content_index = 4;
-                    self.context.content_switch = 1;
                 }
 
                 for i in 1..5 {
@@ -735,14 +688,11 @@ impl ScreenWidget for Editor<'_> {
                 self.toolbar.widgets[0].text = vec!["Game Logic".to_string()];
                 self.toolbar.widgets[0].curr_index = 0;
                 self.toolbar.widgets[0].dirty = true;
-
-                self.context.content_index = 5;
-                self.context.content_switch = 0;
             }
             consumed = true;
         }
 
-        let index = self.context.content_index * 2 + self.context.content_switch;
+        let index = self.state as usize;
         let mut options : Option<Box<dyn EditorOptions>> = None;
         let mut content : Option<Box<dyn EditorContent>> = None;
 
@@ -963,7 +913,7 @@ impl ScreenWidget for Editor<'_> {
                     self.content[2].1.as_mut().unwrap().changed_selection(self.context.curr_region_index, self.toolbar.widgets[0].curr_index);
                     self.context.curr_region_index = self.toolbar.widgets[0].curr_index;
 
-                    let index = 3;
+                    let index = EditorState::RegionDetail as usize;
                     let mut options : Option<Box<dyn EditorOptions>> = None;
                     let mut content : Option<Box<dyn EditorContent>> = None;
 
@@ -994,7 +944,7 @@ impl ScreenWidget for Editor<'_> {
             consumed = true;
         }
 
-        let index = self.context.content_index * 2 + self.context.content_switch;
+        let index = self.state as usize;
         let mut options : Option<Box<dyn EditorOptions>> = None;
         let mut content : Option<Box<dyn EditorContent>> = None;
 
@@ -1147,14 +1097,15 @@ impl ScreenWidget for Editor<'_> {
                 }
             } else
             if self.state == EditorState::RegionDetail {
-                /* TODO
-                if self.context.contains_pos_for(pos, self.region_widget.behavior_graph.rect) {
+                let rect = self.content[EditorState::RegionDetail as usize].1.as_mut().unwrap().get_rect();
+                let offset = self.content[EditorState::RegionDetail as usize].1.as_mut().unwrap().get_offset();
+                if self.context.contains_pos_for(pos, rect) {
                     let mut position = (pos.0 as isize, pos.1 as isize);
-                    position.0 -= self.region_widget.behavior_graph.rect.0 as isize + self.region_widget.behavior_graph.offset.0 + drag_context.offset.0;
-                    position.1 -= self.region_widget.behavior_graph.rect.1 as isize + self.region_widget.behavior_graph.offset.1 + drag_context.offset.1;
+                    position.0 -= rect.0 as isize + offset.0 + drag_context.offset.0;
+                    position.1 -= rect.1 as isize + offset.1 + drag_context.offset.1;
 
-                    self.region_widget.behavior_graph.add_node_of_name(drag_context.text.clone(), position, &mut self.context);
-                }*/
+                     self.content[EditorState::RegionDetail as usize].1.as_mut().unwrap().add_node_of_name(drag_context.text.clone(), position, &mut self.context);
+                }
             } else
             if self.state == EditorState::BehaviorOverview {
                 let rect = self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_rect();
@@ -1253,7 +1204,7 @@ impl ScreenWidget for Editor<'_> {
         let mut consumed = false;
         self.toolbar.mouse_dragged(pos, asset, &mut self.context);
 
-        let index = self.context.content_index * 2 + self.context.content_switch;
+        let index = self.state as usize;
         let mut options : Option<Box<dyn EditorOptions>> = None;
         let mut content : Option<Box<dyn EditorContent>> = None;
 
@@ -1380,7 +1331,7 @@ impl ScreenWidget for Editor<'_> {
 
             self.mouse_hover_pos = pos.clone();
 
-            let index = self.context.content_index * 2 + self.context.content_switch;
+            let index = self.state as usize;
             let mut options : Option<Box<dyn EditorOptions>> = None;
             let mut content : Option<Box<dyn EditorContent>> = None;
 
@@ -1443,7 +1394,7 @@ impl ScreenWidget for Editor<'_> {
         }
 
         let mut consumed = false;
-        let index = self.context.content_index * 2 + self.context.content_switch;
+        let index = self.state as usize;
         let mut options : Option<Box<dyn EditorOptions>> = None;
         let mut content : Option<Box<dyn EditorContent>> = None;
 

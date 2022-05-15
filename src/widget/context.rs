@@ -67,9 +67,6 @@ pub struct ScreenContext<'a> {
     pub color_red                       : [u8;4],
     pub color_green_conn                : [u8;4],
 
-    pub content_index                   : usize,
-    pub content_switch                  : usize,
-
     pub curr_tileset_index              : usize,
     pub curr_tile                       : Option<(usize, usize)>,
     pub selection_end                   : Option<(usize, usize)>,
@@ -245,9 +242,6 @@ impl ScreenContext<'_> {
             drag_context                : None,
 
             curr_graph_type             : BehaviorType::Behaviors,
-
-            content_index               : 0,
-            content_switch              : 0,
 
             // Tiles
             curr_tileset_index          : 0,

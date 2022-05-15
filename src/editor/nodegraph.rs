@@ -592,7 +592,7 @@ impl EditorContent for NodeGraph  {
                         let dx = pos.0 as isize - rect.0;
                         let dy = pos.1 as isize - rect.1;
                         if dx >= 10 && dx <= 110 && dy >= 10 && dy <= 110 {
-                            context.content_switch = 1;
+                            //context.content_switch = 1;
                             self.drag_indices = vec![];
                         }
                     }
@@ -1755,6 +1755,11 @@ impl EditorContent for NodeGraph  {
 
     /// Get the offset
     fn get_offset(&self) -> (isize, isize) { self.offset.clone() }
+
+    /// Needs redraw
+    fn set_dirty(&mut self) {
+        self.dirty = true;
+    }
 
     /// Returns the behavior id for the current behavior and graph type
     fn get_curr_behavior_id(&self, context: &ScreenContext) -> usize {
