@@ -364,4 +364,9 @@ impl EditorContent for RegionWidget {
     fn get_region_id(&self) -> usize {
         self.region_id
     }
+
+    /// Update the behavior graph when a setting changed
+    fn update_from_dialog(&mut self, context: &mut ScreenContext) {
+        self.behavior_graph.update_from_dialog(context);
+    }
 }

@@ -579,13 +579,6 @@ impl EditorContent for NodeGraph  {
                             self.nodes[index].dirty = true;
                             self.dirty = true;
                             self.clicked = true;
-
-                            if let Some(toolbar) = toolbar {
-                                if let Some(atom) = toolbar.get_atom_at_index(0) {
-                                    atom.curr_index = index;
-                                    atom.dirty = true;
-                                }
-                            }
                         }
 
                         // Test for click in preview area
@@ -634,6 +627,15 @@ impl EditorContent for NodeGraph  {
                             self.nodes[index].dirty = true;
                             self.dirty = true;
                             self.clicked = true;
+                        }
+                    }
+
+                    if let Some(toolbar) = toolbar {
+                        if let Some(atom) = toolbar.get_atom_at_index(0) {
+                            if atom.curr_index != index {
+                                atom.curr_index = index;
+                                atom.dirty = true;
+                            }
                         }
                     }
 
