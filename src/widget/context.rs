@@ -76,15 +76,8 @@ pub struct ScreenContext<'a> {
     pub curr_region_tile                : Option<(usize, usize, usize, TileUsage)>,
 
     pub curr_behavior_index             : usize,
-    pub curr_behavior_node_id           : usize,
-
     pub curr_systems_index              : usize,
-    pub curr_systems_node_id            : usize,
-
     pub curr_items_index                : usize,
-    pub curr_items_node_id              : usize,
-
-    pub curr_game_node_id              : usize,
 
     pub drag_context                    : Option<ScreenDragContext>,
 
@@ -255,18 +248,12 @@ impl ScreenContext<'_> {
 
             // Behaviors
             curr_behavior_index         : 0,
-            curr_behavior_node_id       : 0,
 
             // Systems
             curr_systems_index          : 0,
-            curr_systems_node_id        : 0,
 
             // Items
             curr_items_index            : 0,
-            curr_items_node_id          : 0,
-
-            // Game
-            curr_game_node_id           : 0,
 
             dialog_state                : DialogState::Closed,
             dialog_height               : 0,

@@ -145,6 +145,8 @@ pub struct GameBehaviorData {
     pub id                      : usize,
 
     pub name                    : String,
+
+    pub curr_node_id            : Option<usize>,
 }
 
 pub struct GameBehavior {
@@ -164,7 +166,7 @@ impl GameBehavior {
 
         // Construct the json settings
         let data = serde_json::from_str(&contents)
-            .unwrap_or(GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string() });
+            .unwrap_or(GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None });
 
         Self {
             name        : name.to_string(),
@@ -178,7 +180,7 @@ impl GameBehavior {
         Self {
             name        : "name".to_string(),
             path        : std::path::Path::new("").to_path_buf(),
-            data        : GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string() }
+            data        : GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None }
         }
     }
 

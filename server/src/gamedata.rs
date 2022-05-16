@@ -887,7 +887,7 @@ impl GameData<'_> {
     }
 
 
-    /// Gets the behavior for the given behaviortype
+    /// Gets the behavior for the given behavior type
     pub fn get_behavior(&self, id: usize, behavior_type: BehaviorType) -> Option<&GameBehavior> {
         if behavior_type == BehaviorType::Regions {
             for (_index, region) in &self.regions {

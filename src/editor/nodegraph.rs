@@ -47,6 +47,7 @@ pub struct NodeGraph  {
     curr_behavior_tree_index    : Option<usize>,
 
     visible_node_ids            : Vec<usize>,
+    behavior_id                 : usize,
 }
 
 impl EditorContent for NodeGraph  {
@@ -80,6 +81,8 @@ impl EditorContent for NodeGraph  {
             curr_behavior_tree_index    : None,
 
             visible_node_ids            : vec![],
+
+            behavior_id                 : 0,
         }
     }
 
@@ -233,7 +236,7 @@ impl EditorContent for NodeGraph  {
 
                         if self.nodes[index].dirty {
 
-                            let selected = if self.nodes[index].id == self.get_curr_node_id(context) { true } else { false };
+                            let selected = if Some(self.nodes[index].id) == self.get_curr_node_id(context) { true } else { false };
                             self.nodes[index].draw(frame, anim_counter, asset, context, selected);
                         }
 
@@ -273,7 +276,7 @@ impl EditorContent for NodeGraph  {
                     }
 
                     if self.nodes[vindex].dirty {
-                        let selected = if self.nodes[index].id == self.get_curr_node_id(context) { true } else { false };
+                        let selected = if Some(self.nodes[index].id) == self.get_curr_node_id(context) { true } else { false };
                         self.nodes[vindex].draw(frame, anim_counter, asset, context, selected);
                     }
 
@@ -700,24 +703,21 @@ impl EditorContent for NodeGraph  {
                         self.drag_indices = vec![index];
                         self.collect_drag_children_indices(self.widget_index_to_node_id(index), &context);
 
-                        if self.get_curr_node_id(context) != self.nodes[index].id {
+                        if self.get_curr_node_id(context) != Some(self.nodes[index].id) {
+                            if let Some(selected_id) = self.get_curr_node_id(context) {
+                                let sel_index = self.node_id_to_widget_index(selected_id);
 
-                            let sel_index = self.node_id_to_widget_index(self.get_curr_node_id(context));
+                                self.nodes[sel_index].dirty = true;
 
-                            self.nodes[sel_index].dirty = true;
-                            if self.graph_type == BehaviorType::Behaviors {
-                                context.curr_behavior_node_id = self.nodes[index].id;
-                            } else
-                            if self.graph_type == BehaviorType::Systems {
-                                context.curr_systems_node_id = self.nodes[index].id;
-                            } else
-                            if self.graph_type == BehaviorType::Items {
-                                context.curr_items_node_id = self.nodes[index].id;
+                                if let Some(behavior) = context.data.get_mut_behavior(self.behavior_id, self.graph_type) {
+                                    behavior.data.curr_node_id = Some(self.nodes[index].id);
+                                }
+
+                                self.nodes[index].dirty = true;
+                                self.dirty = true;
+                                self.clicked = true;
+                                rc = true;
                             }
-                            self.nodes[index].dirty = true;
-                            self.dirty = true;
-                            self.clicked = true;
-                            rc = true;
                         }
                     }
                 }
@@ -1072,6 +1072,8 @@ impl EditorContent for NodeGraph  {
         self.nodes = vec![];
         self.behavior_tree_indices = vec![];
         self.curr_behavior_tree_index = None;
+
+        self.behavior_id = id;
 
         if let Some(behavior) = context.data.get_behavior(id, self.graph_type) {
             let sorted_keys = behavior.data.nodes.keys().sorted();
@@ -1791,19 +1793,11 @@ impl EditorContent for NodeGraph  {
     }
 
     /// Returns the current node id for the given graph type
-    fn get_curr_node_id(&self, context: &ScreenContext) -> usize {
-        if self.graph_type == BehaviorType::Behaviors {
-            return context.curr_behavior_node_id
-        } else
-        if self.graph_type == BehaviorType::Systems {
-            return context.curr_systems_node_id
-        } else
-        if self.graph_type == BehaviorType::Items {
-            return context.curr_items_node_id
-        } else
-        if self.graph_type == BehaviorType::GameLogic {
-            return context.curr_game_node_id
+    fn get_curr_node_id(&self, context: &ScreenContext) -> Option<usize> {
+
+        if let Some(behavior) = context.data.get_behavior(self.behavior_id, self.graph_type) {
+            return behavior.data.curr_node_id;
         }
-        0
+        None
     }
 }

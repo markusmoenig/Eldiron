@@ -203,7 +203,7 @@ pub trait EditorContent {
     fn get_curr_behavior_id(&self, context: &ScreenContext) -> usize { 0 }
 
     /// Returns the current node id for the given graph type
-    fn get_curr_node_id(&self, context: &ScreenContext) -> usize { 0 }
+    fn get_curr_node_id(&self, context: &ScreenContext) -> Option<usize> { None }
 
     /// Marks the node graph for redraw
     fn set_dirty(&mut self) {}
