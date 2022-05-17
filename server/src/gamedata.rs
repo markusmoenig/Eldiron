@@ -710,13 +710,17 @@ impl GameData<'_> {
                 // Handle special nodes
                 if node.behavior_type == BehaviorNodeType::BehaviorTree || node.behavior_type == BehaviorNodeType::Linear {
                     connectors.push(BehaviorNodeConnector::Bottom1);
-                    connectors.push(BehaviorNodeConnector::Bottom);
                     connectors.push(BehaviorNodeConnector::Bottom2);
+                    connectors.push(BehaviorNodeConnector::Bottom);
+                    connectors.push(BehaviorNodeConnector::Bottom3);
+                    connectors.push(BehaviorNodeConnector::Bottom4);
                 } else
                 if node.behavior_type == BehaviorNodeType::Sequence {
                     connectors.push(BehaviorNodeConnector::Bottom1);
-                    connectors.push(BehaviorNodeConnector::Bottom);
                     connectors.push(BehaviorNodeConnector::Bottom2);
+                    connectors.push(BehaviorNodeConnector::Bottom);
+                    connectors.push(BehaviorNodeConnector::Bottom3);
+                    connectors.push(BehaviorNodeConnector::Bottom4);
                     is_sequence = true;
                 } else {
                     if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
@@ -786,14 +790,15 @@ impl GameData<'_> {
                 // Handle special nodes
                 if node.behavior_type == BehaviorNodeType::BehaviorTree || node.behavior_type == BehaviorNodeType::Linear {
                     connectors.push(BehaviorNodeConnector::Bottom1);
-                    connectors.push(BehaviorNodeConnector::Bottom);
                     connectors.push(BehaviorNodeConnector::Bottom2);
+                    connectors.push(BehaviorNodeConnector::Bottom);
                 } else
                 if node.behavior_type == BehaviorNodeType::Sequence {
                     connectors.push(BehaviorNodeConnector::Bottom1);
-                    connectors.push(BehaviorNodeConnector::Bottom);
                     connectors.push(BehaviorNodeConnector::Bottom2);
-                    is_sequence = true;
+                    connectors.push(BehaviorNodeConnector::Bottom);
+                    connectors.push(BehaviorNodeConnector::Bottom3);
+                    connectors.push(BehaviorNodeConnector::Bottom4);                    is_sequence = true;
                 } else {
                     if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
                         let systems_id = self.instances[instance_index].systems_id.clone();
@@ -887,7 +892,7 @@ impl GameData<'_> {
     }
 
 
-    /// Gets the behavior for the given behavior type
+    /// Gets the behavior for the given behaviortype
     pub fn get_behavior(&self, id: usize, behavior_type: BehaviorType) -> Option<&GameBehavior> {
         if behavior_type == BehaviorType::Regions {
             for (_index, region) in &self.regions {

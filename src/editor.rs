@@ -350,18 +350,8 @@ impl ScreenWidget for Editor<'_> {
                 if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
                     println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
 
-                    self.context.data.create_behavior(self.context.dialog_new_name.clone(), 0);
+                    // TODO Create a new region
 
-                    let mut node = NodeWidget::new(vec![self.context.dialog_new_name.clone()],
-                    NodeUserData { position: (100, 50 + 150 * self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().len() as isize) });
-
-                    let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
-                    node.menu = Some(node_menu_atom);
-
-                    self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
-                    self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().set_dirty();
-                    self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
-                    self.toolbar.widgets[0].dirty = true;
                 } else {
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {
@@ -489,6 +479,9 @@ impl ScreenWidget for Editor<'_> {
                     }
                     self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
                 }
+            } else
+            if self.state == EditorState::GameDetail {
+                self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
             }
             self.context.dialog_entry = DialogEntry::None;
         }
@@ -1228,92 +1221,7 @@ impl ScreenWidget for Editor<'_> {
             }
         }
         self.content.insert(index, (options, content));
-        /*
-        if self.state == EditorState::TilesOverview {
-            if consumed == false && self.node_graph_tiles.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::TilesDetail {
-            if self.tilemap_options.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-            if self.tilemap.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::RegionOverview {
-            if consumed == false && self.region_overview_options.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-            if consumed == false && self.node_graph_regions.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::RegionDetail {
-            if consumed == false && self.region_options.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-            if consumed == false && self.region_widget.mouse_dragged(pos, asset, &mut self.context, &mut self.region_options) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::BehaviorOverview {
-            if consumed == false && self.behavior_overview_options.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-            if consumed == false && self.node_graph_behavior.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::BehaviorDetail {
-            if consumed == false && self.behavior_options.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-            if consumed == false && self.node_graph_behavior_details.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::SystemsOverview {
-            if consumed == false && self.systems_overview_options.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-            if consumed == false && self.node_graph_systems.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::SystemsDetail {
-            if consumed == false && self.systems_options.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-            if consumed == false && self.node_graph_systems_details.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::ItemsOverview {
-            if consumed == false && self.items_overview_options.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-            if consumed == false && self.node_graph_items.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::ItemsDetail {
-            if consumed == false && self.items_options.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-            if consumed == false && self.node_graph_items_details.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::GameDetail {
-            if consumed == false && self.game_options.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-            if consumed == false && self.node_graph_game_details.mouse_dragged(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-        }*/
+
         self.mouse_pos = pos.clone();
         consumed
     }
@@ -1357,34 +1265,6 @@ impl ScreenWidget for Editor<'_> {
             self.content.insert(index, (options, content));
         }
 
-        /*
-        if consumed == false && self.toolbar.mouse_hover(pos, asset, &mut self.context) {
-            consumed = true;
-        } else
-        if self.state == EditorState::TilesDetail {
-            if consumed == false && self.tilemap_options.mouse_hover(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::RegionDetail {
-            if consumed == false && self.region_options.mouse_hover(pos, asset, &mut self.context, &mut self.region_widget) {
-                consumed = true;
-            }
-            if consumed == false && self.region_widget.mouse_hover(pos, asset, &mut self.context, &mut self.region_options) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::BehaviorDetail {
-            if consumed == false && self.node_graph_behavior_details.mouse_hover(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::SystemsDetail {
-            if consumed == false && self.node_graph_systems_details.mouse_hover(pos, asset, &mut self.context) {
-                consumed = true;
-            }
-        }
-        */
         consumed
     }
 
@@ -1418,51 +1298,7 @@ impl ScreenWidget for Editor<'_> {
             }
         }
         self.content.insert(index, (options, content));
-        /*
-        let mut consumed = false;
-        if consumed == false && self.toolbar.mouse_wheel(delta, asset, &mut self.context) {
-            consumed = true;
-        } else
-        if self.state == EditorState::TilesOverview {
-            if consumed == false && self.node_graph_tiles.mouse_wheel(delta, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::TilesDetail {
-            if consumed == false && self.tilemap.mouse_wheel(delta, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::RegionOverview {
-            if consumed == false && self.node_graph_regions.mouse_wheel(delta, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::RegionDetail {
-            if consumed == false && self.context.contains_pos_for(self.mouse_hover_pos,self.region_widget.rect) && self.region_widget.mouse_wheel(delta, asset, &mut self.context, &mut self.region_options) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::BehaviorOverview {
-            if consumed == false && self.node_graph_behavior.mouse_wheel(delta, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::BehaviorDetail {
-            if consumed == false && self.node_graph_behavior_details.mouse_wheel(delta, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::SystemsOverview {
-            if consumed == false && self.node_graph_systems.mouse_wheel(delta, asset, &mut self.context) {
-                consumed = true;
-            }
-        } else
-        if self.state == EditorState::SystemsDetail {
-            if consumed == false && self.node_graph_systems_details.mouse_wheel(delta, asset, &mut self.context) {
-                consumed = true;
-            }
-        }*/
+
         consumed
     }
 

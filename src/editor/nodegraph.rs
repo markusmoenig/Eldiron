@@ -704,20 +704,22 @@ impl EditorContent for NodeGraph  {
                         self.collect_drag_children_indices(self.widget_index_to_node_id(index), &context);
 
                         if self.get_curr_node_id(context) != Some(self.nodes[index].id) {
+
+                            // Update the told selection
                             if let Some(selected_id) = self.get_curr_node_id(context) {
                                 let sel_index = self.node_id_to_widget_index(selected_id);
 
                                 self.nodes[sel_index].dirty = true;
-
-                                if let Some(behavior) = context.data.get_mut_behavior(self.behavior_id, self.graph_type) {
-                                    behavior.data.curr_node_id = Some(self.nodes[index].id);
-                                }
-
-                                self.nodes[index].dirty = true;
-                                self.dirty = true;
-                                self.clicked = true;
-                                rc = true;
                             }
+
+                            if let Some(behavior) = context.data.get_mut_behavior(self.behavior_id, self.graph_type) {
+                                behavior.data.curr_node_id = Some(self.nodes[index].id);
+                            }
+
+                            self.nodes[index].dirty = true;
+                            self.dirty = true;
+                            self.clicked = true;
+                            rc = true;
                         }
                     }
                 }
@@ -1213,6 +1215,8 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom1, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom3, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom4, NodeConnector { rect: (0,0,0,0) } );
 
             // Add the node to the behavior tree ids
             self.behavior_tree_indices.push(self.nodes.len());
@@ -1226,6 +1230,8 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom1, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom3, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom4, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_data.behavior_type == BehaviorNodeType::Sequence {
             node_widget.color = context.color_green.clone();
@@ -1233,6 +1239,8 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom1, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom3, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom4, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_data.behavior_type == BehaviorNodeType::Expression {
             let mut atom1 = AtomWidget::new(vec!["Expression".to_string()], AtomWidgetType::NodeExpressionButton,
@@ -1576,7 +1584,7 @@ impl EditorContent for NodeGraph  {
 
     /// Returns true if the node connector is a source connector (Right or Bottom)
     fn connector_is_source(&self, connector: BehaviorNodeConnector) -> bool {
-        if connector == BehaviorNodeConnector::Right || connector == BehaviorNodeConnector::Bottom || connector == BehaviorNodeConnector::Success || connector == BehaviorNodeConnector::Fail || connector == BehaviorNodeConnector::Bottom1 || connector == BehaviorNodeConnector::Bottom2 {
+        if connector == BehaviorNodeConnector::Right || connector == BehaviorNodeConnector::Bottom || connector == BehaviorNodeConnector::Success || connector == BehaviorNodeConnector::Fail || connector == BehaviorNodeConnector::Bottom1 || connector == BehaviorNodeConnector::Bottom2 || connector == BehaviorNodeConnector::Bottom3 || connector == BehaviorNodeConnector::Bottom4 {
             return true;
         }
         false

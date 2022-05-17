@@ -44,6 +44,7 @@ pub enum BehaviorNodeType {
     Spawn,
     DisplaceTiles,
     Move,
+    Screen,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -56,6 +57,8 @@ pub enum BehaviorNodeConnector {
     Left,
     Bottom1,
     Bottom2,
+    Bottom3,
+    Bottom4,
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]

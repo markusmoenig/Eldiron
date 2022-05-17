@@ -259,11 +259,19 @@ impl NodeWidget {
                     context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0);
                 }
                 if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Bottom1) {
-                    bottom.rect = (rect.2 / 2 - 6 - 30, rect.3 - 2, 12, 12);
+                    bottom.rect = (rect.2 / 2 - 6 - 60, rect.3 - 2, 12, 12);
                     context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0);
                 }
                 if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Bottom2) {
+                    bottom.rect = (rect.2 / 2 - 6 - 30, rect.3 - 2, 12, 12);
+                    context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0);
+                }
+                if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Bottom3) {
                     bottom.rect = (rect.2 / 2 - 6 + 30, rect.3 - 2, 12, 12);
+                    context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0);
+                }
+                if let Some(bottom) = self.node_connector.get_mut(&BehaviorNodeConnector::Bottom4) {
+                    bottom.rect = (rect.2 / 2 - 6 + 60, rect.3 - 2, 12, 12);
                     context.draw2d.draw_circle(buffer_frame, &bottom.rect, stride, &context.node_connector_color, 6.0);
                 }
 

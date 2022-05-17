@@ -27,7 +27,7 @@ impl EditorOptions for RegionOverviewOptions {
     AtomData::new_as_int("NodeList".to_string(), 0));
         node_list.drag_enabled = true;
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Region".to_string(), "Screen".to_string()]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Region".to_string()]);
 
         node_list.set_rect(rect, asset, context);
         widgets.push(node_list);
