@@ -53,7 +53,7 @@ impl LogWidget {
 
             context.draw2d.draw_rounded_rect(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3 - 2) as f64), &[b[0], b[1], b[2], 150], &(20.0, 20.0, 20.0, 20.0));
 
-            let text_size = 20_usize;
+            let text_size = 13_usize;
             let max_lines = (self.size.1 - 10 ) / (text_size as usize);
 
             let available_messages = context.data.messages.len();
