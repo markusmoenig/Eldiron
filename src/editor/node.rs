@@ -115,7 +115,7 @@ impl NodeWidget {
             if self.is_corner_node == false {
                 height += context.node_button_header_text_size as usize;
             }
-            height += 8;
+            height += 16;
         }
 
         if self.is_variable_node {
@@ -207,7 +207,7 @@ impl NodeWidget {
 
                 // Draw atoms
 
-                let mut y = 42_usize;
+                let mut y = 46_usize;
                 for atom_widget in &mut self.widgets {
                     context.draw2d.draw_text(buffer_frame, &(30, y - 4), stride, &asset.get_editor_font("OpenSans"), context.node_button_header_text_size, &atom_widget.atom_data.text, &[180, 180, 180, 255], &context.color_black);
 
@@ -217,7 +217,7 @@ impl NodeWidget {
                     atom_widget.set_rect((18, y, self.size.0 - 35, height), asset, context);
                     atom_widget.draw(buffer_frame, stride, anim_counter, asset, context);
 
-                    y += height + 5;
+                    y += height + 10;
                 }
 
                 // Draw terminals
@@ -311,12 +311,12 @@ impl NodeWidget {
 
             // Draw atoms
 
-            let mut y = 8_usize;
+            let mut y = 12_usize;
             for atom_widget in &mut self.widgets {
 
                 context.draw2d.draw_text(buffer_frame, &(145, y - 4), rect.2, &asset.get_editor_font("OpenSans"), context.node_button_header_text_size, &atom_widget.atom_data.text, &[180, 180, 180, 255], &context.color_black);
 
-                let height = atom_widget.get_height(context);
+                let height = atom_widget.get_height(context) + 4;
                 y += context.node_button_header_text_size as usize;
                 atom_widget.set_rect((133, y, self.size.0 - 146, height), asset, context);
                 atom_widget.draw(buffer_frame, rect.2, anim_counter, asset, context);
