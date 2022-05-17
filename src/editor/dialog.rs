@@ -44,6 +44,7 @@ pub struct DialogWidget {
     clicked_id                  : String,
 
     tile_selector_widget        : TileSelectorWidget,
+    large                       : bool
 }
 
 impl DialogWidget {
@@ -73,7 +74,9 @@ impl DialogWidget {
 
             clicked_id          : "".to_string(),
 
-            tile_selector_widget
+            tile_selector_widget,
+
+            large               : false,
         }
     }
 
@@ -83,6 +86,19 @@ impl DialogWidget {
 
         // Animation
         if context.dialog_state == DialogState::Opening {
+
+            // Set the size based on the content
+
+            self.rect.2 = 600;
+            self.rect.3 = 200;
+            self.large = false;
+
+            if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript || context.dialog_entry == DialogEntry::NodeTile {
+                self.rect.2 = 800;
+                self.rect.3 = 600;
+                self.large = true;
+            }
+
             context.dialog_height += 20;
             rect.3 = context.dialog_height;
             if context.dialog_height >= self.rect.3 {
@@ -101,7 +117,7 @@ impl DialogWidget {
                 if context.dialog_entry == DialogEntry::NodeTile {
                     self.tile_selector_widget.set_tile_type(context.dialog_tile_usage.clone(), None, None, &asset);
                     self.text = "".to_string();
-                    self.tile_selector_widget.grid_size = 24;
+                    self.tile_selector_widget.grid_size = 32;
                     self.tile_selector_widget.selected = Some((context.dialog_node_behavior_value.0 as usize, context.dialog_node_behavior_value.1 as usize, context.dialog_node_behavior_value.2 as usize, TileUsage::Character));
                 } else
                 if context.dialog_entry == DialogEntry::NewName || context.dialog_entry == DialogEntry::Tags || context.dialog_entry == DialogEntry::NewProjectName {
@@ -138,8 +154,12 @@ impl DialogWidget {
 
                 let mut border_color : [u8; 4] = context.color_light_gray;
 
+                let input_rect = (20, 60, rect.2 - 40, rect.3 - 150);
+
+                let title_text_size = 30.0;
+
                 if context.dialog_entry == DialogEntry::NodeNumber {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), 40.0, &"Number".to_string(), &context.color_white, &context.color_black);
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Number".to_string(), &context.color_white, &context.color_black);
 
                     if self.text.parse::<f64>().is_err() {
                         border_color = context.color_red;
@@ -150,7 +170,7 @@ impl DialogWidget {
                     }
                 } else
                 if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), 40.0, &"Expression".to_string(), &context.color_white, &context.color_black);
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Expression".to_string(), &context.color_white, &context.color_black);
 
                     let has_error = false;
                     /*
@@ -178,30 +198,28 @@ impl DialogWidget {
                     }
                 } else
                 if context.dialog_entry == DialogEntry::NodeText {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), 40.0, &"Text".to_string(), &context.color_white, &context.color_black);
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Text".to_string(), &context.color_white, &context.color_black);
                 } else
                 if context.dialog_entry == DialogEntry::NodeGridSize {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), 40.0, &"Grid Size".to_string(), &context.color_white, &context.color_black);
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Grid Size".to_string(), &context.color_white, &context.color_black);
                 } else
                 if context.dialog_entry == DialogEntry::NewName {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), 40.0, &"Name".to_string(), &context.color_white, &context.color_black);
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Name".to_string(), &context.color_white, &context.color_black);
                 } else
                 if context.dialog_entry == DialogEntry::NewProjectName {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), 40.0, &"New Project".to_string(), &context.color_white, &context.color_black);
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"New Project".to_string(), &context.color_white, &context.color_black);
                 } else
                 if context.dialog_entry == DialogEntry::Tags {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), 40.0, &"Tags".to_string(), &context.color_white, &context.color_black);
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Tags".to_string(), &context.color_white, &context.color_black);
                 } else
                 if context.dialog_entry == DialogEntry::NodeName {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), 40.0, &"Node Name".to_string(), &context.color_white, &context.color_black);
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Node Name".to_string(), &context.color_white, &context.color_black);
                 } else
                 if context.dialog_entry == DialogEntry::NodeTile {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), 40.0, &"Select Tile".to_string(), &context.color_white, &context.color_black);
-                    self.tile_selector_widget.rect = (20, 50, rect.2 - 40, 80);
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Select Tile".to_string(), &context.color_white, &context.color_black);
+                    self.tile_selector_widget.rect = input_rect.clone();
                     self.tile_selector_widget.draw(buffer_frame, rect.2, anim_counter, asset, context);
                 }
-
-                let input_rect = (20, 60, rect.2 - 40, 60);
 
                 if context.dialog_entry != DialogEntry::NodeTile {
                     context.draw2d.draw_rounded_rect_with_border(buffer_frame, &input_rect, rect.2, &(input_rect.2 as f64 - 1.0, input_rect.3 as f64 - 1.0), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &border_color, 1.5);

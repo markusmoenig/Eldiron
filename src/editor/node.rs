@@ -209,7 +209,7 @@ impl NodeWidget {
 
                 let mut y = 42_usize;
                 for atom_widget in &mut self.widgets {
-                    context.draw2d.draw_text(buffer_frame, &(30, y), stride, &asset.get_editor_font("OpenSans"), context.node_button_header_text_size, &atom_widget.atom_data.text, &[180, 180, 180, 255], &context.color_black);
+                    context.draw2d.draw_text(buffer_frame, &(30, y - 4), stride, &asset.get_editor_font("OpenSans"), context.node_button_header_text_size, &atom_widget.atom_data.text, &[180, 180, 180, 255], &context.color_black);
 
                     let height = atom_widget.get_height(context);
 
@@ -314,7 +314,7 @@ impl NodeWidget {
             let mut y = 8_usize;
             for atom_widget in &mut self.widgets {
 
-                context.draw2d.draw_text(buffer_frame, &(145, y), rect.2, &asset.get_editor_font("OpenSans"), context.node_button_header_text_size, &atom_widget.atom_data.text, &[180, 180, 180, 255], &context.color_black);
+                context.draw2d.draw_text(buffer_frame, &(145, y - 4), rect.2, &asset.get_editor_font("OpenSans"), context.node_button_header_text_size, &atom_widget.atom_data.text, &[180, 180, 180, 255], &context.color_black);
 
                 let height = atom_widget.get_height(context);
                 y += context.node_button_header_text_size as usize;

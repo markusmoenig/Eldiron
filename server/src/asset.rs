@@ -3,18 +3,18 @@ pub mod tileset;
 
 use std::{path::PathBuf, collections::HashMap};
 
-use rusttype::{Font};
+use fontdue::Font;
 
 pub use tileset::*;
 
-pub struct Asset<'a> {
+pub struct Asset {
     pub tileset                 : TileSet,
 
-    pub game_fonts              : HashMap<String, Font<'a>>,
-    pub editor_fonts            : HashMap<String, Font<'a>>,
+    pub game_fonts              : HashMap<String, Font>,
+    pub editor_fonts            : HashMap<String, Font>,
 }
 
-impl Asset<'_>  {
+impl Asset  {
 
     pub fn new() -> Self where Self: Sized {
 
@@ -30,8 +30,7 @@ impl Asset<'_>  {
         let path = std::path::Path::new("resources").join(resource_name);
 
         if let Some(font_bytes) = std::fs::read(path).ok() {
-            let font: Option<Font<'_>> = Font::try_from_vec(font_bytes);
-            if let Some(font) = font {
+            if let Some(font) = Font::from_bytes(font_bytes, fontdue::FontSettings::default()).ok() {
                 self.editor_fonts.insert(name, font);
             }
         }
@@ -57,8 +56,7 @@ impl Asset<'_>  {
             if path.is_file() && path.extension().map(|s| s == "ttf").unwrap_or(false) {
 
                 if let Some(font_bytes) = std::fs::read(path).ok() {
-                    let font: Option<Font<'_>> = Font::try_from_vec(font_bytes);
-                    if let Some(font) = font {
+                if let Some(font) = Font::from_bytes(font_bytes, fontdue::FontSettings::default()).ok() {
                         self.game_fonts.insert(path.file_stem().unwrap().to_os_string().into_string().unwrap(), font);
                     }
                 }

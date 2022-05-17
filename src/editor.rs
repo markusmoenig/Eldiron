@@ -99,7 +99,7 @@ impl ScreenWidget for Editor<'_> {
 
     fn new(asset: &mut Asset, width: usize, height: usize) -> Self where Self: Sized {
 
-        asset.load_editor_font("OpenSans".to_string(), "Open_Sans/static/OpenSans/OpenSans-Regular.ttf".to_string());
+        asset.load_editor_font("OpenSans".to_string(), "Open_Sans/static/OpenSans/OpenSans-Medium.ttf".to_string());
 
         let left_width = 180_usize;
         let mut context = ScreenContext::new(width, height);

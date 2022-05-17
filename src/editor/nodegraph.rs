@@ -449,7 +449,7 @@ impl EditorContent for NodeGraph  {
 
                     self.behavior_tree_rects.push(bt_rect.clone());
 
-                    context.draw2d.draw_text_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &asset.get_editor_font("OpenSans"), 20.0, &self.nodes[*bt_index].text[0], &context.color_white, &color, crate::draw2d::TextAlignment::Center);
+                    context.draw2d.draw_text_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &asset.get_editor_font("OpenSans"), 16.0, &self.nodes[*bt_index].text[0], &context.color_white, &color, crate::draw2d::TextAlignment::Center);
 
                     bt_rect.0 += 171;
                     if (bt_rect.0 + bt_rect.2) - left_start > total_width {
@@ -1124,6 +1124,8 @@ impl EditorContent for NodeGraph  {
                 "Spawn" => BehaviorNodeType::Spawn,
                 "Displace Tiles" => BehaviorNodeType::DisplaceTiles,
 
+                "Screen" => BehaviorNodeType::Screen,
+
                 _ => BehaviorNodeType::BehaviorTree
             };
 
@@ -1212,11 +1214,14 @@ impl EditorContent for NodeGraph  {
             atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type).0 as usize;
             node_widget.widgets.push(atom1);
             node_widget.color = context.color_green.clone();
+
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom1, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom3, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom4, NodeConnector { rect: (0,0,0,0) } );
+            if self.graph_type != BehaviorType::GameLogic {
+                node_widget.node_connector.insert(BehaviorNodeConnector::Bottom1, NodeConnector { rect: (0,0,0,0) } );
+                node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
+                node_widget.node_connector.insert(BehaviorNodeConnector::Bottom3, NodeConnector { rect: (0,0,0,0) } );
+                node_widget.node_connector.insert(BehaviorNodeConnector::Bottom4, NodeConnector { rect: (0,0,0,0) } );
+            }
 
             // Add the node to the behavior tree ids
             self.behavior_tree_indices.push(self.nodes.len());
@@ -1523,6 +1528,20 @@ impl EditorContent for NodeGraph  {
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+        }
+
+        //
+
+        if node_data.behavior_type == BehaviorNodeType::Screen {
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom1, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom3, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom4, NodeConnector { rect: (0,0,0,0) } );
+
         }
     }
 

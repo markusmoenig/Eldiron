@@ -1,5 +1,6 @@
 
-use rusttype::{point, Font, Scale};
+use fontdue::layout::{ Layout, LayoutSettings, CoordinateSystem, TextStyle, VerticalAlign, HorizontalAlign };
+use fontdue::Font;
 
 use server::asset::TileMap;
 use server::asset::Asset;
@@ -234,14 +235,30 @@ impl Draw2D {
             text_to_use = text_to_use + "...";
         }
 
-        if align == TextAlignment::Left {
-        let y =  rect.1 + ((((rect.3 - text_size.1)) as f32 + 0.5) / 2.0).round() as usize;
-            self.draw_text(frame, &(rect.0, y), stride, font, size, text_to_use.as_str(), color, background);
-        } else
-        if align == TextAlignment::Center {
-            let x =  rect.0 + (rect.2 - text_size.0) / 2;
-            let y =  rect.1 + ((( (rect.3 - text_size.1)) as f32 + 0.5) / 2.0).round() as usize;
-            self.draw_text(frame, &(x, y), stride, font, size, text_to_use.as_str(), color, background);
+        let fonts = &[font];
+
+        let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
+        layout.reset(&LayoutSettings {
+            max_width : Some(rect.2 as f32),
+            max_height : Some(rect.3 as f32),
+            horizontal_align : if align ==  TextAlignment::Left { HorizontalAlign::Left } else { HorizontalAlign::Center },
+            vertical_align : VerticalAlign::Middle,
+            ..LayoutSettings::default()
+        });
+        layout.append(fonts, &TextStyle::new(text_to_use.as_str(), size, 0));
+
+        for glyph in layout.glyphs() {
+            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+            //println!("Metrics: {:?}", glyph);
+
+            for y in 0..metrics.height {
+                for x in 0..metrics.width {
+                    let i = (x+rect.0+glyph.x as usize) * 4 + (y + rect.1 + glyph.y as usize) * stride * 4;
+                    let m = alphamap[x + y * metrics.width];
+
+                    frame[i..i + 4].copy_from_slice(&self.mix_color(&background, &color, m as f64 / 255.0));
+                }
+            }
         }
     }
 
@@ -265,15 +282,31 @@ impl Draw2D {
             text_to_use = text_to_use + "...";
         }
 
-        if align == TextAlignment::Left {
-            let y =  rect.1 + (rect.3 - text_size.1) / 2;
-            self.blend_text(frame, &(rect.0, y), stride, font, size, text_to_use.as_str(), color);
-        } else
-        if align == TextAlignment::Center {
-            let text_size = self.get_text_size(font, size, text_to_use.as_str());
-            let x =  rect.0 + (rect.2 - text_size.0) / 2;
-            let y =  rect.1 + (rect.3 - text_size.1) / 2;
-            self.blend_text(frame, &(x, y), stride, font, size, text, color);
+        let fonts = &[font];
+
+        let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
+        layout.reset(&LayoutSettings {
+            max_width : Some(rect.2 as f32),
+            max_height : Some(rect.3 as f32),
+            horizontal_align : if align ==  TextAlignment::Left { HorizontalAlign::Left } else { HorizontalAlign::Center },
+            vertical_align : VerticalAlign::Middle,
+            ..LayoutSettings::default()
+        });
+        layout.append(fonts, &TextStyle::new(&text_to_use.as_str(), size, 0));
+
+        for glyph in layout.glyphs() {
+            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+            //println!("Metrics: {:?}", glyph);
+
+            for y in 0..metrics.height {
+                for x in 0..metrics.width {
+                    let i = (x+rect.0+glyph.x as usize) * 4 + (y + rect.1 + glyph.y as usize) * stride * 4;
+                    let m = alphamap[x + y * metrics.width];
+
+                    let background = &[frame[i], frame[i+1], frame[i+2], frame[i+3]];
+                    frame[i..i + 4].copy_from_slice(&self.mix_color(&background, &color, m as f64 / 255.0));
+                }
+            }
         }
     }
 
@@ -281,47 +314,25 @@ impl Draw2D {
     pub fn draw_text(&self,  frame: &mut [u8], pos: &(usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4], background: &[u8; 4]) {
         if text.is_empty() { return; }
 
-        let scale = Scale::uniform(size);
-        let v_metrics = font.v_metrics(scale);
+        let fonts = &[font];
 
-        let glyphs: Vec<_> = font
-            .layout( text, scale, point(0.0, 0.0 + v_metrics.ascent))
-            .collect();
+        let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
+        layout.reset(&LayoutSettings {
+            ..LayoutSettings::default()
+        });
+        layout.append(fonts, &TextStyle::new(text, size, 0));
 
-        for glyph in glyphs {
-            if let Some(bounding_box) = glyph.pixel_bounding_box() {
-                glyph.draw(|x, y, v| {
-                    let d = (x as usize + bounding_box.min.x as usize + pos.0) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1) * (stride as usize) * 4;
-                    if v > 0.0 {
-                        //frame[d..d + 4].copy_from_slice(&self.mix_color(&background, &color, self.smoothstep(0.0, 1.0, v as f64)));
-                        frame[d..d + 4].copy_from_slice(&self.mix_color(&background, &color, v as f64));// * (color[3] as f64 / 255.0)));
-                    }
-                });
-            }
-        }
-    }
+        for glyph in layout.glyphs() {
+            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+            //println!("Metrics: {:?}", glyph);
 
-    /// Draws the given text and blends it with the existing background
-    pub fn blend_text(&self,  frame: &mut [u8], pos: &(usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4]) {
-        if text.is_empty() { return; }
+            for y in 0..metrics.height {
+                for x in 0..metrics.width {
+                    let i = (x+pos.0+glyph.x as usize) * 4 + (y + pos.1 + glyph.y as usize) * stride * 4;
+                    let m = alphamap[x + y * metrics.width];
 
-        let scale = Scale::uniform(size);
-
-        let v_metrics = font.v_metrics(scale);
-
-        let glyphs: Vec<_> = font
-            .layout( text, scale, point(0.0, 0.0 + v_metrics.ascent))
-            .collect();
-
-        for glyph in glyphs {
-            if let Some(bounding_box) = glyph.pixel_bounding_box() {
-                glyph.draw(|x, y, v| {
-                    let d = (x as usize + bounding_box.min.x as usize + pos.0) * 4 + ((y + bounding_box.min.y as u32) as usize + pos.1) * (stride as usize) * 4;
-                    if v > 0.0 {
-                        let background = &[frame[d], frame[d+1], frame[d+2], frame[d+3]];
-                        frame[d..d + 4].copy_from_slice(&self.mix_color(&background, &color, v as f64));
-                    }
-                });
+                    frame[i..i + 4].copy_from_slice(&self.mix_color(&background, &color, m as f64 / 255.0));
+                }
             }
         }
     }
@@ -329,27 +340,17 @@ impl Draw2D {
     /// Returns the size of the given text
     pub fn get_text_size(&self, font: &Font, size: f32, text: &str) -> (usize, usize) {
 
-        let scale = Scale::uniform(size);
-        let v_metrics = font.v_metrics(scale);
 
-        let glyphs: Vec<_> = font
-            .layout(text, scale, point(0.0, 0.0 + v_metrics.ascent))
-            .collect();
+        let fonts = &[font];
 
-        let glyphs_height = (v_metrics.ascent - v_metrics.descent).ceil() as u32;
-        let glyphs_width = {
-            let min_x = glyphs
-                .first()
-                .map(|g| g.pixel_bounding_box().unwrap_or(rusttype::Rect{min: rusttype::Point{x: 0, y: 0}, max: rusttype::Point{x: 0, y: 0}}).min.x)
-                .unwrap();
-            let max_x = glyphs
-                .last()
-                .map(|g| g.pixel_bounding_box().unwrap_or(rusttype::Rect{min: rusttype::Point{x: 0, y: 0}, max: rusttype::Point{x: 0, y: 0}}).max.x)
-                .unwrap();
-            (max_x - min_x) as u32
-        };
+        let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
+        layout.reset(&LayoutSettings {
+            ..LayoutSettings::default()
+        });
+        layout.append(fonts, &TextStyle::new(text, size, 0));
 
-        (glyphs_width as usize, glyphs_height as usize)
+        let x = layout.glyphs()[layout.glyphs().len()-1].x as usize + layout.glyphs()[layout.glyphs().len()-1].width;
+        (x, layout.height() as usize)
     }
 
     /// Copies rect from the source frame into the dest frame

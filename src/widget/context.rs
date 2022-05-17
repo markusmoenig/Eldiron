@@ -196,19 +196,19 @@ impl ScreenContext<'_> {
             toolbar_height              : 44 * 2,
             toolbar_button_height       : 35,
             toolbar_button_rounding     : (18.0, 18.0, 18.0, 18.0),
-            toolbar_button_text_size    : 27.0,
+            toolbar_button_text_size    : 20.0,
 
             button_height               : 25,
-            button_text_size            : 24.0,
+            button_text_size            : 18.0,
             button_rounding             : (12.0, 12.0, 12.0, 12.0),
 
             large_button_height         : 30,
-            large_button_text_size      : 22.0,
+            large_button_text_size      : 20.0,
             large_button_rounding       : (14.0, 14.0, 14.0, 14.0),
 
             node_button_height          : 24,
-            node_button_text_size       : 21.0,
-            node_button_header_text_size: 19.0,
+            node_button_text_size       : 17.0,
+            node_button_header_text_size: 12.0,
             node_button_rounding        : (12.0, 12.0, 12.0, 12.0),
             node_connector_color        : [174, 174, 174, 255],
 
