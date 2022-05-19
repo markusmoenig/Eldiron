@@ -1547,6 +1547,8 @@ impl EditorContent for NodeGraph  {
 
     /// Sets up the corner node widget
     fn setup_corner_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
+
+        /*
         let type_index : usize;
 
         // Get the type index
@@ -1559,10 +1561,10 @@ impl EditorContent for NodeGraph  {
         // Remove all atoms except the first one (the type)
         while node_widget.widgets.len() > 1 {
             node_widget.widgets.remove(1);
-        }
+        }*/
 
         if self.graph_type == BehaviorType::Behaviors {
-            if type_index == 0 {
+            //if type_index == 0 {
                 // Character
 
                 // Position
@@ -1582,7 +1584,7 @@ impl EditorContent for NodeGraph  {
                 tile_atom.behavior_id = Some(id.clone());
                 tile_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
                 node_widget.widgets.push(tile_atom);
-            }
+            //}
         }
     }
 

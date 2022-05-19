@@ -114,8 +114,10 @@ impl NodeWidget {
             height += atom_widget.get_height(context);
             if self.is_corner_node == false {
                 height += context.node_button_header_text_size as usize;
+                height += 16;
+            } else {
+                height += 8;
             }
-            height += 16;
         }
 
         if self.is_variable_node {

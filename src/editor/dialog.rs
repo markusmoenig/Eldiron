@@ -44,7 +44,7 @@ pub struct DialogWidget {
     clicked_id                  : String,
 
     tile_selector_widget        : TileSelectorWidget,
-    large                       : bool
+    large                       : bool,
 }
 
 impl DialogWidget {
@@ -93,7 +93,7 @@ impl DialogWidget {
             self.rect.3 = 200;
             self.large = false;
 
-            if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript || context.dialog_entry == DialogEntry::NodeTile {
+            if context.dialog_entry == DialogEntry::NodeTile {
                 self.rect.2 = 800;
                 self.rect.3 = 600;
                 self.large = true;
@@ -169,9 +169,10 @@ impl DialogWidget {
                         self.widgets[1].state = WidgetState::Normal;
                     }
                 } else
-                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Expression".to_string(), &context.color_white, &context.color_black);
+                if context.dialog_entry == DialogEntry::NodeExpression  {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Boolean Expression".to_string(), &context.color_white, &context.color_black);
 
+                    //self.code_editor.draw(frame, input_rect, rect.2, asset.get_editor_font("OpenSans"), &context.draw2d);
                     let has_error = false;
                     /*
                     let behavior_id = context.dialog_node_behavior_id.0.clone();
@@ -196,6 +197,12 @@ impl DialogWidget {
                     if self.widgets[1].state == WidgetState::Disabled {
                         self.widgets[1].state = WidgetState::Normal;
                     }
+                } else
+                if context.dialog_entry == DialogEntry::NodeExpressionValue {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Number Expression".to_string(), &context.color_white, &context.color_black);
+                } else
+                if context.dialog_entry == DialogEntry::NodeScript {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Script".to_string(), &context.color_white, &context.color_black);
                 } else
                 if context.dialog_entry == DialogEntry::NodeText {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Text".to_string(), &context.color_white, &context.color_black);

@@ -901,28 +901,34 @@ impl AtomWidget {
                 context.dialog_node_behavior_value = self.atom_data.data.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeExpressionButton {
-                context.dialog_state = DialogState::Opening;
-                context.dialog_height = 0;
-                context.target_fps = 60;
-                context.dialog_entry = DialogEntry::NodeExpression;
-                context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
-                context.dialog_node_behavior_value = self.atom_data.data.clone();
+                // context.dialog_state = DialogState::Opening;
+                // context.dialog_height = 0;
+                // context.target_fps = 60;
+                // context.dialog_entry = DialogEntry::NodeExpression;
+                context.code_editor_is_active = true;
+                context.code_editor_just_opened = true;
+                context.code_editor_node_behavior_id = self.behavior_id.clone().unwrap();
+                context.code_editor_node_behavior_value = self.atom_data.data.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton {
-                context.dialog_state = DialogState::Opening;
-                context.dialog_height = 0;
-                context.target_fps = 60;
-                context.dialog_entry = DialogEntry::NodeExpressionValue;
-                context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
-                context.dialog_node_behavior_value = self.atom_data.data.clone();
+                // context.dialog_state = DialogState::Opening;
+                // context.dialog_height = 0;
+                // context.target_fps = 60;
+                // context.dialog_entry = DialogEntry::NodeExpressionValue;
+                context.code_editor_is_active = true;
+                context.code_editor_just_opened = true;
+                context.code_editor_node_behavior_id = self.behavior_id.clone().unwrap();
+                context.code_editor_node_behavior_value = self.atom_data.data.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeScriptButton {
-                context.dialog_state = DialogState::Opening;
-                context.dialog_height = 0;
-                context.target_fps = 60;
-                context.dialog_entry = DialogEntry::NodeScript;
-                context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
-                context.dialog_node_behavior_value = self.atom_data.data.clone();
+                // context.dialog_state = DialogState::Opening;
+                // context.dialog_height = 0;
+                // context.target_fps = 60;
+                // context.dialog_entry = DialogEntry::NodeScript;
+                context.code_editor_is_active = true;
+                context.code_editor_just_opened = true;
+                context.code_editor_node_behavior_id = self.behavior_id.clone().unwrap();
+                context.code_editor_node_behavior_value = self.atom_data.data.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeTextButton {
                 context.dialog_state = DialogState::Opening;

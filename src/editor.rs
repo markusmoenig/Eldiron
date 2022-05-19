@@ -21,6 +21,7 @@ use server::asset::Asset;
 
 mod controlbar;
 mod toolbar;
+mod codeeditor_toolbar;
 pub mod nodegraph;
 mod tilemapoptions;
 mod tilemapwidget;
@@ -40,6 +41,7 @@ pub mod dialog;
 mod log;
 mod gameoptions;
 pub mod traits;
+mod codeeditorwidget;
 
 use crate::editor::toolbar::ToolBar;
 use crate::editor::controlbar::ControlBar;
@@ -49,6 +51,8 @@ use crate::context::ScreenContext;
 use crate::editor::node::{ NodeUserData, NodeWidget };
 use crate::editor::nodegraph::NodeGraph;
 
+use self::codeeditor_toolbar::CodeEditorToolBar;
+use self::codeeditorwidget::CodeEditorWidget;
 use self::dialog::{DialogState, DialogEntry};
 use self::tilemapoptions::TileMapOptions;
 use self::statusbar::StatusBar;
@@ -67,7 +71,7 @@ enum EditorState {
     SystemsDetail,
     ItemsOverview,
     ItemsDetail,
-    GameDetail
+    GameDetail,
 }
 
 /// The Editor struct
@@ -77,7 +81,9 @@ pub struct Editor<'a> {
     context                         : ScreenContext<'a>,
     controlbar                      : ControlBar,
     toolbar                         : ToolBar,
+    codeeditor_toolbar              : CodeEditorToolBar,
     log                             : LogWidget,
+    code_editor                     : CodeEditorWidget,
 
     pub content                      : Vec<(Option<Box<dyn EditorOptions>>, Option<Box<dyn EditorContent>>)>,
 
@@ -101,6 +107,7 @@ impl ScreenWidget for Editor<'_> {
 
         asset.load_editor_font("OpenSans".to_string(), "Open_Sans/static/OpenSans/OpenSans-Regular.ttf".to_string());
         asset.load_editor_font("OpenSans_Light".to_string(), "Open_Sans/static/OpenSans/OpenSans-Light.ttf".to_string());
+        asset.load_editor_font("SourceCodePro".to_string(), "Source_Code_Pro/static/SourceCodePro-Regular.ttf".to_string());
 
         let left_width = 180_usize;
         let mut context = ScreenContext::new(width, height);
@@ -108,11 +115,15 @@ impl ScreenWidget for Editor<'_> {
         let controlbar = ControlBar::new(vec!(), (0,0, width, context.toolbar_height / 2), asset, &mut context);
         let toolbar = ToolBar::new(vec!(), (0, context.toolbar_height / 2, width, context.toolbar_height / 2), asset, &mut context);
 
+        let codeeditor_toolbar = CodeEditorToolBar::new(vec!(), (0, context.toolbar_height / 2, width, context.toolbar_height / 2), asset, &mut context);
+
         //
 
         let dialog = DialogWidget::new(asset, &context);
         let log = LogWidget::new(&context);
         let mut status_bar = StatusBar::new();
+
+        let code_editor =  CodeEditorWidget::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context);
 
         // Set current project
 
@@ -136,8 +147,10 @@ impl ScreenWidget for Editor<'_> {
             state                   :  EditorState::TilesOverview,
             context,
             controlbar,
+            codeeditor_toolbar,
             toolbar,
             log,
+            code_editor,
 
             content                 : vec![],
 
@@ -195,6 +208,9 @@ impl ScreenWidget for Editor<'_> {
         } else
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.key_down(char, key, asset, &mut self.context);
+        } else
+        if self.context.code_editor_is_active {
+            return self.code_editor.key_down(char, key, asset, &mut self.context);
         }
         false
     }
@@ -265,11 +281,31 @@ impl ScreenWidget for Editor<'_> {
         }
 
         self.controlbar.draw(frame, anim_counter, asset, &mut self.context);
-        self.toolbar.draw(frame, anim_counter, asset, &mut self.context);
 
-        //
+        // Content: Code Editor ?
+        if self.context.code_editor_is_active {
 
+            // Do we need to update the node from the code editor ?
+            if self.context.code_editor_update_node {
+                self.context.code_editor_node_behavior_value.4 = self.context.code_editor_value.clone();
+                self.context.dialog_node_behavior_value = self.context.code_editor_node_behavior_value.clone();
+                self.context.dialog_node_behavior_id = self.context.code_editor_node_behavior_id.clone();
+                self.content[self.state as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
+                self.context.data.set_behavior_id_value(self.context.code_editor_node_behavior_id.clone(), self.context.code_editor_node_behavior_value.clone(), self.context.curr_graph_type);
+
+                self.context.code_editor_update_node = false;
+            }
+
+            self.codeeditor_toolbar.draw(frame, anim_counter, asset, &mut self.context);
+            if self.context.code_editor_just_opened {
+                self.code_editor.set_code(self.context.code_editor_node_behavior_value.4.clone());
+                self.context.code_editor_just_opened = false;
+            }
+
+            self.code_editor.draw(frame, (0, self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), anim_counter, asset, &mut self.context);
+        } else
         if self.content.is_empty() == false {
+            self.toolbar.draw(frame, anim_counter, asset, &mut self.context);
             let index = self.state as usize;
             let mut options : Option<Box<dyn EditorOptions>> = None;
             let mut content : Option<Box<dyn EditorContent>> = None;
@@ -297,7 +333,7 @@ impl ScreenWidget for Editor<'_> {
         }
 
         // Log
-        if self.state == EditorState::BehaviorDetail {
+        if !self.context.code_editor_is_active && self.state == EditorState::BehaviorDetail {
             self.log.draw(frame, anim_counter, asset, &mut self.context);
             self.context.draw2d.blend_slice_safe(frame, &self.log.buffer[..], &self.log.rect, self.context.width, &self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().get_rect());
         }
@@ -514,7 +550,11 @@ impl ScreenWidget for Editor<'_> {
                 self.controlbar.show_help = false;
             }
         }
-        if consumed == false && self.toolbar.mouse_down(pos, asset, &mut self.context) {
+
+        if consumed == false && self.context.code_editor_is_active && self.codeeditor_toolbar.mouse_down(pos, asset, &mut self.context) {
+            consumed = true;
+        }
+        if consumed == false && !self.context.code_editor_is_active && self.toolbar.mouse_down(pos, asset, &mut self.context) {
 
             // Tile Button
             if self.toolbar.widgets[1].clicked {
@@ -687,29 +727,33 @@ impl ScreenWidget for Editor<'_> {
             consumed = true;
         }
 
-        let index = self.state as usize;
-        let mut options : Option<Box<dyn EditorOptions>> = None;
-        let mut content : Option<Box<dyn EditorContent>> = None;
+        if self.context.code_editor_is_active {
+            self.code_editor.mouse_down(pos, asset, &mut self.context);
+        } else {
+            let index = self.state as usize;
+            let mut options : Option<Box<dyn EditorOptions>> = None;
+            let mut content : Option<Box<dyn EditorContent>> = None;
 
-        if let Some(element) = self.content.drain(index..index+1).next() {
-            options = element.0;
-            content = element.1;
+            if let Some(element) = self.content.drain(index..index+1).next() {
+                options = element.0;
+                content = element.1;
 
-            if consumed == false {
-                if let Some(mut el_option) = options {
-                    consumed = el_option.mouse_down(pos, asset, &mut self.context, &mut content);
-                    options = Some(el_option);
+                if consumed == false {
+                    if let Some(mut el_option) = options {
+                        consumed = el_option.mouse_down(pos, asset, &mut self.context, &mut content);
+                        options = Some(el_option);
+                    }
+                }
+
+                if consumed == false {
+                    if let Some(mut el_content) = content {
+                        consumed = el_content.mouse_down(pos, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
+                        content = Some(el_content);
+                    }
                 }
             }
-
-            if consumed == false {
-                if let Some(mut el_content) = content {
-                    consumed = el_content.mouse_down(pos, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
-                    content = Some(el_content);
-                }
-            }
+            self.content.insert(index, (options, content));
         }
-        self.content.insert(index, (options, content));
 
         /*
         if consumed == false && self.state == EditorState::TilesOverview {
@@ -894,7 +938,11 @@ impl ScreenWidget for Editor<'_> {
         if self.controlbar.mouse_up(pos, asset, &mut self.context) {
             consumed = true;
         }
-        if self.toolbar.mouse_up(pos, asset, &mut self.context) {
+
+        if self.context.code_editor_is_active && self.codeeditor_toolbar.mouse_up(pos, asset, &mut self.context) {
+            consumed = true;
+        }
+        if !self.context.code_editor_is_active && self.toolbar.mouse_up(pos, asset, &mut self.context) {
 
             if self.toolbar.widgets[0].new_selection.is_some() {
                 if self.state == EditorState::TilesOverview || self.state == EditorState::TilesDetail {
@@ -939,29 +987,33 @@ impl ScreenWidget for Editor<'_> {
             consumed = true;
         }
 
-        let index = self.state as usize;
-        let mut options : Option<Box<dyn EditorOptions>> = None;
-        let mut content : Option<Box<dyn EditorContent>> = None;
+        if self.context.code_editor_is_active {
+            self.code_editor.mouse_up(pos, asset, &mut self.context);
+        } else {
+            let index = self.state as usize;
+            let mut options : Option<Box<dyn EditorOptions>> = None;
+            let mut content : Option<Box<dyn EditorContent>> = None;
 
-        if let Some(element) = self.content.drain(index..index+1).next() {
-            options = element.0;
-            content = element.1;
+            if let Some(element) = self.content.drain(index..index+1).next() {
+                options = element.0;
+                content = element.1;
 
-            if consumed == false {
-                if let Some(mut el_option) = options {
-                    consumed = el_option.mouse_up(pos, asset, &mut self.context, &mut content);
-                    options = Some(el_option);
+                if consumed == false {
+                    if let Some(mut el_option) = options {
+                        consumed = el_option.mouse_up(pos, asset, &mut self.context, &mut content);
+                        options = Some(el_option);
+                    }
+                }
+
+                if consumed == false {
+                    if let Some(mut el_content) = content {
+                        consumed = el_content.mouse_up(pos, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
+                        content = Some(el_content);
+                    }
                 }
             }
-
-            if consumed == false {
-                if let Some(mut el_content) = content {
-                    consumed = el_content.mouse_up(pos, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
-                    content = Some(el_content);
-                }
-            }
+            self.content.insert(index, (options, content));
         }
-        self.content.insert(index, (options, content));
         /*
         if self.state == EditorState::TilesOverview {
             if consumed == false && self.node_graph_tiles.mouse_up(pos, asset, &mut self.context) {
@@ -1197,31 +1249,39 @@ impl ScreenWidget for Editor<'_> {
         }
 
         let mut consumed = false;
-        self.toolbar.mouse_dragged(pos, asset, &mut self.context);
-
-        let index = self.state as usize;
-        let mut options : Option<Box<dyn EditorOptions>> = None;
-        let mut content : Option<Box<dyn EditorContent>> = None;
-
-        if let Some(element) = self.content.drain(index..index+1).next() {
-            options = element.0;
-            content = element.1;
-
-            if consumed == false {
-                if let Some(mut el_option) = options {
-                    consumed = el_option.mouse_dragged(pos, asset, &mut self.context, &mut content);
-                    options = Some(el_option);
-                }
-            }
-
-            if consumed == false {
-                if let Some(mut el_content) = content {
-                    consumed = el_content.mouse_dragged(pos, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
-                    content = Some(el_content);
-                }
-            }
+        if self.context.code_editor_is_active {
+            self.codeeditor_toolbar.mouse_dragged(pos, asset, &mut self.context);
+        } else {
+            self.toolbar.mouse_dragged(pos, asset, &mut self.context);
         }
-        self.content.insert(index, (options, content));
+
+        if self.context.code_editor_is_active {
+            self.code_editor.mouse_dragged(pos, asset, &mut self.context);
+        } else {
+            let index = self.state as usize;
+            let mut options : Option<Box<dyn EditorOptions>> = None;
+            let mut content : Option<Box<dyn EditorContent>> = None;
+
+            if let Some(element) = self.content.drain(index..index+1).next() {
+                options = element.0;
+                content = element.1;
+
+                if consumed == false {
+                    if let Some(mut el_option) = options {
+                        consumed = el_option.mouse_dragged(pos, asset, &mut self.context, &mut content);
+                        options = Some(el_option);
+                    }
+                }
+
+                if consumed == false {
+                    if let Some(mut el_content) = content {
+                        consumed = el_content.mouse_dragged(pos, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
+                        content = Some(el_content);
+                    }
+                }
+            }
+            self.content.insert(index, (options, content));
+        }
 
         self.mouse_pos = pos.clone();
         consumed
@@ -1235,7 +1295,10 @@ impl ScreenWidget for Editor<'_> {
 
         let mut consumed = false;
 
-        if consumed == false && self.toolbar.mouse_hover(pos, asset, &mut self.context) {
+        if self.context.code_editor_is_active && self.codeeditor_toolbar.mouse_hover(pos, asset, &mut self.context) {
+            consumed = true;
+        } else
+        if consumed == false && !self.context.code_editor_is_active && self.toolbar.mouse_hover(pos, asset, &mut self.context) {
             consumed = true;
         } else {
 
@@ -1276,29 +1339,34 @@ impl ScreenWidget for Editor<'_> {
         }
 
         let mut consumed = false;
-        let index = self.state as usize;
-        let mut options : Option<Box<dyn EditorOptions>> = None;
-        let mut content : Option<Box<dyn EditorContent>> = None;
 
-        if let Some(element) = self.content.drain(index..index+1).next() {
-            options = element.0;
-            content = element.1;
+        if self.context.code_editor_is_active {
+            self.code_editor.mouse_wheel(delta, asset, &mut self.context);
+        } else {
+            let index = self.state as usize;
+            let mut options : Option<Box<dyn EditorOptions>> = None;
+            let mut content : Option<Box<dyn EditorContent>> = None;
 
-            if consumed == false {
-                if let Some(mut el_option) = options {
-                    consumed = el_option.mouse_wheel(delta, asset, &mut self.context, &mut content);
-                    options = Some(el_option);
+            if let Some(element) = self.content.drain(index..index+1).next() {
+                options = element.0;
+                content = element.1;
+
+                if consumed == false {
+                    if let Some(mut el_option) = options {
+                        consumed = el_option.mouse_wheel(delta, asset, &mut self.context, &mut content);
+                        options = Some(el_option);
+                    }
+                }
+
+                if consumed == false {
+                    if let Some(mut el_content) = content {
+                        consumed = el_content.mouse_wheel(delta, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
+                        content = Some(el_content);
+                    }
                 }
             }
-
-            if consumed == false {
-                if let Some(mut el_content) = content {
-                    consumed = el_content.mouse_wheel(delta, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
-                    content = Some(el_content);
-                }
-            }
+            self.content.insert(index, (options, content));
         }
-        self.content.insert(index, (options, content));
 
         consumed
     }

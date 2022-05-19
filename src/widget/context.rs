@@ -94,6 +94,13 @@ pub struct ScreenContext<'a> {
     pub dialog_tile_usage               : Vec<TileUsage>,
     pub dialog_accepted                 : bool,
 
+    pub code_editor_is_active           : bool,
+    pub code_editor_just_opened         : bool,
+    pub code_editor_update_node         : bool,
+    pub code_editor_value               : String,
+    pub code_editor_node_behavior_id    : (usize, usize, String),
+    pub code_editor_node_behavior_value : (f64, f64, f64, f64, String),
+
     pub active_position_id              : Option<(usize, usize, String)>,
 
     pub jump_to_position                : Option<(usize, isize, isize)>,
@@ -265,6 +272,13 @@ impl ScreenContext<'_> {
             dialog_new_node_position    : (0,0),
             dialog_tile_usage           : vec![],
             dialog_accepted             : false,
+
+            code_editor_is_active            : false,
+            code_editor_just_opened          : false,
+            code_editor_update_node          : false,
+            code_editor_value                : "".to_string(),
+            code_editor_node_behavior_id     : (0, 0, "".to_string()),
+            code_editor_node_behavior_value  : (0.0, 0.0, 0.0, 0.0, "".to_string()),
 
             active_position_id          : None,
             jump_to_position            : None,

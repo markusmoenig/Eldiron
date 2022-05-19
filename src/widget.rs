@@ -76,6 +76,8 @@ pub trait ScreenWidget {
 // General purpose widgets
 pub mod atom;
 pub mod tileselector;
+pub mod text_editor_trait;
+pub mod codeeditor;
 
 /// The widget state
 
