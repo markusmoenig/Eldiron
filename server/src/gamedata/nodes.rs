@@ -432,7 +432,6 @@ pub fn player_move(instance_index: usize, id: (usize, usize), data: &mut GameDat
     let mut speed : f64 = 8.0;
     if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
         speed = rc;
-        println!("{}", speed);
     }
 
     // Apply the speed delay

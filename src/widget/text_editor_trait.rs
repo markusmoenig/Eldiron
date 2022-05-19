@@ -4,7 +4,7 @@ use super::{WidgetKey, draw2d::Draw2D};
 #[allow(unused)]
 pub trait TextEditorWidget {
 
-    fn new(width: usize, height: usize) -> Self where Self: Sized;
+    fn new() -> Self where Self: Sized;
 
     fn resize(&mut self, width: usize, height: usize) {
     }

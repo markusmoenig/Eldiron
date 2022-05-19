@@ -8,7 +8,7 @@ use super::text_editor_trait::TextEditorWidget;
 
 pub struct CodeEditor {
 
-    rect                    : (usize, usize, usize, usize),
+    pub rect                : (usize, usize, usize, usize),
     pub code                : String,
 
     dirty                   : bool,
@@ -17,7 +17,7 @@ pub struct CodeEditor {
 
 impl TextEditorWidget for CodeEditor {
 
-    fn new(width: usize, height: usize) -> Self where Self: Sized {
+    fn new() -> Self where Self: Sized {
 
         Self {
             rect            : (0, 0, 0, 0),
@@ -26,9 +26,6 @@ impl TextEditorWidget for CodeEditor {
             dirty           : true,
             buffer          : vec![0;1],
         }
-    }
-
-    fn resize(&mut self, width: usize, height: usize) {
     }
 
     fn set_text(&mut self, text: String) {
@@ -84,7 +81,7 @@ impl TextEditorWidget for CodeEditor {
         draw2d.copy_slice(frame, &mut self.buffer[..], &self.rect, stride);
     }
 
-    fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, font: &Font) -> bool {
+    fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, _font: &Font) -> bool {
 
         if let Some(key) = key {
             match key {
@@ -108,23 +105,25 @@ impl TextEditorWidget for CodeEditor {
         false
     }
 
-    fn mouse_down(&mut self, pos: (usize, usize), font: &Font) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), _font: &Font) -> bool {
+
+        println!("{:?}", pos);
         false
     }
 
-    fn mouse_up(&mut self, pos: (usize, usize), font: &Font) -> bool {
+    fn mouse_up(&mut self, _pos: (usize, usize), _font: &Font) -> bool {
         false
     }
 
-    fn mouse_dragged(&mut self, pos: (usize, usize), font: &Font) -> bool {
+    fn mouse_dragged(&mut self, _pos: (usize, usize), _font: &Font) -> bool {
         false
     }
 
-    fn mouse_hover(&mut self, pos: (usize, usize), font: &Font) -> bool {
+    fn mouse_hover(&mut self, _pos: (usize, usize), _font: &Font) -> bool {
         false
     }
 
-    fn mouse_wheel(&mut self, delta: (isize, isize), font: &Font) -> bool {
+    fn mouse_wheel(&mut self, _delta: (isize, isize), _font: &Font) -> bool {
         false
     }
 }

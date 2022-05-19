@@ -18,7 +18,7 @@ impl CodeEditorWidget {
 
     pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext) -> Self {
 
-        let editor = CodeEditor::new(100, 100);
+        let editor = CodeEditor::new();
 
         Self {
             rect,
@@ -34,12 +34,12 @@ impl CodeEditorWidget {
         self.editor.set_text(value);
     }
 
-    pub fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
+    pub fn _resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
         self.rect.3 = height;
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+    pub fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
         if self.buffer.len() != rect.2 * rect.3 * 4 {
             self.buffer = vec![0; rect.2 * rect.3 * 4];
             self.dirty = true;
@@ -63,6 +63,12 @@ impl CodeEditorWidget {
     }
 
     pub fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset, context: &mut ScreenContext) -> bool {
+
+        if key == Some(WidgetKey::Escape) {
+            context.code_editor_is_active = false;
+            return true;
+        }
+
         let consumed = self.editor.key_down(char, key, asset.get_editor_font("SourceCodePro"));
         if consumed {
             self.dirty = true;
@@ -74,20 +80,43 @@ impl CodeEditorWidget {
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
-        true
+        if context.contains_pos_for(self.pos_to_local(pos), self.editor.rect) {
+            let mut local_pos = self.pos_to_local(pos);
+            local_pos.0 -= self.editor.rect.0; local_pos.1 -= self.editor.rect.1;
+            return self.editor.mouse_down(local_pos, asset.get_editor_font("SourceCodePro"));
+        }
+        false
     }
 
-    pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        let consumed = false;
+    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+        let mut consumed = false;
+        if context.contains_pos_for(self.pos_to_local(pos), self.editor.rect) {
+            let mut local_pos = self.pos_to_local(pos);
+            local_pos.0 -= self.editor.rect.0; local_pos.1 -= self.editor.rect.1;
+            consumed = self.editor.mouse_up(local_pos, asset.get_editor_font("SourceCodePro"));
+        }
         consumed
     }
 
     pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+        let mut consumed = false;
 
-        false
+        if context.contains_pos_for(self.pos_to_local(pos), self.editor.rect) {
+            let mut local_pos = self.pos_to_local(pos);
+            local_pos.0 = self.editor.rect.0; local_pos.1 -= self.editor.rect.1;
+            consumed = self.editor.mouse_dragged(local_pos, asset.get_editor_font("SourceCodePro"));
+        }
+
+        consumed
     }
 
-    pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        true
+    pub fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        let consumed;
+        consumed = self.editor.mouse_wheel(delta, asset.get_editor_font("SourceCodePro"));
+        consumed
+    }
+
+    fn pos_to_local(&mut self, pos: (usize, usize)) -> (usize, usize) {
+        (pos.0 - self.rect.0, pos.1 - self.rect.1)
     }
 }
