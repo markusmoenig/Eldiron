@@ -9,9 +9,9 @@ pub trait TextEditorWidget {
     fn resize(&mut self, width: usize, height: usize) {
     }
 
-    fn set_text(&mut self, text: String) {
+    fn set_text(&mut self, text: String);
 
-    }
+    fn process_text(&mut self, font: &Font, draw2d: &Draw2D);
 
     fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), stride: usize, font: &Font, draw2d: &Draw2D);
 

@@ -72,7 +72,7 @@ impl CodeEditorWidget {
         let consumed = self.editor.key_down(char, key, asset.get_editor_font("SourceCodePro"));
         if consumed {
             self.dirty = true;
-            context.code_editor_value = self.editor.code.clone();
+            context.code_editor_value = self.editor.text.clone();
             context.code_editor_update_node = true;
         }
         consumed

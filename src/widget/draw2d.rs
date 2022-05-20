@@ -13,7 +13,7 @@ use super::context::ScreenContext;
 pub enum TextAlignment {
     Left,
     Center,
-    //Right
+    Right
 }
 
 pub struct Draw2D {
@@ -221,6 +221,8 @@ impl Draw2D {
         let mut text_to_use = text.trim_end().to_string().clone();
         if text_to_use.trim_end().is_empty() { return; }
 
+        text_to_use = text_to_use.lines().next().unwrap().to_owned();
+
         let mut text_size = self.get_text_size(font, size, text_to_use.as_str());
 
         let mut add_trail = false;
@@ -241,7 +243,7 @@ impl Draw2D {
         layout.reset(&LayoutSettings {
             max_width : Some(rect.2 as f32),
             max_height : Some(rect.3 as f32),
-            horizontal_align : if align ==  TextAlignment::Left { HorizontalAlign::Left } else { HorizontalAlign::Center },
+            horizontal_align : if align ==  TextAlignment::Left { HorizontalAlign::Left } else { if align == TextAlignment::Right {HorizontalAlign::Right} else { HorizontalAlign::Center } },
             vertical_align : VerticalAlign::Middle,
             ..LayoutSettings::default()
         });
