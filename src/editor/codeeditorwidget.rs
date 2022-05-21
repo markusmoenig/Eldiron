@@ -56,6 +56,10 @@ impl CodeEditorWidget {
             context.draw2d.draw_rect(buffer_frame, &safe_rect, stride, &context.color_black);
 
             self.editor.draw(buffer_frame, (50, 50, safe_rect.2 - 100, safe_rect.3 - 100), self.rect.2, asset.get_editor_font("SourceCodePro"), &context.draw2d);
+
+            if self.editor.cursor_rect.3 > 0 {
+                context.draw2d.draw_text_rect(buffer_frame, &(0, rect.3 - 40, rect.2 - 20, 40), rect.2, asset.get_editor_font("OpenSans"), 15.0, format!("Ln {}, Col {}", self.editor.cursor_pos.1 + 1, self.editor.cursor_pos.0).as_str(), &context.color_light_gray, &context.color_black, crate::draw2d::TextAlignment::Right);
+            }
         }
 
         self.dirty = false;

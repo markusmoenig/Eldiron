@@ -15,8 +15,8 @@ pub struct CodeEditor {
     pub font_size           : f32,
 
     cursor_offset           : usize,
-    cursor_pos              : (usize, usize),
-    cursor_rect             : (usize, usize, usize, usize),
+    pub cursor_pos          : (usize, usize),
+    pub cursor_rect         : (usize, usize, usize, usize),
 
     needs_update            : bool,
     dirty                   : bool,
@@ -78,10 +78,11 @@ impl TextEditorWidget for CodeEditor {
             let stride = rect.2;
 
             draw2d.draw_rect(buffer_frame, &safe_rect, stride, &self.theme.background);
+            draw2d.draw_rect(buffer_frame, &(0, 0, 95, safe_rect.3), stride, &self.theme.line_numbers_bg);
 
             draw2d.blend_slice(buffer_frame, &mut self.text_buffer[..], &(0, 0, self.text_buffer_size.0, self.text_buffer_size.1), stride);
 
-            println!("{:?}", self.cursor_rect);
+            //println!("{:?}", self.cursor_rect);
             draw2d.draw_rect(buffer_frame, &self.cursor_rect, stride, &self.theme.cursor);
         }
 
@@ -206,7 +207,7 @@ impl TextEditorWidget for CodeEditor {
         let mut curr_line_index = 0_usize;
         let mut found = false;
 
-        self.cursor_offset =0;
+        self.cursor_offset = 0;
 
         while let Some(line) = lines.next() {
 
@@ -229,9 +230,13 @@ impl TextEditorWidget for CodeEditor {
 
                 if x <= 100 {
                     self.cursor_rect.0 = 100;
+                    self.cursor_offset += line.len();
+                    self.cursor_pos.0 = 0;
                 } else
                 if layout.height() == 0.0{
                     self.cursor_rect.0 = 100;
+                    self.cursor_offset += line.len();
+                    self.cursor_pos.0 = 0;
                 } else {
 
                     self.cursor_rect.0 = 100;
@@ -245,14 +250,14 @@ impl TextEditorWidget for CodeEditor {
                         //println!("Metrics: {:?}", glyph);
 
                         if x - 100 < glyph.x as usize {
-                            self.cursor_rect.0 = 100 + glyph.x as usize - self.cursor_rect.2;
-                            self.cursor_pos.0 = offset - 1;
+                            self.cursor_rect.0 = 100 + glyph.x as usize - self.cursor_rect.2 - 1;
+                            self.cursor_pos.0 = offset;
                             found_x = true;
                             break;
                         } else
                         if x - 100 < glyph.x as usize + metrics.width {
                             self.cursor_rect.0 = 100 + glyph.x as usize + metrics.width - self.cursor_rect.2;
-                            self.cursor_pos.0 = offset;
+                            self.cursor_pos.0 = offset + 1;
                             self.cursor_offset += 1;
                             found_x = true;
                             break;
@@ -264,13 +269,15 @@ impl TextEditorWidget for CodeEditor {
                     }
 
                     if found_x == false {
-                        self.cursor_rect.0 = 100 + adv_x;
+                        self.cursor_rect.0 = 100 + adv_x - self.cursor_rect.2;
                         self.cursor_pos.0 = offset;
                     }
                 }
 
                 found = true;
                 break;
+            } else {
+                self.cursor_offset += line.len();
             }
 
             h += line_height;
