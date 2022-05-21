@@ -55,7 +55,7 @@ impl CodeEditorWidget {
 
             context.draw2d.draw_rect(buffer_frame, &safe_rect, stride, &context.color_black);
 
-            self.editor.draw(buffer_frame, (200, 50, safe_rect.2 - 300, safe_rect.3 - 100), self.rect.2, asset.get_editor_font("SourceCodePro"), &context.draw2d);
+            self.editor.draw(buffer_frame, (50, 50, safe_rect.2 - 100, safe_rect.3 - 100), self.rect.2, asset.get_editor_font("SourceCodePro"), &context.draw2d);
         }
 
         self.dirty = false;
@@ -69,7 +69,7 @@ impl CodeEditorWidget {
             return true;
         }
 
-        let consumed = self.editor.key_down(char, key, asset.get_editor_font("SourceCodePro"));
+        let consumed = self.editor.key_down(char, key, asset.get_editor_font("SourceCodePro"), &context.draw2d);
         if consumed {
             self.dirty = true;
             context.code_editor_value = self.editor.text.clone();
@@ -83,7 +83,10 @@ impl CodeEditorWidget {
         if context.contains_pos_for(self.pos_to_local(pos), self.editor.rect) {
             let mut local_pos = self.pos_to_local(pos);
             local_pos.0 -= self.editor.rect.0; local_pos.1 -= self.editor.rect.1;
-            return self.editor.mouse_down(local_pos, asset.get_editor_font("SourceCodePro"));
+            if self.editor.mouse_down(local_pos, asset.get_editor_font("SourceCodePro")) {
+                self.dirty = true;
+                return true;
+            }
         }
         false
     }
@@ -103,8 +106,11 @@ impl CodeEditorWidget {
 
         if context.contains_pos_for(self.pos_to_local(pos), self.editor.rect) {
             let mut local_pos = self.pos_to_local(pos);
-            local_pos.0 = self.editor.rect.0; local_pos.1 -= self.editor.rect.1;
-            consumed = self.editor.mouse_dragged(local_pos, asset.get_editor_font("SourceCodePro"));
+            local_pos.0 -= self.editor.rect.0; local_pos.1 -= self.editor.rect.1;
+            if self.editor.mouse_dragged(local_pos, asset.get_editor_font("SourceCodePro")) {
+                self.dirty = true;
+                consumed = true;
+            }
         }
 
         consumed

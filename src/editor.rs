@@ -728,7 +728,7 @@ impl ScreenWidget for Editor<'_> {
         }
 
         if self.context.code_editor_is_active {
-            self.code_editor.mouse_down(pos, asset, &mut self.context);
+            consumed = self.code_editor.mouse_down(pos, asset, &mut self.context);
         } else {
             let index = self.state as usize;
             let mut options : Option<Box<dyn EditorOptions>> = None;
@@ -1250,13 +1250,13 @@ impl ScreenWidget for Editor<'_> {
 
         let mut consumed = false;
         if self.context.code_editor_is_active {
-            self.codeeditor_toolbar.mouse_dragged(pos, asset, &mut self.context);
+            consumed = self.codeeditor_toolbar.mouse_dragged(pos, asset, &mut self.context);
         } else {
             self.toolbar.mouse_dragged(pos, asset, &mut self.context);
         }
 
         if self.context.code_editor_is_active {
-            self.code_editor.mouse_dragged(pos, asset, &mut self.context);
+            consumed = self.code_editor.mouse_dragged(pos, asset, &mut self.context);
         } else {
             let index = self.state as usize;
             let mut options : Option<Box<dyn EditorOptions>> = None;

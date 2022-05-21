@@ -12,10 +12,11 @@ pub trait TextEditorWidget {
     fn set_text(&mut self, text: String);
 
     fn process_text(&mut self, font: &Font, draw2d: &Draw2D);
+    fn set_cursor_offset_from_pos(&mut self, pos: (usize, usize), font: &Font) -> bool;
 
     fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), stride: usize, font: &Font, draw2d: &Draw2D);
 
-    fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, font: &Font) -> bool {
+    fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, font: &Font, draw2d: &Draw2D) -> bool {
         false
     }
 

@@ -78,6 +78,7 @@ pub mod atom;
 pub mod tileselector;
 pub mod text_editor_trait;
 pub mod codeeditor;
+pub mod codeeditor_theme;
 
 /// The widget state
 
