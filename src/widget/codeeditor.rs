@@ -249,23 +249,27 @@ impl TextEditorWidget for CodeEditor {
                         let (metrics, _alphamap) = font.rasterize(glyph.parent, glyph.key.px);
                         //println!("Metrics: {:?}", glyph);
 
-                        if x - 100 < glyph.x as usize {
-                            self.cursor_rect.0 = 100 + glyph.x as usize - self.cursor_rect.2 - 1;
+                        let glyph_x = glyph.x.ceil() as usize;
+
+                        if x - 100 < glyph_x {
+                            self.cursor_rect.0 = 100 + glyph_x - self.cursor_rect.2;
                             self.cursor_pos.0 = offset;
                             found_x = true;
+                            //println!("smaller {}", self.cursor_rect.0);
                             break;
                         } else
-                        if x - 100 < glyph.x as usize + metrics.width {
-                            self.cursor_rect.0 = 100 + glyph.x as usize + metrics.width - self.cursor_rect.2;
+                        if x - 100 < glyph_x + metrics.width {
+                            self.cursor_rect.0 = 100 + glyph_x + metrics.width - self.cursor_rect.2;
                             self.cursor_pos.0 = offset + 1;
                             self.cursor_offset += 1;
                             found_x = true;
+                            //println!("isndie {}", self.cursor_rect.0);
                             break;
                         }
 
                         offset += 1;
                         self.cursor_offset += 1;
-                        adv_x = glyph.x as usize + metrics.width;
+                        adv_x = glyph_x + metrics.width;
                     }
 
                     if found_x == false {
