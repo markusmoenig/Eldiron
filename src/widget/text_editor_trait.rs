@@ -39,4 +39,8 @@ pub trait TextEditorWidget {
     fn mouse_wheel(&mut self, delta: (isize, isize), font: &Font) -> bool {
         false
     }
+
+    fn modifier_changed(&mut self, shift: bool, ctrl: bool, alt: bool, logo: bool, _font: &Font) -> bool {
+        false
+    }
 }

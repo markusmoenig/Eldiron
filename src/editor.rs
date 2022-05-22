@@ -1371,6 +1371,17 @@ impl ScreenWidget for Editor<'_> {
         consumed
     }
 
+    fn modifier_changed(&mut self, shift: bool, ctrl: bool, alt: bool, logo: bool, asset: &mut Asset) -> bool {
+
+        let mut consumed = false;
+
+        if self.context.code_editor_is_active {
+            consumed = self.code_editor.modifier_changed(shift, ctrl, alt, logo, asset, &mut self.context);
+        }
+
+        consumed
+    }
+
     fn get_target_fps(&self) -> usize {
         self.context.target_fps
     }

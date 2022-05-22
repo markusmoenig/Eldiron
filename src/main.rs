@@ -94,6 +94,14 @@ fn main() -> Result<(), Error> {
                     }
                 },
 
+                WindowEvent::ModifiersChanged(state) => match state {
+                    _ => {
+                        if curr_screen.modifier_changed(state.shift(), state.ctrl(), state.alt(), state.logo(), &mut asset) {
+                            window.request_redraw();
+                        }
+                    }
+                },
+
                 WindowEvent::KeyboardInput {
                     input:
                         KeyboardInput {

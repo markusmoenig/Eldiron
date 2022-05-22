@@ -62,6 +62,10 @@ pub trait ScreenWidget {
         false
     }
 
+    fn modifier_changed(&mut self, shift: bool, ctrl: bool, alt: bool, logo: bool, asset: &mut Asset) -> bool {
+        false
+    }
+
     /// Gets the current time in milliseconds
     fn get_time(&self) -> u128 {
         let stop = SystemTime::now()
@@ -119,6 +123,10 @@ pub trait Widget {
     }
 
     fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+        false
+    }
+
+    fn modifier_changed(&mut self, shift: bool, ctrl: bool, alt: bool, logo: bool, asset: &mut Asset, context: &mut ScreenContext) -> bool {
         false
     }
 

@@ -126,6 +126,10 @@ impl CodeEditorWidget {
         consumed
     }
 
+    pub fn modifier_changed(&mut self, shift: bool, ctrl: bool, alt: bool, logo: bool, asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        self.editor.modifier_changed(shift, ctrl, alt, logo, asset.get_editor_font("SourceCodePro"))
+    }
+
     fn pos_to_local(&mut self, pos: (usize, usize)) -> (usize, usize) {
         (pos.0 - self.rect.0, pos.1 - self.rect.1)
     }
