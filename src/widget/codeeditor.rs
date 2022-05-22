@@ -1,9 +1,10 @@
+use std::collections::HashMap;
+
 use super::WidgetKey;
 use super::codeeditor_theme::CodeEditorTheme;
 use super::draw2d::Draw2D;
 
-use fontdue::layout::{ Layout, LayoutSettings, CoordinateSystem, TextStyle };//, VerticalAlign, HorizontalAlign };
-use fontdue::Font;
+use fontdue::{ Font, Metrics };
 
 use super::text_editor_trait::TextEditorWidget;
 
@@ -26,6 +27,9 @@ pub struct CodeEditor {
 
     text_buffer             : Vec<u8>,
     text_buffer_size        : (usize, usize),
+
+    metrics                 : HashMap<char, (Metrics, Vec<u8>)>,
+    advance_width           : usize,
 
     theme                   : CodeEditorTheme,
 }
@@ -52,6 +56,9 @@ impl TextEditorWidget for CodeEditor {
 
             text_buffer     : vec![0;1],
             text_buffer_size  : (0, 0),
+
+            metrics         : HashMap::new(),
+            advance_width   : 12,
 
             theme           : CodeEditorTheme::new(),
         }
@@ -101,223 +108,135 @@ impl TextEditorWidget for CodeEditor {
 
     /// Takes the current text and renders it to the text_buffer bitmap
     fn process_text(&mut self, font: &Font, draw2d: &Draw2D) {
+
         let mut lines = self.text.lines();
 
-        let mut w = 0_usize;
-        let mut h = 0_usize;
+        let mut screen_width = 0_usize;
+        let mut screen_height = 0_usize;
 
         while let Some(line) = lines.next() {
 
-            let fonts = &[font];
-            let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
-            layout.reset(&LayoutSettings {
-                ..LayoutSettings::default()
-            });
+            let mut chars = line.chars();
+            let mut line_width = 0;
+            while let Some(c) = chars.next() {
 
-            layout.append(fonts, &TextStyle::new(line, self.font_size, 0));
+                if self.metrics.contains_key(&c) == false {
+                    let m= font.rasterize(c, self.font_size);
+                    println!("{} {:?}", c.to_string(), m.0);
+                    self.metrics.insert(c, m);
+                }
 
-            if layout.height() == 0.0 {
-                h += 26;
-            } else {
-                h += layout.height().ceil() as usize;
-            }
+                if let Some((metrics, _bitmap)) = self.metrics.get(&c) {
 
-            if let Some(last) = layout.glyphs().last() {
-                if w < last.x.ceil() as usize + last.width {
-                    w = last.x.ceil() as usize + last.width;
+                    line_width += metrics.advance_width.ceil() as usize;
                 }
             }
+
+            if line_width > screen_width {
+                screen_width = line_width;
+            }
+
+            screen_height += 26;
         }
 
-        if let Some(last) = self.text.chars().last() {
-            if last == '\n' {
-                h += 26;
-            }
-        }
+        //println!("{} x {}", screen_width, screen_height);
 
         let left_size = 100;
-
-        w += left_size;
-
+        screen_width += left_size;
+        screen_height += left_size;
         self.needs_update = false;
 
-        //println!("{} {}", w, h);
-
-        self.text_buffer = vec![0; w * h * 4];
-        self.text_buffer_size = (w, h);
+        self.text_buffer = vec![0; screen_width * screen_height * 4];
+        self.text_buffer_size = (screen_width, screen_height);
 
         // Draw it
 
         lines = self.text.lines();
 
-        let pos_x = left_size;
-        let mut pos_y = 0;
+        let mut y = 0;
 
-        let stride = w;
+        let stride = screen_width;
 
         let mut line_number = 1;
 
         while let Some(line) = lines.next() {
 
-            let fonts = &[font];
-            let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
-            layout.reset(&LayoutSettings {
-                ..LayoutSettings::default()
-            });
+            let mut chars = line.chars();
+            let mut x = left_size;
+            while let Some(c) = chars.next() {
 
-            layout.append(fonts, &TextStyle::new(line, self.font_size, 0));
+                if let Some((metrics, bitmap)) = self.metrics.get(&c) {
+                    let text_buffer_frame = &mut self.text_buffer[..];
 
-            for glyph in layout.glyphs() {
-                let text_buffer_frame = &mut self.text_buffer[..];
-                let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
-                //println!("Metrics: {:?}", glyph);
+                    for cy in 0..metrics.height {
+                        for cx in 0..metrics.width {
 
-                for y in 0..metrics.height {
-                    for x in 0..metrics.width {
-                        let i = (x+pos_x+glyph.x as usize) * 4 + (y + pos_y + glyph.y as usize) * stride * 4;
-                        let m = alphamap[x + y * metrics.width];
+                            let fy = (self.font_size as isize - metrics.height as isize - metrics.ymin as isize) as usize;
 
-                        text_buffer_frame[i..i + 4].copy_from_slice(&draw2d.mix_color(&self.theme.background, &self.theme.text, m as f64 / 255.0));
+                            let i = (x + cx) * 4 + (y + cy + fy) * stride * 4;
+                            let m = bitmap[cx + cy * metrics.width];
+
+                            text_buffer_frame[i..i + 4].copy_from_slice(&draw2d.mix_color(&self.theme.background, &self.theme.text, m as f64 / 255.0));
+                        }
                     }
+
+                    x += self.advance_width;//metrics.advance_width as usize;
                 }
             }
 
-            let adv_y = layout.height() as usize;
+            draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, y, 60, 26), stride, font, self.font_size, format!("{}", line_number).as_str(), &self.theme.line_numbers, &self.theme.background, crate::draw2d::TextAlignment::Right);
 
-            draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, pos_y, 60, if adv_y == 0 { 26 } else { adv_y }), stride, font, self.font_size, format!("{}", line_number).as_str(), &self.theme.line_numbers, &self.theme.background, crate::draw2d::TextAlignment::Right);
-
-            if adv_y == 0 {
-                pos_y += 26;
-            } else {
-                pos_y += layout.height().ceil() as usize;
-            }
-
+            y += 26;
             line_number += 1;
-        }
-
-        if let Some(last) = self.text.chars().last() {
-            if last == '\n' {
-                draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, pos_y, 60, 26), stride, font, self.font_size, format!("{}", line_number).as_str(), &[160, 160, 160, 255], &[0, 0, 0, 255], crate::draw2d::TextAlignment::Right);
-            }
         }
     }
 
     /// Sets the cursor offset based on the given screen position
-    fn set_cursor_offset_from_pos(&mut self, pos: (usize, usize), font: &Font) -> bool {
+    fn set_cursor_offset_from_pos(&mut self, pos: (usize, usize), _font: &Font) -> bool {
 
         let mut lines = self.text.lines();
 
-        let x = pos.0;
-        let y = pos.1;
+        let px = pos.0;
+        let py = pos.1;
 
-        //let mut w = 0_usize;
-        let mut h = 0_usize;
-
-        let mut curr_line_index = 0_usize;
-        let mut found = false;
+        let left_size = 100_usize;
+        let line_height = 26;
 
         self.cursor_offset = 0;
 
+        let mut curr_line_index = 0_usize;
+
+        let mut y = 0;
+
         while let Some(line) = lines.next() {
 
-            let fonts = &[font];
-            let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
-            layout.reset(&LayoutSettings {
-                ..LayoutSettings::default()
-            });
+            if py >= y && py <= y + 26 {
 
-            layout.append(fonts, &TextStyle::new(line, self.font_size, 0));
-
-            let line_height = if layout.height() == 0.0 { 26 } else { layout.height().ceil() as usize };
-
-            if y >= h && y <= h + line_height {
-
+                self.cursor_pos.0 = 0;
                 self.cursor_pos.1 = curr_line_index;
-                self.cursor_rect.1 = h;
+                self.cursor_rect.0 = left_size;
+                self.cursor_rect.1 = y;
                 self.cursor_rect.3 = line_height;
                 self.dirty = true;
 
-                if x <= 100 {
-                    self.cursor_rect.0 = 100;
-                    self.cursor_offset += line.len();
-                    self.cursor_pos.0 = 0;
-                } else
-                if layout.height() == 0.0{
-                    self.cursor_rect.0 = 100;
-                    self.cursor_offset += line.len();
-                    self.cursor_pos.0 = 0;
-                } else {
-
-                    self.cursor_rect.0 = 100;
-                    let mut offset = 0_usize;
-                    let mut found_x = false;
-
-                    let mut adv_x = 0;
-
-                    for glyph in layout.glyphs() {
-                        let (metrics, _alphamap) = font.rasterize(glyph.parent, glyph.key.px);
-                        //println!("Metrics: {:?}", glyph);
-
-                        let glyph_x = glyph.x.ceil() as usize;
-
-                        if x - 100 < glyph_x {
-                            self.cursor_rect.0 = 100 + glyph_x - self.cursor_rect.2;
-                            self.cursor_pos.0 = offset;
-                            found_x = true;
-                            //println!("smaller {}", self.cursor_rect.0);
-                            break;
-                        } else
-                        if x - 100 < glyph_x + metrics.width {
-                            self.cursor_rect.0 = 100 + glyph_x + metrics.width - self.cursor_rect.2;
-                            self.cursor_pos.0 = offset + 1;
-                            self.cursor_offset += 1;
-                            found_x = true;
-                            //println!("isndie {}", self.cursor_rect.0);
-                            break;
-                        }
-
-                        offset += 1;
-                        self.cursor_offset += 1;
-                        adv_x = glyph_x + metrics.width;
-                    }
-
-                    if found_x == false {
-                        self.cursor_rect.0 = 100 + adv_x - self.cursor_rect.2;
-                        self.cursor_pos.0 = offset;
-                    }
+                if px > 100 {
+                    self.cursor_pos.0 = std::cmp::min((px - 100) / self.advance_width + 1, line.len());
+                    self.cursor_rect.0 += self.cursor_pos.0 * self.advance_width - 2;
                 }
 
-                found = true;
+                self.cursor_offset += self.cursor_pos.0;
+
                 break;
             } else {
                 self.cursor_offset += line.len();
             }
 
-            h += line_height;
-
-            if found == false {
-                self.cursor_offset += 1;
-            }
-
             curr_line_index += 1;
+            y += line_height;
+            self.cursor_offset += 1;
         }
 
-        if let Some(last) = self.text.chars().last() {
-            if last == '\n' {
-                if found == false {
-                    self.cursor_rect.0 = 100;
-                    self.cursor_rect.1 = h;
-                    self.cursor_rect.3 = 26;
-                    self.cursor_pos.0 = 0;
-                    self.cursor_pos.1 = curr_line_index + 1;
-                    self.cursor_offset = self.text.len();
-                    found = true;
-                    self.dirty = true;
-                }
-            }
-        }
-
-        found
+        true
     }
 
     fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, font: &Font, draw2d: &Draw2D) -> bool {
@@ -328,18 +247,21 @@ impl TextEditorWidget for CodeEditor {
                     if self.cursor_offset >= 1 {
                         let index  = self.cursor_offset - 1;
 
-                        let mut pos = (self.cursor_rect.0, self.cursor_rect.1 + 10);
-                        if let Some(c) = self.text.drain(index..index+1).next() {
-                            let size = draw2d.get_text_size(font, self.font_size, c.to_string().as_str());
-                            //println!("s {}", size.0);
-                            pos.0 -= size.0;
-                            if pos.0 < 100 {
-                                pos.0 = 100;
-                            }
+                        let delete_line;
+                        if self.cursor_pos.0 == 0 {
+                            delete_line = true;
+                        } else {
+                            delete_line = false;
                         }
-                        self.process_text(font, draw2d);
-                        self.set_cursor_offset_from_pos(pos, font);
 
+                        self.text.drain(index..index+1).next();
+                        self.process_text(font, draw2d);
+
+                        if delete_line == false {
+                            self.set_cursor_offset_from_pos((self.cursor_rect.0 - self.advance_width, self.cursor_rect.1 + 10), font);
+                        } else {
+                            self.set_cursor_offset_from_pos((100000, self.cursor_rect.1 - 5), font);
+                        }
                     }
                     self.dirty = true;
                     return  true;
@@ -347,13 +269,16 @@ impl TextEditorWidget for CodeEditor {
 
                 WidgetKey::Return => {
                     self.text.insert(self.cursor_offset, '\n');
+                    self.process_text(font, draw2d);
+                    self.set_cursor_offset_from_pos((100, self.cursor_rect.1 + 30), font);
                     self.dirty = true;
-                    self.needs_update = true;
                     return  true;
                 },
 
                 WidgetKey::Up => {
-                    self.set_cursor_offset_from_pos((self.cursor_rect.0, self.cursor_rect.1 - 5), font);
+                    if self.cursor_rect.1 >= 5 {
+                        self.set_cursor_offset_from_pos((self.cursor_rect.0, self.cursor_rect.1 - 5), font);
+                    }
                     self.dirty = true;
                     return  true;
                 },
@@ -366,20 +291,15 @@ impl TextEditorWidget for CodeEditor {
 
                 WidgetKey::Left => {
 
-                    let mut size = 14_usize;
-                    if self.cursor_pos.0 > 0 {
+                    if self.cursor_pos.0 > 0 && self.cursor_rect.0 >= 100 {
                         // Go one left
-                        if let Some(c) = self.text.chars().nth(self.cursor_offset - 1) {
-                            let width = draw2d.get_text_size(font, self.font_size, c.to_string().as_str()).0;
-                            if width > 0 {
-                                size = width;
-                            }
-                        }
+                        self.set_cursor_offset_from_pos((self.cursor_rect.0 - self.advance_width, self.cursor_rect.1 + 10), font);
                     } else {
                         // Go one up
-                        self.set_cursor_offset_from_pos((100000, self.cursor_rect.1 - 5), font);
+                        if self.cursor_rect.1 >= 5 {
+                            self.set_cursor_offset_from_pos((100000, self.cursor_rect.1 - 5), font);
+                        }
                     }
-                    self.set_cursor_offset_from_pos((self.cursor_rect.0 - size - 3, self.cursor_rect.1 + 10), font);
                     self.dirty = true;
                     return  true;
                 },
@@ -388,15 +308,12 @@ impl TextEditorWidget for CodeEditor {
                     if let Some(c) = self.text.chars().nth(self.cursor_offset) {
                         if c == '\n' {
                             // Go down
-                            println!("1 {:?}", self.cursor_pos);
-                            self.set_cursor_offset_from_pos((101, self.cursor_rect.1 + 30), font);
-                            println!("2 {:?}", self.cursor_pos);
+                            self.set_cursor_offset_from_pos((100, self.cursor_rect.1 + 30), font);
                         } else {
                             // Go Right
                             self.set_cursor_offset_from_pos((self.cursor_rect.0 + 6, self.cursor_rect.1 + 10), font);
                         }
                     }
-                    //self.set_cursor_offset_from_pos((self.cursor_rect.0 + 6, self.cursor_rect.1 + 10), font);
                     self.dirty = true;
                     return  true;
                 },
@@ -409,16 +326,8 @@ impl TextEditorWidget for CodeEditor {
                 //self.text.push(c);
                 self.text.insert(self.cursor_offset, c);
                 self.process_text(font, draw2d);
-
-                let mut size = draw2d.get_text_size(font, self.font_size, c.to_string().as_str());
-
-                if size.0 == 0 {
-                    size.0 = 12;
-                }
-
-                self.set_cursor_offset_from_pos((self.cursor_rect.0 + size.0, self.cursor_rect.1 + 10), font);
+                self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width, self.cursor_rect.1 + 10), font);
                 self.dirty = true;
-                //self.needs_update = true;
                 return true;
             }
         }
@@ -427,7 +336,7 @@ impl TextEditorWidget for CodeEditor {
 
     fn mouse_down(&mut self, pos: (usize, usize), font: &Font) -> bool {
         let consumed = self.set_cursor_offset_from_pos(pos, font);
-        println!("{:?}", pos);
+        //println!("{:?}", pos);
         consumed
     }
 
