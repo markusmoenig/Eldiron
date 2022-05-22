@@ -341,8 +341,6 @@ impl Draw2D {
 
     /// Returns the size of the given text
     pub fn get_text_size(&self, font: &Font, size: f32, text: &str) -> (usize, usize) {
-
-
         let fonts = &[font];
 
         let mut layout = Layout::new(CoordinateSystem::PositiveYDown);

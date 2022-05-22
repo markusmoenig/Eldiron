@@ -18,6 +18,8 @@ pub struct CodeEditor {
     pub cursor_pos          : (usize, usize),
     pub cursor_rect         : (usize, usize, usize, usize),
 
+    pub jump_to_screen_pos  : Option<(usize, usize)>,
+
     needs_update            : bool,
     dirty                   : bool,
     buffer                  : Vec<u8>,
@@ -42,6 +44,8 @@ impl TextEditorWidget for CodeEditor {
             cursor_pos      : (0, 0),
             cursor_rect     : (0, 0, 2, 0),
 
+            jump_to_screen_pos : None,
+
             needs_update    : true,
             dirty           : true,
             buffer          : vec![0;1],
@@ -62,6 +66,11 @@ impl TextEditorWidget for CodeEditor {
 
         if self.needs_update {
             self.process_text(font, draw2d);
+        }
+
+        if let Some(pos) = self.jump_to_screen_pos {
+            self.set_cursor_offset_from_pos(pos, font);
+            self.jump_to_screen_pos = None;
         }
 
         if self.buffer.len() != rect.2 * rect.3 * 4 {
@@ -318,20 +327,77 @@ impl TextEditorWidget for CodeEditor {
                 WidgetKey::Delete => {
                     if self.cursor_offset >= 1 {
                         let index  = self.cursor_offset - 1;
-                        self.text.drain(index..index+1).next();
+
+                        let mut pos = (self.cursor_rect.0, self.cursor_rect.1 + 10);
+                        if let Some(c) = self.text.drain(index..index+1).next() {
+                            let size = draw2d.get_text_size(font, self.font_size, c.to_string().as_str());
+                            //println!("s {}", size.0);
+                            pos.0 -= size.0;
+                            if pos.0 < 100 {
+                                pos.0 = 100;
+                            }
+                        }
+                        self.process_text(font, draw2d);
+                        self.set_cursor_offset_from_pos(pos, font);
+
                     }
                     self.dirty = true;
-                    self.needs_update = true;
                     return  true;
                 },
-                _ => {}
-            }
 
-            match key {
                 WidgetKey::Return => {
                     self.text.insert(self.cursor_offset, '\n');
                     self.dirty = true;
                     self.needs_update = true;
+                    return  true;
+                },
+
+                WidgetKey::Up => {
+                    self.set_cursor_offset_from_pos((self.cursor_rect.0, self.cursor_rect.1 - 5), font);
+                    self.dirty = true;
+                    return  true;
+                },
+
+                WidgetKey::Down => {
+                    self.set_cursor_offset_from_pos((self.cursor_rect.0, self.cursor_rect.1 + 30), font);
+                    self.dirty = true;
+                    return  true;
+                },
+
+                WidgetKey::Left => {
+
+                    let mut size = 14_usize;
+                    if self.cursor_pos.0 > 0 {
+                        // Go one left
+                        if let Some(c) = self.text.chars().nth(self.cursor_offset - 1) {
+                            let width = draw2d.get_text_size(font, self.font_size, c.to_string().as_str()).0;
+                            if width > 0 {
+                                size = width;
+                            }
+                        }
+                    } else {
+                        // Go one up
+                        self.set_cursor_offset_from_pos((100000, self.cursor_rect.1 - 5), font);
+                    }
+                    self.set_cursor_offset_from_pos((self.cursor_rect.0 - size - 3, self.cursor_rect.1 + 10), font);
+                    self.dirty = true;
+                    return  true;
+                },
+
+                WidgetKey::Right => {
+                    if let Some(c) = self.text.chars().nth(self.cursor_offset) {
+                        if c == '\n' {
+                            // Go down
+                            println!("1 {:?}", self.cursor_pos);
+                            self.set_cursor_offset_from_pos((101, self.cursor_rect.1 + 30), font);
+                            println!("2 {:?}", self.cursor_pos);
+                        } else {
+                            // Go Right
+                            self.set_cursor_offset_from_pos((self.cursor_rect.0 + 6, self.cursor_rect.1 + 10), font);
+                        }
+                    }
+                    //self.set_cursor_offset_from_pos((self.cursor_rect.0 + 6, self.cursor_rect.1 + 10), font);
+                    self.dirty = true;
                     return  true;
                 },
                 _ => {}
@@ -343,8 +409,16 @@ impl TextEditorWidget for CodeEditor {
                 //self.text.push(c);
                 self.text.insert(self.cursor_offset, c);
                 self.process_text(font, draw2d);
+
+                let mut size = draw2d.get_text_size(font, self.font_size, c.to_string().as_str());
+
+                if size.0 == 0 {
+                    size.0 = 12;
+                }
+
+                self.set_cursor_offset_from_pos((self.cursor_rect.0 + size.0, self.cursor_rect.1 + 10), font);
                 self.dirty = true;
-                self.needs_update = true;
+                //self.needs_update = true;
                 return true;
             }
         }
@@ -353,7 +427,7 @@ impl TextEditorWidget for CodeEditor {
 
     fn mouse_down(&mut self, pos: (usize, usize), font: &Font) -> bool {
         let consumed = self.set_cursor_offset_from_pos(pos, font);
-        //println!("{:?}", self.cursor_offset);
+        println!("{:?}", pos);
         consumed
     }
 
