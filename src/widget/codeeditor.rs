@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::WidgetKey;
+use super::{WidgetKey, codeeditor_scanner::Scanner, codeeditor_scanner::TokenType};
 use super::codeeditor_theme::CodeEditorTheme;
 use super::draw2d::Draw2D;
 
@@ -120,15 +120,12 @@ impl TextEditorWidget for CodeEditor {
             let mut chars = line.chars();
             let mut line_width = 0;
             while let Some(c) = chars.next() {
-
                 if self.metrics.contains_key(&c) == false {
                     let m= font.rasterize(c, self.font_size);
-                    println!("{} {:?}", c.to_string(), m.0);
                     self.metrics.insert(c, m);
                 }
 
                 if let Some((metrics, _bitmap)) = self.metrics.get(&c) {
-
                     line_width += metrics.advance_width.ceil() as usize;
                 }
             }
@@ -152,44 +149,82 @@ impl TextEditorWidget for CodeEditor {
 
         // Draw it
 
-        lines = self.text.lines();
+        let mut scanner = Scanner::new(self.text.as_str());
 
+        let mut x = left_size;
         let mut y = 0;
 
         let stride = screen_width;
 
         let mut line_number = 1;
 
-        while let Some(line) = lines.next() {
+        let mut finished = false;
+        let mut color : [u8;4] = self.theme.text;
+        let mut number_printed_for_line = 0_usize;
 
-            let mut chars = line.chars();
-            let mut x = left_size;
-            while let Some(c) = chars.next() {
+        while finished == false {
 
-                if let Some((metrics, bitmap)) = self.metrics.get(&c) {
-                    let text_buffer_frame = &mut self.text_buffer[..];
+            let token = scanner.scan_token();
+            let mut printit = false;
 
-                    for cy in 0..metrics.height {
-                        for cx in 0..metrics.width {
+            match token.kind {
 
-                            let fy = (self.font_size as isize - metrics.height as isize - metrics.ymin as isize) as usize;
+                TokenType::LineFeed => {
 
-                            let i = (x + cx) * 4 + (y + cy + fy) * stride * 4;
-                            let m = bitmap[cx + cy * metrics.width];
+                    draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, y, 60, 26), stride, font, self.font_size, format!("{}", line_number).as_str(), &self.theme.line_numbers, &self.theme.background, crate::draw2d::TextAlignment::Right);
+                    number_printed_for_line = line_number;
 
-                            text_buffer_frame[i..i + 4].copy_from_slice(&draw2d.mix_color(&self.theme.background, &self.theme.text, m as f64 / 255.0));
-                        }
+                    x = left_size;
+                    y += 26;
+                    line_number += 1;
+                },
+                TokenType::Space => { x += self.advance_width },
+                TokenType::Eof => {
+
+                    if number_printed_for_line != line_number {
+                        draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, y, 60, 26), stride, font, self.font_size, format!("{}", line_number).as_str(), &self.theme.line_numbers, &self.theme.background, crate::draw2d::TextAlignment::Right);
                     }
 
-                    x += self.advance_width;//metrics.advance_width as usize;
+                    finished = true },
+
+                TokenType::Identifier => { color = self.theme.identifier; printit = true; },
+                TokenType::Number => { color = self.theme.number; printit = true; },
+
+                TokenType::LeftBrace | TokenType::RightBrace | TokenType::LeftParen | TokenType::RightParen | TokenType::Dollar => { color = self.theme.brackets; printit = true; },
+
+                _ => {
+                    color = self.theme.text;
+                    printit = true;
                 }
             }
 
-            draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, y, 60, 26), stride, font, self.font_size, format!("{}", line_number).as_str(), &self.theme.line_numbers, &self.theme.background, crate::draw2d::TextAlignment::Right);
+            // Print the current lexeme
+            if printit {
+                let mut chars = token.lexeme.chars();
+                while let Some(c) = chars.next() {
 
-            y += 26;
-            line_number += 1;
+                    if let Some((metrics, bitmap)) = self.metrics.get(&c) {
+                        let text_buffer_frame = &mut self.text_buffer[..];
+
+                        for cy in 0..metrics.height {
+                            for cx in 0..metrics.width {
+
+                                let fy = (self.font_size as isize - metrics.height as isize - metrics.ymin as isize) as usize;
+
+                                let i = (x + cx + metrics.xmin as usize) * 4 + (y + cy + fy) * stride * 4;
+                                let m = bitmap[cx + cy * metrics.width];
+
+                                text_buffer_frame[i..i + 4].copy_from_slice(&draw2d.mix_color(&self.theme.background, &color, m as f64 / 255.0));
+                            }
+                        }
+
+                        x += self.advance_width;//metrics.advance_width as usize;
+                    }
+                }
+            }
         }
+
+        self.dirty = true;
     }
 
     /// Sets the cursor offset based on the given screen position

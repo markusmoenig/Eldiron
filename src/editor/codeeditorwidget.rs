@@ -32,6 +32,7 @@ impl CodeEditorWidget {
 
     pub fn set_code(&mut self, value: String) {
         self.editor.set_text(value);
+        self.dirty = true;
     }
 
     pub fn _resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {

@@ -83,6 +83,7 @@ pub mod tileselector;
 pub mod text_editor_trait;
 pub mod codeeditor;
 pub mod codeeditor_theme;
+pub mod codeeditor_scanner;
 
 /// The widget state
 
