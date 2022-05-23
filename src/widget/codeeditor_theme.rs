@@ -12,6 +12,7 @@ pub struct CodeEditorTheme {
     pub number              : [u8;4],
     pub keywords            : [u8;4],
     pub brackets            : [u8;4],
+    pub comments            : [u8;4],
 }
 
 impl CodeEditorTheme {
@@ -29,6 +30,7 @@ impl CodeEditorTheme {
             number          : [159, 197, 146, 255],
             keywords        : [45, 133, 200, 255],
             brackets        : [226, 73, 146, 212],
+            comments        : [69, 128, 56, 212],
         }
     }
 }

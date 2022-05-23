@@ -182,6 +182,7 @@ impl TextEditorWidget for CodeEditor {
                     finished = true },
 
                 TokenType::Identifier if self.text_mode == false => { color = self.theme.identifier; printit = true; },
+                TokenType::SingeLineComment if self.text_mode == false => { color = self.theme.comments; printit = true; },
                 TokenType::Number if self.text_mode == false => { color = self.theme.number; printit = true; },
 
                 TokenType::LeftBrace | TokenType::RightBrace | TokenType::LeftParen | TokenType::RightParen | TokenType::Dollar => { color = self.theme.brackets; printit = true; },
@@ -236,6 +237,8 @@ impl TextEditorWidget for CodeEditor {
 
         let mut y = 0;
 
+        let mut found = false;
+
         while let Some(line) = lines.next() {
 
             if py >= y && py <= y + 26 {
@@ -252,6 +255,7 @@ impl TextEditorWidget for CodeEditor {
                 }
 
                 self.cursor_offset += self.cursor_pos.0;
+                found = true;
 
                 break;
             } else {
@@ -261,6 +265,19 @@ impl TextEditorWidget for CodeEditor {
             curr_line_index += 1;
             y += line_height;
             self.cursor_offset += 1;
+        }
+
+        // Check if there is an line feed at the end as this is cut off by lines()
+        if found == false {
+            if self.text.ends_with("\n") {
+                self.cursor_pos.0 = 0;
+                self.cursor_pos.1 = curr_line_index;
+                self.cursor_rect.0 = left_size;
+                self.cursor_rect.1 = y;
+                self.cursor_rect.3 = line_height;
+            } else {
+                self.cursor_offset -= 1;
+            }
         }
 
         true
@@ -274,9 +291,13 @@ impl TextEditorWidget for CodeEditor {
                     if self.cursor_offset >= 1 {
                         let index  = self.cursor_offset - 1;
 
+                        let mut number_of_chars_on_prev_line = 0_usize;
                         let delete_line;
                         if self.cursor_pos.0 == 0 {
                             delete_line = true;
+                            if let Some(prev_line) = self.text.lines().nth(self.cursor_pos.1 - 1) {
+                                number_of_chars_on_prev_line = prev_line.len();
+                            }
                         } else {
                             delete_line = false;
                         }
@@ -287,7 +308,7 @@ impl TextEditorWidget for CodeEditor {
                         if delete_line == false {
                             self.set_cursor_offset_from_pos((self.cursor_rect.0 - self.advance_width, self.cursor_rect.1 + 10), font);
                         } else {
-                            self.set_cursor_offset_from_pos((100000, self.cursor_rect.1 - 5), font);
+                            self.set_cursor_offset_from_pos((100 + number_of_chars_on_prev_line * self.advance_width - 2, self.cursor_rect.1 - 5), font);
                         }
                     }
                     return  true;
@@ -355,7 +376,7 @@ impl TextEditorWidget for CodeEditor {
             if c.is_ascii() && c.is_control() == false {
                 self.text.insert(self.cursor_offset, c);
                 self.process_text(font, draw2d);
-                self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width, self.cursor_rect.1 + 10), font);
+                self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width / 2, self.cursor_rect.1 + 10), font);
                 return true;
             }
         }

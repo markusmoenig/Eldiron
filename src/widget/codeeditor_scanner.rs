@@ -21,6 +21,7 @@ pub enum TokenType {
 
     LineFeed,
     Space,
+    SingeLineComment,
 
     // One or two character tokens.
     Bang,
@@ -136,6 +137,7 @@ impl<'sourcecode> Scanner<'sourcecode> {
             b'.' => self.make_token(TokenType::Dot),
             b'-' => self.make_token(TokenType::Minus),
             b'+' => self.make_token(TokenType::Plus),
+            b'/' if self.matches(b'/') => self.single_line_comment(),
             b'/' => self.make_token(TokenType::Slash),
             b'*' => self.make_token(TokenType::Star),
             b'!' if self.matches(b'=') => self.make_token(TokenType::BangEqual),
@@ -256,6 +258,13 @@ impl<'sourcecode> Scanner<'sourcecode> {
         }
 
         self.make_token(TokenType::Number)
+    }
+
+    fn single_line_comment(&mut self) -> Token<'sourcecode> {
+        while self.is_at_end() == false && self.peek() != b'\n' {
+            self.advance();
+        }
+        self.make_token(TokenType::SingeLineComment)
     }
 
     fn identifier(&mut self) -> Token<'sourcecode> {
