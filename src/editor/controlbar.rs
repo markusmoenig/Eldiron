@@ -170,6 +170,21 @@ impl Widget for ControlBar {
         false
     }
 
+    fn stop_debugging(&mut self, context: &mut ScreenContext) {
+        context.data.clear_instances();
+        context.is_running = false;
+        context.is_debugging = false;
+        self.widgets[ControlWidgets::Debug as usize].text[0] = "Debug".to_string();
+        context.just_stopped_running = true;
+
+        for index in 0..self.widgets.len() {
+            if index != ControlWidgets::Debug as usize {
+                self.widgets[index].state = WidgetState::Normal;
+            }
+            self.widgets[index].dirty = true;
+        }
+    }
+
     fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         let mut consumed = false;
 

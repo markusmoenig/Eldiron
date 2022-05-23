@@ -35,12 +35,17 @@ impl CodeEditorWidget {
         self.dirty = true;
     }
 
+    pub fn set_text_mode(&mut self, value: bool) {
+        self.editor.set_text_mode(value);
+        self.dirty = true;
+    }
+
     pub fn _resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
         self.rect.3 = height;
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+    pub fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
         if self.buffer.len() != rect.2 * rect.3 * 4 {
             self.buffer = vec![0; rect.2 * rect.3 * 4];
             self.dirty = true;
@@ -49,6 +54,18 @@ impl CodeEditorWidget {
 
         let safe_rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
 
+        let mut editor_rect = (0, 5, safe_rect.2, safe_rect.3 - 35);
+
+        //if context.is_debugging {
+
+        if context.is_debugging {
+            self.dirty = true;
+            editor_rect = (0, safe_rect.3 / 2, safe_rect.2, safe_rect.3 / 2 - 35);
+        }
+
+        //}
+
+
         if self.dirty {
             for i in &mut self.buffer[..] { *i = 0 }
             let buffer_frame = &mut self.buffer[..];
@@ -56,10 +73,29 @@ impl CodeEditorWidget {
 
             context.draw2d.draw_rect(buffer_frame, &safe_rect, stride, &context.color_black);
 
-            self.editor.draw(buffer_frame, (50, 50, safe_rect.2 - 100, safe_rect.3 - 100), self.rect.2, asset.get_editor_font("SourceCodePro"), &context.draw2d);
+
+            if context.is_debugging {
+                let preview_rect = (0, 5, safe_rect.2, safe_rect.3 / 2 - 10);
+
+                let region_id = context.data.regions_ids[context.curr_region_index];
+                if let Some(region) = context.data.regions.get(&region_id) {
+                    // Find the behavior instance for the current behavior id
+                    let mut inst_index = 0_usize;
+                    let behavior_id = context.data.behaviors_ids[context.curr_behavior_index];
+                    for index in 0..context.data.instances.len() {
+                        if context.data.instances[index].behavior_id == behavior_id {
+                            inst_index = index;
+                            break;
+                        }
+                    }
+                    _ = context.draw2d.draw_region_centered_with_instances(buffer_frame, region, &preview_rect, inst_index, stride, 32, anim_counter, asset, context);
+                }
+            }
+
+            self.editor.draw(buffer_frame, editor_rect, self.rect.2, asset.get_editor_font("SourceCodePro"), &context.draw2d);
 
             if self.editor.cursor_rect.3 > 0 {
-                context.draw2d.draw_text_rect(buffer_frame, &(0, rect.3 - 40, rect.2 - 20, 40), rect.2, asset.get_editor_font("OpenSans"), 15.0, format!("Ln {}, Col {}", self.editor.cursor_pos.1 + 1, self.editor.cursor_pos.0).as_str(), &context.color_light_gray, &context.color_black, crate::draw2d::TextAlignment::Right);
+                context.draw2d.draw_text_rect(buffer_frame, &(0, rect.3 - 35, rect.2 - 20, 35), rect.2, asset.get_editor_font("OpenSans"), 15.0, format!("Ln {}, Col {}", self.editor.cursor_pos.1 + 1, self.editor.cursor_pos.0).as_str(), &context.color_light_white, &context.color_black, crate::draw2d::TextAlignment::Right);
             }
         }
 

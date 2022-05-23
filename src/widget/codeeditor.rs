@@ -20,8 +20,7 @@ pub struct CodeEditor {
     pub cursor_rect         : (usize, usize, usize, usize),
 
     needs_update            : bool,
-    dirty                   : bool,
-    buffer                  : Vec<u8>,
+    text_mode               : bool,
 
     text_buffer             : Vec<u8>,
     text_buffer_size        : (usize, usize),
@@ -52,8 +51,7 @@ impl TextEditorWidget for CodeEditor {
             cursor_rect     : (0, 0, 2, 0),
 
             needs_update    : true,
-            dirty           : true,
-            buffer          : vec![0;1],
+            text_mode       : false,
 
             text_buffer     : vec![0;1],
             text_buffer_size  : (0, 0),
@@ -75,36 +73,32 @@ impl TextEditorWidget for CodeEditor {
         self.needs_update = true;
     }
 
+    fn set_text_mode(&mut self, value: bool) {
+        self.text_mode = value;
+    }
+
     fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), stride: usize, font: &Font, draw2d: &Draw2D) {
 
         if self.needs_update {
             self.process_text(font, draw2d);
         }
 
-        if self.buffer.len() != rect.2 * rect.3 * 4 {
-            self.buffer = vec![0; rect.2 * rect.3 * 4];
-            self.dirty = true;
-        }
         self.rect = rect.clone();
 
-        let safe_rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
+        //let safe_rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
 
-        if self.dirty {
-            for i in &mut self.buffer[..] { *i = 0 }
-            let buffer_frame = &mut self.buffer[..];
-            let stride = rect.2;
+        //let stride = rect.2;
 
-            draw2d.draw_rect(buffer_frame, &safe_rect, stride, &self.theme.background);
-            draw2d.draw_rect(buffer_frame, &(0, 0, 95, safe_rect.3), stride, &self.theme.line_numbers_bg);
+        draw2d.draw_rect(frame, &rect, stride, &self.theme.background);
+        draw2d.draw_rect(frame, &(rect.0, rect.1, 95, rect.3), stride, &self.theme.line_numbers_bg);
 
-            draw2d.blend_slice(buffer_frame, &mut self.text_buffer[..], &(0, 0, self.text_buffer_size.0, self.text_buffer_size.1), stride);
+        draw2d.blend_slice(frame, &mut self.text_buffer[..], &(rect.0, rect.1, self.text_buffer_size.0, self.text_buffer_size.1), stride);
 
-            //println!("{:?}", self.cursor_rect);
-            draw2d.draw_rect(buffer_frame, &self.cursor_rect, stride, &self.theme.cursor);
-        }
+        //println!("{:?}", self.cursor_rect);
+        draw2d.draw_rect(frame, &(rect.0 + self.cursor_rect.0, rect.1 + self.cursor_rect.1, self.cursor_rect.2, self.cursor_rect.3), stride, &self.theme.cursor);
 
-        self.dirty = false;
-        draw2d.copy_slice(frame, &mut self.buffer[..], &self.rect, stride);
+
+        //draw2d.copy_slice(frame, &mut self.buffer[..], &self.rect, stride);
     }
 
     /// Takes the current text and renders it to the text_buffer bitmap
@@ -187,8 +181,8 @@ impl TextEditorWidget for CodeEditor {
 
                     finished = true },
 
-                TokenType::Identifier => { color = self.theme.identifier; printit = true; },
-                TokenType::Number => { color = self.theme.number; printit = true; },
+                TokenType::Identifier if self.text_mode == false => { color = self.theme.identifier; printit = true; },
+                TokenType::Number if self.text_mode == false => { color = self.theme.number; printit = true; },
 
                 TokenType::LeftBrace | TokenType::RightBrace | TokenType::LeftParen | TokenType::RightParen | TokenType::Dollar => { color = self.theme.brackets; printit = true; },
 
@@ -223,8 +217,6 @@ impl TextEditorWidget for CodeEditor {
                 }
             }
         }
-
-        self.dirty = true;
     }
 
     /// Sets the cursor offset based on the given screen position
@@ -253,7 +245,6 @@ impl TextEditorWidget for CodeEditor {
                 self.cursor_rect.0 = left_size;
                 self.cursor_rect.1 = y;
                 self.cursor_rect.3 = line_height;
-                self.dirty = true;
 
                 if px > 100 {
                     self.cursor_pos.0 = std::cmp::min((px - 100) / self.advance_width + 1, line.len());
@@ -299,7 +290,6 @@ impl TextEditorWidget for CodeEditor {
                             self.set_cursor_offset_from_pos((100000, self.cursor_rect.1 - 5), font);
                         }
                     }
-                    self.dirty = true;
                     return  true;
                 },
 
@@ -307,7 +297,6 @@ impl TextEditorWidget for CodeEditor {
                     self.text.insert(self.cursor_offset, '\n');
                     self.process_text(font, draw2d);
                     self.set_cursor_offset_from_pos((100, self.cursor_rect.1 + 30), font);
-                    self.dirty = true;
                     return  true;
                 },
 
@@ -315,13 +304,11 @@ impl TextEditorWidget for CodeEditor {
                     if self.cursor_rect.1 >= 5 {
                         self.set_cursor_offset_from_pos((self.cursor_rect.0, self.cursor_rect.1 - 5), font);
                     }
-                    self.dirty = true;
                     return  true;
                 },
 
                 WidgetKey::Down => {
                     self.set_cursor_offset_from_pos((self.cursor_rect.0, self.cursor_rect.1 + 30), font);
-                    self.dirty = true;
                     return  true;
                 },
 
@@ -341,7 +328,6 @@ impl TextEditorWidget for CodeEditor {
                             }
                         }
                     }
-                    self.dirty = true;
                     return  true;
                 },
 
@@ -359,7 +345,6 @@ impl TextEditorWidget for CodeEditor {
                             }
                         }
                     }
-                    self.dirty = true;
                     return  true;
                 },
                 _ => {}
@@ -371,7 +356,6 @@ impl TextEditorWidget for CodeEditor {
                 self.text.insert(self.cursor_offset, c);
                 self.process_text(font, draw2d);
                 self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width, self.cursor_rect.1 + 10), font);
-                self.dirty = true;
                 return true;
             }
         }

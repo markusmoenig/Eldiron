@@ -185,4 +185,6 @@ pub trait Widget {
     fn get_color_text_disabled(&self) -> [u8; 4] {
         [128, 128, 128, 255]
     }
+
+    fn stop_debugging(&mut self, context: &mut ScreenContext) {}
 }

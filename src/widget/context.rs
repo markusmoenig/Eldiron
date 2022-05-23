@@ -96,6 +96,7 @@ pub struct ScreenContext<'a> {
 
     pub code_editor_is_active           : bool,
     pub code_editor_just_opened         : bool,
+    pub code_editor_text_mode           : bool,
     pub code_editor_update_node         : bool,
     pub code_editor_value               : String,
     pub code_editor_node_behavior_id    : (usize, usize, String),
@@ -275,6 +276,7 @@ impl ScreenContext<'_> {
 
             code_editor_is_active            : false,
             code_editor_just_opened          : false,
+            code_editor_text_mode            : false,
             code_editor_update_node          : false,
             code_editor_value                : "".to_string(),
             code_editor_node_behavior_id     : (0, 0, "".to_string()),

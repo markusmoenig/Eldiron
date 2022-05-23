@@ -185,6 +185,14 @@ impl ScreenWidget for Editor<'_> {
     fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset) -> bool {
 
         if self.context.is_running {
+
+            if self.context.is_debugging {
+                if key == Some(WidgetKey::Escape) {
+                    self.controlbar.stop_debugging(&mut self.context);
+                    self.context.code_editor_is_active = false;
+                }
+            }
+
             if key == Some(WidgetKey::Up) {
                 if let Some(cmd) = pack_action(self.context.player_id, "onMove".to_string(), PlayerDirection::North, "".to_string()) {
                     self.context.data.execute_packed_instance_action(cmd);
@@ -265,6 +273,11 @@ impl ScreenWidget for Editor<'_> {
             return;
         }
 
+        // Debugging and code editor
+        // if self.context.is_debugging && self.context.code_editor_is_active {
+
+        // }
+
         // To update the variables
         if self.context.just_stopped_running {
             self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_dirty();
@@ -298,6 +311,7 @@ impl ScreenWidget for Editor<'_> {
 
             self.codeeditor_toolbar.draw(frame, anim_counter, asset, &mut self.context);
             if self.context.code_editor_just_opened {
+                self.code_editor.set_text_mode(self.context.code_editor_text_mode);
                 self.code_editor.set_code(self.context.code_editor_node_behavior_value.4.clone());
                 self.context.code_editor_just_opened = false;
             }
