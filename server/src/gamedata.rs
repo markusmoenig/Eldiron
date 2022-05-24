@@ -15,11 +15,12 @@ use std::hash::Hash;
 
 use crate::gamedata::region::GameRegion;
 use crate::gamedata::behavior::{ BehaviorNodeConnector, BehaviorInstance, GameBehavior, BehaviorNodeType, BehaviorType, BehaviorInstanceState };
-use crate::asset::TileUsage;
+use crate::asset::{ TileUsage, Asset };
+use crate::draw2d::Draw2D;
 
 use itertools::Itertools;
 
-use std::path;
+use std::path::{self, PathBuf};
 use std::fs;
 
 use rand::prelude::*;
@@ -43,6 +44,11 @@ pub enum MessageType {
 }
 
 pub struct GameData<'a> {
+
+    pub asset                   : Option<Asset>,
+    pub draw2d                  : Option<Draw2D>,
+
+    pub path                    : PathBuf,
 
     pub regions                 : HashMap<usize, GameRegion>,
     pub regions_names           : Vec<String>,
@@ -370,6 +376,11 @@ impl GameData<'_> {
         engine.register_fn("to_string", |x: f64| format!("{}", x.to_isize().unwrap()));
 
         Self {
+
+            path                    : path.clone(),
+            asset                   : None,
+            draw2d                  : None,
+
             regions,
             regions_names,
             regions_ids,
@@ -452,6 +463,11 @@ impl GameData<'_> {
         let engine = Engine::new();
 
         Self {
+
+            path                    : PathBuf::new(),
+            asset                   : None,
+            draw2d                  : None,
+
             regions,
             regions_names,
             regions_ids,
@@ -1234,8 +1250,15 @@ impl GameData<'_> {
             self.execute_area_node(pairs.0, pairs.1);
         }
 
+        // Game logic, only executed if this is a server for a client game
+
         // Set game frame dimensions
         if let Some(size) = size {
+
+            if self.draw2d.is_none() {
+                self.draw2d = Some(Draw2D {});
+            }
+
             self.game_screen_width = size.0;
             self.game_screen_height = size.1;
             self.game_anim_counter = size.2;
@@ -1281,6 +1304,10 @@ impl GameData<'_> {
     }
 
     pub fn startup_client(&mut self) {
+
+        self.asset = Some(Asset::new());
+        self.asset.as_mut().unwrap().load_from_path(self.path.clone());
+
         self.create_behavior_instances();
         self.game_instance_index = Some(self.create_game_instance());
         self.create_player_instance(0);
@@ -1291,5 +1318,6 @@ impl GameData<'_> {
     pub fn shutdown_client(&mut self) {
         self.clear_instances();
         self.game_instance_index = None;
+        self.asset = None;
     }
 }
