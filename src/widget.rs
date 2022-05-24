@@ -29,7 +29,7 @@ pub trait ScreenWidget {
 
     fn new(asset: &mut Asset, width: usize, height: usize) -> Self where Self: Sized;
 
-    fn update(&mut self);
+    fn update(&mut self, width: usize, height: usize, anim_counter: usize);
     fn resize(&mut self, width: usize, height: usize) {
     }
 

@@ -43,6 +43,7 @@ pub enum MessageType {
 }
 
 pub struct GameData<'a> {
+
     pub regions                 : HashMap<usize, GameRegion>,
     pub regions_names           : Vec<String>,
     pub regions_ids             : Vec<usize>,
@@ -63,6 +64,13 @@ pub struct GameData<'a> {
 
     /// The index of the game instance
     pub game_instance_index     : Option<usize>,
+
+    // Game screen dimensions
+    pub game_screen_width       : usize,
+    pub game_screen_height      : usize,
+
+    pub game_anim_counter       : usize,
+    pub game_frame              : Vec<u8>,
 
     pub nodes                   : HashMap<BehaviorNodeType, NodeCall>,
 
@@ -381,6 +389,12 @@ impl GameData<'_> {
             game,
             game_instance_index     : None,
 
+            game_screen_width       : 0,
+            game_screen_height      : 0,
+
+            game_anim_counter       : 0,
+            game_frame              : vec![],
+
             nodes,
 
             engine,
@@ -456,6 +470,12 @@ impl GameData<'_> {
 
             game,
             game_instance_index     : None,
+
+            game_screen_width       : 0,
+            game_screen_height      : 0,
+
+            game_anim_counter       : 0,
+            game_frame              : vec![],
 
             nodes,
 
@@ -1132,16 +1152,9 @@ impl GameData<'_> {
     }
 
     /// Game tick
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, size: Option<(usize, usize, usize)>) {
         self.executed_connections = vec![];
         self.changed_variables = vec![];
-
-        // Execute the game logic behavior if any
-        if let Some(game_inst_index) = self.game_instance_index {
-            if let Some(locked_tree) = self.instances[game_inst_index].locked_tree {
-                self.execute_game_node(game_inst_index, locked_tree);
-            }
-        }
 
         // Execute behaviors
         for index in 0..self.active_instance_indices.len() {
@@ -1219,6 +1232,24 @@ impl GameData<'_> {
         }
         for pairs in to_execute {
             self.execute_area_node(pairs.0, pairs.1);
+        }
+
+        // Set game frame dimensions
+        if let Some(size) = size {
+            self.game_screen_width = size.0;
+            self.game_screen_height = size.1;
+            self.game_anim_counter = size.2;
+
+            if self.game_frame.len() != size.0 * size.1 * 4 {
+                self.game_frame = vec![0; size.0 * size.1 * 4];
+            }
+
+            // Execute the game logic behavior, this also draws into the game_frame
+            if let Some(game_inst_index) = self.game_instance_index {
+                if let Some(locked_tree) = self.instances[game_inst_index].locked_tree {
+                    self.execute_game_node(game_inst_index, locked_tree);
+                }
+            }
         }
     }
 

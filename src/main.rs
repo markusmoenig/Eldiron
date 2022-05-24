@@ -30,15 +30,15 @@ use std::time::Duration;
 
 fn main() -> Result<(), Error> {
 
-    const WIDTH     : usize = 1240;//60 * 16;
-    const HEIGHT    : usize = 700;//40 * 16;
+    let mut width     : usize = 1240;//60 * 16;
+    let mut height    : usize = 700;//40 * 16;
 
     env_logger::init();
 
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
     let window = {
-        let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
+        let size = LogicalSize::new(width as f64, height as f64);
 
         WindowBuilder::new()
             .with_title("Eldiron Creator")
@@ -52,13 +52,13 @@ fn main() -> Result<(), Error> {
     let mut pixels = {
         let window_size = window.inner_size();
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture)?
+        Pixels::new(width as u32, height as u32, surface_texture)?
     };
 
     let mut asset = Asset::new();
 
-    let game : Box<dyn ScreenWidget> = Box::new(Game::new(&mut asset, WIDTH, HEIGHT));
-    let editor : Box<dyn ScreenWidget> = Box::new(Editor::new(&mut asset, WIDTH, HEIGHT));
+    let game : Box<dyn ScreenWidget> = Box::new(Game::new(&mut asset, width, height));
+    let editor : Box<dyn ScreenWidget> = Box::new(Editor::new(&mut asset, width, height));
 
     let mut curr_screen = editor;
 
@@ -253,6 +253,8 @@ fn main() -> Result<(), Error> {
                 let scale = window.scale_factor() as u32;
                 pixels.resize_buffer(size.width / scale, size.height / scale);
                 curr_screen.resize(size.width as usize / scale as usize, size.height as usize / scale as usize);
+                width = size.width as usize / scale as usize;
+                height = size.height as usize / scale as usize;
                 window.request_redraw();
             }
 
@@ -260,7 +262,7 @@ fn main() -> Result<(), Error> {
 
             // Game tick ?
             if curr_time > game_tick_timer + GAME_TICK_IN_MS {
-                curr_screen.update();
+                curr_screen.update(width, height, anim_counter);
                 window.request_redraw();
                 game_tick_timer = curr_time;
                 anim_counter = anim_counter.wrapping_add(1);
@@ -270,7 +272,7 @@ fn main() -> Result<(), Error> {
                 let tick_in_ms =  (1000.0 / curr_screen.get_target_fps() as f32) as u128;
 
                 if curr_time > timer + tick_in_ms {
-                    curr_screen.update();
+                    curr_screen.update(width, height, anim_counter);
                     window.request_redraw();
                     timer = curr_time;
                 } else

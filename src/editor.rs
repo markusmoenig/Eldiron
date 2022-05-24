@@ -170,12 +170,12 @@ impl ScreenWidget for Editor<'_> {
     }
 
     /// Game tick if the game is running
-    fn update(&mut self) {
+    fn update(&mut self, width: usize, height: usize, anim_counter: usize) {
         // let start = self.get_time();
         if self.context.is_debugging == true {
             self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context);
         } else {
-            self.context.data.tick();
+            self.context.data.tick(Some((width, height - self.context.toolbar_height / 2, anim_counter)));
         }
         // let stop = self.get_time();
         // println!("update time {:?}", stop - start);
@@ -248,9 +248,14 @@ impl ScreenWidget for Editor<'_> {
         // Playback
         if self.context.is_running && self.context.is_debugging == false {
 
-            self.context.draw2d.draw_rect(frame, &self.rect, self.rect.2, &self.context.color_black);
+            //self.context.draw2d.draw_rect(frame, &self.rect, self.rect.2, &self.context.color_black);
             self.controlbar.draw(frame, anim_counter, asset, &mut self.context);
 
+            let from = self.context.width * self.context.toolbar_height / 2 * 4;
+            let to = self.context.data.game_screen_width * self.context.data.game_screen_height * 4;
+
+            frame[from..from + to].copy_from_slice(&self.context.data.game_frame[..]);
+            /*
             let region_id = self.context.data.regions_ids[0];
 
             if let Some(region) = self.context.data.regions.get(&region_id) {
@@ -265,7 +270,8 @@ impl ScreenWidget for Editor<'_> {
                 }
 
                 _ = self.context.draw2d.draw_region_centered_with_instances(frame, region, &self.rect, inst_index, self.rect.2, 32, anim_counter, asset, &self.context);
-            }
+                */
+            //}
 
             // let stop = self.get_time();
             // println!("draw time {:?}", stop - start);
