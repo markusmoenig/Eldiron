@@ -84,6 +84,7 @@ pub enum BehaviorInstanceState {
 pub enum BehaviorInstanceType {
     NonPlayerCharacter,
     Player,
+    GameLogic
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]

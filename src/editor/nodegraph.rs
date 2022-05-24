@@ -429,7 +429,7 @@ impl EditorContent for NodeGraph  {
 
                 self.behavior_tree_rects = vec![];
 
-                let left_start = if self.graph_type == BehaviorType::Behaviors { 180 } else { 5 };
+                let left_start = if self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::GameLogic { 180 } else { 5 };
                 let mut total_width = safe_rect.2 - left_start - 5;
                 if let Some(preview) = &mut self.preview {
                     total_width -= preview.size.0;
@@ -1174,17 +1174,48 @@ impl EditorContent for NodeGraph  {
     fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
 
         if node_data.behavior_type == BehaviorNodeType::BehaviorType {
-            node_widget.is_corner_node = true;
 
-            let mut atom1 = AtomWidget::new(vec!["Hero".to_string(), "Neutral".to_string(), "Monster".to_string()], AtomWidgetType::NodeMenuButton,AtomData::new_as_int("type".to_string(), 0));
-            atom1.atom_data.text = "Type".to_string();
-            let id = (behavior_data.id, node_data.id, "type".to_string());
-            atom1.behavior_id = Some(id.clone());
-            atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type).0 as usize;
-            node_widget.widgets.push(atom1);
-            node_widget.color = context.color_black.clone();
+            if self.graph_type == BehaviorType::Behaviors {
+                node_widget.is_corner_node = true;
 
-            self.setup_corner_node_widget(behavior_data, node_data, node_widget, context);
+                let mut atom1 = AtomWidget::new(vec!["Hero".to_string(), "Neutral".to_string(), "Monster".to_string()], AtomWidgetType::NodeMenuButton,AtomData::new_as_int("type".to_string(), 0));
+                atom1.atom_data.text = "Type".to_string();
+                let id = (behavior_data.id, node_data.id, "type".to_string());
+                atom1.behavior_id = Some(id.clone());
+                atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type).0 as usize;
+                node_widget.widgets.push(atom1);
+                node_widget.color = context.color_black.clone();
+
+                // Position
+                let mut position_atom = AtomWidget::new(vec![], AtomWidgetType::NodePositionButton,
+                AtomData::new_as_int("position".to_string(), 0));
+                position_atom.atom_data.text = "position".to_string();
+                let id = (behavior_data.id, node_data.id, "position".to_string());
+                position_atom.behavior_id = Some(id.clone());
+                position_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
+                node_widget.widgets.push(position_atom);
+
+                // Default Character Tile
+                let mut tile_atom = AtomWidget::new(vec![], AtomWidgetType::NodeCharTileButton,
+                    AtomData::new_as_int("tile".to_string(), 0));
+                tile_atom.atom_data.text = "tile".to_string();
+                let id = (behavior_data.id, node_data.id, "tile".to_string());
+                tile_atom.behavior_id = Some(id.clone());
+                tile_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
+                node_widget.widgets.push(tile_atom);
+            } else
+            if self.graph_type == BehaviorType::GameLogic {
+                node_widget.is_corner_node = true;
+
+                // Name of the startup tree
+                let mut startup_atom = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+                AtomData::new_as_int("startup".to_string(), 0));
+                startup_atom.atom_data.text = "startup".to_string();
+                let id = (behavior_data.id, node_data.id, "startup".to_string());
+                startup_atom.behavior_id = Some(id.clone());
+                startup_atom.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Start".to_string()), self.graph_type);
+                node_widget.widgets.push(startup_atom);
+            }
             return;
         }
 
@@ -1542,49 +1573,6 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom3, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom4, NodeConnector { rect: (0,0,0,0) } );
 
-        }
-    }
-
-    /// Sets up the corner node widget
-    fn setup_corner_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
-
-        /*
-        let type_index : usize;
-
-        // Get the type index
-        if let Some(index) = node_data.values.get("type") {
-            type_index = index.0 as usize;
-        } else {
-            type_index = 0;
-        }
-
-        // Remove all atoms except the first one (the type)
-        while node_widget.widgets.len() > 1 {
-            node_widget.widgets.remove(1);
-        }*/
-
-        if self.graph_type == BehaviorType::Behaviors {
-            //if type_index == 0 {
-                // Character
-
-                // Position
-                let mut position_atom = AtomWidget::new(vec![], AtomWidgetType::NodePositionButton,
-                AtomData::new_as_int("position".to_string(), 0));
-                position_atom.atom_data.text = "position".to_string();
-                let id = (behavior_data.id, node_data.id, "position".to_string());
-                position_atom.behavior_id = Some(id.clone());
-                position_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
-                node_widget.widgets.push(position_atom);
-
-                // Default Character Tile
-                let mut tile_atom = AtomWidget::new(vec![], AtomWidgetType::NodeCharTileButton,
-                    AtomData::new_as_int("tile".to_string(), 0));
-                tile_atom.atom_data.text = "tile".to_string();
-                let id = (behavior_data.id, node_data.id, "tile".to_string());
-                tile_atom.behavior_id = Some(id.clone());
-                tile_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
-                node_widget.widgets.push(tile_atom);
-            //}
         }
     }
 

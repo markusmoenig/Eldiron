@@ -33,8 +33,12 @@ impl Game {
         }
     }
 
-    /// Save the TileAreaData to file
+    /// Save the game behavior to file
     pub fn save_data(&self) {
         self.behavior.save_data();
+    }
+
+    pub fn startup(&mut self) {
+
     }
 }
