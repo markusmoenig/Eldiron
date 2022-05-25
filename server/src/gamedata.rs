@@ -1264,8 +1264,8 @@ impl GameData<'_> {
             // Execute the game logic behavior, this also draws into the game_frame
             if let Some(game_inst_index) = self.game_instance_index {
 
-                self.scopes[game_inst_index].set_value("screen_width", self.game_screen_width as i32);
-                self.scopes[game_inst_index].set_value("screen_height", self.game_screen_height as i32);
+                self.scopes[game_inst_index].set_value("screen_width", self.game_screen_width as i64);
+                self.scopes[game_inst_index].set_value("screen_height", self.game_screen_height as i64);
 
                 if let Some(locked_tree) = self.instances[game_inst_index].locked_tree {
                     self.execute_game_node(game_inst_index, locked_tree);
@@ -1292,6 +1292,30 @@ impl GameData<'_> {
                             match cmd {
                                 ScriptDrawCmd::DrawRect(rect, rgb) => {
                                     draw2d.draw_rect(game_frame, &rect.rect, stride, &rgb.value);
+                                },
+                                ScriptDrawCmd::DrawText(pos, font_name, text, size, rgb) => {
+                                    if let Some(font) = self.asset.as_ref().unwrap().game_fonts.get(font_name) {
+                                        draw2d.blend_text(game_frame, &pos.pos, stride, font, *size, text, &rgb.value);
+                                    }
+                                },
+                                ScriptDrawCmd::DrawGame(rect) => {
+                                    //draw2d.draw_rect(game_frame, &rect.rect, stride, &rgb.value);
+
+                                    let region_id = self.regions_ids[0];
+
+                                    if let Some(region) = self.regions.get(&region_id) {
+                                        // Find the behavior instance for the current behavior id
+                                        let mut inst_index = 0_usize;
+                                        let behavior_id = self.behaviors_ids[0];
+                                        for index in 0..self.instances.len() {
+                                            if self.instances[index].behavior_id == behavior_id {
+                                                inst_index = index;
+                                                break;
+                                            }
+                                        }
+
+                                        _ = self.draw2d.as_ref().unwrap().draw_region_centered_with_instances(game_frame, region, &rect.rect, inst_index, stride, 32, self.game_anim_counter, &self.asset.as_ref().unwrap(), &self.instances);
+                                    }
                                 }
                             }
                         }
@@ -1340,7 +1364,8 @@ impl GameData<'_> {
 
         self.create_behavior_instances();
         self.game_instance_index = Some(self.create_game_instance());
-        self.create_player_instance(0);
+        self.create_player_instance(131313);
+        self.activate_region_instances(self.regions_ids[0]);
 
         // Engine
 
@@ -1348,13 +1373,19 @@ impl GameData<'_> {
             .register_fn("debug", ScriptMessages::debug);
 
         self.engine.register_type::<ScriptDraw>()
-            .register_fn("rect", ScriptDraw::rect);
+            .register_fn("rect", ScriptDraw::rect)
+            .register_fn("game", ScriptDraw::game)
+            .register_fn("text", ScriptDraw::text);
 
         self.engine.register_type::<ScriptRect>()
             .register_fn("rect", ScriptRect::new);
 
+        self.engine.register_type::<ScriptPosition>()
+            .register_fn("pos2d", ScriptPosition::new);
+
         self.engine.register_type::<ScriptRGB>()
-            .register_fn("rgb", ScriptRGB::new);
+            .register_fn("rgb", ScriptRGB::new)
+            .register_fn("rgba", ScriptRGB::new_with_alpha);
 
         if let Some(game_inst_index) = self.game_instance_index {
             self.scopes[game_inst_index].set_value("messages", ScriptMessages::new());

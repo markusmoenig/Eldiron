@@ -28,6 +28,19 @@ impl ScriptMessages {
 // --- Drawing
 
 #[derive(PartialEq, Debug, Clone)]
+pub struct ScriptPosition {
+    pub pos             : (usize, usize)
+}
+
+impl ScriptPosition {
+    pub fn new(x: i64, y: i64) -> Self {
+        Self {
+            pos         : (x as usize, y as usize),
+        }
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub struct ScriptRect {
     pub rect            : (usize, usize, usize, usize)
 }
@@ -62,6 +75,8 @@ impl ScriptRGB {
 #[derive(PartialEq, Clone, Debug)]
 pub enum ScriptDrawCmd {
     DrawRect(ScriptRect, ScriptRGB),
+    DrawGame(ScriptRect),
+    DrawText(ScriptPosition, String, String, f32, ScriptRGB),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -80,6 +95,14 @@ impl ScriptDraw {
 
     pub fn rect(&mut self, rect: ScriptRect, rgb: ScriptRGB) {
         self.commands.push(ScriptDrawCmd::DrawRect(rect, rgb));
+    }
+
+    pub fn text(&mut self, pos: ScriptPosition, font_name: &str, text: &str, size: f64, rgb: ScriptRGB) {
+        self.commands.push(ScriptDrawCmd::DrawText(pos, font_name.to_owned(), text.to_owned(), size as f32, rgb));
+    }
+
+    pub fn game(&mut self, rect: ScriptRect) {
+        self.commands.push(ScriptDrawCmd::DrawGame(rect));
     }
 
     pub fn clear(&mut self) {

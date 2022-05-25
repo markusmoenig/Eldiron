@@ -2,10 +2,11 @@
 use fontdue::layout::{ Layout, LayoutSettings, CoordinateSystem, TextStyle, VerticalAlign, HorizontalAlign };
 use fontdue::Font;
 
+use crate::gamedata::behavior::{BehaviorInstanceState, BehaviorInstance};
+
 use super::asset::TileMap;
 use super::asset::Asset;
 use super::gamedata::region::GameRegion;
-//use super::gamedata::behavior::BehaviorInstanceState;
 
 #[derive(PartialEq)]
 pub enum TextAlignment {
@@ -337,6 +338,34 @@ impl Draw2D {
         }
     }
 
+    /// Draws the given text
+    pub fn blend_text(&self,  frame: &mut [u8], pos: &(usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4]) {
+        if text.is_empty() { return; }
+
+        let fonts = &[font];
+
+        let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
+        layout.reset(&LayoutSettings {
+            ..LayoutSettings::default()
+        });
+        layout.append(fonts, &TextStyle::new(text, size, 0));
+
+        for glyph in layout.glyphs() {
+            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+            //println!("Metrics: {:?}", glyph);
+
+            for y in 0..metrics.height {
+                for x in 0..metrics.width {
+                    let i = (x+pos.0+glyph.x as usize) * 4 + (y + pos.1 + glyph.y as usize) * stride * 4;
+                    let m = alphamap[x + y * metrics.width];
+
+                    let background = &[frame[i], frame[i+1], frame[i+2], frame[i+3]];
+                    frame[i..i + 4].copy_from_slice(&self.mix_color(&background, &color, m as f64 / 255.0));
+                }
+            }
+        }
+    }
+
     /// Returns the size of the given text
     pub fn get_text_size(&self, font: &Font, size: f32, text: &str) -> (usize, usize) {
         let fonts = &[font];
@@ -591,10 +620,10 @@ impl Draw2D {
         self.draw_rect_outline(frame, &(rect.0 + left_offset + x_tiles as usize / 2 * tile_size, rect.1 + top_offset + y_tiles as usize / 2 * tile_size, tile_size, tile_size), stride, context.color_red);
 
         offset
-    }
+    }*/
 
     /// Draws the given region centered at the given center and returns the top left offset into the region
-    pub fn draw_region_centered_with_instances(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), index_to_center: usize, stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {
+    pub fn draw_region_centered_with_instances(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), index_to_center: usize, stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, instances: &Vec<BehaviorInstance>) -> (isize, isize) {
         let left_offset = (rect.2 % tile_size) / 2;
         let top_offset = (rect.3 % tile_size) / 2;
 
@@ -602,7 +631,7 @@ impl Draw2D {
         let y_tiles = (rect.3 / tile_size) as isize;
 
         let mut center = (0, 0);
-        if let Some(position) = context.data.instances[index_to_center].position {
+        if let Some(position) = instances[index_to_center].position {
             center.0 = position.1;
             center.1 = position.2;
         } else {
@@ -627,14 +656,14 @@ impl Draw2D {
             }
         }
 
-        for index in 0..context.data.instances.len() {
+        for index in 0..instances.len() {
 
-            if context.data.instances[index].state == BehaviorInstanceState::Killed || context.data.instances[index].state == BehaviorInstanceState::Purged {
+            if instances[index].state == BehaviorInstanceState::Killed || instances[index].state == BehaviorInstanceState::Purged {
                 continue;
             }
 
-            if let Some(position) = context.data.instances[index].position {
-                if let Some(tile) = context.data.instances[index].tile {
+            if let Some(position) = instances[index].position {
+                if let Some(tile) = instances[index].tile {
                     // In the same region ?
                     if position.0 == region.data.id {
 
@@ -657,6 +686,7 @@ impl Draw2D {
         offset
     }
 
+    /*
     /// Draws the given region with the given offset into the rectangle
     pub fn draw_region_with_instances(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), offset: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) {
         let left_offset = (rect.2 % tile_size) / 2;
