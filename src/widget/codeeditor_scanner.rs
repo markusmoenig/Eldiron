@@ -21,6 +21,8 @@ pub enum TokenType {
 
     LineFeed,
     Space,
+    Quotation,
+    Unknown,
     SingeLineComment,
 
     // One or two character tokens.
@@ -53,7 +55,7 @@ pub enum TokenType {
     Super,
     This,
     True,
-    Var,
+    Let,
     While,
 
     Error,
@@ -105,7 +107,7 @@ impl<'sourcecode> Scanner<'sourcecode> {
         keywords.insert("super", TokenType::Super);
         keywords.insert("this", TokenType::This);
         keywords.insert("true", TokenType::True);
-        keywords.insert("var", TokenType::Var);
+        keywords.insert("let", TokenType::Let);
         keywords.insert("while", TokenType::While);
 
         Scanner {
@@ -149,9 +151,10 @@ impl<'sourcecode> Scanner<'sourcecode> {
             b'>' if self.matches(b'=') => self.make_token(TokenType::GreaterEqual),
             b'>' => self.make_token(TokenType::Greater),
             b'"' => self.string(),
+            b'`' => self.string2(),
             c if is_digit(c) => self.number(),
             c if is_alpha(c) => self.identifier(),
-            _ => self.error_token("Unexpected character."),
+            _ => self.make_token(TokenType::Unknown),//self.error_token("Unexpected character."),
         }
     }
 
@@ -238,7 +241,25 @@ impl<'sourcecode> Scanner<'sourcecode> {
         }
 
         if self.is_at_end() {
-            self.error_token("Unterminated string.")
+            //self.error_token("Unterminated string.")
+            self.make_token(TokenType::Quotation)
+        } else {
+            self.advance();
+            self.make_token(TokenType::String)
+        }
+    }
+
+    fn string2(&mut self) -> Token<'sourcecode> {
+        while self.peek() != b'`' && !self.is_at_end() {
+            if self.peek() == b'\n' {
+                self.line += 1;
+            }
+            self.advance();
+        }
+
+        if self.is_at_end() {
+            //self.error_token("Unterminated string.")
+            self.make_token(TokenType::Quotation)
         } else {
             self.advance();
             self.make_token(TokenType::String)

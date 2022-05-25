@@ -71,6 +71,7 @@ impl TextEditorWidget for CodeEditor {
     fn set_text(&mut self, text: String) {
         self.text = text;
         self.needs_update = true;
+        println!("{} {}", self.text, self.text.len());
     }
 
     fn set_text_mode(&mut self, value: bool) {
@@ -161,6 +162,8 @@ impl TextEditorWidget for CodeEditor {
             let token = scanner.scan_token();
             let mut printit = false;
 
+            println!("{:?} : {}", token.kind, token.lexeme);
+
             match token.kind {
 
                 TokenType::LineFeed => {
@@ -184,6 +187,9 @@ impl TextEditorWidget for CodeEditor {
                 TokenType::Identifier if self.text_mode == false => { color = self.theme.identifier; printit = true; },
                 TokenType::SingeLineComment if self.text_mode == false => { color = self.theme.comments; printit = true; },
                 TokenType::Number if self.text_mode == false => { color = self.theme.number; printit = true; },
+                TokenType::String if self.text_mode == false => { color = self.theme.string; printit = true; },
+                TokenType::Let if self.text_mode == false => { color = self.theme.keywords; printit = true; },
+                TokenType::Quotation if self.text_mode == false => { color = self.theme.string; printit = true; },
 
                 TokenType::LeftBrace | TokenType::RightBrace | TokenType::LeftParen | TokenType::RightParen | TokenType::Dollar => { color = self.theme.brackets; printit = true; },
 
@@ -239,6 +245,15 @@ impl TextEditorWidget for CodeEditor {
 
         let mut found = false;
 
+        if self.text.is_empty() {
+            self.cursor_pos.0 = 0;
+            self.cursor_pos.1 = 0;
+            self.cursor_rect.0 = left_size;
+            self.cursor_rect.1 = 0;
+            self.cursor_rect.3 = 26;
+            return true;
+        }
+
         while let Some(line) = lines.next() {
 
             if py >= y && py <= y + 26 {
@@ -288,7 +303,7 @@ impl TextEditorWidget for CodeEditor {
         if let Some(key) = key {
             match key {
                 WidgetKey::Delete => {
-                    if self.cursor_offset >= 1 {
+                    if self.text.is_empty() == false && self.cursor_offset >= 1 {
                         let index  = self.cursor_offset - 1;
 
                         let mut number_of_chars_on_prev_line = 0_usize;
@@ -374,7 +389,11 @@ impl TextEditorWidget for CodeEditor {
 
         if let Some(c) = char {
             if c.is_ascii() && c.is_control() == false {
-                self.text.insert(self.cursor_offset, c);
+                if self.text.is_empty() {
+                    self.text.push(c);
+                } else {
+                    self.text.insert(self.cursor_offset, c);
+                }
                 self.process_text(font, draw2d);
                 self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width / 2, self.cursor_rect.1 + 10), font);
                 return true;

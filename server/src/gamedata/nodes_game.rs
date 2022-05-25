@@ -5,8 +5,12 @@ use super::behavior::{ BehaviorType };
 //use crate::gamedata::get_node_value;
 //use crate::asset::TileUsage;
 
-/// Inside Area
-pub fn screen(_behavior_id: usize, _id: (usize, usize), _data: &mut GameData, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+//use crate::gamedata::nodes_utility::*;
+use crate::gamedata::script::*;
 
-    BehaviorNodeConnector::Fail
+/// Inside Area
+pub fn screen(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    _ = eval_dynamic_script_instance(instance_index, (behavior_type, id.0, id.1, "script".to_string()), data);
+
+    BehaviorNodeConnector::Bottom
 }

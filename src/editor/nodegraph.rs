@@ -1565,6 +1565,14 @@ impl EditorContent for NodeGraph  {
 
         if node_data.behavior_type == BehaviorNodeType::Screen {
 
+            let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScriptButton,
+            AtomData::new_as_int("script".to_string(), 0));
+            atom1.atom_data.text = "Script".to_string();
+            let id = (behavior_data.id, node_data.id, "script".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
+            node_widget.widgets.push(atom1);
+
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );

@@ -53,7 +53,7 @@ impl Asset  {
             // Generate the tile map for this dir element
             let path = &path.unwrap().path();
 
-            if path.is_file() && path.extension().map(|s| s == "ttf").unwrap_or(false) {
+            if path.is_file() {//&& path.extension().map(|s| s == "ttf").unwrap_or(false) {
 
                 if let Some(font_bytes) = std::fs::read(path).ok() {
                 if let Some(font) = Font::from_bytes(font_bytes, fontdue::FontSettings::default()).ok() {

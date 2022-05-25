@@ -30,6 +30,7 @@ use self::game::Game;
 use self::nodes_utility::get_node_value;
 
 use utilities::actions::*;
+use crate::script_types::*;
 
 type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> behavior::BehaviorNodeConnector;
 
@@ -641,10 +642,11 @@ impl GameData<'_> {
         let mut scope = Scope::new();
 
         // Insert Dices
+        /*
         for d in (2..=20).step_by(2) {
             scope.push( format!("d{}", d), 0.0 as f64);
         }
-        scope.push( "d100", 0.0 as f64);
+        scope.push( "d100", 0.0 as f64);*/
 
         // Default values
         scope.push("Value1", 0.0_f64);
@@ -823,7 +825,6 @@ impl GameData<'_> {
         // Call the node and get the resulting BehaviorNodeConnector
         if let Some(behavior) = self.behaviors.get_mut(&self.instances[instance_index].behavior_id) {
             if let Some(node) = behavior.data.nodes.get_mut(&node_id) {
-                // println!("Executing:: {}", node.name);
 
                 // Handle special nodes
                 if node.behavior_type == BehaviorNodeType::BehaviorTree || node.behavior_type == BehaviorNodeType::Linear {
@@ -903,7 +904,6 @@ impl GameData<'_> {
         // Call the node and get the resulting BehaviorNodeConnector
         if let Some(system) = self.systems.get_mut(&self.instances[instance_index].systems_id) {
             if let Some(node) = system.data.nodes.get_mut(&node_id) {
-                // println!("Executing:: {}", node.name);
 
                 // Handle special nodes
                 if node.behavior_type == BehaviorNodeType::BehaviorTree || node.behavior_type == BehaviorNodeType::Linear {
@@ -978,7 +978,6 @@ impl GameData<'_> {
         // Call the node and get the resulting BehaviorNodeConnector
         if let Some(region) = self.regions.get_mut(&self.curr_region_id) {
             if let Some(node) = region.behaviors[area_index].data.nodes.get_mut(&node_id) {
-                // println!("Executing:: {}", node.name);
 
                 if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
                     let connector = node_call(region.behaviors[area_index].data.id, (area_index, node_id), self, BehaviorType::Regions);
@@ -1022,7 +1021,6 @@ impl GameData<'_> {
         // Call the node and get the resulting BehaviorNodeConnector
         let behavior = &mut self.game.behavior;
         if let Some(node) = behavior.data.nodes.get_mut(&node_id) {
-            println!("Executing game :: {}", node.name);
 
             // Handle special nodes
             if node.behavior_type == BehaviorNodeType::BehaviorTree || node.behavior_type == BehaviorNodeType::Linear {
@@ -1255,10 +1253,6 @@ impl GameData<'_> {
         // Set game frame dimensions
         if let Some(size) = size {
 
-            if self.draw2d.is_none() {
-                self.draw2d = Some(Draw2D {});
-            }
-
             self.game_screen_width = size.0;
             self.game_screen_height = size.1;
             self.game_anim_counter = size.2;
@@ -1269,8 +1263,42 @@ impl GameData<'_> {
 
             // Execute the game logic behavior, this also draws into the game_frame
             if let Some(game_inst_index) = self.game_instance_index {
+
+                self.scopes[game_inst_index].set_value("screen_width", self.game_screen_width as i32);
+                self.scopes[game_inst_index].set_value("screen_height", self.game_screen_height as i32);
+
                 if let Some(locked_tree) = self.instances[game_inst_index].locked_tree {
                     self.execute_game_node(game_inst_index, locked_tree);
+                }
+
+                // Get the messages
+                if let Some(mut messages) = self.scopes[game_inst_index].get_value::<ScriptMessages>("messages") {
+                    //println!("{:?}", messages);
+                    messages.clear();
+                    self.scopes[game_inst_index].set_value("messages", messages);
+                }
+
+                // Get the draw commands
+                if let Some(mut draw) = self.scopes[game_inst_index].get_value::<ScriptDraw>("draw") {
+                    //println!("{:?}", draw);
+
+                    let game_frame = &mut self.game_frame[..];
+                    let stride = self.game_screen_width;
+
+                    for cmd in &draw.commands {
+
+                        if let Some(draw2d) = &self.draw2d {
+
+                            match cmd {
+                                ScriptDrawCmd::DrawRect(rect, rgb) => {
+                                    draw2d.draw_rect(game_frame, &rect.rect, stride, &rgb.value);
+                                }
+                            }
+                        }
+                    }
+
+                    draw.clear();
+                    self.scopes[game_inst_index].set_value("draw", draw);
                 }
             }
         }
@@ -1308,16 +1336,36 @@ impl GameData<'_> {
         self.asset = Some(Asset::new());
         self.asset.as_mut().unwrap().load_from_path(self.path.clone());
 
+        self.draw2d = Some(Draw2D {});
+
         self.create_behavior_instances();
         self.game_instance_index = Some(self.create_game_instance());
         self.create_player_instance(0);
-        //self.game.startup();
-        //self.activate_region_instances(context.data.regions_ids[context.curr_region_index]);
+
+        // Engine
+
+        self.engine.register_type::<ScriptMessages>()
+            .register_fn("debug", ScriptMessages::debug);
+
+        self.engine.register_type::<ScriptDraw>()
+            .register_fn("rect", ScriptDraw::rect);
+
+        self.engine.register_type::<ScriptRect>()
+            .register_fn("rect", ScriptRect::new);
+
+        self.engine.register_type::<ScriptRGB>()
+            .register_fn("rgb", ScriptRGB::new);
+
+        if let Some(game_inst_index) = self.game_instance_index {
+            self.scopes[game_inst_index].set_value("messages", ScriptMessages::new());
+            self.scopes[game_inst_index].set_value("draw", ScriptDraw::new());
+        }
     }
 
     pub fn shutdown_client(&mut self) {
         self.clear_instances();
         self.game_instance_index = None;
         self.asset = None;
+        self.draw2d = None;
     }
 }

@@ -63,6 +63,14 @@ pub fn get_node_value(id: (usize, usize, &str), data: &mut GameData, behavior_ty
                 }
             }
         }
+    } else
+    if behavior_type == BehaviorType::GameLogic {
+        let game = &mut data.game.behavior;
+        if let Some(node) = game.data.nodes.get_mut(&id.1) {
+            if let Some(value) = node.values.get_mut(id.2) {
+                return Some(value.clone());
+            }
+        }
     }
     None
 }
@@ -84,6 +92,14 @@ pub fn set_node_value(id: (usize, usize, &str), data: &mut GameData, value: (f64
                 if let Some(v) = node.values.get_mut(id.2) {
                     *v = value;
                 }
+            }
+        }
+    } else
+    if behavior_type == BehaviorType::GameLogic {
+        let game = &mut data.game.behavior;
+        if let Some(node) = game.data.nodes.get_mut(&id.1) {
+            if let Some(v) = node.values.get_mut(id.2) {
+                *v = value;
             }
         }
     }
