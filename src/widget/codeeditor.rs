@@ -93,7 +93,7 @@ impl TextEditorWidget for CodeEditor {
         draw2d.draw_rect(frame, &rect, stride, &self.theme.background);
         draw2d.draw_rect(frame, &(rect.0, rect.1, 95, rect.3), stride, &self.theme.line_numbers_bg);
 
-        draw2d.blend_slice(frame, &mut self.text_buffer[..], &(rect.0, rect.1, self.text_buffer_size.0, self.text_buffer_size.1), stride);
+        draw2d.blend_slice_safe(frame, &mut self.text_buffer[..], &(rect.0 as isize, rect.1 as isize, self.text_buffer_size.0, self.text_buffer_size.1), stride, &rect);
 
         //println!("{:?}", self.cursor_rect);
         draw2d.draw_rect(frame, &(rect.0 + self.cursor_rect.0, rect.1 + self.cursor_rect.1, self.cursor_rect.2, self.cursor_rect.3), stride, &self.theme.cursor);

@@ -233,15 +233,20 @@ impl<'sourcecode> Scanner<'sourcecode> {
     }
 
     fn string(&mut self) -> Token<'sourcecode> {
+        let b_current = self.current;
+
         while self.peek() != b'"' && !self.is_at_end() {
             if self.peek() == b'\n' {
-                self.line += 1;
+                //self.line += 1;
+                self.current = b_current;
+                return self.make_token(TokenType::Quotation);
             }
             self.advance();
         }
 
         if self.is_at_end() {
             //self.error_token("Unterminated string.")
+            self.current = b_current;
             self.make_token(TokenType::Quotation)
         } else {
             self.advance();
@@ -250,15 +255,20 @@ impl<'sourcecode> Scanner<'sourcecode> {
     }
 
     fn string2(&mut self) -> Token<'sourcecode> {
+        let b_current = self.current;
+
         while self.peek() != b'`' && !self.is_at_end() {
             if self.peek() == b'\n' {
-                self.line += 1;
+                //self.line += 1;
+                self.current = b_current;
+                return self.make_token(TokenType::Quotation);
             }
             self.advance();
         }
 
         if self.is_at_end() {
             //self.error_token("Unterminated string.")
+            self.current = b_current;
             self.make_token(TokenType::Quotation)
         } else {
             self.advance();

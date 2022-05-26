@@ -121,12 +121,13 @@ impl CodeEditorWidget {
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
-        if context.contains_pos_for(self.pos_to_local(pos), self.editor.rect) {
-            let mut local_pos = self.pos_to_local(pos);
-            local_pos.0 -= self.editor.rect.0; local_pos.1 -= self.editor.rect.1;
-            if self.editor.mouse_down(local_pos, asset.get_editor_font("SourceCodePro")) {
-                self.dirty = true;
-                return true;
+        if let Some(mut local_pos) = self.pos_to_local(pos) {
+            if context.contains_pos_for(local_pos, self.editor.rect) {
+                local_pos.0 -= self.editor.rect.0; local_pos.1 -= self.editor.rect.1;
+                if self.editor.mouse_down(local_pos, asset.get_editor_font("SourceCodePro")) {
+                    self.dirty = true;
+                    return true;
+                }
             }
         }
         false
@@ -134,10 +135,11 @@ impl CodeEditorWidget {
 
     pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         let mut consumed = false;
-        if context.contains_pos_for(self.pos_to_local(pos), self.editor.rect) {
-            let mut local_pos = self.pos_to_local(pos);
-            local_pos.0 -= self.editor.rect.0; local_pos.1 -= self.editor.rect.1;
-            consumed = self.editor.mouse_up(local_pos, asset.get_editor_font("SourceCodePro"));
+        if let Some(mut local_pos) = self.pos_to_local(pos) {
+            if context.contains_pos_for(local_pos, self.editor.rect) {
+                local_pos.0 -= self.editor.rect.0; local_pos.1 -= self.editor.rect.1;
+                consumed = self.editor.mouse_up(local_pos, asset.get_editor_font("SourceCodePro"));
+            }
         }
         consumed
     }
@@ -145,12 +147,13 @@ impl CodeEditorWidget {
     pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         let mut consumed = false;
 
-        if context.contains_pos_for(self.pos_to_local(pos), self.editor.rect) {
-            let mut local_pos = self.pos_to_local(pos);
-            local_pos.0 -= self.editor.rect.0; local_pos.1 -= self.editor.rect.1;
-            if self.editor.mouse_dragged(local_pos, asset.get_editor_font("SourceCodePro")) {
-                self.dirty = true;
-                consumed = true;
+        if let Some(mut local_pos) = self.pos_to_local(pos) {
+            if context.contains_pos_for(local_pos, self.editor.rect) {
+                local_pos.0 -= self.editor.rect.0; local_pos.1 -= self.editor.rect.1;
+                if self.editor.mouse_dragged(local_pos, asset.get_editor_font("SourceCodePro")) {
+                    self.dirty = true;
+                    consumed = true;
+                }
             }
         }
 
@@ -167,7 +170,10 @@ impl CodeEditorWidget {
         self.editor.modifier_changed(shift, ctrl, alt, logo, asset.get_editor_font("SourceCodePro"))
     }
 
-    fn pos_to_local(&mut self, pos: (usize, usize)) -> (usize, usize) {
-        (pos.0 - self.rect.0, pos.1 - self.rect.1)
+    fn pos_to_local(&mut self, pos: (usize, usize)) -> Option<(usize, usize)> {
+        if pos.0 > self.rect.0 && pos.1 > self.rect.1 {
+            return Some((pos.0 - self.rect.0, pos.1 - self.rect.1));
+        }
+        None
     }
 }
