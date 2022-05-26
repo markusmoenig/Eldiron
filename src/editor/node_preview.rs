@@ -1,3 +1,5 @@
+use server::gamedata::behavior::BehaviorType;
+
 use crate::Asset;
 use crate::atom:: { AtomWidget };
 use crate::editor::ScreenContext;
@@ -5,6 +7,8 @@ use crate::editor::ScreenContext;
 pub struct NodePreviewWidget {
     pub rect                    : (usize, usize, usize, usize),
     pub widgets                 : Vec<AtomWidget>,
+
+    graph_type                  : BehaviorType,
 
     pub clicked                 : bool,
 
@@ -40,7 +44,7 @@ pub struct NodePreviewWidget {
 
 impl NodePreviewWidget {
 
-    pub fn new(_context: &ScreenContext) -> Self {
+    pub fn new(_context: &ScreenContext, graph_type: BehaviorType) -> Self {
 
         // let mut regions_button = AtomWidget::new(context.data.regions_names.clone(), AtomWidgetType::SmallMenuButton,
         // AtomData::new_as_int("region".to_string(), 0));
@@ -50,6 +54,9 @@ impl NodePreviewWidget {
         Self {
             rect                : (0,0,0,0),
             widgets             : vec![],
+
+            graph_type,
+
             clicked             : false,
 
             id                  : 0,
@@ -123,33 +130,36 @@ impl NodePreviewWidget {
             self.region_rect.2 = rect.2 - 20;
             self.region_rect.3 = rect.3 - 30;
 
-            // Draw the region
-            let region_id = context.data.regions_ids[self.curr_region_index];
+            if self.graph_type == BehaviorType::Behaviors {
+                // Draw the region
+                let region_id = context.data.regions_ids[self.curr_region_index];
+                if let Some(region) = context.data.regions.get(&region_id) {
 
-            if let Some(region) = context.data.regions.get(&region_id) {
-
-                if context.is_running {
-                    // Find the behavior instance for the current behavior id
-                    let mut inst_index = 0_usize;
-                    let behavior_id = context.data.behaviors_ids[context.curr_behavior_index];
-                    for index in 0..context.data.instances.len() {
-                        if context.data.instances[index].behavior_id == behavior_id {
-                            inst_index = index;
-                            break;
+                    if context.is_running {
+                        // Find the behavior instance for the current behavior id
+                        let mut inst_index = 0_usize;
+                        let behavior_id = context.data.behaviors_ids[context.curr_behavior_index];
+                        for index in 0..context.data.instances.len() {
+                            if context.data.instances[index].behavior_id == behavior_id {
+                                inst_index = index;
+                                break;
+                            }
                         }
+                        self.region_offset = context.draw2d.draw_region_centered_with_instances(buffer_frame, region, &self.region_rect, inst_index, stride, 32, anim_counter, asset, context);
+                    } else
+                    if let Some(position) = &self.curr_position {
+                        self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &self.region_rect, &(position.1 - self.region_scroll_offset.0, position.2 - self.region_scroll_offset.1), stride, 32, 0, asset, context);
+                    } else
+                    if let Some(position) = context.data.get_behavior_default_position(region_id) {
+                        self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &self.region_rect, &(position.1 - self.region_scroll_offset.0, position.2 - self.region_scroll_offset.1), stride, 32, 0, asset, context);
+                    } else {
+                        let offset = region.data.min_pos;
+                        self.region_offset = offset;
+                        context.draw2d.draw_region(buffer_frame, region, &self.region_rect, &self.region_offset, stride, self.tile_size, 0, asset);
                     }
-                    self.region_offset = context.draw2d.draw_region_centered_with_instances(buffer_frame, region, &self.region_rect, inst_index, stride, 32, anim_counter, asset, context);
-                } else
-                if let Some(position) = &self.curr_position {
-                    self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &self.region_rect, &(position.1 - self.region_scroll_offset.0, position.2 - self.region_scroll_offset.1), stride, 32, 0, asset, context);
-                } else
-                if let Some(position) = context.data.get_behavior_default_position(region_id) {
-                    self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &self.region_rect, &(position.1 - self.region_scroll_offset.0, position.2 - self.region_scroll_offset.1), stride, 32, 0, asset, context);
-                } else {
-                    let offset = region.data.min_pos;
-                    self.region_offset = offset;
-                    context.draw2d.draw_region(buffer_frame, region, &self.region_rect, &self.region_offset, stride, self.tile_size, 0, asset);
                 }
+            } else {
+
             }
             context.draw2d.blend_mask(buffer_frame, &(6, rect.3 - 23, rect.2, rect.3), rect.2, &context.preview_arc_mask[..], &(20, 20), &context.color_gray);
         }

@@ -21,7 +21,6 @@ use server::asset::Asset;
 
 mod controlbar;
 mod toolbar;
-mod codeeditor_toolbar;
 pub mod nodegraph;
 mod tilemapoptions;
 mod tilemapwidget;
@@ -41,7 +40,7 @@ pub mod dialog;
 mod log;
 mod gameoptions;
 pub mod traits;
-mod codeeditorwidget;
+pub mod codeeditorwidget;
 
 use crate::editor::toolbar::ToolBar;
 use crate::editor::controlbar::ControlBar;
@@ -51,7 +50,6 @@ use crate::context::ScreenContext;
 use crate::editor::node::{ NodeUserData, NodeWidget };
 use crate::editor::nodegraph::NodeGraph;
 
-use self::codeeditor_toolbar::CodeEditorToolBar;
 use self::codeeditorwidget::CodeEditorWidget;
 use self::dialog::{DialogState, DialogEntry};
 use self::tilemapoptions::TileMapOptions;
@@ -81,7 +79,6 @@ pub struct Editor<'a> {
     context                         : ScreenContext<'a>,
     controlbar                      : ControlBar,
     toolbar                         : ToolBar,
-    codeeditor_toolbar              : CodeEditorToolBar,
     log                             : LogWidget,
     code_editor                     : CodeEditorWidget,
 
@@ -115,8 +112,6 @@ impl ScreenWidget for Editor<'_> {
         let controlbar = ControlBar::new(vec!(), (0,0, width, context.toolbar_height / 2), asset, &mut context);
         let toolbar = ToolBar::new(vec!(), (0, context.toolbar_height / 2, width, context.toolbar_height / 2), asset, &mut context);
 
-        let codeeditor_toolbar = CodeEditorToolBar::new(vec!(), (0, context.toolbar_height / 2, width, context.toolbar_height / 2), asset, &mut context);
-
         //
 
         let dialog = DialogWidget::new(asset, &context);
@@ -147,7 +142,6 @@ impl ScreenWidget for Editor<'_> {
             state                   :  EditorState::TilesOverview,
             context,
             controlbar,
-            codeeditor_toolbar,
             toolbar,
             log,
             code_editor,
@@ -248,41 +242,29 @@ impl ScreenWidget for Editor<'_> {
         // Playback
         if self.context.is_running && self.context.is_debugging == false {
 
-            //self.context.draw2d.draw_rect(frame, &self.rect, self.rect.2, &self.context.color_black);
             self.controlbar.draw(frame, anim_counter, asset, &mut self.context);
 
-            let from = self.context.width * self.context.toolbar_height / 2 * 4;
-            let to = self.context.data.game_screen_width * self.context.data.game_screen_height * 4;
+            // Clear the game area with color_black
+            let clear_frame = (0, self.context.toolbar_height / 2, self.context.width, self.context.height - self.context.toolbar_height / 2);
+            self.context.draw2d.draw_rect(frame, &clear_frame, self.context.width, &self.context.color_black);
 
-            frame[from..from + to].copy_from_slice(&self.context.data.game_frame[..]);
-            /*
-            let region_id = self.context.data.regions_ids[0];
+            let mut cx : usize = 0;
+            let mut cy : usize = 0;
 
-            if let Some(region) = self.context.data.regions.get(&region_id) {
-                // Find the behavior instance for the current behavior id
-                let mut inst_index = 0_usize;
-                let behavior_id = self.context.data.behaviors_ids[self.context.curr_behavior_index];
-                for index in 0..self.context.data.instances.len() {
-                    if self.context.data.instances[index].behavior_id == behavior_id {
-                        inst_index = index;
-                        break;
-                    }
-                }
+            if self.context.data.game_screen_width < clear_frame.2 {
+                cx = (clear_frame.2 - self.context.data.game_screen_width) / 2;
+            }
 
-                _ = self.context.draw2d.draw_region_centered_with_instances(frame, region, &self.rect, inst_index, self.rect.2, 32, anim_counter, asset, &self.context);
-                */
-            //}
+            if self.context.data.game_screen_height < clear_frame.3 {
+                cy = (clear_frame.3 - self.context.data.game_screen_height) / 2;
+            }
 
-            // let stop = self.get_time();
-            // println!("draw time {:?}", stop - start);
+            let dest_frame = (cx, cy + self.context.toolbar_height / 2, self.context.data.game_screen_width, self.context.data.game_screen_height);
+
+            self.context.draw2d.copy_slice(frame, &mut self.context.data.game_frame, &dest_frame, self.context.width);
 
             return;
         }
-
-        // Debugging and code editor
-        // if self.context.is_debugging && self.context.code_editor_is_active {
-
-        // }
 
         // To update the variables
         if self.context.just_stopped_running {
@@ -301,29 +283,6 @@ impl ScreenWidget for Editor<'_> {
 
         self.controlbar.draw(frame, anim_counter, asset, &mut self.context);
 
-        // Content: Code Editor ?
-        if self.context.code_editor_is_active {
-
-            // Do we need to update the node from the code editor ?
-            if self.context.code_editor_update_node {
-                self.context.code_editor_node_behavior_value.4 = self.context.code_editor_value.clone();
-                self.context.dialog_node_behavior_value = self.context.code_editor_node_behavior_value.clone();
-                self.context.dialog_node_behavior_id = self.context.code_editor_node_behavior_id.clone();
-                self.content[self.state as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
-                self.context.data.set_behavior_id_value(self.context.code_editor_node_behavior_id.clone(), self.context.code_editor_node_behavior_value.clone(), self.context.curr_graph_type);
-
-                self.context.code_editor_update_node = false;
-            }
-
-            self.codeeditor_toolbar.draw(frame, anim_counter, asset, &mut self.context);
-            if self.context.code_editor_just_opened {
-                self.code_editor.set_text_mode(self.context.code_editor_text_mode);
-                self.code_editor.set_code(self.context.code_editor_node_behavior_value.4.clone());
-                self.context.code_editor_just_opened = false;
-            }
-
-            self.code_editor.draw(frame, (0, self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), anim_counter, asset, &mut self.context);
-        } else
         if self.content.is_empty() == false {
             self.toolbar.draw(frame, anim_counter, asset, &mut self.context);
             let index = self.state as usize;
@@ -353,9 +312,32 @@ impl ScreenWidget for Editor<'_> {
         }
 
         // Log
-        if !self.context.code_editor_is_active && self.state == EditorState::BehaviorDetail {
+        if self.state == EditorState::BehaviorDetail {
             self.log.draw(frame, anim_counter, asset, &mut self.context);
             self.context.draw2d.blend_slice_safe(frame, &self.log.buffer[..], &self.log.rect, self.context.width, &self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().get_rect());
+        }
+
+        // Content: Code Editor ?
+        if self.context.code_editor_is_active {
+
+            // Do we need to update the node from the code editor ?
+            if self.context.code_editor_update_node {
+                self.context.code_editor_node_behavior_value.4 = self.context.code_editor_value.clone();
+                self.context.dialog_node_behavior_value = self.context.code_editor_node_behavior_value.clone();
+                self.context.dialog_node_behavior_id = self.context.code_editor_node_behavior_id.clone();
+                self.content[self.state as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
+                self.context.data.set_behavior_id_value(self.context.code_editor_node_behavior_id.clone(), self.context.code_editor_node_behavior_value.clone(), self.context.curr_graph_type);
+
+                self.context.code_editor_update_node = false;
+            }
+
+            if self.context.code_editor_just_opened {
+                self.code_editor.set_text_mode(self.context.code_editor_text_mode);
+                self.code_editor.set_code(self.context.code_editor_node_behavior_value.4.clone());
+                self.context.code_editor_just_opened = false;
+            }
+
+            self.code_editor.draw(frame, (self.left_width, self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), anim_counter, asset, &mut self.context);
         }
 
         // Status bar
@@ -571,10 +553,7 @@ impl ScreenWidget for Editor<'_> {
             }
         }
 
-        if consumed == false && self.context.code_editor_is_active && self.codeeditor_toolbar.mouse_down(pos, asset, &mut self.context) {
-            consumed = true;
-        }
-        if consumed == false && !self.context.code_editor_is_active && self.toolbar.mouse_down(pos, asset, &mut self.context) {
+        if consumed == false && self.toolbar.mouse_down(pos, asset, &mut self.context) {
 
             // Tile Button
             if self.toolbar.widgets[1].clicked {
@@ -747,7 +726,7 @@ impl ScreenWidget for Editor<'_> {
             consumed = true;
         }
 
-        if self.context.code_editor_is_active {
+        if self.context.code_editor_is_active && self.context.contains_pos_for(pos, self.code_editor.rect) {
             consumed = self.code_editor.mouse_down(pos, asset, &mut self.context);
         } else {
             let index = self.state as usize;
@@ -959,10 +938,7 @@ impl ScreenWidget for Editor<'_> {
             consumed = true;
         }
 
-        if self.context.code_editor_is_active && self.codeeditor_toolbar.mouse_up(pos, asset, &mut self.context) {
-            consumed = true;
-        }
-        if !self.context.code_editor_is_active && self.toolbar.mouse_up(pos, asset, &mut self.context) {
+        if self.toolbar.mouse_up(pos, asset, &mut self.context) {
 
             if self.toolbar.widgets[0].new_selection.is_some() {
                 if self.state == EditorState::TilesOverview || self.state == EditorState::TilesDetail {
@@ -1007,7 +983,7 @@ impl ScreenWidget for Editor<'_> {
             consumed = true;
         }
 
-        if self.context.code_editor_is_active {
+        if self.context.code_editor_is_active && self.context.contains_pos_for(pos, self.code_editor.rect) {
             self.code_editor.mouse_up(pos, asset, &mut self.context);
         } else {
             let index = self.state as usize;
@@ -1269,13 +1245,9 @@ impl ScreenWidget for Editor<'_> {
         }
 
         let mut consumed = false;
-        if self.context.code_editor_is_active {
-            consumed = self.codeeditor_toolbar.mouse_dragged(pos, asset, &mut self.context);
-        } else {
-            self.toolbar.mouse_dragged(pos, asset, &mut self.context);
-        }
+        self.toolbar.mouse_dragged(pos, asset, &mut self.context);
 
-        if self.context.code_editor_is_active {
+        if self.context.code_editor_is_active && self.context.contains_pos_for(pos, self.code_editor.rect) {
             consumed = self.code_editor.mouse_dragged(pos, asset, &mut self.context);
         } else {
             let index = self.state as usize;
@@ -1315,10 +1287,7 @@ impl ScreenWidget for Editor<'_> {
 
         let mut consumed = false;
 
-        if self.context.code_editor_is_active && self.codeeditor_toolbar.mouse_hover(pos, asset, &mut self.context) {
-            consumed = true;
-        } else
-        if consumed == false && !self.context.code_editor_is_active && self.toolbar.mouse_hover(pos, asset, &mut self.context) {
+        if consumed == false && self.toolbar.mouse_hover(pos, asset, &mut self.context) {
             consumed = true;
         } else {
 
@@ -1360,7 +1329,7 @@ impl ScreenWidget for Editor<'_> {
 
         let mut consumed = false;
 
-        if self.context.code_editor_is_active {
+        if self.context.code_editor_is_active && self.context.contains_pos_for(self.mouse_hover_pos, self.code_editor.rect) {
             self.code_editor.mouse_wheel(delta, asset, &mut self.context);
         } else {
             let index = self.state as usize;

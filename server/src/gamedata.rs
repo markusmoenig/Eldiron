@@ -1253,12 +1253,12 @@ impl GameData<'_> {
         // Set game frame dimensions
         if let Some(size) = size {
 
-            self.game_screen_width = size.0;
-            self.game_screen_height = size.1;
+            self.game_screen_width = 800;//size.0;
+            self.game_screen_height = 600;//size.1;
             self.game_anim_counter = size.2;
 
-            if self.game_frame.len() != size.0 * size.1 * 4 {
-                self.game_frame = vec![0; size.0 * size.1 * 4];
+            if self.game_frame.len() != self.game_screen_width * self.game_screen_height * 4 {
+                self.game_frame = vec![0; self.game_screen_width * self.game_screen_height * 4];
             }
 
             // Execute the game logic behavior, this also draws into the game_frame

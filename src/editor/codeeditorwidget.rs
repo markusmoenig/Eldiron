@@ -6,8 +6,16 @@ use crate::widget::context::ScreenContext;
 use crate::widget::text_editor_trait::TextEditorWidget;
 //use fontdue::Font;
 
+#[derive(PartialEq, Debug)]
+pub enum CodeEditorWidgetState {
+    Closed,
+    Open,
+    Opening,
+    Closing
+}
+
 pub struct CodeEditorWidget {
-    rect                    : (usize, usize, usize, usize),
+    pub rect                : (usize, usize, usize, usize),
     dirty                   : bool,
     buffer                  : Vec<u8>,
 
@@ -45,68 +53,75 @@ impl CodeEditorWidget {
         self.rect.3 = height;
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
-        if self.buffer.len() != rect.2 * rect.3 * 4 {
-            self.buffer = vec![0; rect.2 * rect.3 * 4];
+    pub fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+
+        let width = rect.2;
+        let height = 240;
+
+        if self.buffer.len() != width * height * 4 {
+            self.buffer = vec![0; width * height * 4];
             self.dirty = true;
         }
+
         self.rect = rect.clone();
+        let safe_rect = (0_usize, 0_usize, width, height);
+        let editor_rect = (0, 0, safe_rect.2, height - 30);
 
-        let safe_rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
-
-        let mut editor_rect = (0, 5, safe_rect.2, safe_rect.3 - 35);
-
-        //if context.is_debugging {
-
-        if context.is_debugging {
-            self.dirty = true;
-            editor_rect = (0, safe_rect.3 / 2, safe_rect.2, safe_rect.3 / 2 - 35);
-        }
-
-        //}
-
+        let mut dest_rect = rect.clone();
+        dest_rect.1 = dest_rect.1 + dest_rect.3 - height;
+        dest_rect.3 = height;
 
         if self.dirty {
             for i in &mut self.buffer[..] { *i = 0 }
             let buffer_frame = &mut self.buffer[..];
-            let stride = rect.2;
 
-            context.draw2d.draw_rect(buffer_frame, &safe_rect, stride, &context.color_black);
+            let mut trans_black = context.color_black.clone();
+            trans_black[3] = 128;
+            context.draw2d.draw_rect(buffer_frame, &safe_rect, rect.2, &trans_black);
 
-
-            if context.is_debugging {
-                let preview_rect = (0, 5, safe_rect.2, safe_rect.3 / 2 - 10);
-
-                let region_id = context.data.regions_ids[context.curr_region_index];
-                if let Some(region) = context.data.regions.get(&region_id) {
-                    // Find the behavior instance for the current behavior id
-                    let mut inst_index = 0_usize;
-                    let behavior_id = context.data.behaviors_ids[context.curr_behavior_index];
-                    for index in 0..context.data.instances.len() {
-                        if context.data.instances[index].behavior_id == behavior_id {
-                            inst_index = index;
-                            break;
-                        }
-                    }
-                    _ = context.draw2d.draw_region_centered_with_instances(buffer_frame, region, &preview_rect, inst_index, stride, 32, anim_counter, asset, context);
-                }
-            }
-
-            self.editor.draw(buffer_frame, editor_rect, self.rect.2, asset.get_editor_font("SourceCodePro"), &context.draw2d);
+            self.editor.draw(buffer_frame, editor_rect, rect.2, asset.get_editor_font("SourceCodePro"), &context.draw2d);
 
             if self.editor.cursor_rect.3 > 0 {
-                context.draw2d.draw_text_rect(buffer_frame, &(0, rect.3 - 35, rect.2 - 20, 35), rect.2, asset.get_editor_font("OpenSans"), 15.0, format!("Ln {}, Col {}", self.editor.cursor_pos.1 + 1, self.editor.cursor_pos.0).as_str(), &context.color_light_white, &context.color_black, crate::draw2d::TextAlignment::Right);
+                context.draw2d.draw_text_rect(buffer_frame, &(0, height - 30, rect.2 - 20, 30), rect.2, asset.get_editor_font("OpenSans"), 15.0, format!("Ln {}, Col {}", self.editor.cursor_pos.1 + 1, self.editor.cursor_pos.0).as_str(), &context.color_light_white, &context.color_black, crate::draw2d::TextAlignment::Right);
+            }
+        }
+        self.dirty = false;
+
+        if context.code_editor_state == CodeEditorWidgetState::Opening {
+            if context.code_editor_visible_y < height {
+                context.code_editor_visible_y += 20;
+                dest_rect.1 = dest_rect.1 + dest_rect.3 - context.code_editor_visible_y;
+                dest_rect.3 = context.code_editor_visible_y;
+            } else {
+                context.code_editor_state = CodeEditorWidgetState::Open;
+                context.target_fps = context.default_fps;
             }
         }
 
-        self.dirty = false;
-        context.draw2d.copy_slice(frame, &mut self.buffer[..], &self.rect, rect.2);
+        if context.code_editor_state == CodeEditorWidgetState::Closing {
+            if context.code_editor_visible_y > 0 {
+                context.code_editor_visible_y -= 20;
+                dest_rect.1 = dest_rect.1 + dest_rect.3 - context.code_editor_visible_y;
+                dest_rect.3 = context.code_editor_visible_y;
+            }
+
+            if context.code_editor_visible_y == 0 {
+                context.code_editor_state = CodeEditorWidgetState::Closed;
+                context.target_fps = context.default_fps;
+                context.code_editor_is_active = false;
+            }
+        }
+
+        context.draw2d.blend_slice(frame, &mut self.buffer[..], &dest_rect, context.width);
+        self.rect = dest_rect;
     }
 
     pub fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
         if key == Some(WidgetKey::Escape) {
-            context.code_editor_is_active = false;
+            context.code_editor_state = CodeEditorWidgetState::Closing;
+            context.target_fps = 60;
+            context.code_editor_visible_y = 240;
             return true;
         }
 

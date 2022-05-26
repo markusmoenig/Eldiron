@@ -27,6 +27,7 @@ pub struct CodeEditor {
 
     metrics                 : HashMap<char, (Metrics, Vec<u8>)>,
     advance_width           : usize,
+    advance_height          : usize,
 
     shift                   : bool,
     ctrl                    : bool,
@@ -44,7 +45,7 @@ impl TextEditorWidget for CodeEditor {
             rect            : (0, 0, 0, 0),
             text            : "".to_string(),
 
-            font_size       : 20.0,
+            font_size       : 17.0,
 
             cursor_offset   : 0,
             cursor_pos      : (0, 0),
@@ -57,7 +58,8 @@ impl TextEditorWidget for CodeEditor {
             text_buffer_size  : (0, 0),
 
             metrics         : HashMap::new(),
-            advance_width   : 12,
+            advance_width   : 10,
+            advance_height  : 22,
 
             shift           : false,
             ctrl            : false,
@@ -71,7 +73,6 @@ impl TextEditorWidget for CodeEditor {
     fn set_text(&mut self, text: String) {
         self.text = text;
         self.needs_update = true;
-        println!("{} {}", self.text, self.text.len());
     }
 
     fn set_text_mode(&mut self, value: bool) {
@@ -95,11 +96,7 @@ impl TextEditorWidget for CodeEditor {
 
         draw2d.blend_slice_safe(frame, &mut self.text_buffer[..], &(rect.0 as isize, rect.1 as isize, self.text_buffer_size.0, self.text_buffer_size.1), stride, &rect);
 
-        //println!("{:?}", self.cursor_rect);
         draw2d.draw_rect(frame, &(rect.0 + self.cursor_rect.0, rect.1 + self.cursor_rect.1, self.cursor_rect.2, self.cursor_rect.3), stride, &self.theme.cursor);
-
-
-        //draw2d.copy_slice(frame, &mut self.buffer[..], &self.rect, stride);
     }
 
     /// Takes the current text and renders it to the text_buffer bitmap
@@ -117,6 +114,9 @@ impl TextEditorWidget for CodeEditor {
             while let Some(c) = chars.next() {
                 if self.metrics.contains_key(&c) == false {
                     let m= font.rasterize(c, self.font_size);
+                    if c == ' ' {
+                        println!("Metrics: {:?} {}", m, c);
+                    }
                     self.metrics.insert(c, m);
                 }
 
@@ -129,7 +129,7 @@ impl TextEditorWidget for CodeEditor {
                 screen_width = line_width;
             }
 
-            screen_height += 26;
+            screen_height += self.advance_height;
         }
 
         //println!("{} x {}", screen_width, screen_height);
@@ -162,24 +162,24 @@ impl TextEditorWidget for CodeEditor {
             let token = scanner.scan_token();
             let mut printit = false;
 
-            println!("{:?} : {}", token.kind, token.lexeme);
+            //println!("{:?} : {}", token.kind, token.lexeme);
 
             match token.kind {
 
                 TokenType::LineFeed => {
 
-                    draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, y, 60, 26), stride, font, self.font_size, format!("{}", line_number).as_str(), &self.theme.line_numbers, &self.theme.background, crate::draw2d::TextAlignment::Right);
+                    draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, y, 60, self.advance_height), stride, font, self.font_size, format!("{}", line_number).as_str(), &self.theme.line_numbers, &self.theme.background, crate::draw2d::TextAlignment::Right);
                     number_printed_for_line = line_number;
 
                     x = left_size;
-                    y += 26;
+                    y += self.advance_height;
                     line_number += 1;
                 },
                 TokenType::Space => { x += self.advance_width },
                 TokenType::Eof => {
 
                     if number_printed_for_line != line_number {
-                        draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, y, 60, 26), stride, font, self.font_size, format!("{}", line_number).as_str(), &self.theme.line_numbers, &self.theme.background, crate::draw2d::TextAlignment::Right);
+                        draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, y, 60, self.advance_height), stride, font, self.font_size, format!("{}", line_number).as_str(), &self.theme.line_numbers, &self.theme.background, crate::draw2d::TextAlignment::Right);
                     }
 
                     finished = true },
@@ -235,7 +235,7 @@ impl TextEditorWidget for CodeEditor {
         let py = pos.1;
 
         let left_size = 100_usize;
-        let line_height = 26;
+        let line_height = self.advance_height;
 
         self.cursor_offset = 0;
 
@@ -250,13 +250,13 @@ impl TextEditorWidget for CodeEditor {
             self.cursor_pos.1 = 0;
             self.cursor_rect.0 = left_size;
             self.cursor_rect.1 = 0;
-            self.cursor_rect.3 = 26;
+            self.cursor_rect.3 = self.advance_height;
             return true;
         }
 
         while let Some(line) = lines.next() {
 
-            if py >= y && py <= y + 26 {
+            if py >= y && py <= y + self.advance_height {
 
                 self.cursor_pos.0 = 0;
                 self.cursor_pos.1 = curr_line_index;

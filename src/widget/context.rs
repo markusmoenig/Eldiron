@@ -1,4 +1,5 @@
 
+use crate::editor::codeeditorwidget::CodeEditorWidgetState;
 use crate::{draw2d::Draw2D};
 use server::gamedata::GameData;
 use crate::editor::dialog::{ DialogState, DialogEntry };
@@ -94,7 +95,9 @@ pub struct ScreenContext<'a> {
     pub dialog_tile_usage               : Vec<TileUsage>,
     pub dialog_accepted                 : bool,
 
+    pub code_editor_state               : CodeEditorWidgetState,
     pub code_editor_is_active           : bool,
+    pub code_editor_visible_y           : usize,
     pub code_editor_just_opened         : bool,
     pub code_editor_text_mode           : bool,
     pub code_editor_update_node         : bool,
@@ -274,7 +277,9 @@ impl ScreenContext<'_> {
             dialog_tile_usage           : vec![],
             dialog_accepted             : false,
 
+            code_editor_state                : CodeEditorWidgetState::Closed,
             code_editor_is_active            : false,
+            code_editor_visible_y            : 0,
             code_editor_just_opened          : false,
             code_editor_text_mode            : false,
             code_editor_update_node          : false,

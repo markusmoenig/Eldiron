@@ -97,15 +97,15 @@ impl EditorContent for NodeGraph  {
     }
 
     fn set_mode(&mut self, mode: GraphMode, context: &ScreenContext) {
-        if mode == GraphMode::Detail && self.graph_type == BehaviorType::Behaviors && self.preview.is_none() {
-            self.preview = Some(NodePreviewWidget::new(context));
+        if mode == GraphMode::Detail && (self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Systems || self.graph_type == BehaviorType::GameLogic) && self.preview.is_none() {
+            self.preview = Some(NodePreviewWidget::new(context, self.graph_type));
         }
         self.graph_mode = mode;
     }
 
     fn set_mode_and_rect(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &ScreenContext) {
-        if mode == GraphMode::Detail && self.graph_type == BehaviorType::Behaviors && self.preview.is_none() {
-            self.preview = Some(NodePreviewWidget::new(context));
+        if mode == GraphMode::Detail && (self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Systems || self.graph_type == BehaviorType::GameLogic) && self.preview.is_none() {
+            self.preview = Some(NodePreviewWidget::new(context, self.graph_type));
         }
         self.graph_mode = mode;
         self.rect = rect;

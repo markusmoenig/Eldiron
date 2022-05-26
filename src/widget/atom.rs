@@ -1,6 +1,6 @@
-use crate::{widget::*, editor::dialog::{DialogState, DialogEntry}};
+use crate::{widget::*, editor::{dialog::{DialogState, DialogEntry}, codeeditorwidget::CodeEditorWidgetState}};
 
-use super::context::ScreenDragContext;
+use super::{ context::ScreenDragContext };
 use crate::TileUsage;
 
 pub struct GroupedList {
@@ -901,10 +901,11 @@ impl AtomWidget {
                 context.dialog_node_behavior_value = self.atom_data.data.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeExpressionButton {
-                // context.dialog_state = DialogState::Opening;
-                // context.dialog_height = 0;
-                // context.target_fps = 60;
-                // context.dialog_entry = DialogEntry::NodeExpression;
+                if context.code_editor_state != CodeEditorWidgetState::Open {
+                    context.code_editor_state = CodeEditorWidgetState::Opening;
+                    context.code_editor_visible_y = 0;
+                    context.target_fps = 60;
+                }
                 context.code_editor_is_active = true;
                 context.code_editor_just_opened = true;
                 context.code_editor_text_mode = false;
@@ -912,10 +913,11 @@ impl AtomWidget {
                 context.code_editor_node_behavior_value = self.atom_data.data.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton {
-                // context.dialog_state = DialogState::Opening;
-                // context.dialog_height = 0;
-                // context.target_fps = 60;
-                // context.dialog_entry = DialogEntry::NodeExpressionValue;
+                if context.code_editor_state != CodeEditorWidgetState::Open {
+                    context.code_editor_state = CodeEditorWidgetState::Opening;
+                    context.code_editor_visible_y = 0;
+                    context.target_fps = 60;
+                }
                 context.code_editor_is_active = true;
                 context.code_editor_just_opened = true;
                 context.code_editor_text_mode = false;
@@ -923,10 +925,11 @@ impl AtomWidget {
                 context.code_editor_node_behavior_value = self.atom_data.data.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeScriptButton {
-                // context.dialog_state = DialogState::Opening;
-                // context.dialog_height = 0;
-                // context.target_fps = 60;
-                // context.dialog_entry = DialogEntry::NodeScript;
+                if context.code_editor_state != CodeEditorWidgetState::Open {
+                    context.code_editor_state = CodeEditorWidgetState::Opening;
+                    context.code_editor_visible_y = 0;
+                    context.target_fps = 60;
+                }
                 context.code_editor_is_active = true;
                 context.code_editor_just_opened = true;
                 context.code_editor_text_mode = false;
@@ -934,9 +937,11 @@ impl AtomWidget {
                 context.code_editor_node_behavior_value = self.atom_data.data.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeTextButton {
-                // context.dialog_state = DialogState::Opening;
-                // context.dialog_height = 0;
-                // context.target_fps = 60;
+                if context.code_editor_state != CodeEditorWidgetState::Open {
+                    context.code_editor_state = CodeEditorWidgetState::Opening;
+                    context.code_editor_visible_y = 0;
+                    context.target_fps = 60;
+                }
                 // context.dialog_entry = DialogEntry::NodeText;
                 // context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
                 // context.dialog_node_behavior_value = self.atom_data.data.clone();
