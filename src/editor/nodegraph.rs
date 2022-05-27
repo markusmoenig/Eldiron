@@ -88,7 +88,7 @@ impl EditorContent for NodeGraph  {
 
     fn update(&mut self, context: &mut ScreenContext) {
         if context.is_running {
-            context.data.tick(None);
+            //context.data.tick(None);
             self.dirty = true;
             if let Some(preview) = &mut self.preview {
                 preview.dirty = true;

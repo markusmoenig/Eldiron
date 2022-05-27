@@ -167,6 +167,7 @@ impl ScreenWidget for Editor<'_> {
     fn update(&mut self, width: usize, height: usize, anim_counter: usize) {
         // let start = self.get_time();
         if self.context.is_debugging == true {
+            self.context.data.tick(Some((width, height - self.context.toolbar_height / 2, anim_counter)));
             self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context);
         } else {
             self.context.data.tick(Some((width, height - self.context.toolbar_height / 2, anim_counter)));

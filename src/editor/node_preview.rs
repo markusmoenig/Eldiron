@@ -159,7 +159,28 @@ impl NodePreviewWidget {
                     }
                 }
             } else {
+                if context.is_running {
+                    let source_frame = &context.data.game_frame;
+                    let source_size = (context.data.game_screen_width, context.data.game_screen_height);
 
+                    let mut fit_rect = self.region_rect.clone();
+
+                    let ratio = (fit_rect.2 as f64 / source_size.0 as f64).min(fit_rect.3 as f64 / source_size.1 as f64);
+                    let fit_size = ((source_size.0 as f64 * ratio) as usize, (source_size.1 as f64 * ratio) as usize);
+
+                    if fit_size.0 < fit_rect.2 {
+                        fit_rect.0 += (fit_rect.2 - fit_size.0) / 2;
+                    }
+
+                    if fit_size.1 < fit_rect.3 {
+                        fit_rect.1 += (fit_rect.3 - fit_size.1) / 2;
+                    }
+
+                    fit_rect.2 = fit_size.0;
+                    fit_rect.3 = fit_size.1;
+
+                    context.draw2d.scale_chunk(buffer_frame, &fit_rect, stride, source_frame, &source_size);
+                }
             }
             context.draw2d.blend_mask(buffer_frame, &(6, rect.3 - 23, rect.2, rect.3), rect.2, &context.preview_arc_mask[..], &(20, 20), &context.color_gray);
         }

@@ -114,9 +114,6 @@ impl TextEditorWidget for CodeEditor {
             while let Some(c) = chars.next() {
                 if self.metrics.contains_key(&c) == false {
                     let m= font.rasterize(c, self.font_size);
-                    if c == ' ' {
-                        println!("Metrics: {:?} {}", m, c);
-                    }
                     self.metrics.insert(c, m);
                 }
 
