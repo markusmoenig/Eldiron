@@ -404,7 +404,7 @@ impl Draw2D {
         }
     }
 
-    /// Draw a tile
+    /// Scale a chunk to the destination size
     pub fn scale_chunk(&self,  frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, source_frame: &[u8], source_size: &(usize, usize)) {
 
         let x_ratio = source_size.0 as f32 / rect.2 as f32;
