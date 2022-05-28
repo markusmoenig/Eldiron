@@ -6,7 +6,7 @@ Create RPGs for every platform with Eldiron.
 
 Eldiron v1 will be able to create games similar to the classic Ultima series but with modern features.
 
-[![MIT License](https://img.shields.io/apm/l/atomic-design-ui.svg?)](https://github.com/tterb/atomic-design-ui/blob/master/LICENSEs) [![version](https://img.shields.io/badge/version-0.5-red.svg)](https://shields.io/) [![macOS](https://svgshare.com/i/ZjP.svg)](https://svgshare.com/i/ZjP.svg) [![Windows](https://svgshare.com/i/ZhY.svg)](https://svgshare.com/i/ZhY.svg) [![Linux](https://svgshare.com/i/Zhy.svg)](https://svgshare.com/i/Zhy.svg) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Patreon](https://badgen.net/badge/icon/patreon?icon=patreon&label)](https://patreon.com/eldiron) [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/MarkusMoenig)
+[![MIT License](https://img.shields.io/apm/l/atomic-design-ui.svg?)](https://github.com/tterb/atomic-design-ui/blob/master/LICENSEs) [![version](https://img.shields.io/badge/version-0.5.5-red.svg)](https://shields.io/) [![macOS](https://svgshare.com/i/ZjP.svg)](https://svgshare.com/i/ZjP.svg) [![Windows](https://svgshare.com/i/ZhY.svg)](https://svgshare.com/i/ZhY.svg) [![Linux](https://svgshare.com/i/Zhy.svg)](https://svgshare.com/i/Zhy.svg) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Patreon](https://badgen.net/badge/icon/patreon?icon=patreon&label)](https://patreon.com/eldiron) [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/MarkusMoenig)
 
 <!---
 [![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/channel/UCCmrO356zLQv_m8dPEqBUfA)
@@ -34,22 +34,7 @@ I also try to maintain a development blog on [YouTube](https://www.youtube.com/c
 
 ## Updates
 
-#### Eldiron v0.5, 28th April '22
-
-Newly added features:
-
-* Completely reworked the Regions view, now has 3 modes for drawing tiles, editing areas and assigning behavior nodes to areas.
-* Regions now support transparency and up to 4 layers of tiles.
-* Working Systems, every character can now call system behavior trees for common functionality (combat, crafting etc).
-
-#### Eldiron v0.3, 12th April '22
-
-Newly added features:
-
-* Named behavior trees can be selected via the tab bar at the top of the node graph.
-* New *Lookout* and *Close In* nodes.
-* *Expression* and *Script* nodes now have a full scripting system behind them.
-* New Systems editor where soon the user can create systems for Combat, Magic, Crafting and so on. Systems will allow the implementation of basic mechanics every character can utilize.
+Please see my development blog for updates on Eldiron [here](https://eldiron.com/blog/).
 
 ## Installation
 
@@ -143,7 +128,7 @@ But apart from Combat you can of course also implement other Systsems, like craf
 
 A specialized node view for in game items and their stats, modifiers and special effects.
 
-## Game View (0% Done)
+## Game View (30% Done)
 
 A specialized node view for the overall game logic.
 
