@@ -120,19 +120,7 @@ impl Widget for ControlBar {
                             }
                         }
                     } else {
-                        // context.data.clear_instances();
-                        context.data.shutdown_client();
-                        context.is_running = false;
-                        context.is_debugging = false;
-                        atom_widget.text[0] = "Debug".to_string();
-                        context.just_stopped_running = true;
-
-                        for index in 0..self.widgets.len() {
-                            if index != ControlWidgets::Debug as usize {
-                                self.widgets[index].state = WidgetState::Normal;
-                            }
-                            self.widgets[index].dirty = true;
-                        }
+                        self.stop_debugging(context);
                     }
                 } else
                 if atom_widget.atom_data.id == "Play" {
@@ -175,7 +163,7 @@ impl Widget for ControlBar {
     }
 
     fn stop_debugging(&mut self, context: &mut ScreenContext) {
-        context.data.clear_instances();
+        context.data.shutdown_client();
         context.is_running = false;
         context.is_debugging = false;
         self.widgets[ControlWidgets::Debug as usize].text[0] = "Debug".to_string();

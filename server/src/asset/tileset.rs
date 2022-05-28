@@ -149,7 +149,12 @@ impl TileSet {
         let mut maps : HashMap<usize, TileMap> = HashMap::new();
 
         let tilemaps_path = path.join("assets").join("tilemaps");
-        let paths = fs::read_dir(tilemaps_path).unwrap();
+        //let paths = fs::read_dir(tilemaps_path).unwrap();
+
+        let mut paths: Vec<_> = fs::read_dir(tilemaps_path).unwrap()
+                                                .map(|r| r.unwrap())
+                                                .collect();
+        paths.sort_by_key(|dir| dir.path());
 
         let mut maps_names  : Vec<String> = vec![];
         let mut maps_ids    : Vec<usize> = vec![];
@@ -157,7 +162,7 @@ impl TileSet {
         for path in paths {
 
             // Generate the tile map for this dir element
-            let path = &path.unwrap().path();
+            let path = &path.path();
             let md = metadata(path).unwrap();
 
             if md.is_file() {

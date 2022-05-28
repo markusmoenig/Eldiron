@@ -86,13 +86,11 @@ impl EditorContent for NodeGraph  {
         }
     }
 
-    fn update(&mut self, context: &mut ScreenContext) {
-        if context.is_running {
-            //context.data.tick(None);
-            self.dirty = true;
-            if let Some(preview) = &mut self.preview {
-                preview.dirty = true;
-            }
+    /// Update the editor and the preview, this is called during debugging
+    fn update(&mut self, _context: &mut ScreenContext) {
+        self.dirty = true;
+        if let Some(preview) = &mut self.preview {
+            preview.dirty = true;
         }
     }
 
@@ -138,7 +136,6 @@ impl EditorContent for NodeGraph  {
                     self.dirty = true;
                 }
             }
-            context.just_stopped_running = false;
         }
 
         if self.dirty {
@@ -1125,6 +1122,7 @@ impl EditorContent for NodeGraph  {
                 "Displace Tiles" => BehaviorNodeType::DisplaceTiles,
 
                 "Screen" => BehaviorNodeType::Screen,
+                "Widget" => BehaviorNodeType::Screen,
 
                 _ => BehaviorNodeType::BehaviorTree
             };
@@ -1564,7 +1562,6 @@ impl EditorContent for NodeGraph  {
         //
 
         if node_data.behavior_type == BehaviorNodeType::Screen {
-
             let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScriptButton,
             AtomData::new_as_int("script".to_string(), 0));
             atom1.atom_data.text = "Script".to_string();
@@ -1580,8 +1577,21 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom3, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom4, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_data.behavior_type == BehaviorNodeType::Widget {
+            let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScriptButton,
+            AtomData::new_as_int("script".to_string(), 0));
+            atom1.atom_data.text = "Script".to_string();
+            let id = (behavior_data.id, node_data.id, "script".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
+            node_widget.widgets.push(atom1);
 
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         }
+
     }
 
     /// Converts the index of a node widget to a node id

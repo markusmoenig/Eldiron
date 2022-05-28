@@ -45,6 +45,7 @@ pub enum BehaviorNodeType {
     DisplaceTiles,
     Move,
     Screen,
+    Widget,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

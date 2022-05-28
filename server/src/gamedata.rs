@@ -101,6 +101,10 @@ pub struct GameData<'a> {
     // Script ast's, id is (BehaviorType, BehaviorId, BehaviorNodeID, AtomParameterID)
     pub ast                     : HashMap<(BehaviorType, usize, usize, String), AST>,
 
+    // Custom scopes (mostly used in Widgets to store the Widgets rect)
+    pub custom_scopes           : HashMap<usize, Scope<'a>>,
+    pub custom_scopes_ordered   : Vec<usize>,
+
     pub runs_in_editor          : bool,
 
     // These are fields which provide feedback to the editor / game while running
@@ -353,6 +357,7 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::Move, nodes::player_move);
 
         nodes.insert(BehaviorNodeType::Screen, nodes_game::screen);
+        nodes.insert(BehaviorNodeType::Widget, nodes_game::widget);
 
         let mut engine = Engine::new();
 
@@ -421,6 +426,9 @@ impl GameData<'_> {
 
             scopes                  : vec![],
             ast                     : HashMap::new(),
+
+            custom_scopes           : HashMap::new(),
+            custom_scopes_ordered   : vec![],
 
             runs_in_editor          : false,
 
@@ -508,6 +516,9 @@ impl GameData<'_> {
 
             scopes                  : vec![],
             ast                     : HashMap::new(),
+
+            custom_scopes           : HashMap::new(),
+            custom_scopes_ordered   : vec![],
 
             runs_in_editor          : false,
 
@@ -1023,6 +1034,18 @@ impl GameData<'_> {
         if let Some(node) = behavior.data.nodes.get_mut(&node_id) {
 
             // Handle special nodes
+            if node.behavior_type == BehaviorNodeType::Screen{
+                connectors.push(BehaviorNodeConnector::Bottom1);
+                connectors.push(BehaviorNodeConnector::Bottom2);
+                connectors.push(BehaviorNodeConnector::Bottom);
+                connectors.push(BehaviorNodeConnector::Bottom3);
+                connectors.push(BehaviorNodeConnector::Bottom4);
+
+                if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
+                    let behavior_id = self.instances[instance_index].behavior_id.clone();
+                    _ = node_call(instance_index, (behavior_id, node_id), self, BehaviorType::GameLogic);
+                }
+            } else
             if node.behavior_type == BehaviorNodeType::BehaviorTree || node.behavior_type == BehaviorNodeType::Linear {
                 connectors.push(BehaviorNodeConnector::Bottom1);
                 connectors.push(BehaviorNodeConnector::Bottom2);
@@ -1266,65 +1289,68 @@ impl GameData<'_> {
 
                 if self.scopes.is_empty() == false {
 
-                    self.scopes[game_inst_index].set_value("screen_width", self.game_screen_width as i64);
-                    self.scopes[game_inst_index].set_value("screen_height", self.game_screen_height as i64);
-
                     if let Some(locked_tree) = self.instances[game_inst_index].locked_tree {
                         self.execute_game_node(game_inst_index, locked_tree);
                     }
 
-                    // Get the messages
-                    if let Some(mut messages) = self.scopes[game_inst_index].get_value::<ScriptMessages>("messages") {
-                        //println!("{:?}", messages);
-                        messages.clear();
-                        self.scopes[game_inst_index].set_value("messages", messages);
-                    }
+                    for custom_scope_id in &mut self.custom_scopes_ordered {
 
-                    // Get the draw commands
-                    if let Some(mut draw) = self.scopes[game_inst_index].get_value::<ScriptDraw>("draw") {
-                        //println!("{:?}", draw);
+                        if let Some(scope) = self.custom_scopes.get_mut(&custom_scope_id) {
 
-                        let game_frame = &mut self.game_frame[..];
-                        let stride = self.game_screen_width;
+                            // Get the messages
+                            if let Some(mut messages) = scope.get_value::<ScriptMessages>("messages") {
+                                //println!("{:?}", messages);
+                                messages.clear();
+                                scope.set_value("messages", messages);
+                            }
 
-                        for cmd in &draw.commands {
+                            // Get the draw commands
+                            if let Some(mut draw) = scope.get_value::<ScriptDraw>("draw") {
+                                //println!("{:?}", draw);
 
-                            if let Some(draw2d) = &self.draw2d {
+                                let game_frame = &mut self.game_frame[..];
+                                let stride = self.game_screen_width;
 
-                                match cmd {
-                                    ScriptDrawCmd::DrawRect(rect, rgb) => {
-                                        draw2d.draw_rect(game_frame, &rect.rect, stride, &rgb.value);
-                                    },
-                                    ScriptDrawCmd::DrawText(pos, font_name, text, size, rgb) => {
-                                        if let Some(font) = self.asset.as_ref().unwrap().game_fonts.get(font_name) {
-                                            draw2d.blend_text(game_frame, &pos.pos, stride, font, *size, text, &rgb.value);
-                                        }
-                                    },
-                                    ScriptDrawCmd::DrawGame(rect) => {
-                                        //draw2d.draw_rect(game_frame, &rect.rect, stride, &rgb.value);
+                                for cmd in &draw.commands {
 
-                                        let region_id = self.regions_ids[0];
+                                    if let Some(draw2d) = &self.draw2d {
 
-                                        if let Some(region) = self.regions.get(&region_id) {
-                                            // Find the behavior instance for the current behavior id
-                                            let mut inst_index = 0_usize;
-                                            let behavior_id = self.behaviors_ids[0];
-                                            for index in 0..self.instances.len() {
-                                                if self.instances[index].behavior_id == behavior_id {
-                                                    inst_index = index;
-                                                    break;
+                                        match cmd {
+                                            ScriptDrawCmd::DrawRect(rect, rgb) => {
+                                                draw2d.draw_rect(game_frame, &rect.rect, stride, &rgb.value);
+                                            },
+                                            ScriptDrawCmd::DrawText(pos, font_name, text, size, rgb) => {
+                                                if let Some(font) = self.asset.as_ref().unwrap().game_fonts.get(font_name) {
+                                                    draw2d.blend_text(game_frame, &pos.pos, stride, font, *size, text, &rgb.value);
+                                                }
+                                            },
+                                            ScriptDrawCmd::DrawGame(rect) => {
+                                                //draw2d.draw_rect(game_frame, &rect.rect, stride, &rgb.value);
+
+                                                let region_id = self.regions_ids[0];
+
+                                                if let Some(region) = self.regions.get(&region_id) {
+                                                    // Find the behavior instance for the current behavior id
+                                                    let mut inst_index = 0_usize;
+                                                    let behavior_id = self.behaviors_ids[0];
+                                                    for index in 0..self.instances.len() {
+                                                        if self.instances[index].behavior_id == behavior_id {
+                                                            inst_index = index;
+                                                            break;
+                                                        }
+                                                    }
+
+                                                    _ = self.draw2d.as_ref().unwrap().draw_region_centered_with_instances(game_frame, region, &rect.rect, inst_index, stride, 32, self.game_anim_counter, &self.asset.as_ref().unwrap(), &self.instances);
                                                 }
                                             }
-
-                                            _ = self.draw2d.as_ref().unwrap().draw_region_centered_with_instances(game_frame, region, &rect.rect, inst_index, stride, 32, self.game_anim_counter, &self.asset.as_ref().unwrap(), &self.instances);
                                         }
                                     }
                                 }
+
+                                draw.clear();
+                                scope.set_value("draw", draw);
                             }
                         }
-
-                        draw.clear();
-                        self.scopes[game_inst_index].set_value("draw", draw);
                     }
                 }
             }
@@ -1340,6 +1366,8 @@ impl GameData<'_> {
         self.changed_variables = vec![];
         self.active_instance_indices = vec![];
         self.player_ids_inst_indices = HashMap::new();
+        self.custom_scopes = HashMap::new();
+        self.custom_scopes_ordered = vec![];
     }
 
     /// Creates a new player instance and returns the index
@@ -1390,10 +1418,10 @@ impl GameData<'_> {
             .register_fn("rgb", ScriptRGB::new)
             .register_fn("rgba", ScriptRGB::new_with_alpha);
 
-        if let Some(game_inst_index) = self.game_instance_index {
-            self.scopes[game_inst_index].set_value("messages", ScriptMessages::new());
-            self.scopes[game_inst_index].set_value("draw", ScriptDraw::new());
-        }
+        //if let Some(game_inst_index) = self.game_instance_index {
+        //    self.scopes[game_inst_index].set_value("messages", ScriptMessages::new());
+        //    self.scopes[game_inst_index].set_value("draw", ScriptDraw::new());
+        //}
     }
 
     pub fn shutdown_client(&mut self) {

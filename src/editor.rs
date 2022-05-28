@@ -169,11 +169,18 @@ impl ScreenWidget for Editor<'_> {
         if self.context.is_debugging == true {
             self.context.data.tick(Some((width, height - self.context.toolbar_height / 2, anim_counter)));
             self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context);
-        } else {
+        } else
+        if self.context.is_running {
             self.context.data.tick(Some((width, height - self.context.toolbar_height / 2, anim_counter)));
         }
         // let stop = self.get_time();
         // println!("update time {:?}", stop - start);
+
+        // When stopped, update the graph
+        if self.context.just_stopped_running {
+            self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context);
+            self.context.just_stopped_running = false;
+        }
     }
 
     /// A key was pressed
@@ -184,7 +191,6 @@ impl ScreenWidget for Editor<'_> {
             if self.context.is_debugging {
                 if key == Some(WidgetKey::Escape) {
                     self.controlbar.stop_debugging(&mut self.context);
-                    self.context.code_editor_is_active = false;
                 }
             }
 
