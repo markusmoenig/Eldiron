@@ -25,32 +25,32 @@ impl EditorOptions for TileMapOptions {
 
         group_list.state = WidgetState::Disabled;
 
-        group_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Unused".to_string(), "Environment".to_string(), "Road".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string(), "Icon".to_string()]);
+        group_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Unused".to_string(), "Environment".to_string(), "Road".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string(), "Icon".to_string(), "UI Element".to_string()]);
         group_list.set_rect(rect, asset, context);
         widgets.push(group_list);
 
         let mut tags_button = AtomWidget::new(vec!["".to_string()], AtomWidgetType::TagsButton,
             AtomData::new_as_int("Tags".to_string(), 0));
         tags_button.state = WidgetState::Disabled;
-        tags_button.set_rect((rect.0 + 10, rect.1 + 280 + 30, rect.2 - 20, 40), asset, context);
+        tags_button.set_rect((rect.0 + 10, rect.1 + 310 + 30, rect.2 - 20, 40), asset, context);
         widgets.push(tags_button);
 
         let mut set_anim_button = AtomWidget::new(vec!["Set Anim".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Set Anim".to_string(), 0));
         set_anim_button.state = WidgetState::Disabled;
-        set_anim_button.set_rect((rect.0 + 10, rect.1 + 280 + 80, rect.2 - 20, 40), asset, context);
+        set_anim_button.set_rect((rect.0 + 10, rect.1 + 305 + 80, rect.2 - 20, 40), asset, context);
         widgets.push(set_anim_button);
 
         let mut clear_anim_button = AtomWidget::new(vec!["Clear Anim".to_string()], AtomWidgetType::Button,
         AtomData::new_as_int("Clear Anim".to_string(), 0));
         clear_anim_button.state = WidgetState::Disabled;
-        clear_anim_button.set_rect((rect.0 + 10, rect.1 + 315 + 80, rect.2 - 20, 40), asset, context);
+        clear_anim_button.set_rect((rect.0 + 10, rect.1 + 340 + 80, rect.2 - 20, 40), asset, context);
         widgets.push(clear_anim_button);
 
         let mut set_default_button = AtomWidget::new(vec!["Set Default".to_string()], AtomWidgetType::Button,
         AtomData::new_as_int("Set Default".to_string(), 0));
         set_default_button.state = WidgetState::Disabled;
-        set_default_button.set_rect((rect.0 + 10, rect.1 + 370 + 80, rect.2 - 20, 40), asset, context);
+        set_default_button.set_rect((rect.0 + 10, rect.1 + 15 + 370 + 80, rect.2 - 20, 40), asset, context);
         widgets.push(set_default_button);
 
         Self {
@@ -72,9 +72,9 @@ impl EditorOptions for TileMapOptions {
         }
 
         if let Some(grid_pos) = context.curr_tile {
-            context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 80) / 2, self.rect.1 + self.rect.3 - 110), asset.get_map_of_id(asset.tileset.maps_ids[context.curr_tileset_index]), context.width, &grid_pos, anim_counter, 80);
+            context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 80) / 2, self.rect.1 + self.rect.3 - 102), asset.get_map_of_id(asset.tileset.maps_ids[context.curr_tileset_index]), context.width, &grid_pos, anim_counter, 80);
 
-            context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 30, self.rect.2, 30), context.width, &asset.get_editor_font("OpenSans"), 20.0, &format!("({}, {})", grid_pos.0, grid_pos.1), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
+            context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 22, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("({}, {})", grid_pos.0, grid_pos.1), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
         }
     }
 
@@ -105,6 +105,7 @@ impl EditorOptions for TileMapOptions {
                                 6 => usage = TileUsage::Water,
                                 7 => usage = TileUsage::Effect,
                                 8 => usage = TileUsage::Icon,
+                                9 => usage = TileUsage::UIElement,
                                 _ => usage = TileUsage::Unused,
                             }
 
@@ -201,6 +202,7 @@ impl EditorOptions for TileMapOptions {
                 TileUsage::Water => self.widgets[0].curr_item_index = 6,
                 TileUsage::Effect => self.widgets[0].curr_item_index = 7,
                 TileUsage::Icon => self.widgets[0].curr_item_index = 8,
+                TileUsage::UIElement => self.widgets[0].curr_item_index = 9,
             }
             self.widgets[1].text[0] = tile.tags;
         } else {

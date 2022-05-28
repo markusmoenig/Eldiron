@@ -65,18 +65,18 @@ impl EditorOptions for RegionOptions {
 
         let mut usage_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new_as_int("UsageList".to_string(), 0));
-        usage_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Environment".to_string(), "Road".to_string(), "Blocking".to_string(), "Water".to_string()]);
+        usage_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Environment".to_string(), "Road".to_string(), "Blocking".to_string(), "Water".to_string(), "UI Element".to_string()]);
 
         usage_list.set_rect((rect.0 + 10, rect.1 + 210, rect.2 - 20, 200), asset, context);
         tile_widgets.push(usage_list);
 
         let mut layer_button = AtomWidget::new(vec!["1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()], AtomWidgetType::NumberRow, AtomData::new_as_int("Layer".to_string(), 0));
-        layer_button.set_rect((rect.0 + 10, rect.1 + 365, rect.2 - 20, 30), asset, context);
+        layer_button.set_rect((rect.0 + 10, rect.1 + 390, rect.2 - 20, 30), asset, context);
         tile_widgets.push(layer_button);
 
-        let mut remap_button = AtomWidget::new(vec!["Remap".to_string()], AtomWidgetType::LargeButton,
+        let mut remap_button = AtomWidget::new(vec!["Remap".to_string()], AtomWidgetType::Button,
         AtomData::new_as_int("remap".to_string(), 0));
-        remap_button.set_rect((rect.0 + 10, rect.1 + rect.3 - 200, rect.2 - 20, 40), asset, context);
+        remap_button.set_rect((rect.0 + 10, rect.1 + rect.3 - 180, rect.2 - 20, 40), asset, context);
         tile_widgets.push(remap_button);
 
         // Area Widgets
@@ -176,9 +176,9 @@ impl EditorOptions for RegionOptions {
         if mode == RegionEditorMode::Tiles {
             if let Some(content) = content {
                 if let Some(tile) = content.get_selected_tile() {
-                    context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + self.rect.3 - 140), asset.get_map_of_id(tile.0), context.width, &(tile.1, tile.2), anim_counter, 100);
+                    context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + self.rect.3 - 120), asset.get_map_of_id(tile.0), context.width, &(tile.1, tile.2), anim_counter, 100);
 
-                    context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 40, self.rect.2, 30), context.width, &asset.get_editor_font("OpenSans"), 20.0, &format!("({}, {}, {})", tile.0, tile.1, tile.2), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
+                    //context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 22, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("{}, {})", /*tile.0,*/ tile.1, tile.2), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
                 }
                 for atom in &mut self.tile_widgets {
                     atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
@@ -471,6 +471,7 @@ impl EditorOptions for RegionOptions {
             1 => TileUsage::EnvRoad,
             2 => TileUsage::EnvBlocking,
             3 => TileUsage::Water,
+            4 => TileUsage::UIElement,
             _ => TileUsage::Environment,
         }
     }

@@ -563,6 +563,38 @@ impl Draw2D {
         }
     }
 
+    /// Draws the given region with the given offset into the rectangle
+    pub fn draw_region_content(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset) {
+        let left_offset = (rect.2 % tile_size) / 2;
+        let top_offset = (rect.3 % tile_size) / 2;
+
+        let mut x_tiles = (rect.2 / tile_size) as isize;
+        let mut y_tiles = (rect.3 / tile_size) as isize;
+
+        let region_width = region.data.max_pos.0 - region.data.min_pos.0 + 1;
+        let region_height = region.data.max_pos.1 - region.data.min_pos.1 + 1;
+
+        if region_width < x_tiles {
+            x_tiles = region_width;
+        }
+
+        if region_height < y_tiles {
+            y_tiles = region_height;
+        }
+
+        for y in 0..y_tiles {
+            for x in 0..x_tiles {
+                let values = region.get_value((x + region.data.min_pos.0, y + region.data.min_pos.1));
+                for value in values {
+                    let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
+
+                    let map = asset.get_map_of_id(value.0);
+                    self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
+                }
+            }
+        }
+    }
+
     /*
     /// Draws the given region centered at the given center and returns the top left offset into the region
     pub fn draw_region_centered_with_behavior(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), center: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {

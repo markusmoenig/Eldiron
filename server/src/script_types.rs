@@ -75,7 +75,8 @@ impl ScriptRGB {
 #[derive(PartialEq, Clone, Debug)]
 pub enum ScriptDrawCmd {
     DrawRect(ScriptRect, ScriptRGB),
-    DrawGame(ScriptRect),
+    DrawGame(ScriptRect, i64),
+    DrawRegion(String, ScriptRect, i64),
     DrawText(ScriptPosition, String, String, f32, ScriptRGB),
 }
 
@@ -101,8 +102,12 @@ impl ScriptDraw {
         self.commands.push(ScriptDrawCmd::DrawText(pos, font_name.to_owned(), text.to_owned(), size as f32, rgb));
     }
 
-    pub fn game(&mut self, rect: ScriptRect) {
-        self.commands.push(ScriptDrawCmd::DrawGame(rect));
+    pub fn game(&mut self, rect: ScriptRect, size: i64) {
+        self.commands.push(ScriptDrawCmd::DrawGame(rect, size));
+    }
+
+    pub fn region(&mut self, name: &str, rect: ScriptRect, size: i64) {
+        self.commands.push(ScriptDrawCmd::DrawRegion(name.to_owned(), rect, size));
     }
 
     pub fn clear(&mut self) {

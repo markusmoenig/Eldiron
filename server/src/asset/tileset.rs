@@ -23,6 +23,7 @@ pub enum TileUsage {
     Water,
     Effect,
     Icon,
+    UIElement,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -74,7 +75,7 @@ impl TileMap {
 
         // Gets the content of the settings file
         let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
-        let json_path = path::Path::new("assets").join("tilemaps").join( format!("{}{}", name, ".json"));
+        let json_path = path::Path::new(base_path).join("assets").join("tilemaps").join( format!("{}{}", name, ".json"));
         let contents = fs::read_to_string( json_path )
             .unwrap_or("".to_string());
 

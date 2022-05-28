@@ -1122,7 +1122,7 @@ impl EditorContent for NodeGraph  {
                 "Displace Tiles" => BehaviorNodeType::DisplaceTiles,
 
                 "Screen" => BehaviorNodeType::Screen,
-                "Widget" => BehaviorNodeType::Screen,
+                "Widget" => BehaviorNodeType::Widget,
 
                 _ => BehaviorNodeType::BehaviorTree
             };

@@ -124,37 +124,40 @@ impl GameData<'_> {
         let mut regions_ids = vec![];
 
         let region_path = path.join("game").join("regions");
-        if let Some(paths) = fs::read_dir(region_path).ok() {
 
-            for path in paths {
-                let path = &path.unwrap().path();
-                let md = metadata(path).unwrap();
+        let mut paths: Vec<_> = fs::read_dir(region_path).unwrap()
+                                                .map(|r| r.unwrap())
+                                                .collect();
+        paths.sort_by_key(|dir| dir.path());
 
-                if md.is_dir() {
-                    let mut region = GameRegion::new(path);
-                    regions_names.push(region.name.clone());
+        for path in paths {
+            let path = &path.path();
+            let md = metadata(path).unwrap();
 
-                    // Make sure we create a unique id (check if the id already exists in the set)
-                    let mut has_id_already = true;
-                    while has_id_already {
+            if md.is_dir() {
+                let mut region = GameRegion::new(path);
+                regions_names.push(region.name.clone());
 
-                        has_id_already = false;
-                        for (key, _value) in &regions {
-                            if key == &region.data.id {
-                                has_id_already = true;
-                            }
-                        }
+                // Make sure we create a unique id (check if the id already exists in the set)
+                let mut has_id_already = true;
+                while has_id_already {
 
-                        if has_id_already {
-                            region.data.id += 1;
+                    has_id_already = false;
+                    for (key, _value) in &regions {
+                        if key == &region.data.id {
+                            has_id_already = true;
                         }
                     }
 
-                    region.calc_dimensions();
-
-                    regions_ids.push(region.data.id);
-                    regions.insert(region.data.id, region);
+                    if has_id_already {
+                        region.data.id += 1;
+                    }
                 }
+
+                region.calc_dimensions();
+
+                regions_ids.push(region.data.id);
+                regions.insert(region.data.id, region);
             }
         }
 
@@ -539,6 +542,17 @@ impl GameData<'_> {
     pub fn set_region_value(&mut self, layer: usize, id: usize, pos: (isize, isize), value: (usize, usize, usize, TileUsage)) {
         let region = &mut self.regions.get_mut(&id).unwrap();
         region.set_value(layer, pos, value);
+    }
+
+    /// Get region by name
+    pub fn get_region_by_name(&self, name: &String) -> Option<&GameRegion> {
+
+        for (index, n) in self.regions_names.iter().enumerate() {
+            if n == name {
+                return self.regions.get(&index);
+            }
+        }
+        None
     }
 
     /// Create a new behavior
@@ -1324,7 +1338,7 @@ impl GameData<'_> {
                                                     draw2d.blend_text(game_frame, &pos.pos, stride, font, *size, text, &rgb.value);
                                                 }
                                             },
-                                            ScriptDrawCmd::DrawGame(rect) => {
+                                            ScriptDrawCmd::DrawGame(rect, size) => {
                                                 //draw2d.draw_rect(game_frame, &rect.rect, stride, &rgb.value);
 
                                                 let region_id = self.regions_ids[0];
@@ -1340,7 +1354,17 @@ impl GameData<'_> {
                                                         }
                                                     }
 
-                                                    _ = self.draw2d.as_ref().unwrap().draw_region_centered_with_instances(game_frame, region, &rect.rect, inst_index, stride, 32, self.game_anim_counter, &self.asset.as_ref().unwrap(), &self.instances);
+                                                    _ = self.draw2d.as_ref().unwrap().draw_region_centered_with_instances(game_frame, region, &rect.rect, inst_index, stride, *size as usize, self.game_anim_counter, &self.asset.as_ref().unwrap(), &self.instances);
+                                                }
+                                            },
+                                            ScriptDrawCmd::DrawRegion(name, rect, size) => {
+                                                for (index, n) in self.regions_names.iter().enumerate() {
+                                                    if n == name {
+                                                        if let Some(region) = self.regions.get(&self.regions_ids[index]) {
+
+                                                            _ = self.draw2d.as_ref().unwrap().draw_region_content(game_frame, region, &rect.rect, stride, *size as usize, self.game_anim_counter, &self.asset.as_ref().unwrap());
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -1406,6 +1430,7 @@ impl GameData<'_> {
         self.engine.register_type::<ScriptDraw>()
             .register_fn("rect", ScriptDraw::rect)
             .register_fn("game", ScriptDraw::game)
+            .register_fn("region", ScriptDraw::region)
             .register_fn("text", ScriptDraw::text);
 
         self.engine.register_type::<ScriptRect>()
