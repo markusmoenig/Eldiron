@@ -45,6 +45,7 @@ pub struct TileMapSettings {
 }
 
 pub struct TileMap {
+    pub base_path       : PathBuf,
     pub pixels          : Vec<u8>,
     pub file_path       : PathBuf,
     pub width           : usize,
@@ -53,7 +54,7 @@ pub struct TileMap {
 }
 
 impl TileMap {
-    fn new(file_name: &PathBuf) -> TileMap {
+    fn new(file_name: &PathBuf, base_path: &PathBuf) -> TileMap {
 
         fn load(file_name: &PathBuf) -> (Vec<u8>, u32, u32) {
 
@@ -82,6 +83,7 @@ impl TileMap {
             .unwrap_or(TileMapSettings { grid_size: 16, tiles: HashMap::new(), id: thread_rng().gen_range(1..=u32::MAX) as usize, default_tile: None } );
 
         TileMap {
+            base_path       : base_path.clone(),
             pixels          : info.0,
             file_path       : file_name.to_path_buf(),
             width           : info.1 as usize,
@@ -112,7 +114,7 @@ impl TileMap {
     /// Save the TileMapSettings to file
     pub fn save_settings(&self) {
         let name = path::Path::new(&self.file_path).file_stem().unwrap().to_str().unwrap();
-        let json_path = path::Path::new("assets").join("tilemaps").join( format!("{}{}", name, ".json"));
+        let json_path = self.base_path.join("assets").join("tilemaps").join( format!("{}{}", name, ".json"));
 
         let json = serde_json::to_string(&self.settings).unwrap();
         fs::write(json_path, json)
@@ -144,11 +146,11 @@ pub struct TileSet {
 
 impl TileSet {
 
-    pub fn load_from_path(path: PathBuf) -> TileSet {
+    pub fn load_from_path(base_path: PathBuf) -> TileSet {
 
         let mut maps : HashMap<usize, TileMap> = HashMap::new();
 
-        let tilemaps_path = path.join("assets").join("tilemaps");
+        let tilemaps_path = base_path.join("assets").join("tilemaps");
         //let paths = fs::read_dir(tilemaps_path).unwrap();
 
         let mut paths: Vec<_> = fs::read_dir(tilemaps_path).unwrap()
@@ -169,7 +171,7 @@ impl TileSet {
                 if let Some(name) = path::Path::new(&path).extension() {
                     if name == "png" || name == "PNG" {
 
-                        let mut tile_map = TileMap::new(&path);
+                        let mut tile_map = TileMap::new(&path, &base_path);
                         if tile_map.width != 0 {
                             maps_names.push(tile_map.get_name());
 
