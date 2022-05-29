@@ -394,10 +394,20 @@ impl ScreenWidget for Editor<'_> {
             } else
             if self.state == EditorState::RegionOverview {
                 if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
-                    println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
+                    //println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
 
-                    // TODO Create a new region
+                    if self.context.data.create_region(self.context.dialog_new_name.clone()) {
+                        let mut node = NodeWidget::new(vec![self.context.dialog_new_name.clone()],
+                        NodeUserData { position: (100, 50 + 150 * self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().len() as isize) });
 
+                        let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
+                        node.menu = Some(node_menu_atom);
+
+                        self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
+                        self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().set_dirty();
+                        self.toolbar.widgets[0].text = self.context.data.regions_names.clone();
+                        self.toolbar.widgets[0].dirty = true;
+                    }
                 } else {
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {

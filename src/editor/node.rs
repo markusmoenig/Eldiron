@@ -62,7 +62,7 @@ impl NodeWidget {
             is_corner_node      : false,
             is_variable_node    : false,
 
-            size                : (250, 120),
+            size                : (260, 120),
 
             clicked_id          : None,
 

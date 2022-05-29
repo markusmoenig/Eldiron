@@ -336,7 +336,7 @@ impl GameData<'_> {
         if game.behavior.data.nodes.is_empty() {
 
             game.behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
-            game.behavior.add_node(BehaviorNodeType::BehaviorTree, "Start".to_string());
+            game.behavior.add_node(BehaviorNodeType::BehaviorTree, "Game".to_string());
 
             game.save_data();
         }
@@ -361,6 +361,7 @@ impl GameData<'_> {
 
         nodes.insert(BehaviorNodeType::Screen, nodes_game::screen);
         nodes.insert(BehaviorNodeType::Widget, nodes_game::widget);
+        nodes.insert(BehaviorNodeType::Settings, nodes_game::settings);
 
         let mut engine = Engine::new();
 
@@ -409,8 +410,8 @@ impl GameData<'_> {
             game,
             game_instance_index     : None,
 
-            game_screen_width       : 0,
-            game_screen_height      : 0,
+            game_screen_width       : 800,
+            game_screen_height      : 600,
 
             game_anim_counter       : 0,
             game_frame              : vec![],
@@ -499,8 +500,8 @@ impl GameData<'_> {
             game,
             game_instance_index     : None,
 
-            game_screen_width       : 0,
-            game_screen_height      : 0,
+            game_screen_width       : 800,
+            game_screen_height      : 600,
 
             game_anim_counter       : 0,
             game_frame              : vec![],
@@ -558,7 +559,7 @@ impl GameData<'_> {
     /// Create a new behavior
     pub fn create_behavior(&mut self, name: String, _behavior_type: usize) {
 
-        let path = path::Path::new("game").join("behavior").join(name.clone() + ".json");
+        let path = self.path.join("game").join("behavior").join(name.clone() + ".json");
 
         let mut behavior = GameBehavior::load_from_path(&path);
         behavior.data.name = name.clone();
@@ -573,10 +574,31 @@ impl GameData<'_> {
         self.behaviors.insert(behavior.data.id, behavior);
     }
 
+    /// Create a new behavior
+    pub fn create_region(&mut self, name: String) -> bool {
+        let path = self.path.join("game").join("regions").join(name.clone());
+
+        if fs::create_dir(path.clone()).ok().is_some() {
+            let region = GameRegion::new(&path);
+
+            self.regions_names.push(region.name.clone());
+            self.regions_ids.push(region.data.id);
+
+            region.save_data();
+
+            self.regions.insert(region.data.id, region);
+
+            return true;
+        }
+
+        false
+    }
+
+
     /// Create a new system
     pub fn create_system(&mut self, name: String, _behavior_type: usize) {
 
-        let path = path::Path::new("game").join("systems").join(name.clone() + ".json");
+        let path = self.path.join("game").join("systems").join(name.clone() + ".json");
 
         let mut system = GameBehavior::load_from_path(&path);
         system.data.name = name.clone();
@@ -799,6 +821,17 @@ impl GameData<'_> {
 
         self.instances.push(instance);
         self.scopes.push(scope);
+
+        for tree_id in &to_execute {
+            // Execute this tree if it is a "Startup" Only tree
+
+            if let Some(value)= get_node_value((self.instances[index].behavior_id, *tree_id, "execute"), self, BehaviorType::GameLogic) {
+                if value.0 == 1.0 {
+                    println!("Foud");
+                    self.execute_game_node(index, tree_id.clone());
+                }
+            }
+        }
 
         return index;
     }
@@ -1290,8 +1323,6 @@ impl GameData<'_> {
         // Set game frame dimensions
         if let Some(size) = size {
 
-            self.game_screen_width = 800;//size.0;
-            self.game_screen_height = 600;//size.1;
             self.game_anim_counter = size.2;
 
             if self.game_frame.len() != self.game_screen_width * self.game_screen_height * 4 {

@@ -348,7 +348,7 @@ impl Draw2D {
         });
         layout.append(fonts, &TextStyle::new(text, size, 0));
 
-        let x = layout.glyphs()[layout.glyphs().len()-1].x as usize + layout.glyphs()[layout.glyphs().len()-1].width;
+        let x = layout.glyphs()[layout.glyphs().len()-1].x.ceil() as usize + layout.glyphs()[layout.glyphs().len()-1].width + 1;
         (x, layout.height() as usize)
     }
 

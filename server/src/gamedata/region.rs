@@ -47,17 +47,16 @@ pub struct GameRegion {
 
 impl GameRegion {
     pub fn new(path: &PathBuf) -> Self {
-
         let name = path::Path::new(&path).file_stem().unwrap().to_str().unwrap();
 
         // Gets the content of the settings file
-        let json_path = path.join( format!("{}{}", "level1", ".json"));
-        let contents = fs::read_to_string( json_path )
-            .unwrap_or("".to_string());
+        let region_path = path.join( format!("{}{}", "level1", ".json"));
 
-        // Construct the json settings
+        let contents = fs::read_to_string( region_path )
+                .unwrap_or("".to_string());
+
         let data = serde_json::from_str(&contents)
-            .unwrap_or(GameRegionData { layer1: HashMap::new(), layer2: HashMap::new(), layer3: HashMap::new(), layer4: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000), areas: vec![] });
+                .unwrap_or(GameRegionData { layer1: HashMap::new(), layer2: HashMap::new(), layer3: HashMap::new(), layer4: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000), areas: vec![] });
 
         // Read the behaviors
         let mut behaviors : Vec<GameBehavior> = vec![];
@@ -83,12 +82,12 @@ impl GameRegion {
         }
     }
 
-    /// Save the TileAreaData to file
+    /// Save the region to file
     pub fn save_data(&self) {
         let json_path = self.path.join( format!("{}{}", "level1", ".json"));
         if let Some(json) = serde_json::to_string(&self.data).ok() {
             fs::write(json_path, json)
-            .expect("Unable to write area file");
+            .expect("Unable to write region file");
         }
     }
 

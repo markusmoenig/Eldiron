@@ -130,7 +130,7 @@ impl EditorContent for NodeGraph  {
         if context.just_stopped_running {
             // If preview just stopped running, mark all variables as dirty (as they may have changed)
             for index in 0..self.nodes.len() {
-                if self.nodes[index].widgets.len() == 1 && self.nodes[index].widgets[0].atom_widget_type == AtomWidgetType::NodeIntButton {
+                if self.nodes[index].widgets.len() == 1 && self.nodes[index].widgets[0].atom_widget_type == AtomWidgetType::NodeNumberButton {
                     self.nodes[index].dirty = true;
                     self.nodes[index].widgets[0].dirty = true;
                     self.dirty = true;
@@ -1123,6 +1123,7 @@ impl EditorContent for NodeGraph  {
 
                 "Screen" => BehaviorNodeType::Screen,
                 "Widget" => BehaviorNodeType::Widget,
+                "Settings" => BehaviorNodeType::Settings,
 
                 _ => BehaviorNodeType::BehaviorTree
             };
@@ -1211,7 +1212,7 @@ impl EditorContent for NodeGraph  {
                 startup_atom.atom_data.text = "startup".to_string();
                 let id = (behavior_data.id, node_data.id, "startup".to_string());
                 startup_atom.behavior_id = Some(id.clone());
-                startup_atom.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Start".to_string()), self.graph_type);
+                startup_atom.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Game".to_string()), self.graph_type);
                 node_widget.widgets.push(startup_atom);
             }
             return;
@@ -1307,7 +1308,7 @@ impl EditorContent for NodeGraph  {
         } else
         if node_data.behavior_type == BehaviorNodeType::VariableNumber {
 
-            let mut atom1 = AtomWidget::new(vec!["Value".to_string()], AtomWidgetType::NodeIntButton,
+            let mut atom1 = AtomWidget::new(vec!["Value".to_string()], AtomWidgetType::NodeNumberButton,
             AtomData::new_as_int("value".to_string(), 0));
             atom1.atom_data.text = "Value".to_string();
             let id = (behavior_data.id, node_data.id, "value".to_string());
@@ -1577,6 +1578,19 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom3, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom4, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_data.behavior_type == BehaviorNodeType::Settings {
+            let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScriptButton,
+            AtomData::new_as_int("script".to_string(), 0));
+            atom1.atom_data.text = "Script".to_string();
+            let id = (behavior_data.id, node_data.id, "script".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "screen_width = 800;\nscreen_height = 600;".to_string()), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_data.behavior_type == BehaviorNodeType::Widget {
             let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScriptButton,

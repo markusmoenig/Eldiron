@@ -12,6 +12,7 @@ use crate::context::ScreenContext;
 pub enum DialogEntry {
     None,
     NodeNumber,
+    NodeSize2D,
     NodeExpression,
     NodeExpressionValue,
     NodeScript,
@@ -108,7 +109,10 @@ impl DialogWidget {
                 self.widgets[0].state = WidgetState::Normal;
                 self.widgets[1].state = WidgetState::Normal;
 
-                if context.dialog_entry == DialogEntry::NodeNumber {
+                if context.dialog_entry == DialogEntry::NodeNumber  {
+                    self.text = format!("{}", context.dialog_node_behavior_value.0);
+                } else
+                if context.dialog_entry == DialogEntry::NodeSize2D {
                     self.text = format!("{}", context.dialog_node_behavior_value.0);
                 } else
                 if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript || context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeGridSize || context.dialog_entry == DialogEntry::NodeName {
@@ -162,6 +166,25 @@ impl DialogWidget {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Number".to_string(), &context.color_white, &context.color_black);
 
                     if self.text.parse::<f64>().is_err() {
+                        border_color = context.color_red;
+                        self.widgets[1].state = WidgetState::Disabled;
+                    } else
+                    if self.widgets[1].state == WidgetState::Disabled {
+                        self.widgets[1].state = WidgetState::Normal;
+                    }
+                } else
+                if context.dialog_entry == DialogEntry::NodeSize2D {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Size".to_string(), &context.color_white, &context.color_black);
+
+                    let mut valid = false;
+                    let txt = self.text.split("x").collect::<Vec<&str>>();
+                    if txt.len() == 2 {
+                        if txt[0].parse::<f64>().is_ok() && txt[1].parse::<f64>().is_ok() {
+                            valid = true;
+                        }
+                    }
+
+                    if valid == false {
                         border_color = context.color_red;
                         self.widgets[1].state = WidgetState::Disabled;
                     } else
