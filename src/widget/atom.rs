@@ -63,6 +63,7 @@ pub enum AtomWidgetType {
     NodeCharTileButton,
     NodeEnvTileButton,
     NodeGridSizeButton,
+    NodeScreenButton,
     LargeButton,
     CheckButton,
     Button,
@@ -444,6 +445,18 @@ impl AtomWidget {
                         let center = (self.atom_data.data.1 as isize, self.atom_data.data.2 as isize);
                         context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &(4, 1, rect.2 - 8, rect.3 - 2), &center, rect.2, 14, 0, asset, context);
                     }
+                }
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodeScreenButton {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height * 3);
+
+                let border_color = if context.active_position_id == self.behavior_id { context.color_red } else { context.color_node_light_gray };
+
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &context.color_black, &context.node_button_rounding, &border_color, 1.5);
+
+                if self.clicked {
+                    context.draw2d.blend_rounded_rect(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &context.color_light_gray, &context.node_button_rounding);
                 }
             } else
             if self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton {
@@ -877,6 +890,12 @@ impl AtomWidget {
                     }
                 }
                 return true;
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodeScreenButton {
+                self.clicked = true;
+                self.state = WidgetState::Clicked;
+                self.dirty = true;
+                return true;
             }
         }
         false
@@ -905,6 +924,9 @@ impl AtomWidget {
                     self.new_selection = Some(self.curr_index);
                 }
                 self.atom_data.data.0 = self.curr_index as f64;
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodeScreenButton {
+                context.switch_editor_state = Some(crate::editor::EditorState::ScreenDetail);
             } else
             if self.atom_widget_type == AtomWidgetType::NodeNumberButton {
                 context.dialog_state = DialogState::Opening;
@@ -1207,6 +1229,9 @@ impl AtomWidget {
     pub fn get_height(&self, context: &ScreenContext) -> usize {
         if self.atom_widget_type == AtomWidgetType::NodePositionButton {
             return context.node_button_height * 2;
+        }
+        if self.atom_widget_type == AtomWidgetType::NodeScreenButton {
+            return context.node_button_height * 3;
         }
         context.node_button_height
     }
