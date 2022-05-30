@@ -247,7 +247,7 @@ impl ScreenWidget for Editor<'_> {
         // let start = self.get_time();
 
         // Playback
-        if self.context.is_running && self.context.is_debugging == false {
+        if self.context.is_running && self.context.is_debugging == false && self.context.data.game_frame.is_empty() == false {
 
             self.controlbar.draw(frame, anim_counter, asset, &mut self.context);
 
