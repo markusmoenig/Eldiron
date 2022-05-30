@@ -894,6 +894,16 @@ impl EditorContent for NodeGraph  {
                     } else
                     if "Delete".to_string() == menu_activated {
                         if self.nodes.len() > 1 {
+                            if self.graph_type == BehaviorType::Regions {
+                                self.nodes.remove(context.curr_region_index);
+                                context.data.delete_region(&context.curr_region_index);
+                                if let Some(toolbar) = toolbar {
+                                    toolbar.widgets[0].text = context.data.regions_names.clone();
+                                    toolbar.widgets[0].curr_index = 0;
+                                    toolbar.widgets[0].dirty = true;
+                                }
+                                context.curr_region_index = 0;
+                            } else
                             if self.graph_type == BehaviorType::Behaviors {
                                 self.nodes.remove(context.curr_behavior_index);
                                 context.data.delete_behavior(&context.curr_behavior_index);
@@ -944,8 +954,11 @@ impl EditorContent for NodeGraph  {
 
             if self.nodes[index].mouse_up(local, asset, context) {
                 self.dirty = true;
-                if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
-                    behavior.save_data();
+
+                if self.graph_type != BehaviorType::Regions {
+                    if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
+                        behavior.save_data();
+                    }
                 }
                 return true;
             }

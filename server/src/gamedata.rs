@@ -125,7 +125,7 @@ impl GameData<'_> {
 
         let region_path = path.join("game").join("regions");
 
-        let mut paths: Vec<_> = fs::read_dir(region_path).unwrap()
+        let mut paths: Vec<_> = fs::read_dir(region_path.clone()).unwrap()
                                                 .map(|r| r.unwrap())
                                                 .collect();
         paths.sort_by_key(|dir| dir.path());
@@ -135,7 +135,7 @@ impl GameData<'_> {
             let md = metadata(path).unwrap();
 
             if md.is_dir() {
-                let mut region = GameRegion::new(path);
+                let mut region = GameRegion::new(path, &region_path);
                 regions_names.push(region.name.clone());
 
                 // Make sure we create a unique id (check if the id already exists in the set)
@@ -579,7 +579,7 @@ impl GameData<'_> {
         let path = self.path.join("game").join("regions").join(name.clone());
 
         if fs::create_dir(path.clone()).ok().is_some() {
-            let region = GameRegion::new(&path);
+            let region = GameRegion::new(&path, &self.path.join("game").join("regions"));
 
             self.regions_names.push(region.name.clone());
             self.regions_ids.push(region.data.id);
@@ -841,6 +841,19 @@ impl GameData<'_> {
             return region.get_value((pos.1, pos.2));
         }
         vec![]
+    }
+
+    /// Delete the region of the given id
+    pub fn delete_region(&mut self, index: &usize) {
+        let id = self.regions_ids[*index].clone();
+
+        if let Some(region) = self.regions.get(&id) {
+            let _ = std::fs::remove_dir_all(region.path.clone());
+        }
+
+        self.regions_names.remove(*index);
+        self.regions_ids.remove(*index);
+        self.regions.remove(&id);
     }
 
     /// Delete the behavior of the given id

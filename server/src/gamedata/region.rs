@@ -40,19 +40,20 @@ pub struct GameRegionData {
 pub struct GameRegion {
     pub name            : String,
     pub path            : PathBuf,
+    pub region_path     : PathBuf,
     pub data            : GameRegionData,
     pub behaviors       : Vec<GameBehavior>,
     pub displacements   : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
 }
 
 impl GameRegion {
-    pub fn new(path: &PathBuf) -> Self {
+    pub fn new(path: &PathBuf, region_path: &PathBuf) -> Self {
         let name = path::Path::new(&path).file_stem().unwrap().to_str().unwrap();
 
         // Gets the content of the settings file
-        let region_path = path.join( format!("{}{}", "level1", ".json"));
+        let level1_path = path.join( format!("{}{}", "level1", ".json"));
 
-        let contents = fs::read_to_string( region_path )
+        let contents = fs::read_to_string( level1_path )
                 .unwrap_or("".to_string());
 
         let data = serde_json::from_str(&contents)
@@ -76,6 +77,7 @@ impl GameRegion {
         Self {
             name                : name.to_string(),
             path                : path.clone(),
+            region_path         : region_path.clone(),
             data,
             behaviors,
             displacements       : HashMap::new(),
@@ -259,4 +261,14 @@ impl GameRegion {
         }
         names
     }
+
+    /// Rename the region
+    pub fn rename(&mut self, name: String) {
+        self.name = name.clone();
+        if std::fs::rename(self.path.clone(), self.region_path.join(name.clone())).is_ok() {
+            _ = std::fs::remove_file(self.path.clone());
+            self.path = self.region_path.join(name);
+        }
+    }
+
 }

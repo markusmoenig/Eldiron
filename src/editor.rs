@@ -453,15 +453,21 @@ impl ScreenWidget for Editor<'_> {
                         self.toolbar.widgets[0].dirty = true;
                     }
                 } else {
-                    /*
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {
-                            if let Some(behavior) = self.context.data.behaviors.get_mut(&self.context.data.behaviors_ids[self.context.curr_behavior_index]) {
-                                behavior.rename(self.context.dialog_node_behavior_value.4.clone());
+                            if let Some(region) = self.context.data.regions.get_mut(&self.context.data.regions_ids[self.context.curr_region_index]) {
+                                self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_region_index].text[0] = self.context.dialog_node_behavior_value.4.clone();
+                                self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_region_index].dirty = true;
+                                self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().set_dirty();
+                                region.rename(self.context.dialog_node_behavior_value.4.clone());
+                                self.context.data.regions_names[self.context.curr_region_index] = self.context.dialog_node_behavior_value.4.clone();
+                                self.toolbar.widgets[0].text = self.context.data.regions_names.clone();
+                                self.toolbar.widgets[0].dirty = true;
                             }
                         }
-                    }*/
-                    self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
+                    } else {
+                        self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
+                    }
                 }
             } else
             if self.state == EditorState::RegionDetail && self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
@@ -1510,7 +1516,11 @@ impl ScreenWidget for Editor<'_> {
         let mut region_nodes = vec![];
         for (index, t) in context.data.regions_names.iter().enumerate() {
             let p = get_pos(index, width - left_width);
-            let node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: p});
+            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: p});
+
+            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
+            node.menu = Some(node_menu_atom);
+
             region_nodes.push(node);
         }
 
