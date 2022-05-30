@@ -294,7 +294,7 @@ impl NodeWidget {
     }
 
     /// Draw an overview node
-    pub fn draw_overview(&mut self, _frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool, preview_buffer: &[u8]) {
+    pub fn draw_overview(&mut self, _frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, selected: bool, preview_buffer: &[u8], preview_clicked: bool) {
 
         if self.buffer.is_empty() {
             self.buffer = vec![0;self.size.0 * self.size.1 * 4];
@@ -339,6 +339,10 @@ impl NodeWidget {
             }
 
             context.draw2d.blend_slice(buffer_frame, preview_buffer, &(10, 10, 100, 100), rect.2);
+
+            if preview_clicked {
+                context.draw2d.blend_rounded_rect(buffer_frame, &(0, 0, self.size.1, self.size.1), rect.2, &((self.size.1 - 1) as f64, (self.size.1 - 1) as f64), &context.color_light_gray, &(20.0, 20.0, 20.0, 20.0));
+            }
         }
         self.dirty = false;
     }

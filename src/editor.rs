@@ -57,8 +57,8 @@ use self::statusbar::StatusBar;
 
 use crate::editor::traits::{ EditorContent, GraphMode, EditorOptions };
 
-#[derive (PartialEq, Copy, Clone)]
-enum EditorState {
+#[derive (PartialEq, Copy, Clone, Debug)]
+pub enum EditorState {
     TilesOverview,
     TilesDetail,
     RegionOverview,
@@ -286,6 +286,50 @@ impl ScreenWidget for Editor<'_> {
         if self.project_to_load.is_some() {
             self.load_project(self.project_to_load.clone().unwrap(), asset);
             self.project_to_load = None;
+        }
+
+        // Do we need to switch to another state ?
+        if let Some(state) = self.context.switch_editor_state {
+            self.state = state;
+            self.context.switch_editor_state = None;
+
+            if state == EditorState::TilesDetail {
+                self.context.curr_graph_type = BehaviorType::Tiles;
+                self.content[EditorState::TilesDetail as usize].1.as_mut().unwrap().set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
+            } else
+            if state == EditorState::RegionDetail {
+                self.context.curr_graph_type = BehaviorType::Regions;
+
+                let index = EditorState::RegionDetail as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
+
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
+
+                    if let Some(mut el_content) = content {
+
+                        el_content.set_region_id(self.context.data.regions_ids[self.context.curr_region_index], &mut self.context, &mut options);
+                        content = Some(el_content);
+                    }
+                }
+                self.content.insert(index, (options, content));
+            } else
+            if state == EditorState::BehaviorDetail {
+                self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+
+                self.context.curr_graph_type = BehaviorType::Behaviors;
+                self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.behaviors_ids[self.context.curr_behavior_index] , &mut self.context);
+            } else
+            if state == EditorState::SystemsDetail {
+                self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+
+                self.context.curr_graph_type = BehaviorType::Systems;
+                self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
+            } else
+            if state == EditorState::ItemsDetail {
+            }
         }
 
         self.controlbar.draw(frame, anim_counter, asset, &mut self.context);

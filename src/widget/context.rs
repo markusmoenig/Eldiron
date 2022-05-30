@@ -1,14 +1,9 @@
 
-use crate::editor::codeeditorwidget::CodeEditorWidgetState;
+use crate::editor::{ codeeditorwidget::CodeEditorWidgetState, EditorState, dialog::{ DialogState, DialogEntry } };
 use crate::{draw2d::Draw2D};
-use server::gamedata::GameData;
-use crate::editor::dialog::{ DialogState, DialogEntry };
 use crate::TileUsage;
-
-use server::gamedata::behavior::BehaviorType;
-
+use server::gamedata::{ behavior::BehaviorType, GameData };
 use zeno::{Mask, Stroke};
-
 use directories::{ UserDirs };
 
 #[derive(PartialEq)]
@@ -29,6 +24,8 @@ pub struct ScreenContext<'a> {
     pub height                          : usize,
 
     pub data                            : GameData<'a>,
+
+    pub switch_editor_state             : Option<EditorState>,
 
     pub toolbar_height                  : usize,
     pub toolbar_button_height           : usize,
@@ -202,6 +199,7 @@ impl ScreenContext<'_> {
             width, height,
 
             data                        : GameData::new(),
+            switch_editor_state         : None,
 
             // Editor statics
             toolbar_height              : 44 * 2,

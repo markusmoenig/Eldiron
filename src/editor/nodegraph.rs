@@ -35,6 +35,7 @@ pub struct NodeGraph  {
     dest_conn                   : Option<(BehaviorNodeConnector,usize)>,
 
     pub clicked                 : bool,
+    overview_preview_clicked    : bool,
 
     pub preview                 : Option<NodePreviewWidget>,
     preview_drag_start          : (isize, isize),
@@ -66,6 +67,7 @@ impl EditorContent for NodeGraph  {
             drag_node_pos               : vec![],
 
             clicked                     : false,
+            overview_preview_clicked    : false,
 
             source_conn                 : None,
             dest_conn                   : None,
@@ -198,7 +200,7 @@ impl EditorContent for NodeGraph  {
                             }
                         }
 
-                        self.nodes[index].draw_overview(frame, anim_counter, asset, context, selected, &preview_buffer);
+                        self.nodes[index].draw_overview(frame, anim_counter, asset, context, selected, &preview_buffer, selected && self.overview_preview_clicked);
                     }
 
                     let rect= self.get_node_rect(index, true);
@@ -554,6 +556,7 @@ impl EditorContent for NodeGraph  {
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool {
 
+        self.overview_preview_clicked = false;
         let mut rc = false;
 
         // Clicked outside ?
@@ -579,14 +582,6 @@ impl EditorContent for NodeGraph  {
                             self.nodes[index].dirty = true;
                             self.dirty = true;
                             self.clicked = true;
-                        }
-
-                        // Test for click in preview area
-                        let dx = pos.0 as isize - rect.0;
-                        let dy = pos.1 as isize - rect.1;
-                        if dx >= 10 && dx <= 110 && dy >= 10 && dy <= 110 {
-                            //context.content_switch = 1;
-                            self.drag_indices = vec![];
                         }
                     }
                     if self.graph_type == BehaviorType::Regions {
@@ -637,6 +632,16 @@ impl EditorContent for NodeGraph  {
                                 atom.dirty = true;
                             }
                         }
+                    }
+
+                    // Test for click in preview area
+                    let dx = pos.0 as isize - rect.0;
+                    let dy = pos.1 as isize - rect.1;
+                    if dx >= 10 && dx <= 110 && dy >= 10 && dy <= 110 {
+                        self.overview_preview_clicked = true;
+                        self.drag_indices = vec![];
+                        self.nodes[index].dirty = true;
+                        self.dirty = true;
                     }
 
                     rc = true;
@@ -775,7 +780,42 @@ impl EditorContent for NodeGraph  {
         rc
     }
 
-    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool {
+
+
+        // Switch the editor state if an overview was clicked
+        if self.overview_preview_clicked {
+
+            let mut widget_index = 0;
+            if self.graph_type == BehaviorType::Tiles {
+                context.switch_editor_state = Some(super::EditorState::TilesDetail);
+                widget_index = 1;
+            } else
+            if self.graph_type == BehaviorType::Regions {
+                context.switch_editor_state = Some(super::EditorState::RegionDetail);
+                widget_index = 2;
+            } else
+            if self.graph_type == BehaviorType::Behaviors {
+                context.switch_editor_state = Some(super::EditorState::BehaviorDetail);
+                widget_index = 3;
+            } else
+            if self.graph_type == BehaviorType::Systems {
+                context.switch_editor_state = Some(super::EditorState::SystemsDetail);
+                widget_index = 4;
+            } else
+            if self.graph_type == BehaviorType::Items {
+                context.switch_editor_state = Some(super::EditorState::ItemsDetail);
+                widget_index = 5;
+            }
+
+            if let Some(toolbar) = toolbar {
+                toolbar.widgets[widget_index].selected = false;
+                toolbar.widgets[widget_index].right_selected = true;
+                toolbar.widgets[widget_index].dirty = true;
+            }
+        }
+
+        self.overview_preview_clicked = false;
 
         if self.drag_indices.is_empty() == false {
             context.target_fps = context.default_fps;

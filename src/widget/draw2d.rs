@@ -162,6 +162,41 @@ impl Draw2D {
         }
     }
 
+    /// Blends a rounded rect
+    pub fn blend_rounded_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, size: &(f64, f64), color: &[u8; 4], rounding: &(f64, f64, f64, f64)) {
+        let center = (rect.0 as f64 + size.0 / 2.0, rect.1 as f64 + size.1 / 2.0 + (rect.3 as f64 - size.1) / 2.0);
+        for y in rect.1..rect.1+rect.3 {
+            for x in rect.0..rect.0+rect.2 {
+                let i = x * 4 + y * stride * 4;
+
+                let p = (x as f64 - center.0, y as f64 - center.1);
+                let mut r : (f64, f64);
+
+                if p.0 > 0.0 {
+                    r = (rounding.0, rounding.1);
+                } else {
+                    r = (rounding.2, rounding.3);
+                }
+
+                if p.1 <= 0.0 {
+                    r.0 = r.1;
+                }
+
+                let q : (f64, f64) = (p.0.abs() - size.0 / 2.0 + r.0, p.1.abs() - size.1 / 2.0 + r.0);
+                let d = f64::min(f64::max(q.0, q.1), 0.0) + self.length((f64::max(q.0, 0.0), f64::max(q.1, 0.0))) - r.0;
+
+                if d < 0.0 {
+                    let t = self.fill_mask(d);
+
+                    let background = &[frame[i], frame[i+1], frame[i+2], 255];
+                    let mut mixed_color = self.mix_color(&background, &color, t * 0.5 * (color[3] as f64 / 255.0));
+                    mixed_color[3] = (mixed_color[3] as f64 * (color[3] as f64 / 255.0)) as u8;
+                    frame[i..i + 4].copy_from_slice(&mixed_color);
+                }
+            }
+        }
+    }
+
     /// Draws a rounded rect with a border
     pub fn draw_rounded_rect_with_border(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, size: &(f64, f64), color: &[u8; 4], rounding: &(f64, f64, f64, f64), border_color: &[u8; 4], border_size: f64) {
         let center = ((rect.0 as f64 + size.0 / 2.0).round(), (rect.1 as f64 + size.1 / 2.0 + (rect.3 as f64 - size.1) / 2.0).round());
