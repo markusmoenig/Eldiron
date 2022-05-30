@@ -158,11 +158,12 @@ pub struct GameBehaviorData {
 pub struct GameBehavior {
     pub name                    : String,
     pub path                    : PathBuf,
+    pub behavior_path           : PathBuf,
     pub data                    : GameBehaviorData,
 }
 
 impl GameBehavior {
-    pub fn load_from_path(path: &PathBuf) -> Self {
+    pub fn load_from_path(path: &PathBuf, behavior_path: &PathBuf) -> Self {
 
         let name = path::Path::new(&path).file_stem().unwrap().to_str().unwrap();
 
@@ -175,8 +176,9 @@ impl GameBehavior {
             .unwrap_or(GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None });
 
         Self {
-            name        : name.to_string(),
-            path        : path.clone(),
+            name            : name.to_string(),
+            path            : path.clone(),
+            behavior_path   : behavior_path.clone(),
             data,
         }
     }
@@ -184,9 +186,10 @@ impl GameBehavior {
     pub fn new() -> Self {
 
         Self {
-            name        : "name".to_string(),
-            path        : std::path::Path::new("").to_path_buf(),
-            data        : GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None }
+            name            : "name".to_string(),
+            path            : std::path::Path::new("").to_path_buf(),
+            behavior_path   : std::path::Path::new("").to_path_buf(),
+            data            : GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None }
         }
     }
 
@@ -234,9 +237,12 @@ impl GameBehavior {
     }
 
     /// Rename the behavior
-    pub fn rename(&mut self, name: String, path: String) {
+    pub fn rename(&mut self, name: String) {
         self.name = name.clone();
-        let _ = std::fs::rename(self.path.clone(), path::Path::new("game").join(path).join(name + ".json"));
+        if std::fs::rename(self.path.clone(), self.behavior_path.join(name.clone() + ".json")).is_ok() {
+            _ = std::fs::remove_file(self.path.clone());
+            self.path = self.behavior_path.join(name + ".json");
+        }
     }
 
     /// Get the names of the behavior tree nodes.

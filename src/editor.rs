@@ -453,13 +453,14 @@ impl ScreenWidget for Editor<'_> {
                         self.toolbar.widgets[0].dirty = true;
                     }
                 } else {
+                    /*
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {
                             if let Some(behavior) = self.context.data.behaviors.get_mut(&self.context.data.behaviors_ids[self.context.curr_behavior_index]) {
-                                behavior.rename(self.context.dialog_node_behavior_value.4.clone(), "behavior".to_string());
+                                behavior.rename(self.context.dialog_node_behavior_value.4.clone());
                             }
                         }
-                    }
+                    }*/
                     self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
                 }
             } else
@@ -547,11 +548,18 @@ impl ScreenWidget for Editor<'_> {
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {
                             if let Some(behavior) = self.context.data.behaviors.get_mut(&self.context.data.behaviors_ids[self.context.curr_behavior_index]) {
-                                behavior.rename(self.context.dialog_node_behavior_value.4.clone(), "behavior".to_string());
+                                self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_behavior_index].text[0] = self.context.dialog_node_behavior_value.4.clone();
+                                self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_behavior_index].dirty = true;
+                                self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().set_dirty();
+                                behavior.rename(self.context.dialog_node_behavior_value.4.clone());
+                                self.context.data.behaviors_names[self.context.curr_behavior_index] = self.context.dialog_node_behavior_value.4.clone();
+                                self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
+                                self.toolbar.widgets[0].dirty = true;
                             }
                         }
+                    } else {
+                        self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
                     }
-                    self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
                 }
             } else
             if self.state == EditorState::SystemsOverview {
@@ -573,7 +581,13 @@ impl ScreenWidget for Editor<'_> {
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {
                             if let Some(system) = self.context.data.systems.get_mut(&self.context.data.systems_ids[self.context.curr_systems_index]) {
-                                system.rename(self.context.dialog_node_behavior_value.4.clone(), "systems".to_string());
+                                self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_systems_index].text[0] = self.context.dialog_node_behavior_value.4.clone();
+                                self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_systems_index].dirty = true;
+                                self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().set_dirty();
+                                system.rename(self.context.dialog_node_behavior_value.4.clone());
+                                self.context.data.systems_names[self.context.curr_systems_index] = self.context.dialog_node_behavior_value.4.clone();
+                                self.toolbar.widgets[0].text = self.context.data.systems_names.clone();
+                                self.toolbar.widgets[0].dirty = true;
                             }
                         }
                     }

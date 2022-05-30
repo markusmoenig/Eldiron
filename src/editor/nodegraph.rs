@@ -897,10 +897,22 @@ impl EditorContent for NodeGraph  {
                             if self.graph_type == BehaviorType::Behaviors {
                                 self.nodes.remove(context.curr_behavior_index);
                                 context.data.delete_behavior(&context.curr_behavior_index);
+                                if let Some(toolbar) = toolbar {
+                                    toolbar.widgets[0].text = context.data.behaviors_names.clone();
+                                    toolbar.widgets[0].curr_index = 0;
+                                    toolbar.widgets[0].dirty = true;
+                                }
+                                context.curr_behavior_index = 0;
                             } else
                             if self.graph_type == BehaviorType::Systems {
                                 self.nodes.remove(context.curr_systems_index);
                                 context.data.delete_system(&context.curr_systems_index);
+                                if let Some(toolbar) = toolbar {
+                                    toolbar.widgets[0].text = context.data.systems_names.clone();
+                                    toolbar.widgets[0].curr_index = 0;
+                                    toolbar.widgets[0].dirty = true;
+                                }
+                                context.curr_systems_index = 0;
                             }
                             self.nodes[0].dirty = true;
                         }

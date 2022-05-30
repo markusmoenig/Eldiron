@@ -178,7 +178,7 @@ impl GameData<'_> {
         let mut behaviors_ids = vec![];
 
         let behavior_path = path.join("game").join("characters");
-        if let Some(paths) = fs::read_dir(behavior_path).ok() {
+        if let Some(paths) = fs::read_dir(behavior_path.clone()).ok() {
 
             for path in paths {
                 let path = &path.unwrap().path();
@@ -187,7 +187,7 @@ impl GameData<'_> {
                 if md.is_file() {
                     if let Some(name) = path::Path::new(&path).extension() {
                         if name == "json" || name == "JSON" {
-                            let mut behavior = GameBehavior::load_from_path(path);
+                            let mut behavior = GameBehavior::load_from_path(path, &behavior_path);
                             behaviors_names.push(behavior.name.clone());
 
                             // Make sure we create a unique id (check if the id already exists in the set)
@@ -241,7 +241,7 @@ impl GameData<'_> {
         let mut systems_ids = vec![];
 
         let systems_path = path.join("game").join("systems");
-        if let Some(paths) = fs::read_dir(systems_path).ok() {
+        if let Some(paths) = fs::read_dir(systems_path.clone()).ok() {
 
             for path in paths {
                 let path = &path.unwrap().path();
@@ -250,7 +250,7 @@ impl GameData<'_> {
                 if md.is_file() {
                     if let Some(name) = path::Path::new(&path).extension() {
                         if name == "json" || name == "JSON" {
-                            let mut system = GameBehavior::load_from_path(path);
+                            let mut system = GameBehavior::load_from_path(path, &systems_path);
                             systems_names.push(system.name.clone());
 
                             // Make sure we create a unique id (check if the id already exists in the set)
@@ -289,7 +289,7 @@ impl GameData<'_> {
         let mut items_ids = vec![];
 
         let item_path = path.join("game").join("items");
-        if let Some(paths) = fs::read_dir(item_path).ok() {
+        if let Some(paths) = fs::read_dir(item_path.clone()).ok() {
 
             for path in paths {
                 let path = &path.unwrap().path();
@@ -298,7 +298,7 @@ impl GameData<'_> {
                 if md.is_file() {
                     if let Some(name) = path::Path::new(&path).extension() {
                         if name == "json" || name == "JSON" {
-                            let mut item = GameBehavior::load_from_path(path);
+                            let mut item = GameBehavior::load_from_path(path, &item_path);
                             items_names.push(item.name.clone());
 
                             // Make sure we create a unique id (check if the id already exists in the set)
@@ -561,7 +561,7 @@ impl GameData<'_> {
 
         let path = self.path.join("game").join("behavior").join(name.clone() + ".json");
 
-        let mut behavior = GameBehavior::load_from_path(&path);
+        let mut behavior = GameBehavior::load_from_path(&path, &self.path.join("game").join("behavior"));
         behavior.data.name = name.clone();
 
         self.behaviors_names.push(behavior.name.clone());
@@ -600,7 +600,7 @@ impl GameData<'_> {
 
         let path = self.path.join("game").join("systems").join(name.clone() + ".json");
 
-        let mut system = GameBehavior::load_from_path(&path);
+        let mut system = GameBehavior::load_from_path(&path, &self.path.join("game").join("systems"));
         system.data.name = name.clone();
 
         self.systems_names.push(system.name.clone());
@@ -827,7 +827,6 @@ impl GameData<'_> {
 
             if let Some(value)= get_node_value((self.instances[index].behavior_id, *tree_id, "execute"), self, BehaviorType::GameLogic) {
                 if value.0 == 1.0 {
-                    println!("Foud");
                     self.execute_game_node(index, tree_id.clone());
                 }
             }

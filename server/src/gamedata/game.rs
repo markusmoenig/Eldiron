@@ -17,7 +17,7 @@ impl Game {
     pub fn load_from_path(path: &PathBuf) -> Self {
 
         let json_path = path.join("game").join( format!("{}{}", "game", ".json"));
-        let behavior = GameBehavior::load_from_path(&json_path);
+        let behavior = GameBehavior::load_from_path(&json_path, &path.join("game"));
 
         Self {
             path                : path.clone(),
