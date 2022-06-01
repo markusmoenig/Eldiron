@@ -70,18 +70,22 @@ impl EditorContent for ScreenEditor {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &[0,0,0,255]);
 
         if let Some(options) = options {
+
+            let grid_size = self.grid_size;
+            let mut rect = self.rect.clone();
+
+            let left_offset = (rect.2 % grid_size) / 2;
+            let top_offset = (rect.3 % grid_size) / 2;
+
+            self.screen_offset = (left_offset, top_offset);
+
+            /*
             let editor_mode = options.get_editor_mode();
 
             let mut rect = self.rect.clone();
             if editor_mode != RegionEditorMode::Areas {
                 rect.3 -= 250;
             }
-            let grid_size = self.grid_size;
-
-            let left_offset = (rect.2 % grid_size) / 2;
-            let top_offset = (rect.3 % grid_size) / 2;
-
-            self.screen_offset = (left_offset, top_offset);
 
             if let Some(region) = context.data.regions.get(&self.region_id) {
 
@@ -144,7 +148,7 @@ impl EditorContent for ScreenEditor {
                         }
                     }
                 }
-            }
+            }*/
 
             if self.mouse_hover_pos != (0,0) {
                 if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {

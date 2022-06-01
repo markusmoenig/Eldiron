@@ -79,6 +79,13 @@ pub trait EditorOptions {
 
     /// Sets the area names
     fn set_area_names(&mut self, names: Vec<String>) {}
+
+
+    // For ScreenOptions
+
+    /// Returns the current region editor mode
+    fn get_screen_editor_mode(&self) -> super::screeneditor_options::ScreenEditorMode { super::screeneditor_options::ScreenEditorMode::Widgets }
+
 }
 
 #[derive(PartialEq)]
