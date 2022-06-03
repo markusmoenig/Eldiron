@@ -17,6 +17,12 @@ pub enum ScreenEditorMode {
     Tiles,
 }
 
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
+pub enum ScreenEditorAction {
+    Add,
+    Select,
+}
+
 pub struct ScreenEditorOptions {
     rect                    : (usize, usize, usize, usize),
     pub widgets             : Vec<AtomWidget>,
@@ -115,19 +121,18 @@ impl EditorOptions for ScreenEditorOptions {
 
         let mode = self.get_screen_editor_mode();
 
-        println!("draw {:?}", mode);
-        if mode == ScreenEditorMode::Widgets {
+        if mode.0 == ScreenEditorMode::Widgets {
             for atom in &mut self.widget_widgets {
                 atom.draw(frame, context.width, anim_counter, asset, context);
             }
         } else
-        if mode == ScreenEditorMode::Tiles {
+        if mode.0 == ScreenEditorMode::Tiles {
             for atom in &mut self.tile_widgets {
                 atom.draw(frame, context.width, anim_counter, asset, context);
             }
         }
 
-        if mode == ScreenEditorMode::Widgets {
+        if mode.0 == ScreenEditorMode::Widgets {
 
             if let Some(content) = content {
                 /*
@@ -141,7 +146,7 @@ impl EditorOptions for ScreenEditorOptions {
                 }
             }
         } else
-        if mode == ScreenEditorMode::Tiles {
+        if mode.0 == ScreenEditorMode::Tiles {
             for atom in &mut self.tile_widgets {
                 atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
             }
@@ -158,7 +163,7 @@ impl EditorOptions for ScreenEditorOptions {
 
         let mode = self.get_screen_editor_mode();
 
-        if mode == ScreenEditorMode::Widgets {
+        if mode.0 == ScreenEditorMode::Widgets {
             for atom in &mut self.tile_widgets {
                 if atom.mouse_down(pos, asset, context) {
                     if let Some(content) = content {
@@ -181,7 +186,7 @@ impl EditorOptions for ScreenEditorOptions {
                 }
             }
         } else
-        if mode == ScreenEditorMode::Tiles {
+        if mode.0 == ScreenEditorMode::Tiles {
             for atom in &mut self.tile_widgets {
                 if atom.mouse_down(pos, asset, context) {
                     return true;
@@ -225,13 +230,15 @@ impl EditorOptions for ScreenEditorOptions {
     }
 
     /// Returns the current editor mode
-    fn get_screen_editor_mode(&self) -> ScreenEditorMode {
+    fn get_screen_editor_mode(&self) -> (ScreenEditorMode, ScreenEditorAction) {
         let mode = self.widgets[0].curr_item_index;
 
-        match mode {
+        let mode = match mode {
             1 => ScreenEditorMode::Tiles,
             _ => ScreenEditorMode::Widgets
-        }
+        };
+
+        (mode, ScreenEditorAction::Add)
     }
 
 }

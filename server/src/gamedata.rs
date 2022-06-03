@@ -6,6 +6,7 @@ pub mod nodes_area;
 pub mod nodes_game;
 pub mod script;
 pub mod game;
+pub mod game_screen;
 
 use rhai::{ Engine, Scope, AST };
 

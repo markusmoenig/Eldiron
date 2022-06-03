@@ -84,7 +84,7 @@ pub trait EditorOptions {
     // For ScreenOptions
 
     /// Returns the current region editor mode
-    fn get_screen_editor_mode(&self) -> super::screeneditor_options::ScreenEditorMode { super::screeneditor_options::ScreenEditorMode::Widgets }
+    fn get_screen_editor_mode(&self) -> (super::screeneditor_options::ScreenEditorMode, super::screeneditor_options::ScreenEditorAction) { (super::screeneditor_options::ScreenEditorMode::Widgets, super::screeneditor_options::ScreenEditorAction::Add) }
 
 }
 

@@ -1,5 +1,7 @@
 use server::asset::{ Asset };
 use server::asset::tileset::TileUsage;
+use server::gamedata::game_screen::{GameScreen, GameScreenWidget, GameScreenWidgetType};
+use server::draw2d::Draw2D;
 
 use crate::widget::context::ScreenContext;
 use crate::editor::{ TileSelectorWidget };
@@ -9,6 +11,8 @@ use crate::editor::{ EditorOptions, EditorContent };
 use crate::editor::regionoptions::RegionEditorMode;
 
 use crate::editor::ToolBar;
+
+use super::screeneditor_options::{ScreenEditorMode, ScreenEditorAction};
 
 pub struct ScreenEditor {
     pub rect                : (usize, usize, usize, usize),
@@ -25,6 +29,11 @@ pub struct ScreenEditor {
 
     mouse_hover_pos         : (usize, usize),
     pub clicked             : Option<(isize, isize)>,
+
+    widget_start            : Option<(isize, isize)>,
+    widget_end              : Option<(isize, isize)>,
+
+    game_screen             : GameScreen,
 
     selector_size           : usize,
 }
@@ -54,6 +63,11 @@ impl EditorContent for ScreenEditor {
             mouse_hover_pos         : (0, 0),
             clicked                 : None,
 
+            widget_start            : None,
+            widget_end              : None,
+
+            game_screen             : GameScreen::new(),
+
             selector_size           : 250,
         }
     }
@@ -72,12 +86,58 @@ impl EditorContent for ScreenEditor {
         if let Some(options) = options {
 
             let grid_size = self.grid_size;
-            let mut rect = self.rect.clone();
+            let rect = self.rect.clone();
 
             let left_offset = (rect.2 % grid_size) / 2;
             let top_offset = (rect.3 % grid_size) / 2;
 
             self.screen_offset = (left_offset, top_offset);
+
+            let x_tiles = (rect.2 / grid_size) as isize;
+            let y_tiles = (rect.3 / grid_size) as isize;
+
+            if context.data.draw2d.is_none() {
+                context.data.draw2d = Some(server::draw2d::Draw2D{});
+            }
+            if context.data.asset.is_none() {
+                context.data.asset = Some(Asset::new());
+                context.data.asset.as_mut().unwrap().load_from_path(context.data.path.clone());
+            }
+
+            for w in &mut self.game_screen.widgets {
+
+                w.draw(frame, (rect.0 + left_offset, rect.1 + top_offset, rect.2 - left_offset * 2, rect.3 - top_offset * 2), context.width, self.offset, anim_counter, grid_size, &mut context.data);
+            }
+
+            for y in 0..y_tiles {
+                for x in 0..x_tiles {
+
+                    let cx = x - self.offset.0;
+                    let cy = y - self.offset.1;
+
+                    if let Some(widget_start) = self.widget_start {
+                        if let Some(widget_end) = self.widget_end {
+
+                            if  cy >= widget_start.1 && cx >= widget_start.0 { // >=
+                                if  cy <= widget_end.1 && cx <= widget_end.0 { // <=
+                                    let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
+
+                                    context.draw2d.draw_rect(frame, &(pos.0, pos.1, grid_size, grid_size), context.width, &context.color_white);
+                                }
+                            }
+                        }
+                    }
+                    // let values = region.get_value((x - self.offset.0, y - self.offset.1));
+
+                    // if values.is_empty() == false {
+                    //     let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
+                    //     for value in values {
+                    //         let map = asset.get_map_of_id(value.0);
+                    //         context.draw2d.draw_animated_tile(frame, &pos, map,context.width,&(value.1, value.2), anim_counter, grid_size);
+                    //     }
+                    // }
+                }
+            }
 
             /*
             let editor_mode = options.get_editor_mode();
@@ -166,6 +226,25 @@ impl EditorContent for ScreenEditor {
 
         let mut consumed = false;
 
+        self.widget_start = None;
+        self.widget_end = None;
+
+        if let Some(options) = options {
+
+            let mode = options.get_screen_editor_mode();
+
+            if mode.0 == ScreenEditorMode::Widgets {
+                if mode.1 == ScreenEditorAction::Add {
+                    if let Some(id) = self.get_tile_id(pos) {
+                        //println!("{:?}", id);
+                        self.widget_start = Some(id);
+                        self.widget_end = Some(id);
+                    }
+                }
+            }
+        }
+
+        /*
         if let Some(options) = options {
             let editor_mode = options.get_editor_mode();
 
@@ -207,18 +286,36 @@ impl EditorContent for ScreenEditor {
                 }
                 consumed = true;
             }
-        }
+        }*/
         consumed
     }
 
-    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
         self.clicked = None;
 
         let consumed = false;
 
-        // if let Some(options) = options {
-        //     let editor_mode = options.get_editor_mode();
-        // }
+        if let Some(options) = options {
+            //let editor_mode = options.get_editor_mode();
+
+            let mode = options.get_screen_editor_mode();
+
+            if mode.0 == ScreenEditorMode::Widgets {
+                if mode.1 == ScreenEditorAction::Add {
+
+                    if let Some(widget_start) = self.widget_start {
+                        if let Some(widget_end) = self.widget_end {
+
+                            let widget = GameScreenWidget { name: "New Widget".to_string(), widget_type: server::gamedata::game_screen::GameScreenWidgetType::Game, top_left: widget_start, bottom_right: widget_end };
+                            self.game_screen.widgets.push(widget);
+                        }
+                    }
+                }
+            }
+        }
+
+        self.widget_start = None;
+        self.widget_end = None;
 
         consumed
     }
@@ -235,6 +332,25 @@ impl EditorContent for ScreenEditor {
         if let Some(options) = options {
             //let editor_mode = options.get_editor_mode();
 
+            let mode = options.get_screen_editor_mode();
+
+            if mode.0 == ScreenEditorMode::Widgets {
+                if mode.1 == ScreenEditorAction::Add {
+
+                    if let Some(id) = self.get_tile_id(pos) {
+
+                        if let Some(widget_start) = self.widget_start {
+
+                            if id.0 >= widget_start.0 && id.1 >= widget_start.1 {
+                                self.widget_end = Some(id);
+                                consumed = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            /*
             if consumed == false && context.contains_pos_for(pos, self.rect) {
                 if let Some(id) = self.get_tile_id(pos) {
                     if self.clicked != Some(id) {
@@ -251,12 +367,10 @@ impl EditorContent for ScreenEditor {
                             }
                         }
                     }
-                }
+                }*/
 
-                consumed = true;
-            }
+
         }
-
         consumed
     }
 
