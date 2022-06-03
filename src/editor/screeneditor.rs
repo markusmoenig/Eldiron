@@ -96,14 +96,6 @@ impl EditorContent for ScreenEditor {
             let x_tiles = (rect.2 / grid_size) as isize;
             let y_tiles = (rect.3 / grid_size) as isize;
 
-            if context.data.draw2d.is_none() {
-                context.data.draw2d = Some(server::draw2d::Draw2D{});
-            }
-            if context.data.asset.is_none() {
-                context.data.asset = Some(Asset::new());
-                context.data.asset.as_mut().unwrap().load_from_path(context.data.path.clone());
-            }
-
             for w in &mut self.game_screen.widgets {
 
                 w.draw(frame, (rect.0 + left_offset, rect.1 + top_offset, rect.2 - left_offset * 2, rect.3 - top_offset * 2), context.width, self.offset, anim_counter, grid_size, &mut context.data);
@@ -438,6 +430,23 @@ impl EditorContent for ScreenEditor {
     /// Returns the region_id
     fn get_region_id(&self) -> usize {
         self.region_id
+    }
+
+    fn opening(&mut self, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
+        println!("opening");
+
+        if context.is_running == false {
+            context.data.startup_client();
+        }
+
+    }
+
+    fn closing(&mut self, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
+        println!("closing");
+
+        if context.is_running == false {
+            context.data.shutdown_client();
+        }
     }
 
 }

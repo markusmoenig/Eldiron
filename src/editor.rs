@@ -226,6 +226,7 @@ impl ScreenWidget for Editor<'_> {
             return self.code_editor.key_down(char, key, asset, &mut self.context);
         } else
         if self.state == EditorState::ScreenDetail && key == Some(WidgetKey::Escape) {
+            self.content_state_is_changing(self.state, asset, true);
             self.state = EditorState::GameDetail;
             return true;
         }
@@ -298,6 +299,13 @@ impl ScreenWidget for Editor<'_> {
 
         // Do we need to switch to another state ?
         if let Some(state) = self.context.switch_editor_state {
+
+            if state != self.state {
+
+                self.content_state_is_changing(state, asset, false);
+                self.content_state_is_changing(self.state, asset, true);
+            }
+
             self.state = state;
             self.context.switch_editor_state = None;
 
@@ -1187,6 +1195,28 @@ impl ScreenWidget for Editor<'_> {
 
     fn get_target_fps(&self) -> usize {
         self.context.target_fps
+    }
+
+    fn content_state_is_changing(&mut self, state: EditorState, asset: &mut Asset, closing: bool) {
+        let index = state as usize;
+        let mut options : Option<Box<dyn EditorOptions>> = None;
+        let mut content : Option<Box<dyn EditorContent>> = None;
+
+        if let Some(element) = self.content.drain(index..index+1).next() {
+            options = element.0;
+            content = element.1;
+
+            if let Some(mut el_content) = content {
+
+                if closing == false {
+                    el_content.opening(asset, &mut self.context, &mut options);
+                } else {
+                    el_content.closing(asset, &mut self.context, &mut options);
+                }
+                content = Some(el_content);
+            }
+        }
+        self.content.insert(index, (options, content));
     }
 
     /// Loads the project from the given path

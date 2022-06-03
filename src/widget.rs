@@ -75,6 +75,9 @@ pub trait ScreenWidget {
     }
 
     fn get_target_fps(&self) -> usize;
+
+    fn content_state_is_changing(&mut self, state: crate::editor::EditorState, asset: &mut Asset, closing: bool) {}
+
 }
 
 // General purpose widgets

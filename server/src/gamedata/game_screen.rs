@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::{Draw2D, GameData, behavior::BehaviorNodeType};
+use super::{ GameData };
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
 pub enum GameScreenWidgetType {
@@ -45,91 +45,30 @@ impl GameScreenWidget {
 
             if self.widget_type == GameScreenWidgetType::Game {
 
-                if data.instances.is_empty() {
+                let index = data.player_ids_inst_indices.get(&131313);
+                if let Some(player_index) = index {
 
-                    // Show the Player behavior location if the game is not running
+                    if let Some(position) = data.instances[*player_index].position {
 
-                    let mut player_id : Option<usize> = None;
-                    for (index, name) in data.behaviors_names.iter().enumerate() {
-                        if name == "Player" {
-                            player_id = Some(data.behaviors_ids[index]);
-                        }
-                    }
+                        if let Some(region) = data.regions.get(&position.0) {
+                            let mut grid_offset : (isize, isize) = (-width / 2, -height / 2);
 
-                    if let Some(player_id) = player_id {
+                            for y in sy..sy+height {
+                                for x in sx..sx+width {
+                                    let pos = (rect.0 + ((x - offset.0) as usize) * grid_size, rect.1 + ((y - offset.1) as usize) * grid_size);
+                                    if pos.0 >= rect.0 && pos.1 >= rect.1 && pos.0 + grid_size < rect.0 + rect.2 && pos.1 + grid_size < rect.1 + rect.3 {
+                                        let values = region.get_value((position.1 + grid_offset.0, position.2 + grid_offset.1));
 
-                        let mut position : Option<(usize, isize, isize)> = None;
-                        let mut tile     : Option<(usize, usize, usize)> = None;
-
-                        if let Some(behavior) = data.behaviors.get_mut(&player_id) {
-                            for (id, node) in &behavior.data.nodes {
-                                if node.behavior_type == BehaviorNodeType::BehaviorType {
-                                    if let Some(value )= node.values.get(&"position".to_string()) {
-                                        position = Some((value.0 as usize, value.1 as isize, value.2 as isize));
-                                    }
-                                    if let Some(value )= node.values.get(&"tile".to_string()) {
-                                        tile = Some((value.0 as usize, value.1 as usize, value.2 as usize));
-                                    }
-                                }
-                            }
-                        }
-
-                        if let Some(position) = position {
-
-                            if let Some(region) = data.regions.get(&position.0) {
-                                let mut grid_offset : (isize, isize) = (-width / 2, -height / 2);
-
-                                for y in sy..sy+height {
-                                    for x in sx..sx+width {
-                                        let pos = (rect.0 + ((x - offset.0) as usize) * grid_size, rect.1 + ((y - offset.1) as usize) * grid_size);
-                                        if pos.0 >= rect.0 && pos.1 >= rect.1 && pos.0 + grid_size < rect.0 + rect.2 && pos.1 + grid_size < rect.1 + rect.3 {
-                                            let values = region.get_value((position.1 + grid_offset.0, position.2 + grid_offset.1));
-
-                                            for value in values {
-                                                let map = data.asset.as_ref().unwrap().get_map_of_id(value.0);
-                                                draw2d.draw_animated_tile(&mut frame[..], &pos, map, stride, &(value.1, value.2), anim_counter, grid_size);
-                                            }
-                                        }
-
-                                        grid_offset.0 += 1;
-                                    }
-                                    grid_offset.0 = - width / 2;
-                                    grid_offset.1 += 1;
-                                }
-
-                                // Draw Behaviors
-                                /*
-                                for (id, _behavior) in &data.behaviors {
-                                    if let Some(position) = data.get_behavior_default_position(*id) {
-                                        // In the same region ?
-                                        if position.0 == region.data.id {
-
-                                            // Row check
-                                            if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
-                                                // Column check
-                                                if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
-                                                    // Visible
-                                                    if let Some(tile) = data.get_behavior_default_tile(*id) {
-
-                                                        let pos = (rect.0 + left_offset + ((position.1 - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.2 - offset.1) as usize) * tile_size);
-
-                                                        let map = asset.get_map_of_id(tile.0);
-                                                        self.draw_animated_tile(frame, &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size);
-                                                    }
-                                                }
-                                            }
+                                        for value in values {
+                                            let map = data.asset.as_ref().unwrap().get_map_of_id(value.0);
+                                            draw2d.draw_animated_tile(&mut frame[..], &pos, map, stride, &(value.1, value.2), anim_counter, grid_size);
                                         }
                                     }
-                                }*/
-                            }
-                        }
-                    }
-                } else {
-                    for y in sy..sy+height {
-                        for x in sx..sx+width {
-                            let pos = (rect.0 + ((x - offset.0) as usize) * grid_size, rect.1 + ((y - offset.1) as usize) * grid_size);
-                            if pos.0 >= rect.0 && pos.1 >= rect.1 && pos.0 + grid_size < rect.0 + rect.2 && pos.1 + grid_size < rect.1 + rect.3 {
-                                draw2d.draw_rect(frame, &(pos.0, pos.1, grid_size, grid_size), stride, &[255, 0, 0, 255]);
+
+                                    grid_offset.0 += 1;
+                                }
+                                grid_offset.0 = - width / 2;
+                                grid_offset.1 += 1;
                             }
                         }
                     }

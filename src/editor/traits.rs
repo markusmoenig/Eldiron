@@ -113,6 +113,10 @@ pub trait EditorContent {
 
     fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool { false }
 
+    fn opening(&mut self, _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {}
+
+    fn closing(&mut self, _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) { }
+
 
     // For TileMapWidget
 
