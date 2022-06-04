@@ -20,7 +20,7 @@ pub enum ScreenEditorMode {
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum ScreenEditorAction {
     Add,
-    Select,
+    //Select,
 }
 
 pub struct ScreenEditorOptions {
@@ -94,7 +94,7 @@ impl EditorOptions for ScreenEditorOptions {
         widget_widgets.push(widget_list);*/
 
         // Tile Widgets
-        let mut tile_widgets : Vec<AtomWidget> = vec![];
+        let tile_widgets : Vec<AtomWidget> = vec![];
 
         Self {
             rect,
@@ -134,7 +134,7 @@ impl EditorOptions for ScreenEditorOptions {
 
         if mode.0 == ScreenEditorMode::Widgets {
 
-            if let Some(content) = content {
+            if let Some(_content) = content {
                 /*
                 if let Some(tile) = content.get_selected_tile() {
                     context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + self.rect.3 - 120), asset.get_map_of_id(tile.0), context.width, &(tile.1, tile.2), anim_counter, 100);
@@ -166,7 +166,7 @@ impl EditorOptions for ScreenEditorOptions {
         if mode.0 == ScreenEditorMode::Widgets {
             for atom in &mut self.tile_widgets {
                 if atom.mouse_down(pos, asset, context) {
-                    if let Some(content) = content {
+                    if let Some(_content) = content {
                         /*
                         if atom.atom_data.id == "UsageList" {
                             if let Some(tile_selector) = content.get_tile_selector() {

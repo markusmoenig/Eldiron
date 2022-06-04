@@ -927,6 +927,8 @@ impl AtomWidget {
             } else
             if self.atom_widget_type == AtomWidgetType::NodeScreenButton {
                 context.switch_editor_state = Some(crate::editor::EditorState::ScreenDetail);
+                context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
+                context.dialog_node_behavior_value = self.atom_data.data.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeNumberButton {
                 context.dialog_state = DialogState::Opening;

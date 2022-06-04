@@ -3,7 +3,9 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::{ GameData };
+use crate::script_types::ScriptRGB;
+
+use super::{ GameData, behavior::BehaviorInstanceState };
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
 pub enum GameScreenWidgetType {
@@ -33,7 +35,14 @@ impl GameScreenWidget {
         }
     }
 
-    pub fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), stride: usize, offset: (isize, isize), anim_counter: usize, grid_size: usize, data: &mut GameData) {
+    pub fn draw(&mut self, data: &mut GameData) {
+
+        if data.game_frame.is_empty() { return; }
+        let frame_buffer = &mut data.game_frame[..];
+        let rect = (0, 0, data.game_screen_width, data.game_screen_height);
+        let stride = data.game_screen_width;
+        let grid_size = data.game_screen_tile_size;
+        let anim_counter = data.game_anim_counter;
 
         if let Some(draw2d) = &data.draw2d {
 
@@ -55,16 +64,35 @@ impl GameScreenWidget {
 
                             for y in sy..sy+height {
                                 for x in sx..sx+width {
-                                    let pos = (rect.0 + ((x - offset.0) as usize) * grid_size, rect.1 + ((y - offset.1) as usize) * grid_size);
+                                    let pos = (rect.0 + (x as usize) * grid_size, rect.1 + (y as usize) * grid_size);
                                     if pos.0 >= rect.0 && pos.1 >= rect.1 && pos.0 + grid_size < rect.0 + rect.2 && pos.1 + grid_size < rect.1 + rect.3 {
                                         let values = region.get_value((position.1 + grid_offset.0, position.2 + grid_offset.1));
 
                                         for value in values {
                                             let map = data.asset.as_ref().unwrap().get_map_of_id(value.0);
-                                            draw2d.draw_animated_tile(&mut frame[..], &pos, map, stride, &(value.1, value.2), anim_counter, grid_size);
+                                            draw2d.draw_animated_tile(frame_buffer, &pos, map, stride, &(value.1, value.2), anim_counter, grid_size);
                                         }
-                                    }
 
+                                        for index in 0..data.instances.len() {
+
+                                            if data.instances[index].state == BehaviorInstanceState::Killed || data.instances[index].state == BehaviorInstanceState::Purged {
+                                                continue;
+                                            }
+
+                                            if let Some(char_position) = data.instances[index].position {
+                                                if let Some(tile) = data.instances[index].tile {
+                                                    // In the same region ?
+                                                    if char_position.0 == region.data.id {
+                                                        if position.1 + grid_offset.0 == char_position.1 && position.2 + grid_offset.1 == char_position.2 {
+                                                            let map = data.asset.as_ref().unwrap().get_map_of_id(tile.0);
+                                                            draw2d.draw_animated_tile(frame_buffer, &pos, map, stride, &(tile.1, tile.2), anim_counter, grid_size);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                    }
                                     grid_offset.0 += 1;
                                 }
                                 grid_offset.0 = - width / 2;
@@ -97,6 +125,28 @@ impl GameScreen {
             tiles               : HashMap::new(),
 
             grid_size           : 32,
+        }
+    }
+
+    pub fn draw(&mut self, node_id: usize, data: &mut GameData) {
+
+        if let Some(draw2d) = &data.draw2d {
+            if data.game_frame.is_empty() == false {
+
+                let mut color = [0, 0, 0, 255];
+
+                if let Some(scope) = data.custom_scopes.get_mut(&node_id) {
+                    if let Some(background) = scope.get_value::<ScriptRGB>("background") {
+                        color = background.value;
+                    }
+                }
+
+                draw2d.draw_rect(&mut data.game_frame[..], &(0, 0, data.game_screen_width, data.game_screen_height), data.game_screen_width, &color);
+            }
+        }
+
+        for w in &mut self.widgets {
+            w.draw(data);
         }
     }
 }

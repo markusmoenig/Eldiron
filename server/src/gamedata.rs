@@ -28,6 +28,7 @@ use rand::prelude::*;
 
 use self::behavior::BehaviorInstanceType;
 use self::game::Game;
+use self::game_screen::GameScreen;
 use self::nodes_utility::get_node_value;
 
 use utilities::actions::*;
@@ -76,6 +77,9 @@ pub struct GameData<'a> {
     // Game screen dimensions
     pub game_screen_width       : usize,
     pub game_screen_height      : usize,
+    pub game_screen_tile_size   : usize,
+
+    pub game_screens            : HashMap<usize, GameScreen>,
 
     pub game_anim_counter       : usize,
     pub game_frame              : Vec<u8>,
@@ -413,6 +417,9 @@ impl GameData<'_> {
 
             game_screen_width       : 800,
             game_screen_height      : 600,
+            game_screen_tile_size   : 32,
+
+            game_screens            : HashMap::new(),
 
             game_anim_counter       : 0,
             game_frame              : vec![],
@@ -503,6 +510,9 @@ impl GameData<'_> {
 
             game_screen_width       : 800,
             game_screen_height      : 600,
+            game_screen_tile_size   : 32,
+
+            game_screens            : HashMap::new(),
 
             game_anim_counter       : 0,
             game_frame              : vec![],
@@ -1436,6 +1446,7 @@ impl GameData<'_> {
         self.player_ids_inst_indices = HashMap::new();
         self.custom_scopes = HashMap::new();
         self.custom_scopes_ordered = vec![];
+        self.game_screens = HashMap::new();
     }
 
     /// Creates a new player instance and returns the index

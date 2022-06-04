@@ -1,7 +1,7 @@
 use server::asset::{ Asset };
 use server::asset::tileset::TileUsage;
-use server::gamedata::game_screen::{GameScreen, GameScreenWidget, GameScreenWidgetType};
-use server::draw2d::Draw2D;
+use server::gamedata::game_screen::{GameScreen, GameScreenWidget};
+use server::gamedata::nodes_game::screen;
 
 use crate::widget::context::ScreenContext;
 use crate::editor::{ TileSelectorWidget };
@@ -36,6 +36,13 @@ pub struct ScreenEditor {
     game_screen             : GameScreen,
 
     selector_size           : usize,
+
+    node_behavior_id        : (usize, usize, String),
+    node_behavior_value     : (f64, f64, f64, f64, String),
+
+    screen_width            : usize,
+    screen_height           : usize,
+    screen_tile_size        : usize,
 }
 
 impl EditorContent for ScreenEditor {
@@ -69,6 +76,13 @@ impl EditorContent for ScreenEditor {
             game_screen             : GameScreen::new(),
 
             selector_size           : 250,
+
+            node_behavior_id        : (0, 0, "".to_string()),
+            node_behavior_value     : (0.0, 0.0, 0.0, 0.0, "".to_string()),
+
+            screen_width            : 0,
+            screen_height           : 0,
+            screen_tile_size        : 0,
         }
     }
 
@@ -80,10 +94,10 @@ impl EditorContent for ScreenEditor {
         self.tile_selector.resize(width, self.selector_size);
     }
 
-    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
-        context.draw2d.draw_rect(frame, &self.rect, context.width, &[0,0,0,255]);
+    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, _asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
+        context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
 
-        if let Some(options) = options {
+        if let Some(_options) = options {
 
             let grid_size = self.grid_size;
             let rect = self.rect.clone();
@@ -96,10 +110,10 @@ impl EditorContent for ScreenEditor {
             let x_tiles = (rect.2 / grid_size) as isize;
             let y_tiles = (rect.3 / grid_size) as isize;
 
-            for w in &mut self.game_screen.widgets {
+            context.data.game_anim_counter = anim_counter;
+            self.game_screen.draw(self.node_behavior_id.1, &mut context.data);
 
-                w.draw(frame, (rect.0 + left_offset, rect.1 + top_offset, rect.2 - left_offset * 2, rect.3 - top_offset * 2), context.width, self.offset, anim_counter, grid_size, &mut context.data);
-            }
+            context.draw2d.blend_slice_safe(frame, &mut context.data.game_frame[..], &(rect.0 as isize + left_offset as isize + self.offset.0 * grid_size as isize, rect.1 as isize + top_offset as isize + self.offset.1 * grid_size as isize, self.screen_width, self.screen_height), context.width, &rect);
 
             for y in 0..y_tiles {
                 for x in 0..x_tiles {
@@ -119,15 +133,6 @@ impl EditorContent for ScreenEditor {
                             }
                         }
                     }
-                    // let values = region.get_value((x - self.offset.0, y - self.offset.1));
-
-                    // if values.is_empty() == false {
-                    //     let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
-                    //     for value in values {
-                    //         let map = asset.get_map_of_id(value.0);
-                    //         context.draw2d.draw_animated_tile(frame, &pos, map,context.width,&(value.1, value.2), anim_counter, grid_size);
-                    //     }
-                    // }
                 }
             }
 
@@ -214,9 +219,9 @@ impl EditorContent for ScreenEditor {
         }
     }
 
-    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
-        let mut consumed = false;
+        let consumed = false;
 
         self.widget_start = None;
         self.widget_end = None;
@@ -317,7 +322,7 @@ impl EditorContent for ScreenEditor {
         true
     }
 
-    fn mouse_dragged(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_dragged(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
         let mut consumed = false;
 
@@ -432,17 +437,38 @@ impl EditorContent for ScreenEditor {
         self.region_id
     }
 
+    /// Screen is opening
     fn opening(&mut self, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
-        println!("opening");
+
+        self.node_behavior_id = context.dialog_node_behavior_id.clone();
+        self.node_behavior_value = context.dialog_node_behavior_value.clone();
 
         if context.is_running == false {
             context.data.startup_client();
+
+            // Execute the screen node script to get the screen dimensions and tile_size
+            screen(context.data.game_instance_index.unwrap(), (self.node_behavior_id.0, self.node_behavior_id.1), &mut context.data, BehaviorType::GameLogic);
         }
 
+        self.screen_width = context.data.game_screen_width;
+        self.screen_height = context.data.game_screen_height;
+        self.screen_tile_size = context.data.game_screen_tile_size;
+        context.data.game_frame = vec![0; self.screen_width * self.screen_height * 4];
+
+        self.game_screen = serde_json::from_str(&self.node_behavior_value.4.clone())
+            .unwrap_or(GameScreen::new() );
     }
 
+    /// Screen is closing
     fn closing(&mut self, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
-        println!("closing");
+
+        if let Some(json) = serde_json::to_string(&self.game_screen).ok() {
+            self.node_behavior_value.4 = json;
+            context.dialog_node_behavior_value = self.node_behavior_value.clone();
+            context.dialog_node_behavior_id = self.node_behavior_id.clone();
+
+            context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), BehaviorType::GameLogic);
+        }
 
         if context.is_running == false {
             context.data.shutdown_client();

@@ -1217,6 +1217,10 @@ impl ScreenWidget for Editor<'_> {
             }
         }
         self.content.insert(index, (options, content));
+
+        if closing && state == EditorState::ScreenDetail {
+            self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
+        }
     }
 
     /// Loads the project from the given path
