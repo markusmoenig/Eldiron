@@ -210,6 +210,7 @@ impl EditorContent for ScreenEditor {
             if self.mouse_hover_pos != (0,0) {
                 if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
                     let pos = (rect.0 + left_offset + ((id.0 + self.offset.0) as usize) * grid_size, rect.1 + top_offset + ((id.1 + self.offset.1) as usize) * grid_size);
+
                     if  pos.0 + grid_size < rect.0 + rect.2 && pos.1 + grid_size < rect.1 + rect.3 {
                         context.draw2d.draw_rect_outline(frame, &(pos.0, pos.1, grid_size, grid_size), context.width, context.color_light_white);
                         context.draw2d.draw_rect_outline(frame, &(pos.0 + 1, pos.1 + 1, grid_size - 2, grid_size - 2), context.width, context.color_black);
@@ -303,7 +304,7 @@ impl EditorContent for ScreenEditor {
                     if let Some(widget_start) = self.widget_start {
                         if let Some(widget_end) = self.widget_end {
 
-                            let widget = GameScreenWidget { name: "New Widget".to_string(), widget_type: server::gamedata::game_screen::GameScreenWidgetType::Game, top_left: widget_start, bottom_right: widget_end };
+                            let widget = GameScreenWidget { name: "Widget".to_string(), widget_type: server::gamedata::game_screen::GameScreenWidgetType::Game, top_left: widget_start, bottom_right: widget_end };
                             self.game_screen.widgets.push(widget);
                             self.game_screen.curr_widget_index = self.game_screen.widgets.len() - 1;
                         }
@@ -414,7 +415,7 @@ impl EditorContent for ScreenEditor {
     fn get_tile_id(&self, pos: (usize, usize)) -> Option<(isize, isize)> {
         let grid_size = self.grid_size;
         if pos.0 > self.rect.0 + self.screen_offset.0 && pos.1 > self.rect.1 + self.screen_offset.1
-        && pos.0 < self.rect.0 + self.rect.2 - self.screen_offset.0  && pos.1 < self.rect.1 + self.rect.3 - self.screen_offset.1 - self.selector_size
+        && pos.0 < self.rect.0 + self.rect.2 - self.screen_offset.0  && pos.1 < self.rect.1 + self.rect.3 - self.screen_offset.1 //} - self.selector_size
         {
             let x = ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
             let y = ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;

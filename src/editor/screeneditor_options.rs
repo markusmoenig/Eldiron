@@ -38,8 +38,9 @@ impl EditorOptions for ScreenEditorOptions {
 
     fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
 
-        let mut widgets : Vec<AtomWidget> = vec![];
+        let widgets : Vec<AtomWidget> = vec![];
 
+        /*
         let mut mode_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new_as_int("Mode".to_string(), 0));
         mode_list.drag_enabled = true;
@@ -47,7 +48,7 @@ impl EditorOptions for ScreenEditorOptions {
 
         mode_list.add_group_list([50, 50, 50, 255], [80, 80, 80, 255], vec!["Widgets".to_string(), "UI Tiles".to_string()]);
         mode_list.set_rect((rect.0, rect.1 + 10, rect.2, 200), asset, context);
-        widgets.push(mode_list);
+        widgets.push(mode_list);*/
 
         // Widget Widgets
         let mut widget_widgets : Vec<AtomWidget> = vec![];
@@ -55,24 +56,24 @@ impl EditorOptions for ScreenEditorOptions {
         let mut widgets_button = AtomWidget::new(vec![], AtomWidgetType::SliderButton,
         AtomData::new_as_int("Widgets".to_string(), 0));
         widgets_button.atom_data.text = "Widgets".to_string();
-        widgets_button.set_rect((rect.0 + 10, rect.1 + 90, rect.2 - 20, 40), asset, context);
+        widgets_button.set_rect((rect.0 + 10, rect.1 + 10, rect.2 - 20, 40), asset, context);
         widgets_button.state = WidgetState::Disabled;
         widget_widgets.push(widgets_button);
 
         let mut rename_widget_button = AtomWidget::new(vec!["Rename".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Rename".to_string(), 0));
         rename_widget_button.state = WidgetState::Disabled;
-        rename_widget_button.set_rect((rect.0 + 10, rect.1 + 140, rect.2 - 20, 40), asset, context);
+        rename_widget_button.set_rect((rect.0 + 10, rect.1 + 60, rect.2 - 20, 40), asset, context);
 
         let mut del_widget_button = AtomWidget::new(vec!["Delete".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Delete".to_string(), 0));
         del_widget_button.state = WidgetState::Disabled;
-        del_widget_button.set_rect((rect.0 + 10, rect.1 + 175, rect.2 - 20, 40), asset, context);
+        del_widget_button.set_rect((rect.0 + 10, rect.1 + 95, rect.2 - 20, 40), asset, context);
 
         let mut widget_type_button = AtomWidget::new(vec!["Game".to_string(), "Region".to_string(), "Status".to_string(), "Custom".to_string()], AtomWidgetType::SliderButton,
         AtomData::new_as_int("Widget Type".to_string(), 0));
         widget_type_button.atom_data.text = "Widget Type".to_string();
-        widget_type_button.set_rect((rect.0 + 10, rect.1 + 220, rect.2 - 20, 40), asset, context);
+        widget_type_button.set_rect((rect.0 + 10, rect.1 + 160, rect.2 - 20, 40), asset, context);
         widget_type_button.state = WidgetState::Disabled;
 
         let mut widget_editing_mode = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
@@ -80,7 +81,7 @@ impl EditorOptions for ScreenEditorOptions {
         widget_editing_mode.drag_enabled = true;
 
         widget_editing_mode.add_group_list(context.color_blue, context.color_light_blue, vec!["Add Widget".to_string(), "Move".to_string(), "Resize".to_string()]);
-        widget_editing_mode.set_rect((rect.0 + 10, rect.1 + 310, rect.2 - 20, 200), asset, context);
+        widget_editing_mode.set_rect((rect.0 + 10, rect.1 + 220, rect.2 - 20, 200), asset, context);
 
         widget_widgets.push(del_widget_button);
         widget_widgets.push(rename_widget_button);
@@ -178,6 +179,7 @@ impl EditorOptions for ScreenEditorOptions {
                                 let index = self.widget_widgets[0].curr_index;
                                 game_screen.widgets.remove(index);
                                 self.widget_widgets[0].curr_index = 0;
+                                game_screen.curr_widget_index = 0;
                                 self.update_ui(context, content);
                             }
                         } else
@@ -224,6 +226,13 @@ impl EditorOptions for ScreenEditorOptions {
                 if atom.mouse_up(pos, asset, context) {
                     if let Some(el_content) = content {
 
+                        if atom.atom_data.id == "Widgets" {
+                            if let Some(game_screen) = el_content.get_game_screen() {
+                                game_screen.curr_widget_index = atom.curr_index;
+                                consumed = true;
+                                atom.dirty = true;
+                            }
+                        } else
                         if atom.atom_data.id == "Widget Type" {
                             if let Some(game_screen) = el_content.get_game_screen() {
                                 game_screen.widgets[game_screen.curr_widget_index].widget_type = match atom.curr_index {
@@ -346,14 +355,15 @@ impl EditorOptions for ScreenEditorOptions {
 
     /// Returns the current editor mode
     fn get_screen_editor_mode(&self) -> (ScreenEditorMode, ScreenEditorAction) {
+        /*
         let mode = self.widgets[0].curr_item_index;
 
         let mode = match mode {
             1 => ScreenEditorMode::Tiles,
             _ => ScreenEditorMode::Widgets
-        };
+        };*/
 
-        (mode, ScreenEditorAction::Add)
+        (ScreenEditorMode::Widgets, ScreenEditorAction::Add)
     }
 
 }

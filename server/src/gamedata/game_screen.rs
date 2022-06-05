@@ -28,7 +28,7 @@ impl GameScreenWidget {
 
     pub fn new() -> Self {
         Self {
-            name                : "New Widget".to_string(),
+            name                : "Widget".to_string(),
             widget_type         : GameScreenWidgetType::Game,
             top_left            :(0,0),
             bottom_right        :(0,0),

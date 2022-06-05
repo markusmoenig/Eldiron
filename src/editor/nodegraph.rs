@@ -1659,7 +1659,7 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.text = "Script".to_string();
             let id = (behavior_data.id, node_data.id, "script".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "screen_width = 800;\nscreen_height = 600;".to_string()), self.graph_type);
+            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "screen_width = 1024;\nscreen_height = 608;\ntile_size = 32;".to_string()), self.graph_type);
             node_widget.widgets.push(atom1);
 
             node_widget.color = context.color_blue.clone();

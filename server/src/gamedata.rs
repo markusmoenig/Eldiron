@@ -415,8 +415,8 @@ impl GameData<'_> {
             game,
             game_instance_index     : None,
 
-            game_screen_width       : 800,
-            game_screen_height      : 600,
+            game_screen_width       : 1024,
+            game_screen_height      : 608,
             game_screen_tile_size   : 32,
 
             game_screens            : HashMap::new(),
@@ -508,8 +508,8 @@ impl GameData<'_> {
             game,
             game_instance_index     : None,
 
-            game_screen_width       : 800,
-            game_screen_height      : 600,
+            game_screen_width       : 1024,
+            game_screen_height      : 608,
             game_screen_tile_size   : 32,
 
             game_screens            : HashMap::new(),
