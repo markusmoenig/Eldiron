@@ -12,10 +12,10 @@ pub enum GameScreenWidgetType {
     Game,
     Region,
     Status,
-    Text,
+    Custom,
 }
 
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct GameScreenWidget {
     pub name                : String,
 
@@ -65,7 +65,7 @@ impl GameScreenWidget {
                             for y in sy..sy+height {
                                 for x in sx..sx+width {
                                     let pos = (rect.0 + (x as usize) * grid_size, rect.1 + (y as usize) * grid_size);
-                                    if pos.0 >= rect.0 && pos.1 >= rect.1 && pos.0 + grid_size < rect.0 + rect.2 && pos.1 + grid_size < rect.1 + rect.3 {
+                                    if pos.0 >= rect.0 && pos.1 >= rect.1 && pos.0 + grid_size <= rect.0 + rect.2 && pos.1 + grid_size <= rect.1 + rect.3 {
                                         let values = region.get_value((position.1 + grid_offset.0, position.2 + grid_offset.1));
 
                                         for value in values {
@@ -106,15 +106,21 @@ impl GameScreenWidget {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct GameScreen {
 
+    /// The widgets for this screen
     pub widgets             : Vec<GameScreenWidget>,
 
+    /// Tiles
     #[serde(with = "vectorize")]
     pub tiles               : HashMap<(isize, isize), (usize, usize, usize, crate::asset::TileUsage)>,
 
+    /// Grid size
     pub grid_size           : usize,
+
+    /// Current widget index, only used by the editor
+    pub curr_widget_index   : usize,
 }
 
 impl GameScreen {
@@ -125,6 +131,7 @@ impl GameScreen {
             tiles               : HashMap::new(),
 
             grid_size           : 32,
+            curr_widget_index   : 0,
         }
     }
 

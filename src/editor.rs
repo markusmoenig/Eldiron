@@ -502,6 +502,22 @@ impl ScreenWidget for Editor<'_> {
                 }
                 self.content.insert(index, (options, content));
             } else
+            if self.state == EditorState::ScreenDetail && self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
+                let index = EditorState::ScreenDetail as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
+
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
+
+                    if let Some(mut el_option) = options {
+                        el_option.set_widget_name(self.context.dialog_new_name.clone(), &mut self.context, &mut content);
+                        options = Some(el_option);
+                    }
+                }
+                self.content.insert(index, (options, content));
+            } else
             if self.state == EditorState::TilesDetail && self.context.dialog_entry == DialogEntry::Tags && self.context.dialog_accepted == true {
                 let index = EditorState::TilesDetail as usize;
                 let mut options : Option<Box<dyn EditorOptions>> = None;
@@ -1197,6 +1213,7 @@ impl ScreenWidget for Editor<'_> {
         self.context.target_fps
     }
 
+    /// Send opening / closing messages to the given state
     fn content_state_is_changing(&mut self, state: EditorState, asset: &mut Asset, closing: bool) {
         let index = state as usize;
         let mut options : Option<Box<dyn EditorOptions>> = None;
@@ -1214,6 +1231,16 @@ impl ScreenWidget for Editor<'_> {
                     el_content.closing(asset, &mut self.context, &mut options);
                 }
                 content = Some(el_content);
+            }
+
+            if let Some(mut el_options) = options {
+
+                if closing == false {
+                    el_options.opening(asset, &mut self.context, &mut content);
+                } else {
+                    el_options.closing(asset, &mut self.context, &mut content);
+                }
+                options = Some(el_options);
             }
         }
         self.content.insert(index, (options, content));

@@ -1,6 +1,7 @@
 use crate::editor::node::NodeWidget;
 use server::gamedata::behavior::*;
 use server::asset::Asset;
+use server::gamedata::game_screen::GameScreen;
 
 use crate::editor::ScreenContext;
 use crate::WidgetState;
@@ -28,10 +29,16 @@ pub trait EditorOptions {
 
     fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool { false }
 
-    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool { false }
+    fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool { false }
 
     // Sets the state of the atom widgets
     fn set_state(&mut self, state: WidgetState) {}
+
+    /// Options are opening
+    fn opening(&mut self, asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) { }
+
+    /// Options are closing
+    fn closing(&mut self, asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) { }
 
 
     // For TilemapOptions
@@ -80,8 +87,13 @@ pub trait EditorOptions {
     /// Sets the area names
     fn set_area_names(&mut self, names: Vec<String>) {}
 
-
     // For ScreenOptions
+
+    /// Update the ui
+    fn update_ui(&mut self, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {}
+
+    /// Set the name of the widget
+    fn set_widget_name(&mut self, name: String, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {}
 
     /// Returns the current region editor mode
     fn get_screen_editor_mode(&self) -> (super::screeneditor_options::ScreenEditorMode, super::screeneditor_options::ScreenEditorAction) { (super::screeneditor_options::ScreenEditorMode::Widgets, super::screeneditor_options::ScreenEditorAction::Add) }
@@ -111,11 +123,13 @@ pub trait EditorContent {
 
     fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool;
 
-    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool { false }
+    fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool { false }
 
-    fn opening(&mut self, _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {}
+    /// Content is opening
+    fn opening(&mut self, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {}
 
-    fn closing(&mut self, _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) { }
+    /// Content is closing
+    fn closing(&mut self, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) { }
 
 
     // For TileMapWidget
@@ -230,5 +244,12 @@ pub trait EditorContent {
 
     /// Get the preview widget
     fn get_preview_widget(&mut self) -> Option<&mut NodePreviewWidget> { None }
+
+
+    // For ScreenEditor
+
+
+    /// Returns the game screen
+    fn get_game_screen(&mut self) -> Option<&mut GameScreen> { None }
 
 }

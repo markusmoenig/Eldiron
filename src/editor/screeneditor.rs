@@ -305,6 +305,7 @@ impl EditorContent for ScreenEditor {
 
                             let widget = GameScreenWidget { name: "New Widget".to_string(), widget_type: server::gamedata::game_screen::GameScreenWidgetType::Game, top_left: widget_start, bottom_right: widget_end };
                             self.game_screen.widgets.push(widget);
+                            self.game_screen.curr_widget_index = self.game_screen.widgets.len() - 1;
                         }
                     }
                 }
@@ -457,6 +458,10 @@ impl EditorContent for ScreenEditor {
 
         self.game_screen = serde_json::from_str(&self.node_behavior_value.4.clone())
             .unwrap_or(GameScreen::new() );
+
+        //if let Some(options) = options {
+        //    options.update_area_ui(context, &mut Some(Box::new(*self)));
+        //}
     }
 
     /// Screen is closing
@@ -473,6 +478,11 @@ impl EditorContent for ScreenEditor {
         if context.is_running == false {
             context.data.shutdown_client();
         }
+    }
+
+    /// Returns the game screen
+    fn get_game_screen(&mut self) -> Option<&mut GameScreen> {
+        Some(&mut self.game_screen)
     }
 
 }

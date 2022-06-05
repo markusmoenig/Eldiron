@@ -3,6 +3,7 @@ use crate::widget::*;
 use crate::atom::AtomData;
 use crate::widget::context::ScreenDragContext;
 use server::asset::Asset;
+use server::gamedata::game_screen::GameScreenWidgetType;
 
 use crate::widget::atom::AtomWidget;
 use crate::widget::atom::AtomWidgetType;
@@ -44,46 +45,48 @@ impl EditorOptions for ScreenEditorOptions {
         mode_list.drag_enabled = true;
         mode_list.centered_text = true;
 
-        mode_list.add_group_list([50, 50, 50, 255], [80, 80, 80, 255], vec!["Draw Widgets".to_string(), "Draw UI Tiles".to_string()]);
+        mode_list.add_group_list([50, 50, 50, 255], [80, 80, 80, 255], vec!["Widgets".to_string(), "UI Tiles".to_string()]);
         mode_list.set_rect((rect.0, rect.1 + 10, rect.2, 200), asset, context);
         widgets.push(mode_list);
 
         // Widget Widgets
         let mut widget_widgets : Vec<AtomWidget> = vec![];
 
-        let mut widgets_button = AtomWidget::new(vec![], AtomWidgetType::MenuButton,
-        AtomData::new_as_int("Area".to_string(), 0));
-        widgets_button.atom_data.text = "Area".to_string();
-        widgets_button.set_rect((rect.0 + 10, rect.1 + 130, rect.2 - 20, 40), asset, context);
+        let mut widgets_button = AtomWidget::new(vec![], AtomWidgetType::SliderButton,
+        AtomData::new_as_int("Widgets".to_string(), 0));
+        widgets_button.atom_data.text = "Widgets".to_string();
+        widgets_button.set_rect((rect.0 + 10, rect.1 + 90, rect.2 - 20, 40), asset, context);
         widgets_button.state = WidgetState::Disabled;
         widget_widgets.push(widgets_button);
-
-        let mut add_widget_button = AtomWidget::new(vec!["Add Widget".to_string()], AtomWidgetType::Button,
-            AtomData::new_as_int("Add Widget".to_string(), 0));
-        //add_area_button.state = WidgetState::Disabled;
-        add_widget_button.set_rect((rect.0 + 10, rect.1 + 180, rect.2 - 20, 40), asset, context);
-
-        let mut del_widget_button = AtomWidget::new(vec!["Delete".to_string()], AtomWidgetType::Button,
-            AtomData::new_as_int("Delete".to_string(), 0));
-        del_widget_button.state = WidgetState::Disabled;
-        del_widget_button.set_rect((rect.0 + 10, rect.1 + 175 + 40, rect.2 - 20, 40), asset, context);
 
         let mut rename_widget_button = AtomWidget::new(vec!["Rename".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Rename".to_string(), 0));
         rename_widget_button.state = WidgetState::Disabled;
-        rename_widget_button.set_rect((rect.0 + 10, rect.1 + 175 + 35 + 40, rect.2 - 20, 40), asset, context);
+        rename_widget_button.set_rect((rect.0 + 10, rect.1 + 140, rect.2 - 20, 40), asset, context);
+
+        let mut del_widget_button = AtomWidget::new(vec!["Delete".to_string()], AtomWidgetType::Button,
+            AtomData::new_as_int("Delete".to_string(), 0));
+        del_widget_button.state = WidgetState::Disabled;
+        del_widget_button.set_rect((rect.0 + 10, rect.1 + 175, rect.2 - 20, 40), asset, context);
+
+        let mut widget_type_button = AtomWidget::new(vec!["Game".to_string(), "Region".to_string(), "Status".to_string(), "Custom".to_string()], AtomWidgetType::SliderButton,
+        AtomData::new_as_int("Widget Type".to_string(), 0));
+        widget_type_button.atom_data.text = "Widget Type".to_string();
+        widget_type_button.set_rect((rect.0 + 10, rect.1 + 220, rect.2 - 20, 40), asset, context);
+        widget_type_button.state = WidgetState::Disabled;
 
         let mut widget_editing_mode = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new_as_int("EditingMode".to_string(), 0));
         widget_editing_mode.drag_enabled = true;
 
-        widget_editing_mode.add_group_list(context.color_blue, context.color_light_blue, vec!["Add Mode".to_string(), "Remove".to_string()]);
+        widget_editing_mode.add_group_list(context.color_blue, context.color_light_blue, vec!["Add Widget".to_string(), "Move".to_string(), "Resize".to_string()]);
         widget_editing_mode.set_rect((rect.0 + 10, rect.1 + 310, rect.2 - 20, 200), asset, context);
 
-        widget_widgets.push(add_widget_button);
         widget_widgets.push(del_widget_button);
         widget_widgets.push(rename_widget_button);
+        widget_widgets.push(widget_type_button);
         widget_widgets.push(widget_editing_mode);
+
 
         /*
         let mut widget_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
@@ -114,6 +117,8 @@ impl EditorOptions for ScreenEditorOptions {
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
+
+        self.update_ui(context, content);
 
         for atom in &mut self.widgets {
            atom.draw(frame, context.width, anim_counter, asset, context);
@@ -164,23 +169,30 @@ impl EditorOptions for ScreenEditorOptions {
         let mode = self.get_screen_editor_mode();
 
         if mode.0 == ScreenEditorMode::Widgets {
-            for atom in &mut self.tile_widgets {
+            for atom in &mut self.widget_widgets {
                 if atom.mouse_down(pos, asset, context) {
-                    if let Some(_content) = content {
-                        /*
-                        if atom.atom_data.id == "UsageList" {
-                            if let Some(tile_selector) = content.get_tile_selector() {
-                                tile_selector.set_tile_type(vec![self.get_tile_usage()], self.get_tilemap_index(), self.get_tags(), &asset);
+                    if let Some(el_content) = content {
+
+                        if atom.atom_data.id == "Delete" {
+                            if let Some(game_screen) = el_content.get_game_screen() {
+                                let index = self.widget_widgets[0].curr_index;
+                                game_screen.widgets.remove(index);
+                                self.widget_widgets[0].curr_index = 0;
+                                self.update_ui(context, content);
                             }
                         } else
-                        if atom.atom_data.id == "Layer" {
-                            self.curr_layer = atom.curr_index + 1;
-                        } else
-                        if atom.atom_data.id == "remap" {
-                            if let Some(region) = context.data.regions.get_mut(&content.get_region_id()) {
-                                region.remap(asset);
+                        if atom.atom_data.id == "Rename" {
+                            use crate::editor::dialog::{DialogState, DialogEntry};
+                            context.dialog_state = DialogState::Opening;
+                            context.dialog_height = 0;
+                            context.target_fps = 60;
+                            context.dialog_entry = DialogEntry::NewName;
+                            if let Some(el_content) = content {
+                                if let Some(game_screen) = el_content.get_game_screen() {
+                                    context.dialog_new_name = game_screen.widgets[game_screen.curr_widget_index].name.clone();
+                                }
                             }
-                        }*/
+                        }
                     }
                     return true;
                 }
@@ -197,13 +209,59 @@ impl EditorOptions for ScreenEditorOptions {
         false
     }
 
-    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
+    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool {
         let mut consumed = false;
         for atom in &mut self.widgets {
             if atom.mouse_up(pos, asset, context) {
                 consumed = true;
             }
         }
+
+        let mode = self.get_screen_editor_mode();
+
+        if mode.0 == ScreenEditorMode::Widgets {
+            for atom in &mut self.widget_widgets {
+                if atom.mouse_up(pos, asset, context) {
+                    if let Some(el_content) = content {
+
+                        if atom.atom_data.id == "Widget Type" {
+                            if let Some(game_screen) = el_content.get_game_screen() {
+                                game_screen.widgets[game_screen.curr_widget_index].widget_type = match atom.curr_index {
+                                    1 => GameScreenWidgetType::Region,
+                                    2 => GameScreenWidgetType::Status,
+                                    3 => GameScreenWidgetType::Custom,
+                                    _ => GameScreenWidgetType::Game,
+                                };
+                            }
+                            consumed = true;
+                            atom.dirty = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        consumed
+    }
+
+    fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
+        let mut consumed = false;
+        for atom in &mut self.widgets {
+            if atom.mouse_hover(pos, asset, context) {
+                consumed = true;
+            }
+        }
+
+        let mode = self.get_screen_editor_mode();
+
+        if mode.0 == ScreenEditorMode::Widgets {
+            for atom in &mut self.widget_widgets {
+                if atom.mouse_hover(pos, asset, context) {
+                    consumed = true;
+                }
+            }
+        }
+
         consumed
     }
 
@@ -228,6 +286,63 @@ impl EditorOptions for ScreenEditorOptions {
         }
         false
     }
+
+    fn update_ui(&mut self, _context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {
+
+        let mode = self.get_screen_editor_mode();
+
+        if let Some(content) = content {
+            if let Some(game_screen) = content.get_game_screen() {
+                if mode.0 == ScreenEditorMode::Widgets {
+
+                    if game_screen.widgets.is_empty() {
+                        self.widget_widgets[0].state = WidgetState::Disabled;
+                        self.widget_widgets[1].state = WidgetState::Disabled;
+                        self.widget_widgets[2].state = WidgetState::Disabled;
+                        self.widget_widgets[3].state = WidgetState::Disabled;
+                        self.widget_widgets[4].state = WidgetState::Disabled;
+                        self.widget_widgets[0].text = vec![];
+                        self.widget_widgets[0].curr_index = 0;
+                        game_screen.curr_widget_index = 0;
+                    } else {
+                        let mut names : Vec<String> = vec![];
+                        for w in &game_screen.widgets {
+                            names.push(w.name.clone());
+                        }
+                        self.widget_widgets[0].state = WidgetState::Normal;
+                        self.widget_widgets[1].state = WidgetState::Normal;
+                        self.widget_widgets[2].state = WidgetState::Normal;
+                        self.widget_widgets[3].state = WidgetState::Normal;
+                        self.widget_widgets[4].state = WidgetState::Normal;
+                        self.widget_widgets[0].text = names;
+                        self.widget_widgets[0].curr_index = game_screen.curr_widget_index;
+                        self.widget_widgets[3].curr_index = game_screen.widgets[game_screen.curr_widget_index].widget_type as usize;
+
+                    }
+
+                    for w in &mut self.widget_widgets {
+                        w.dirty = true;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Set the name of the widget
+    fn set_widget_name(&mut self, name: String, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {
+        if let Some(content) = content {
+            if let Some(game_screen) = content.get_game_screen() {
+                game_screen.widgets[game_screen.curr_widget_index].name = name;
+            }
+        }
+        self.update_ui(context, content);
+    }
+
+    fn opening(&mut self, _asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {
+        self.update_ui(context, content);
+    }
+
+    fn closing(&mut self, _asset: &mut Asset, _context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) { }
 
     /// Returns the current editor mode
     fn get_screen_editor_mode(&self) -> (ScreenEditorMode, ScreenEditorAction) {
