@@ -111,7 +111,7 @@ impl EditorContent for ScreenEditor {
             let y_tiles = (rect.3 / grid_size) as isize;
 
             context.data.game_anim_counter = anim_counter;
-            self.game_screen.draw(self.node_behavior_id.1, &mut context.data);
+            self.game_screen.draw(self.node_behavior_id.1, true, &mut context.data);
 
             context.draw2d.blend_slice_safe(frame, &mut context.data.game_frame[..], &(rect.0 as isize + left_offset as isize + self.offset.0 * grid_size as isize, rect.1 as isize + top_offset as isize + self.offset.1 * grid_size as isize, self.screen_width, self.screen_height), context.width, &rect);
 

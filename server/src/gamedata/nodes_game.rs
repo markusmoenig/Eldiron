@@ -80,7 +80,7 @@ pub fn screen(instance_index: usize, id: (usize, usize), data: &mut GameData, be
 
     // Draw it
     if let Some(mut screen) = data.game_screens.remove(&id.1) {
-        screen.draw(id.1, data);
+        screen.draw(id.1, false, data);
         data.game_screens.insert(id.1, screen);
     }
 

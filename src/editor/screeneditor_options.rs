@@ -80,7 +80,7 @@ impl EditorOptions for ScreenEditorOptions {
     AtomData::new_as_int("EditingMode".to_string(), 0));
         widget_editing_mode.drag_enabled = true;
 
-        widget_editing_mode.add_group_list(context.color_blue, context.color_light_blue, vec!["Add Widget".to_string(), "Move".to_string(), "Resize".to_string()]);
+        widget_editing_mode.add_group_list([50, 50, 50, 255], [80, 80, 80, 255], vec!["Add Widget".to_string(), "Move".to_string(), "Resize".to_string(), "Draw UI Tiles".to_string()]);
         widget_editing_mode.set_rect((rect.0 + 10, rect.1 + 220, rect.2 - 20, 200), asset, context);
 
         widget_widgets.push(del_widget_button);
@@ -274,25 +274,7 @@ impl EditorOptions for ScreenEditorOptions {
         consumed
     }
 
-    fn mouse_dragged(&mut self, _pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
-        if let Some(drag_context) = &self.widgets[0].drag_context {
-            if context.drag_context == None {
-
-                let mut buffer = [0; 180 * 32 * 4];
-
-                context.draw2d.draw_rect(&mut buffer[..], &(0, 0, 180, 32), 180, &drag_context.color.clone());
-                context.draw2d.draw_text_rect(&mut buffer[..], &(0, 0, 180, 32), 180, &asset.get_editor_font("OpenSans"), context.toolbar_button_text_size, drag_context.text.as_str(), &context.color_white, &drag_context.color.clone(), draw2d::TextAlignment::Center);
-
-                context.drag_context = Some(ScreenDragContext {
-                    text    : drag_context.text.clone(),
-                    color   : drag_context.color.clone(),
-                    offset  : drag_context.offset.clone(),
-                    buffer  : Some(buffer)
-                });
-                context.target_fps = 60;
-            }
-            self.widgets[0].drag_context = None;
-        }
+    fn mouse_dragged(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
         false
     }
 

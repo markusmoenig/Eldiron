@@ -35,7 +35,7 @@ impl GameScreenWidget {
         }
     }
 
-    pub fn draw(&mut self, data: &mut GameData) {
+    pub fn draw(&mut self, selected: bool, data: &mut GameData) {
 
         if data.game_frame.is_empty() { return; }
         let frame_buffer = &mut data.game_frame[..];
@@ -92,11 +92,29 @@ impl GameScreenWidget {
                                             }
                                         }
 
+                                        if selected {
+                                            draw2d.blend_rect(frame_buffer, &(pos.0, pos.1, grid_size, grid_size), stride, &[255, 255, 255, 50]);
+                                        }
                                     }
                                     grid_offset.0 += 1;
                                 }
                                 grid_offset.0 = - width / 2;
                                 grid_offset.1 += 1;
+                            }
+                        }
+                    }
+                }
+            } else
+
+            if self.widget_type == GameScreenWidgetType::Custom {
+
+                for y in sy..sy+height {
+                    for x in sx..sx+width {
+                        let pos = (rect.0 + (x as usize) * grid_size, rect.1 + (y as usize) * grid_size);
+                        if pos.0 >= rect.0 && pos.1 >= rect.1 && pos.0 + grid_size <= rect.0 + rect.2 && pos.1 + grid_size <= rect.1 + rect.3 {
+
+                            if selected {
+                                draw2d.blend_rect(frame_buffer, &(pos.0, pos.1, grid_size, grid_size), stride, &[255, 255, 255, 50]);
                             }
                         }
                     }
@@ -135,7 +153,7 @@ impl GameScreen {
         }
     }
 
-    pub fn draw(&mut self, node_id: usize, data: &mut GameData) {
+    pub fn draw(&mut self, node_id: usize, editor: bool, data: &mut GameData) {
 
         if let Some(draw2d) = &data.draw2d {
             if data.game_frame.is_empty() == false {
@@ -152,8 +170,8 @@ impl GameScreen {
             }
         }
 
-        for w in &mut self.widgets {
-            w.draw(data);
+        for index in 0..self.widgets.len() {
+            self.widgets[index].draw(editor && index == self.curr_widget_index, data);
         }
     }
 }
