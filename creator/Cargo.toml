@@ -1,26 +1,31 @@
-[lib]
-name = "server"
-#When building for Xcode
-#crate-type = ["staticlib", "cdylib"]
-
 [package]
-name = "server"
-version = "0.1.0"
+name = "eldiron"
+version = "0.5.5"
 edition = "2021"
 authors = ["Markus Moenig"]
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
+server = { path = "../server" }
 utilities = { path = "../utilities" }
 env_logger = "0.9"
 log = "0.4"
-png = "0.17.2"
+pixels = "0.9.0"
+winit = "0.26"
+winit_input_helper = "0.11"
+png = "0.17.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 fontdue = "0.7.2"
 vectorize = "0.2.0"
 itertools = "0.10.2"
+zeno = "0.2.1"
 rand = "0.8.5"
 pathfinding = "3.0.11"
 rhai = "*"
 #rhai = { git = "https://github.com/rhaiscript/rhai/" }
 regex = "1.5"
+directories = "4.0"
+fs_extra = "1.2.0"
+open = "1"
