@@ -1,14 +1,13 @@
 use crate::editor::node::NodeWidget;
-use server::gamedata::behavior::*;
-use server::asset::Asset;
-use server::gamedata::game_screen::GameScreen;
+use core_server::gamedata::behavior::*;
+use core_server::asset::{Asset, TileUsage};
+use core_server::gamedata::game_screen::GameScreen;
 
 use crate::editor::ScreenContext;
 use crate::WidgetState;
 use crate::editor::{ ToolBar, TileSelectorWidget, NodeGraph };
 
 use crate::editor::regionoptions::RegionEditorMode;
-use crate::TileUsage;
 
 use super::node_preview::NodePreviewWidget;
 

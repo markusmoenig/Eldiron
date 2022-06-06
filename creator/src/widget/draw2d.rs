@@ -1,11 +1,9 @@
 
+use core_server::asset::{TileMap, Asset};
+use core_server::gamedata::behavior::BehaviorInstanceState;
+use core_server::gamedata::region::GameRegion;
 use fontdue::layout::{ Layout, LayoutSettings, CoordinateSystem, TextStyle, VerticalAlign, HorizontalAlign };
 use fontdue::Font;
-
-use server::asset::TileMap;
-use server::asset::Asset;
-use server::gamedata::region::GameRegion;
-use server::gamedata::behavior::BehaviorInstanceState;
 
 use super::context::ScreenContext;
 

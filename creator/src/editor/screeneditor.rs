@@ -1,11 +1,11 @@
-use server::asset::{ Asset };
-use server::asset::tileset::TileUsage;
-use server::gamedata::game_screen::{GameScreen, GameScreenWidget};
-use server::gamedata::nodes_game::screen;
+use core_server::asset::{ Asset };
+use core_server::asset::tileset::TileUsage;
+use core_server::gamedata::game_screen::{GameScreen, GameScreenWidget};
+use core_server::gamedata::nodes_game::screen;
 
 use crate::widget::context::ScreenContext;
 use crate::editor::{ TileSelectorWidget };
-use server::gamedata::behavior::{ BehaviorType };
+use core_server::gamedata::behavior::{ BehaviorType };
 
 use crate::editor::{ EditorOptions, EditorContent };
 use crate::editor::regionoptions::RegionEditorMode;
@@ -304,7 +304,7 @@ impl EditorContent for ScreenEditor {
                     if let Some(widget_start) = self.widget_start {
                         if let Some(widget_end) = self.widget_end {
 
-                            let widget = GameScreenWidget { name: "Widget".to_string(), widget_type: server::gamedata::game_screen::GameScreenWidgetType::Game, top_left: widget_start, bottom_right: widget_end };
+                            let widget = GameScreenWidget { name: "Widget".to_string(), widget_type: core_server::gamedata::game_screen::GameScreenWidgetType::Game, top_left: widget_start, bottom_right: widget_end };
                             self.game_screen.widgets.push(widget);
                             self.game_screen.curr_widget_index = self.game_screen.widgets.len() - 1;
                         }

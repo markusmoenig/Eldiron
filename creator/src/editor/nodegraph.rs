@@ -7,9 +7,9 @@ use crate::widget::Widget;
 use zeno::{Mask, Stroke};
 use crate::editor::ToolBar;
 
-use server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode, BehaviorNodeConnector, BehaviorType };
+use core_server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode, BehaviorNodeConnector, BehaviorType };
 
-use server::asset::Asset;
+use core_server::asset::Asset;
 use crate::editor::{ ScreenContext };
 
 use itertools::Itertools;

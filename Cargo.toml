@@ -1,7 +1,7 @@
 [workspace]
 
 members = [
-    "server",
+    "core_server",
     "creator"
 ]
 

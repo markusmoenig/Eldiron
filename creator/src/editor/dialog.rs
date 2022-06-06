@@ -1,10 +1,9 @@
-use server::asset::Asset;
+use core_server::asset::{Asset, TileUsage};
 
 use crate::atom::{ AtomWidget, AtomWidgetType, AtomData };
 use crate::widget::{ WidgetKey, WidgetState };
 
 use crate::tileselector::TileSelectorWidget;
-use crate::tileset::TileUsage;
 
 use crate::context::ScreenContext;
 

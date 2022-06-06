@@ -1,10 +1,10 @@
 [lib]
-name = "server"
+name = "core_server"
 #When building for Xcode
 #crate-type = ["staticlib", "cdylib"]
 
 [package]
-name = "server"
+name = "core_server"
 version = "0.1.0"
 edition = "2021"
 authors = ["Markus Moenig"]

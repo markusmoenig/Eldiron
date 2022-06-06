@@ -9,13 +9,12 @@ mod prelude {
     pub const GAME_TICK_IN_MS : u128 = 250;
 }
 
+use core_server::asset::Asset;
 use prelude::*;
 
 use crate::game::*;
 use crate::widget::*;
 use crate::editor::*;
-
-use server::asset::*;
 
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};

@@ -1,9 +1,9 @@
-use server::asset::{ Asset };
-use server::asset::tileset::TileUsage;
+use core_server::asset::{ Asset };
+use core_server::asset::tileset::TileUsage;
 
 use crate::widget::context::ScreenContext;
 use crate::editor::{ TileSelectorWidget, NodeGraph, GraphMode };
-use server::gamedata::behavior::{ BehaviorType };
+use core_server::gamedata::behavior::{ BehaviorType };
 
 use crate::editor::{ EditorOptions, EditorContent };
 use crate::editor::regionoptions::RegionEditorMode;

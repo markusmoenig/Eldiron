@@ -1,4 +1,4 @@
-use server::gamedata::behavior::BehaviorType;
+use core_server::gamedata::behavior::BehaviorType;
 
 use crate::Asset;
 use crate::atom:: { AtomWidget };

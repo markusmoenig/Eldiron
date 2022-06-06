@@ -1,12 +1,11 @@
 use crate::atom::AtomData;
-use server::asset::Asset;
+use core_server::asset::Asset;
+use core_server::asset::TileUsage;
 
 use crate::widget::atom::AtomWidget;
 use crate::widget::atom::AtomWidgetType;
 use crate::widget::context::ScreenContext;
 use crate::widget::WidgetState;
-
-use crate::tileset::TileUsage;
 
 use crate::widget::*;
 use crate::widget::context::ScreenDragContext;

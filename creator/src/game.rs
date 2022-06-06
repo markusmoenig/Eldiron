@@ -1,4 +1,5 @@
-use server::asset::Asset;
+
+use core_server::asset::Asset;
 
 use crate::widget:: {ScreenWidget};
 

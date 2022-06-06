@@ -12,12 +12,11 @@ use crate::editor::log::LogWidget;
 use crate::editor::gameoptions::GameOptions;
 use crate::widget:: {ScreenWidget, Widget, WidgetState, WidgetKey};
 use crate::atom:: { AtomWidget, AtomWidgetType, AtomData };
-use server::gamedata::behavior::{ BehaviorType };
+use core_server::asset::Asset;
+use core_server::gamedata::behavior::BehaviorType;
 use core_shared::actions::*;
 
 use crate::editor::dialog::DialogWidget;
-
-use server::asset::Asset;
 
 mod controlbar;
 mod toolbar;
@@ -1253,7 +1252,7 @@ impl ScreenWidget for Editor<'_> {
     /// Loads the project from the given path
     fn load_project(&mut self, path: std::path::PathBuf, asset: &mut Asset) {
         asset.load_from_path(path.clone());
-        self.context.data = server::gamedata::GameData::load_from_path(path.clone());
+        self.context.data = core_server::gamedata::GameData::load_from_path(path.clone());
 
         let left_width = 180_usize;
         let width = self.rect.2;
