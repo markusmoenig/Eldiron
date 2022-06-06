@@ -1,10 +1,8 @@
 [lib]
-name = "core_server"
-#When building for Xcode
-#crate-type = ["staticlib", "cdylib"]
+name = "core_renderr"
 
 [package]
-name = "core_server"
+name = "core_render"
 version = "0.1.0"
 edition = "2021"
 authors = ["Markus Moenig"]
@@ -20,10 +18,7 @@ fontdue = "0.7.2"
 vectorize = "0.2.0"
 itertools = "0.10.2"
 rand = "0.8.5"
-pathfinding = "3.0.11"
 rhai = "*"
 #rhai = { git = "https://github.com/rhaiscript/rhai/" }
 regex = "1.5"
 
-[features]
-data_editing = []

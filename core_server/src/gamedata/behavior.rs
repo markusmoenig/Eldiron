@@ -142,6 +142,9 @@ pub struct BehaviorInstance {
 
     /// The current player action
     pub action                  : Option<PlayerAction>,
+
+    /// The current player update
+    pub update                  : Option<String>
 }
 
 #[derive(Serialize, Deserialize)]

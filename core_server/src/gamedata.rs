@@ -8,6 +8,7 @@ pub mod script;
 pub mod game;
 pub mod game_screen;
 
+use core_shared::update::GameUpdate;
 use rhai::{ Engine, Scope, AST };
 
 use std::collections::HashMap;
@@ -544,6 +545,7 @@ impl GameData<'_> {
         }
     }
 
+    #[cfg(feature = "data_editing")]
     /// Saves the region to disk
     pub fn save_region(&self, id: usize) {
         if let Some(region) = &mut self.regions.get(&id) {
@@ -551,12 +553,14 @@ impl GameData<'_> {
         }
     }
 
+    #[cfg(feature = "data_editing")]
     /// Sets a value in the region
     pub fn set_region_value(&mut self, layer: usize, id: usize, pos: (isize, isize), value: (usize, usize, usize, TileUsage)) {
         let region = &mut self.regions.get_mut(&id).unwrap();
         region.set_value(layer, pos, value);
     }
 
+    #[cfg(feature = "data_editing")]
     /// Get region by name
     pub fn get_region_by_name(&self, name: &String) -> Option<&GameRegion> {
 
@@ -624,6 +628,7 @@ impl GameData<'_> {
         self.systems.insert(system.data.id, system);
     }
 
+    #[cfg(feature = "data_editing")]
     /// Sets the value for the given behavior id
     pub fn set_behavior_id_value(&mut self, id: (usize, usize, String), value: (f64, f64, f64, f64, String), behavior_type: BehaviorType) {
         if let Some(behavior) = self.get_mut_behavior(id.0, behavior_type) {
@@ -634,6 +639,7 @@ impl GameData<'_> {
         }
     }
 
+    #[cfg(feature = "data_editing")]
     /// Sets the name for the given node
     pub fn set_behavior_node_name(&mut self, id: (usize, usize), value: String, behavior_type: BehaviorType) {
         if let Some(behavior) = self.get_mut_behavior(id.0, behavior_type) {
@@ -644,6 +650,7 @@ impl GameData<'_> {
         }
     }
 
+    #[cfg(feature = "data_editing")]
     /// Gets the value of the behavior id
     pub fn get_behavior_id_value(&self, id: (usize, usize, String), def: (f64, f64, f64, f64, String), behavior_type: BehaviorType) -> (f64, f64, f64, f64, String) {
         if let Some(behavior) = self.get_behavior(id.0, behavior_type) {
@@ -656,6 +663,7 @@ impl GameData<'_> {
         def
     }
 
+    #[cfg(feature = "data_editing")]
     /// Gets the position for the given behavior
     pub fn get_behavior_default_position(&self, id: usize) -> Option<(usize, isize, isize)> {
         if let Some(behavior) = self.behaviors.get(&id) {
@@ -670,6 +678,7 @@ impl GameData<'_> {
         None
     }
 
+    #[cfg(feature = "data_editing")]
     /// Gets the position for the given behavior
     pub fn get_behavior_default_tile(&self, id: usize) -> Option<(usize, usize, usize)> {
         if let Some(behavior) = self.behaviors.get(&id) {
@@ -741,7 +750,7 @@ impl GameData<'_> {
 
             let index = self.instances.len();
 
-            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::NonPlayerCharacter};
+            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::NonPlayerCharacter, update: None};
 
             // Make sure id is unique
             let mut has_id_already = true;
@@ -814,7 +823,7 @@ impl GameData<'_> {
 
         let index = self.instances.len();
 
-        let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.data.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::GameLogic};
+        let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.data.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::GameLogic, update: None};
 
         // Make sure id is unique
         let mut has_id_already = true;
@@ -1342,8 +1351,17 @@ impl GameData<'_> {
             self.execute_area_node(pairs.0, pairs.1);
         }
 
-        // Game logic, only executed if this is a server for a client game
+        // Parse the player characters and generate updates
 
+        for inst_index in 0..self.instances.len() {
+            if self.instances[inst_index].instance_type == BehaviorInstanceType::Player {
+
+                let update = GameUpdate{ position: self.instances[inst_index].position, tile: self.instances[inst_index].tile };
+                self.instances[inst_index].update = serde_json::to_string(&update).ok();
+            }
+        }
+
+        // TODO REMOVE
         // Set game frame dimensions
         if let Some(size) = size {
 
@@ -1466,7 +1484,7 @@ impl GameData<'_> {
         }
     }
 
-    pub fn startup_client(&mut self) {
+    pub fn startup(&mut self) {
 
         self.asset = Some(Asset::new());
         self.asset.as_mut().unwrap().load_from_path(self.path.clone());
@@ -1505,10 +1523,18 @@ impl GameData<'_> {
         //}
     }
 
-    pub fn shutdown_client(&mut self) {
+    pub fn shutdown(&mut self) {
         self.clear_instances();
         self.game_instance_index = None;
         self.asset = None;
         self.draw2d = None;
+    }
+
+    /// Locally poll a player update, this is used for local single player games
+    pub fn poll_update(&mut self, player_id: usize) -> Option<String> {
+        if let Some(index) = self.player_ids_inst_indices.get(&player_id) {
+            return self.instances[*index].update.clone();
+        }
+        None
     }
 }

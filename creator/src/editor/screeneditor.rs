@@ -446,7 +446,7 @@ impl EditorContent for ScreenEditor {
         self.node_behavior_value = context.dialog_node_behavior_value.clone();
 
         if context.is_running == false {
-            context.data.startup_client();
+            context.data.startup();
 
             // Execute the screen node script to get the screen dimensions and tile_size
             screen(context.data.game_instance_index.unwrap(), (self.node_behavior_id.0, self.node_behavior_id.1), &mut context.data, BehaviorType::GameLogic);
@@ -477,7 +477,7 @@ impl EditorContent for ScreenEditor {
         }
 
         if context.is_running == false {
-            context.data.shutdown_client();
+            context.data.shutdown();
         }
     }
 

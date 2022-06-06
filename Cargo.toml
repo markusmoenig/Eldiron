@@ -2,6 +2,7 @@
 
 members = [
     "core_server",
+    "core_render",
     "creator"
 ]
 

@@ -275,6 +275,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "core_render"
+version = "0.1.0"
+dependencies = [
+ "core_shared",
+ "env_logger",
+ "fontdue",
+ "itertools",
+ "log",
+ "png",
+ "rand",
+ "regex",
+ "rhai",
+ "serde",
+ "serde_json",
+ "vectorize",
+]
+
+[[package]]
 name = "core_server"
 version = "0.1.0"
 dependencies = [

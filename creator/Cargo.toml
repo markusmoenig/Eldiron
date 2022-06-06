@@ -7,7 +7,7 @@ authors = ["Markus Moenig"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-core_server = { path = "../core_server" }
+core_server = { path = "../core_server", features = ["data_editing"] }
 core_shared = { path = "../core_shared" }
 env_logger = "0.9"
 log = "0.4"
