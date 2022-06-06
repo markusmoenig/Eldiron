@@ -31,7 +31,7 @@ use self::game::Game;
 use self::game_screen::GameScreen;
 use self::nodes_utility::get_node_value;
 
-use utilities::actions::*;
+use core_shared::actions::*;
 use crate::script_types::*;
 
 type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> behavior::BehaviorNodeConnector;

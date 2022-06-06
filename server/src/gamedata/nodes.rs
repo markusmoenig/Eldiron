@@ -1,4 +1,4 @@
-use utilities::actions::PlayerDirection;
+use core_shared::actions::PlayerDirection;
 
 use crate::gamedata::behavior:: { BehaviorNodeConnector, BehaviorNodeType };
 use crate::gamedata::GameData;

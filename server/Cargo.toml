@@ -10,7 +10,7 @@ edition = "2021"
 authors = ["Markus Moenig"]
 
 [dependencies]
-utilities = { path = "../utilities" }
+core_shared = { path = "../core_shared" }
 env_logger = "0.9"
 log = "0.4"
 png = "0.17.2"

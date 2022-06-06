@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use rand::prelude::*;
-use utilities::actions::PlayerAction;
+use core_shared::actions::PlayerAction;
 
 use std::fs;
 use std::path;

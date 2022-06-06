@@ -8,7 +8,7 @@ authors = ["Markus Moenig"]
 
 [dependencies]
 server = { path = "../server" }
-utilities = { path = "../utilities" }
+core_shared = { path = "../core_shared" }
 env_logger = "0.9"
 log = "0.4"
 pixels = "0.9.0"

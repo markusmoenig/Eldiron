@@ -13,7 +13,7 @@ use crate::editor::gameoptions::GameOptions;
 use crate::widget:: {ScreenWidget, Widget, WidgetState, WidgetKey};
 use crate::atom:: { AtomWidget, AtomWidgetType, AtomData };
 use server::gamedata::behavior::{ BehaviorType };
-use utilities::actions::*;
+use core_shared::actions::*;
 
 use crate::editor::dialog::DialogWidget;
 
