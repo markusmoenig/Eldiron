@@ -371,6 +371,7 @@ impl GameData<'_> {
         let mut engine = Engine::new();
 
         // Variable resolver for d??? -> random(???)
+        #[allow(deprecated)]
         engine.on_var(|name, _index, _context| {
 
             if name.starts_with("d") {
