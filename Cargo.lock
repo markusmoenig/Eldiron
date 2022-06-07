@@ -302,7 +302,6 @@ dependencies = [
  "itertools",
  "log",
  "pathfinding",
- "png",
  "rand",
  "regex",
  "rhai",
@@ -315,8 +314,12 @@ dependencies = [
 name = "core_shared"
 version = "0.1.0"
 dependencies = [
+ "fontdue",
+ "png",
+ "rand",
  "serde",
  "serde_json",
+ "vectorize",
 ]
 
 [[package]]
@@ -440,6 +443,7 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 name = "eldiron"
 version = "0.5.5"
 dependencies = [
+ "core_render",
  "core_server",
  "core_shared",
  "directories",

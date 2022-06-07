@@ -13,7 +13,6 @@ authors = ["Markus Moenig"]
 core_shared = { path = "../core_shared" }
 env_logger = "0.9"
 log = "0.4"
-png = "0.17.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 fontdue = "0.7.2"

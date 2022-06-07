@@ -9,7 +9,7 @@ use crate::editor::ToolBar;
 
 use core_server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode, BehaviorNodeConnector, BehaviorType };
 
-use core_server::asset::Asset;
+use core_shared::asset::Asset;
 use crate::editor::{ ScreenContext };
 
 use itertools::Itertools;

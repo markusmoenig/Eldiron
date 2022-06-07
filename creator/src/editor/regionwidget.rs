@@ -1,5 +1,5 @@
-use core_server::asset::{ Asset };
-use core_server::asset::tileset::TileUsage;
+use core_shared::asset::{ Asset };
+use core_shared::asset::tileset::TileUsage;
 
 use crate::widget::context::ScreenContext;
 use crate::editor::{ TileSelectorWidget, NodeGraph, GraphMode };

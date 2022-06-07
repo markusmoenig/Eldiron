@@ -12,9 +12,11 @@ use crate::editor::log::LogWidget;
 use crate::editor::gameoptions::GameOptions;
 use crate::widget:: {ScreenWidget, Widget, WidgetState, WidgetKey};
 use crate::atom:: { AtomWidget, AtomWidgetType, AtomData };
-use core_server::asset::Asset;
+use core_renderr::render::GameRender;
+use core_shared::asset::Asset;
 use core_server::gamedata::behavior::BehaviorType;
 use core_shared::actions::*;
+use core_shared::update::GameUpdate;
 
 use crate::editor::dialog::DialogWidget;
 
@@ -98,6 +100,8 @@ pub struct Editor<'a> {
 
     status_bar                      : StatusBar,
 
+    game_render                     : Option<GameRender>,
+
     project_to_load                 : Option<std::path::PathBuf>
 }
 
@@ -161,6 +165,8 @@ impl ScreenWidget for Editor<'_> {
             mouse_hover_pos         : (0,0),
 
             status_bar,
+
+            game_render             : None,
 
             project_to_load,
         }
@@ -263,21 +269,34 @@ impl ScreenWidget for Editor<'_> {
             let clear_frame = (0, self.context.toolbar_height / 2, self.context.width, self.context.height - self.context.toolbar_height / 2);
             self.context.draw2d.draw_rect(frame, &clear_frame, self.context.width, &self.context.color_black);
 
-            let mut cx : usize = 0;
-            let mut cy : usize = 0;
-
-            if self.context.data.game_screen_width < clear_frame.2 {
-                cx = (clear_frame.2 - self.context.data.game_screen_width) / 2;
+            if self.game_render.is_none() {
+                self.game_render = Some(GameRender::new(self.context.curr_project_path.clone()));
             }
 
-            if self.context.data.game_screen_height < clear_frame.3 {
-                cy = (clear_frame.3 - self.context.data.game_screen_height) / 2;
+            if let Some(render) = &mut self.game_render {
+                if let Some(update_string) = self.context.data.poll_update(131313) {
+
+                    let update = serde_json::from_str::<GameUpdate>(&update_string).ok();
+
+                    if let Some(update) = update {
+                        render.draw(anim_counter, &update);
+                    }
+
+                    let mut cx : usize = 0;
+                    let mut cy : usize = 0;
+
+                    if render.width < clear_frame.2 {
+                        cx = (clear_frame.2 - render.width) / 2;
+                    }
+
+                    if render.height < clear_frame.3 {
+                        cy = (clear_frame.3 - render.height) / 2;
+                    }
+
+                    let dest_frame = (cx, cy + self.context.toolbar_height / 2, render.width, render.height);
+                    self.context.draw2d.copy_slice(frame, &mut render.frame, &dest_frame, self.context.width);
+                }
             }
-
-            let dest_frame = (cx, cy + self.context.toolbar_height / 2, self.context.data.game_screen_width, self.context.data.game_screen_height);
-
-            self.context.draw2d.copy_slice(frame, &mut self.context.data.game_frame, &dest_frame, self.context.width);
-
             return;
         }
 

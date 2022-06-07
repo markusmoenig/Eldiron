@@ -1,5 +1,5 @@
 use std::time::{SystemTime, UNIX_EPOCH};
-use core_server::asset::Asset;
+use core_shared::asset::Asset;
 use serde::{Deserialize, Serialize};
 
 use self::{context::ScreenContext, atom::AtomWidget};

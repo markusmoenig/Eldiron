@@ -1,11 +1,8 @@
 
-use core_shared::asset::{TileMap, Asset};
-use core_server::gamedata::behavior::BehaviorInstanceState;
-use core_server::gamedata::region::GameRegion;
 use fontdue::layout::{ Layout, LayoutSettings, CoordinateSystem, TextStyle, VerticalAlign, HorizontalAlign };
 use fontdue::Font;
 
-use super::context::ScreenContext;
+use core_shared::asset::TileMap;
 
 #[derive(PartialEq)]
 pub enum TextAlignment {
@@ -160,41 +157,6 @@ impl Draw2D {
         }
     }
 
-    /// Blends a rounded rect
-    pub fn blend_rounded_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, size: &(f64, f64), color: &[u8; 4], rounding: &(f64, f64, f64, f64)) {
-        let center = (rect.0 as f64 + size.0 / 2.0, rect.1 as f64 + size.1 / 2.0 + (rect.3 as f64 - size.1) / 2.0);
-        for y in rect.1..rect.1+rect.3 {
-            for x in rect.0..rect.0+rect.2 {
-                let i = x * 4 + y * stride * 4;
-
-                let p = (x as f64 - center.0, y as f64 - center.1);
-                let mut r : (f64, f64);
-
-                if p.0 > 0.0 {
-                    r = (rounding.0, rounding.1);
-                } else {
-                    r = (rounding.2, rounding.3);
-                }
-
-                if p.1 <= 0.0 {
-                    r.0 = r.1;
-                }
-
-                let q : (f64, f64) = (p.0.abs() - size.0 / 2.0 + r.0, p.1.abs() - size.1 / 2.0 + r.0);
-                let d = f64::min(f64::max(q.0, q.1), 0.0) + self.length((f64::max(q.0, 0.0), f64::max(q.1, 0.0))) - r.0;
-
-                if d < 0.0 {
-                    let t = self.fill_mask(d);
-
-                    let background = &[frame[i], frame[i+1], frame[i+2], 255];
-                    let mut mixed_color = self.mix_color(&background, &color, t * 0.5 * (color[3] as f64 / 255.0));
-                    mixed_color[3] = (mixed_color[3] as f64 * (color[3] as f64 / 255.0)) as u8;
-                    frame[i..i + 4].copy_from_slice(&mixed_color);
-                }
-            }
-        }
-    }
-
     /// Draws a rounded rect with a border
     pub fn draw_rounded_rect_with_border(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, size: &(f64, f64), color: &[u8; 4], rounding: &(f64, f64, f64, f64), border_color: &[u8; 4], border_size: f64) {
         let center = ((rect.0 as f64 + size.0 / 2.0).round(), (rect.1 as f64 + size.1 / 2.0 + (rect.3 as f64 - size.1) / 2.0).round());
@@ -252,14 +214,15 @@ impl Draw2D {
     pub fn draw_text_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4], background: &[u8;4], align: TextAlignment) {
 
         let mut text_to_use = text.trim_end().to_string().clone();
-        text_to_use = text_to_use.replace('\n', "");
         if text_to_use.trim_end().is_empty() { return; }
+
+        text_to_use = text_to_use.lines().next().unwrap().to_owned();
 
         let mut text_size = self.get_text_size(font, size, text_to_use.as_str());
 
         let mut add_trail = false;
         // Text is too long ??
-        while text_size.0 >= rect.2 {
+        while text_size.0 > rect.2 {
             text_to_use.pop();
             text_size = self.get_text_size(font, size, (text_to_use.clone() + "...").as_str());
             add_trail = true;
@@ -306,7 +269,7 @@ impl Draw2D {
 
         let mut add_trail = false;
         // Text is too long ??
-        while text_size.0 >= rect.2 {
+        while text_size.0 > rect.2 {
             text_to_use.pop();
             text_size = self.get_text_size(font, size, (text_to_use.clone() + "...").as_str());
             add_trail = true;
@@ -371,6 +334,34 @@ impl Draw2D {
         }
     }
 
+    /// Draws the given text
+    pub fn blend_text(&self,  frame: &mut [u8], pos: &(usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4]) {
+        if text.is_empty() { return; }
+
+        let fonts = &[font];
+
+        let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
+        layout.reset(&LayoutSettings {
+            ..LayoutSettings::default()
+        });
+        layout.append(fonts, &TextStyle::new(text, size, 0));
+
+        for glyph in layout.glyphs() {
+            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+            //println!("Metrics: {:?}", glyph);
+
+            for y in 0..metrics.height {
+                for x in 0..metrics.width {
+                    let i = (x+pos.0+glyph.x as usize) * 4 + (y + pos.1 + glyph.y as usize) * stride * 4;
+                    let m = alphamap[x + y * metrics.width];
+
+                    let background = &[frame[i], frame[i+1], frame[i+2], frame[i+3]];
+                    frame[i..i + 4].copy_from_slice(&self.mix_color(&background, &color, m as f64 / 255.0));
+                }
+            }
+        }
+    }
+
     /// Returns the size of the given text
     pub fn get_text_size(&self, font: &Font, size: f32, text: &str) -> (usize, usize) {
         let fonts = &[font];
@@ -381,7 +372,7 @@ impl Draw2D {
         });
         layout.append(fonts, &TextStyle::new(text, size, 0));
 
-        let x = layout.glyphs()[layout.glyphs().len()-1].x.ceil() as usize + layout.glyphs()[layout.glyphs().len()-1].width + 1;
+        let x = layout.glyphs()[layout.glyphs().len()-1].x as usize + layout.glyphs()[layout.glyphs().len()-1].width;
         (x, layout.height() as usize)
     }
 
@@ -433,26 +424,6 @@ impl Draw2D {
                         dest[dd..dd + 4].copy_from_slice(&self.mix_color(&background, &color, (color[3] as f64) / 255.0));
                     }
                 }
-            }
-        }
-    }
-
-    /// Scale a chunk to the destination size
-    pub fn scale_chunk(&self,  frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, source_frame: &[u8], source_size: &(usize, usize)) {
-
-        let x_ratio = source_size.0 as f32 / rect.2 as f32;
-        let y_ratio = source_size.1 as f32 / rect.3 as f32;
-
-        for sy in 0..rect.3 {
-            let y = (sy as f32 * y_ratio) as usize;
-
-            for sx in 0..rect.2 {
-                let x = (sx as f32 * x_ratio) as usize;
-
-                let d = (rect.0 + sx) * 4 + (sy + rect.1) * stride * 4;
-                let s = x * 4 + y * source_size.0 * 4;
-
-                frame[d..d + 4].copy_from_slice(&[source_frame[s], source_frame[s+1], source_frame[s+2], source_frame[s+3]]);
             }
         }
     }
@@ -567,195 +538,4 @@ impl Draw2D {
         }
     }
 
-    /// Draws the given region with the given offset into the rectangle
-    pub fn draw_region(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), offset: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset) {
-        let left_offset = (rect.2 % tile_size) / 2;
-        let top_offset = (rect.3 % tile_size) / 2;
-
-        let x_tiles = (rect.2 / tile_size) as isize;
-        let y_tiles = (rect.3 / tile_size) as isize;
-
-        for y in 0..y_tiles {
-            for x in 0..x_tiles {
-                let values = region.get_value((x + offset.0, y + offset.1));
-                for value in values {
-                    let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
-
-                    let map = asset.get_map_of_id(value.0);
-                    self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
-                }
-            }
-        }
-    }
-
-    /// Draws the given region centered at the given center and returns the top left offset into the region
-    pub fn draw_region_centered_with_behavior(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), center: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {
-        let left_offset = (rect.2 % tile_size) / 2;
-        let top_offset = (rect.3 % tile_size) / 2;
-
-        let x_tiles = (rect.2 / tile_size) as isize;
-        let y_tiles = (rect.3 / tile_size) as isize;
-
-        let mut offset = center.clone();
-
-        offset.0 -= x_tiles / 2;
-        offset.1 -= y_tiles / 2;
-
-        // Draw Environment
-        for y in 0..y_tiles {
-            for x in 0..x_tiles {
-                let values = region.get_value((x + offset.0, y + offset.1));
-
-                for value in values {
-                    let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
-
-                    let map = asset.get_map_of_id(value.0);
-                    self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
-                }
-            }
-        }
-
-        // Draw Behaviors
-        for (id, _behavior) in &context.data.behaviors {
-            if let Some(position) = context.data.get_behavior_default_position(*id) {
-                // In the same region ?
-                if position.0 == region.data.id {
-
-                    // Row check
-                    if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
-                        // Column check
-                        if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
-                            // Visible
-                            if let Some(tile) = context.data.get_behavior_default_tile(*id) {
-
-                                let pos = (rect.0 + left_offset + ((position.1 - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.2 - offset.1) as usize) * tile_size);
-
-                                let map = asset.get_map_of_id(tile.0);
-                                self.draw_animated_tile(frame, &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Draw center mark
-
-        self.draw_rect_outline(frame, &(rect.0 + left_offset + x_tiles as usize / 2 * tile_size, rect.1 + top_offset + y_tiles as usize / 2 * tile_size, tile_size, tile_size), stride, context.color_red);
-
-        offset
-    }
-
-    /// Draws the given region centered at the given center and returns the top left offset into the region
-    pub fn draw_region_centered_with_instances(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), index_to_center: usize, stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {
-        let left_offset = (rect.2 % tile_size) / 2;
-        let top_offset = (rect.3 % tile_size) / 2;
-
-        let x_tiles = (rect.2 / tile_size) as isize;
-        let y_tiles = (rect.3 / tile_size) as isize;
-
-        let mut center = (0, 0);
-        if let Some(position) = context.data.instances[index_to_center].position {
-            center.0 = position.1;
-            center.1 = position.2;
-        } else {
-            return region.data.min_pos.clone();
-        }
-        let mut offset = center.clone();
-
-        offset.0 -= x_tiles / 2;
-        offset.1 -= y_tiles / 2;
-
-        // Draw Environment
-        for y in 0..y_tiles {
-            for x in 0..x_tiles {
-
-                let values = region.get_value((x + offset.0, y + offset.1));
-                for value in values {
-                    let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
-
-                    let map = asset.get_map_of_id(value.0);
-                    self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
-                }
-            }
-        }
-
-        for index in 0..context.data.instances.len() {
-
-            if context.data.instances[index].state == BehaviorInstanceState::Killed || context.data.instances[index].state == BehaviorInstanceState::Purged {
-                continue;
-            }
-
-            if let Some(position) = context.data.instances[index].position {
-                if let Some(tile) = context.data.instances[index].tile {
-                    // In the same region ?
-                    if position.0 == region.data.id {
-
-                        // Row check
-                        if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
-                            // Column check
-                            if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
-                                // Visible
-                                let pos = (rect.0 + left_offset + ((position.1 - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.2 - offset.1) as usize) * tile_size);
-
-                                let map = asset.get_map_of_id(tile.0);
-                                self.draw_animated_tile(frame, &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        offset
-    }
-
-    /// Draws the given region with the given offset into the rectangle
-    pub fn draw_region_with_instances(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), offset: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) {
-        let left_offset = (rect.2 % tile_size) / 2;
-        let top_offset = (rect.3 % tile_size) / 2;
-
-        let x_tiles = (rect.2 / tile_size) as isize;
-        let y_tiles = (rect.3 / tile_size) as isize;
-
-        for y in 0..y_tiles {
-            for x in 0..x_tiles {
-                let values = region.get_value((x + offset.0, y + offset.1));
-
-                for value in values {
-                    let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
-
-                    let map = asset.get_map_of_id(value.0);
-                    self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
-                }
-            }
-        }
-
-        for index in 0..context.data.instances.len() {
-
-            if context.data.instances[index].state == BehaviorInstanceState::Killed || context.data.instances[index].state == BehaviorInstanceState::Purged {
-                continue;
-            }
-
-            if let Some(position) = context.data.instances[index].position {
-                if let Some(tile) = context.data.instances[index].tile {
-                    // In the same region ?
-                    if position.0 == region.data.id {
-
-                        // Row check
-                        if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
-                            // Column check
-                            if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
-                                // Visible
-                                let pos = (rect.0 + left_offset + ((position.1 - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.2 - offset.1) as usize) * tile_size);
-
-                                let map = asset.get_map_of_id(tile.0);
-                                self.draw_animated_tile(frame, &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 }

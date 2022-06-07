@@ -1,6 +1,6 @@
 use core_server::gamedata::behavior::BehaviorType;
 
-use crate::Asset;
+use core_shared::asset::Asset;
 use crate::atom:: { AtomWidget };
 use crate::editor::ScreenContext;
 

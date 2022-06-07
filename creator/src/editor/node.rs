@@ -4,7 +4,7 @@ use core_server::gamedata::behavior::{GameBehaviorData, BehaviorNode, BehaviorNo
 
 use crate::atom:: { AtomWidget };
 use crate::editor::ScreenContext;
-use core_server::asset::Asset;
+use core_shared::asset::Asset;
 
 pub struct NodeUserData {
     pub position                : (isize, isize)

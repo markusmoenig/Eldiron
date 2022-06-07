@@ -1,4 +1,4 @@
-use core_server::asset::{Asset, TileUsage};
+use core_shared::asset::{Asset, TileUsage};
 
 use crate::{widget::*, editor::{dialog::{DialogState, DialogEntry}, codeeditorwidget::CodeEditorWidgetState}};
 

@@ -4,8 +4,8 @@ use fontdue::Font;
 
 use crate::gamedata::behavior::{BehaviorInstanceState, BehaviorInstance};
 
-use super::asset::TileMap;
-use super::asset::Asset;
+use core_shared::asset::TileMap;
+use core_shared::asset::Asset;
 use super::gamedata::region::GameRegion;
 
 #[derive(PartialEq)]

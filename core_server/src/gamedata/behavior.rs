@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use rand::prelude::*;
 use core_shared::actions::PlayerAction;
 
+use std::collections::HashSet;
 use std::fs;
 use std::path;
 use std::path::PathBuf;
@@ -144,7 +145,10 @@ pub struct BehaviorInstance {
     pub action                  : Option<PlayerAction>,
 
     /// The current player update
-    pub update                  : Option<String>
+    pub update                  : Option<String>,
+
+    /// The regions we send to the player client already
+    pub regions_send            : HashSet<usize>
 }
 
 #[derive(Serialize, Deserialize)]

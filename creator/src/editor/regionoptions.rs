@@ -1,6 +1,6 @@
 use crate::atom::AtomData;
-use core_server::asset::Asset;
-use core_server::asset::TileUsage;
+use core_shared::asset::Asset;
+use core_shared::asset::TileUsage;
 
 use crate::widget::atom::AtomWidget;
 use crate::widget::atom::AtomWidgetType;

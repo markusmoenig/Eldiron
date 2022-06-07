@@ -1,5 +1,5 @@
 use crate::gamedata::{ GameData, BehaviorNodeConnector, BehaviorType };
-use crate::asset::TileUsage;
+use core_shared::asset::TileUsage;
 
 use pathfinding::prelude::bfs;
 

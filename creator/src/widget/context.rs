@@ -1,7 +1,8 @@
 
 use crate::editor::{ codeeditorwidget::CodeEditorWidgetState, EditorState, dialog::{ DialogState, DialogEntry } };
 use crate::{draw2d::Draw2D};
-use core_server::{gamedata::{ behavior::BehaviorType, GameData }, asset::TileUsage};
+use core_shared::asset::TileUsage;
+use core_server::{gamedata::{ behavior::BehaviorType, GameData }};
 use zeno::{Mask, Stroke};
 use directories::{ UserDirs };
 

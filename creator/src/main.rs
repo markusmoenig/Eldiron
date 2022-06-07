@@ -9,7 +9,7 @@ mod prelude {
     pub const GAME_TICK_IN_MS : u128 = 250;
 }
 
-use core_server::asset::Asset;
+use core_shared::asset::Asset;
 use prelude::*;
 
 use crate::game::*;

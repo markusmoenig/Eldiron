@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use rand::prelude::*;
 
 use std::fs;
@@ -7,35 +6,11 @@ use std::path::PathBuf;
 
 use std::collections::HashMap;
 
-use crate::asset::tileset::TileUsage;
-use crate::asset::Asset;
+use core_shared::regiondata::{ GameRegionData, RegionArea };
+use core_shared::asset::tileset::TileUsage;
+use core_shared::asset::Asset;
 
 use super::behavior::GameBehavior;
-
-#[derive(Serialize, Deserialize)]
-pub struct RegionArea {
-    pub name            : String,
-    pub id              : usize,
-    pub area            : Vec<(isize, isize)>,
-    pub behavior        : usize,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct GameRegionData {
-    #[serde(with = "vectorize")]
-    pub layer1          : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
-    #[serde(with = "vectorize")]
-    pub layer2          : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
-    #[serde(with = "vectorize")]
-    pub layer3          : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
-    #[serde(with = "vectorize")]
-    pub layer4          : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
-    pub id              : usize,
-    pub curr_pos        : (isize, isize),
-    pub min_pos         : (isize, isize),
-    pub max_pos         : (isize, isize),
-    pub areas           : Vec<RegionArea>,
-}
 
 pub struct GameRegion {
     pub name            : String,

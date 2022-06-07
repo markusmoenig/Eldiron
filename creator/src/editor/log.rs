@@ -1,4 +1,4 @@
-use crate::Asset;
+use core_shared::asset::Asset;
 use crate::editor::ScreenContext;
 
 pub struct LogWidget {

@@ -9,6 +9,7 @@ authors = ["Markus Moenig"]
 [dependencies]
 core_server = { path = "../core_server", features = ["data_editing"] }
 core_shared = { path = "../core_shared" }
+core_render = { path = "../core_render" }
 env_logger = "0.9"
 log = "0.4"
 pixels = "0.9.0"

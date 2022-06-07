@@ -1,7 +1,6 @@
 
 use std::error::Error;
 
-pub mod asset;
 pub mod gamedata;
 pub mod draw2d;
 pub mod script_types;

@@ -1,6 +1,6 @@
 use crate::editor::node::NodeWidget;
 use core_server::gamedata::behavior::*;
-use core_server::asset::{Asset, TileUsage};
+use core_shared::asset::{Asset, TileUsage};
 use core_server::gamedata::game_screen::GameScreen;
 
 use crate::editor::ScreenContext;

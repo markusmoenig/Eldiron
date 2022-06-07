@@ -1,7 +1,7 @@
 use crate::atom::AtomData;
-use core_server::asset::Asset;
+use core_shared::asset::Asset;
 
-use core_server::asset::tileset::TileUsage;
+use core_shared::asset::tileset::TileUsage;
 
 use crate::widget::atom::{AtomWidget, AtomWidgetType};
 use crate::widget::context::ScreenContext;

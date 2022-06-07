@@ -1,5 +1,5 @@
 
-use core_server::asset::Asset;
+use core_shared::asset::Asset;
 
 use crate::widget:: {ScreenWidget};
 

@@ -2,7 +2,7 @@ use crate::widget::*;
 
 use crate::atom::AtomData;
 use crate::widget::context::ScreenDragContext;
-use core_server::asset::Asset;
+use core_shared::asset::Asset;
 use core_server::gamedata::game_screen::GameScreenWidgetType;
 
 use crate::widget::atom::AtomWidget;

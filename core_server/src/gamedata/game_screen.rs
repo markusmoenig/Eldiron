@@ -132,7 +132,7 @@ pub struct GameScreen {
 
     /// Tiles
     #[serde(with = "vectorize")]
-    pub tiles               : HashMap<(isize, isize), (usize, usize, usize, crate::asset::TileUsage)>,
+    pub tiles               : HashMap<(isize, isize), (usize, usize, usize, core_shared::asset::TileUsage)>,
 
     /// Grid size
     pub grid_size           : usize,

@@ -8,16 +8,19 @@ pub mod script;
 pub mod game;
 pub mod game_screen;
 
+use core_shared::regiondata::GameRegionData;
 use core_shared::update::GameUpdate;
+use core_shared::asset::{ TileUsage, Asset };
+use core_shared::actions::*;
+
 use rhai::{ Engine, Scope, AST };
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::metadata;
 use std::hash::Hash;
 
 use crate::gamedata::region::GameRegion;
 use crate::gamedata::behavior::{ BehaviorNodeConnector, BehaviorInstance, GameBehavior, BehaviorNodeType, BehaviorType, BehaviorInstanceState };
-use crate::asset::{ TileUsage, Asset };
 use crate::draw2d::Draw2D;
 
 use itertools::Itertools;
@@ -32,7 +35,6 @@ use self::game::Game;
 use self::game_screen::GameScreen;
 use self::nodes_utility::get_node_value;
 
-use core_shared::actions::*;
 use crate::script_types::*;
 
 type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> behavior::BehaviorNodeConnector;
@@ -750,7 +752,7 @@ impl GameData<'_> {
 
             let index = self.instances.len();
 
-            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::NonPlayerCharacter, update: None};
+            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: HashSet::new()};
 
             // Make sure id is unique
             let mut has_id_already = true;
@@ -823,7 +825,7 @@ impl GameData<'_> {
 
         let index = self.instances.len();
 
-        let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.data.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::GameLogic, update: None};
+        let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.data.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::GameLogic, update: None, regions_send: HashSet::new()};
 
         // Make sure id is unique
         let mut has_id_already = true;
@@ -1356,7 +1358,22 @@ impl GameData<'_> {
         for inst_index in 0..self.instances.len() {
             if self.instances[inst_index].instance_type == BehaviorInstanceType::Player {
 
-                let update = GameUpdate{ position: self.instances[inst_index].position, tile: self.instances[inst_index].tile };
+                let mut region : Option<GameRegionData> = None;
+                if let Some(position) = self.instances[inst_index].position {
+                    if self.instances[inst_index].regions_send.contains(&position.0) == false {
+                        if let Some(reg) = self.regions.get(&position.0) {
+                            region = Some(reg.data.clone());
+                            self.instances[inst_index].regions_send.insert(position.0);
+                        }
+                    }
+                }
+
+                let update = GameUpdate{
+                    position: self.instances[inst_index].position,
+                    tile: self.instances[inst_index].tile,
+                    region
+                 };
+
                 self.instances[inst_index].update = serde_json::to_string(&update).ok();
             }
         }
