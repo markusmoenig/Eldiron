@@ -36,11 +36,11 @@ impl GameRender {
     }
 
     pub fn draw(&mut self, anim_counter: usize, update: &GameUpdate) {
-        println!("{:?}", update.characters.len());
+        //println!("{:?}", update.displacements.len());
 
         // Got a new region ?
         if let Some(region) = &update.region {
-            println!("got {:?}", region.id);
+            //println!("got region {:?}", region.id);
             self.regions.insert(region.id, region.clone());
         }
 
@@ -76,7 +76,7 @@ impl GameRender {
                 for y in 0..y_tiles {
                     for x in 0..x_tiles {
 
-                        let values = self.get_region_value(region, (x + offset.0, y + offset.1));
+                        let values = self.get_region_value(region, (x + offset.0, y + offset.1), update);
                         for value in values {
                             let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
@@ -109,20 +109,24 @@ impl GameRender {
     }
 
     /// Gets the given region value
-    pub fn get_region_value(&self, region: &GameRegionData, pos: (isize, isize)) -> Vec<(usize, usize, usize, TileUsage)> {
+    pub fn get_region_value(&self, region: &GameRegionData, pos: (isize, isize), update: &GameUpdate) -> Vec<(usize, usize, usize, TileUsage)> {
         let mut rc = vec![];
 
-        if let Some(t) = region.layer1.get(&pos) {
+        if let Some(t) = update.displacements.get(&pos) {
             rc.push(t.clone());
-        }
-        if let Some(t) = region.layer2.get(&pos) {
-            rc.push(t.clone());
-        }
-        if let Some(t) = region.layer3.get(&pos) {
-            rc.push(t.clone());
-        }
-        if let Some(t) = region.layer4.get(&pos) {
-            rc.push(t.clone());
+        } else {
+            if let Some(t) = region.layer1.get(&pos) {
+                rc.push(t.clone());
+            }
+            if let Some(t) = region.layer2.get(&pos) {
+                rc.push(t.clone());
+            }
+            if let Some(t) = region.layer3.get(&pos) {
+                rc.push(t.clone());
+            }
+            if let Some(t) = region.layer4.get(&pos) {
+                rc.push(t.clone());
+            }
         }
         rc
     }

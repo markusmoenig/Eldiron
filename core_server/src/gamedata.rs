@@ -1383,17 +1383,20 @@ impl GameData<'_> {
         for inst_index in 0..self.instances.len() {
             if self.instances[inst_index].instance_type == BehaviorInstanceType::Player {
 
-                let mut region : Option<GameRegionData> = None;
-                let mut characters : Vec<CharacterData> = vec![];
+                let mut region        : Option<GameRegionData> = None;
+                let mut characters    : Vec<CharacterData> = vec![];
+                let mut displacements : HashMap<(isize, isize), (usize, usize, usize, TileUsage)> = HashMap::new();
 
                 if let Some(position) = self.instances[inst_index].position {
 
-                    // Check if the character is in a region we did not send to the client yet
-                    if self.instances[inst_index].regions_send.contains(&position.0) == false {
-                        if let Some(reg) = self.regions.get(&position.0) {
+                    if let Some(reg) = self.regions.get(&position.0) {
+                        // Check if the character is in a region we did not send to the client yet
+                        if self.instances[inst_index].regions_send.contains(&position.0) == false {
                             region = Some(reg.data.clone());
                             self.instances[inst_index].regions_send.insert(position.0);
                         }
+                        // Copy the displacements
+                        displacements = reg.displacements.clone();
                     }
 
                     // Send the characters of the client region
@@ -1402,11 +1405,11 @@ impl GameData<'_> {
                     }
                 }
 
-
                 let update = GameUpdate{
                     position: self.instances[inst_index].position,
                     tile: self.instances[inst_index].tile,
                     region,
+                    displacements,
                     characters
                  };
 
