@@ -8,6 +8,7 @@ pub mod script;
 pub mod game;
 pub mod game_screen;
 
+use core_shared::characterdata::CharacterData;
 use core_shared::regiondata::GameRegionData;
 use core_shared::update::GameUpdate;
 use core_shared::asset::{ TileUsage, Asset };
@@ -114,6 +115,8 @@ pub struct GameData<'a> {
     pub custom_scopes_ordered   : Vec<usize>,
 
     pub runs_in_editor          : bool,
+
+    pub characters              : HashMap<usize, Vec<CharacterData>>,
 
     // These are fields which provide feedback to the editor / game while running
     pub messages                : Vec<(String, MessageType)>,
@@ -448,6 +451,8 @@ impl GameData<'_> {
 
             runs_in_editor          : false,
 
+            characters              : HashMap::new(),
+
             messages                : vec![],
             executed_connections    : vec![],
             changed_variables       : vec![],
@@ -540,6 +545,8 @@ impl GameData<'_> {
             custom_scopes_ordered   : vec![],
 
             runs_in_editor          : false,
+
+            characters              : HashMap::new(),
 
             messages                : vec![],
             executed_connections    : vec![],
@@ -1274,6 +1281,7 @@ impl GameData<'_> {
     pub fn tick(&mut self, size: Option<(usize, usize, usize)>) {
         self.executed_connections = vec![];
         self.changed_variables = vec![];
+        self.characters = HashMap::new();
 
         // Execute behaviors
         for index in 0..self.active_instance_indices.len() {
@@ -1282,57 +1290,74 @@ impl GameData<'_> {
             // Skip Sleep cycles
             if self.instances[inst_index].sleep_cycles > 0 {
                 self.instances[inst_index].sleep_cycles -= 1;
-                continue;
-            }
-
-            // Killed or Purged: Skip
-            if self.instances[inst_index].state == BehaviorInstanceState::Purged || self.instances[inst_index].state == BehaviorInstanceState::Killed {
-                continue;
-            }
-
-            if self.instances[inst_index].instance_type == BehaviorInstanceType::NonPlayerCharacter {
-                // Execute trees of an NPC
-
-                // Has a locked tree ?
-                if let Some(locked_tree) = self.instances[inst_index].locked_tree {
-                        self.execute_node(inst_index, locked_tree);
-                } else {
-                    // Unlocked, execute all valid trees
-                    let trees = self.instances[inst_index].tree_ids.clone();
-                    for node_id in &trees {
-
-                        // Only execute trees here with an "Always" execute setting (0)
-                        if let Some(value)= get_node_value((self.instances[inst_index].behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors) {
-                            if value.0 != 0.0 {
-                                continue;
-                            }
-                        }
-                        self.execute_node(inst_index, node_id.clone());
-                    }
-                }
             } else {
-                // Execute the tree which matches the current action, i.e. "onXXX", like "onMove"
 
-                let mut tree_id: Option<usize> = None;
-                if let Some(action) = &self.instances[inst_index].action {
-                    for id in &self.instances[inst_index].tree_ids {
-                        if let Some(behavior) = self.get_behavior(self.instances[inst_index].behavior_id, BehaviorType::Behaviors) {
-                            if let Some(node) = behavior.data.nodes.get(&id) {
-                                if node.name == action.action {
-                                    tree_id = Some(*id);
-                                    break;
+                // Killed or Purged: Skip
+                if self.instances[inst_index].state == BehaviorInstanceState::Purged || self.instances[inst_index].state == BehaviorInstanceState::Killed {
+                    continue;
+                }
+
+                if self.instances[inst_index].instance_type == BehaviorInstanceType::NonPlayerCharacter {
+                    // Execute trees of an NPC
+
+                    // Has a locked tree ?
+                    if let Some(locked_tree) = self.instances[inst_index].locked_tree {
+                            self.execute_node(inst_index, locked_tree);
+                    } else {
+                        // Unlocked, execute all valid trees
+                        let trees = self.instances[inst_index].tree_ids.clone();
+                        for node_id in &trees {
+
+                            // Only execute trees here with an "Always" execute setting (0)
+                            if let Some(value)= get_node_value((self.instances[inst_index].behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors) {
+                                if value.0 != 0.0 {
+                                    continue;
+                                }
+                            }
+                            self.execute_node(inst_index, node_id.clone());
+                        }
+                    }
+                } else {
+                    // Execute the tree which matches the current action, i.e. "onXXX", like "onMove"
+
+                    let mut tree_id: Option<usize> = None;
+                    if let Some(action) = &self.instances[inst_index].action {
+                        for id in &self.instances[inst_index].tree_ids {
+                            if let Some(behavior) = self.get_behavior(self.instances[inst_index].behavior_id, BehaviorType::Behaviors) {
+                                if let Some(node) = behavior.data.nodes.get(&id) {
+                                    if node.name == action.action {
+                                        tree_id = Some(*id);
+                                        break;
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    if let Some(tree_id) = tree_id {
-                        self.execute_node(inst_index, tree_id);
-                    } else {
-                        println!("Cannot find valid tree for action {}", action.action);
-                    }
+                        if let Some(tree_id) = tree_id {
+                            self.execute_node(inst_index, tree_id);
+                        } else {
+                            println!("Cannot find valid tree for action {}", action.action);
+                        }
 
-                    self.instances[inst_index].action = None;
+                        self.instances[inst_index].action = None;
+                    }
+                }
+            }
+
+            // Add to the characters
+
+            if let Some(position) = self.instances[inst_index].position {
+                if let Some(tile) = self.instances[inst_index].tile {
+                    let character = CharacterData { position,
+                        tile,
+                        name: self.instances[inst_index].name.clone(),
+                        id: self.instances[inst_index].id
+                     };
+                     if let Some(list) = self.characters.get_mut(&position.0) {
+                         list.push(character);
+                     } else {
+                         self.characters.insert(position.0, vec![character]);
+                     }
                 }
             }
         }
@@ -1359,19 +1384,30 @@ impl GameData<'_> {
             if self.instances[inst_index].instance_type == BehaviorInstanceType::Player {
 
                 let mut region : Option<GameRegionData> = None;
+                let mut characters : Vec<CharacterData> = vec![];
+
                 if let Some(position) = self.instances[inst_index].position {
+
+                    // Check if the character is in a region we did not send to the client yet
                     if self.instances[inst_index].regions_send.contains(&position.0) == false {
                         if let Some(reg) = self.regions.get(&position.0) {
                             region = Some(reg.data.clone());
                             self.instances[inst_index].regions_send.insert(position.0);
                         }
                     }
+
+                    // Send the characters of the client region
+                    if let Some(chars) = self.characters.get(&position.0) {
+                        characters = chars.clone();
+                    }
                 }
+
 
                 let update = GameUpdate{
                     position: self.instances[inst_index].position,
                     tile: self.instances[inst_index].tile,
-                    region
+                    region,
+                    characters
                  };
 
                 self.instances[inst_index].update = serde_json::to_string(&update).ok();

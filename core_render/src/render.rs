@@ -36,7 +36,7 @@ impl GameRender {
     }
 
     pub fn draw(&mut self, anim_counter: usize, update: &GameUpdate) {
-        println!("{:?}", update.position);
+        println!("{:?}", update.characters.len());
 
         // Got a new region ?
         if let Some(region) = &update.region {
@@ -72,7 +72,7 @@ impl GameRender {
                 offset.0 -= x_tiles / 2;
                 offset.1 -= y_tiles / 2;
 
-                // Draw Environment
+                // Draw Region
                 for y in 0..y_tiles {
                     for x in 0..x_tiles {
 
@@ -86,7 +86,12 @@ impl GameRender {
                     }
                 }
 
-                if let Some(tile) = update.tile {
+                // Draw Characters
+                for character in &update.characters {
+
+                    let position = character.position;
+                    let tile = character.tile;
+
                     // Row check
                     if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
                         // Column check
