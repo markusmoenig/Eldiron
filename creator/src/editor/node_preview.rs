@@ -159,6 +159,7 @@ impl NodePreviewWidget {
                     }
                 }
             } else {
+                /*
                 if context.is_running {
                     let source_frame = &context.data.game_frame;
                     let source_size = (context.data.game_screen_width, context.data.game_screen_height);
@@ -180,7 +181,7 @@ impl NodePreviewWidget {
                     fit_rect.3 = fit_size.1;
 
                     context.draw2d.scale_chunk(buffer_frame, &fit_rect, stride, source_frame, &source_size);
-                }
+                }*/
             }
             context.draw2d.blend_mask(buffer_frame, &(6, rect.3 - 23, rect.2, rect.3), rect.2, &context.preview_arc_mask[..], &(20, 20), &context.color_gray);
         }

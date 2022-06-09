@@ -100,7 +100,7 @@ pub struct Editor<'a> {
 
     status_bar                      : StatusBar,
 
-    game_render                     : Option<GameRender>,
+    game_render                     : Option<GameRender<'a>>,
 
     project_to_load                 : Option<std::path::PathBuf>
 }
@@ -176,11 +176,11 @@ impl ScreenWidget for Editor<'_> {
     fn update(&mut self, width: usize, height: usize, anim_counter: usize) {
         // let start = self.get_time();
         if self.context.is_debugging == true {
-            self.context.data.tick(Some((width, height - self.context.toolbar_height / 2, anim_counter)));
+            self.context.data.tick();
             self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context);
         } else
         if self.context.is_running {
-            self.context.data.tick(Some((width, height - self.context.toolbar_height / 2, anim_counter)));
+            self.context.data.tick();
         }
         // let stop = self.get_time();
         // println!("update time {:?}", stop - start);
@@ -228,7 +228,13 @@ impl ScreenWidget for Editor<'_> {
             return self.dialog.key_down(char, key, asset, &mut self.context);
         } else
         if self.context.code_editor_is_active {
-            return self.code_editor.key_down(char, key, asset, &mut self.context);
+            let mut consumed = false;
+            if self.state == EditorState::ScreenDetail && key == Some(WidgetKey::Escape) {
+                self.content_state_is_changing(self.state, asset, true);
+                self.state = EditorState::GameDetail;
+                consumed = true;
+            }
+            return self.code_editor.key_down(char, key, asset, &mut self.context) || consumed;
         } else
         if self.state == EditorState::ScreenDetail && key == Some(WidgetKey::Escape) {
             self.content_state_is_changing(self.state, asset, true);
@@ -261,7 +267,7 @@ impl ScreenWidget for Editor<'_> {
         // let start = self.get_time();
 
         // Playback
-        if self.context.is_running && self.context.is_debugging == false && self.context.data.game_frame.is_empty() == false {
+        if self.context.is_running && self.context.is_debugging == false {
 
             self.controlbar.draw(frame, anim_counter, asset, &mut self.context);
 
@@ -410,7 +416,11 @@ impl ScreenWidget for Editor<'_> {
                 self.context.code_editor_node_behavior_value.4 = self.context.code_editor_value.clone();
                 self.context.dialog_node_behavior_value = self.context.code_editor_node_behavior_value.clone();
                 self.context.dialog_node_behavior_id = self.context.code_editor_node_behavior_id.clone();
-                self.content[self.state as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
+                if self.state == EditorState::ScreenDetail {
+                    self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
+                } else {
+                    self.content[self.state as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
+                }
                 self.context.data.set_behavior_id_value(self.context.code_editor_node_behavior_id.clone(), self.context.code_editor_node_behavior_value.clone(), self.context.curr_graph_type);
 
                 self.context.code_editor_update_node = false;
@@ -1263,9 +1273,9 @@ impl ScreenWidget for Editor<'_> {
         }
         self.content.insert(index, (options, content));
 
-        if closing && state == EditorState::ScreenDetail {
-            self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
-        }
+        // if closing && state == EditorState::ScreenDetail {
+        //     self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
+        // }
     }
 
     /// Loads the project from the given path

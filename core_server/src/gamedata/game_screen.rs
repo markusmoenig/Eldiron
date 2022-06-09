@@ -1,9 +1,9 @@
-
+/*
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::script_types::ScriptRGB;
+//use crate::script_types::ScriptRGB;
 
 use super::{ GameData, behavior::BehaviorInstanceState };
 
@@ -174,4 +174,4 @@ impl GameScreen {
             self.widgets[index].draw(editor && index == self.curr_widget_index, data);
         }
     }
-}
+}*/

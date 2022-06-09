@@ -411,7 +411,7 @@ impl AtomWidget {
 
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &format!("{} x {}", v1, v2), &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
-            if self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton {
+            if self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton {
 
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height);
 
@@ -446,18 +446,6 @@ impl AtomWidget {
                         let center = (self.atom_data.data.1 as isize, self.atom_data.data.2 as isize);
                         context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &(4, 1, rect.2 - 8, rect.3 - 2), &center, rect.2, 14, 0, asset, context);
                     }
-                }
-            } else
-            if self.atom_widget_type == AtomWidgetType::NodeScreenButton {
-                self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height * 3);
-
-                let border_color = if context.active_position_id == self.behavior_id { context.color_red } else { context.color_node_light_gray };
-
-                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &context.color_black, &context.node_button_rounding, &border_color, 1.5);
-
-                if self.clicked {
-                    context.draw2d.blend_rounded_rect(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &context.color_light_gray, &context.node_button_rounding);
                 }
             } else
             if self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton {
@@ -764,7 +752,7 @@ impl AtomWidget {
             return false;
         }
         if self.contains_pos(pos) {
-            if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeNumberButton || self.atom_widget_type == AtomWidgetType::NodeSize2DButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeNumberButton || self.atom_widget_type == AtomWidgetType::NodeSize2DButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
@@ -893,12 +881,6 @@ impl AtomWidget {
                     }
                 }
                 return true;
-            } else
-            if self.atom_widget_type == AtomWidgetType::NodeScreenButton {
-                self.clicked = true;
-                self.state = WidgetState::Clicked;
-                self.dirty = true;
-                return true;
             }
         }
         false
@@ -930,8 +912,18 @@ impl AtomWidget {
             } else
             if self.atom_widget_type == AtomWidgetType::NodeScreenButton {
                 context.switch_editor_state = Some(crate::editor::EditorState::ScreenDetail);
-                context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
-                context.dialog_node_behavior_value = self.atom_data.data.clone();
+
+                if context.code_editor_state != CodeEditorWidgetState::Open {
+                    context.code_editor_state = CodeEditorWidgetState::Opening;
+                    context.code_editor_visible_y = 0;
+                    context.target_fps = 60;
+                }
+                context.code_editor_is_active = true;
+                context.code_editor_just_opened = true;
+                context.code_editor_text_mode = false;
+                context.code_editor_node_behavior_id = self.behavior_id.clone().unwrap();
+                context.code_editor_node_behavior_value = self.atom_data.data.clone();
+                context.code_editor_value = self.atom_data.data.4.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeNumberButton {
                 context.dialog_state = DialogState::Opening;
@@ -1234,9 +1226,6 @@ impl AtomWidget {
     pub fn get_height(&self, context: &ScreenContext) -> usize {
         if self.atom_widget_type == AtomWidgetType::NodePositionButton {
             return context.node_button_height * 2;
-        }
-        if self.atom_widget_type == AtomWidgetType::NodeScreenButton {
-            return context.node_button_height * 3;
         }
         context.node_button_height
     }

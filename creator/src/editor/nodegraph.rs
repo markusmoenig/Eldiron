@@ -1628,46 +1628,7 @@ impl EditorContent for NodeGraph  {
         //
 
         if node_data.behavior_type == BehaviorNodeType::Screen {
-
-            let mut atom2 = AtomWidget::new(vec!["Layout".to_string()], AtomWidgetType::NodeScreenButton,
-            AtomData::new_as_int("layout".to_string(), 0));
-            atom2.atom_data.text = "Layout".to_string();
-            let id = (behavior_data.id, node_data.id, "layout".to_string());
-            atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
-            node_widget.widgets.push(atom2);
-
-            let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScriptButton,
-            AtomData::new_as_int("script".to_string(), 0));
-            atom1.atom_data.text = "Script".to_string();
-            let id = (behavior_data.id, node_data.id, "script".to_string());
-            atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
-            node_widget.widgets.push(atom1);
-
-            node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom1, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom3, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom4, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_data.behavior_type == BehaviorNodeType::Settings {
-            let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScriptButton,
-            AtomData::new_as_int("script".to_string(), 0));
-            atom1.atom_data.text = "Script".to_string();
-            let id = (behavior_data.id, node_data.id, "script".to_string());
-            atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "screen_width = 1024;\nscreen_height = 608;\ntile_size = 32;".to_string()), self.graph_type);
-            node_widget.widgets.push(atom1);
-
-            node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_data.behavior_type == BehaviorNodeType::Widget {
-            let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScriptButton,
+            let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScreenButton,
             AtomData::new_as_int("script".to_string(), 0));
             atom1.atom_data.text = "Script".to_string();
             let id = (behavior_data.id, node_data.id, "script".to_string());

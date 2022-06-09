@@ -2,10 +2,10 @@
 // This module contains script support structs. These are passed to the Rhai scripting engine to provide
 // data structures which can be accessed from both Rust and scripts.
 
-use crate::gamedata::MessageType;
+//use crate::gamedata::MessageType;
 
 // --- Sending Messages
-
+/*
 #[derive(Debug, Clone)]
 pub struct ScriptMessages {
     messages: Vec<(String, MessageType)>
@@ -23,7 +23,7 @@ impl ScriptMessages {
     pub fn clear(&mut self) {
         self.messages.clear();
     }
-}
+}*/
 
 // --- Drawing
 

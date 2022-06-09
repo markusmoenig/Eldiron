@@ -19,6 +19,5 @@ vectorize = "0.2.0"
 itertools = "0.10.2"
 rand = "0.8.5"
 rhai = "*"
-#rhai = { git = "https://github.com/rhaiscript/rhai/" }
 regex = "1.5"
 

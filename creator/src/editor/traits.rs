@@ -1,7 +1,6 @@
 use crate::editor::node::NodeWidget;
 use core_server::gamedata::behavior::*;
 use core_shared::asset::{Asset, TileUsage};
-use core_server::gamedata::game_screen::GameScreen;
 
 use crate::editor::ScreenContext;
 use crate::WidgetState;
@@ -95,7 +94,7 @@ pub trait EditorOptions {
     fn set_widget_name(&mut self, name: String, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {}
 
     /// Returns the current region editor mode
-    fn get_screen_editor_mode(&self) -> (super::screeneditor_options::ScreenEditorMode, super::screeneditor_options::ScreenEditorAction) { (super::screeneditor_options::ScreenEditorMode::Widgets, super::screeneditor_options::ScreenEditorAction::Add) }
+    fn get_screen_editor_mode(&self) -> super::screeneditor_options::ScreenEditorMode { super::screeneditor_options::ScreenEditorMode::Script }
 
 }
 
@@ -246,9 +245,5 @@ pub trait EditorContent {
 
 
     // For ScreenEditor
-
-
-    /// Returns the game screen
-    fn get_game_screen(&mut self) -> Option<&mut GameScreen> { None }
 
 }

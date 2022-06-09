@@ -33,10 +33,7 @@ use rand::prelude::*;
 
 use self::behavior::BehaviorInstanceType;
 use self::game::Game;
-use self::game_screen::GameScreen;
 use self::nodes_utility::get_node_value;
-
-use crate::script_types::*;
 
 type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> behavior::BehaviorNodeConnector;
 
@@ -77,16 +74,6 @@ pub struct GameData<'a> {
 
     /// The index of the game instance
     pub game_instance_index     : Option<usize>,
-
-    // Game screen dimensions
-    pub game_screen_width       : usize,
-    pub game_screen_height      : usize,
-    pub game_screen_tile_size   : usize,
-
-    pub game_screens            : HashMap<usize, GameScreen>,
-
-    pub game_anim_counter       : usize,
-    pub game_frame              : Vec<u8>,
 
     pub nodes                   : HashMap<BehaviorNodeType, NodeCall>,
 
@@ -371,8 +358,6 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::Move, nodes::player_move);
 
         nodes.insert(BehaviorNodeType::Screen, nodes_game::screen);
-        nodes.insert(BehaviorNodeType::Widget, nodes_game::widget);
-        nodes.insert(BehaviorNodeType::Settings, nodes_game::settings);
 
         let mut engine = Engine::new();
 
@@ -421,15 +406,6 @@ impl GameData<'_> {
 
             game,
             game_instance_index     : None,
-
-            game_screen_width       : 1024,
-            game_screen_height      : 608,
-            game_screen_tile_size   : 32,
-
-            game_screens            : HashMap::new(),
-
-            game_anim_counter       : 0,
-            game_frame              : vec![],
 
             nodes,
 
@@ -516,15 +492,6 @@ impl GameData<'_> {
 
             game,
             game_instance_index     : None,
-
-            game_screen_width       : 1024,
-            game_screen_height      : 608,
-            game_screen_tile_size   : 32,
-
-            game_screens            : HashMap::new(),
-
-            game_anim_counter       : 0,
-            game_frame              : vec![],
 
             nodes,
 
@@ -1278,7 +1245,7 @@ impl GameData<'_> {
     }
 
     /// Game tick
-    pub fn tick(&mut self, size: Option<(usize, usize, usize)>) {
+    pub fn tick(&mut self) {
         self.executed_connections = vec![];
         self.changed_variables = vec![];
         self.characters = HashMap::new();
@@ -1408,6 +1375,7 @@ impl GameData<'_> {
                 let update = GameUpdate{
                     position: self.instances[inst_index].position,
                     tile: self.instances[inst_index].tile,
+                    screen: None,
                     region,
                     displacements,
                     characters
@@ -1417,6 +1385,7 @@ impl GameData<'_> {
             }
         }
 
+        /*
         // TODO REMOVE
         // Set game frame dimensions
         if let Some(size) = size {
@@ -1507,7 +1476,7 @@ impl GameData<'_> {
                     }
                 }
             }
-        }
+        }*/
     }
 
     /// Clear the game instances
@@ -1521,7 +1490,6 @@ impl GameData<'_> {
         self.player_ids_inst_indices = HashMap::new();
         self.custom_scopes = HashMap::new();
         self.custom_scopes_ordered = vec![];
-        self.game_screens = HashMap::new();
     }
 
     /// Creates a new player instance and returns the index
@@ -1554,6 +1522,7 @@ impl GameData<'_> {
 
         // Engine
 
+        /*
         self.engine.register_type::<ScriptMessages>()
             .register_fn("debug", ScriptMessages::debug);
 
@@ -1577,6 +1546,7 @@ impl GameData<'_> {
         //    self.scopes[game_inst_index].set_value("messages", ScriptMessages::new());
         //    self.scopes[game_inst_index].set_value("draw", ScriptDraw::new());
         //}
+        */
     }
 
     pub fn shutdown(&mut self) {
