@@ -3,9 +3,22 @@ use crate::gamedata::behavior::{ BehaviorNodeConnector };
 use crate::gamedata::GameData;
 
 use super::behavior::{ BehaviorType };
+use super::nodes_utility::get_node_value;
 
 /// Screen
-pub fn screen(_instance_index: usize, _id: (usize, usize), _data: &mut GameData, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn screen(_instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    if let Some(curr_screen_id) = &data.instances[data.curr_player_inst_index].curr_player_screen_id {
+        if *curr_screen_id == id.1 {
+            return BehaviorNodeConnector::Bottom;
+        }
+    }
+
+    data.instances[data.curr_player_inst_index].curr_player_screen_id = Some(id.1);
+
+    if let Some(value) = get_node_value((id.0, id.1, &"script".to_owned()), data, behavior_type) {
+        data.instances[data.curr_player_inst_index].curr_player_screen = value.4.clone();
+    }
 
     /*
     if data.custom_scopes.contains_key(&id.1) == false {

@@ -144,11 +144,22 @@ pub struct BehaviorInstance {
     /// The current player action
     pub action                  : Option<PlayerAction>,
 
+    // Server side handling of the "Player" character
+
     /// The current player update
     pub update                  : Option<String>,
 
     /// The regions we send to the player client already
-    pub regions_send            : HashSet<usize>
+    pub regions_send            : HashSet<usize>,
+
+    /// Current screen id
+    pub curr_player_screen_id   : Option<usize>,
+
+    /// Current screen content
+    pub curr_player_screen      : String,
+
+    /// The locked tree for the game behavior for this player
+    pub game_locked_tree        : Option<usize>,
 }
 
 #[derive(Serialize, Deserialize)]

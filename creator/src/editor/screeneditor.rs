@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use core_renderr::render::GameRender;
 use core_shared::asset::{ Asset };
@@ -7,14 +6,14 @@ use core_shared::update::GameUpdate;
 
 use crate::widget::context::ScreenContext;
 use crate::editor::{ TileSelectorWidget };
-use core_server::gamedata::behavior::{ BehaviorType };
+use core_server::gamedata::behavior::{ BehaviorType, BehaviorNodeType };
 
 use crate::editor::{ EditorOptions, EditorContent };
 use crate::editor::regionoptions::RegionEditorMode;
 
 use crate::editor::ToolBar;
 
-use super::screeneditor_options::{ ScreenEditorMode };
+//use super::screeneditor_options::{ ScreenEditorMode };
 
 pub struct ScreenEditor<'a> {
     pub rect                : (usize, usize, usize, usize),
@@ -38,6 +37,9 @@ pub struct ScreenEditor<'a> {
     selector_size           : usize,
 
     game_render             : Option<GameRender<'a>>,
+
+    player_position         : Option<(usize, isize, isize)>,
+    player_tile             : Option<(usize, usize, usize)>,
 }
 
 impl EditorContent for ScreenEditor<'_> {
@@ -71,6 +73,8 @@ impl EditorContent for ScreenEditor<'_> {
 
             game_render             : None,
 
+            player_position         : None,
+            player_tile             : None,
         }
     }
 
@@ -90,7 +94,13 @@ impl EditorContent for ScreenEditor<'_> {
             if context.code_editor_update_node {
                 update.screen = Some(context.code_editor_value.clone());
             }
+            update.position = self.player_position;
             render.draw(anim_counter, &update);
+
+            let left_offset = 0;
+            let top_offset = 0;
+
+            context.draw2d.blend_slice_safe(frame, &mut render.frame[..], &(self.rect.0 as isize + left_offset as isize + self.offset.0 * render.tile_size as isize, self.rect.1 as isize + top_offset as isize + self.offset.1 * render.tile_size as isize, render.width, render.height), context.width, &self.rect);
         }
 
         /*
@@ -217,7 +227,7 @@ impl EditorContent for ScreenEditor<'_> {
         }*/
     }
 
-    fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_down(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
         let consumed = false;
 
@@ -286,7 +296,7 @@ impl EditorContent for ScreenEditor<'_> {
         consumed
     }
 
-    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
         self.clicked = None;
 
         let consumed = false;
@@ -323,11 +333,11 @@ impl EditorContent for ScreenEditor<'_> {
         true
     }
 
-    fn mouse_dragged(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_dragged(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
-        let mut consumed = false;
+        let consumed = false;
 
-        if let Some(options) = options {
+        if let Some(_options) = options {
             //let editor_mode = options.get_editor_mode();
 
             /*
@@ -447,6 +457,30 @@ impl EditorContent for ScreenEditor<'_> {
         if let Some(render) = &mut self.game_render {
             let mut update = GameUpdate::new();
             update.screen = Some(context.code_editor_value.clone());
+
+            // Get the region the player is in
+
+            if let Some(behavior) = context.data.behaviors.get_mut(&context.data.regions_ids[0]) {
+                for (_id, node) in &behavior.data.nodes {
+                    if node.behavior_type == BehaviorNodeType::BehaviorType {
+                        if let Some(value )= node.values.get(&"position".to_string()) {
+                            self.player_position = Some((value.0 as usize, value.1 as isize, value.2 as isize));
+                        }
+                        if let Some(value )= node.values.get(&"tile".to_string()) {
+                            self.player_tile = Some((value.0 as usize, value.1 as usize, value.2 as usize));
+                        }
+                        break;
+                    }
+                }
+            }
+
+            if let Some(position) = self.player_position {
+                if let Some(region) = context.data.regions.get(&position.0) {
+                    // Send the region to the client_render
+                    update.region = Some(region.data.clone());
+                }
+            }
+            update.position = self.player_position;
             render.process_update(&update);
         }
         /*

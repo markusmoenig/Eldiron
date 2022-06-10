@@ -6,7 +6,6 @@ pub mod nodes_area;
 pub mod nodes_game;
 pub mod script;
 pub mod game;
-pub mod game_screen;
 
 use core_shared::characterdata::CharacterData;
 use core_shared::regiondata::GameRegionData;
@@ -22,7 +21,6 @@ use std::hash::Hash;
 
 use crate::gamedata::region::GameRegion;
 use crate::gamedata::behavior::{ BehaviorNodeConnector, BehaviorInstance, GameBehavior, BehaviorNodeType, BehaviorType, BehaviorInstanceState };
-use crate::draw2d::Draw2D;
 
 use itertools::Itertools;
 
@@ -50,7 +48,6 @@ pub enum MessageType {
 pub struct GameData<'a> {
 
     pub asset                   : Option<Asset>,
-    pub draw2d                  : Option<Draw2D>,
 
     pub path                    : PathBuf,
 
@@ -97,12 +94,15 @@ pub struct GameData<'a> {
     // Script ast's, id is (BehaviorType, BehaviorId, BehaviorNodeID, AtomParameterID)
     pub ast                     : HashMap<(BehaviorType, usize, usize, String), AST>,
 
-    // Custom scopes (mostly used in Widgets to store the Widgets rect)
-    pub custom_scopes           : HashMap<usize, Scope<'a>>,
-    pub custom_scopes_ordered   : Vec<usize>,
+    /// Player game scopes
+    pub game_player_scopes      : HashMap<usize, Scope<'a>>,
+
+    /// The current instance index of the current "Player" when executing the Game behavior per player
+    pub curr_player_inst_index  : usize,
 
     pub runs_in_editor          : bool,
 
+    // Current characters per region
     pub characters              : HashMap<usize, Vec<CharacterData>>,
 
     // These are fields which provide feedback to the editor / game while running
@@ -386,7 +386,6 @@ impl GameData<'_> {
 
             path                    : path.clone(),
             asset                   : None,
-            draw2d                  : None,
 
             regions,
             regions_names,
@@ -422,8 +421,8 @@ impl GameData<'_> {
             scopes                  : vec![],
             ast                     : HashMap::new(),
 
-            custom_scopes           : HashMap::new(),
-            custom_scopes_ordered   : vec![],
+            game_player_scopes      : HashMap::new(),
+            curr_player_inst_index  : 0,
 
             runs_in_editor          : false,
 
@@ -472,7 +471,6 @@ impl GameData<'_> {
 
             path                    : PathBuf::new(),
             asset                   : None,
-            draw2d                  : None,
 
             regions,
             regions_names,
@@ -508,8 +506,8 @@ impl GameData<'_> {
             scopes                  : vec![],
             ast                     : HashMap::new(),
 
-            custom_scopes           : HashMap::new(),
-            custom_scopes_ordered   : vec![],
+            game_player_scopes      : HashMap::new(),
+            curr_player_inst_index  : 0,
 
             runs_in_editor          : false,
 
@@ -548,6 +546,8 @@ impl GameData<'_> {
         None
     }
 
+    #[cfg(feature = "data_editing")]
+
     /// Create a new behavior
     pub fn create_behavior(&mut self, name: String, _behavior_type: usize) {
 
@@ -566,7 +566,8 @@ impl GameData<'_> {
         self.behaviors.insert(behavior.data.id, behavior);
     }
 
-    /// Create a new behavior
+    #[cfg(feature = "data_editing")]
+    /// Create a new region
     pub fn create_region(&mut self, name: String) -> bool {
         let path = self.path.join("game").join("regions").join(name.clone());
 
@@ -586,7 +587,7 @@ impl GameData<'_> {
         false
     }
 
-
+    #[cfg(feature = "data_editing")]
     /// Create a new system
     pub fn create_system(&mut self, name: String, _behavior_type: usize) {
 
@@ -726,7 +727,7 @@ impl GameData<'_> {
 
             let index = self.instances.len();
 
-            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: HashSet::new()};
+            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string()};
 
             // Make sure id is unique
             let mut has_id_already = true;
@@ -799,7 +800,7 @@ impl GameData<'_> {
 
         let index = self.instances.len();
 
-        let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.data.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::GameLogic, update: None, regions_send: HashSet::new()};
+        let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.data.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::GameLogic, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string()};
 
         // Make sure id is unique
         let mut has_id_already = true;
@@ -1163,7 +1164,6 @@ impl GameData<'_> {
         rc
     }
 
-
     /// Gets the behavior for the given behavior type
     pub fn get_behavior(&self, id: usize, behavior_type: BehaviorType) -> Option<&GameBehavior> {
         if behavior_type == BehaviorType::Regions {
@@ -1350,6 +1350,35 @@ impl GameData<'_> {
         for inst_index in 0..self.instances.len() {
             if self.instances[inst_index].instance_type == BehaviorInstanceType::Player {
 
+                // Set the player index
+                self.curr_player_inst_index = inst_index;
+                let old_screen_id = self.instances[inst_index].curr_player_screen_id;
+
+                let mut screen : Option<String> = None;
+
+                // Execute the game behavior
+
+                if let Some(game_inst_index) = self.game_instance_index {
+                    if self.scopes.is_empty() == false {
+
+                        if let Some(locked_tree) = self.instances[game_inst_index].locked_tree {
+                            self.execute_game_node(game_inst_index, locked_tree);
+                        }
+                    }
+                }
+
+                // Check if we need to send a new screen
+
+                if let Some(new_screen_id) = &self.instances[inst_index].curr_player_screen_id {
+                    if let Some(old_screen_id) = &old_screen_id {
+                        if new_screen_id != old_screen_id {
+                            screen = Some(self.instances[inst_index].curr_player_screen.clone());
+                        }
+                    } else {
+                        screen = Some(self.instances[inst_index].curr_player_screen.clone());
+                    }
+                }
+
                 let mut region        : Option<GameRegionData> = None;
                 let mut characters    : Vec<CharacterData> = vec![];
                 let mut displacements : HashMap<(isize, isize), (usize, usize, usize, TileUsage)> = HashMap::new();
@@ -1375,7 +1404,7 @@ impl GameData<'_> {
                 let update = GameUpdate{
                     position: self.instances[inst_index].position,
                     tile: self.instances[inst_index].tile,
-                    screen: None,
+                    screen: screen,
                     region,
                     displacements,
                     characters
@@ -1384,99 +1413,6 @@ impl GameData<'_> {
                 self.instances[inst_index].update = serde_json::to_string(&update).ok();
             }
         }
-
-        /*
-        // TODO REMOVE
-        // Set game frame dimensions
-        if let Some(size) = size {
-
-            self.game_anim_counter = size.2;
-
-            if self.game_frame.len() != self.game_screen_width * self.game_screen_height * 4 {
-                self.game_frame = vec![0; self.game_screen_width * self.game_screen_height * 4];
-            }
-
-            // Execute the game logic behavior, this also draws into the game_frame
-            if let Some(game_inst_index) = self.game_instance_index {
-
-                if self.scopes.is_empty() == false {
-
-                    if let Some(locked_tree) = self.instances[game_inst_index].locked_tree {
-                        self.execute_game_node(game_inst_index, locked_tree);
-                    }
-
-                    for custom_scope_id in &mut self.custom_scopes_ordered {
-
-                        if let Some(scope) = self.custom_scopes.get_mut(&custom_scope_id) {
-
-                            // Get the messages
-                            if let Some(mut messages) = scope.get_value::<ScriptMessages>("messages") {
-                                //println!("{:?}", messages);
-                                messages.clear();
-                                scope.set_value("messages", messages);
-                            }
-
-                            // Get the draw commands
-                            if let Some(mut draw) = scope.get_value::<ScriptDraw>("draw") {
-                                //println!("{:?}", draw);
-
-                                let game_frame = &mut self.game_frame[..];
-                                let stride = self.game_screen_width;
-
-                                for cmd in &draw.commands {
-
-                                    if let Some(draw2d) = &self.draw2d {
-
-                                        match cmd {
-                                            ScriptDrawCmd::DrawRect(rect, rgb) => {
-                                                draw2d.draw_rect(game_frame, &rect.rect, stride, &rgb.value);
-                                            },
-                                            ScriptDrawCmd::DrawText(pos, font_name, text, size, rgb) => {
-                                                if let Some(font) = self.asset.as_ref().unwrap().game_fonts.get(font_name) {
-                                                    draw2d.blend_text(game_frame, &pos.pos, stride, font, *size, text, &rgb.value);
-                                                }
-                                            },
-                                            ScriptDrawCmd::DrawGame(rect, size) => {
-                                                //draw2d.draw_rect(game_frame, &rect.rect, stride, &rgb.value);
-
-                                                let region_id = self.regions_ids[0];
-
-                                                if let Some(region) = self.regions.get(&region_id) {
-                                                    // Find the behavior instance for the current behavior id
-                                                    let mut inst_index = 0_usize;
-                                                    let behavior_id = self.behaviors_ids[0];
-                                                    for index in 0..self.instances.len() {
-                                                        if self.instances[index].behavior_id == behavior_id {
-                                                            inst_index = index;
-                                                            break;
-                                                        }
-                                                    }
-
-                                                    _ = self.draw2d.as_ref().unwrap().draw_region_centered_with_instances(game_frame, region, &rect.rect, inst_index, stride, *size as usize, self.game_anim_counter, &self.asset.as_ref().unwrap(), &self.instances);
-                                                }
-                                            },
-                                            ScriptDrawCmd::DrawRegion(name, rect, size) => {
-                                                for (index, n) in self.regions_names.iter().enumerate() {
-                                                    if n == name {
-                                                        if let Some(region) = self.regions.get(&self.regions_ids[index]) {
-
-                                                            _ = self.draw2d.as_ref().unwrap().draw_region_content(game_frame, region, &rect.rect, stride, *size as usize, self.game_anim_counter, &self.asset.as_ref().unwrap());
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                draw.clear();
-                                scope.set_value("draw", draw);
-                            }
-                        }
-                    }
-                }
-            }
-        }*/
     }
 
     /// Clear the game instances
@@ -1488,8 +1424,7 @@ impl GameData<'_> {
         self.changed_variables = vec![];
         self.active_instance_indices = vec![];
         self.player_ids_inst_indices = HashMap::new();
-        self.custom_scopes = HashMap::new();
-        self.custom_scopes_ordered = vec![];
+        self.game_player_scopes = HashMap::new();
     }
 
     /// Creates a new player instance and returns the index
@@ -1513,47 +1448,16 @@ impl GameData<'_> {
         self.asset = Some(Asset::new());
         self.asset.as_mut().unwrap().load_from_path(self.path.clone());
 
-        self.draw2d = Some(Draw2D {});
-
         self.create_behavior_instances();
         self.game_instance_index = Some(self.create_game_instance());
         self.create_player_instance(131313);
         self.activate_region_instances(self.regions_ids[0]);
-
-        // Engine
-
-        /*
-        self.engine.register_type::<ScriptMessages>()
-            .register_fn("debug", ScriptMessages::debug);
-
-        self.engine.register_type::<ScriptDraw>()
-            .register_fn("rect", ScriptDraw::rect)
-            .register_fn("game", ScriptDraw::game)
-            .register_fn("region", ScriptDraw::region)
-            .register_fn("text", ScriptDraw::text);
-
-        self.engine.register_type::<ScriptRect>()
-            .register_fn("rect", ScriptRect::new);
-
-        self.engine.register_type::<ScriptPosition>()
-            .register_fn("pos2d", ScriptPosition::new);
-
-        self.engine.register_type::<ScriptRGB>()
-            .register_fn("rgb", ScriptRGB::new)
-            .register_fn("rgba", ScriptRGB::new_with_alpha);
-
-        //if let Some(game_inst_index) = self.game_instance_index {
-        //    self.scopes[game_inst_index].set_value("messages", ScriptMessages::new());
-        //    self.scopes[game_inst_index].set_value("draw", ScriptDraw::new());
-        //}
-        */
     }
 
     pub fn shutdown(&mut self) {
         self.clear_instances();
         self.game_instance_index = None;
         self.asset = None;
-        self.draw2d = None;
     }
 
     /// Locally poll a player update, this is used for local single player games

@@ -29,8 +29,8 @@ use std::time::Duration;
 
 fn main() -> Result<(), Error> {
 
-    let mut width     : usize = 1240;//60 * 16;
-    let mut height    : usize = 700;//40 * 16;
+    let width     : usize = 1240;//60 * 16;
+    let height    : usize = 700;//40 * 16;
 
     env_logger::init();
 
@@ -252,8 +252,8 @@ fn main() -> Result<(), Error> {
                 let scale = window.scale_factor() as u32;
                 pixels.resize_buffer(size.width / scale, size.height / scale);
                 curr_screen.resize(size.width as usize / scale as usize, size.height as usize / scale as usize);
-                width = size.width as usize / scale as usize;
-                height = size.height as usize / scale as usize;
+                //width = size.width as usize / scale as usize;
+                //height = size.height as usize / scale as usize;
                 window.request_redraw();
             }
 
@@ -261,7 +261,7 @@ fn main() -> Result<(), Error> {
 
             // Game tick ?
             if curr_time > game_tick_timer + GAME_TICK_IN_MS {
-                curr_screen.update(width, height, anim_counter);
+                curr_screen.update();
                 window.request_redraw();
                 game_tick_timer = curr_time;
                 anim_counter = anim_counter.wrapping_add(1);
@@ -271,7 +271,7 @@ fn main() -> Result<(), Error> {
                 let tick_in_ms =  (1000.0 / curr_screen.get_target_fps() as f32) as u128;
 
                 if curr_time > timer + tick_in_ms {
-                    curr_screen.update(width, height, anim_counter);
+                    curr_screen.update();
                     window.request_redraw();
                     timer = curr_time;
                 } else

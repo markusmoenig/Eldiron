@@ -22,7 +22,7 @@ impl ScreenWidget for Game  {
     }
 
     /// Update the game state
-    fn update(&mut self, _width: usize, _height: usize, _anim_counter: usize) {
+    fn update(&mut self) {
     }
 
     /// Assumes the default texture format: `wgpu::TextureFormat::Rgba8UnormSrgb`

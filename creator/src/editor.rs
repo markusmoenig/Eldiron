@@ -173,7 +173,7 @@ impl ScreenWidget for Editor<'_> {
     }
 
     /// Game tick if the game is running
-    fn update(&mut self, width: usize, height: usize, anim_counter: usize) {
+    fn update(&mut self) {
         // let start = self.get_time();
         if self.context.is_debugging == true {
             self.context.data.tick();

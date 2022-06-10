@@ -27,6 +27,8 @@ impl ScriptMessages {
 
 // --- Drawing
 
+// --- ScriptPosition
+
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScriptPosition {
     pub pos             : (usize, usize)
@@ -40,6 +42,8 @@ impl ScriptPosition {
     }
 }
 
+// --- ScriptRect
+
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScriptRect {
     pub rect            : (usize, usize, usize, usize)
@@ -51,12 +55,25 @@ impl ScriptRect {
             rect        : (x as usize, y as usize, width as usize,  height as usize),
         }
     }
+
+    /// Returns true if this rect is safe for the given screen dimensions
+    pub fn is_safe(&self, width: usize, height: usize) -> bool {
+        if self.rect.0 + self.rect.2 > width {
+            return false;
+        }
+        if self.rect.1 + self.rect.3 > height {
+            return false;
+        }
+        return true;
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScriptRGB {
     pub value            : [u8;4]
 }
+
+// --- ScriptRGB
 
 impl ScriptRGB {
     pub fn new(r: i64, g: i64, b: i64) -> Self {
@@ -75,10 +92,12 @@ impl ScriptRGB {
 #[derive(PartialEq, Clone, Debug)]
 pub enum ScriptDrawCmd {
     DrawRect(ScriptRect, ScriptRGB),
-    DrawGame(ScriptRect, i64),
+    DrawGame(ScriptRect),
     DrawRegion(String, ScriptRect, i64),
     DrawText(ScriptPosition, String, String, f32, ScriptRGB),
 }
+
+// --- ScriptDraw
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScriptDraw {
@@ -98,12 +117,12 @@ impl ScriptDraw {
         self.commands.push(ScriptDrawCmd::DrawRect(rect, rgb));
     }
 
-    pub fn text(&mut self, pos: ScriptPosition, font_name: &str, text: &str, size: f64, rgb: ScriptRGB) {
-        self.commands.push(ScriptDrawCmd::DrawText(pos, font_name.to_owned(), text.to_owned(), size as f32, rgb));
+    pub fn text(&mut self, pos: ScriptPosition, text: &str, font_name: &str, size: f64, rgb: ScriptRGB) {
+        self.commands.push(ScriptDrawCmd::DrawText(pos, text.to_owned(), font_name.to_owned(), size as f32, rgb));
     }
 
-    pub fn game(&mut self, rect: ScriptRect, size: i64) {
-        self.commands.push(ScriptDrawCmd::DrawGame(rect, size));
+    pub fn game(&mut self, rect: ScriptRect) {
+        self.commands.push(ScriptDrawCmd::DrawGame(rect));
     }
 
     pub fn region(&mut self, name: &str, rect: ScriptRect, size: i64) {

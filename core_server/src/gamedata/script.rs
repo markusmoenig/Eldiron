@@ -200,14 +200,10 @@ pub fn eval_dynamic_script_instance(instance_index: usize, id: (BehaviorType, us
 }
 
 /// Evaluates a dynamic script in the given instance.
-pub fn eval_dynamic_script_instance_for_custom_scope(_instance_index: usize, id: (BehaviorType, usize, usize, String), data: &mut GameData, custom_scope: usize) -> bool {
-
-    //if data.runs_in_editor {
-    //    return eval_dynamic_expression_instance_editor(instance_index, id, data);
-    //}
+pub fn eval_dynamic_script_instance_for_game_player_scope(_instance_index: usize, id: (BehaviorType, usize, usize, String), data: &mut GameData, custom_scope: usize) -> bool {
 
     if let Some(ast) = data.ast.get(&id) {
-        if let Some(custom_scope) = data.custom_scopes.get_mut(&custom_scope) {
+        if let Some(custom_scope) = data.game_player_scopes.get_mut(&custom_scope) {
 
             let r = data.engine.eval_ast_with_scope::<Dynamic>(custom_scope, ast);
             if r.is_ok() {
@@ -219,8 +215,8 @@ pub fn eval_dynamic_script_instance_for_custom_scope(_instance_index: usize, id:
     } else {
         if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0) {
             let script = value.4;
-            if let Some(ast) = data.engine.compile_with_scope(data.custom_scopes.get_mut(&custom_scope).unwrap(), script.as_str()).ok() {
-                let r = data.engine.eval_ast_with_scope::<Dynamic>(data.custom_scopes.get_mut(&custom_scope).unwrap(), &ast);
+            if let Some(ast) = data.engine.compile_with_scope(data.game_player_scopes.get_mut(&custom_scope).unwrap(), script.as_str()).ok() {
+                let r = data.engine.eval_ast_with_scope::<Dynamic>(data.game_player_scopes.get_mut(&custom_scope).unwrap(), &ast);
                 if r.is_ok() {
                     data.ast.insert(id.clone(), ast);
                     return true

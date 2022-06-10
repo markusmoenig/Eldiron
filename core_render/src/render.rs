@@ -19,6 +19,7 @@ pub struct GameRender<'a> {
     pub frame                   : Vec<u8>,
     pub width                   : usize,
     pub height                  : usize,
+    pub tile_size               : usize,
 
     pub regions                 : HashMap<usize, GameRegionData>
 }
@@ -56,26 +57,42 @@ impl GameRender<'_> {
 
             draw2d              : Draw2D {},
             asset,
-            frame               : vec![0; 800 * 600 * 4],
-            width               : 800,
-            height              : 600,
+            frame               : vec![0; 1024 * 608 * 4],
+            width               : 1024,
+            height              : 608,
+            tile_size           : 32,
+
 
             regions             : HashMap::new()
         }
     }
 
     pub fn process_update(&mut self, update: &GameUpdate) {
-        //println!("{:?}", update.displacements.len());
 
         // New screen script ?
         if let Some(screen_script) = &update.screen {
-            println!("Script {}", screen_script);
             if let Some(ast) = self.engine.compile_with_scope(&self.scope, screen_script.as_str()).ok() {
                 self.scope = Scope::new();
                 self.scope.set_value("width", 1024 as i64);
                 self.scope.set_value("height", 608 as i64);
                 self.scope.set_value("tile_size", 32 as i64);
-                let r = self.engine.eval_ast_with_scope::<Dynamic>(&mut self.scope, &ast);
+                self.scope.set_value("draw", ScriptDraw::new());
+                let _r = self.engine.eval_ast_with_scope::<Dynamic>(&mut self.scope, &ast);
+
+                if let Some(width) = self.scope.get_value::<i64>("width") {
+                    self.width = width as usize;
+                }
+                if let Some(height) = self.scope.get_value::<i64>("height") {
+                    self.height = height as usize;
+                }
+                if let Some(tile_size) = self.scope.get_value::<i64>("tile_size") {
+                    self.tile_size = tile_size as usize;
+                }
+
+                if self.frame.len() != self.width * self.height * 4 {
+                    self.frame = vec![0; self.width * self.height * 4];
+                }
+
                 self.ast = Some(ast);
             }
         }
@@ -93,48 +110,43 @@ impl GameRender<'_> {
 
         // Call the draw function
         if let Some(ast) = &self.ast {
-            let r = self.engine.eval_ast_with_scope::<Dynamic>(&mut self.scope, &ast);
+            let _result = self.engine.call_fn_raw(
+                            &mut self.scope,
+                            &ast,
+                            false,
+                            false,
+                            "draw",
+                            None,
+                            []
+                        );
+            //println!("{:?}", result.err());
         }
 
         if let Some(mut draw) = self.scope.get_value::<ScriptDraw>("draw") {
 
-
-            let game_frame = &mut self.frame[..];
+            //let game_frame = &mut self.frame[..];
             let stride = self.width;
 
             for cmd in &draw.commands {
 
                 match cmd {
                     ScriptDrawCmd::DrawRect(rect, rgb) => {
-                        self.draw2d.draw_rect(game_frame, &rect.rect, stride, &rgb.value);
-                    },
-                    ScriptDrawCmd::DrawText(pos, font_name, text, size, rgb) => {
-                        if let Some(font) = self.asset.game_fonts.get(font_name) {
-                            self.draw2d.blend_text(game_frame, &pos.pos, stride, font, *size, text, &rgb.value);
+                        if rect.is_safe(self.width, self.height) {
+                            self.draw2d.draw_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
                         }
                     },
-                    ScriptDrawCmd::DrawGame(rect, size) => {
-                        //draw2d.draw_rect(game_frame, &rect.rect, stride, &rgb.value);
-
-                        /*
-                        let region_id = self.regions_ids[0];
-
-                        if let Some(region) = self.regions.get(&region_id) {
-                            // Find the behavior instance for the current behavior id
-                            let mut inst_index = 0_usize;
-                            let behavior_id = self.behaviors_ids[0];
-                            for index in 0..self.instances.len() {
-                                if self.instances[index].behavior_id == behavior_id {
-                                    inst_index = index;
-                                    break;
-                                }
-                            }
-
-                            _ = self.draw2d.as_ref().unwrap().draw_region_centered_with_instances(game_frame, region, &rect.rect, inst_index, stride, *size as usize, self.game_anim_counter, &self.asset.as_ref().unwrap(), &self.instances);
-
-                        }*/
+                    ScriptDrawCmd::DrawText(pos, text, font_name, size, rgb) => {
+                        if let Some(font) = self.asset.game_fonts.get(font_name) {
+                            self.draw2d.blend_text( &mut self.frame[..], &pos.pos, stride, font, *size, text, &rgb.value);
+                        }
                     },
-                    ScriptDrawCmd::DrawRegion(name, rect, size) => {
+                    ScriptDrawCmd::DrawGame(rect) => {
+                        if rect.is_safe(self.width, self.height) {
+                            self.draw_game_rect(rect.rect, anim_counter, update);
+                        }
+                    },
+                    ScriptDrawCmd::DrawRegion(_name, _rect, _size) => {
+
                         /*
                         for (index, n) in self.regions_names.iter().enumerate() {
                             if n == name {
@@ -160,7 +172,7 @@ impl GameRender<'_> {
         self.draw2d.draw_rect(&mut self.frame[..], &rect, self.width, &[0, 0, 0, 255]);
 
         let stride = self.width;
-        let tile_size = 32;
+        let tile_size = self.tile_size;
 
         let left_offset = (rect.2 % tile_size) / 2;
         let top_offset = (rect.3 % tile_size) / 2;
@@ -212,6 +224,8 @@ impl GameRender<'_> {
                         }
                     }
                 }
+            } else {
+                println!("Region not found");
             }
         }
     }
