@@ -13,6 +13,8 @@ use crate::editor::regionoptions::RegionEditorMode;
 
 use crate::editor::ToolBar;
 
+use super::screeneditor_options::ScreenEditorMode;
+
 //use super::screeneditor_options::{ ScreenEditorMode };
 
 pub struct ScreenEditor<'a> {
@@ -40,6 +42,8 @@ pub struct ScreenEditor<'a> {
 
     player_position         : Option<(usize, isize, isize)>,
     player_tile             : Option<(usize, usize, usize)>,
+
+    hover_rect              : Option<(usize, usize, usize, usize)>
 }
 
 impl EditorContent for ScreenEditor<'_> {
@@ -50,7 +54,7 @@ impl EditorContent for ScreenEditor<'_> {
 
         // Tile Selector
         let mut tile_selector = TileSelectorWidget::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context);
-        tile_selector.set_tile_type(vec![TileUsage::Environment], None, None, &asset);
+        tile_selector.set_tile_type(vec![TileUsage::UIElement], None, None, &asset);
 
         Self {
             rect,
@@ -75,6 +79,8 @@ impl EditorContent for ScreenEditor<'_> {
 
             player_position         : None,
             player_tile             : None,
+
+            hover_rect             : None,
         }
     }
 
@@ -86,10 +92,15 @@ impl EditorContent for ScreenEditor<'_> {
         self.tile_selector.resize(width, self.selector_size);
     }
 
-    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
+    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
 
+        let mut tile_size = 32;
+
         if let Some(render) = &mut self.game_render {
+
+            tile_size = render.tile_size;
+
             let mut update = GameUpdate::new();
             if context.code_editor_update_node {
                 update.screen = Some(context.code_editor_value.clone());
@@ -101,6 +112,32 @@ impl EditorContent for ScreenEditor<'_> {
             let top_offset = 0;
 
             context.draw2d.blend_slice_safe(frame, &mut render.frame[..], &(self.rect.0 as isize + left_offset as isize + self.offset.0 * render.tile_size as isize, self.rect.1 as isize + top_offset as isize + self.offset.1 * render.tile_size as isize, render.width, render.height), context.width, &self.rect);
+        }
+
+        if self.mouse_hover_pos != (0,0) {
+            if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
+                let pos = (self.rect.0 + ((id.0 + self.offset.0) as usize) * tile_size, self.rect.1 + ((id.1 + self.offset.1) as usize) * tile_size);
+
+                if id.0 >= 0 && id.1 >= 0 {
+                    self.hover_rect = Some((id.0 as usize * tile_size, id.1 as usize * tile_size, tile_size, tile_size));
+                } else {
+                    self.hover_rect = None;
+                }
+
+                if  pos.0 + tile_size < self.rect.0 + self.rect.2 && pos.1 + tile_size < self.rect.1 + self.rect.3 {
+                    context.draw2d.draw_rect_outline(frame, &(pos.0, pos.1, tile_size, tile_size), context.width, context.color_light_white);
+                    context.draw2d.draw_rect_outline(frame, &(pos.0 + 1, pos.1 + 1, tile_size - 2, tile_size - 2), context.width, context.color_black);
+                }
+            }
+        }
+
+        if let Some(options) = options {
+
+            let mode = options.get_screen_editor_mode();
+
+            if mode == ScreenEditorMode::Tiles {
+                self.tile_selector.draw(frame, context.width, anim_counter, asset, context);
+            }
         }
 
         /*
@@ -227,30 +264,13 @@ impl EditorContent for ScreenEditor<'_> {
         }*/
     }
 
-    fn mouse_down(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
-        let consumed = false;
+        let mut consumed = false;
 
         self.widget_start = None;
         self.widget_end = None;
 
-        /*
-        if let Some(options) = options {
-
-            let mode = options.get_screen_editor_mode();
-
-            if mode.0 == ScreenEditorMode::Widgets {
-                if mode.1 == ScreenEditorAction::Add {
-                    if let Some(id) = self.get_tile_id(pos) {
-                        //println!("{:?}", id);
-                        self.widget_start = Some(id);
-                        self.widget_end = Some(id);
-                    }
-                }
-            }
-        }*/
-
-        /*
         if let Some(options) = options {
             let editor_mode = options.get_editor_mode();
 
@@ -265,34 +285,14 @@ impl EditorContent for ScreenEditor<'_> {
                 }
             }
 
+
             if consumed == false && context.contains_pos_for(pos, self.rect) {
                 if let Some(id) = self.get_tile_id(pos) {
                     self.clicked = Some(id);
-                    let editor_mode = options.get_editor_mode();
-
-                    if editor_mode == RegionEditorMode::Tiles {
-                        if let Some(selected) = &self.tile_selector.selected {
-                            if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                                region.set_value(options.get_layer(), id, selected.clone());
-                                region.save_data();
-                            }
-                        }
-                    } else
-                    if editor_mode == RegionEditorMode::Areas {
-                        if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                            if region.data.areas.len() > 0 {
-                                let area = &mut region.data.areas[context.curr_region_area_index];
-                                if area.area.contains(&id) == false {
-                                    area.area.push(id);
-                                }
-                                region.save_data();
-                            }
-                        }
-                    }
                 }
                 consumed = true;
             }
-        }*/
+        }
         consumed
     }
 
@@ -328,9 +328,23 @@ impl EditorContent for ScreenEditor<'_> {
         consumed
     }
 
-    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
-        self.mouse_hover_pos = pos.clone();
-        true
+    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+
+        let mut rect = self.rect.clone();
+
+        if let Some(options) = options {
+            let mode = options.get_screen_editor_mode();
+
+            if mode != ScreenEditorMode::None {
+                rect.3 -= 250;
+            }
+        }
+
+        if context.contains_pos_for(pos, rect) {
+            self.mouse_hover_pos = pos.clone();
+            return true;
+        }
+        false
     }
 
     fn mouse_dragged(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
@@ -409,18 +423,6 @@ impl EditorContent for ScreenEditor<'_> {
         true
     }
 
-    /// Sets a region id
-    fn set_region_id(&mut self, id: usize, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
-        self.region_id = id;
-
-        if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-            if let Some(options) = options {
-                options.set_area_names(region.get_area_names());
-                context.curr_region_area_index = 0;
-            }
-        }
-    }
-
     /// Get the tile id
     fn get_tile_id(&self, pos: (usize, usize)) -> Option<(isize, isize)> {
         let grid_size = self.grid_size;
@@ -444,9 +446,9 @@ impl EditorContent for ScreenEditor<'_> {
         Some(&mut self.tile_selector)
     }
 
-    /// Returns the region_id
-    fn get_region_id(&self) -> usize {
-        self.region_id
+    /// Returns the selected tile
+    fn get_hover_rect(&self) -> Option<(usize, usize, usize, usize)> {
+        self.hover_rect
     }
 
     /// Screen is opening
@@ -483,33 +485,11 @@ impl EditorContent for ScreenEditor<'_> {
             update.position = self.player_position;
             render.process_update(&update);
         }
-        /*
-        self.screen_width = context.data.game_screen_width;
-        self.screen_height = context.data.game_screen_height;
-        self.screen_tile_size = context.data.game_screen_tile_size;
-        context.data.game_frame = vec![0; self.screen_width * self.screen_height * 4];
-
-        self.game_screen = serde_json::from_str(&self.node_behavior_value.4.clone())
-            .unwrap_or(GameScreen::new() );
-        */
-
-        //if let Some(options) = options {
-        //    options.update_area_ui(context, &mut Some(Box::new(*self)));
-        //}
     }
 
     /// Screen is closing
     fn closing(&mut self, _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
-
         self.game_render = None;
-        /*
-        if let Some(json) = serde_json::to_string(&self.game_screen).ok() {
-            self.node_behavior_value.4 = json;
-            context.dialog_node_behavior_value = self.node_behavior_value.clone();
-            context.dialog_node_behavior_id = self.node_behavior_id.clone();
-
-            context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), BehaviorType::GameLogic);
-        }*/
     }
 
 }

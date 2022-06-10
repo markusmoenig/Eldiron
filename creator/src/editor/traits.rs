@@ -246,4 +246,6 @@ pub trait EditorContent {
 
     // For ScreenEditor
 
+    fn get_hover_rect(&self) -> Option<(usize, usize, usize, usize)> { None }
+
 }

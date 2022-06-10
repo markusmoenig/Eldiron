@@ -65,7 +65,7 @@ impl CodeEditorWidget {
 
         self.rect = rect.clone();
         let safe_rect = (0_usize, 0_usize, width, height);
-        let editor_rect = (0, 0, safe_rect.2, height - 30);
+        let editor_rect = (0, 0, safe_rect.2, height);
 
         let mut dest_rect = rect.clone();
         dest_rect.1 = dest_rect.1 + dest_rect.3 - height;
@@ -82,6 +82,8 @@ impl CodeEditorWidget {
             self.editor.draw(buffer_frame, editor_rect, rect.2, asset.get_editor_font("SourceCodePro"), &context.draw2d);
 
             if self.editor.cursor_rect.3 > 0 {
+                context.draw2d.blend_rect(buffer_frame, &(0, height - 30, rect.2, 30), rect.2, &trans_black);
+
                 context.draw2d.draw_text_rect(buffer_frame, &(0, height - 30, rect.2 - 20, 30), rect.2, asset.get_editor_font("OpenSans"), 15.0, format!("Ln {}, Col {}", self.editor.cursor_pos.1 + 1, self.editor.cursor_pos.0).as_str(), &context.color_light_white, &context.color_black, crate::draw2d::TextAlignment::Right);
             }
         }

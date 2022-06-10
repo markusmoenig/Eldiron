@@ -167,9 +167,10 @@ impl GameRender<'_> {
 
     }
 
+    /// Draws the game in the given rect
     pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), anim_counter: usize, update: &GameUpdate) {
 
-        self.draw2d.draw_rect(&mut self.frame[..], &rect, self.width, &[0, 0, 0, 255]);
+        //self.draw2d.draw_rect(&mut self.frame[..], &rect, self.width, &[0, 0, 0, 255]);
 
         let stride = self.width;
         let tile_size = self.tile_size;

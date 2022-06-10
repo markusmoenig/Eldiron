@@ -111,6 +111,25 @@ impl EditorOptions for ScreenEditorOptions {
         for atom in &mut self.widgets {
            atom.draw(frame, context.width, anim_counter, asset, context);
         }
+
+        if let Some(content) = content {
+
+            if let Some(rect) = content.get_hover_rect() {
+                context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + 140, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("Tile ({}, {})", rect.0 / rect.2, rect.1 / rect.3), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
+
+                context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + 165, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("Pixel ({}, {})", rect.0, rect.1), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
+            }
+
+            if let Some(tile) = content.get_selected_tile() {
+                context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + 250), asset.get_map_of_id(tile.0), context.width, &(tile.1, tile.2), anim_counter, 100);
+
+                if let Some(map) = asset.tileset.maps.get(&tile.0) {
+                    context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + 370, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("\"{}\"", map.get_name()), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
+                }
+
+                context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + 390, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("({}, {})", tile.1, tile.2), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
+            }
+        }
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
@@ -123,6 +142,9 @@ impl EditorOptions for ScreenEditorOptions {
                     } else
                     if atom.curr_item_index == 1 {
                         context.code_editor_is_active = true;
+                    } else
+                    if atom.curr_item_index == 2 {
+                        context.code_editor_is_active = false;
                     }
                 }
                 return true;
