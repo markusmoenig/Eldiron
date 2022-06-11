@@ -14,6 +14,8 @@ pub struct CodeEditorTheme {
     pub brackets            : [u8;4],
     pub comments            : [u8;4],
     pub string              : [u8;4],
+
+    pub error               : [u8;4],
 }
 
 impl CodeEditorTheme {
@@ -33,6 +35,8 @@ impl CodeEditorTheme {
             brackets        : [226, 73, 146, 212],
             comments        : [69, 128, 56, 212],
             string          : [197, 117, 92, 212],
+
+            error           : [237, 55, 54, 255],
         }
     }
 }

@@ -67,50 +67,72 @@ impl GameRender<'_> {
         }
     }
 
-    pub fn process_update(&mut self, update: &GameUpdate) {
+    pub fn process_update(&mut self, update: &GameUpdate) -> Option<(String, Option<usize>)> {
 
         // New screen script ?
         if let Some(screen_script) = &update.screen {
-            if let Some(ast) = self.engine.compile_with_scope(&self.scope, screen_script.as_str()).ok() {
-                self.scope = Scope::new();
-                self.scope.set_value("width", 1024 as i64);
-                self.scope.set_value("height", 608 as i64);
-                self.scope.set_value("tile_size", 32 as i64);
-                self.scope.set_value("draw", ScriptDraw::new());
-                let _r = self.engine.eval_ast_with_scope::<Dynamic>(&mut self.scope, &ast);
 
-                if let Some(width) = self.scope.get_value::<i64>("width") {
-                    self.width = width as usize;
-                }
-                if let Some(height) = self.scope.get_value::<i64>("height") {
-                    self.height = height as usize;
-                }
-                if let Some(tile_size) = self.scope.get_value::<i64>("tile_size") {
-                    self.tile_size = tile_size as usize;
-                }
+            let result = self.engine.compile_with_scope(&self.scope, screen_script.as_str());
 
-                if self.frame.len() != self.width * self.height * 4 {
-                    self.frame = vec![0; self.width * self.height * 4];
-                }
+            if result.is_ok() {
+                if let Some(ast) = result.ok() {
+                    self.scope = Scope::new();
+                    self.scope.set_value("width", 1024 as i64);
+                    self.scope.set_value("height", 608 as i64);
+                    self.scope.set_value("tile_size", 32 as i64);
+                    self.scope.set_value("draw", ScriptDraw::new());
+                    let result = self.engine.eval_ast_with_scope::<Dynamic>(&mut self.scope, &ast);
+                    if result.is_err() {
+                        if let Some(err) = result.err() {
+                            let mut string = err.to_string();
+                            let mut parts = string.split("(");
+                            if let Some(first) = parts.next() {
+                                string = first.to_owned();
+                            }
+                            return Some((string, err.position().line()));
+                        }
+                    }
 
-                self.ast = Some(ast);
+                    if let Some(width) = self.scope.get_value::<i64>("width") {
+                        self.width = width as usize;
+                    }
+                    if let Some(height) = self.scope.get_value::<i64>("height") {
+                        self.height = height as usize;
+                    }
+                    if let Some(tile_size) = self.scope.get_value::<i64>("tile_size") {
+                        self.tile_size = tile_size as usize;
+                    }
+
+                    if self.frame.len() != self.width * self.height * 4 {
+                        self.frame = vec![0; self.width * self.height * 4];
+                    }
+
+                    self.ast = Some(ast);
+                }
+            } else
+            if let Some(err) = result.err() {
+                return Some((err.0.to_string(), err.1.line()));
             }
         }
 
         // Got a new region ?
         if let Some(region) = &update.region {
-            //println!("got region {:?}", region.id);
             self.regions.insert(region.id, region.clone());
         }
+
+        None
     }
 
-    pub fn draw(&mut self, anim_counter: usize, update: &GameUpdate) {
+    pub fn draw(&mut self, anim_counter: usize, update: &GameUpdate) -> Option<(String, Option<usize>)> {
 
-        self.process_update(update);
+        let error = self.process_update(update);
+        if error.is_some() {
+            return error;
+        }
 
         // Call the draw function
         if let Some(ast) = &self.ast {
-            let _result = self.engine.call_fn_raw(
+            let result = self.engine.call_fn_raw(
                             &mut self.scope,
                             &ast,
                             false,
@@ -119,7 +141,18 @@ impl GameRender<'_> {
                             None,
                             []
                         );
-            //println!("{:?}", result.err());
+
+            if result.is_err() {
+                if let Some(err) = result.err() {
+                    //println!("{:?}", err.,t);
+                    let mut string = err.to_string();
+                    let mut parts = string.split("(");
+                    if let Some(first) = parts.next() {
+                        string = first.to_owned();
+                    }
+                    return Some((string, err.position().line()));
+                }
+            }
         }
 
         if let Some(mut draw) = self.scope.get_value::<ScriptDraw>("draw") {
@@ -163,8 +196,8 @@ impl GameRender<'_> {
             draw.clear();
             self.scope.set_value("draw", draw);
         }
-        //self.draw_game_rect((0, 0, 800, 600), anim_counter, update);
 
+        None
     }
 
     /// Draws the game in the given rect

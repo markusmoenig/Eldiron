@@ -43,6 +43,21 @@ impl Draw2D {
         }
     }
 
+    /// Draws the given rectangle
+    pub fn draw_rect_safe(&self, frame: &mut [u8], rect: &(isize, isize, usize, usize), stride: usize, color: &[u8; 4], safe_rect: &(usize, usize, usize, usize)) {
+        let dest_stride_isize = stride as isize;
+        for y in rect.1..rect.1+rect.3 as isize {
+            if y >= safe_rect.1 as isize && y < (safe_rect.1 + safe_rect.3) as isize {
+                for x in rect.0..rect.0+rect.2 as isize{
+                    if x >= safe_rect.0 as isize && x < (safe_rect.0 + safe_rect.2) as isize {
+                        let i = (x * 4 + y * dest_stride_isize * 4) as usize;
+                        frame[i..i + 4].copy_from_slice(color);
+                    }
+                }
+            }
+        }
+    }
+
     /// Blend the given rectangle
     pub fn blend_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, color: &[u8; 4]) {
         for y in rect.1..rect.1+rect.3 {
@@ -322,7 +337,7 @@ impl Draw2D {
         layout.reset(&LayoutSettings {
             max_width : Some(rect.2 as f32),
             max_height : Some(rect.3 as f32),
-            horizontal_align : if align ==  TextAlignment::Left { HorizontalAlign::Left } else { HorizontalAlign::Center },
+            horizontal_align : if align ==  TextAlignment::Left { HorizontalAlign::Left } else { if align == TextAlignment::Right {HorizontalAlign::Right} else { HorizontalAlign::Center } },
             vertical_align : VerticalAlign::Middle,
             ..LayoutSettings::default()
         });

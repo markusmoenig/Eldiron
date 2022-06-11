@@ -10,6 +10,8 @@ pub trait TextEditorWidget {
     }
 
     fn set_text(&mut self, text: String);
+    fn set_error(&mut self, error: Option<(String, Option<usize>)>);
+
     fn set_text_mode(&mut self, value: bool);
 
     fn process_text(&mut self, font: &Font, draw2d: &Draw2D);

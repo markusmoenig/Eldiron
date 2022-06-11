@@ -29,6 +29,8 @@ impl ScriptMessages {
 
 // --- ScriptPosition
 
+use std::cmp::max;
+
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScriptPosition {
     pub pos             : (usize, usize)
@@ -52,7 +54,7 @@ pub struct ScriptRect {
 impl ScriptRect {
     pub fn new(x: i64, y: i64, width: i64, height: i64) -> Self {
         Self {
-            rect        : (x as usize, y as usize, width as usize,  height as usize),
+            rect : (max(x, 0) as usize, max(y, 0) as usize, max(width, 0) as usize, max(height, 0) as usize)
         }
     }
 

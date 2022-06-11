@@ -101,6 +101,7 @@ pub struct ScreenContext<'a> {
     pub code_editor_value               : String,
     pub code_editor_node_behavior_id    : (usize, usize, String),
     pub code_editor_node_behavior_value : (f64, f64, f64, f64, String),
+    pub code_editor_error               : Option<(String, Option<usize>)>,
 
     pub active_position_id              : Option<(usize, usize, String)>,
 
@@ -284,6 +285,7 @@ impl ScreenContext<'_> {
             code_editor_value                : "".to_string(),
             code_editor_node_behavior_id     : (0, 0, "".to_string()),
             code_editor_node_behavior_value  : (0.0, 0.0, 0.0, 0.0, "".to_string()),
+            code_editor_error                : None,
 
             active_position_id          : None,
             jump_to_position            : None,

@@ -106,7 +106,7 @@ impl EditorContent for ScreenEditor<'_> {
                 update.screen = Some(context.code_editor_value.clone());
             }
             update.position = self.player_position;
-            render.draw(anim_counter, &update);
+            context.code_editor_error = render.draw(anim_counter, &update);
 
             let left_offset = 0;
             let top_offset = 0;
@@ -140,128 +140,6 @@ impl EditorContent for ScreenEditor<'_> {
             }
         }
 
-        /*
-        if let Some(_options) = options {
-
-            let grid_size = self.grid_size;
-            let rect = self.rect.clone();
-
-            let left_offset = (rect.2 % grid_size) / 2;
-            let top_offset = (rect.3 % grid_size) / 2;
-
-            self.screen_offset = (left_offset, top_offset);
-
-            let x_tiles = (rect.2 / grid_size) as isize;
-            let y_tiles = (rect.3 / grid_size) as isize;
-
-            //self.game_screen.draw(self.node_behavior_id.1, true, &mut context.data);
-
-            /
-            context.draw2d.blend_slice_safe(frame, &mut context.data.game_frame[..], &(rect.0 as isize + left_offset as isize + self.offset.0 * grid_size as isize, rect.1 as isize + top_offset as isize + self.offset.1 * grid_size as isize, self.screen_width, self.screen_height), context.width, &rect);
-
-            for y in 0..y_tiles {
-                for x in 0..x_tiles {
-
-                    let cx = x - self.offset.0;
-                    let cy = y - self.offset.1;
-
-                    if let Some(widget_start) = self.widget_start {
-                        if let Some(widget_end) = self.widget_end {
-
-                            if  cy >= widget_start.1 && cx >= widget_start.0 { // >=
-                                if  cy <= widget_end.1 && cx <= widget_end.0 { // <=
-                                    let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
-
-                                    context.draw2d.draw_rect(frame, &(pos.0, pos.1, grid_size, grid_size), context.width, &context.color_white);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            /*
-            let editor_mode = options.get_editor_mode();
-
-            let mut rect = self.rect.clone();
-            if editor_mode != RegionEditorMode::Areas {
-                rect.3 -= 250;
-            }
-
-            if let Some(region) = context.data.regions.get(&self.region_id) {
-
-                if context.is_running == false {
-                    let x_tiles = (rect.2 / grid_size) as isize;
-                    let y_tiles = (rect.3 / grid_size) as isize;
-
-                    for y in 0..y_tiles {
-                        for x in 0..x_tiles {
-                            let values = region.get_value((x - self.offset.0, y - self.offset.1));
-
-                            if values.is_empty() == false {
-                                let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
-                                for value in values {
-                                    let map = asset.get_map_of_id(value.0);
-                                    context.draw2d.draw_animated_tile(frame, &pos, map,context.width,&(value.1, value.2), anim_counter, grid_size);
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    context.draw2d.draw_region_with_instances(frame, region, &rect, &(-self.offset.0, -self.offset.1), context.width, grid_size, anim_counter, asset, context);
-                }
-            }
-
-            if editor_mode == RegionEditorMode::Tiles {
-                self.tile_selector.draw(frame, context.width, anim_counter, asset, context);
-            } else
-            if editor_mode == RegionEditorMode::Areas || editor_mode == RegionEditorMode::Behavior {
-                if let Some(region) = context.data.regions.get(&self.region_id) {
-
-                    let x_tiles = (rect.2 / grid_size) as isize;
-                    let y_tiles = (rect.3 / grid_size) as isize;
-
-                    let curr_area_index = context.curr_region_area_index;
-
-                    for y in 0..y_tiles {
-                        for x in 0..x_tiles {
-
-                            let rx = x - self.offset.0;
-                            let ry = y - self.offset.1;
-
-                            for area_index in 0..region.data.areas.len() {
-
-                                if region.data.areas[area_index].area.contains(&(rx, ry)) {
-                                    let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
-
-                                    let mut c = context.color_white.clone();
-                                    if curr_area_index == area_index {
-                                        c[3] = 100;
-                                    } else {
-                                        if editor_mode == RegionEditorMode::Areas {
-                                            continue;
-                                        }
-                                        c[3] = 50;
-                                    }
-                                    context.draw2d.blend_rect(frame, &(pos.0, pos.1, grid_size, grid_size), context.width, &c);
-                                }
-                            }
-                        }
-                    }
-                }
-            }*/
-
-            if self.mouse_hover_pos != (0,0) {
-                if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
-                    let pos = (rect.0 + left_offset + ((id.0 + self.offset.0) as usize) * grid_size, rect.1 + top_offset + ((id.1 + self.offset.1) as usize) * grid_size);
-
-                    if  pos.0 + grid_size < rect.0 + rect.2 && pos.1 + grid_size < rect.1 + rect.3 {
-                        context.draw2d.draw_rect_outline(frame, &(pos.0, pos.1, grid_size, grid_size), context.width, context.color_light_white);
-                        context.draw2d.draw_rect_outline(frame, &(pos.0 + 1, pos.1 + 1, grid_size - 2, grid_size - 2), context.width, context.color_black);
-                    }
-                }
-            }
-        }*/
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
@@ -301,27 +179,6 @@ impl EditorContent for ScreenEditor<'_> {
 
         let consumed = false;
 
-        /*
-        if let Some(options) = options {
-            //let editor_mode = options.get_editor_mode();
-
-            let mode = options.get_screen_editor_mode();
-
-            if mode.0 == ScreenEditorMode::Widgets {
-                if mode.1 == ScreenEditorAction::Add {
-
-                    if let Some(widget_start) = self.widget_start {
-                        if let Some(widget_end) = self.widget_end {
-
-                            let widget = GameScreenWidget { name: "Widget".to_string(), widget_type: core_server::gamedata::game_screen::GameScreenWidgetType::Game, top_left: widget_start, bottom_right: widget_end };
-                            self.game_screen.widgets.push(widget);
-                            self.game_screen.curr_widget_index = self.game_screen.widgets.len() - 1;
-                        }
-                    }
-                }
-            }
-        }*/
-
         self.widget_start = None;
         self.widget_end = None;
 
@@ -347,53 +204,8 @@ impl EditorContent for ScreenEditor<'_> {
         false
     }
 
-    fn mouse_dragged(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
-
+    fn mouse_dragged(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
         let consumed = false;
-
-        if let Some(_options) = options {
-            //let editor_mode = options.get_editor_mode();
-
-            /*
-            let mode = options.get_screen_editor_mode();
-
-            if mode.0 == ScreenEditorMode::Widgets {
-                if mode.1 == ScreenEditorAction::Add {
-
-                    if let Some(id) = self.get_tile_id(pos) {
-
-                        if let Some(widget_start) = self.widget_start {
-
-                            if id.0 >= widget_start.0 && id.1 >= widget_start.1 {
-                                self.widget_end = Some(id);
-                                consumed = true;
-                            }
-                        }
-                    }
-                }
-            }*/
-
-            /*
-            if consumed == false && context.contains_pos_for(pos, self.rect) {
-                if let Some(id) = self.get_tile_id(pos) {
-                    if self.clicked != Some(id) {
-
-                        self.clicked = Some(id);
-                        let editor_mode = options.get_editor_mode();
-
-                        if editor_mode == RegionEditorMode::Tiles {
-                            if let Some(selected) = &self.tile_selector.selected {
-                                if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                                    region.set_value(options.get_layer(), id, selected.clone());
-                                    region.save_data();
-                                }
-                            }
-                        }
-                    }
-                }*/
-
-
-        }
         consumed
     }
 
@@ -483,7 +295,7 @@ impl EditorContent for ScreenEditor<'_> {
                 }
             }
             update.position = self.player_position;
-            render.process_update(&update);
+            context.code_editor_error = render.process_update(&update);
         }
     }
 

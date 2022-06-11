@@ -13,6 +13,8 @@ pub struct CodeEditor {
     pub rect                : (usize, usize, usize, usize),
     pub text                : String,
 
+    offset                  : (isize, isize),
+
     pub font_size           : f32,
 
     cursor_offset           : usize,
@@ -34,7 +36,9 @@ pub struct CodeEditor {
     alt                     : bool,
     logo                    : bool,
 
-    theme                   : CodeEditorTheme,
+    pub theme               : CodeEditorTheme,
+
+    error                   : Option<(String, Option<usize>)>
 }
 
 impl TextEditorWidget for CodeEditor {
@@ -44,6 +48,8 @@ impl TextEditorWidget for CodeEditor {
         Self {
             rect            : (0, 0, 0, 0),
             text            : "".to_string(),
+
+            offset          : (0, 0),
 
             font_size       : 17.0,
 
@@ -67,6 +73,8 @@ impl TextEditorWidget for CodeEditor {
             logo            : false,
 
             theme           : CodeEditorTheme::new(),
+
+            error           : None,
         }
     }
 
@@ -75,7 +83,13 @@ impl TextEditorWidget for CodeEditor {
         self.needs_update = true;
     }
 
+    fn set_error(&mut self, error: Option<(String, Option<usize>)>) {
+        self.error = error;
+        self.needs_update = true;
+    }
+
     fn set_text_mode(&mut self, value: bool) {
+        self.offset = (0, 0);
         self.text_mode = value;
     }
 
@@ -94,9 +108,18 @@ impl TextEditorWidget for CodeEditor {
         draw2d.draw_rect(frame, &rect, stride, &self.theme.background);
         draw2d.draw_rect(frame, &(rect.0, rect.1, 95, rect.3), stride, &self.theme.line_numbers_bg);
 
-        draw2d.blend_slice_safe(frame, &mut self.text_buffer[..], &(rect.0 as isize, rect.1 as isize, self.text_buffer_size.0, self.text_buffer_size.1), stride, &rect);
+        // Limit the scrolling area
+        if self.offset.1 > 0 {
+            self.offset.1 = 0;
+        }
+        if self.offset.1.abs() >= self.text_buffer_size.1 as isize {
+            self.offset.1 = -(self.text_buffer_size.1 as isize);
+        }
 
-        draw2d.draw_rect(frame, &(rect.0 + self.cursor_rect.0, rect.1 + self.cursor_rect.1, self.cursor_rect.2, self.cursor_rect.3), stride, &self.theme.cursor);
+        let y = rect.1 as isize + self.offset.1;
+        draw2d.blend_slice_safe(frame, &mut self.text_buffer[..], &(rect.0 as isize, y, self.text_buffer_size.0, self.text_buffer_size.1), stride, &rect);
+
+        draw2d.draw_rect_safe(frame, &((rect.0 + self.cursor_rect.0) as isize, (rect.1 + self.cursor_rect.1) as isize + self.offset.1, self.cursor_rect.2, self.cursor_rect.3), stride, &self.theme.cursor, &rect);
     }
 
     /// Takes the current text and renders it to the text_buffer bitmap
@@ -165,7 +188,15 @@ impl TextEditorWidget for CodeEditor {
 
                 TokenType::LineFeed => {
 
-                    draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, y, 60, self.advance_height), stride, font, self.font_size, format!("{}", line_number).as_str(), &self.theme.line_numbers, &self.theme.background, crate::draw2d::TextAlignment::Right);
+                    let mut text_color = &self.theme.line_numbers;
+                    if let Some(error) = &self.error {
+                        if let Some(line) = error.1 {
+                            if line == line_number {
+                                text_color = &self.theme.error;
+                            }
+                        }
+                    }
+                    draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, y, 60, self.advance_height), stride, font, self.font_size, format!("{}", line_number).as_str(), &text_color, &self.theme.background, crate::draw2d::TextAlignment::Right);
                     number_printed_for_line = line_number;
 
                     x = left_size;
@@ -176,7 +207,15 @@ impl TextEditorWidget for CodeEditor {
                 TokenType::Eof => {
 
                     if number_printed_for_line != line_number {
-                        draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, y, 60, self.advance_height), stride, font, self.font_size, format!("{}", line_number).as_str(), &self.theme.line_numbers, &self.theme.background, crate::draw2d::TextAlignment::Right);
+                        let mut text_color = &self.theme.line_numbers;
+                        if let Some(error) = &self.error {
+                            if let Some(line) = error.1 {
+                                if line == line_number {
+                                    text_color = &self.theme.error;
+                                }
+                            }
+                        }
+                        draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, y, 60, self.advance_height), stride, font, self.font_size, format!("{}", line_number).as_str(), &text_color, &self.theme.background, crate::draw2d::TextAlignment::Right);
                     }
 
                     finished = true },
@@ -400,7 +439,7 @@ impl TextEditorWidget for CodeEditor {
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), font: &Font) -> bool {
-        let consumed = self.set_cursor_offset_from_pos(pos, font);
+        let consumed = self.set_cursor_offset_from_pos((pos.0, pos.1 + self.offset.1.abs() as usize), font);
         //println!("{:?}", pos);
         consumed
     }
@@ -410,7 +449,7 @@ impl TextEditorWidget for CodeEditor {
     }
 
     fn mouse_dragged(&mut self, pos: (usize, usize), font: &Font) -> bool {
-        let consumed = self.set_cursor_offset_from_pos(pos, font);
+        let consumed = self.set_cursor_offset_from_pos((pos.0, pos.1 + self.offset.1.abs() as usize), font);
         //println!("{:?}", self.cursor_offset);
         consumed
     }
@@ -419,8 +458,10 @@ impl TextEditorWidget for CodeEditor {
         false
     }
 
-    fn mouse_wheel(&mut self, _delta: (isize, isize), _font: &Font) -> bool {
-        false
+    fn mouse_wheel(&mut self, delta: (isize, isize), _font: &Font) -> bool {
+        self.offset.0 -= delta.0 / 20;
+        self.offset.1 += delta.1 / 1;
+        true
     }
 
     fn modifier_changed(&mut self, shift: bool, ctrl: bool, alt: bool, logo: bool, _font: &Font) -> bool {
