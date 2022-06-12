@@ -1,5 +1,5 @@
 [lib]
-name = "core_renderr"
+name = "core_render"
 
 [package]
 name = "core_render"

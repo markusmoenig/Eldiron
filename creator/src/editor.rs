@@ -12,7 +12,7 @@ use crate::editor::log::LogWidget;
 use crate::editor::gameoptions::GameOptions;
 use crate::widget:: {ScreenWidget, Widget, WidgetState, WidgetKey};
 use crate::atom:: { AtomWidget, AtomWidgetType, AtomData };
-use core_renderr::render::GameRender;
+use core_render::render::GameRender;
 use core_shared::asset::Asset;
 use core_server::gamedata::behavior::BehaviorType;
 use core_shared::actions::*;

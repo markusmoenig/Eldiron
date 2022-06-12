@@ -1,5 +1,5 @@
 
-use core_renderr::render::GameRender;
+use core_render::render::GameRender;
 use core_shared::asset::{ Asset };
 use core_shared::asset::tileset::TileUsage;
 use core_shared::update::GameUpdate;

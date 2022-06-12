@@ -33,19 +33,28 @@ impl GameRender<'_> {
 
         let mut engine = Engine::new();
 
-        engine.register_type::<ScriptDraw>()
+        engine.register_type_with_name::<ScriptTilemaps>("Tilemaps")
+            .register_fn("get", ScriptTilemaps::get);
+
+        engine.register_type_with_name::<ScriptTilemap>("Tilemap")
+            .register_fn("get_tile", ScriptTilemap::get_tile);
+
+        engine.register_type_with_name::<ScriptTile>("Tile");
+
+        engine.register_type_with_name::<ScriptDraw>("Draw")
             .register_fn("rect", ScriptDraw::rect)
+            .register_fn("tile", ScriptDraw::tile)
             .register_fn("game", ScriptDraw::game)
             .register_fn("region", ScriptDraw::region)
             .register_fn("text", ScriptDraw::text);
 
-        engine.register_type::<ScriptRect>()
+        engine.register_type_with_name::<ScriptRect>("Rect")
             .register_fn("rect", ScriptRect::new);
 
-        engine.register_type::<ScriptPosition>()
-            .register_fn("pos2d", ScriptPosition::new);
+        engine.register_type_with_name::<ScriptPosition>("Position")
+            .register_fn("pos", ScriptPosition::new);
 
-        engine.register_type::<ScriptRect>()
+        engine.register_type_with_name::<ScriptRect>("Rect")
             .register_fn("rgb", ScriptRGB::new)
             .register_fn("rgba", ScriptRGB::new_with_alpha);
 
@@ -81,6 +90,13 @@ impl GameRender<'_> {
                     self.scope.set_value("height", 608 as i64);
                     self.scope.set_value("tile_size", 32 as i64);
                     self.scope.set_value("draw", ScriptDraw::new());
+
+                    let mut tilemaps = ScriptTilemaps::new();
+                    for index in 0..self.asset.tileset.maps_names.len() {
+                        tilemaps.maps.insert(self.asset.tileset.maps_names[index].clone(), self.asset.tileset.maps_ids[index] as i64);
+                    }
+                    self.scope.set_value("tilemaps", tilemaps);
+
                     let result = self.engine.eval_ast_with_scope::<Dynamic>(&mut self.scope, &ast);
                     if result.is_err() {
                         if let Some(err) = result.err() {
@@ -167,6 +183,14 @@ impl GameRender<'_> {
                         if rect.is_safe(self.width, self.height) {
                             self.draw2d.draw_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
                         }
+                    },
+                    ScriptDrawCmd::DrawTile(pos, tile) => {
+                        //if rect.is_safe(self.width, self.height) {
+                        //    self.draw2d.draw_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
+                        //}
+                        let map = self.asset.get_map_of_id(tile.id.0);
+                        self.draw2d.draw_animated_tile( &mut self.frame[..], &pos.pos, &map, stride, &(tile.id.1, tile.id.2), anim_counter, self.tile_size);
+
                     },
                     ScriptDrawCmd::DrawText(pos, text, font_name, size, rgb) => {
                         if let Some(font) = self.asset.game_fonts.get(font_name) {

@@ -25,11 +25,66 @@ impl ScriptMessages {
     }
 }*/
 
+// --- Tilemaps
+
+#[derive(Debug, Clone)]
+pub struct ScriptTilemaps {
+    pub maps            : HashMap<String, i64>
+}
+
+impl ScriptTilemaps {
+    pub fn new() -> Self {
+        Self {
+            maps: HashMap::new()
+        }
+    }
+
+    /// Returns the tilemap
+    pub fn get(&mut self, name: &str) -> ScriptTilemap {
+        let mut rc : i64 = 0;
+        if let Some(id) = self.maps.get(&name.to_owned()) {
+            rc = *id;
+        }
+        ScriptTilemap { id: rc as usize }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ScriptTilemap {
+    pub         id : usize,
+}
+
+impl ScriptTilemap {
+    pub fn new(id: usize) -> Self {
+        Self {
+            id
+        }
+    }
+
+    /// Returns the tile
+    pub fn get_tile(&mut self, x: i64, y: i64) -> ScriptTile {
+        ScriptTile { id: (self.id, x as usize, y as usize) }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScriptTile {
+    pub id              : (usize, usize, usize),
+}
+
+impl ScriptTile {
+    pub fn new(id: (usize, usize, usize)) -> Self {
+        Self {
+            id
+        }
+    }
+}
+
 // --- Drawing
 
 // --- ScriptPosition
 
-use std::cmp::max;
+use std::{cmp::max, collections::HashMap};
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScriptPosition {
@@ -94,6 +149,7 @@ impl ScriptRGB {
 #[derive(PartialEq, Clone, Debug)]
 pub enum ScriptDrawCmd {
     DrawRect(ScriptRect, ScriptRGB),
+    DrawTile(ScriptPosition, ScriptTile),
     DrawGame(ScriptRect),
     DrawRegion(String, ScriptRect, i64),
     DrawText(ScriptPosition, String, String, f32, ScriptRGB),
@@ -117,6 +173,10 @@ impl ScriptDraw {
 
     pub fn rect(&mut self, rect: ScriptRect, rgb: ScriptRGB) {
         self.commands.push(ScriptDrawCmd::DrawRect(rect, rgb));
+    }
+
+    pub fn tile(&mut self, pos: ScriptPosition, tile: ScriptTile) {
+        self.commands.push(ScriptDrawCmd::DrawTile(pos, tile));
     }
 
     pub fn text(&mut self, pos: ScriptPosition, text: &str, font_name: &str, size: f64, rgb: ScriptRGB) {
