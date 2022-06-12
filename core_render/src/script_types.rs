@@ -149,7 +149,7 @@ impl ScriptRGB {
 #[derive(PartialEq, Clone, Debug)]
 pub enum ScriptDrawCmd {
     DrawRect(ScriptRect, ScriptRGB),
-    DrawTile(ScriptPosition, ScriptTile),
+    DrawTile(ScriptRect, ScriptTile),
     DrawGame(ScriptRect),
     DrawRegion(String, ScriptRect, i64),
     DrawText(ScriptPosition, String, String, f32, ScriptRGB),
@@ -175,8 +175,8 @@ impl ScriptDraw {
         self.commands.push(ScriptDrawCmd::DrawRect(rect, rgb));
     }
 
-    pub fn tile(&mut self, pos: ScriptPosition, tile: ScriptTile) {
-        self.commands.push(ScriptDrawCmd::DrawTile(pos, tile));
+    pub fn tile(&mut self, rect: ScriptRect, tile: ScriptTile) {
+        self.commands.push(ScriptDrawCmd::DrawTile(rect, tile));
     }
 
     pub fn text(&mut self, pos: ScriptPosition, text: &str, font_name: &str, size: f64, rgb: ScriptRGB) {

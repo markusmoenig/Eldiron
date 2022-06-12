@@ -184,13 +184,11 @@ impl GameRender<'_> {
                             self.draw2d.draw_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
                         }
                     },
-                    ScriptDrawCmd::DrawTile(pos, tile) => {
-                        //if rect.is_safe(self.width, self.height) {
-                        //    self.draw2d.draw_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
-                        //}
-                        let map = self.asset.get_map_of_id(tile.id.0);
-                        self.draw2d.draw_animated_tile( &mut self.frame[..], &pos.pos, &map, stride, &(tile.id.1, tile.id.2), anim_counter, self.tile_size);
-
+                    ScriptDrawCmd::DrawTile(rect, tile) => {
+                        if rect.is_safe(self.width, self.height) {
+                            let map = self.asset.get_map_of_id(tile.id.0);
+                            self.draw2d.draw_animated_tile( &mut self.frame[..], &(rect.rect.0, rect.rect.1), &map, stride, &(tile.id.1, tile.id.2), anim_counter, rect.rect.2);
+                        }
                     },
                     ScriptDrawCmd::DrawText(pos, text, font_name, size, rgb) => {
                         if let Some(font) = self.asset.game_fonts.get(font_name) {
