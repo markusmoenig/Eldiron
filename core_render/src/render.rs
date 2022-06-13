@@ -44,6 +44,10 @@ impl GameRender<'_> {
         engine.register_type_with_name::<ScriptDraw>("Draw")
             .register_fn("rect", ScriptDraw::rect)
             .register_fn("tile", ScriptDraw::tile)
+            .register_fn("tile_sat", ScriptDraw::tile_sat)
+            .register_fn("tile_sized", ScriptDraw::tile_sized)
+            .register_fn("frame", ScriptDraw::frame)
+            .register_fn("frame_sat", ScriptDraw::frame_sat)
             .register_fn("game", ScriptDraw::game)
             .register_fn("region", ScriptDraw::region)
             .register_fn("text", ScriptDraw::text);
@@ -184,10 +188,120 @@ impl GameRender<'_> {
                             self.draw2d.draw_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
                         }
                     },
-                    ScriptDrawCmd::DrawTile(rect, tile) => {
-                        if rect.is_safe(self.width, self.height) {
+                    ScriptDrawCmd::DrawTile(pos, tile) => {
+                        //if rect.is_safe(self.width, self.height) {
                             let map = self.asset.get_map_of_id(tile.id.0);
-                            self.draw2d.draw_animated_tile( &mut self.frame[..], &(rect.rect.0, rect.rect.1), &map, stride, &(tile.id.1, tile.id.2), anim_counter, rect.rect.2);
+                            self.draw2d.draw_animated_tile( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.1, tile.id.2), anim_counter, self.tile_size);
+                        //}
+                    },
+                    ScriptDrawCmd::DrawTileSat(pos, tile, rgb) => {
+                        //if rect.is_safe(self.width, self.height) {
+                            let map = self.asset.get_map_of_id(tile.id.0);
+                            self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.1, tile.id.2), anim_counter, self.tile_size, rgb.value);
+                        //}
+                    },
+                    ScriptDrawCmd::DrawTileSized(pos, tile, size) => {
+                        //if rect.is_safe(self.width, self.height) {
+                            let map = self.asset.get_map_of_id(tile.id.0);
+                            self.draw2d.draw_animated_tile( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.1, tile.id.2), anim_counter, *size as usize);
+                        //}
+                    },
+                    ScriptDrawCmd::DrawFrame(rect, t1, t2, t3, t4, t5, t6, t7, t8) => {
+                        if rect.is_safe(self.width, self.height) {
+                            if rect.rect.2 >= 3 * self.tile_size && rect.rect.3 >= 3 * self.tile_size {
+                                let tiles_x = rect.rect.2 / self.tile_size;
+                                let tiles_y = rect.rect.3 / self.tile_size;
+                                let mut x = rect.rect.0;
+
+                                let top_y = rect.rect.1;
+                                let bottom_y = rect.rect.1 + rect.rect.3 - self.tile_size;
+
+                                for i in 0..tiles_x {
+                                    let t;
+                                    if i == 0 { t = &t1; }
+                                    else if i == tiles_x - 1 { t = &t3; }
+                                    else { t = &t2; }
+
+                                    let map = self.asset.get_map_of_id(t.id.0);
+                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(x, top_y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size);
+
+                                    let t;
+                                    if i == 0 { t = &t4; }
+                                    else if i == tiles_x - 1 { t = &t6; }
+                                    else { t = &t5; }
+
+                                    let map = self.asset.get_map_of_id(t.id.0);
+                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(x, bottom_y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size);
+
+                                    x += self.tile_size;
+                                }
+
+                                let right_x = rect.rect.0 + rect.rect.2 - self.tile_size;
+
+                                let mut y = rect.rect.1 + self.tile_size;
+                                for _i in 0..tiles_y - 2 {
+                                    let t = &t7;
+
+                                    let map = self.asset.get_map_of_id(t.id.0);
+                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(rect.rect.0, y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size);
+
+                                    let t = &t8;
+
+                                    let map = self.asset.get_map_of_id(t.id.0);
+                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(right_x, y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size);
+
+                                    y += self.tile_size;
+                                }
+                            }
+                        }
+                    },
+                    ScriptDrawCmd::DrawFrameSat(rect, rgb, t1, t2, t3, t4, t5, t6, t7, t8) => {
+                        if rect.is_safe(self.width, self.height) {
+                            if rect.rect.2 >= 3 * self.tile_size && rect.rect.3 >= 3 * self.tile_size {
+                                let tiles_x = rect.rect.2 / self.tile_size;
+                                let tiles_y = rect.rect.3 / self.tile_size;
+                                let mut x = rect.rect.0;
+
+                                let top_y = rect.rect.1;
+                                let bottom_y = rect.rect.1 + rect.rect.3 - self.tile_size;
+
+                                for i in 0..tiles_x {
+                                    let t;
+                                    if i == 0 { t = &t1; }
+                                    else if i == tiles_x - 1 { t = &t3; }
+                                    else { t = &t2; }
+
+                                    let map = self.asset.get_map_of_id(t.id.0);
+                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(x, top_y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size, rgb.value);
+
+                                    let t;
+                                    if i == 0 { t = &t4; }
+                                    else if i == tiles_x - 1 { t = &t6; }
+                                    else { t = &t5; }
+
+                                    let map = self.asset.get_map_of_id(t.id.0);
+                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(x, bottom_y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size, rgb.value);
+
+                                    x += self.tile_size;
+                                }
+
+                                let right_x = rect.rect.0 + rect.rect.2 - self.tile_size;
+
+                                let mut y = rect.rect.1 + self.tile_size;
+                                for _i in 0..tiles_y - 2 {
+                                    let t = &t7;
+
+                                    let map = self.asset.get_map_of_id(t.id.0);
+                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(rect.rect.0, y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size, rgb.value);
+
+                                    let t = &t8;
+
+                                    let map = self.asset.get_map_of_id(t.id.0);
+                                    self.draw2d.draw_animated_tile_sat(&mut self.frame[..], &(right_x, y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size, rgb.value);
+
+                                    y += self.tile_size;
+                                }
+                            }
                         }
                     },
                     ScriptDrawCmd::DrawText(pos, text, font_name, size, rgb) => {

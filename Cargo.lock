@@ -187,6 +187,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "colori"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71641288f8f78c00a7d9c0ab4b8d5ffaced54f02a32e6ed3fba3264663ec35bf"
+
+[[package]]
 name = "copyless"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -278,6 +284,7 @@ dependencies = [
 name = "core_render"
 version = "0.1.0"
 dependencies = [
+ "colori",
  "core_shared",
  "env_logger",
  "fontdue",

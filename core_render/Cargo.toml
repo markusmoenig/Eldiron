@@ -20,4 +20,4 @@ itertools = "0.10.2"
 rand = "0.8.5"
 rhai = "*"
 regex = "1.5"
-
+colori = "0.1.1"
