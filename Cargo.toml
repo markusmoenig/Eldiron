@@ -3,7 +3,8 @@
 members = [
     "core_server",
     "core_render",
-    "creator"
+    "creator",
+    "client_standalone"
 ]
 
 edition = "2021"

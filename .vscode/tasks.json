@@ -2,11 +2,13 @@
     "version": "2.0.0",
     "tasks": [
     {
-        "label": "cargo run",
+        "label": "(creator) cargo run",
         "type": "shell",
         "command": "cargo",
         "args": [
-            "run"
+            "run",
+            "-p",
+            "creator"
             // "--release",
             // "--",
             // "arg1"
@@ -17,12 +19,14 @@
         }
     },
     {
-        "label": "cargo run release",
+        "label": "(creator) cargo run release",
         "type": "shell",
         "command": "cargo",
         "args": [
             "run",
              "--release",
+             "-p",
+             "creator"
             // "--",
             // "arg1"
         ],
@@ -32,14 +36,29 @@
         }
     },
     {
-     "label": "cargo build",
-     "type": "shell",
-     "command": "cargo build",
-     "args": [],
-     "group": {
-       "kind": "build",
-       "isDefault": true
-     }
-    }
+        "label": "cargo build",
+        "type": "shell",
+        "command": "cargo build",
+        "args": [],
+        "group": {
+            "kind": "build",
+            "isDefault": true
+        }
+    },
+    {
+        "label": "(client_standalone) cargo run release",
+        "type": "shell",
+        "command": "cargo",
+        "args": [
+            "run",
+            "--release",
+            "-p",
+            "client_standalone"
+        ],
+        "group": {
+            "kind": "build",
+            "isDefault": true
+        }
+    },
     ]
 }
