@@ -274,7 +274,7 @@ impl EditorContent for ScreenEditor<'_> {
 
             // Get the region the player is in
 
-            if let Some(behavior) = context.data.behaviors.get_mut(&context.data.regions_ids[0]) {
+            if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[0]) {
                 for (_id, node) in &behavior.data.nodes {
                     if node.behavior_type == BehaviorNodeType::BehaviorType {
                         if let Some(value )= node.values.get(&"position".to_string()) {

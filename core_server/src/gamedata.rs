@@ -1427,11 +1427,16 @@ impl GameData<'_> {
         self.game_player_scopes = HashMap::new();
     }
 
-    /// Creates a new player instance and returns the index
-    pub fn create_player_instance(&mut self, player_id: usize) {
+    /// Creates a new player instance and returns the region id the player is located in
+    pub fn create_player_instance(&mut self, player_id: usize) -> Option<usize> {
         let index = self.create_behavior_instance(self.player_behavior_id);
         self.instances[index].instance_type = BehaviorInstanceType::Player;
         self.player_ids_inst_indices.insert(player_id, index);
+
+        if let Some(position) = self.instances[index].position {
+            return Some(position.0);
+        }
+        None
     }
 
     /// Assign an action to an instance
@@ -1450,8 +1455,9 @@ impl GameData<'_> {
 
         self.create_behavior_instances();
         self.game_instance_index = Some(self.create_game_instance());
-        self.create_player_instance(131313);
-        self.activate_region_instances(self.regions_ids[0]);
+        if let Some(region_id) = self.create_player_instance(131313) {
+            self.activate_region_instances(region_id);
+        }
     }
 
     pub fn shutdown(&mut self) {

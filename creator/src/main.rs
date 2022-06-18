@@ -268,7 +268,9 @@ fn main() -> Result<(), Error> {
             } else {
 
                 // If not, lets see if we need to redraw for the target fps
-                let tick_in_ms =  (1000.0 / curr_screen.get_target_fps() as f32) as u128;
+                let fps =  curr_screen.get_target_fps() as f32;//if mouse_wheel_ongoing { 60.0 } else { curr_screen.get_target_fps() as f32 };
+                //println!("{}", fps);
+                let tick_in_ms =  (1000.0 / fps) as u128;
 
                 if curr_time > timer + tick_in_ms {
                     curr_screen.update();

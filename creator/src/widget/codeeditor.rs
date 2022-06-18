@@ -101,25 +101,31 @@ impl TextEditorWidget for CodeEditor {
 
         self.rect = rect.clone();
 
-        //let safe_rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
-
-        //let stride = rect.2;
-
         draw2d.draw_rect(frame, &rect, stride, &self.theme.background);
         draw2d.draw_rect(frame, &(rect.0, rect.1, 95, rect.3), stride, &self.theme.line_numbers_bg);
 
         // Limit the scrolling area
+        if self.offset.0 > 0 {
+            self.offset.0 = 0;
+        }
+
+        if self.offset.0.abs() + rect.2 as isize >= self.text_buffer_size.0 as isize {
+            self.offset.0 = -(self.text_buffer_size.0 as isize) + rect.2 as isize;
+        }
+
         if self.offset.1 > 0 {
             self.offset.1 = 0;
         }
-        if self.offset.1.abs() >= self.text_buffer_size.1 as isize {
-            self.offset.1 = -(self.text_buffer_size.1 as isize);
+
+        if self.offset.1.abs() + rect.3 as isize >= self.text_buffer_size.1 as isize {
+            self.offset.1 = -(self.text_buffer_size.1 as isize) + rect.3 as isize;
         }
 
+        let x = rect.0 as isize + self.offset.0;
         let y = rect.1 as isize + self.offset.1;
-        draw2d.blend_slice_safe(frame, &mut self.text_buffer[..], &(rect.0 as isize, y, self.text_buffer_size.0, self.text_buffer_size.1), stride, &rect);
+        draw2d.blend_slice_safe(frame, &mut self.text_buffer[..], &(x, y, self.text_buffer_size.0, self.text_buffer_size.1), stride, &rect);
 
-        draw2d.draw_rect_safe(frame, &((rect.0 + self.cursor_rect.0) as isize, (rect.1 + self.cursor_rect.1) as isize + self.offset.1, self.cursor_rect.2, self.cursor_rect.3), stride, &self.theme.cursor, &rect);
+        draw2d.draw_rect_safe(frame, &((rect.0 + self.cursor_rect.0) as isize + self.offset.0, (rect.1 + self.cursor_rect.1) as isize + self.offset.1, self.cursor_rect.2, self.cursor_rect.3), stride, &self.theme.cursor, &rect);
     }
 
     /// Takes the current text and renders it to the text_buffer bitmap
@@ -439,7 +445,7 @@ impl TextEditorWidget for CodeEditor {
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), font: &Font) -> bool {
-        let consumed = self.set_cursor_offset_from_pos((pos.0, pos.1 + self.offset.1.abs() as usize), font);
+        let consumed = self.set_cursor_offset_from_pos((pos.0 + self.offset.0.abs() as usize, pos.1 + self.offset.1.abs() as usize), font);
         //println!("{:?}", pos);
         consumed
     }
@@ -449,7 +455,7 @@ impl TextEditorWidget for CodeEditor {
     }
 
     fn mouse_dragged(&mut self, pos: (usize, usize), font: &Font) -> bool {
-        let consumed = self.set_cursor_offset_from_pos((pos.0, pos.1 + self.offset.1.abs() as usize), font);
+        let consumed = self.set_cursor_offset_from_pos((pos.0 + self.offset.0.abs() as usize, pos.1 + self.offset.1.abs() as usize), font);
         //println!("{:?}", self.cursor_offset);
         consumed
     }
@@ -459,8 +465,8 @@ impl TextEditorWidget for CodeEditor {
     }
 
     fn mouse_wheel(&mut self, delta: (isize, isize), _font: &Font) -> bool {
-        self.offset.0 -= delta.0 / 20;
-        self.offset.1 += delta.1 / 1;
+        self.offset.0 -= delta.0 / 2;
+        self.offset.1 += delta.1 / 2;
         true
     }
 

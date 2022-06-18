@@ -32,7 +32,7 @@ impl GameRegion {
                 .unwrap_or("".to_string());
 
         let data = serde_json::from_str(&contents)
-                .unwrap_or(GameRegionData { layer1: HashMap::new(), layer2: HashMap::new(), layer3: HashMap::new(), layer4: HashMap::new(), id: 0, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000), areas: vec![] });
+                .unwrap_or(GameRegionData { layer1: HashMap::new(), layer2: HashMap::new(), layer3: HashMap::new(), layer4: HashMap::new(), id: thread_rng().gen_range(1..=u32::MAX) as usize, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000), areas: vec![] });
 
         // Read the behaviors
         let mut behaviors : Vec<GameBehavior> = vec![];

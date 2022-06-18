@@ -140,7 +140,9 @@ impl ScreenWidget for Editor<'_> {
             context.dialog_entry = DialogEntry::NewProjectName;
             context.dialog_new_name = "New Game".to_string();
         } else {
-            project_to_load = context.get_project_path(project_list[0].clone());
+            // project_to_load = context.get_project_path(project_list[0].clone());
+            project_to_load = Some(std::path::PathBuf::new()); // Load the local project for development
+
             status_bar.add_message(format!("Loaded Documents >> Eldiron >> {}", project_list[0]));
         }
 

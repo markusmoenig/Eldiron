@@ -152,8 +152,8 @@ pub enum ScriptDrawCmd {
     DrawTile(ScriptPosition, ScriptTile),
     DrawTileSat(ScriptPosition, ScriptTile, ScriptRGB),
     DrawTileSized(ScriptPosition, ScriptTile, i64),
-    DrawFrame(ScriptRect, ScriptTile, ScriptTile, ScriptTile, ScriptTile, ScriptTile, ScriptTile, ScriptTile, ScriptTile),
-    DrawFrameSat(ScriptRect, ScriptRGB, ScriptTile, ScriptTile, ScriptTile, ScriptTile, ScriptTile, ScriptTile, ScriptTile, ScriptTile),
+    DrawFrame(ScriptRect, ScriptTile),
+    DrawFrameSat(ScriptRect, ScriptRGB, ScriptTile),
     DrawGame(ScriptRect),
     DrawRegion(String, ScriptRect, i64),
     DrawText(ScriptPosition, String, String, f32, ScriptRGB),
@@ -191,12 +191,12 @@ impl ScriptDraw {
         self.commands.push(ScriptDrawCmd::DrawTileSized(pos, tile, size));
     }
 
-    pub fn frame(&mut self, rect: ScriptRect, t1: ScriptTile, t2: ScriptTile, t3: ScriptTile, t4: ScriptTile, t5: ScriptTile, t6: ScriptTile, t7: ScriptTile, t8: ScriptTile) {
-        self.commands.push(ScriptDrawCmd::DrawFrame(rect, t1, t2, t3, t4, t5, t6, t7, t8));
+    pub fn frame(&mut self, rect: ScriptRect, tile: ScriptTile) {
+        self.commands.push(ScriptDrawCmd::DrawFrame(rect, tile));
     }
 
-    pub fn frame_sat(&mut self, rect: ScriptRect, rgb: ScriptRGB, t1: ScriptTile, t2: ScriptTile, t3: ScriptTile, t4: ScriptTile, t5: ScriptTile, t6: ScriptTile, t7: ScriptTile, t8: ScriptTile) {
-        self.commands.push(ScriptDrawCmd::DrawFrameSat(rect, rgb, t1, t2, t3, t4, t5, t6, t7, t8));
+    pub fn frame_sat(&mut self, rect: ScriptRect, rgb: ScriptRGB, tile: ScriptTile) {
+        self.commands.push(ScriptDrawCmd::DrawFrameSat(rect, rgb, tile));
     }
 
     pub fn text(&mut self, pos: ScriptPosition, text: &str, font_name: &str, size: f64, rgb: ScriptRGB) {

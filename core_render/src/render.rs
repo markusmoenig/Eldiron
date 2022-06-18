@@ -206,7 +206,7 @@ impl GameRender<'_> {
                             self.draw2d.draw_animated_tile( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.1, tile.id.2), anim_counter, *size as usize);
                         //}
                     },
-                    ScriptDrawCmd::DrawFrame(rect, t1, t2, t3, t4, t5, t6, t7, t8) => {
+                    ScriptDrawCmd::DrawFrame(rect, tile) => {
                         if rect.is_safe(self.width, self.height) {
                             if rect.rect.2 >= 3 * self.tile_size && rect.rect.3 >= 3 * self.tile_size {
                                 let tiles_x = rect.rect.2 / self.tile_size;
@@ -217,21 +217,21 @@ impl GameRender<'_> {
                                 let bottom_y = rect.rect.1 + rect.rect.3 - self.tile_size;
 
                                 for i in 0..tiles_x {
-                                    let t;
-                                    if i == 0 { t = &t1; }
-                                    else if i == tiles_x - 1 { t = &t3; }
-                                    else { t = &t2; }
+                                    let mut t;
+                                    if i == 0 { t = tile.id.clone(); }
+                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.1 += 2; }
+                                    else { t = tile.id.clone(); t.1 += 1; }
 
-                                    let map = self.asset.get_map_of_id(t.id.0);
-                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(x, top_y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size);
+                                    let map = self.asset.get_map_of_id(t.0);
+                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(x, top_y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size);
 
-                                    let t;
-                                    if i == 0 { t = &t4; }
-                                    else if i == tiles_x - 1 { t = &t6; }
-                                    else { t = &t5; }
+                                    let mut t;
+                                    if i == 0 { t = tile.id.clone(); t.2 += 2; }
+                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.1 += 2; t.2 += 2; }
+                                    else { t = tile.id.clone(); t.1 += 1; t.2 += 2; }
 
-                                    let map = self.asset.get_map_of_id(t.id.0);
-                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(x, bottom_y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size);
+                                    let map = self.asset.get_map_of_id(t.0);
+                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(x, bottom_y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size);
 
                                     x += self.tile_size;
                                 }
@@ -240,22 +240,22 @@ impl GameRender<'_> {
 
                                 let mut y = rect.rect.1 + self.tile_size;
                                 for _i in 0..tiles_y - 2 {
-                                    let t = &t7;
+                                    let mut t = tile.id.clone(); t.2 += 1;
 
-                                    let map = self.asset.get_map_of_id(t.id.0);
-                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(rect.rect.0, y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size);
+                                    let map = self.asset.get_map_of_id(t.0);
+                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(rect.rect.0, y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size);
 
-                                    let t = &t8;
+                                    let mut t = tile.id.clone(); t.1 += 2; t.2 += 1;
 
-                                    let map = self.asset.get_map_of_id(t.id.0);
-                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(right_x, y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size);
+                                    let map = self.asset.get_map_of_id(t.0);
+                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(right_x, y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size);
 
                                     y += self.tile_size;
                                 }
                             }
                         }
                     },
-                    ScriptDrawCmd::DrawFrameSat(rect, rgb, t1, t2, t3, t4, t5, t6, t7, t8) => {
+                    ScriptDrawCmd::DrawFrameSat(rect, rgb, tile) => {
                         if rect.is_safe(self.width, self.height) {
                             if rect.rect.2 >= 3 * self.tile_size && rect.rect.3 >= 3 * self.tile_size {
                                 let tiles_x = rect.rect.2 / self.tile_size;
@@ -266,21 +266,21 @@ impl GameRender<'_> {
                                 let bottom_y = rect.rect.1 + rect.rect.3 - self.tile_size;
 
                                 for i in 0..tiles_x {
-                                    let t;
-                                    if i == 0 { t = &t1; }
-                                    else if i == tiles_x - 1 { t = &t3; }
-                                    else { t = &t2; }
+                                    let mut t;
+                                    if i == 0 { t = tile.id.clone(); }
+                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.1 += 2; }
+                                    else { t = tile.id.clone(); t.1 += 1; }
 
-                                    let map = self.asset.get_map_of_id(t.id.0);
-                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(x, top_y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size, rgb.value);
+                                    let map = self.asset.get_map_of_id(t.0);
+                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(x, top_y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size, rgb.value);
 
-                                    let t;
-                                    if i == 0 { t = &t4; }
-                                    else if i == tiles_x - 1 { t = &t6; }
-                                    else { t = &t5; }
+                                    let mut t;
+                                    if i == 0 { t = tile.id.clone(); t.2 += 2; }
+                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.1 += 2; t.2 += 2; }
+                                    else { t = tile.id.clone(); t.1 += 1; t.2 += 2; }
 
-                                    let map = self.asset.get_map_of_id(t.id.0);
-                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(x, bottom_y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size, rgb.value);
+                                    let map = self.asset.get_map_of_id(t.0);
+                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(x, bottom_y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size, rgb.value);
 
                                     x += self.tile_size;
                                 }
@@ -289,15 +289,15 @@ impl GameRender<'_> {
 
                                 let mut y = rect.rect.1 + self.tile_size;
                                 for _i in 0..tiles_y - 2 {
-                                    let t = &t7;
+                                    let mut t = tile.id.clone(); t.2 += 1;
 
-                                    let map = self.asset.get_map_of_id(t.id.0);
-                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(rect.rect.0, y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size, rgb.value);
+                                    let map = self.asset.get_map_of_id(t.0);
+                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(rect.rect.0, y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size, rgb.value);
 
-                                    let t = &t8;
+                                    let mut t = tile.id.clone(); t.1 += 2; t.2 += 1;
 
-                                    let map = self.asset.get_map_of_id(t.id.0);
-                                    self.draw2d.draw_animated_tile_sat(&mut self.frame[..], &(right_x, y), &map, stride, &(t.id.1, t.id.2), anim_counter, self.tile_size, rgb.value);
+                                    let map = self.asset.get_map_of_id(t.0);
+                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(right_x, y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size, rgb.value);
 
                                     y += self.tile_size;
                                 }
@@ -350,17 +350,26 @@ impl GameRender<'_> {
         let x_tiles = (rect.2 / tile_size) as isize;
         let y_tiles = (rect.3 / tile_size) as isize;
 
-        let mut center = (0, 0);
+        let mut offset = (0, 0);
         if let Some(position) = update.position {
 
             if let Some(region) = self.regions.get(&position.0) {
-                center.0 = position.1;
-                center.1 = position.2;
+                offset.0 = position.1;
+                offset.1 = position.2;
 
-                let mut offset = center.clone();
+                if x_tiles * tile_size as isize  >= rect.2 as isize {
+                    offset.0 = region.min_pos.0;
+                } else {
+                    let left = x_tiles / 2;
+                    offset.0 -= left;
+                }
 
-                offset.0 -= x_tiles / 2;
-                offset.1 -= y_tiles / 2;
+                if y_tiles * tile_size as isize  >= rect.3 as isize {
+                    offset.1 = region.min_pos.1;
+                } else {
+                    let top = y_tiles / 2;
+                    offset.1 -= top;
+                }
 
                 // Draw Region
                 for y in 0..y_tiles {
