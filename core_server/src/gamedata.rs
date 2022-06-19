@@ -78,16 +78,11 @@ pub struct GameData<'a> {
 
     // All instances
     pub instances               : Vec<BehaviorInstance>,
-    // Currently active instances
-    pub active_instance_indices : Vec<usize>,
 
     /// The behavior id of the "Player" character, cached for faster instancing
     pub player_behavior_id      : usize,
 
     pub player_ids_inst_indices : HashMap<usize, usize>,
-
-    // Current region id and index
-    pub curr_region_id          : usize,
 
     // Script scopes
     pub scopes                  : Vec<Scope<'a>>,
@@ -411,12 +406,9 @@ impl GameData<'_> {
             engine,
 
             instances               : vec![],
-            active_instance_indices : vec![],
 
             player_behavior_id      : 0,
             player_ids_inst_indices : HashMap::new(),
-
-            curr_region_id          : 0,
 
             scopes                  : vec![],
             ast                     : HashMap::new(),
@@ -496,12 +488,9 @@ impl GameData<'_> {
             engine,
 
             instances               : vec![],
-            active_instance_indices : vec![],
 
             player_behavior_id      : 0,
             player_ids_inst_indices : HashMap::new(),
-
-            curr_region_id          : 0,
 
             scopes                  : vec![],
             ast                     : HashMap::new(),
@@ -823,7 +812,7 @@ impl GameData<'_> {
         for tree_id in &to_execute {
             // Execute this tree if it is a "Startup" Only tree
 
-            if let Some(value)= get_node_value((self.instances[index].behavior_id, *tree_id, "execute"), self, BehaviorType::GameLogic) {
+            if let Some(value)= get_node_value((self.instances[index].behavior_id, *tree_id, "execute"), self, BehaviorType::GameLogic, 0) {
                 if value.0 == 1.0 {
                     self.execute_game_node(index, tree_id.clone());
                 }
@@ -1036,7 +1025,7 @@ impl GameData<'_> {
     }
 
     /// Executes the given node and follows the connection chain
-    fn execute_area_node(&mut self, area_index: usize, node_id: usize) -> Option<BehaviorNodeConnector> {
+    fn execute_area_node(&mut self, region_id: usize, area_index: usize, node_id: usize) -> Option<BehaviorNodeConnector> {
 
         let mut connectors : Vec<BehaviorNodeConnector> = vec![];
         let mut connected_node_ids : Vec<usize> = vec![];
@@ -1044,11 +1033,11 @@ impl GameData<'_> {
         let mut rc : Option<BehaviorNodeConnector> = None;
 
         // Call the node and get the resulting BehaviorNodeConnector
-        if let Some(region) = self.regions.get_mut(&self.curr_region_id) {
+        if let Some(region) = self.regions.get_mut(&region_id) {
             if let Some(node) = region.behaviors[area_index].data.nodes.get_mut(&node_id) {
 
                 if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
-                    let connector = node_call(region.behaviors[area_index].data.id, (area_index, node_id), self, BehaviorType::Regions);
+                    let connector = node_call(region_id, (area_index, node_id), self, BehaviorType::Regions);
                     rc = Some(connector);
                     connectors.push(connector);
                 } else {
@@ -1059,7 +1048,7 @@ impl GameData<'_> {
 
         // Search the connections to check if we can find an ongoing node connection
         for connector in connectors {
-            if let Some(region) = self.regions.get_mut(&self.curr_region_id) {
+            if let Some(region) = self.regions.get_mut(&region_id) {
                 for c in &region.behaviors[area_index].data.connections {
                     if c.0 == node_id && c.1 == connector {
                         connected_node_ids.push(c.2);
@@ -1071,7 +1060,7 @@ impl GameData<'_> {
 
         // And if yes execute it
         for (_index, connected_node_id) in connected_node_ids.iter().enumerate() {
-            self.execute_area_node(area_index, *connected_node_id);
+            self.execute_area_node(region_id, area_index, *connected_node_id);
         }
         rc
     }
@@ -1220,26 +1209,11 @@ impl GameData<'_> {
 
     /// Creates all behavior instances
     pub fn create_behavior_instances(&mut self) {
-        self.active_instance_indices = vec![];
         for index in 0..self.behaviors_ids.len() {
             if self.behaviors_names[index] != "Player" {
                 self.create_behavior_instance(self.behaviors_ids[index]);
             } else {
                 self.player_behavior_id = self.behaviors_ids[index];
-            }
-        }
-    }
-
-    /// Activate the instances for the given region, making this region the current one
-    pub fn activate_region_instances(&mut self, region_id: usize) {
-        self.active_instance_indices = vec![];
-        self.curr_region_id = region_id;
-
-        for index in 0..self.instances.len() {
-            if let Some(position) = self.instances[index].position {
-                if position.0 == region_id {
-                    self.active_instance_indices.push(index);
-                }
             }
         }
     }
@@ -1251,8 +1225,7 @@ impl GameData<'_> {
         self.characters = HashMap::new();
 
         // Execute behaviors
-        for index in 0..self.active_instance_indices.len() {
-            let inst_index = self.active_instance_indices[index];
+        for inst_index in 0..self.instances.len() {
 
             // Skip Sleep cycles
             if self.instances[inst_index].sleep_cycles > 0 {
@@ -1276,7 +1249,7 @@ impl GameData<'_> {
                         for node_id in &trees {
 
                             // Only execute trees here with an "Always" execute setting (0)
-                            if let Some(value)= get_node_value((self.instances[inst_index].behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors) {
+                            if let Some(value)= get_node_value((self.instances[inst_index].behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors, 0) {
                                 if value.0 != 0.0 {
                                     continue;
                                 }
@@ -1317,8 +1290,9 @@ impl GameData<'_> {
                 if let Some(tile) = self.instances[inst_index].tile {
                     let character = CharacterData { position,
                         tile,
-                        name: self.instances[inst_index].name.clone(),
-                        id: self.instances[inst_index].id
+                        name:   self.instances[inst_index].name.clone(),
+                        id:     self.instances[inst_index].id,
+                        index:  inst_index,
                      };
                      if let Some(list) = self.characters.get_mut(&position.0) {
                          list.push(character);
@@ -1330,19 +1304,21 @@ impl GameData<'_> {
         }
 
         // Execute region area behaviors
-        let mut to_execute: Vec<(usize, usize)> = vec![];
-        if let Some(region) = self.regions.get_mut(&self.curr_region_id) {
-            region.displacements = HashMap::new();
-            for area_index in 0..region.data.areas.len() {
-                for (node_id, node) in &region.behaviors[area_index].data.nodes {
-                    if node.behavior_type == BehaviorNodeType::InsideArea {
-                        to_execute.push((area_index, *node_id));
+        for i in 0..self.regions_ids.len() {
+            let mut to_execute: Vec<(usize, usize)> = vec![];
+            if let Some(region) = self.regions.get_mut(&self.regions_ids[i]) {
+                region.displacements = HashMap::new();
+                for area_index in 0..region.data.areas.len() {
+                    for (node_id, node) in &region.behaviors[area_index].data.nodes {
+                        if node.behavior_type == BehaviorNodeType::InsideArea {
+                            to_execute.push((area_index, *node_id));
+                        }
                     }
                 }
             }
-        }
-        for pairs in to_execute {
-            self.execute_area_node(pairs.0, pairs.1);
+            for pairs in to_execute {
+                self.execute_area_node(self.regions_ids[i], pairs.0, pairs.1);
+            }
         }
 
         // Parse the player characters and generate updates
@@ -1422,7 +1398,6 @@ impl GameData<'_> {
         self.ast = HashMap::new();
         self.executed_connections = vec![];
         self.changed_variables = vec![];
-        self.active_instance_indices = vec![];
         self.player_ids_inst_indices = HashMap::new();
         self.game_player_scopes = HashMap::new();
     }
@@ -1455,9 +1430,7 @@ impl GameData<'_> {
 
         self.create_behavior_instances();
         self.game_instance_index = Some(self.create_game_instance());
-        if let Some(region_id) = self.create_player_instance(131313) {
-            self.activate_region_instances(region_id);
-        }
+        _ = self.create_player_instance(131313)
     }
 
     pub fn shutdown(&mut self) {

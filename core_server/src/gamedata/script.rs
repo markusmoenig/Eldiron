@@ -105,7 +105,7 @@ pub fn eval_bool_expression_instance(instance_index: usize, id: (BehaviorType, u
             println!("{:?}", r);
         }
     } else {
-        if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0) {
+        if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0, 0) {
             let script = replace_target_variables(value.4);
             if let Some(ast) = data.engine.compile_expression_with_scope(&mut  data.scopes[instance_index], script.as_str()).ok() {
                 let r = data.engine.eval_ast_with_scope(&mut  data.scopes[instance_index], &ast);
@@ -140,7 +140,7 @@ pub fn eval_number_expression_instance(instance_index: usize, id: (BehaviorType,
             println!("{:?}", r);
         }
     } else {
-        if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0) {
+        if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0, 0) {
             let script = replace_target_variables(value.4);
             if let Some(ast) = data.engine.compile_expression_with_scope(&mut  data.scopes[instance_index], script.as_str()).ok() {
                 let r = data.engine.eval_ast_with_scope::<Dynamic>(&mut  data.scopes[instance_index], &ast);
@@ -181,7 +181,7 @@ pub fn eval_dynamic_script_instance(instance_index: usize, id: (BehaviorType, us
             println!("{:?}", r);
         }
     } else {
-        if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0) {
+        if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0, 0) {
             let script = replace_target_variables(value.4);
             if let Some(ast) = data.engine.compile_with_scope(&mut  data.scopes[instance_index], script.as_str()).ok() {
                 let r = data.engine.eval_ast_with_scope::<Dynamic>(&mut  data.scopes[instance_index], &ast);
@@ -213,7 +213,7 @@ pub fn eval_dynamic_script_instance_for_game_player_scope(_instance_index: usize
             }
         }
     } else {
-        if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0) {
+        if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0, 0) {
             let script = value.4;
             if let Some(ast) = data.engine.compile_with_scope(data.game_player_scopes.get_mut(&custom_scope).unwrap(), script.as_str()).ok() {
                 let r = data.engine.eval_ast_with_scope::<Dynamic>(data.game_player_scopes.get_mut(&custom_scope).unwrap(), &ast);
@@ -281,7 +281,7 @@ pub fn eval_dynamic_expression_instance_editor(instance_index: usize, id: (Behav
             println!("{:?}", r);
         }
     } else {
-        if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0) {
+        if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0, 0) {
             let script = replace_target_variables(value.4);
             if let Some(ast) = data.engine.compile_with_scope(&mut data.scopes[instance_index], script.as_str()).ok() {
                 let r = data.engine.eval_ast_with_scope::<Dynamic>(&mut data.scopes[instance_index], &ast);

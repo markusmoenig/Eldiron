@@ -34,7 +34,7 @@ pub fn message(instance_index: usize, id: (usize, usize), data: &mut GameData, b
     let mut text;
 
     // Message Type
-    if let Some(value) = get_node_value((id.0, id.1, "type"), data, behavior_type) {
+    if let Some(value) = get_node_value((id.0, id.1, "type"), data, behavior_type, 0) {
         message_type = match value.0 as usize {
             1 => MessageType::Say,
             2 => MessageType::Yell,
@@ -44,7 +44,7 @@ pub fn message(instance_index: usize, id: (usize, usize), data: &mut GameData, b
         }
     }
 
-    if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type) {
+    if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type, 0) {
         text = value.4;
     } else {
         text = "Hello".to_string();
@@ -126,17 +126,18 @@ pub fn lookout(instance_index: usize, id: (usize, usize), data: &mut GameData, b
     let mut chars : Vec<usize> = vec![];
 
     if let Some(position) = data.instances[instance_index].position {
-        for index in 0..data.active_instance_indices.len() {
-            let inst_index = data.active_instance_indices[index];
+        for inst_index in 0..data.instances.len() {
             if inst_index != instance_index {
                 if data.instances[inst_index].state == BehaviorInstanceState::Normal {
                     if let Some(pos) = data.instances[inst_index].position {
-                        let dx = position.1 - pos.1;
-                        let dy = position.2 - pos.2;
-                        let d = ((dx * dx + dy * dy) as f64).sqrt();
-                        if d <= max_distance {
-                            chars.push(inst_index);
-                            //println!("distance {}", d);
+                        if pos.0 == position.0 {
+                            let dx = position.1 - pos.1;
+                            let dy = position.2 - pos.2;
+                            let d = ((dx * dx + dy * dy) as f64).sqrt();
+                            if d <= max_distance {
+                                chars.push(inst_index);
+                                //println!("distance {}", d);
+                            }
                         }
                     }
                 }
@@ -216,7 +217,7 @@ pub fn call_system(instance_index: usize, id: (usize, usize), data: &mut GameDat
     } else {
 
         // The id's were not yet computed search the system trees, get the ids and store them.
-        if let Some(value) = get_node_value((id.0, id.1, "system"), data, behavior_type) {
+        if let Some(value) = get_node_value((id.0, id.1, "system"), data, behavior_type, 0) {
             for (index, name) in data.systems_names.iter().enumerate() {
                 if *name == value.4 {
                     systems_id = Some(data.systems_ids[index]);
@@ -225,7 +226,7 @@ pub fn call_system(instance_index: usize, id: (usize, usize), data: &mut GameDat
             }
         }
 
-        if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
+        if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type, 0) {
             if let Some(systems_id) = systems_id {
                 if let Some(system) = data.systems.get(&systems_id) {
                     for (node_id, node) in &system.data.nodes {
@@ -277,7 +278,7 @@ pub fn call_behavior(instance_index: usize, id: (usize, usize), data: &mut GameD
     }
     */
 
-    if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
+    if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type, 0) {
         if let Some(behavior_instance) = behavior_instance {
             if let Some(behavior) = data.behaviors.get(&data.instances[behavior_instance].behavior_id) {
                 for (node_id, node) in &behavior.data.nodes {
@@ -312,7 +313,7 @@ pub fn lock_tree(instance_index: usize, id: (usize, usize), data: &mut GameData,
     // We cannot precompute this as the values for the target may change
 
     // The id's were not yet computed search the system trees, get the ids and store them.
-    if let Some(value) = get_node_value((id.0, id.1, "execute_for"), data, behavior_type) {
+    if let Some(value) = get_node_value((id.0, id.1, "execute_for"), data, behavior_type, 0) {
         if value.0 == 0.0 {
             // Run the behavior on myself
             behavior_instance = Some(instance_index);
@@ -325,7 +326,7 @@ pub fn lock_tree(instance_index: usize, id: (usize, usize), data: &mut GameData,
         }
     }
 
-    if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
+    if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type, 0) {
         if let Some(behavior_instance) = behavior_instance {
             if let Some(behavior) = data.behaviors.get(&data.instances[behavior_instance].behavior_id) {
                 for (node_id, node) in &behavior.data.nodes {
@@ -362,7 +363,7 @@ pub fn unlock_tree(instance_index: usize, id: (usize, usize), data: &mut GameDat
     let mut behavior_instance : Option<usize> = None;
 
     // The id's were not yet computed search the system trees, get the ids and store them.
-    if let Some(value) = get_node_value((id.0, id.1, "execute_for"), data, behavior_type) {
+    if let Some(value) = get_node_value((id.0, id.1, "execute_for"), data, behavior_type, 0) {
         if value.0 == 0.0 {
             // Run the behavior on myself
             behavior_instance = Some(instance_index);
@@ -388,7 +389,7 @@ pub fn set_state(instance_index: usize, id: (usize, usize), data: &mut GameData,
     let mut behavior_instance : Option<usize> = None;
 
     // The id's were not yet computed search the system trees, get the ids and store them.
-    if let Some(value) = get_node_value((id.0, id.1, "for"), data, behavior_type) {
+    if let Some(value) = get_node_value((id.0, id.1, "for"), data, behavior_type, 0) {
         if value.0 == 0.0 {
             // Run set state on myself
             behavior_instance = Some(instance_index);
@@ -400,7 +401,7 @@ pub fn set_state(instance_index: usize, id: (usize, usize), data: &mut GameData,
         }
     }
 
-    if let Some(value) = get_node_value((id.0, id.1, "state"), data, behavior_type) {
+    if let Some(value) = get_node_value((id.0, id.1, "state"), data, behavior_type, 0) {
         if let Some(behavior_instance) = behavior_instance {
             //println!("behavior instance {:?}", behavior_instance);
             data.instances[behavior_instance].state = match value.0 as isize {

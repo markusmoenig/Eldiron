@@ -27,10 +27,10 @@ pub fn set_number_variable(instance_index: usize, variable: String, value: f64, 
 }
 
 /// Retrieves a node value
-pub fn get_node_value(id: (usize, usize, &str), data: &mut GameData, behavior_type: BehaviorType) -> Option<(f64, f64, f64, f64, String)> {
+pub fn get_node_value(id: (usize, usize, &str), data: &mut GameData, behavior_type: BehaviorType, region_id: usize) -> Option<(f64, f64, f64, f64, String)> {
     if behavior_type == BehaviorType::Regions {
 
-        if let Some(region) = data.regions.get_mut(&data.curr_region_id) {
+        if let Some(region) = data.regions.get_mut(&region_id) {
             let behavior = &mut region.behaviors[id.0];
             if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
                 if let Some(value) = node.values.get_mut(id.2) {
@@ -70,45 +70,6 @@ pub fn get_node_value(id: (usize, usize, &str), data: &mut GameData, behavior_ty
             if let Some(value) = node.values.get_mut(id.2) {
                 return Some(value.clone());
             }
-        }
-    }
-    None
-}
-
-/// Retrieves the nodes name
-pub fn get_node_name(id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> Option<String> {
-    if behavior_type == BehaviorType::Regions {
-
-        if let Some(region) = data.regions.get_mut(&data.curr_region_id) {
-            let behavior = &mut region.behaviors[id.0];
-            if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
-                return Some(node.name.clone());
-            }
-        } else
-        if let Some(behavior) = data.behaviors.get_mut(&id.0) {
-            if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
-                return Some(node.name.clone());
-            }
-        }
-    } else
-    if behavior_type == BehaviorType::Behaviors {
-        if let Some(behavior) = data.behaviors.get_mut(&id.0) {
-            if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
-                return Some(node.name.clone());
-            }
-        }
-    } else
-    if behavior_type == BehaviorType::Systems {
-        if let Some(system) = data.systems.get_mut(&id.0) {
-            if let Some(node) = system.data.nodes.get_mut(&id.1) {
-                return Some(node.name.clone());
-            }
-        }
-    } else
-    if behavior_type == BehaviorType::GameLogic {
-        let game = &mut data.game.behavior;
-        if let Some(node) = game.data.nodes.get_mut(&id.1) {
-            return Some(node.name.clone());
         }
     }
     None
@@ -156,18 +117,22 @@ pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp:
     // Cache the character positions
     let mut char_positions : Vec<(usize, isize, isize)> = vec![];
 
-    for inst_index in &data.active_instance_indices {
-        if *inst_index != instance_index {
-            // Only track if the state is normal
-            if data.instances[*inst_index].state == BehaviorInstanceState::Normal {
-                if let Some(pos) = data.instances[*inst_index].position {
-                    if exclude_dp == false {
-                        char_positions.push(pos);
-                    } else {
-                        // Exclude dp, otherwise the Close In tracking function does not find a route
-                        if let Some(dp) = dp {
-                            if dp != pos {
+    if let Some(p) = p {
+        for inst_index in 0..data.instances.len() {
+            if inst_index != instance_index {
+                // Only track if the state is normal
+                if data.instances[inst_index].state == BehaviorInstanceState::Normal {
+                    if let Some(pos) = data.instances[inst_index].position {
+                        if p.0 == pos.0 {
+                            if exclude_dp == false {
                                 char_positions.push(pos);
+                            } else {
+                                // Exclude dp, otherwise the Close In tracking function does not find a route
+                                if let Some(dp) = dp {
+                                    if dp != pos {
+                                        char_positions.push(pos);
+                                    }
+                                }
                             }
                         }
                     }
