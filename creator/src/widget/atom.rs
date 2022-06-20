@@ -446,7 +446,7 @@ impl AtomWidget {
                 if self.atom_data.data.0 >= 0.0 {
                     if let Some(region) = context.data.regions.get(&(self.atom_data.data.0 as usize)) {
                         let center = (self.atom_data.data.1 as isize, self.atom_data.data.2 as isize);
-                        context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &(4, 1, rect.2 - 8, rect.3 - 2), &center, rect.2, 14, 0, asset, context);
+                        context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &(4, 1, rect.2 - 8, rect.3 - 2), &center, &(0, 0), rect.2, 14, 0, asset, context);
                     }
                 }
 

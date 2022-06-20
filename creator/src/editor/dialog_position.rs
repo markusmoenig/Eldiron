@@ -81,6 +81,7 @@ impl DialogPositionWidget {
                 self.widgets[1].state = WidgetState::Normal;
                 self.widgets[2].state = WidgetState::Normal;
 
+                self.region_scroll_offset = (0, 0);
                 self.new_value = false;
             }
             self.dirty = true;
@@ -125,8 +126,8 @@ impl DialogPositionWidget {
                     let region_id = context.data.regions_ids[self.widgets[0].curr_index];
                     if let Some(region) = context.data.regions.get(&region_id) {
 
-                        let position = region.data.min_pos;
-                        self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &region_rect, &(position.0 - self.region_scroll_offset.0, position.1 - self.region_scroll_offset.1), rect.2, 32, 0, asset, context);
+                        let position = (context.dialog_node_behavior_value.1 as isize, context.dialog_node_behavior_value.2 as isize);
+                        self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &region_rect, &position, &self.region_scroll_offset, rect.2, 32, 0, asset, context);
                     }
                 }
 
@@ -217,6 +218,9 @@ impl DialogPositionWidget {
             let x = self.region_offset.0 + ((cpos.0 - self.region_rect.0 - left_offset) / region_tile_size) as isize;
             let y = self.region_offset.1 + ((cpos.1 - self.region_rect.1 - top_offset) / region_tile_size) as isize;
             context.dialog_node_behavior_value = (context.data.regions_ids[self.widgets[0].curr_index] as f64, x as f64, y as f64, 0.0, "".to_string());
+
+            self.region_scroll_offset = (0, 0);
+            self.dirty = true;
 
             return true;
         }

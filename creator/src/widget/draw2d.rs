@@ -604,7 +604,7 @@ impl Draw2D {
     }
 
     /// Draws the given region centered at the given center and returns the top left offset into the region
-    pub fn draw_region_centered_with_behavior(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), center: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {
+    pub fn draw_region_centered_with_behavior(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), center: &(isize, isize), scroll_offset: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {
         let left_offset = (rect.2 % tile_size) / 2;
         let top_offset = (rect.3 % tile_size) / 2;
 
@@ -613,19 +613,27 @@ impl Draw2D {
 
         let mut offset = center.clone();
 
+        offset.0 -= scroll_offset.0;
+        offset.1 -= scroll_offset.1;
+
         offset.0 -= x_tiles / 2;
         offset.1 -= y_tiles / 2;
 
         // Draw Environment
         for y in 0..y_tiles {
             for x in 0..x_tiles {
-                let values = region.get_value((x + offset.0, y + offset.1));
+                let p = (x + offset.0, y + offset.1);
+                let values = region.get_value(p);
 
+                let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
                 for value in values {
-                    let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
                     let map = asset.get_map_of_id(value.0);
                     self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
+                }
+
+                if p.0 == center.0 && p.1 == center.1 {
+                    self.draw_rect_outline(frame, &(pos.0, pos.1, tile_size, tile_size), stride, context.color_red);
                 }
             }
         }
@@ -653,11 +661,6 @@ impl Draw2D {
                 }
             }
         }
-
-        // Draw center mark
-
-        self.draw_rect_outline(frame, &(rect.0 + left_offset + x_tiles as usize / 2 * tile_size, rect.1 + top_offset + y_tiles as usize / 2 * tile_size, tile_size, tile_size), stride, context.color_red);
-
         offset
     }
 

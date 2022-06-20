@@ -119,43 +119,32 @@ impl NodePreviewWidget {
             context.draw2d.draw_rect(buffer_frame, &(rect.2-2, 0, 2, rect.3 - 1), stride, &context.color_black);
             context.draw2d.draw_rect(buffer_frame, &(1, 1, 1, 1), stride, &[65, 65, 65, 255]);
 
-            // self.widgets[0].set_rect((20, 4, 120, 32), asset, context);
-            // self.widgets[0].draw(buffer_frame, stride, anim_counter, asset, context);
-
-            // self.widgets[1].set_rect((15, self.size.1 - 50, self.size.0 - 20, 25), asset, context);
-            // self.widgets[1].draw(buffer_frame, stride, anim_counter, asset, context);
-
             self.region_rect.0 = 10;
             self.region_rect.1 = 5;
             self.region_rect.2 = rect.2 - 20;
             self.region_rect.3 = rect.3 - 30;
 
             if self.graph_type == BehaviorType::Behaviors {
-                // Draw the region
-                let region_id = context.data.regions_ids[self.curr_region_index];
-                if let Some(region) = context.data.regions.get(&region_id) {
-
-                    if context.is_running {
-                        // Find the behavior instance for the current behavior id
-                        let mut inst_index = 0_usize;
-                        let behavior_id = context.data.behaviors_ids[context.curr_behavior_index];
-                        for index in 0..context.data.instances.len() {
-                            if context.data.instances[index].behavior_id == behavior_id {
-                                inst_index = index;
-                                break;
-                            }
+                if context.is_running {
+                    // Find the behavior instance for the current behavior id
+                    let mut inst_index = 0_usize;
+                    let behavior_id = context.data.behaviors_ids[context.curr_behavior_index];
+                    for index in 0..context.data.instances.len() {
+                        if context.data.instances[index].behavior_id == behavior_id {
+                            inst_index = index;
+                            break;
                         }
-                        self.region_offset = context.draw2d.draw_region_centered_with_instances(buffer_frame, region, &self.region_rect, inst_index, stride, 32, anim_counter, asset, context);
-                    } else
-                    if let Some(position) = &self.curr_position {
-                        self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &self.region_rect, &(position.1 - self.region_scroll_offset.0, position.2 - self.region_scroll_offset.1), stride, 32, 0, asset, context);
-                    } else
-                    if let Some(position) = context.data.get_behavior_default_position(region_id) {
-                        self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &self.region_rect, &(position.1 - self.region_scroll_offset.0, position.2 - self.region_scroll_offset.1), stride, 32, 0, asset, context);
-                    } else {
-                        let offset = region.data.min_pos;
-                        self.region_offset = offset;
-                        context.draw2d.draw_region(buffer_frame, region, &self.region_rect, &self.region_offset, stride, self.tile_size, 0, asset);
+                    }
+                    if let Some(position) = context.data.instances[inst_index].position {
+                        if let Some(region) = context.data.regions.get(&position.0) {
+                            self.region_offset = context.draw2d.draw_region_centered_with_instances(buffer_frame, region, &self.region_rect, inst_index, stride, 32, anim_counter, asset, context);
+                        }
+                    }
+                } else {
+                    if let Some(position) = context.data.get_behavior_default_position(context.data.behaviors_ids[context.curr_behavior_index]) {
+                        if let Some(region) = context.data.regions.get(&position.0) {
+                            self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &self.region_rect, &(position.1, position.2), &self.region_scroll_offset, stride, 32, 0, asset, context);
+                        }
                     }
                 }
             } else {
