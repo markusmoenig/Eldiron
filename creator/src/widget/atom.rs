@@ -296,7 +296,9 @@ impl AtomWidget {
                     context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                     let fill_color = &context.color_black;
                     context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
-                    context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+                    if self.text.len() > 0 {
+                        context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+                    }
 
                     // Triangle
                     let color = if self.state == WidgetState::Hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
@@ -447,6 +449,11 @@ impl AtomWidget {
                         context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &(4, 1, rect.2 - 8, rect.3 - 2), &center, rect.2, 14, 0, asset, context);
                     }
                 }
+
+                if self.clicked {
+                    context.draw2d.blend_rounded_rect(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &context.color_light_gray, &context.node_button_rounding);
+                }
+
             } else
             if self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton {
 
@@ -621,14 +628,14 @@ impl AtomWidget {
     }
 
     // Draw overlay widgets which gets rendered on the whole screen, like open menus etc
-    pub fn draw_overlay(&mut self, frame: &mut [u8], rect: &(usize, usize, usize, usize), _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+    pub fn draw_overlay(&mut self, frame: &mut [u8], _rect: &(usize, usize, usize, usize), _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
         //println!("{:?} {:?}",  self.atom_widget_type, self.state );
         if self.atom_widget_type == AtomWidgetType::ToolBarMenuButton && self.state == WidgetState::Clicked {
 
             // Draw Open Menu
-            self.content_rect = (self.rect.0, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2, context.toolbar_button_height * self.text.len());
+            self.content_rect = (self.rect.0 + self.emb_offset.0 as usize, self.rect.1 + self.emb_offset.1 as usize + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2, context.toolbar_button_height * self.text.len());
 
-            context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, rect.2, &(self.content_rect.2 as f64 - 1.0, self.content_rect.3 as f64 - 1.0), &context.color_black, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
+            context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, context.width, &(self.content_rect.2 as f64 - 1.0, self.content_rect.3 as f64 - 1.0), &context.color_black, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
 
             let mut r = self.content_rect.clone();
             r.3 = context.toolbar_button_height;
@@ -650,11 +657,11 @@ impl AtomWidget {
                             rounding.2 =  context.toolbar_button_rounding.2;
                         }
 
-                        context.draw2d.draw_rounded_rect_with_border(frame, &r, rect.2, &(r.2 as f64 - 1.0, r.3 as f64 - 1.0), &fill_color, &rounding, &context.color_light_gray, 1.5);
+                        context.draw2d.draw_rounded_rect_with_border(frame, &r, context.width, &(r.2 as f64 - 1.0, r.3 as f64 - 1.0), &fill_color, &rounding, &context.color_light_gray, 1.5);
                     }
                 }
 
-                context.draw2d.draw_text_rect(frame, &r, rect.2, &asset.get_editor_font("OpenSans"), context.toolbar_button_text_size, &text, &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+                context.draw2d.draw_text_rect(frame, &r, context.width, &asset.get_editor_font("OpenSans"), context.toolbar_button_text_size, &text, &context.color_white, &fill_color, draw2d::TextAlignment::Center);
                 r.1 += context.toolbar_button_height;
             }
         } else
@@ -872,6 +879,7 @@ impl AtomWidget {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
+                /*
                 if context.active_position_id == self.behavior_id {
                     context.active_position_id = None;
                 } else {
@@ -879,7 +887,7 @@ impl AtomWidget {
                     if self.atom_data.data.0 >= 0.0 {
                         context.jump_to_position = Some((self.atom_data.data.0 as usize, self.atom_data.data.1 as isize, self.atom_data.data.2 as isize));
                     }
-                }
+                }*/
                 return true;
             }
         }
@@ -1024,7 +1032,15 @@ impl AtomWidget {
                 context.target_fps = 60;
                 context.dialog_entry = DialogEntry::Tags;
                 context.dialog_new_name = self.text[0].clone();
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodePositionButton {
+                context.dialog_position_state = DialogState::Opening;
+                context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
+                context.dialog_node_behavior_value = self.atom_data.data.clone();
+                context.dialog_height = 0;
+                context.target_fps = 60;
             }
+
 
             if self.state == WidgetState::Clicked {
                 self.state = WidgetState::Normal;
@@ -1048,6 +1064,7 @@ impl AtomWidget {
             self.new_selection = None;
 
             let mut r = self.content_rect.clone();
+            r.0 -= self.emb_offset.0 as usize;
             r.3 = context.toolbar_button_height;
             for index in 0..self.text.len() {
 

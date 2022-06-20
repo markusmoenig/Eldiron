@@ -38,6 +38,7 @@ mod node;
 mod node_preview;
 mod statusbar;
 pub mod dialog;
+pub mod dialog_position;
 mod log;
 mod gameoptions;
 pub mod traits;
@@ -55,6 +56,7 @@ use crate::editor::nodegraph::NodeGraph;
 
 use self::codeeditorwidget::CodeEditorWidget;
 use self::dialog::{DialogState, DialogEntry};
+use self::dialog_position::DialogPositionWidget;
 use self::screeneditor_options::ScreenEditorOptions;
 use self::tilemapoptions::TileMapOptions;
 use self::statusbar::StatusBar;
@@ -97,6 +99,7 @@ pub struct Editor<'a> {
     mouse_hover_pos                 : (usize, usize),
 
     dialog                          : DialogWidget,
+    dialog_position                 : DialogPositionWidget,
 
     status_bar                      : StatusBar,
 
@@ -122,6 +125,8 @@ impl ScreenWidget for Editor<'_> {
         //
 
         let dialog = DialogWidget::new(asset, &context);
+        let dialog_position = DialogPositionWidget::new(asset, &context);
+
         let log = LogWidget::new(&context);
         let mut status_bar = StatusBar::new();
 
@@ -161,6 +166,7 @@ impl ScreenWidget for Editor<'_> {
             log_drag_start_rect     : (0, 0),
 
             dialog,
+            dialog_position,
 
             left_width,
             mouse_pos               : (0,0),
@@ -228,6 +234,9 @@ impl ScreenWidget for Editor<'_> {
         } else
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.key_down(char, key, asset, &mut self.context);
+        } else
+        if self.context.dialog_position_state == DialogState::Open {
+            return self.dialog_position.key_down(char, key, asset, &mut self.context);
         } else
         if self.context.code_editor_is_active {
             let mut consumed = false;
@@ -668,6 +677,12 @@ impl ScreenWidget for Editor<'_> {
             self.context.dialog_entry = DialogEntry::None;
         }
 
+        // Dialog Position
+        if self.context.dialog_position_state != DialogState::Closed {
+            self.dialog_position.rect.0 = (self.context.width - self.dialog.rect.2) / 2;
+            self.dialog_position.draw(frame, anim_counter, asset, &mut self.context);
+        }
+
         // Draw overlay
         self.toolbar.draw_overlay(frame, &self.rect, anim_counter, asset, &mut self.context);
 
@@ -679,6 +694,9 @@ impl ScreenWidget for Editor<'_> {
 
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.mouse_down(pos, asset, &mut self.context);
+        }
+        if self.context.dialog_position_state == DialogState::Open {
+            return self.dialog_position.mouse_down(pos, asset, &mut self.context);
         }
 
         let mut consumed = false;
@@ -905,6 +923,9 @@ impl ScreenWidget for Editor<'_> {
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.mouse_up(pos, asset, &mut self.context);
         }
+        if self.context.dialog_position_state == DialogState::Open {
+            return self.dialog_position.mouse_up(pos, asset, &mut self.context);
+        }
 
         self.log_drag_start_pos = None;
 
@@ -1105,6 +1126,9 @@ impl ScreenWidget for Editor<'_> {
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.mouse_dragged(pos, asset, &mut self.context);
         }
+        if self.context.dialog_position_state == DialogState::Open {
+            return self.dialog_position.mouse_dragged(pos, asset, &mut self.context);
+        }
 
         if let Some(log_drag_start_pos) = self.log_drag_start_pos {
             self.log.rect.0 = self.log_drag_start_rect.0 - (log_drag_start_pos.0 as isize - pos.0 as isize);
@@ -1152,6 +1176,9 @@ impl ScreenWidget for Editor<'_> {
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.mouse_hover(pos, asset, &mut self.context);
         }
+        if self.context.dialog_position_state == DialogState::Open {
+            return self.dialog_position.mouse_hover(pos, asset, &mut self.context);
+        }
 
         let mut consumed = false;
 
@@ -1193,6 +1220,9 @@ impl ScreenWidget for Editor<'_> {
 
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.mouse_wheel(delta, asset, &mut self.context);
+        }
+        if self.context.dialog_position_state == DialogState::Open {
+            return self.dialog_position.mouse_wheel(delta, asset, &mut self.context);
         }
 
         let mut consumed = false;

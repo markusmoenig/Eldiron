@@ -92,6 +92,8 @@ pub struct ScreenContext<'a> {
     pub dialog_tile_usage               : Vec<TileUsage>,
     pub dialog_accepted                 : bool,
 
+    pub dialog_position_state           : DialogState,
+
     pub code_editor_state               : CodeEditorWidgetState,
     pub code_editor_is_active           : bool,
     pub code_editor_visible_y           : usize,
@@ -275,6 +277,8 @@ impl ScreenContext<'_> {
             dialog_new_node_position    : (0,0),
             dialog_tile_usage           : vec![],
             dialog_accepted             : false,
+
+            dialog_position_state       : DialogState::Closed,
 
             code_editor_state                : CodeEditorWidgetState::Closed,
             code_editor_is_active            : false,
