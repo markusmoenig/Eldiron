@@ -728,16 +728,16 @@ impl EditorContent for NodeGraph  {
             }
 
             // Check Preview
-            let mut clicked_region_id : Option<(usize, isize, isize)> = None;
+            // let mut clicked_region_id : Option<(usize, isize, isize)> = None;
             if let Some(preview) = &mut self.preview {
                 if context.contains_pos_for(pos, preview.rect) {
                     if preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context) {
 
                         // // Region id clicked ?
-                        if let Some(region_id) = preview.clicked_region_id {
-                            clicked_region_id = Some(region_id);
-                            preview.clicked_region_id = None;
-                        }
+                        // if let Some(region_id) = preview.clicked_region_id {
+                        //     clicked_region_id = Some(region_id);
+                        //     preview.clicked_region_id = None;
+                        // }
 
                         if preview.clicked {
                             self.dirty = true;
@@ -749,12 +749,12 @@ impl EditorContent for NodeGraph  {
                 }
             }
 
-            if let Some(clicked_region_id) = clicked_region_id {
-                if let Some(active_position_id) = &context.active_position_id {
-                    self.set_node_atom_data(active_position_id.clone(), (clicked_region_id.0 as f64, clicked_region_id.1 as f64, clicked_region_id.2 as f64, 0.0, "".to_string()), context);
-                    context.active_position_id = None;
-                }
-            }
+            // if let Some(clicked_region_id) = clicked_region_id {
+            //     if let Some(active_position_id) = &context.active_position_id {
+            //         self.set_node_atom_data(active_position_id.clone(), (clicked_region_id.0 as f64, clicked_region_id.1 as f64, clicked_region_id.2 as f64, 0.0, "".to_string()), context);
+            //         context.active_position_id = None;
+            //     }
+            // }
 
             // Check the nodes
             for index in 0..self.nodes.len() {

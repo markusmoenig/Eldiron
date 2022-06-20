@@ -3,15 +3,12 @@ use core_shared::asset::{Asset};
 use crate::atom::{ AtomWidget, AtomWidgetType, AtomData };
 use crate::widget::{ WidgetKey, WidgetState };
 
-use crate::tileselector::TileSelectorWidget;
-
 use crate::context::ScreenContext;
 
-use super::dialog::{DialogState, DialogEntry};
+use super::dialog::{DialogState};
 
 pub struct DialogPositionWidget {
     pub rect                    : (usize, usize, usize, usize),
-    pub text                    : String,
 
     pub widgets                 : Vec<AtomWidget>,
 
@@ -20,13 +17,16 @@ pub struct DialogPositionWidget {
 
     clicked_id                  : String,
 
-    tile_selector_widget        : TileSelectorWidget,
-    large                       : bool,
+    region_rect                 : (usize, usize, usize, usize),
+    region_offset               : (isize, isize),
+    region_scroll_offset        : (isize, isize),
+
+    pub new_value               : bool
 }
 
 impl DialogPositionWidget {
 
-    pub fn new(asset: &Asset, context: &ScreenContext) -> Self {
+    pub fn new(_asset: &Asset, context: &ScreenContext) -> Self {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
@@ -42,22 +42,21 @@ impl DialogPositionWidget {
         AtomData::new_as_int("Accept".to_string(), 0));
         widgets.push(ok_button);
 
-        let tile_selector_widget = TileSelectorWidget::new(vec!(), (0,0,0,0), asset, &context);
-
         Self {
-            rect                : (0, 0, 600, 200),
-            text                : "".to_string(),
+            rect                    : (0, 0, 600, 200),
 
-            widgets             : widgets,
+            widgets                 : widgets,
 
-            dirty               : true,
-            buffer              : vec![0],
+            dirty                   : true,
+            buffer                  : vec![0],
 
-            clicked_id          : "".to_string(),
+            clicked_id              : "".to_string(),
 
-            tile_selector_widget,
+            region_rect             : (0,0,0,0),
+            region_offset           : (0,0),
+            region_scroll_offset    : (0,0),
 
-            large               : false,
+            new_value               : false,
         }
     }
 
@@ -68,11 +67,8 @@ impl DialogPositionWidget {
         // Animation
         if context.dialog_position_state == DialogState::Opening {
 
-            // Set the size based on the content
-
             self.rect.2 = 800;
             self.rect.3 = 600;
-            self.large = false;
 
             context.dialog_height += 20;
             rect.3 = context.dialog_height;
@@ -85,26 +81,7 @@ impl DialogPositionWidget {
                 self.widgets[1].state = WidgetState::Normal;
                 self.widgets[2].state = WidgetState::Normal;
 
-                /*
-                if context.dialog_entry == DialogEntry::NodeNumber  {
-                    self.text = format!("{}", context.dialog_node_behavior_value.0);
-                } else
-                if context.dialog_entry == DialogEntry::NodeSize2D {
-                    self.text = format!("{}", context.dialog_node_behavior_value.0);
-                } else
-                if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript || context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeGridSize || context.dialog_entry == DialogEntry::NodeName {
-                    self.text = context.dialog_node_behavior_value.4.clone();
-                } else
-                if context.dialog_entry == DialogEntry::NodeTile {
-                    self.tile_selector_widget.set_tile_type(context.dialog_tile_usage.clone(), None, None, &asset);
-                    self.text = "".to_string();
-                    self.tile_selector_widget.grid_size = 32;
-                    self.tile_selector_widget.selected = Some((context.dialog_node_behavior_value.0 as usize, context.dialog_node_behavior_value.1 as usize, context.dialog_node_behavior_value.2 as usize, TileUsage::Character));
-                } else
-                if context.dialog_entry == DialogEntry::NewName || context.dialog_entry == DialogEntry::Tags || context.dialog_entry == DialogEntry::NewProjectName {
-                    self.text = context.dialog_new_name.clone();
-                } else {
-                }*/
+                self.new_value = false;
             }
             self.dirty = true;
         } else
@@ -135,108 +112,25 @@ impl DialogPositionWidget {
 
                 let border_color : [u8; 4] = context.color_light_gray;
 
-                let input_rect = (20, 60, rect.2 - 40, rect.3 - 150);
+                let region_rect = (20, 60, rect.2 - 40, rect.3 - 150);
 
                 let title_text_size = 30.0;
 
-                context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Select Position / Area".to_string(), &context.color_white, &context.color_black);
+                context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Select Position".to_string(), &context.color_white, &context.color_black);
 
-                /*
-                if context.dialog_entry == DialogEntry::NodeNumber {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Number".to_string(), &context.color_white, &context.color_black);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &region_rect, rect.2, &(region_rect.2 as f64 - 1.0, region_rect.3 as f64 - 1.0), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &border_color, 1.5);
 
-                    if self.text.parse::<f64>().is_err() {
-                        border_color = context.color_red;
-                        self.widgets[1].state = WidgetState::Disabled;
-                    } else
-                    if self.widgets[1].state == WidgetState::Disabled {
-                        self.widgets[1].state = WidgetState::Normal;
+                if context.data.regions_ids.is_empty() == false {
+
+                    let region_id = context.data.regions_ids[self.widgets[0].curr_index];
+                    if let Some(region) = context.data.regions.get(&region_id) {
+
+                        let position = region.data.min_pos;
+                        self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &region_rect, &(position.0 - self.region_scroll_offset.0, position.1 - self.region_scroll_offset.1), rect.2, 32, 0, asset, context);
                     }
-                } else
-                if context.dialog_entry == DialogEntry::NodeSize2D {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Size".to_string(), &context.color_white, &context.color_black);
-
-                    let mut valid = false;
-                    let txt = self.text.split("x").collect::<Vec<&str>>();
-                    if txt.len() == 2 {
-                        if txt[0].parse::<f64>().is_ok() && txt[1].parse::<f64>().is_ok() {
-                            valid = true;
-                        }
-                    }
-
-                    if valid == false {
-                        border_color = context.color_red;
-                        self.widgets[1].state = WidgetState::Disabled;
-                    } else
-                    if self.widgets[1].state == WidgetState::Disabled {
-                        self.widgets[1].state = WidgetState::Normal;
-                    }
-                } else
-                if context.dialog_entry == DialogEntry::NodeExpression  {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Boolean Expression".to_string(), &context.color_white, &context.color_black);
-
-                    //self.code_editor.draw(frame, input_rect, rect.2, asset.get_editor_font("OpenSans"), &context.draw2d);
-                    let has_error = false;
-                    /*
-                    let behavior_id = context.dialog_node_behavior_id.0.clone();
-                    if context.dialog_entry == DialogEntry::NodeExpression {
-                        if server::gamedata::script::eval_bool_expression_behavior(self.text.as_str(), behavior_id, &mut context.data) == None {
-                            has_error = true;
-                        }
-                    } else
-                    if context.dialog_entry == DialogEntry::NodeScript {
-                        if server::gamedata::script::eval_dynamic_script_behavior(self.text.as_str(), behavior_id, &mut context.data) == false {
-                            has_error = true;
-                        }
-                    } else {
-                        if server::gamedata::script::eval_number_expression_behavior(self.text.as_str(), behavior_id, &mut context.data) == None {
-                            has_error = true;
-                        }
-                    }*/
-                    if has_error {
-                        border_color = context.color_red;
-                        self.widgets[1].state = WidgetState::Disabled;
-                    } else
-                    if self.widgets[1].state == WidgetState::Disabled {
-                        self.widgets[1].state = WidgetState::Normal;
-                    }
-                } else
-                if context.dialog_entry == DialogEntry::NodeExpressionValue {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Number Expression".to_string(), &context.color_white, &context.color_black);
-                } else
-                if context.dialog_entry == DialogEntry::NodeScript {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Script".to_string(), &context.color_white, &context.color_black);
-                } else
-                if context.dialog_entry == DialogEntry::NodeText {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Text".to_string(), &context.color_white, &context.color_black);
-                } else
-                if context.dialog_entry == DialogEntry::NodeGridSize {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Grid Size".to_string(), &context.color_white, &context.color_black);
-                } else
-                if context.dialog_entry == DialogEntry::NewName {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Name".to_string(), &context.color_white, &context.color_black);
-                } else
-                if context.dialog_entry == DialogEntry::NewProjectName {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"New Project".to_string(), &context.color_white, &context.color_black);
-                } else
-                if context.dialog_entry == DialogEntry::Tags {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Tags".to_string(), &context.color_white, &context.color_black);
-                } else
-                if context.dialog_entry == DialogEntry::NodeName {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Node Name".to_string(), &context.color_white, &context.color_black);
-                } else
-                if context.dialog_entry == DialogEntry::NodeTile {
-                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Select Tile".to_string(), &context.color_white, &context.color_black);
-                    self.tile_selector_widget.rect = input_rect.clone();
-                    self.tile_selector_widget.draw(buffer_frame, rect.2, anim_counter, asset, context);
                 }
 
-                */
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &input_rect, rect.2, &(input_rect.2 as f64 - 1.0, input_rect.3 as f64 - 1.0), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &border_color, 1.5);
-
-                if !self.text.is_empty() {
-                    context.draw2d.draw_text_rect(buffer_frame, &input_rect, rect.2, &asset.get_editor_font("OpenSans"), 30.0, &self.text, &context.color_white, &context.color_black, crate::draw2d::TextAlignment::Center);
-                }
+                self.region_rect = region_rect;
 
                 // Draw Cancel / Accept buttons
                 self.widgets[0].emb_offset.0 = self.rect.0 as isize;
@@ -258,58 +152,33 @@ impl DialogPositionWidget {
         }
     }
 
-    /// Accepts the given value (if correct)
-    pub fn accept_value(&mut self, _context: &mut ScreenContext) -> bool {
-
-        /*
-        if context.dialog_entry == DialogEntry::NodeTile {
-            if let Some(selected) = &self.tile_selector_widget.selected {
-                context.dialog_node_behavior_value.0 = selected.0 as f64;
-                context.dialog_node_behavior_value.1 = selected.1 as f64;
-                context.dialog_node_behavior_value.2 = selected.2 as f64;
-                context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
-
-                return true;
-            }
-        }*/
-        true
-    }
-
-    pub fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    pub fn key_down(&mut self, _char: Option<char>, key: Option<WidgetKey>, _asset: &mut Asset, context: &mut ScreenContext) -> bool {
         //println!("dialog {:?}, {:?}", char, key);
 
         if let Some(key) = key {
             match key {
-                WidgetKey::Delete => {
-                    self.text.pop();
-                    self.dirty = true;
-                    return  true;
-                },
                 WidgetKey::Escape => {
                     context.dialog_position_state = DialogState::Closing;
                     context.target_fps = 60;
                     context.dialog_accepted = false;
+
                     return  true;
                 },
                 WidgetKey::Return => {
-                    if self.accept_value(context) {
-                        context.dialog_position_state = DialogState::Closing;
-                        context.target_fps = 60;
-                        context.dialog_accepted = true;
-                        return  true;
-                    }
+                    context.dialog_position_state = DialogState::Closing;
+                    context.target_fps = 60;
+                    context.dialog_accepted = true;
+
+                    context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
+
+                    self.new_value = true;
+
+                    return  true;
                 },
                 _ => {}
             }
         }
 
-        if let Some(c) = char {
-            if c.is_ascii() && c.is_control() == false {
-                self.text.push(c);
-                self.dirty = true;
-                return true;
-            }
-        }
         false
     }
 
@@ -332,6 +201,26 @@ impl DialogPositionWidget {
                 }
             }
         }
+
+        // Test region map
+        if context.contains_pos_for(pos, (self.region_rect.0 + self.rect.0, self.region_rect.1 + self.rect.1, self.region_rect.2, self.region_rect.3)) {
+
+            let mut cpos = pos.clone();
+            cpos.0 -= self.rect.0;
+            cpos.1 -= self.rect.1;
+
+            let region_tile_size = 32;
+
+            let left_offset = (self.region_rect.2 % region_tile_size) / 2;
+            let top_offset = (self.region_rect.3 % region_tile_size) / 2;
+
+            let x = self.region_offset.0 + ((cpos.0 - self.region_rect.0 - left_offset) / region_tile_size) as isize;
+            let y = self.region_offset.1 + ((cpos.1 - self.region_rect.1 - top_offset) / region_tile_size) as isize;
+            context.dialog_node_behavior_value = (context.data.regions_ids[self.widgets[0].curr_index] as f64, x as f64, y as f64, 0.0, "".to_string());
+
+            return true;
+        }
+
         false
     }
 
@@ -347,13 +236,20 @@ impl DialogPositionWidget {
                     context.dialog_position_state = DialogState::Closing;
                     context.target_fps = 60;
                     context.dialog_accepted = false;
+
+                    context.dialog_node_behavior_value.1 = 100000.0;
+                    context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
+
+                    self.new_value = true;
                 } else
                 if self.clicked_id == "Accept" {
-                    if self.accept_value(context) {
-                        context.dialog_position_state = DialogState::Closing;
-                        context.target_fps = 60;
-                        context.dialog_accepted = true;
-                    }
+                    context.dialog_position_state = DialogState::Closing;
+                    context.target_fps = 60;
+                    context.dialog_accepted = true;
+
+                    context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
+
+                    self.new_value = true;
                 }
 
                 return true;
@@ -387,15 +283,10 @@ impl DialogPositionWidget {
         false
     }
 
-    pub fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
-
-        if context.dialog_entry == DialogEntry::NodeTile {
-            if self.tile_selector_widget.mouse_wheel(delta, asset, context) {
-                self.dirty = true;
-                return true;
-            }
-        }
-
-        false
+    pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        self.region_scroll_offset.0 -= delta.0 / 8 as isize;
+        self.region_scroll_offset.1 += delta.1 / 8 as isize;
+        self.dirty = true;
+        true
     }
 }

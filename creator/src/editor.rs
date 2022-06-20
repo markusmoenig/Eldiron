@@ -681,7 +681,18 @@ impl ScreenWidget for Editor<'_> {
         if self.context.dialog_position_state != DialogState::Closed {
             self.dialog_position.rect.0 = (self.context.width - self.dialog.rect.2) / 2;
             self.dialog_position.draw(frame, anim_counter, asset, &mut self.context);
+        } else
+        if self.dialog_position.new_value {
+            if self.state == EditorState::BehaviorDetail {
+                self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
+                self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_dirty();
+                if let Some(preview) = self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().get_preview_widget() {
+                    preview.dirty = true;
+                }
+            }
+            self.dialog_position.new_value = false;
         }
+
 
         // Draw overlay
         self.toolbar.draw_overlay(frame, &self.rect, anim_counter, asset, &mut self.context);
