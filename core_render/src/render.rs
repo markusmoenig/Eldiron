@@ -357,14 +357,17 @@ impl GameRender<'_> {
                 offset.0 = position.1;
                 offset.1 = position.2;
 
-                if x_tiles * tile_size as isize  >= rect.2 as isize {
+                let region_width = region.max_pos.0 - region.min_pos.0;
+                let region_height = region.max_pos.1 - region.min_pos.1;
+
+                if region_width * tile_size as isize  <= rect.2 as isize {
                     offset.0 = region.min_pos.0;
                 } else {
                     let left = x_tiles / 2;
                     offset.0 -= left;
                 }
 
-                if y_tiles * tile_size as isize  >= rect.3 as isize {
+                if region_height * tile_size as isize  <= rect.3 as isize {
                     offset.1 = region.min_pos.1;
                 } else {
                     let top = y_tiles / 2;
