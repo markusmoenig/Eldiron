@@ -100,6 +100,9 @@ pub struct GameData<'a> {
     // Current characters per region
     pub characters              : HashMap<usize, Vec<CharacterData>>,
 
+    // Characters instance indices in a given region area
+    pub area_characters         : HashMap<(usize, usize), Vec<usize>>,
+
     // These are fields which provide feedback to the editor / game while running
     pub messages                : Vec<(String, MessageType)>,
     pub executed_connections    : Vec<(BehaviorType, usize, BehaviorNodeConnector)>,
@@ -349,6 +352,7 @@ impl GameData<'_> {
 
         nodes.insert(BehaviorNodeType::InsideArea, nodes_area::inside_area);
         nodes.insert(BehaviorNodeType::DisplaceTiles, nodes_area::displace_tiles);
+        nodes.insert(BehaviorNodeType::TeleportArea, nodes_area::teleport_area);
 
         nodes.insert(BehaviorNodeType::Move, nodes::player_move);
 
@@ -419,6 +423,7 @@ impl GameData<'_> {
             runs_in_editor          : false,
 
             characters              : HashMap::new(),
+            area_characters         : HashMap::new(),
 
             messages                : vec![],
             executed_connections    : vec![],
@@ -501,6 +506,7 @@ impl GameData<'_> {
             runs_in_editor          : false,
 
             characters              : HashMap::new(),
+            area_characters         : HashMap::new(),
 
             messages                : vec![],
             executed_connections    : vec![],
@@ -1223,6 +1229,7 @@ impl GameData<'_> {
         self.executed_connections = vec![];
         self.changed_variables = vec![];
         self.characters = HashMap::new();
+        self.area_characters = HashMap::new();
 
         // Execute behaviors
         for inst_index in 0..self.instances.len() {

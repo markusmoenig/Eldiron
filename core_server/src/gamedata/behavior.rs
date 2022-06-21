@@ -48,6 +48,7 @@ pub enum BehaviorNodeType {
     Screen,
     Widget,
     Settings,
+    TeleportArea,                                           // Teleport Characters inside an area
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

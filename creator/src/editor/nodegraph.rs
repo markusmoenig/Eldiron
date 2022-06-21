@@ -1190,6 +1190,8 @@ impl EditorContent for NodeGraph  {
                 "Widget" => BehaviorNodeType::Widget,
                 "Settings" => BehaviorNodeType::Settings,
 
+                "Teleport Area" => BehaviorNodeType::TeleportArea,
+
                 _ => BehaviorNodeType::BehaviorTree
             };
 
@@ -1622,6 +1624,18 @@ impl EditorContent for NodeGraph  {
             node_widget.widgets.push(tile_atom);
 
             node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_data.behavior_type == BehaviorNodeType::TeleportArea {
+            // Position
+            let mut position_atom = AtomWidget::new(vec![], AtomWidgetType::NodePositionButton,
+            AtomData::new_as_int("position".to_string(), 0));
+            position_atom.atom_data.text = "Position".to_string();
+            let id = (behavior_data.id, node_data.id, "position".to_string());
+            position_atom.behavior_id = Some(id.clone());
+            position_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
+            node_widget.widgets.push(position_atom);
+
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
         }
 

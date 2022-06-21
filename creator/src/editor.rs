@@ -689,6 +689,13 @@ impl ScreenWidget for Editor<'_> {
                 if let Some(preview) = self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().get_preview_widget() {
                     preview.dirty = true;
                 }
+            } else
+            if self.state == EditorState::RegionDetail {
+                self.content[EditorState::RegionDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
+                self.content[EditorState::RegionDetail as usize].1.as_mut().unwrap().set_dirty();
+                if let Some(preview) = self.content[EditorState::RegionDetail as usize].1.as_mut().unwrap().get_preview_widget() {
+                    preview.dirty = true;
+                }
             }
             self.dialog_position.new_value = false;
         }
@@ -1042,6 +1049,9 @@ impl ScreenWidget for Editor<'_> {
             if self.state == EditorState::RegionDetail {
                 let rect = self.content[EditorState::RegionDetail as usize].1.as_mut().unwrap().get_rect();
                 let offset = self.content[EditorState::RegionDetail as usize].1.as_mut().unwrap().get_offset();
+
+                        println!("add_node_of_name {:?} {:?}", rect, pos);
+
                 if self.context.contains_pos_for(pos, rect) {
                     let mut position = (pos.0 as isize, pos.1 as isize);
                     position.0 -= rect.0 as isize + offset.0 + drag_context.offset.0;

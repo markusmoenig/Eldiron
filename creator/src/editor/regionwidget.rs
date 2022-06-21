@@ -365,6 +365,16 @@ impl EditorContent for RegionWidget {
         self.region_id
     }
 
+    /// Returns the rect for DnD
+    fn get_rect(&self) -> (usize, usize, usize, usize) {
+        self.behavior_graph.rect.clone()
+    }
+
+    /// Adds the given node to the behavior graph (after DnD)
+    fn add_node_of_name(&mut self, name: String, position: (isize, isize), context: &mut ScreenContext) {
+        self.behavior_graph.add_node_of_name(name, position, context);
+    }
+
     /// Update the behavior graph when a setting changed
     fn update_from_dialog(&mut self, context: &mut ScreenContext) {
         self.behavior_graph.update_from_dialog(context);

@@ -8,19 +8,29 @@ use core_shared::asset::TileUsage;
 /// Inside Area
 pub fn inside_area(region_id: usize, id: (usize, usize), data: &mut GameData, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
+    let mut found_character = false;
     if let Some(region) = data.regions.get_mut(&region_id) {
         if let Some(characters) = data.characters.get(&region_id) {
             for character_data in characters {
                 if let Some(position) = data.instances[character_data.index].position {
                     if region.data.areas[id.0].area.contains(&(position.1, position.2)) {
                         //println!("{} is in area {}", data.instances[*instance_index].name, region.data.areas[id.0].name);
-                        return BehaviorNodeConnector::Right;
+                        if data.area_characters.contains_key(&(region_id, id.0)) == false {
+                            data.area_characters.insert((region_id, id.0), vec![character_data.index]);
+                        } else
+                        if let Some(area_list) = data.area_characters.get_mut(&(region_id, id.0)) {
+                            area_list.push(character_data.index);
+                        }
+                        found_character = true;
                     }
                 }
             }
         }
     }
 
+    if found_character {
+        return BehaviorNodeConnector::Right;
+    }
     BehaviorNodeConnector::Fail
 }
 
@@ -56,5 +66,21 @@ pub fn displace_tiles(region_id: usize, id: (usize, usize), data: &mut GameData,
         }
     }
 
+    BehaviorNodeConnector::Fail
+}
+
+/// Displace Tiles
+pub fn teleport_area(region_id: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let value = get_node_value((id.0, id.1, "position"), data, behavior_type, region_id);
+
+    // Somebody is in the area ?
+    if let Some(area_list) = data.area_characters.get(&(region_id, id.0)) {
+        if let Some(value) = value {
+            for index in area_list {
+                data.instances[*index].position = Some((value.0 as usize, value.1 as isize, value.2 as isize));
+            }
+        }
+    }
     BehaviorNodeConnector::Fail
 }
