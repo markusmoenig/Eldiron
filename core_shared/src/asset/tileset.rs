@@ -10,6 +10,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use rand::prelude::*;
 
+#[cfg(feature = "embed_binaries")]
+use core_embed_binaries::Embedded;
+
 // Tile implementation
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
@@ -89,6 +92,48 @@ impl TileMap {
             file_path       : file_name.to_path_buf(),
             width           : info.1 as usize,
             height          : info.2 as usize,
+            settings
+        }
+    }
+
+    fn new_from_embedded(file_name: &str) -> TileMap {
+
+        fn load(file_name: &str) -> (Vec<u8>, u32, u32) {
+
+            if let Some(file) = Embedded::get(file_name) {
+
+                let data = std::io::Cursor::new(file.data);
+
+                let decoder = png::Decoder::new(data);
+                if let Ok(mut reader) = decoder.read_info() {
+                    let mut buf = vec![0; reader.output_buffer_size()];
+                    let info = reader.next_frame(&mut buf).unwrap();
+                    let bytes = &buf[..info.buffer_size()];
+
+                    return (bytes.to_vec(), info.width, info.height);
+                }
+            }
+            (vec![], 0 , 0)
+        }
+
+        let info = load(file_name);
+
+        // Gets the content of the settings file
+        let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
+        let json_path = path::Path::new("").join("assets").join("tilemaps").join( format!("{}{}", name, ".json"));
+        let contents = fs::read_to_string( json_path.clone() )
+            .unwrap_or("".to_string());
+
+        // Construct the json settings
+        let settings = serde_json::from_str(&contents)
+            .unwrap_or(TileMapSettings { grid_size: 16, tiles: HashMap::new(), id: thread_rng().gen_range(1..=u32::MAX) as usize, default_tile: None } );
+
+        TileMap {
+            base_path       : PathBuf::new(),
+            pixels          : info.0,
+            file_path       : std::path::Path::new(file_name).to_path_buf(),
+            width           : info.1 as usize,//           : 800,//info.1 as usize,
+            height          : info.2 as usize,//,//info.2 as usize,
             settings
         }
     }
@@ -202,6 +247,40 @@ impl TileSet {
                             // Insert the tilemap
                             maps.insert(tile_map.settings.id, tile_map);
                         }
+                    }
+                }
+            }
+        }
+
+        TileSet {
+            maps,
+            maps_names,
+            maps_ids
+        }
+    }
+
+    #[cfg(feature = "embed_binaries")]
+    pub fn load_from_embedded() -> TileSet {
+
+        let mut maps : HashMap<usize, TileMap> = HashMap::new();
+        let mut maps_names  : Vec<String> = vec![];
+        let mut maps_ids    : Vec<usize> = vec![];
+
+        for file in Embedded::iter() {
+            let name = file.as_ref();
+            let path = std::path::Path::new(name);
+            if let Some(extension) = path.extension() {
+
+                if name.starts_with("assets/tilemaps/") && (extension == "png" || extension == "PNG") {
+
+                    let tile_map = TileMap::new_from_embedded(name);
+                    if tile_map.width != 0 {
+                        maps_names.push(tile_map.get_name());
+                        maps_ids.push(tile_map.settings.id);
+
+                        maps.insert(tile_map.settings.id, tile_map);
+
+                        println!("{}", name);
                     }
                 }
             }

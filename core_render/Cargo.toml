@@ -9,6 +9,7 @@ authors = ["Markus Moenig"]
 
 [dependencies]
 core_shared = { path = "../core_shared" }
+core_embed_binaries = { path = "../core_embed_binaries", optional = true }
 env_logger = "0.9"
 log = "0.4"
 png = "0.17.2"
@@ -21,3 +22,7 @@ rand = "0.8.5"
 rhai = "*"
 regex = "1.5"
 colori = "0.1.1"
+
+[features]
+default = []
+embed_binaries = ["dep:core_embed_binaries"]

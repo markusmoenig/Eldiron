@@ -9,6 +9,7 @@ edition = "2021"
 core_server = { path = "../core_server", features = ["data_editing"] }
 core_shared = { path = "../core_shared" }
 core_render = { path = "../core_render" }
+core_embed_binaries = { path = "../core_embed_binaries", optional = true }
 env_logger = "0.9"
 log = "0.4"
 pixels = "0.9.0"
@@ -29,3 +30,7 @@ rhai = "*"
 regex = "1.5"
 directories = "4.0"
 fs_extra = "1.2.0"
+
+[features]
+default = ["embed_binaries"]
+embed_binaries = ["dep:core_embed_binaries", "core_render/embed_binaries",  "core_shared/embed_binaries"]

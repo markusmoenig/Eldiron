@@ -21,15 +21,22 @@ pub struct GameRender<'a> {
     pub height                  : usize,
     pub tile_size               : usize,
 
-    pub regions                 : HashMap<usize, GameRegionData>
+    pub regions                 : HashMap<usize, GameRegionData>,
+
+    pub last_position           : (usize, isize, isize),
+    pub transition_steps        : isize,
 }
 
 impl GameRender<'_> {
 
+    #[allow(unused)]
     pub fn new(path: PathBuf) -> Self {
 
         let mut asset = Asset::new();
+        #[cfg(not(feature = "embed_binaries"))]
         asset.load_from_path(path);
+        #[cfg(feature = "embed_binaries")]
+        asset.load_from_embedded();
 
         let mut engine = Engine::new();
 
@@ -75,8 +82,10 @@ impl GameRender<'_> {
             height              : 608,
             tile_size           : 32,
 
+            regions             : HashMap::new(),
 
-            regions             : HashMap::new()
+            last_position       : (100000, 0, 0),
+            transition_steps    : 10,
         }
     }
 
@@ -350,10 +359,11 @@ impl GameRender<'_> {
         let x_tiles = (rect.2 / tile_size) as isize;
         let y_tiles = (rect.3 / tile_size) as isize;
 
-        let mut offset = (0, 0);
         if let Some(position) = update.position {
 
             if let Some(region) = self.regions.get(&position.0) {
+
+                let mut offset = (0, 0);
                 offset.0 = position.1;
                 offset.1 = position.2;
 

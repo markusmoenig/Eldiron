@@ -3,6 +3,7 @@
 members = [
     "core_server",
     "core_render",
+    "core_embed_binaries",
     "creator",
     "client_standalone"
 ]

@@ -7,6 +7,9 @@ use fontdue::Font;
 
 pub use tileset::*;
 
+#[cfg(feature = "embed_binaries")]
+use core_embed_binaries::Embedded;
+
 pub struct Asset {
     pub tileset                 : TileSet,
 
@@ -40,7 +43,7 @@ impl Asset  {
         self.editor_fonts.get(name).unwrap()
     }
 
-    /// Load the tilemaps from the given path
+    /// Load from the given file path
     pub fn load_from_path(&mut self, path: PathBuf) {
         self.tileset = tileset::TileSet::load_from_path(path.clone());
 
@@ -58,6 +61,30 @@ impl Asset  {
                 if let Some(font_bytes) = std::fs::read(path).ok() {
                 if let Some(font) = Font::from_bytes(font_bytes, fontdue::FontSettings::default()).ok() {
                         self.game_fonts.insert(path.file_stem().unwrap().to_os_string().into_string().unwrap(), font);
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "embed_binaries")]
+    /// Load from embedded binaries
+    pub fn load_from_embedded(&mut self) {
+        //#[cfg(feature = "embed_binaries")]
+        {
+            //let index_html = Embedded::get("Cargo.toml").unwrap();
+            //println!("{:?}", std::str::from_utf8(index_html.data.as_ref()));
+        }
+
+        self.tileset = tileset::TileSet::load_from_embedded();
+
+        for file in Embedded::iter() {
+            let name = file.as_ref();
+            if name.starts_with("assets/fonts/") {
+                if let Some(font_bytes) = Embedded::get(name) {
+                    if let Some(font) = Font::from_bytes(font_bytes.data, fontdue::FontSettings::default()).ok() {
+                        let buf = std::path::Path::new(name);
+                        self.game_fonts.insert(buf.file_stem().unwrap().to_os_string().into_string().unwrap(), font);
                     }
                 }
             }

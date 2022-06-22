@@ -2,3 +2,4 @@
 /generated
 utilities/target
 .DS_Store
+core_embed_binaries/embedded/
