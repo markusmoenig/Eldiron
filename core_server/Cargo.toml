@@ -11,6 +11,7 @@ authors = ["Markus Moenig"]
 
 [dependencies]
 core_shared = { path = "../core_shared" }
+core_embed_binaries = { path = "../core_embed_binaries", optional = true }
 env_logger = "0.9"
 log = "0.4"
 serde = { version = "1.0", features = ["derive"] }
@@ -25,4 +26,6 @@ rhai = "*"
 regex = "1.5"
 
 [features]
+default = []
 data_editing = []
+embed_binaries = ["dep:core_embed_binaries"]

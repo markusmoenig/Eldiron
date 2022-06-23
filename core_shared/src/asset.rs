@@ -70,12 +70,6 @@ impl Asset  {
     #[cfg(feature = "embed_binaries")]
     /// Load from embedded binaries
     pub fn load_from_embedded(&mut self) {
-        //#[cfg(feature = "embed_binaries")]
-        {
-            //let index_html = Embedded::get("Cargo.toml").unwrap();
-            //println!("{:?}", std::str::from_utf8(index_html.data.as_ref()));
-        }
-
         self.tileset = tileset::TileSet::load_from_embedded();
 
         for file in Embedded::iter() {

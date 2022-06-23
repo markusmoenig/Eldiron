@@ -33,4 +33,4 @@ fs_extra = "1.2.0"
 
 [features]
 default = ["embed_binaries"]
-embed_binaries = ["dep:core_embed_binaries", "core_render/embed_binaries",  "core_shared/embed_binaries"]
+embed_binaries = ["dep:core_embed_binaries", "core_render/embed_binaries",  "core_shared/embed_binaries",  "core_server/embed_binaries"]

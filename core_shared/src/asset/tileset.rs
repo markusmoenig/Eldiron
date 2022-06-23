@@ -279,8 +279,6 @@ impl TileSet {
                         maps_ids.push(tile_map.settings.id);
 
                         maps.insert(tile_map.settings.id, tile_map);
-
-                        println!("{}", name);
                     }
                 }
             }

@@ -25,6 +25,16 @@ impl Game {
         }
     }
 
+    pub fn load_from_embedded(file_name: &str) -> Self {
+
+        let behavior = GameBehavior::load_from_embedded(file_name);
+
+        Self {
+            path                : PathBuf::new(),
+            behavior,
+        }
+    }
+
     pub fn new() -> Self {
 
         Self {

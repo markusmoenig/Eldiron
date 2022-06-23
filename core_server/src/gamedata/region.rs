@@ -12,6 +12,9 @@ use core_shared::asset::Asset;
 
 use super::behavior::GameBehavior;
 
+#[cfg(feature = "embed_binaries")]
+use core_embed_binaries::Embedded;
+
 pub struct GameRegion {
     pub name            : String,
     pub path            : PathBuf,
@@ -53,6 +56,44 @@ impl GameRegion {
             name                : name.to_string(),
             path                : path.clone(),
             region_path         : region_path.clone(),
+            data,
+            behaviors,
+            displacements       : HashMap::new(),
+        }
+    }
+
+    pub fn new_from_embedded(file_name: &str) -> Self {
+
+        let mut data = GameRegionData { layer1: HashMap::new(), layer2: HashMap::new(), layer3: HashMap::new(), layer4: HashMap::new(), id: thread_rng().gen_range(1..=u32::MAX) as usize, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000), areas: vec![] };
+
+        if let Some(bytes) = Embedded::get(file_name) {
+            if let Some(string) = std::str::from_utf8(bytes.data.as_ref()).ok() {
+                data = serde_json::from_str(&string).unwrap();
+            }
+        }
+
+        // Read the behaviors
+        let mut behaviors : Vec<GameBehavior> = vec![];
+
+        let mut spl = file_name.split("/");
+        spl.next();
+        spl.next();
+        let name = spl.next().unwrap();
+
+        let area_path = format!("game/regions/{}/area_", name);
+        for file in Embedded::iter() {
+            let name = file.as_ref();
+
+            if name.starts_with(area_path.as_str()) {
+                let behavior = GameBehavior::load_from_embedded(name);
+                behaviors.push(behavior);
+            }
+        }
+
+        Self {
+            name                : name.to_string(),
+            path                : std::path::PathBuf::new(),
+            region_path         : std::path::PathBuf::new(),
             data,
             behaviors,
             displacements       : HashMap::new(),

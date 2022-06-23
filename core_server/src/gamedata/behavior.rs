@@ -10,6 +10,9 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 use itertools::Itertools;
 
+#[cfg(feature = "embed_binaries")]
+use core_embed_binaries::Embedded;
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum BehaviorType {
     Tiles,
@@ -198,6 +201,27 @@ impl GameBehavior {
             name            : name.to_string(),
             path            : path.clone(),
             behavior_path   : behavior_path.clone(),
+            data,
+        }
+    }
+
+    pub fn load_from_embedded(file_name: &str) -> Self {
+
+        let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
+
+        // Construct the json settings
+        let mut data = GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None };
+
+        if let Some(bytes) = Embedded::get(file_name) {
+            if let Some(string) = std::str::from_utf8(bytes.data.as_ref()).ok() {
+                data = serde_json::from_str(&string).unwrap();
+            }
+        }
+
+        Self {
+            name            : name.to_string(),
+            path            : PathBuf::new(),
+            behavior_path   : PathBuf::new(),
             data,
         }
     }

@@ -22,6 +22,7 @@ use std::hash::Hash;
 use crate::gamedata::region::GameRegion;
 use crate::gamedata::behavior::{ BehaviorNodeConnector, BehaviorInstance, GameBehavior, BehaviorNodeType, BehaviorType, BehaviorInstanceState };
 
+#[cfg(not(feature = "embed_binaries"))]
 use itertools::Itertools;
 
 use std::path::{self, PathBuf};
@@ -32,6 +33,9 @@ use rand::prelude::*;
 use self::behavior::BehaviorInstanceType;
 use self::game::Game;
 use self::nodes_utility::get_node_value;
+
+#[cfg(feature = "embed_binaries")]
+use core_embed_binaries::Embedded;
 
 type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> behavior::BehaviorNodeConnector;
 
@@ -119,51 +123,68 @@ impl GameData<'_> {
         let mut regions_names = vec![];
         let mut regions_ids = vec![];
 
-        let region_path = path.join("game").join("regions");
+        #[cfg(not(feature = "embed_binaries"))]
+        {
+            let region_path = path.join("game").join("regions");
+            let mut paths: Vec<_> = fs::read_dir(region_path.clone()).unwrap()
+                                                    .map(|r| r.unwrap())
+                                                    .collect();
+            paths.sort_by_key(|dir| dir.path());
 
-        let mut paths: Vec<_> = fs::read_dir(region_path.clone()).unwrap()
-                                                .map(|r| r.unwrap())
-                                                .collect();
-        paths.sort_by_key(|dir| dir.path());
+            for path in paths {
+                let path = &path.path();
+                let md = metadata(path).unwrap();
 
-        for path in paths {
-            let path = &path.path();
-            let md = metadata(path).unwrap();
+                if md.is_dir() {
+                    let mut region = GameRegion::new(path, &region_path);
+                    regions_names.push(region.name.clone());
 
-            if md.is_dir() {
-                let mut region = GameRegion::new(path, &region_path);
-                regions_names.push(region.name.clone());
+                    // Make sure we create a unique id (check if the id already exists in the set)
+                    let mut has_id_already = true;
+                    while has_id_already {
 
-                // Make sure we create a unique id (check if the id already exists in the set)
-                let mut has_id_already = true;
-                while has_id_already {
+                        has_id_already = false;
+                        for (key, _value) in &regions {
+                            if key == &region.data.id {
+                                has_id_already = true;
+                            }
+                        }
 
-                    has_id_already = false;
-                    for (key, _value) in &regions {
-                        if key == &region.data.id {
-                            has_id_already = true;
+                        if has_id_already {
+                            region.data.id += 1;
                         }
                     }
 
-                    if has_id_already {
-                        region.data.id += 1;
-                    }
+                    region.calc_dimensions();
+
+                    regions_ids.push(region.data.id);
+                    regions.insert(region.data.id, region);
                 }
+            }
 
-                region.calc_dimensions();
+            let sorted_keys= regions.keys().sorted();
+            for key in sorted_keys {
+                let region = &regions[key];
 
-                regions_ids.push(region.data.id);
-                regions.insert(region.data.id, region);
+                // If the region has no tiles we assume it's new and we save the data
+                if region.data.layer1.len() == 0 {
+                    region.save_data();
+                }
             }
         }
 
-        let sorted_keys= regions.keys().sorted();
-        for key in sorted_keys {
-            let region = &regions[key];
+        #[cfg(feature = "embed_binaries")]
+        {
+            for file in Embedded::iter() {
+                let name = file.as_ref();
 
-            // If the region has no tiles we assume it's new and we save the data
-            if region.data.layer1.len() == 0 {
-                region.save_data();
+                if name.starts_with("game/regions/") && name.ends_with("level1.json") {
+                    let mut region = GameRegion::new_from_embedded(name);
+                    regions_names.push(region.name.clone());
+                    region.calc_dimensions();
+                    regions_ids.push(region.data.id);
+                    regions.insert(region.data.id, region);
+                }
             }
         }
 
@@ -173,44 +194,61 @@ impl GameData<'_> {
         let mut behaviors_names = vec![];
         let mut behaviors_ids = vec![];
 
-        let behavior_path = path.join("game").join("characters");
-        if let Some(paths) = fs::read_dir(behavior_path.clone()).ok() {
+        #[cfg(not(feature = "embed_binaries"))]
+        {
+            let behavior_path = path.join("game").join("characters");
+            if let Some(paths) = fs::read_dir(behavior_path.clone()).ok() {
 
-            for path in paths {
-                let path = &path.unwrap().path();
-                let md = metadata(path).unwrap();
+                for path in paths {
+                    let path = &path.unwrap().path();
+                    let md = metadata(path).unwrap();
 
-                if md.is_file() {
-                    if let Some(name) = path::Path::new(&path).extension() {
-                        if name == "json" || name == "JSON" {
-                            let mut behavior = GameBehavior::load_from_path(path, &behavior_path);
-                            behaviors_names.push(behavior.name.clone());
+                    if md.is_file() {
+                        if let Some(name) = path::Path::new(&path).extension() {
+                            if name == "json" || name == "JSON" {
+                                let mut behavior = GameBehavior::load_from_path(path, &behavior_path);
+                                behaviors_names.push(behavior.name.clone());
 
-                            // Make sure we create a unique id (check if the id already exists in the set)
-                            let mut has_id_already = true;
-                            while has_id_already {
+                                // Make sure we create a unique id (check if the id already exists in the set)
+                                let mut has_id_already = true;
+                                while has_id_already {
 
-                                has_id_already = false;
-                                for (key, _value) in &behaviors {
-                                    if key == &behavior.data.id {
-                                        has_id_already = true;
+                                    has_id_already = false;
+                                    for (key, _value) in &behaviors {
+                                        if key == &behavior.data.id {
+                                            has_id_already = true;
+                                        }
+                                    }
+
+                                    if has_id_already {
+                                        behavior.data.id += 1;
                                     }
                                 }
 
-                                if has_id_already {
-                                    behavior.data.id += 1;
+                                if behavior.data.nodes.len() == 0 {
+                                    behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                                    behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                                    behavior.save_data();
                                 }
+                                behaviors_ids.push(behavior.data.id);
+                                behaviors.insert(behavior.data.id, behavior);
                             }
-
-                            if behavior.data.nodes.len() == 0 {
-                                behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
-                                behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
-                                behavior.save_data();
-                            }
-                            behaviors_ids.push(behavior.data.id);
-                            behaviors.insert(behavior.data.id, behavior);
                         }
                     }
+                }
+            }
+        }
+
+        #[cfg(feature = "embed_binaries")]
+        {
+            for file in Embedded::iter() {
+                let name = file.as_ref();
+
+                if name.starts_with("game/characters/") {
+                    let behavior = GameBehavior::load_from_embedded(name);
+                    behaviors_names.push(behavior.name.clone());
+                    behaviors_ids.push(behavior.data.id);
+                    behaviors.insert(behavior.data.id, behavior);
                 }
             }
         }
@@ -236,44 +274,61 @@ impl GameData<'_> {
         let mut systems_names = vec![];
         let mut systems_ids = vec![];
 
-        let systems_path = path.join("game").join("systems");
-        if let Some(paths) = fs::read_dir(systems_path.clone()).ok() {
+        #[cfg(not(feature = "embed_binaries"))]
+        {
+            let systems_path = path.join("game").join("systems");
+            if let Some(paths) = fs::read_dir(systems_path.clone()).ok() {
 
-            for path in paths {
-                let path = &path.unwrap().path();
-                let md = metadata(path).unwrap();
+                for path in paths {
+                    let path = &path.unwrap().path();
+                    let md = metadata(path).unwrap();
 
-                if md.is_file() {
-                    if let Some(name) = path::Path::new(&path).extension() {
-                        if name == "json" || name == "JSON" {
-                            let mut system = GameBehavior::load_from_path(path, &systems_path);
-                            systems_names.push(system.name.clone());
+                    if md.is_file() {
+                        if let Some(name) = path::Path::new(&path).extension() {
+                            if name == "json" || name == "JSON" {
+                                let mut system = GameBehavior::load_from_path(path, &systems_path);
+                                systems_names.push(system.name.clone());
 
-                            // Make sure we create a unique id (check if the id already exists in the set)
-                            let mut has_id_already = true;
-                            while has_id_already {
+                                // Make sure we create a unique id (check if the id already exists in the set)
+                                let mut has_id_already = true;
+                                while has_id_already {
 
-                                has_id_already = false;
-                                for (key, _value) in &systems {
-                                    if key == &system.data.id {
-                                        has_id_already = true;
+                                    has_id_already = false;
+                                    for (key, _value) in &systems {
+                                        if key == &system.data.id {
+                                            has_id_already = true;
+                                        }
+                                    }
+
+                                    if has_id_already {
+                                        system.data.id += 1;
                                     }
                                 }
 
-                                if has_id_already {
-                                    system.data.id += 1;
+                                if system.data.nodes.len() == 0 {
+                                    // behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                                    // behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                                    // behavior.save_data();
                                 }
+                                systems_ids.push(system.data.id);
+                                systems.insert(system.data.id, system);
                             }
-
-                            if system.data.nodes.len() == 0 {
-                                // behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
-                                // behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
-                                // behavior.save_data();
-                            }
-                            systems_ids.push(system.data.id);
-                            systems.insert(system.data.id, system);
                         }
                     }
+                }
+            }
+        }
+
+        #[cfg(feature = "embed_binaries")]
+        {
+            for file in Embedded::iter() {
+                let name = file.as_ref();
+
+                if name.starts_with("game/systems/") {
+                    let system = GameBehavior::load_from_embedded(name);
+                    systems_names.push(system.name.clone());
+                    systems_ids.push(system.data.id);
+                    systems.insert(system.data.id, system);
                 }
             }
         }
@@ -328,13 +383,22 @@ impl GameData<'_> {
 
         // Game
 
-        let mut game = Game::load_from_path(&path.clone());
-        if game.behavior.data.nodes.is_empty() {
+        let game;
+        #[cfg(not(feature = "embed_binaries"))]
+        {
+            game = Game::load_from_path(&path.clone());
+            if game.behavior.data.nodes.is_empty() {
 
-            game.behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
-            game.behavior.add_node(BehaviorNodeType::BehaviorTree, "Game".to_string());
+                game.behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                game.behavior.add_node(BehaviorNodeType::BehaviorTree, "Game".to_string());
 
-            game.save_data();
+                game.save_data();
+            }
+        }
+
+        #[cfg(feature = "embed_binaries")]
+        {
+            game = Game::load_from_embedded("game/game.json");
         }
 
         let mut nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
@@ -1433,7 +1497,10 @@ impl GameData<'_> {
     pub fn startup(&mut self) {
 
         self.asset = Some(Asset::new());
+        #[cfg(not(feature = "embed_binaries"))]
         self.asset.as_mut().unwrap().load_from_path(self.path.clone());
+        #[cfg(feature = "embed_binaries")]
+        self.asset.as_mut().unwrap().load_from_embedded();
 
         self.create_behavior_instances();
         self.game_instance_index = Some(self.create_game_instance());
