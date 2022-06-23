@@ -1404,10 +1404,8 @@ impl GameData<'_> {
                 let mut screen : Option<String> = None;
 
                 // Execute the game behavior
-
                 if let Some(game_inst_index) = self.game_instance_index {
                     if self.scopes.is_empty() == false {
-
                         if let Some(locked_tree) = self.instances[game_inst_index].locked_tree {
                             self.execute_game_node(game_inst_index, locked_tree);
                         }

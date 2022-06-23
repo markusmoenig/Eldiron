@@ -1,3 +1,6 @@
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
 mod prelude {
     pub const GAME_TICK_IN_MS : u128 = 250;
 }
@@ -8,8 +11,10 @@ use core_shared::actions::{pack_action, PlayerDirection};
 use core_shared::update::GameUpdate;
 use prelude::*;
 
+use std::rc::Rc;
+
 use log::error;
-use pixels::{Error, Pixels, SurfaceTexture};
+use pixels::{Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -18,45 +23,100 @@ use winit_input_helper::WinitInputHelper;
 use winit::event::KeyboardInput;
 
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-/// Gets the current time in milliseconds
-fn get_time() -> u128 {
-    let stop = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
-        stop.as_millis()
+pub use std::time::*;
+
+fn main() {
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+        console_log::init_with_level(log::Level::Trace).expect("error initializing logger");
+
+        wasm_bindgen_futures::spawn_local(run());
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        env_logger::init();
+
+        pollster::block_on(run());
+    }
 }
 
-fn main() -> Result<(), Error> {
+async fn run() {
 
     let width     : usize = 1024;
     let height    : usize = 608;
 
-    env_logger::init();
-
     let event_loop = EventLoop::new();
-    let mut input = WinitInputHelper::new();
     let window = {
         let size = LogicalSize::new(width as f64, height as f64);
-
         WindowBuilder::new()
-            .with_title("Eldiron Client")
+            .with_title("Eldiron Web")
             .with_inner_size(size)
             .with_min_inner_size(size)
-
             .build(&event_loop)
-            .unwrap()
+            .expect("WindowBuilder error")
     };
 
+    let window = Rc::new(window);
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        use wasm_bindgen::JsCast;
+        use winit::platform::web::WindowExtWebSys;
+
+        // Retrieve current width and height dimensions of browser client window
+        let get_window_size = || {
+            let client_window = web_sys::window().unwrap();
+            LogicalSize::new(
+                client_window.inner_width().unwrap().as_f64().unwrap(),
+                client_window.inner_height().unwrap().as_f64().unwrap(),
+            )
+        };
+
+        let window = Rc::clone(&window);
+
+        // Initialize winit window with current dimensions of browser client
+        window.set_inner_size(get_window_size());
+
+        let client_window = web_sys::window().unwrap();
+
+        // Attach winit canvas to body element
+        web_sys::window()
+            .and_then(|win| win.document())
+            .and_then(|doc| doc.body())
+            .and_then(|body| {
+                body.append_child(&web_sys::Element::from(window.canvas()))
+                    .ok()
+            })
+            .expect("couldn't append canvas to document body");
+
+        // Listen for resize event on browser client. Adjust winit window dimensions
+        // on event trigger
+        let closure = wasm_bindgen::closure::Closure::wrap(Box::new(move |_e: web_sys::Event| {
+            let size = get_window_size();
+            window.set_inner_size(size)
+        }) as Box<dyn FnMut(_)>);
+        client_window
+            .add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref())
+            .unwrap();
+        closure.forget();
+    }
+
+    let mut input = WinitInputHelper::new();
     let mut pixels = {
         let window_size = window.inner_size();
-        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new(width as u32, height as u32, surface_texture)?
+        let surface_texture =
+            SurfaceTexture::new(window_size.width, window_size.height, window.as_ref());
+        Pixels::new_async(width as u32, height as u32, surface_texture)
+            .await
+            .expect("Pixels error")
     };
 
     // Init server
-    let mut game = GameData::load_from_path(PathBuf::new());
+    let mut game = GameData::load_from_path(PathBuf::new());//std::path::Path::new("/").to_path_buf());
     game.startup();
     let player_id = 131313;
 
@@ -66,6 +126,8 @@ fn main() -> Result<(), Error> {
     let mut anim_counter : usize = 0;
     let mut timer : u128 = 0;
     let mut game_tick_timer : u128 = 0;
+
+    let mut curr_time = 0;
 
     event_loop.run(move |event, _, control_flow| {
         use winit::event::{ElementState, VirtualKeyCode};
@@ -250,21 +312,12 @@ fn main() -> Result<(), Error> {
             // Resize the window
             if let Some(size) = input.window_resized() {
                 pixels.resize_surface(size.width, size.height);
-                // let scale = window.scale_factor() as u32;
-                // pixels.resize_buffer(size.width / scale, size.height / scale);
-                //curr_screen.resize(size.width as usize / scale as usize, size.height as usize / scale as usize);
-                //width = size.width as usize / scale as usize;
-                //height = size.height as usize / scale as usize;
-                //render.width =  size.width as usize / scale as usize;
-                //render.height =  size.height as usize / scale as usize;
-                //window.request_redraw();
             }
 
-            let curr_time = get_time();
+            curr_time += 1000 / 60;
 
             // Game tick ?
             if curr_time > game_tick_timer + GAME_TICK_IN_MS {
-                //curr_screen.update();
                 game.tick();
                 window.request_redraw();
                 game_tick_timer = curr_time;
@@ -283,7 +336,7 @@ fn main() -> Result<(), Error> {
                 } else {
                     let t = (timer + tick_in_ms - curr_time) as u64;
                     if t > 10 {
-                        std::thread::sleep(Duration::from_millis(10));
+                        //std::thread::sleep(Duration::from_millis(10));
                     }
                 }
             }

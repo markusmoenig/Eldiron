@@ -121,8 +121,13 @@ impl TileMap {
         // Gets the content of the settings file
         let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
         let json_path = path::Path::new("").join("assets").join("tilemaps").join( format!("{}{}", name, ".json"));
-        let contents = fs::read_to_string( json_path.clone() )
-            .unwrap_or("".to_string());
+
+        let mut contents = "".to_string();
+        if let Some(bytes) = Embedded::get(json_path.to_str().unwrap()) {
+            if let Some(string) = std::str::from_utf8(bytes.data.as_ref()).ok() {
+                contents = string.to_string();
+            }
+        }
 
         // Construct the json settings
         let settings = serde_json::from_str(&contents)
