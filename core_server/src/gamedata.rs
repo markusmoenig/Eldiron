@@ -383,7 +383,8 @@ impl GameData<'_> {
 
         // Game
 
-        let game;
+        #[allow(unused_mut)]
+        let mut game;
         #[cfg(not(feature = "embed_binaries"))]
         {
             game = Game::load_from_path(&path.clone());

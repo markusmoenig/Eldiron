@@ -205,6 +205,7 @@ impl GameBehavior {
         }
     }
 
+    #[cfg(feature = "embed_binaries")]
     pub fn load_from_embedded(file_name: &str) -> Self {
 
         let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();

@@ -25,6 +25,7 @@ impl Game {
         }
     }
 
+    #[cfg(feature = "embed_binaries")]
     pub fn load_from_embedded(file_name: &str) -> Self {
 
         let behavior = GameBehavior::load_from_embedded(file_name);
