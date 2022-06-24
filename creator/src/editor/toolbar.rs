@@ -22,40 +22,40 @@ impl Widget for ToolBar {
         item_button.set_rect((rect.0 + 10, rect.1, 200, rect.3), asset, context);
         widgets.push(item_button);
 
-        let mut tiles_button = AtomWidget::new(vec!["Tiles".to_string()], AtomWidgetType::ToolBarSwitchButton,
-        AtomData::new_as_int("Tiles".to_string(), 0));
-        tiles_button.set_rect((rect.0 + 220, rect.1, 130, rect.3), asset, context);
+        let mut tiles_button = AtomWidget::new(vec!["Assets".to_string()], AtomWidgetType::ToolBarSwitchButton,
+        AtomData::new_as_int("Assets".to_string(), 0));
+        tiles_button.set_rect((rect.0 + 220, rect.1, 150, rect.3), asset, context);
         tiles_button.selected = true;
         tiles_button.custom_color = Some([44, 145, 209, 255]);
         widgets.push(tiles_button);
 
         let mut areas_button = AtomWidget::new(vec!["Regions".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new_as_int("Regions".to_string(), 0));
-        areas_button.set_rect((rect.0 + 360, rect.1, 160, rect.3), asset, context);
+        areas_button.set_rect((rect.0 + 380, rect.1, 160, rect.3), asset, context);
         areas_button.custom_color = Some([217, 64, 51, 255]);
         widgets.push(areas_button);
 
         let mut behavior_button = AtomWidget::new(vec!["Characters".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new_as_int("Characters".to_string(), 0));
-        behavior_button.set_rect((rect.0 + 530, rect.1, 185, rect.3), asset, context);
+        behavior_button.set_rect((rect.0 + 550, rect.1, 185, rect.3), asset, context);
         behavior_button.custom_color = Some([47, 219, 37, 255]);
         widgets.push(behavior_button);
 
         let mut systems_button = AtomWidget::new(vec!["Systems".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new_as_int("Systems".to_string(), 0));
-        systems_button.set_rect((rect.0 + 725, rect.1, 165, rect.3), asset, context);
+        systems_button.set_rect((rect.0 + 745, rect.1, 165, rect.3), asset, context);
         systems_button.custom_color = Some([23, 158, 101, 255]);
         widgets.push(systems_button);
 
         let mut items_button = AtomWidget::new(vec!["Items".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new_as_int("Items".to_string(), 0));
-        items_button.set_rect((rect.0 + 725 + 175, rect.1, 140, rect.3), asset, context);
+        items_button.set_rect((rect.0 + 725 + 195, rect.1, 140, rect.3), asset, context);
         items_button.custom_color = Some([205, 142, 67, 255]);
         widgets.push(items_button);
 
         let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarCheckButton,
             AtomData::new_as_int("Game".to_string(), 0));
-        game_button.set_rect((rect.0 + 725 + 175 + 150, rect.1, 100, rect.3), asset, context);
+        game_button.set_rect((rect.0 + 725 + 175 + 170, rect.1, 100, rect.3), asset, context);
         game_button.custom_color = Some([215, 30, 146, 255]);
         widgets.push(game_button);
 
