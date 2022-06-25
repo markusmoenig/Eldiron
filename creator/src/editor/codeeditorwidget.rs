@@ -14,10 +14,19 @@ pub enum CodeEditorWidgetState {
     Closing
 }
 
+#[derive(PartialEq, Debug)]
+pub enum CodeEditorSize {
+    Small,
+    Medium,
+    Full,
+}
+
 pub struct CodeEditorWidget {
     pub rect                : (usize, usize, usize, usize),
     dirty                   : bool,
     buffer                  : Vec<u8>,
+
+    size                    : CodeEditorSize,
 
     editor                  : CodeEditor,
 }
@@ -34,6 +43,8 @@ impl CodeEditorWidget {
             dirty           : true,
             buffer          : vec![0;1],
 
+            size            : CodeEditorSize::Small,
+
             editor,
         }
     }
@@ -49,22 +60,23 @@ impl CodeEditorWidget {
         self.dirty = true;
     }
 
-    pub fn _resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
+    pub fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
         self.rect.3 = height;
     }
 
     pub fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
 
+        self.rect = rect.clone();
+
         let width = rect.2;
-        let height = 240;
+        let height = self.get_height();
 
         if self.buffer.len() != width * height * 4 {
             self.buffer = vec![0; width * height * 4];
             self.dirty = true;
         }
 
-        self.rect = rect.clone();
         let safe_rect = (0_usize, 0_usize, width, height);
         let editor_rect = (0, 0, safe_rect.2, height);
 
@@ -87,8 +99,18 @@ impl CodeEditorWidget {
                 context.draw2d.blend_rect(buffer_frame, &(0, height - 30, rect.2, 30), rect.2, &trans_black);
 
                 if let Some(error) = &context.code_editor_error {
-                    context.draw2d.blend_text_rect(buffer_frame, &(10, height - 30, rect.2 - 150, 30), rect.2, asset.get_editor_font("OpenSans"), 15.0, error.0.as_str(), &self.editor.theme.error,  crate::draw2d::TextAlignment::Left);
+                    context.draw2d.blend_text_rect(buffer_frame, &(10, height - 30, rect.2 - 200, 30), rect.2, asset.get_editor_font("OpenSans"), 15.0, error.0.as_str(), &self.editor.theme.error,  crate::draw2d::TextAlignment::Left);
                 }
+
+                let mut size_text = "Small".to_string();
+                if self.size == CodeEditorSize::Medium {
+                    size_text = "Medium".to_owned();
+                } else
+                if self.size == CodeEditorSize::Full {
+                    size_text = "Full".to_owned();
+                }
+
+                context.draw2d.blend_text_rect(buffer_frame, &(rect.2 - 200, height - 30, 70, 30), rect.2, asset.get_editor_font("OpenSans"), 15.0, size_text.as_str(), &context.color_light_white, crate::draw2d::TextAlignment::Left);
 
                 context.draw2d.blend_text_rect(buffer_frame, &(0, height - 30, rect.2 - 20, 30), rect.2, asset.get_editor_font("OpenSans"), 15.0, format!("Ln {}, Col {}", self.editor.cursor_pos.1 + 1, self.editor.cursor_pos.0).as_str(), &context.color_light_white, crate::draw2d::TextAlignment::Right);
             }
@@ -100,6 +122,10 @@ impl CodeEditorWidget {
                 context.code_editor_visible_y += 20;
                 dest_rect.1 = dest_rect.1 + dest_rect.3 - context.code_editor_visible_y;
                 dest_rect.3 = context.code_editor_visible_y;
+
+                if dest_rect.3 >= height {
+                    dest_rect.3 = height;
+                }
             } else {
                 context.code_editor_state = CodeEditorWidgetState::Open;
                 context.target_fps = context.default_fps;
@@ -107,10 +133,12 @@ impl CodeEditorWidget {
         }
 
         if context.code_editor_state == CodeEditorWidgetState::Closing {
-            if context.code_editor_visible_y > 0 {
+            if context.code_editor_visible_y >= 20 {
                 context.code_editor_visible_y -= 20;
                 dest_rect.1 = dest_rect.1 + dest_rect.3 - context.code_editor_visible_y;
                 dest_rect.3 = context.code_editor_visible_y;
+            } else {
+                context.code_editor_visible_y = 0;
             }
 
             if context.code_editor_visible_y == 0 {
@@ -120,7 +148,9 @@ impl CodeEditorWidget {
             }
         }
 
-        context.draw2d.blend_slice(frame, &mut self.buffer[..], &dest_rect, context.width);
+        if context.code_editor_is_active {
+            context.draw2d.blend_slice(frame, &mut self.buffer[..], &dest_rect, context.width);
+        }
         self.rect = dest_rect;
     }
 
@@ -129,7 +159,7 @@ impl CodeEditorWidget {
         if key == Some(WidgetKey::Escape) {
             context.code_editor_state = CodeEditorWidgetState::Closing;
             context.target_fps = 60;
-            context.code_editor_visible_y = 240;
+            context.code_editor_visible_y = self.get_height();
             return true;
         }
 
@@ -144,6 +174,18 @@ impl CodeEditorWidget {
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
+        if pos.1 > self.rect.1 + self.rect.3 - 30 {
+            if self.size == CodeEditorSize::Small {
+                self.size = CodeEditorSize::Medium;
+            } else
+            if self.size == CodeEditorSize::Medium {
+                self.size = CodeEditorSize::Full;
+            } else
+            if self.size == CodeEditorSize::Full {
+                self.size = CodeEditorSize::Small;
+            }
+            return true;
+        } else
         if let Some(mut local_pos) = self.pos_to_local(pos) {
             if context.contains_pos_for(local_pos, self.editor.rect) {
                 local_pos.0 -= self.editor.rect.0; local_pos.1 -= self.editor.rect.1;
@@ -199,5 +241,15 @@ impl CodeEditorWidget {
             return Some((pos.0 - self.rect.0, pos.1 - self.rect.1));
         }
         None
+    }
+
+    fn get_height(&mut self) -> usize{
+        if self.size == CodeEditorSize::Small {
+            return 240;
+        }
+        if self.size == CodeEditorSize::Medium {
+            return self.rect.3 / 2;
+        }
+        self.rect.3
     }
 }

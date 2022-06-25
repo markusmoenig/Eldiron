@@ -15,7 +15,6 @@ use crate::atom:: { AtomWidget, AtomWidgetType, AtomData };
 use core_render::render::GameRender;
 use core_shared::asset::Asset;
 use core_server::gamedata::behavior::BehaviorType;
-use core_shared::actions::*;
 use core_shared::update::GameUpdate;
 
 use crate::editor::dialog::DialogWidget;
@@ -205,30 +204,35 @@ impl ScreenWidget for Editor<'_> {
 
         if self.context.is_running {
 
+            let mut key_string = "";
+
             if self.context.is_debugging {
                 if key == Some(WidgetKey::Escape) {
                     self.controlbar.stop_debugging(&mut self.context);
                 }
+            } else {
+                key_string = "escape";
             }
 
             if key == Some(WidgetKey::Up) {
-                if let Some(cmd) = pack_action(self.context.player_id, "onMove".to_string(), PlayerDirection::North, "".to_string()) {
-                    self.context.data.execute_packed_instance_action(cmd);
-                }
+                key_string = "up";
             } else
             if key == Some(WidgetKey::Right) {
-                if let Some(cmd) = pack_action(self.context.player_id, "onMove".to_string(), PlayerDirection::East, "".to_string()) {
-                    self.context.data.execute_packed_instance_action(cmd);
-                }
+                key_string = "right";
             } else
             if key == Some(WidgetKey::Down) {
-                if let Some(cmd) = pack_action(self.context.player_id, "onMove".to_string(), PlayerDirection::South, "".to_string()) {
-                    self.context.data.execute_packed_instance_action(cmd);
-                }
+                key_string = "down";
             } else
             if key == Some(WidgetKey::Left) {
-                if let Some(cmd) = pack_action(self.context.player_id, "onMove".to_string(), PlayerDirection::West, "".to_string()) {
-                    self.context.data.execute_packed_instance_action(cmd);
+                key_string = "left";
+            }
+
+            if key_string.is_empty() == false {
+                if let Some(render) = &mut self.game_render {
+                    let rc = render.key_down(key_string.to_owned(), self.context.player_id);
+                    for cmd in rc.0 {
+                        self.context.data.execute_packed_instance_action(cmd);
+                    }
                 }
             }
         } else
@@ -261,6 +265,7 @@ impl ScreenWidget for Editor<'_> {
         self.context.height = height; self.rect.3 = height;
         self.controlbar.resize(width, height, &self.context);
         self.toolbar.resize(width, height, &self.context);
+        self.code_editor.resize(width, height  - self.context.toolbar_height, &self.context);
 
         for index in 0..self.content.len() {
             if self.content[index].0.is_some() {

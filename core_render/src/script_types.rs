@@ -215,3 +215,31 @@ impl ScriptDraw {
         self.commands.clear();
     }
 }
+
+// --- ScriptCommand
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum ScriptServerCmd {
+    Move(String),
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct ScriptCmd {
+    pub commands            : Vec<ScriptServerCmd>
+}
+
+impl ScriptCmd {
+    pub fn new() -> Self {
+        Self {
+            commands        : vec![],
+        }
+    }
+
+    pub fn cmd_move(&mut self, direction: &str) {
+        self.commands.push(ScriptServerCmd::Move(direction.to_owned().to_lowercase()));
+    }
+
+    pub fn clear(&mut self) {
+        self.commands.clear();
+    }
+}

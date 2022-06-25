@@ -2,10 +2,10 @@
 use std::{path::PathBuf, collections::HashMap};
 
 use core_shared::{asset::{Asset, TileUsage}, update::GameUpdate, regiondata::GameRegionData};
-
 use crate::{draw2d::Draw2D, script_types::*};
-
 use rhai::{ Engine, Scope, AST, Dynamic };
+
+use core_shared::actions::*;
 
 pub struct GameRender<'a> {
 
@@ -59,6 +59,9 @@ impl GameRender<'_> {
             .register_fn("region", ScriptDraw::region)
             .register_fn("text", ScriptDraw::text);
 
+        engine.register_type_with_name::<ScriptCmd>("Cmd")
+            .register_fn("move", ScriptCmd::cmd_move);
+
         engine.register_type_with_name::<ScriptRect>("Rect")
             .register_fn("rect", ScriptRect::new);
 
@@ -103,6 +106,7 @@ impl GameRender<'_> {
                     self.scope.set_value("height", 608 as i64);
                     self.scope.set_value("tile_size", 32 as i64);
                     self.scope.set_value("draw", ScriptDraw::new());
+                    self.scope.set_value("cmd", ScriptCmd::new());
 
                     let mut tilemaps = ScriptTilemaps::new();
                     for index in 0..self.asset.tileset.maps_names.len() {
@@ -152,6 +156,7 @@ impl GameRender<'_> {
         None
     }
 
+    /// Draw the server response
     pub fn draw(&mut self, anim_counter: usize, update: &GameUpdate) -> Option<(String, Option<usize>)> {
 
         let error = self.process_update(update);
@@ -444,4 +449,76 @@ impl GameRender<'_> {
         }
         rc
     }
+
+    pub fn key_down(&mut self, key: String, player_id: usize) -> (Vec<String>, Option<(String, Option<usize>)>) {
+        // Call the draw function
+        if let Some(ast) = &self.ast {
+            let result = self.engine.call_fn_raw(
+                            &mut self.scope,
+                            &ast,
+                            false,
+                            false,
+                            "key_down",
+                            None,
+                            [key.into()]
+                        );
+
+            if result.is_err() {
+                if let Some(err) = result.err() {
+                    //println!("{:?}", err.,t);
+                    let mut string = err.to_string();
+                    let mut parts = string.split("(");
+                    if let Some(first) = parts.next() {
+                        string = first.to_owned();
+                    }
+                    return (vec![], Some((string, err.position().line())));
+                }
+            }
+        }
+
+        (self.process_cmds(player_id), None)
+
+    }
+
+
+    fn process_cmds(&mut self, player_id: usize) -> Vec<String> {
+        let mut commands = vec![];
+
+        if let Some(mut cmd) = self.scope.get_value::<ScriptCmd>("cmd") {
+
+            for cmd in &cmd.commands {
+
+                match cmd {
+                    ScriptServerCmd::Move(direction) => {
+                        let mut dir : Option<PlayerDirection> = None;
+
+                        if direction == "west" {
+                            dir = Some(PlayerDirection::West);
+                        } else
+                        if direction == "north" {
+                            dir = Some(PlayerDirection::North);
+                        } else
+                        if direction == "east" {
+                            dir = Some(PlayerDirection::East);
+                        } else
+                        if direction == "south" {
+                            dir = Some(PlayerDirection::South);
+                        }
+
+                        if let Some(dir) = dir {
+                            if let Some(action) = pack_action(player_id, "onMove".to_string(), dir, "".to_string()) {
+                                commands.push(action);
+                            }
+                        }
+                    }
+                }
+            }
+
+            cmd.clear();
+            self.scope.set_value("cmd", cmd);
+        }
+
+        commands
+    }
+
 }
