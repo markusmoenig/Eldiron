@@ -324,9 +324,11 @@ impl EditorContent for RegionWidget {
         if let Some(region) = context.data.regions.get_mut(&self.region_id) {
             if let Some(options) = options {
                 options.set_area_names(region.get_area_names());
-                context.curr_region_area_index = 0;
+                if context.curr_region_area_index >= region.data.areas.len() {
+                    context.curr_region_area_index = 0;
+                }
                 if region.behaviors.len() > 0 {
-                    self.behavior_graph.set_behavior_id(region.behaviors[0].data.id, context);
+                    self.behavior_graph.set_behavior_id(region.behaviors[context.curr_region_area_index].data.id, context);
                 }
             }
         }

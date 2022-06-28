@@ -8,6 +8,7 @@ pub mod script;
 pub mod game;
 
 use core_shared::characterdata::CharacterData;
+use core_shared::message::{MessageType};
 use core_shared::regiondata::GameRegionData;
 use core_shared::update::GameUpdate;
 use core_shared::asset::{ TileUsage, Asset };
@@ -17,7 +18,6 @@ use rhai::{ Engine, Scope, AST };
 
 use std::collections::{HashMap, HashSet};
 use std::fs::metadata;
-use std::hash::Hash;
 
 use crate::gamedata::region::GameRegion;
 use crate::gamedata::behavior::{ BehaviorNodeConnector, BehaviorInstance, GameBehavior, BehaviorNodeType, BehaviorType, BehaviorInstanceState };
@@ -38,16 +38,6 @@ use self::nodes_utility::get_node_value;
 use core_embed_binaries::Embedded;
 
 type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> behavior::BehaviorNodeConnector;
-
-#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
-pub enum MessageType {
-    Status,
-    Say,
-    Yell,
-    Private,
-    Debug,
-    Error,
-}
 
 pub struct GameData<'a> {
 
@@ -418,6 +408,7 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::InsideArea, nodes_area::inside_area);
         nodes.insert(BehaviorNodeType::DisplaceTiles, nodes_area::displace_tiles);
         nodes.insert(BehaviorNodeType::TeleportArea, nodes_area::teleport_area);
+        nodes.insert(BehaviorNodeType::MessageArea, nodes_area::message_area);
 
         nodes.insert(BehaviorNodeType::Move, nodes::player_move);
 
@@ -787,7 +778,7 @@ impl GameData<'_> {
 
             let index = self.instances.len();
 
-            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string()};
+            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![]};
 
             // Make sure id is unique
             let mut has_id_already = true;
@@ -860,7 +851,7 @@ impl GameData<'_> {
 
         let index = self.instances.len();
 
-        let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.data.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::GameLogic, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string()};
+        let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.data.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::GameLogic, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![]};
 
         // Make sure id is unique
         let mut has_id_already = true;
@@ -1299,6 +1290,8 @@ impl GameData<'_> {
         // Execute behaviors
         for inst_index in 0..self.instances.len() {
 
+            self.instances[inst_index].messages = vec![];
+
             // Skip Sleep cycles
             if self.instances[inst_index].sleep_cycles > 0 {
                 self.instances[inst_index].sleep_cycles -= 1;
@@ -1448,12 +1441,13 @@ impl GameData<'_> {
                 }
 
                 let update = GameUpdate{
-                    position: self.instances[inst_index].position,
-                    tile: self.instances[inst_index].tile,
-                    screen: screen,
+                    position                : self.instances[inst_index].position,
+                    tile                    : self.instances[inst_index].tile,
+                    screen                  : screen,
                     region,
                     displacements,
-                    characters
+                    characters,
+                    messages                : self.instances[inst_index].messages.clone(),
                  };
 
                 self.instances[inst_index].update = serde_json::to_string(&update).ok();

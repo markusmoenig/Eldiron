@@ -1191,6 +1191,7 @@ impl EditorContent for NodeGraph  {
                 "Settings" => BehaviorNodeType::Settings,
 
                 "Teleport Area" => BehaviorNodeType::TeleportArea,
+                "Message Area" => BehaviorNodeType::MessageArea,
 
                 _ => BehaviorNodeType::BehaviorTree
             };
@@ -1386,7 +1387,7 @@ impl EditorContent for NodeGraph  {
             node_widget.color = context.color_orange.clone();
             node_widget.is_variable_node = true;
         } else
-        if node_data.behavior_type == BehaviorNodeType::Message {
+        if node_data.behavior_type == BehaviorNodeType::Message || node_data.behavior_type == BehaviorNodeType::MessageArea {
             let mut atom1 = AtomWidget::new(vec!["Status".to_string(), "Say".to_string(), "Yell".to_string(), "Private".to_string(), "Debug".to_string()], AtomWidgetType::NodeMenuButton,
             AtomData::new_as_int("type".to_string(), 0));
             atom1.atom_data.text = "Type".to_string();

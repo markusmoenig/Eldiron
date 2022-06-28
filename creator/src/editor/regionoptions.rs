@@ -81,7 +81,7 @@ impl EditorOptions for RegionOptions {
         // Area Widgets
         let mut area_widgets : Vec<AtomWidget> = vec![];
 
-        let mut regions_button = AtomWidget::new(vec![], AtomWidgetType::MenuButton,
+        let mut regions_button = AtomWidget::new(vec![], AtomWidgetType::SliderButton,
         AtomData::new_as_int("Area".to_string(), 0));
         regions_button.atom_data.text = "Area".to_string();
         regions_button.set_rect((rect.0 + 10, rect.1 + 130, rect.2 - 20, 40), asset, context);
@@ -125,9 +125,9 @@ impl EditorOptions for RegionOptions {
 
         node_list.add_group_list(context.color_green, context.color_light_green, vec!["Enter Area".to_string(), "Leave Area".to_string(), "Inside Area".to_string(), "Spawn".to_string()]);
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Displace Tiles".to_string(), "Teleport Area".to_string()]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Displace Tiles".to_string(),  "Message Area".to_string(), "Teleport Area".to_string()]);
 
-        node_list.set_rect((rect.0 + 10, rect.1 + 130, rect.2 - 20, rect.3 - 130), asset, context);
+        node_list.set_rect((rect.0 + 10, rect.1 + 180, rect.2 - 20, rect.3 - 180), asset, context);
         behavior_widgets.push(node_list);
 
         Self {
@@ -167,6 +167,7 @@ impl EditorOptions for RegionOptions {
             }
         } else
         if mode == RegionEditorMode::Behavior {
+            self.area_widgets[0].draw(frame, context.width, anim_counter, asset, context);
             for atom in &mut self.behavior_widgets {
                 atom.draw(frame, context.width, anim_counter, asset, context);
             }
@@ -222,13 +223,16 @@ impl EditorOptions for RegionOptions {
                 }
             }
         } else
-        if mode == RegionEditorMode::Areas {
+        if mode == RegionEditorMode::Areas || mode == RegionEditorMode::Behavior {
             for atom in &mut self.area_widgets {
                 if atom.mouse_down(pos, asset, context) {
                     return true;
                 }
+                if mode == RegionEditorMode::Behavior {
+                    break;
+                }
             }
-        } else
+        }
         if mode == RegionEditorMode::Behavior {
             for atom in &mut self.behavior_widgets {
                 if atom.mouse_down(pos, asset, context) {
@@ -277,7 +281,7 @@ impl EditorOptions for RegionOptions {
                 }
             }
         } else
-        if mode == RegionEditorMode::Areas {
+        if mode == RegionEditorMode::Areas || mode == RegionEditorMode::Behavior {
             if mode_was_updated {
                 self.update_area_ui(context, content);
             }
@@ -286,6 +290,13 @@ impl EditorOptions for RegionOptions {
 
                     if atom.atom_data.id == "Area" {
                         self.update_area_ui(context, content);
+                        if let Some(el_content) = content {
+                            if let Some(region) = context.data.regions.get_mut(&el_content.get_region_id()) {
+                                if let Some(graph) = el_content.get_behavior_graph() {
+                                    graph.set_behavior_id(region.behaviors[context.curr_region_area_index].data.id, context);
+                                }
+                            }
+                        }
                     } else
                     if atom.atom_data.id == "Add Area" {
                         if let Some(el_content) = content {
@@ -323,8 +334,11 @@ impl EditorOptions for RegionOptions {
 
                     return true;
                 }
+                if mode == RegionEditorMode::Behavior {
+                    break;
+                }
             }
-        } else
+        }
         if mode == RegionEditorMode::Behavior {
             for atom in &mut self.behavior_widgets {
                 if atom.mouse_up(pos, asset, context) {
@@ -360,6 +374,7 @@ impl EditorOptions for RegionOptions {
             }
         } else
         if mode == RegionEditorMode::Behavior {
+            self.area_widgets[0].mouse_hover(pos, asset, context);
             for atom in &mut self.behavior_widgets {
                 if atom.mouse_hover(pos, asset, context) {
                     return true;

@@ -4,6 +4,7 @@ use crate::gamedata::GameData;
 use super::behavior::{ BehaviorType };
 use crate::gamedata::get_node_value;
 use core_shared::asset::TileUsage;
+use core_shared::message::{MessageType, MessageData};
 
 /// Inside Area
 pub fn inside_area(region_id: usize, id: (usize, usize), data: &mut GameData, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
@@ -69,7 +70,7 @@ pub fn displace_tiles(region_id: usize, id: (usize, usize), data: &mut GameData,
     BehaviorNodeConnector::Fail
 }
 
-/// Displace Tiles
+/// Teleport Area
 pub fn teleport_area(region_id: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let value = get_node_value((id.0, id.1, "position"), data, behavior_type, region_id);
@@ -81,6 +82,55 @@ pub fn teleport_area(region_id: usize, id: (usize, usize), data: &mut GameData, 
                 data.instances[*index].position = Some((value.0 as usize, value.1 as isize, value.2 as isize));
             }
         }
+    }
+    BehaviorNodeConnector::Fail
+}
+
+/// Message Area
+pub fn message_area(region_id: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut message_type : MessageType = MessageType::Status;
+    let text;
+
+    // Message Type
+    if let Some(value) = get_node_value((id.0, id.1, "type"), data, behavior_type, 0) {
+        message_type = match value.0 as usize {
+            1 => MessageType::Say,
+            2 => MessageType::Yell,
+            3 => MessageType::Private,
+            4 => MessageType::Debug,
+            _ => MessageType::Status
+        }
+    }
+
+    if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type, 0) {
+        text = value.4;
+    } else {
+        text = "Hello".to_string();
+    }
+
+    /*
+    // Do I need to evaluate the script for variables ?
+    if text.contains("${") {
+        data.scopes[instance_index].push("Self", data.instances[instance_index].name.clone());
+        if let Some(target_index) = data.instances[instance_index].target_instance_index {
+            data.scopes[instance_index].push("Target", data.instances[target_index].name.clone());
+        }
+        let r = data.engine.eval_with_scope::<String>(&mut data.scopes[instance_index], format!("`{}`", text).as_str());
+        if let Some(rc) = r.ok() {
+            text = rc;
+        }
+    }*/
+
+    // Somebody is in the area ?
+    if let Some(area_list) = data.area_characters.get(&(region_id, id.0)) {
+
+        let message_data = MessageData { message_type, message: text.clone(), from: "System".to_string() };
+
+        for index in area_list {
+            data.instances[*index].messages.push(message_data.clone());
+        }
+
     }
     BehaviorNodeConnector::Fail
 }

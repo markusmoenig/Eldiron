@@ -103,6 +103,7 @@ pub struct Editor<'a> {
     status_bar                      : StatusBar,
 
     game_render                     : Option<GameRender<'a>>,
+    game_rect                       : (usize, usize, usize, usize),
 
     project_to_load                 : Option<std::path::PathBuf>
 }
@@ -174,6 +175,7 @@ impl ScreenWidget for Editor<'_> {
             status_bar,
 
             game_render             : None,
+            game_rect               : (0, 0, 0, 0),
 
             project_to_load,
         }
@@ -227,9 +229,10 @@ impl ScreenWidget for Editor<'_> {
                 key_string = "left";
             }
 
-            if key_string.is_empty() == false {
+            if key_string.is_empty() == false && self.context.is_debugging == false {
                 if let Some(render) = &mut self.game_render {
                     let rc = render.key_down(key_string.to_owned(), self.context.player_id);
+                    self.context.code_editor_error = rc.1;
                     for cmd in rc.0 {
                         self.context.data.execute_packed_instance_action(cmd);
                     }
@@ -315,8 +318,8 @@ impl ScreenWidget for Editor<'_> {
                         cy = (clear_frame.3 - render.height) / 2;
                     }
 
-                    let dest_frame = (cx, cy + self.context.toolbar_height / 2, render.width, render.height);
-                    self.context.draw2d.copy_slice(frame, &mut render.frame, &dest_frame, self.context.width);
+                    self.game_rect = (cx, cy + self.context.toolbar_height / 2, render.width, render.height);
+                    self.context.draw2d.copy_slice(frame, &mut render.frame, &self.game_rect, self.context.width);
                 }
             }
             return;
@@ -737,6 +740,22 @@ impl ScreenWidget for Editor<'_> {
             }
         }
 
+        // Need to send game touch_down event ?
+        if self.context.is_running && self.context.is_debugging == false {
+
+            if self.context.contains_pos_for(pos, self.game_rect) {
+
+                if let Some(render) = &mut self.game_render {
+                    let rc = render.mouse_down((pos.0 - self.game_rect.0, pos.1 - self.game_rect.1), self.context.player_id);
+                    self.context.code_editor_error = rc.1;
+                    for cmd in rc.0 {
+                        self.context.data.execute_packed_instance_action(cmd);
+                    }
+                }
+            }
+            return true;
+        }
+
         if consumed == false && self.toolbar.mouse_down(pos, asset, &mut self.context) {
 
             // Tile Button
@@ -1054,8 +1073,6 @@ impl ScreenWidget for Editor<'_> {
             if self.state == EditorState::RegionDetail {
                 let rect = self.content[EditorState::RegionDetail as usize].1.as_mut().unwrap().get_rect();
                 let offset = self.content[EditorState::RegionDetail as usize].1.as_mut().unwrap().get_offset();
-
-                        println!("add_node_of_name {:?} {:?}", rect, pos);
 
                 if self.context.contains_pos_for(pos, rect) {
                     let mut position = (pos.0 as isize, pos.1 as isize);

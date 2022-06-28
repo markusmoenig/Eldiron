@@ -1,3 +1,4 @@
+use core_shared::message::MessageData;
 use serde::{Deserialize, Serialize};
 use rand::prelude::*;
 use core_shared::actions::PlayerAction;
@@ -52,6 +53,7 @@ pub enum BehaviorNodeType {
     Widget,
     Settings,
     TeleportArea,                                           // Teleport Characters inside an area
+    MessageArea,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -144,6 +146,9 @@ pub struct BehaviorInstance {
     // For characters, the 2D position id and the currently displayed tile id.
     pub position                : Option<(usize, isize, isize)>,
     pub tile                    : Option<(usize, usize, usize)>,
+
+    // Messages for this player in the current tick
+    pub messages                : Vec<MessageData>,
 
     /// The current player action
     pub action                  : Option<PlayerAction>,

@@ -121,8 +121,12 @@ impl TextEditorWidget for CodeEditor {
             self.offset.1 = 0;
         }
 
-        if self.offset.1.abs() + rect.3 as isize >= self.text_buffer_size.1 as isize {
-            self.offset.1 = -(self.text_buffer_size.1 as isize) + rect.3 as isize;
+        if rect.3 < self.text_buffer_size.1 {
+            if self.offset.1.abs() + rect.3 as isize >= self.text_buffer_size.1 as isize {
+                self.offset.1 = -(self.text_buffer_size.1 as isize) + rect.3 as isize;
+            }
+        } else {
+            self.offset.1 = 0;
         }
 
         let x = rect.0 as isize + self.offset.0;

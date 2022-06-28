@@ -1,4 +1,5 @@
 use core_shared::actions::PlayerDirection;
+use core_shared::message::MessageData;
 
 use crate::gamedata::behavior:: { BehaviorNodeConnector, BehaviorNodeType };
 use crate::gamedata::GameData;
@@ -67,6 +68,13 @@ pub fn message(instance_index: usize, id: (usize, usize), data: &mut GameData, b
         MessageType::Say => format!("{} says \"{}\".", data.instances[instance_index].name, text),
         _ => text
     };
+
+    let message_data = MessageData { message_type, message: text.clone(), from: data.instances[instance_index].name.clone() };
+
+     data.instances[instance_index].messages.push(message_data.clone());
+    if let Some(target_index) = data.instances[instance_index].target_instance_index {
+        data.instances[target_index].messages.push(message_data);
+    }
 
     // Output it
     data.messages.push((text,  message_type));

@@ -72,6 +72,8 @@ impl GameRender<'_> {
             .register_fn("rgb", ScriptRGB::new)
             .register_fn("rgba", ScriptRGB::new_with_alpha);
 
+        engine.on_print(|x| println!("{}", x));
+
         Self {
 
             engine,
@@ -151,6 +153,13 @@ impl GameRender<'_> {
         // Got a new region ?
         if let Some(region) = &update.region {
             self.regions.insert(region.id, region.clone());
+        }
+
+        // Get new messages
+        if update.messages.is_empty() == false {
+            for m in &update.messages {
+                println!("{:?} {}", m.message_type, m.message);
+            }
         }
 
         None
@@ -461,6 +470,36 @@ impl GameRender<'_> {
                             "key_down",
                             None,
                             [key.into()]
+                        );
+
+            if result.is_err() {
+                if let Some(err) = result.err() {
+                    //println!("{:?}", err.,t);
+                    let mut string = err.to_string();
+                    let mut parts = string.split("(");
+                    if let Some(first) = parts.next() {
+                        string = first.to_owned();
+                    }
+                    return (vec![], Some((string, err.position().line())));
+                }
+            }
+        }
+
+        (self.process_cmds(player_id), None)
+
+    }
+
+    pub fn mouse_down(&mut self, pos: (usize, usize), player_id: usize) -> (Vec<String>, Option<(String, Option<usize>)>) {
+        // Call the draw function
+        if let Some(ast) = &self.ast {
+            let result = self.engine.call_fn_raw(
+                            &mut self.scope,
+                            &ast,
+                            false,
+                            false,
+                            "touch_down",
+                            None,
+                            [(pos.0 as i64).into(), (pos.1 as i64).into()]
                         );
 
             if result.is_err() {

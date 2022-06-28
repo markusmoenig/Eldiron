@@ -7,7 +7,6 @@ mod prelude {
 
 use core_render::render::GameRender;
 use core_server::gamedata::GameData;
-use core_shared::actions::{pack_action, PlayerDirection};
 use core_shared::update::GameUpdate;
 use prelude::*;
 
@@ -120,6 +119,8 @@ async fn run() {
     game.startup();
     let player_id = 131313;
 
+    let mut game_rect = (0, 0, 0, 0);
+
     // Init renderer
     let mut render = GameRender::new(PathBuf::new());
 
@@ -131,6 +132,8 @@ async fn run() {
 
     event_loop.run(move |event, _, control_flow| {
         use winit::event::{ElementState, VirtualKeyCode};
+
+        let mut key_string = "";
 
         if let Event::RedrawRequested(_) = event {
 
@@ -154,7 +157,7 @@ async fn run() {
                         cy = (height - render.height) / 2;
                     }
 
-                    let dest_frame = (cx, cy, render.width, render.height);
+                    game_rect = (cx, cy, render.width, render.height);
 
                     fn copy_slice(dest: &mut [u8], source: &[u8], rect: &(usize, usize, usize, usize), dest_stride: usize) {
                         for y in 0..rect.3 {
@@ -164,7 +167,7 @@ async fn run() {
                         }
                     }
 
-                    copy_slice(frame, &mut render.frame, &dest_frame, width);
+                    copy_slice(frame, &mut render.frame, &game_rect, width);
                 }
             }
             if pixels
@@ -207,24 +210,16 @@ async fn run() {
                 } => match virtual_code {
 
                     VirtualKeyCode::Up => {
-                        if let Some(cmd) = pack_action(player_id, "onMove".to_string(), PlayerDirection::North, "".to_string()) {
-                            game.execute_packed_instance_action(cmd);
-                        }
+                        key_string = "up";
                     },
                     VirtualKeyCode::Right => {
-                        if let Some(cmd) = pack_action(player_id, "onMove".to_string(), PlayerDirection::East, "".to_string()) {
-                            game.execute_packed_instance_action(cmd);
-                        }
+                        key_string = "right";
                     },
                     VirtualKeyCode::Down => {
-                        if let Some(cmd) = pack_action(player_id, "onMove".to_string(), PlayerDirection::South, "".to_string()) {
-                            game.execute_packed_instance_action(cmd);
-                        }
+                        key_string = "down";
                     },
                     VirtualKeyCode::Left => {
-                        if let Some(cmd) = pack_action(player_id, "onMove".to_string(), PlayerDirection::West, "".to_string()) {
-                            game.execute_packed_instance_action(cmd);
-                        }
+                        key_string = "left";
                     },
                     _ => (),
                 },
@@ -256,6 +251,14 @@ async fn run() {
             _ => (),
         }
 
+        // Perform key action
+        if key_string.is_empty() == false {
+            let rc = render.key_down(key_string.to_owned(), player_id);
+            for cmd in rc.0 {
+                game.execute_packed_instance_action(cmd);
+            }
+        }
+
         // Handle input events
         if input.update(&event) {
             // Close events
@@ -266,13 +269,16 @@ async fn run() {
             }
 
             if input.mouse_pressed(0) {
-                //let coords =  input.mouse().unwrap();
-                //let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
-                //    .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+                let coords =  input.mouse().unwrap();
+                let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
+                   .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                // if curr_screen.mouse_down((pixel_pos.0, pixel_pos.1), &mut asset) {
-                //     window.request_redraw();
-                // }
+                if contains_pos_for(pixel_pos, game_rect) {
+                    let rc = render.mouse_down((pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1), player_id);
+                    for cmd in rc.0 {
+                        game.execute_packed_instance_action(cmd);
+                    }
+                }
             }
 
             if input.mouse_released(0) {
@@ -342,4 +348,13 @@ async fn run() {
             }
         }
     });
+}
+
+/// Returns true if the given rect contains the given position
+pub fn contains_pos_for(pos: (usize, usize), rect: (usize, usize, usize, usize)) -> bool {
+    if pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3 {
+        true
+    } else {
+        false
+    }
 }
