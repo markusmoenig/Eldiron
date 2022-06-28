@@ -1595,12 +1595,28 @@ impl EditorContent for NodeGraph  {
 
         // Area
         if node_data.behavior_type == BehaviorNodeType::InsideArea {
-            let mut atom1 = AtomWidget::new(vec!["Expression".to_string()], AtomWidgetType::NodeExpressionButton,
-            AtomData::new_as_int("expression".to_string(), 0));
-            atom1.atom_data.text = "Expression".to_string();
-            let id = (behavior_data.id, node_data.id, "expression".to_string());
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_data.behavior_type == BehaviorNodeType::EnterArea {
+            let mut atom1 = AtomWidget::new(vec!["Everyone".to_string(), "First Only".to_string()], AtomWidgetType::NodeMenuButton,
+            AtomData::new_as_int("character".to_string(), 0));
+            atom1.atom_data.text = "Character".to_string();
+            let id = (behavior_data.id, node_data.id, "character".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "true".to_string()), self.graph_type);
+            atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type).0 as usize;
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_data.behavior_type == BehaviorNodeType::LeaveArea {
+            let mut atom1 = AtomWidget::new(vec!["Everyone".to_string(), "Last Only".to_string()], AtomWidgetType::NodeMenuButton,
+            AtomData::new_as_int("character".to_string(), 0));
+            atom1.atom_data.text = "Character".to_string();
+            let id = (behavior_data.id, node_data.id, "character".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.curr_index = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type).0 as usize;
             node_widget.widgets.push(atom1);
 
             node_widget.color = context.color_green.clone();

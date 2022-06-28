@@ -97,6 +97,9 @@ pub struct GameData<'a> {
     // Characters instance indices in a given region area
     pub area_characters         : HashMap<(usize, usize), Vec<usize>>,
 
+    // The character instances from the previous tick, used to figure out onEnter, onLeave etc events
+    pub prev_area_characters    : HashMap<(usize, usize), Vec<usize>>,
+
     // These are fields which provide feedback to the editor / game while running
     pub messages                : Vec<(String, MessageType)>,
     pub executed_connections    : Vec<(BehaviorType, usize, BehaviorNodeConnector)>,
@@ -406,6 +409,8 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::SetState, nodes::set_state);
 
         nodes.insert(BehaviorNodeType::InsideArea, nodes_area::inside_area);
+        nodes.insert(BehaviorNodeType::EnterArea, nodes_area::enter_area);
+        nodes.insert(BehaviorNodeType::LeaveArea, nodes_area::leave_area);
         nodes.insert(BehaviorNodeType::DisplaceTiles, nodes_area::displace_tiles);
         nodes.insert(BehaviorNodeType::TeleportArea, nodes_area::teleport_area);
         nodes.insert(BehaviorNodeType::MessageArea, nodes_area::message_area);
@@ -480,6 +485,7 @@ impl GameData<'_> {
 
             characters              : HashMap::new(),
             area_characters         : HashMap::new(),
+            prev_area_characters    : HashMap::new(),
 
             messages                : vec![],
             executed_connections    : vec![],
@@ -563,6 +569,7 @@ impl GameData<'_> {
 
             characters              : HashMap::new(),
             area_characters         : HashMap::new(),
+            prev_area_characters    : HashMap::new(),
 
             messages                : vec![],
             executed_connections    : vec![],
@@ -1285,6 +1292,7 @@ impl GameData<'_> {
         self.executed_connections = vec![];
         self.changed_variables = vec![];
         self.characters = HashMap::new();
+        self.prev_area_characters = self.area_characters.clone();
         self.area_characters = HashMap::new();
 
         // Execute behaviors

@@ -6,6 +6,42 @@ use crate::gamedata::get_node_value;
 use core_shared::asset::TileUsage;
 use core_shared::message::{MessageType, MessageData};
 
+/// Enter Area
+pub fn enter_area(region_id: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut enter_everyone = true;
+
+    if let Some(value) = get_node_value((id.0, id.1, "character"), data, behavior_type, region_id) {
+        if value.0 == 1.0 {
+            enter_everyone = false;
+        }
+    }
+
+    if enter_everyone {
+
+    }
+
+    BehaviorNodeConnector::Fail
+}
+
+/// Leave Area
+pub fn leave_area(region_id: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut leave_everyone = true;
+
+    if let Some(value) = get_node_value((id.0, id.1, "character"), data, behavior_type, region_id) {
+        if value.0 == 1.0 {
+            leave_everyone = false;
+        }
+    }
+
+    if leave_everyone {
+
+    }
+
+    BehaviorNodeConnector::Fail
+}
+
 /// Inside Area
 pub fn inside_area(region_id: usize, id: (usize, usize), data: &mut GameData, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
