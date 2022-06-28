@@ -1383,7 +1383,7 @@ impl GameData<'_> {
                 region.displacements = HashMap::new();
                 for area_index in 0..region.data.areas.len() {
                     for (node_id, node) in &region.behaviors[area_index].data.nodes {
-                        if node.behavior_type == BehaviorNodeType::InsideArea {
+                        if node.behavior_type == BehaviorNodeType::InsideArea || node.behavior_type == BehaviorNodeType::EnterArea || node.behavior_type == BehaviorNodeType::LeaveArea {
                             to_execute.push((area_index, *node_id));
                         }
                     }

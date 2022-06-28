@@ -17,8 +17,48 @@ pub fn enter_area(region_id: usize, id: (usize, usize), data: &mut GameData, beh
         }
     }
 
-    if enter_everyone {
+    let mut found_character = false;
+    if let Some(region) = data.regions.get_mut(&region_id) {
+        if let Some(characters) = data.characters.get(&region_id) {
+            for character_data in characters {
+                if let Some(position) = data.instances[character_data.index].position {
+                    if region.data.areas[id.0].area.contains(&(position.1, position.2)) {
 
+                        if data.area_characters.contains_key(&(region_id, id.0)) == false {
+                            data.area_characters.insert((region_id, id.0), vec![character_data.index]);
+                        } else
+                        if let Some(area_list) = data.area_characters.get_mut(&(region_id, id.0)) {
+                            area_list.push(character_data.index);
+                        }
+
+                        // Check if the character existed already in the area in the previous tick
+                        let mut was_inside_already = false;
+                        if let Some(area_list) = data.prev_area_characters.get(&(region_id, id.0)) {
+                            for index in area_list {
+                                if *index == character_data.index {
+                                    was_inside_already = true;
+                                }
+                            }
+                        }
+
+                        if was_inside_already == false {
+                            if enter_everyone {
+                                // Trigger always if somebody enters
+                                found_character = true;
+                            } else
+                            if data.prev_area_characters.contains_key(&(region_id, id.0)) == false {
+                                // This area was empty in the previous tick
+                                found_character = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if found_character {
+        return BehaviorNodeConnector::Right;
     }
 
     BehaviorNodeConnector::Fail
