@@ -1,7 +1,7 @@
 
 use std::{path::PathBuf, collections::HashMap};
 
-use core_shared::{asset::{Asset, TileUsage}, update::GameUpdate, regiondata::GameRegionData};
+use core_shared::{asset::{Asset, TileUsage}, update::GameUpdate, regiondata::GameRegionData, message::MessageData};
 use crate::{draw2d::Draw2D, script_types::*};
 use rhai::{ Engine, Scope, AST, Dynamic };
 
@@ -22,6 +22,8 @@ pub struct GameRender<'a> {
     pub tile_size               : usize,
 
     pub regions                 : HashMap<usize, GameRegionData>,
+
+    pub messages                : Vec<MessageData>,
 
     pub last_position           : (usize, isize, isize),
     pub transition_steps        : isize,
@@ -57,6 +59,7 @@ impl GameRender<'_> {
             .register_fn("frame_sat", ScriptDraw::frame_sat)
             .register_fn("game", ScriptDraw::game)
             .register_fn("region", ScriptDraw::region)
+            .register_fn("messages", ScriptDraw::messages)
             .register_fn("text", ScriptDraw::text);
 
         engine.register_type_with_name::<ScriptCmd>("Cmd")
@@ -89,6 +92,8 @@ impl GameRender<'_> {
 
             regions             : HashMap::new(),
 
+            messages            : vec![],
+
             last_position       : (100000, 0, 0),
             transition_steps    : 10,
         }
@@ -103,6 +108,9 @@ impl GameRender<'_> {
 
             if result.is_ok() {
                 if let Some(ast) = result.ok() {
+
+                    self.messages = vec![];
+
                     self.scope = Scope::new();
                     self.scope.set_value("width", 1024 as i64);
                     self.scope.set_value("height", 608 as i64);
@@ -158,7 +166,7 @@ impl GameRender<'_> {
         // Get new messages
         if update.messages.is_empty() == false {
             for m in &update.messages {
-                println!("{:?} {}", m.message_type, m.message);
+                self.messages.push(m.clone());
             }
         }
 
@@ -330,6 +338,19 @@ impl GameRender<'_> {
                     ScriptDrawCmd::DrawText(pos, text, font_name, size, rgb) => {
                         if let Some(font) = self.asset.game_fonts.get(font_name) {
                             self.draw2d.blend_text( &mut self.frame[..], &pos.pos, stride, font, *size, text, &rgb.value);
+                        }
+                    },
+                    ScriptDrawCmd::DrawMessages(rect, font_name, size, rgb) => {
+                        if let Some(font) = self.asset.game_fonts.get(font_name) {
+                            let max_lines = (rect.rect.3) / (*size as usize);
+                            let available_messages = self.messages.len();
+
+                            for l in 0..max_lines {
+                                if l >= available_messages {
+                                    break;
+                                }
+                                self.draw2d.blend_text_rect(&mut self.frame[..], &(rect.rect.0, rect.rect.1 + rect.rect.3 - (l+1) * (*size as usize), rect.rect.2, *size as usize), stride, &font, *size, self.messages[available_messages - 1 - l].message.as_str(), &rgb.value, crate::draw2d::TextAlignment::Left);
+                            }
                         }
                     },
                     ScriptDrawCmd::DrawGame(rect) => {

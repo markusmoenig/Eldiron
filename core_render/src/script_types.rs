@@ -157,6 +157,7 @@ pub enum ScriptDrawCmd {
     DrawGame(ScriptRect),
     DrawRegion(String, ScriptRect, i64),
     DrawText(ScriptPosition, String, String, f32, ScriptRGB),
+    DrawMessages(ScriptRect, String, f32, ScriptRGB),
 }
 
 // --- ScriptDraw
@@ -201,6 +202,10 @@ impl ScriptDraw {
 
     pub fn text(&mut self, pos: ScriptPosition, text: &str, font_name: &str, size: f64, rgb: ScriptRGB) {
         self.commands.push(ScriptDrawCmd::DrawText(pos, text.to_owned(), font_name.to_owned(), size as f32, rgb));
+    }
+
+    pub fn messages(&mut self, rect: ScriptRect, font_name: &str, size: f64, rgb: ScriptRGB) {
+        self.commands.push(ScriptDrawCmd::DrawMessages(rect, font_name.to_owned(), size as f32, rgb));
     }
 
     pub fn game(&mut self, rect: ScriptRect) {
