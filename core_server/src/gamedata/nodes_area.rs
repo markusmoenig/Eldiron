@@ -28,7 +28,9 @@ pub fn enter_area(region_id: usize, id: (usize, usize), data: &mut GameData, beh
                             data.area_characters.insert((region_id, id.0), vec![character_data.index]);
                         } else
                         if let Some(area_list) = data.area_characters.get_mut(&(region_id, id.0)) {
-                            area_list.push(character_data.index);
+                            if area_list.contains(&character_data.index) == false {
+                                area_list.push(character_data.index);
+                            }
                         }
 
                         // Check if the character existed already in the area in the previous tick
@@ -67,13 +69,13 @@ pub fn enter_area(region_id: usize, id: (usize, usize), data: &mut GameData, beh
 /// Leave Area
 pub fn leave_area(region_id: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    let mut leave_everyone = true;
+    // let mut leave_everyone = true;
 
-    if let Some(value) = get_node_value((id.0, id.1, "character"), data, behavior_type, region_id) {
-        if value.0 == 1.0 {
-            leave_everyone = false;
-        }
-    }
+    // if let Some(value) = get_node_value((id.0, id.1, "character"), data, behavior_type, region_id) {
+    //     if value.0 == 1.0 {
+    //         leave_everyone = false;
+    //     }
+    // }
 
     let mut enter_everyone = true;
 
@@ -142,7 +144,9 @@ pub fn inside_area(region_id: usize, id: (usize, usize), data: &mut GameData, _b
                             data.area_characters.insert((region_id, id.0), vec![character_data.index]);
                         } else
                         if let Some(area_list) = data.area_characters.get_mut(&(region_id, id.0)) {
-                            area_list.push(character_data.index);
+                            if area_list.contains(&character_data.index) == false {
+                                area_list.push(character_data.index);
+                            }
                         }
                         found_character = true;
                     }
@@ -248,11 +252,27 @@ pub fn message_area(region_id: usize, id: (usize, usize), data: &mut GameData, b
     if let Some(area_list) = data.area_characters.get(&(region_id, id.0)) {
 
         let message_data = MessageData { message_type, message: text.clone(), from: "System".to_string() };
-
         for index in area_list {
             data.instances[*index].messages.push(message_data.clone());
         }
+    }
+    BehaviorNodeConnector::Fail
+}
 
+
+/// Audio Area
+pub fn audio_area(region_id: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    if let Some(value) = get_node_value((id.0, id.1, "audio"), data, behavior_type, 0) {
+
+        if value.4.is_empty() == false {
+            // Somebody is in the area ?
+            if let Some(area_list) = data.area_characters.get(&(region_id, id.0)) {
+                for index in area_list {
+                    data.instances[*index].audio.push(value.4.clone());
+                }
+            }
+        }
     }
     BehaviorNodeConnector::Fail
 }

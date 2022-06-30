@@ -54,6 +54,7 @@ pub enum BehaviorNodeType {
     Settings,
     TeleportArea,                                           // Teleport Characters inside an area
     MessageArea,
+    AudioArea,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -149,6 +150,9 @@ pub struct BehaviorInstance {
 
     // Messages for this player in the current tick
     pub messages                : Vec<MessageData>,
+
+    // Audio files to play for this player in the current tick
+    pub audio                   : Vec<String>,
 
     /// The current player action
     pub action                  : Option<PlayerAction>,

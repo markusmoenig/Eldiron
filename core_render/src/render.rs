@@ -7,6 +7,13 @@ use rhai::{ Engine, Scope, AST, Dynamic };
 
 use core_shared::actions::*;
 
+#[cfg(target_arch = "wasm32")]
+use audio_engine::{AudioEngine, WavDecoder};
+
+#[cfg(feature = "embed_binaries")]
+#[allow(unused_imports)]
+use core_embed_binaries::Embedded;
+
 pub struct GameRender<'a> {
 
     engine                      : Engine,
@@ -14,7 +21,7 @@ pub struct GameRender<'a> {
     ast                         : Option<AST>,
 
     draw2d                      : Draw2D,
-    asset                       : Asset,
+    pub asset                   : Asset,
 
     pub frame                   : Vec<u8>,
     pub width                   : usize,
@@ -27,6 +34,9 @@ pub struct GameRender<'a> {
 
     pub last_position           : (usize, isize, isize),
     pub transition_steps        : isize,
+
+    #[cfg(target_arch = "wasm32")]
+    pub audio_engine            : Option<AudioEngine>
 }
 
 impl GameRender<'_> {
@@ -77,6 +87,14 @@ impl GameRender<'_> {
 
         engine.on_print(|x| println!("{}", x));
 
+        #[cfg(target_arch = "wasm32")]
+        let mut audio_engine : Option<AudioEngine> = None;
+
+        #[cfg(target_arch = "wasm32")]
+        if let Some(audio) = AudioEngine::new().ok() {
+            audio_engine = Some(audio);
+        }
+
         Self {
 
             engine,
@@ -96,6 +114,9 @@ impl GameRender<'_> {
 
             last_position       : (100000, 0, 0),
             transition_steps    : 10,
+
+            #[cfg(target_arch = "wasm32")]
+            audio_engine
         }
     }
 
@@ -170,6 +191,12 @@ impl GameRender<'_> {
             }
         }
 
+        // Play audio
+        if update.audio.is_empty() == false {
+            for m in &update.audio {
+                self.play_audio(m.clone());
+            }
+        }
         None
     }
 
@@ -512,6 +539,7 @@ impl GameRender<'_> {
 
     pub fn mouse_down(&mut self, pos: (usize, usize), player_id: usize) -> (Vec<String>, Option<(String, Option<usize>)>) {
         // Call the draw function
+
         if let Some(ast) = &self.ast {
             let result = self.engine.call_fn_raw(
                             &mut self.scope,
@@ -579,6 +607,52 @@ impl GameRender<'_> {
         }
 
         commands
+    }
+
+    #[allow(unused_variables)]
+    pub fn play_audio(&mut self, name: String) {
+
+        #[cfg(not(feature = "embed_binaries"))]
+        {
+            use rodio::{Decoder, OutputStream, Sink};
+
+            for (index, n) in self.asset.audio_names.iter().enumerate() {
+                if *n == name {
+
+                    let file = std::io::BufReader::new(std::fs::File::open(self.asset.audio_paths[index].clone()).unwrap());
+
+                    let handle = std::thread::spawn(move || {
+
+                        let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+                        let sink = Sink::try_new(&stream_handle).unwrap();
+
+                        sink.set_volume(0.5);
+                        let source = Decoder::new(file).unwrap();
+
+                        sink.append(source);
+                        sink.sleep_until_end();
+                    });
+                }
+
+                break;
+            }
+        }
+
+        #[cfg(feature = "embed_binaries")]
+        {
+            // for (index, n) in self.asset.audio_names.iter().enumerate() {
+            //     if *n == name {
+            //         if let Some(bytes) = Embedded::get(self.asset.audio_paths[index].to_str().unwrap()) {
+            //             if let Some(audio_engine) = &self.audio_engine {
+            //                 if let Some(mut sound) = audio_engine.new_sound(WavDecoder::new(std::io::Cursor::new(bytes.data))).ok() {
+            //                     sound.play();
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
+        }
+
     }
 
 }

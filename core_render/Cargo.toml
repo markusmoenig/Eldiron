@@ -22,6 +22,9 @@ rand = "0.8.5"
 rhai = "*"
 regex = "1.5"
 colori = "0.1.1"
+audio-engine = "0.2.3"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rodio = "0.15.0"
 
 [features]
 default = []

@@ -125,7 +125,7 @@ impl EditorOptions for RegionOptions {
 
         node_list.add_group_list(context.color_green, context.color_light_green, vec!["Enter Area".to_string(), "Leave Area".to_string(), "Inside Area".to_string(), "Spawn".to_string()]);
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Displace Tiles".to_string(),  "Message Area".to_string(), "Teleport Area".to_string()]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio Area".to_string(), "Displace Tiles".to_string(),  "Message Area".to_string(), "Teleport Area".to_string()]);
 
         node_list.set_rect((rect.0 + 10, rect.1 + 180, rect.2 - 20, rect.3 - 180), asset, context);
         behavior_widgets.push(node_list);

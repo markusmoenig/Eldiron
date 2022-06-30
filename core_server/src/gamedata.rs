@@ -414,6 +414,7 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::DisplaceTiles, nodes_area::displace_tiles);
         nodes.insert(BehaviorNodeType::TeleportArea, nodes_area::teleport_area);
         nodes.insert(BehaviorNodeType::MessageArea, nodes_area::message_area);
+        nodes.insert(BehaviorNodeType::AudioArea, nodes_area::audio_area);
 
         nodes.insert(BehaviorNodeType::Move, nodes::player_move);
 
@@ -785,7 +786,7 @@ impl GameData<'_> {
 
             let index = self.instances.len();
 
-            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![]};
+            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![] };
 
             // Make sure id is unique
             let mut has_id_already = true;
@@ -858,7 +859,7 @@ impl GameData<'_> {
 
         let index = self.instances.len();
 
-        let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.data.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::GameLogic, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![]};
+        let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.data.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::GameLogic, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![]};
 
         // Make sure id is unique
         let mut has_id_already = true;
@@ -1299,6 +1300,7 @@ impl GameData<'_> {
         for inst_index in 0..self.instances.len() {
 
             self.instances[inst_index].messages = vec![];
+            self.instances[inst_index].audio = vec![];
 
             // Skip Sleep cycles
             if self.instances[inst_index].sleep_cycles > 0 {
@@ -1456,6 +1458,7 @@ impl GameData<'_> {
                     displacements,
                     characters,
                     messages                : self.instances[inst_index].messages.clone(),
+                    audio                   : self.instances[inst_index].audio.clone(),
                  };
 
                 self.instances[inst_index].update = serde_json::to_string(&update).ok();
@@ -1517,7 +1520,9 @@ impl GameData<'_> {
     /// Locally poll a player update, this is used for local single player games
     pub fn poll_update(&mut self, player_id: usize) -> Option<String> {
         if let Some(index) = self.player_ids_inst_indices.get(&player_id) {
-            return self.instances[*index].update.clone();
+            let upd = self.instances[*index].update.clone();
+            //self.instances[*index].update = None;
+            return upd;
         }
         None
     }

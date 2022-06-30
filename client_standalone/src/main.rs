@@ -75,6 +75,19 @@ fn main() -> Result<(), Error> {
 
         if let Event::RedrawRequested(_) = event {
 
+            let curr_time = get_time();
+
+            // Game tick ?
+            if curr_time > game_tick_timer + GAME_TICK_IN_MS {
+                // let start = get_time();
+                game.tick();
+                // let stop = get_time();
+                // println!("tick time {:?}", stop - start);
+                //window.request_redraw();
+                game_tick_timer = curr_time;
+                anim_counter = anim_counter.wrapping_add(1);
+            }
+
             // Poll the update and draw it
             if let Some(update_string) = game.poll_update(131313) {
                 let update = serde_json::from_str::<GameUpdate>(&update_string).ok();
@@ -268,16 +281,17 @@ fn main() -> Result<(), Error> {
 
             let curr_time = get_time();
 
-            // Game tick ?
-            if curr_time > game_tick_timer + GAME_TICK_IN_MS {
-                // let start = get_time();
-                game.tick();
-                // let stop = get_time();
-                // println!("tick time {:?}", stop - start);
-                window.request_redraw();
-                game_tick_timer = curr_time;
-                anim_counter = anim_counter.wrapping_add(1);
-            } else {
+            // // Game tick ?
+            // if curr_time > game_tick_timer + GAME_TICK_IN_MS {
+            //     // let start = get_time();
+            //     game.tick();
+            //     // let stop = get_time();
+            //     // println!("tick time {:?}", stop - start);
+            //     window.request_redraw();
+            //     game_tick_timer = curr_time;
+            //     anim_counter = anim_counter.wrapping_add(1);
+            // } else
+            {
 
                 // If not, lets see if we need to redraw for the target fps
                 // 4 is the target fps here, for now hardcoded

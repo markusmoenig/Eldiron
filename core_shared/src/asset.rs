@@ -15,6 +15,9 @@ pub struct Asset {
 
     pub game_fonts              : HashMap<String, Font>,
     pub editor_fonts            : HashMap<String, Font>,
+
+    pub audio_names             : Vec<String>,
+    pub audio_paths             : Vec<PathBuf>,
 }
 
 impl Asset  {
@@ -25,6 +28,8 @@ impl Asset  {
             tileset             : tileset::TileSet::new(),
             game_fonts          : HashMap::new(),
             editor_fonts        : HashMap::new(),
+            audio_names         : vec![],
+            audio_paths         : vec![],
         }
     }
 
@@ -65,6 +70,23 @@ impl Asset  {
                 }
             }
         }
+
+        // Collect audio files
+
+        let font_path = path.join("assets").join("audio");
+        let paths = std::fs::read_dir(font_path).unwrap();
+
+        for path in paths {
+            // Generate the tile map for this dir element
+            let path = &path.unwrap().path();
+
+            if path.is_file() && path.extension().map(|s| s == "wav").unwrap_or(false) {
+                let mut name = std::path::Path::new(&path).file_stem().unwrap().to_str().unwrap().to_string();
+                name = format!("{}.{}", name, std::path::Path::new(&path).extension().unwrap().to_str().unwrap());
+                self.audio_names.push(name.to_string());
+                self.audio_paths.push(path.clone());
+            }
+        }
     }
 
     #[cfg(feature = "embed_binaries")]
@@ -81,6 +103,15 @@ impl Asset  {
                         self.game_fonts.insert(buf.file_stem().unwrap().to_os_string().into_string().unwrap(), font);
                     }
                 }
+            } else
+            if name.starts_with("assets/audio/") {
+                let buf = std::path::Path::new(name);
+                let mut cut_out = name.clone().to_string();
+                cut_out.replace_range(0..13, "");
+                if cut_out.starts_with(".") == false {
+                    self.audio_names.push(cut_out);
+                    self.audio_paths.push(buf.to_path_buf());
+                }
             }
         }
     }
@@ -95,4 +126,5 @@ impl Asset  {
         let map = self.get_map_of_id(id.0);
         map.get_tile(&(id.1, id.2))
     }
+
 }

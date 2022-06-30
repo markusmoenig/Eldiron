@@ -81,14 +81,11 @@ impl GameRegion {
         spl.next();
         let name = spl.next().unwrap();
 
-        let area_path = format!("game/regions/{}/area_", name);
-        for file in Embedded::iter() {
-            let name = file.as_ref();
+        for a in &data.areas {
+            let name = format!("game/regions/{}/area_{}.json", name, a.id);
 
-            if name.starts_with(area_path.as_str()) {
-                let behavior = GameBehavior::load_from_embedded(name);
-                behaviors.push(behavior);
-            }
+            let behavior = GameBehavior::load_from_embedded(name.as_str());
+            behaviors.push(behavior);
         }
 
         Self {

@@ -20,6 +20,7 @@ png = "0.17.2"
 env_logger = "0.9"
 log = "0.4"
 console_log = "0.2"
+cpal = "0.13.5"
 
 [features]
 default = ["embed_binaries"]

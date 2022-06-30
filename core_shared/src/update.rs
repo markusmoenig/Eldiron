@@ -26,6 +26,9 @@ pub struct GameUpdate {
 
     /// Messages
     pub messages                : Vec<MessageData>,
+
+    /// Audio files to play
+    pub audio                   : Vec<String>,
 }
 
 impl GameUpdate {
@@ -39,7 +42,8 @@ impl GameUpdate {
             region              : None,
             displacements       : HashMap::new(),
             characters          : vec![],
-            messages            : vec![]
+            messages            : vec![],
+            audio               : vec![],
         }
     }
 }
