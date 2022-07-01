@@ -34,6 +34,8 @@ pub struct GameRender<'a> {
 
     pub last_position           : (usize, isize, isize),
     pub transition_steps        : isize,
+    pub transition_counter      : isize,
+    pub transition_active       : bool,
 
     #[cfg(target_arch = "wasm32")]
     pub audio_engine            : Option<AudioEngine>
@@ -113,7 +115,9 @@ impl GameRender<'_> {
             messages            : vec![],
 
             last_position       : (100000, 0, 0),
-            transition_steps    : 10,
+            transition_steps    : 5,
+            transition_counter  : 0,
+            transition_active   : false,
 
             #[cfg(target_arch = "wasm32")]
             audio_engine
@@ -131,6 +135,8 @@ impl GameRender<'_> {
                 if let Some(ast) = result.ok() {
 
                     self.messages = vec![];
+                    self.last_position = (100000, 0, 0);
+                    self.transition_active = false;
 
                     self.scope = Scope::new();
                     self.scope.set_value("width", 1024 as i64);
@@ -382,7 +388,45 @@ impl GameRender<'_> {
                     },
                     ScriptDrawCmd::DrawGame(rect) => {
                         if rect.is_safe(self.width, self.height) {
-                            self.draw_game_rect(rect.rect, anim_counter, update);
+                            if let Some(position) = update.position {
+
+                                if self.transition_active == false {
+                                    if position.0 != self.last_position.0 && self.last_position.0 != 100000 {
+                                        // Start transition
+                                        self.transition_active = true;
+                                        self.transition_counter = 1;
+                                    } else {
+                                        self.last_position = position;
+                                    }
+                                }
+
+
+                                if self.transition_active {
+                                    self.draw_game_rect(rect.rect, self.last_position, anim_counter, update, None);
+
+                                    let mut r = rect.rect.clone();
+
+                                    let start_x = r.0 + r.2 / 2;// - self.tile_size / 2;
+                                    let step_x = (r.2 / self.transition_steps as usize) as f32;
+
+                                    r.0 = start_x - (((step_x * self.transition_counter as f32) / 2.0)) as usize;
+                                    r.2 = (step_x * self.transition_counter as f32) as usize;
+
+                                    //println!("{} {}", rect.rect.2, r.2);
+
+                                    self.draw_game_rect(r, position, anim_counter, update, Some([0, 0, 0, 255]));
+
+                                    self.transition_counter += 1;
+                                    if self.transition_counter == self.transition_steps {
+                                        self.transition_active = false;
+                                        self.last_position = position;
+                                    }
+                                }
+
+                                if self.transition_active == false {
+                                    self.draw_game_rect(rect.rect, position, anim_counter, update, None);
+                                }
+                            }
                         }
                     },
                     ScriptDrawCmd::DrawRegion(_name, _rect, _size) => {
@@ -408,7 +452,7 @@ impl GameRender<'_> {
     }
 
     /// Draws the game in the given rect
-    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), anim_counter: usize, update: &GameUpdate) {
+    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), position: (usize, isize, isize), anim_counter: usize, update: &GameUpdate, clear:  Option<[u8; 4]>) {
 
         //self.draw2d.draw_rect(&mut self.frame[..], &rect, self.width, &[0, 0, 0, 255]);
 
@@ -421,67 +465,68 @@ impl GameRender<'_> {
         let x_tiles = (rect.2 / tile_size) as isize;
         let y_tiles = (rect.3 / tile_size) as isize;
 
-        if let Some(position) = update.position {
+        if let Some(region) = self.regions.get(&position.0) {
 
-            if let Some(region) = self.regions.get(&position.0) {
+            let mut offset = (0, 0);
+            offset.0 = position.1;
+            offset.1 = position.2;
 
-                let mut offset = (0, 0);
-                offset.0 = position.1;
-                offset.1 = position.2;
+            let region_width = region.max_pos.0 - region.min_pos.0;
+            let region_height = region.max_pos.1 - region.min_pos.1;
 
-                let region_width = region.max_pos.0 - region.min_pos.0;
-                let region_height = region.max_pos.1 - region.min_pos.1;
-
-                if region_width * tile_size as isize  <= rect.2 as isize {
-                    offset.0 = region.min_pos.0;
-                } else {
-                    let left = x_tiles / 2;
-                    offset.0 -= left;
-                }
-
-                if region_height * tile_size as isize  <= rect.3 as isize {
-                    offset.1 = region.min_pos.1;
-                } else {
-                    let top = y_tiles / 2;
-                    offset.1 -= top;
-                }
-
-                // Draw Region
-                for y in 0..y_tiles {
-                    for x in 0..x_tiles {
-
-                        let values = self.get_region_value(region, (x + offset.0, y + offset.1), update);
-                        for value in values {
-                            let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
-
-                            let map = self.asset.get_map_of_id(value.0);
-                            self.draw2d.draw_animated_tile(&mut self.frame[..], &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
-                        }
-                    }
-                }
-
-                // Draw Characters
-                for character in &update.characters {
-
-                    let position = character.position;
-                    let tile = character.tile;
-
-                    // Row check
-                    if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
-                        // Column check
-                        if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
-                            // Visible
-                            let pos = (rect.0 + left_offset + ((position.1 - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.2 - offset.1) as usize) * tile_size);
-
-                            let map = self.asset.get_map_of_id(tile.0);
-                            self.draw2d.draw_animated_tile(&mut self.frame[..], &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size);
-                        }
-                    }
-                }
+            if region_width * tile_size as isize  <= rect.2 as isize {
+                offset.0 = region.min_pos.0;
             } else {
-                println!("Region not found");
+                let left = x_tiles / 2;
+                offset.0 -= left;
             }
+
+            if region_height * tile_size as isize  <= rect.3 as isize {
+                offset.1 = region.min_pos.1;
+            } else {
+                let top = y_tiles / 2;
+                offset.1 -= top;
+            }
+
+            // Draw Region
+            for y in 0..y_tiles {
+                for x in 0..x_tiles {
+
+                    let values = self.get_region_value(region, (x + offset.0, y + offset.1), update);
+                    for value in values {
+                        let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
+
+                        if clear.is_some() {
+                            self.draw2d.draw_rect(&mut self.frame[..], &(pos.0, pos.1, tile_size, tile_size), stride, &clear.unwrap());
+                        }
+                        let map = self.asset.get_map_of_id(value.0);
+                        self.draw2d.draw_animated_tile(&mut self.frame[..], &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
+                    }
+                }
+            }
+
+            // Draw Characters
+            for character in &update.characters {
+
+                let position = character.position;
+                let tile = character.tile;
+
+                // Row check
+                if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
+                    // Column check
+                    if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
+                        // Visible
+                        let pos = (rect.0 + left_offset + ((position.1 - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.2 - offset.1) as usize) * tile_size);
+
+                        let map = self.asset.get_map_of_id(tile.0);
+                        self.draw2d.draw_animated_tile(&mut self.frame[..], &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size);
+                    }
+                }
+            }
+        } else {
+            println!("Region not found");
         }
+
     }
 
     /// Gets the given region value
