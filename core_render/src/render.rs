@@ -1,5 +1,5 @@
 
-use std::{path::PathBuf, collections::HashMap};
+use std::{path::PathBuf, collections::{HashMap, HashSet}};
 
 use core_shared::{asset::{Asset, TileUsage}, update::GameUpdate, regiondata::GameRegionData, message::MessageData};
 use crate::{draw2d::Draw2D, script_types::*};
@@ -395,6 +395,7 @@ impl GameRender<'_> {
                                         // Start transition
                                         self.transition_active = true;
                                         self.transition_counter = 1;
+                                        self.transition_steps = 6;
                                     } else {
                                         self.last_position = position;
                                     }
@@ -402,29 +403,35 @@ impl GameRender<'_> {
 
 
                                 if self.transition_active {
-                                    self.draw_game_rect(rect.rect, self.last_position, anim_counter, update, None);
+                                    self.draw_game_rect(rect.rect, self.last_position, anim_counter, update, None, None);
 
                                     let mut r = rect.rect.clone();
 
-                                    let start_x = r.0 + r.2 / 2;// - self.tile_size / 2;
-                                    let step_x = (r.2 / self.transition_steps as usize) as f32;
+                                    let mut set: HashSet<(isize, isize)> = HashSet::new();
 
-                                    r.0 = start_x - (((step_x * self.transition_counter as f32) / 2.0)) as usize;
+                                    let x_tiles = rect.rect.2 / self.tile_size;
+
+                                    let step_x = (x_tiles as f32 / self.transition_steps as f32) as f32;
+
+                                    r.0 = x_tiles / 2 - (((step_x * self.transition_counter as f32) / 2.0)) as usize;
                                     r.2 = (step_x * self.transition_counter as f32) as usize;
 
-                                    //println!("{} {}", rect.rect.2, r.2);
+                                    for y in 0..r.3 {
+                                        for x in r.0..r.0+r.2 {
+                                            set.insert((x as isize, y as isize));
+                                        }
+                                    }
 
-                                    self.draw_game_rect(r, position, anim_counter, update, Some([0, 0, 0, 255]));
+                                    self.draw_game_rect(rect.rect, position, anim_counter, update, Some([0, 0, 0, 255]), Some(set));
 
                                     self.transition_counter += 1;
                                     if self.transition_counter == self.transition_steps {
                                         self.transition_active = false;
                                         self.last_position = position;
                                     }
-                                }
-
+                                } else
                                 if self.transition_active == false {
-                                    self.draw_game_rect(rect.rect, position, anim_counter, update, None);
+                                    self.draw_game_rect(rect.rect, position, anim_counter, update, None, None);
                                 }
                             }
                         }
@@ -452,7 +459,7 @@ impl GameRender<'_> {
     }
 
     /// Draws the game in the given rect
-    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), position: (usize, isize, isize), anim_counter: usize, update: &GameUpdate, clear:  Option<[u8; 4]>) {
+    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), position: (usize, isize, isize), anim_counter: usize, update: &GameUpdate, clear:  Option<[u8; 4]>, set: Option<HashSet<(isize, isize)>>) {
 
         //self.draw2d.draw_rect(&mut self.frame[..], &rect, self.width, &[0, 0, 0, 255]);
 
@@ -496,9 +503,16 @@ impl GameRender<'_> {
                     for value in values {
                         let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
+                        if let Some(set) = &set {
+                            if set.contains(&(x, y)) == false {
+                                continue;
+                            }
+                        }
+
                         if clear.is_some() {
                             self.draw2d.draw_rect(&mut self.frame[..], &(pos.0, pos.1, tile_size, tile_size), stride, &clear.unwrap());
                         }
+
                         let map = self.asset.get_map_of_id(value.0);
                         self.draw2d.draw_animated_tile(&mut self.frame[..], &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
                     }
@@ -517,6 +531,12 @@ impl GameRender<'_> {
                     if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
                         // Visible
                         let pos = (rect.0 + left_offset + ((position.1 - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.2 - offset.1) as usize) * tile_size);
+
+                        if let Some(set) = &set {
+                            if set.contains(&(((pos.0 - rect.0) / self.tile_size) as isize, ((pos.1 - rect.1) / self.tile_size) as isize)) == false {
+                                continue;
+                            }
+                        }
 
                         let map = self.asset.get_map_of_id(tile.0);
                         self.draw2d.draw_animated_tile(&mut self.frame[..], &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size);
