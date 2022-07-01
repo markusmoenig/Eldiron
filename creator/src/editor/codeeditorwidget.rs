@@ -245,7 +245,7 @@ impl CodeEditorWidget {
 
     fn get_height(&mut self) -> usize{
         if self.size == CodeEditorSize::Small {
-            return 240;
+            return 250;
         }
         if self.size == CodeEditorSize::Medium {
             return self.rect.3 / 2;

@@ -565,7 +565,7 @@ impl AtomWidget {
 
                         context.draw2d.draw_rounded_rect(buffer_frame, &r, rect.2, &(self.rect.2 as f64, 32.0), &color, &rounding);
                         if self.centered_text == false {
-                            context.draw2d.draw_text(buffer_frame, &(r.0 + 25, r.1 + 4), rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.groups[g_index].items[i_index].text, &text_color, &color);
+                            context.draw2d.draw_text(buffer_frame, &(r.0 + 15, r.1 + 4), rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.groups[g_index].items[i_index].text, &text_color, &color);
                         } else {
                             context.draw2d.draw_text_rect(buffer_frame, &r, rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.groups[g_index].items[i_index].text, &text_color, &color, draw2d::TextAlignment::Center);
                         }
