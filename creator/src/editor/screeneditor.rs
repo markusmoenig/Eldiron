@@ -266,7 +266,7 @@ impl EditorContent for ScreenEditor<'_> {
     /// Screen is opening
     fn opening(&mut self, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
 
-        self.game_render = Some(GameRender::new(context.curr_project_path.clone()));
+        self.game_render = Some(GameRender::new(context.curr_project_path.clone(), context.player_id));
 
         if let Some(render) = &mut self.game_render {
             let mut update = GameUpdate::new();

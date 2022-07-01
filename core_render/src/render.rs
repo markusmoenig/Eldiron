@@ -37,6 +37,8 @@ pub struct GameRender<'a> {
     pub transition_counter      : isize,
     pub transition_active       : bool,
 
+    pub player_id               : usize,
+
     #[cfg(target_arch = "wasm32")]
     pub audio_engine            : Option<AudioEngine>
 }
@@ -44,7 +46,7 @@ pub struct GameRender<'a> {
 impl GameRender<'_> {
 
     #[allow(unused)]
-    pub fn new(path: PathBuf) -> Self {
+    pub fn new(path: PathBuf, player_id: usize) -> Self {
 
         let mut asset = Asset::new();
         #[cfg(not(feature = "embed_binaries"))]
@@ -76,6 +78,9 @@ impl GameRender<'_> {
 
         engine.register_type_with_name::<ScriptCmd>("Cmd")
             .register_fn("move", ScriptCmd::cmd_move);
+
+        engine.register_type_with_name::<ScriptMessageCmd>("MessageCmd")
+            .register_fn("status", ScriptMessageCmd::status);
 
         engine.register_type_with_name::<ScriptRect>("Rect")
             .register_fn("rect", ScriptRect::new);
@@ -119,6 +124,8 @@ impl GameRender<'_> {
             transition_counter  : 0,
             transition_active   : false,
 
+            player_id,
+
             #[cfg(target_arch = "wasm32")]
             audio_engine
         }
@@ -144,6 +151,7 @@ impl GameRender<'_> {
                     self.scope.set_value("tile_size", 32 as i64);
                     self.scope.set_value("draw", ScriptDraw::new());
                     self.scope.set_value("cmd", ScriptCmd::new());
+                    self.scope.set_value("message", ScriptMessageCmd::new());
 
                     let mut tilemaps = ScriptTilemaps::new();
                     for index in 0..self.asset.tileset.maps_names.len() {
@@ -178,6 +186,8 @@ impl GameRender<'_> {
                     }
 
                     self.ast = Some(ast);
+
+                    self.process_cmds(self.player_id);
                 }
             } else
             if let Some(err) = result.err() {
@@ -669,6 +679,21 @@ impl GameRender<'_> {
 
             cmd.clear();
             self.scope.set_value("cmd", cmd);
+        }
+
+        if let Some(mut cmd) = self.scope.get_value::<ScriptMessageCmd>("message") {
+
+            for cmd in &cmd.messages {
+
+                match cmd {
+                    ScriptMessage::Status(message) => {
+                        self.messages.push(MessageData { message_type: core_shared::message::MessageType::Status, message: message.clone(), from: "System".to_string() });
+                    }
+                }
+            }
+
+            cmd.clear();
+            self.scope.set_value("message", cmd);
         }
 
         commands

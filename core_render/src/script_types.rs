@@ -221,6 +221,34 @@ impl ScriptDraw {
     }
 }
 
+// --- ScriptMessage
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum ScriptMessage {
+    Status(String),
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct ScriptMessageCmd {
+    pub messages            : Vec<ScriptMessage>
+}
+
+impl ScriptMessageCmd {
+    pub fn new() -> Self {
+        Self {
+            messages        : vec![],
+        }
+    }
+
+    pub fn status(&mut self, message: &str) {
+        self.messages.push(ScriptMessage::Status(message.to_owned()));
+    }
+
+    pub fn clear(&mut self) {
+        self.messages.clear();
+    }
+}
+
 // --- ScriptCommand
 
 #[derive(PartialEq, Clone, Debug)]

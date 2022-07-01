@@ -122,7 +122,7 @@ async fn run() {
     let mut game_rect = (0, 0, 0, 0);
 
     // Init renderer
-    let mut render = GameRender::new(PathBuf::new());
+    let mut render = GameRender::new(PathBuf::new(), player_id);
 
     let mut anim_counter : usize = 0;
     let mut timer : u128 = 0;
