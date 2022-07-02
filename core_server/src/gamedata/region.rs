@@ -1,3 +1,5 @@
+use core_shared::property::Property;
+use core_shared::property::PropertySink;
 use rand::prelude::*;
 
 use std::fs;
@@ -7,7 +9,6 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 
 use core_shared::regiondata::{ GameRegionData, RegionArea };
-use core_shared::settings_region::RegionSettings;
 use core_shared::asset::tileset::TileUsage;
 use core_shared::asset::Asset;
 
@@ -46,7 +47,7 @@ impl GameRegion {
                     min_pos     : (10000,10000),
                     max_pos     : (-10000, -10000),
                     areas       : vec![],
-                    settings    : RegionSettings::new(),
+                    settings    : Some(generate_region_sink()),
                 });
 
         // Read the behaviors
@@ -87,7 +88,7 @@ impl GameRegion {
             min_pos     : (10000,10000),
             max_pos     : (-10000, -10000),
             areas       : vec![],
-            settings    : RegionSettings::new(),
+            settings    : Some(generate_region_sink()),
         };
 
         if let Some(bytes) = Embedded::get(file_name) {
@@ -308,4 +309,16 @@ impl GameRegion {
         }
     }
 
+}
+
+// Generate region sink
+
+pub fn generate_region_sink() -> PropertySink {
+    let mut sink = PropertySink::new();
+
+    if sink.contains("lighting") == false {
+        sink.push(Property::new_string("lighting".to_string(), "off".to_string()));
+    }
+
+    sink
 }

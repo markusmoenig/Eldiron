@@ -4,4 +4,4 @@ pub mod regiondata;
 pub mod characterdata;
 pub mod update;
 pub mod message;
-pub mod settings_region;
+pub mod property;

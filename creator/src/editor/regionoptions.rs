@@ -203,11 +203,9 @@ impl EditorOptions for RegionOptions {
                         if let Some(content) = content {
                             if let Some(region) = context.data.regions.get_mut(&content.get_region_id()) {
 
-                                let json = serde_json::to_string_pretty(&region.data.settings).unwrap();
-
                                 context.code_editor_is_active = true;
                                 context.code_editor_just_opened = true;
-                                context.code_editor_node_behavior_value.4 = json;
+                                context.code_editor_node_behavior_value.4 = region.data.settings.as_ref().unwrap().to_string();
                                 context.code_editor_node_behavior_id.0 = 130000;
                             }
                         }

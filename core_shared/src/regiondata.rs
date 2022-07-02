@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{asset::TileUsage, settings_region::RegionSettings};
+use crate::{asset::TileUsage, property::PropertySink};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct RegionArea {
@@ -30,5 +30,5 @@ pub struct GameRegionData {
     pub max_pos         : (isize, isize),
     pub areas           : Vec<RegionArea>,
 
-    pub settings        : RegionSettings,
+    pub settings        : Option<PropertySink>,
 }

@@ -436,15 +436,15 @@ impl ScreenWidget for Editor<'_> {
                 // Region settings ?
                 if self.state == EditorState::RegionDetail && self.context.code_editor_node_behavior_id.0 == 130000 {
 
-                    let data = serde_json::from_str(&self.context.code_editor_value);
+                    //let data = serde_json::from_str(&self.context.code_editor_value);
 
-                    if data.is_ok() {
+                    //if data.is_ok() {
                         let id = self.content[self.state as usize].1.as_mut().unwrap().get_region_id();
                         if let Some(region) = self.context.data.regions.get_mut(&id) {
-                            region.data.settings = data.ok().unwrap();
+                            //region.data.settings = data.ok().unwrap();
                             region.save_data();
                         }
-                    }
+                    //}
                 }
 
                 self.context.code_editor_node_behavior_value.4 = self.context.code_editor_value.clone();
