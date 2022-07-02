@@ -2,7 +2,7 @@ use core_shared::asset::{Asset, TileUsage};
 
 use crate::{widget::*, editor::{dialog::{DialogState, DialogEntry}, codeeditorwidget::CodeEditorWidgetState}};
 
-use super::{ context::ScreenDragContext };
+use super::{ context::ScreenDragContext, codeeditor::CodeEditorMode };
 
 pub struct GroupedList {
     color                       : [u8;4],
@@ -928,7 +928,7 @@ impl AtomWidget {
                 }
                 context.code_editor_is_active = true;
                 context.code_editor_just_opened = true;
-                context.code_editor_text_mode = false;
+                context.code_editor_mode = CodeEditorMode::Rhai;
                 context.code_editor_node_behavior_id = self.behavior_id.clone().unwrap();
                 context.code_editor_node_behavior_value = self.atom_data.data.clone();
                 context.code_editor_value = self.atom_data.data.4.clone();
@@ -957,7 +957,7 @@ impl AtomWidget {
                 }
                 context.code_editor_is_active = true;
                 context.code_editor_just_opened = true;
-                context.code_editor_text_mode = false;
+                context.code_editor_mode = CodeEditorMode::Rhai;
                 context.code_editor_node_behavior_id = self.behavior_id.clone().unwrap();
                 context.code_editor_node_behavior_value = self.atom_data.data.clone();
             } else
@@ -969,7 +969,7 @@ impl AtomWidget {
                 }
                 context.code_editor_is_active = true;
                 context.code_editor_just_opened = true;
-                context.code_editor_text_mode = false;
+                context.code_editor_mode = CodeEditorMode::Rhai;
                 context.code_editor_node_behavior_id = self.behavior_id.clone().unwrap();
                 context.code_editor_node_behavior_value = self.atom_data.data.clone();
             } else
@@ -981,7 +981,7 @@ impl AtomWidget {
                 }
                 context.code_editor_is_active = true;
                 context.code_editor_just_opened = true;
-                context.code_editor_text_mode = false;
+                context.code_editor_mode = CodeEditorMode::Rhai;
                 context.code_editor_node_behavior_id = self.behavior_id.clone().unwrap();
                 context.code_editor_node_behavior_value = self.atom_data.data.clone();
             } else
@@ -996,7 +996,7 @@ impl AtomWidget {
                 // context.dialog_node_behavior_value = self.atom_data.data.clone();
                 context.code_editor_is_active = true;
                 context.code_editor_just_opened = true;
-                context.code_editor_text_mode = true;
+                context.code_editor_mode = CodeEditorMode::Text;
                 context.code_editor_node_behavior_id = self.behavior_id.clone().unwrap();
                 context.code_editor_node_behavior_value = self.atom_data.data.clone();
             } else

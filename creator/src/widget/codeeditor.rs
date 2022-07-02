@@ -8,6 +8,13 @@ use fontdue::{ Font, Metrics };
 
 use super::text_editor_trait::TextEditorWidget;
 
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
+pub enum CodeEditorMode {
+    Rhai,
+    Text,
+    //Json,
+}
+
 pub struct CodeEditor {
 
     pub rect                : (usize, usize, usize, usize),
@@ -22,7 +29,7 @@ pub struct CodeEditor {
     pub cursor_rect         : (usize, usize, usize, usize),
 
     needs_update            : bool,
-    text_mode               : bool,
+    mode                    : CodeEditorMode,
 
     text_buffer             : Vec<u8>,
     text_buffer_size        : (usize, usize),
@@ -58,7 +65,7 @@ impl TextEditorWidget for CodeEditor {
             cursor_rect     : (0, 0, 2, 0),
 
             needs_update    : true,
-            text_mode       : false,
+            mode            : CodeEditorMode::Rhai,
 
             text_buffer     : vec![0;1],
             text_buffer_size  : (0, 0),
@@ -88,9 +95,9 @@ impl TextEditorWidget for CodeEditor {
         self.needs_update = true;
     }
 
-    fn set_text_mode(&mut self, value: bool) {
+    fn set_mode(&mut self, mode: CodeEditorMode) {
         self.offset = (0, 0);
-        self.text_mode = value;
+        self.mode = mode;
     }
 
     fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), stride: usize, font: &Font, draw2d: &Draw2D) {
@@ -234,12 +241,12 @@ impl TextEditorWidget for CodeEditor {
 
                     finished = true },
 
-                TokenType::Identifier if self.text_mode == false => { color = self.theme.identifier; printit = true; },
-                TokenType::SingeLineComment if self.text_mode == false => { color = self.theme.comments; printit = true; },
-                TokenType::Number if self.text_mode == false => { color = self.theme.number; printit = true; },
-                TokenType::String if self.text_mode == false => { color = self.theme.string; printit = true; },
-                TokenType::Let if self.text_mode == false => { color = self.theme.keywords; printit = true; },
-                TokenType::Quotation if self.text_mode == false => { color = self.theme.string; printit = true; },
+                TokenType::Identifier if self.mode == CodeEditorMode::Rhai => { color = self.theme.identifier; printit = true; },
+                TokenType::SingeLineComment if self.mode == CodeEditorMode::Rhai => { color = self.theme.comments; printit = true; },
+                TokenType::Number if self.mode == CodeEditorMode::Rhai  => { color = self.theme.number; printit = true; },
+                TokenType::String  if self.mode == CodeEditorMode::Rhai => { color = self.theme.string; printit = true; },
+                TokenType::Let if self.mode == CodeEditorMode::Rhai => { color = self.theme.keywords; printit = true; },
+                TokenType::Quotation if self.mode == CodeEditorMode::Rhai => { color = self.theme.string; printit = true; },
 
                 TokenType::LeftBrace | TokenType::RightBrace | TokenType::LeftParen | TokenType::RightParen | TokenType::Dollar => { color = self.theme.brackets; printit = true; },
 

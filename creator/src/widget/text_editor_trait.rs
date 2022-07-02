@@ -1,5 +1,5 @@
 use fontdue::Font;
-use super::{WidgetKey, draw2d::Draw2D};
+use super::{WidgetKey, draw2d::Draw2D, codeeditor::CodeEditorMode};
 
 #[allow(unused)]
 pub trait TextEditorWidget {
@@ -12,7 +12,7 @@ pub trait TextEditorWidget {
     fn set_text(&mut self, text: String);
     fn set_error(&mut self, error: Option<(String, Option<usize>)>);
 
-    fn set_text_mode(&mut self, value: bool);
+    fn set_mode(&mut self, mode: CodeEditorMode);
 
     fn process_text(&mut self, font: &Font, draw2d: &Draw2D);
     fn set_cursor_offset_from_pos(&mut self, pos: (usize, usize), font: &Font) -> bool;

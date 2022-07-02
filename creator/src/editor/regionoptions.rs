@@ -16,7 +16,8 @@ use crate::editor::traits::{ EditorOptions, EditorContent };
 pub enum RegionEditorMode {
     Tiles,
     Areas,
-    Behavior
+    Behavior,
+    Settings
 }
 
 pub struct RegionOptions {
@@ -40,7 +41,7 @@ impl EditorOptions for RegionOptions {
     AtomData::new_as_int("Mode".to_string(), 0));
         mode_button.drag_enabled = true;
 
-        mode_button.add_group_list([50, 50, 50, 255], [80, 80, 80, 255], vec!["Draw Tiles".to_string(), "Edit Areas".to_string(), "Area Behavior".to_string()]);
+        mode_button.add_group_list([50, 50, 50, 255], [80, 80, 80, 255], vec!["Draw Tiles".to_string(), "Edit Areas".to_string(), "Area Behavior".to_string(), "Settings".to_string()]);
         mode_button.set_rect((rect.0, rect.1 + 10, rect.2, 200), asset, context);
         mode_button.centered_text = true;
         widgets.push(mode_button);
@@ -54,28 +55,28 @@ impl EditorOptions for RegionOptions {
         let mut tilemaps_button = AtomWidget::new(tilemap_names, AtomWidgetType::SliderButton,
         AtomData::new_as_int("Tilemaps".to_string(), 0));
         tilemaps_button.atom_data.text = "Tilemaps".to_string();
-        tilemaps_button.set_rect((rect.0 + 10, rect.1 + 130, rect.2 - 20, 40), asset, context);
+        tilemaps_button.set_rect((rect.0 + 10, rect.1 + 150, rect.2 - 20, 40), asset, context);
         tile_widgets.push(tilemaps_button);
 
         let mut tags_button = AtomWidget::new(vec!["".to_string()], AtomWidgetType::TagsButton,
             AtomData::new_as_int("Tags".to_string(), 0));
-        tags_button.set_rect((rect.0 + 10, rect.1 + 165, rect.2 - 20, 40), asset, context);
+        tags_button.set_rect((rect.0 + 10, rect.1 + 185, rect.2 - 20, 40), asset, context);
         tile_widgets.push(tags_button);
 
         let mut usage_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new_as_int("UsageList".to_string(), 0));
         usage_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Environment".to_string(), "Road".to_string(), "Blocking".to_string(), "Water".to_string(), "UI Element".to_string()]);
 
-        usage_list.set_rect((rect.0 + 10, rect.1 + 210, rect.2 - 20, 200), asset, context);
+        usage_list.set_rect((rect.0 + 10, rect.1 + 230, rect.2 - 20, 200), asset, context);
         tile_widgets.push(usage_list);
 
         let mut layer_button = AtomWidget::new(vec!["1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()], AtomWidgetType::NumberRow, AtomData::new_as_int("Layer".to_string(), 0));
-        layer_button.set_rect((rect.0 + 10, rect.1 + 390, rect.2 - 20, 30), asset, context);
+        layer_button.set_rect((rect.0 + 10, rect.1 + 410, rect.2 - 20, 30), asset, context);
         tile_widgets.push(layer_button);
 
         let mut remap_button = AtomWidget::new(vec!["Remap".to_string()], AtomWidgetType::Button,
         AtomData::new_as_int("remap".to_string(), 0));
-        remap_button.set_rect((rect.0 + 10, rect.1 + rect.3 - 180, rect.2 - 20, 40), asset, context);
+        remap_button.set_rect((rect.0 + 10, rect.1 + rect.3 - 160, rect.2 - 20, 40), asset, context);
         tile_widgets.push(remap_button);
 
         // Area Widgets
@@ -84,31 +85,31 @@ impl EditorOptions for RegionOptions {
         let mut regions_button = AtomWidget::new(vec![], AtomWidgetType::SliderButton,
         AtomData::new_as_int("Area".to_string(), 0));
         regions_button.atom_data.text = "Area".to_string();
-        regions_button.set_rect((rect.0 + 10, rect.1 + 130, rect.2 - 20, 40), asset, context);
+        regions_button.set_rect((rect.0 + 10, rect.1 + 150, rect.2 - 20, 40), asset, context);
         regions_button.state = WidgetState::Disabled;
         area_widgets.push(regions_button);
 
         let mut add_area_button = AtomWidget::new(vec!["Add Area".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Add Area".to_string(), 0));
         //add_area_button.state = WidgetState::Disabled;
-        add_area_button.set_rect((rect.0 + 10, rect.1 + 180, rect.2 - 20, 40), asset, context);
+        add_area_button.set_rect((rect.0 + 10, rect.1 + 200, rect.2 - 20, 40), asset, context);
 
         let mut del_area_button = AtomWidget::new(vec!["Delete".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Delete".to_string(), 0));
         del_area_button.state = WidgetState::Disabled;
-        del_area_button.set_rect((rect.0 + 10, rect.1 + 175 + 40, rect.2 - 20, 40), asset, context);
+        del_area_button.set_rect((rect.0 + 10, rect.1 + 240, rect.2 - 20, 40), asset, context);
 
         let mut rename_area_button = AtomWidget::new(vec!["Rename".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Rename".to_string(), 0));
         rename_area_button.state = WidgetState::Disabled;
-        rename_area_button.set_rect((rect.0 + 10, rect.1 + 175 + 35 + 40, rect.2 - 20, 40), asset, context);
+        rename_area_button.set_rect((rect.0 + 10, rect.1 + 275, rect.2 - 20, 40), asset, context);
 
         let mut area_editing_mode = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new_as_int("EditingMode".to_string(), 0));
         area_editing_mode.drag_enabled = true;
 
         area_editing_mode.add_group_list(context.color_blue, context.color_light_blue, vec!["Add Mode".to_string(), "Remove".to_string()]);
-        area_editing_mode.set_rect((rect.0 + 10, rect.1 + 310, rect.2 - 20, 200), asset, context);
+        area_editing_mode.set_rect((rect.0 + 10, rect.1 + 330, rect.2 - 20, 200), asset, context);
 
         area_widgets.push(add_area_button);
         area_widgets.push(del_area_button);
@@ -127,7 +128,7 @@ impl EditorOptions for RegionOptions {
 
         node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio Area".to_string(), "Displace Tiles".to_string(),  "Message Area".to_string(), "Teleport Area".to_string()]);
 
-        node_list.set_rect((rect.0 + 10, rect.1 + 180, rect.2 - 20, rect.3 - 180), asset, context);
+        node_list.set_rect((rect.0 + 10, rect.1 + 200, rect.2 - 20, rect.3 - 200), asset, context);
         behavior_widgets.push(node_list);
 
         Self {
@@ -176,7 +177,7 @@ impl EditorOptions for RegionOptions {
         if mode == RegionEditorMode::Tiles {
             if let Some(content) = content {
                 if let Some(tile) = content.get_selected_tile() {
-                    context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + self.rect.3 - 120), asset.get_map_of_id(tile.0), context.width, &(tile.1, tile.2), anim_counter, 100);
+                    context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + self.rect.3 - 110), asset.get_map_of_id(tile.0), context.width, &(tile.1, tile.2), anim_counter, 100);
 
                     //context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 22, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("{}, {})", /*tile.0,*/ tile.1, tile.2), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
                 }
@@ -195,6 +196,25 @@ impl EditorOptions for RegionOptions {
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_down(pos, asset, context) {
+
+                if atom.atom_data.id == "Mode" {
+
+                    if atom.curr_item_index == 3 {
+                        if let Some(content) = content {
+                            if let Some(region) = context.data.regions.get_mut(&content.get_region_id()) {
+
+                                let json = serde_json::to_string_pretty(&region.data.settings).unwrap();
+
+                                context.code_editor_is_active = true;
+                                context.code_editor_just_opened = true;
+                                context.code_editor_node_behavior_value.4 = json;
+                                context.code_editor_node_behavior_id.0 = 130000;
+                            }
+                        }
+                    } else {
+                        context.code_editor_is_active = false;
+                    }
+                }
                 return true;
             }
         }
@@ -431,6 +451,7 @@ impl EditorOptions for RegionOptions {
         match mode {
             1 => RegionEditorMode::Areas,
             2 => RegionEditorMode::Behavior,
+            3 => RegionEditorMode::Settings,
             _ => RegionEditorMode::Tiles
         }
     }

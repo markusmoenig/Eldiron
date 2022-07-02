@@ -432,6 +432,21 @@ impl ScreenWidget for Editor<'_> {
 
             // Do we need to update the node from the code editor ?
             if self.context.code_editor_update_node {
+
+                // Region settings ?
+                if self.state == EditorState::RegionDetail && self.context.code_editor_node_behavior_id.0 == 130000 {
+
+                    let data = serde_json::from_str(&self.context.code_editor_value);
+
+                    if data.is_ok() {
+                        let id = self.content[self.state as usize].1.as_mut().unwrap().get_region_id();
+                        if let Some(region) = self.context.data.regions.get_mut(&id) {
+                            region.data.settings = data.ok().unwrap();
+                            region.save_data();
+                        }
+                    }
+                }
+
                 self.context.code_editor_node_behavior_value.4 = self.context.code_editor_value.clone();
                 self.context.dialog_node_behavior_value = self.context.code_editor_node_behavior_value.clone();
                 self.context.dialog_node_behavior_id = self.context.code_editor_node_behavior_id.clone();
@@ -446,7 +461,7 @@ impl ScreenWidget for Editor<'_> {
             }
 
             if self.context.code_editor_just_opened {
-                self.code_editor.set_text_mode(self.context.code_editor_text_mode);
+                self.code_editor.set_mode(self.context.code_editor_mode);
                 self.code_editor.set_code(self.context.code_editor_node_behavior_value.4.clone());
                 self.context.code_editor_just_opened = false;
             }

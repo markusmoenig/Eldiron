@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 
 use core_shared::regiondata::{ GameRegionData, RegionArea };
+use core_shared::settings_region::RegionSettings;
 use core_shared::asset::tileset::TileUsage;
 use core_shared::asset::Asset;
 
@@ -35,7 +36,18 @@ impl GameRegion {
                 .unwrap_or("".to_string());
 
         let data = serde_json::from_str(&contents)
-                .unwrap_or(GameRegionData { layer1: HashMap::new(), layer2: HashMap::new(), layer3: HashMap::new(), layer4: HashMap::new(), id: thread_rng().gen_range(1..=u32::MAX) as usize, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000), areas: vec![] });
+                .unwrap_or(GameRegionData {
+                    layer1      : HashMap::new(),
+                    layer2      : HashMap::new(),
+                    layer3      : HashMap::new(),
+                    layer4      : HashMap::new(),
+                    id          : thread_rng().gen_range(1..=u32::MAX) as usize,
+                    curr_pos    : (0,0),
+                    min_pos     : (10000,10000),
+                    max_pos     : (-10000, -10000),
+                    areas       : vec![],
+                    settings    : RegionSettings::new(),
+                });
 
         // Read the behaviors
         let mut behaviors : Vec<GameBehavior> = vec![];
@@ -65,7 +77,18 @@ impl GameRegion {
     #[cfg(feature = "embed_binaries")]
     pub fn new_from_embedded(file_name: &str) -> Self {
 
-        let mut data = GameRegionData { layer1: HashMap::new(), layer2: HashMap::new(), layer3: HashMap::new(), layer4: HashMap::new(), id: thread_rng().gen_range(1..=u32::MAX) as usize, curr_pos: (0,0), min_pos: (10000,10000), max_pos: (-10000, -10000), areas: vec![] };
+        let mut data = GameRegionData {
+            layer1      : HashMap::new(),
+            layer2      : HashMap::new(),
+            layer3      : HashMap::new(),
+            layer4      : HashMap::new(),
+            id          : thread_rng().gen_range(1..=u32::MAX) as usize,
+            curr_pos    : (0,0),
+            min_pos     : (10000,10000),
+            max_pos     : (-10000, -10000),
+            areas       : vec![],
+            settings    : RegionSettings::new(),
+        };
 
         if let Some(bytes) = Embedded::get(file_name) {
             if let Some(string) = std::str::from_utf8(bytes.data.as_ref()).ok() {

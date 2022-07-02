@@ -1,7 +1,7 @@
 
 use core_shared::asset::{ Asset };
 use crate::widget::WidgetKey;
-use crate::widget::codeeditor::CodeEditor;
+use crate::widget::codeeditor::{CodeEditor, CodeEditorMode};
 use crate::widget::context::ScreenContext;
 use crate::widget::text_editor_trait::TextEditorWidget;
 //use fontdue::Font;
@@ -55,8 +55,8 @@ impl CodeEditorWidget {
         self.dirty = true;
     }
 
-    pub fn set_text_mode(&mut self, value: bool) {
-        self.editor.set_text_mode(value);
+    pub fn set_mode(&mut self, mode: CodeEditorMode) {
+        self.editor.set_mode(mode);
         self.dirty = true;
     }
 
