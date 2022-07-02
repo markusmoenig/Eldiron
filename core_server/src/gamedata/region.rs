@@ -47,7 +47,7 @@ impl GameRegion {
                     min_pos     : (10000,10000),
                     max_pos     : (-10000, -10000),
                     areas       : vec![],
-                    settings    : Some(generate_region_sink()),
+                    settings    : generate_region_sink(),
                 });
 
         // Read the behaviors
@@ -88,7 +88,7 @@ impl GameRegion {
             min_pos     : (10000,10000),
             max_pos     : (-10000, -10000),
             areas       : vec![],
-            settings    : Some(generate_region_sink()),
+            settings    : generate_region_sink(),
         };
 
         if let Some(bytes) = Embedded::get(file_name) {

@@ -1,4 +1,3 @@
-use core_server::gamedata::region::generate_region_sink;
 use core_shared::asset::{ Asset };
 use core_shared::asset::tileset::TileUsage;
 
@@ -334,18 +333,13 @@ impl EditorContent for RegionWidget {
             }
         }
 
-        if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-            region.data.settings = Some(generate_region_sink());
-        }
-
-
         if let Some(options) = options {
             let mode = options.get_editor_mode();
             if mode == RegionEditorMode::Settings {
                 if let Some(region) = context.data.regions.get_mut(&id) {
                     context.code_editor_is_active = true;
                     context.code_editor_just_opened = true;
-                    context.code_editor_node_behavior_value.4 = region.data.settings.as_ref().unwrap().to_string();
+                    context.code_editor_node_behavior_value.4 = region.data.settings.to_string();
                     context.code_editor_node_behavior_id.0 = 130000;
                 }
             }

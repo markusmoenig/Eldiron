@@ -30,5 +30,5 @@ pub struct GameRegionData {
     pub max_pos         : (isize, isize),
     pub areas           : Vec<RegionArea>,
 
-    pub settings        : Option<PropertySink>,
+    pub settings        : PropertySink,
 }
