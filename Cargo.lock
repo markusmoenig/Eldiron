@@ -382,6 +382,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71641288f8f78c00a7d9c0ab4b8d5ffaced54f02a32e6ed3fba3264663ec35bf"
 
 [[package]]
+name = "colors-transform"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9226dbc05df4fb986f48d730b001532580883c4c06c5d1c213f4b34c1c157178"
+
+[[package]]
 name = "combine"
 version = "4.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -552,6 +558,7 @@ dependencies = [
 name = "core_shared"
 version = "0.1.0"
 dependencies = [
+ "colors-transform",
  "console_log",
  "core_embed_binaries",
  "cpal",

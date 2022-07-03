@@ -413,7 +413,7 @@ impl GameRender<'_> {
 
 
                                 if self.transition_active {
-                                    self.draw_game_rect(rect.rect, self.last_position, anim_counter, update, None, None);
+                                    self.draw_game_rect(rect.rect, self.last_position, anim_counter, update, None);
 
                                     let mut r = rect.rect.clone();
 
@@ -432,7 +432,7 @@ impl GameRender<'_> {
                                         }
                                     }
 
-                                    self.draw_game_rect(rect.rect, position, anim_counter, update, Some([0, 0, 0, 255]), Some(set));
+                                    self.draw_game_rect(rect.rect, position, anim_counter, update, Some(set));
 
                                     self.transition_counter += 1;
                                     if self.transition_counter == self.transition_steps {
@@ -441,7 +441,7 @@ impl GameRender<'_> {
                                     }
                                 } else
                                 if self.transition_active == false {
-                                    self.draw_game_rect(rect.rect, position, anim_counter, update, None, None);
+                                    self.draw_game_rect(rect.rect, position, anim_counter, update, None);
                                 }
                             }
                         }
@@ -469,9 +469,7 @@ impl GameRender<'_> {
     }
 
     /// Draws the game in the given rect
-    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), position: (usize, isize, isize), anim_counter: usize, update: &GameUpdate, clear:  Option<[u8; 4]>, set: Option<HashSet<(isize, isize)>>) {
-
-        //self.draw2d.draw_rect(&mut self.frame[..], &rect, self.width, &[0, 0, 0, 255]);
+    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), position: (usize, isize, isize), anim_counter: usize, update: &GameUpdate, set: Option<HashSet<(isize, isize)>>) {
 
         let stride = self.width;
         let tile_size = self.tile_size;
@@ -483,6 +481,19 @@ impl GameRender<'_> {
         let y_tiles = (rect.3 / tile_size) as isize;
 
         if let Some(region) = self.regions.get(&position.0) {
+
+            // Get background color
+            let mut background = [0, 0, 0, 255];
+            if let Some(property) = region.settings.get(&"background") {
+                if let Some(color) = property.to_rgb() {
+                    background = color;
+                }
+            }
+
+            // Clear if not in a transition
+            if set.is_none() {
+                self.draw2d.draw_rect(&mut self.frame[..], &rect, self.width, &background);
+            }
 
             let mut offset = (0, 0);
             offset.0 = position.1;
@@ -519,8 +530,9 @@ impl GameRender<'_> {
                             }
                         }
 
-                        if clear.is_some() {
-                            self.draw2d.draw_rect(&mut self.frame[..], &(pos.0, pos.1, tile_size, tile_size), stride, &clear.unwrap());
+                        if set.is_some() {
+                            self.draw2d.draw_rect(&mut self.frame[..], &(pos.0, pos.1, tile_size, tile_size), stride, &background);
+                            //self.draw2d.draw_rect(&mut self.frame[..], &(pos.0, pos.1, tile_size, tile_size), stride, &clear.unwrap());
                         }
 
                         let map = self.asset.get_map_of_id(value.0);

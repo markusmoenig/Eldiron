@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use colors_transform::{Rgb, Color, AlphaColor};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -44,12 +45,21 @@ impl Property {
         }
     }
 
+    pub fn new_color(name: String, value: String) -> Self {
+
+        Self {
+            name,
+            value               : PropertyValue::Color(value.clone()),
+        }
+    }
+
     pub fn as_int(&self) -> Option<i32> {
         match &self.value {
             PropertyValue::Int(value) => Some(*value),
             PropertyValue::Float(_value) => None,
             PropertyValue::String(_value) => None,
             PropertyValue::Bool(_value) => None,
+            PropertyValue::Color(_value) => None,
         }
     }
 
@@ -59,6 +69,7 @@ impl Property {
             PropertyValue::Float(value) => Some(*value),
             PropertyValue::String(_value) => None,
             PropertyValue::Bool(_value) => None,
+            PropertyValue::Color(_value) => None,
         }
     }
 
@@ -68,6 +79,7 @@ impl Property {
             PropertyValue::Float(_value) => None,
             PropertyValue::String(value) => Some(value.clone()),
             PropertyValue::Bool(_value) => None,
+            PropertyValue::Color(_value) => None,
         }
     }
 
@@ -77,6 +89,32 @@ impl Property {
             PropertyValue::Float(_value) => None,
             PropertyValue::String(_value) => None,
             PropertyValue::Bool(value) => Some(*value),
+            PropertyValue::Color(_value) => None,
+        }
+    }
+
+    pub fn as_color(&self) -> Option<String> {
+        match &self.value {
+            PropertyValue::Int(_value) => None,
+            PropertyValue::Float(_value) => None,
+            PropertyValue::String(_value) => None,
+            PropertyValue::Bool(_value) => None,
+            PropertyValue::Color(value) => Some(value.clone()),
+        }
+    }
+
+    pub fn to_rgb(&self) -> Option<[u8; 4]> {
+        match &self.value {
+            PropertyValue::Int(_value) => None,
+            PropertyValue::Float(_value) => None,
+            PropertyValue::String(_value) => None,
+            PropertyValue::Bool(_value) => None,
+            PropertyValue::Color(value) => {
+                if let Some(rgb) = Rgb::from_hex_str(value).ok() {
+                    return Some([rgb.get_red() as u8, rgb.get_green() as u8, rgb.get_blue() as u8, rgb.get_alpha() as u8]);
+                }
+                None
+            }
         }
     }
 
@@ -89,6 +127,7 @@ impl Property {
             PropertyValue::Float(value) =>  value.to_string(),
             PropertyValue::String(value) => "\"".to_string() + (value.clone() + "\"").as_str(),
             PropertyValue::Bool(value) => value.to_string(),
+            PropertyValue::Color(value) => value.to_string(),
         };
         string += value_string.as_str();
         return string;
@@ -101,7 +140,8 @@ pub enum PropertyValue {
     Int(i32),
     Float(f32),
     String(String),
-    Bool(bool)
+    Bool(bool),
+    Color(String)
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
@@ -132,7 +172,7 @@ impl PropertySink {
 
         while let Some(line) = lines.next() {
 
-            let mut split_comment = line.split("#");
+            let mut split_comment = line.split("//");
 
             if let Some(left_of_comment) = split_comment.next() {
                 if left_of_comment.is_empty() == false {
@@ -161,6 +201,9 @@ impl PropertySink {
                                     chars.next();
                                     chars.next_back();
                                     self.properties.push(Property::new_string(left.to_string(),  chars.as_str().to_string()));
+                                } else
+                                if right.starts_with("#") && Rgb::from_hex_str(right).is_ok() {
+                                    self.properties.push(Property::new_color(left.to_string(), right.to_string()));
                                 } else
                                 // Int ?
                                 if let Some(value) = right.parse::<i32>().ok() {
@@ -207,11 +250,11 @@ impl PropertySink {
     }
 
     /// Get a clone of the given property name, if any
-    pub fn get(&self, name: &String) -> Option<PropertyValue> {
+    pub fn get(&self, name: &str) -> Option<Property> {
 
         for p in &self.properties {
             if p.name == *name {
-                return Some(p.value.clone());
+                return Some(p.clone());
             }
         }
         None
@@ -229,11 +272,12 @@ impl PropertySink {
         for p in & self.properties {
             if let Some(desc) = descriptions.get(&p.name) {
                 for s in desc {
-                    let add = "# ".to_string() + s + "\n";
+                    let add = "// ".to_string() + s + "\n";
                     string += add.as_str();
                 }
             }
             string += (p.to_string() + "\n").as_str();
+            //string += "\n";
         }
 
         string

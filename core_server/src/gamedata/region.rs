@@ -36,7 +36,7 @@ impl GameRegion {
         let contents = fs::read_to_string( level1_path )
                 .unwrap_or("".to_string());
 
-        let data = serde_json::from_str(&contents)
+        let mut data = serde_json::from_str(&contents)
                 .unwrap_or(GameRegionData {
                     layer1      : HashMap::new(),
                     layer2      : HashMap::new(),
@@ -47,8 +47,10 @@ impl GameRegion {
                     min_pos     : (10000,10000),
                     max_pos     : (-10000, -10000),
                     areas       : vec![],
-                    settings    : generate_region_sink(),
+                    settings    : PropertySink::new(),
                 });
+
+        update_region_sink(&mut data.settings);
 
         // Read the behaviors
         let mut behaviors : Vec<GameBehavior> = vec![];
@@ -88,8 +90,10 @@ impl GameRegion {
             min_pos     : (10000,10000),
             max_pos     : (-10000, -10000),
             areas       : vec![],
-            settings    : generate_region_sink(),
+            settings    : PropertySink::new(),
         };
+
+        update_region_sink(&mut data.settings);
 
         if let Some(bytes) = Embedded::get(file_name) {
             if let Some(string) = std::str::from_utf8(bytes.data.as_ref()).ok() {
@@ -313,19 +317,21 @@ impl GameRegion {
 
 // Generate region sink
 
-pub fn generate_region_sink() -> PropertySink {
-    let mut sink = PropertySink::new();
+pub fn update_region_sink(sink: &mut PropertySink) {
+
+    if sink.contains("background") == false {
+        sink.properties.insert(0,Property::new_color("background".to_string(), "#000000".to_string()));
+    }
 
     if sink.contains("lighting") == false {
         sink.push(Property::new_string("lighting".to_string(), "off".to_string()));
     }
-
-    sink
 }
 
 pub fn generate_region_sink_descriptions() -> HashMap<String, Vec<String>> {
     let mut map : HashMap<String, Vec<String>> = HashMap::new();
 
+    map.insert("background".to_string(), vec!["The background color of the region".to_string()]);
     map.insert("lighting".to_string(), vec!["The lighting mode. Use \"off\" for no lighting.".to_string()]);
 
     map

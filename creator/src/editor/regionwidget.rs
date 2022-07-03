@@ -2,6 +2,7 @@ use core_server::gamedata::region::generate_region_sink_descriptions;
 use core_shared::asset::{ Asset };
 use core_shared::asset::tileset::TileUsage;
 
+use crate::widget::codeeditor::CodeEditorMode;
 use crate::widget::context::ScreenContext;
 use crate::editor::{ TileSelectorWidget, NodeGraph, GraphMode };
 use core_server::gamedata::behavior::{ BehaviorType };
@@ -340,6 +341,7 @@ impl EditorContent for RegionWidget {
                 if let Some(region) = context.data.regions.get_mut(&id) {
                     context.code_editor_is_active = true;
                     context.code_editor_just_opened = true;
+                    context.code_editor_mode = CodeEditorMode::Settings;
                     context.code_editor_node_behavior_value.4 = region.data.settings.to_string(generate_region_sink_descriptions());
                     context.code_editor_node_behavior_id.0 = 130000;
                 }

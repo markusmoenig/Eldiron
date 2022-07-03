@@ -12,7 +12,7 @@ use super::text_editor_trait::TextEditorWidget;
 pub enum CodeEditorMode {
     Rhai,
     Text,
-    //Json,
+    Settings,
 }
 
 pub struct CodeEditor {
@@ -241,10 +241,11 @@ impl TextEditorWidget for CodeEditor {
 
                     finished = true },
 
-                TokenType::Identifier if self.mode == CodeEditorMode::Rhai => { color = self.theme.identifier; printit = true; },
-                TokenType::SingeLineComment if self.mode == CodeEditorMode::Rhai => { color = self.theme.comments; printit = true; },
-                TokenType::Number if self.mode == CodeEditorMode::Rhai  => { color = self.theme.number; printit = true; },
-                TokenType::String  if self.mode == CodeEditorMode::Rhai => { color = self.theme.string; printit = true; },
+                TokenType::Identifier if self.mode == CodeEditorMode::Rhai || self.mode == CodeEditorMode::Settings => { color = self.theme.identifier; printit = true; },
+                TokenType::SingeLineComment if self.mode == CodeEditorMode::Rhai || self.mode == CodeEditorMode::Settings => { color = self.theme.comments; printit = true; },
+                TokenType::HexColor if self.mode == CodeEditorMode::Settings => { color = self.theme.string; printit = true; },
+                TokenType::Number if self.mode == CodeEditorMode::Rhai || self.mode == CodeEditorMode::Settings => { color = self.theme.number; printit = true; },
+                TokenType::String  if self.mode == CodeEditorMode::Rhai || self.mode == CodeEditorMode::Settings => { color = self.theme.string; printit = true; },
                 TokenType::Let if self.mode == CodeEditorMode::Rhai => { color = self.theme.keywords; printit = true; },
                 TokenType::Quotation if self.mode == CodeEditorMode::Rhai => { color = self.theme.string; printit = true; },
 

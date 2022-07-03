@@ -24,6 +24,7 @@ pub enum TokenType {
     Quotation,
     Unknown,
     SingeLineComment,
+    HexColor,
 
     // One or two character tokens.
     Bang,
@@ -140,7 +141,7 @@ impl<'sourcecode> Scanner<'sourcecode> {
             b'-' => self.make_token(TokenType::Minus),
             b'+' => self.make_token(TokenType::Plus),
             b'/' if self.matches(b'/') => self.single_line_comment(),
-            b'#' => self.single_line_comment(),
+            b'#' => self.hex_color(),
             b'/' => self.make_token(TokenType::Slash),
             b'*' => self.make_token(TokenType::Star),
             b'!' if self.matches(b'=') => self.make_token(TokenType::BangEqual),
@@ -290,6 +291,13 @@ impl<'sourcecode> Scanner<'sourcecode> {
         }
 
         self.make_token(TokenType::Number)
+    }
+
+    fn hex_color(&mut self) -> Token<'sourcecode> {
+        while self.is_at_end() == false && self.peek() != b'\n' {
+            self.advance();
+        }
+        self.make_token(TokenType::HexColor)
     }
 
     fn single_line_comment(&mut self) -> Token<'sourcecode> {
