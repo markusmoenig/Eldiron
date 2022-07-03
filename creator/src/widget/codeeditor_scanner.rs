@@ -140,6 +140,7 @@ impl<'sourcecode> Scanner<'sourcecode> {
             b'-' => self.make_token(TokenType::Minus),
             b'+' => self.make_token(TokenType::Plus),
             b'/' if self.matches(b'/') => self.single_line_comment(),
+            b'#' => self.single_line_comment(),
             b'/' => self.make_token(TokenType::Slash),
             b'*' => self.make_token(TokenType::Star),
             b'!' if self.matches(b'=') => self.make_token(TokenType::BangEqual),

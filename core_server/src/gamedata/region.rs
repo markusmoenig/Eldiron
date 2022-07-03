@@ -322,3 +322,11 @@ pub fn generate_region_sink() -> PropertySink {
 
     sink
 }
+
+pub fn generate_region_sink_descriptions() -> HashMap<String, Vec<String>> {
+    let mut map : HashMap<String, Vec<String>> = HashMap::new();
+
+    map.insert("lighting".to_string(), vec!["The lighting mode. Use \"off\" for no lighting.".to_string()]);
+
+    map
+}

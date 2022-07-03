@@ -15,6 +15,7 @@ use crate::atom:: { AtomWidget, AtomWidgetType, AtomData };
 use core_render::render::GameRender;
 use core_shared::asset::Asset;
 use core_server::gamedata::behavior::BehaviorType;
+use core_shared::property::PropertySink;
 use core_shared::update::GameUpdate;
 
 use crate::editor::dialog::DialogWidget;
@@ -437,14 +438,20 @@ impl ScreenWidget for Editor<'_> {
                 if self.state == EditorState::RegionDetail && self.context.code_editor_node_behavior_id.0 == 130000 {
 
                     //let data = serde_json::from_str(&self.context.code_editor_value);
+                    let mut sink = PropertySink::new();
+                    if sink.load_from_string(self.context.code_editor_value.clone()) {
 
-                    //if data.is_ok() {
-                        let id = self.content[self.state as usize].1.as_mut().unwrap().get_region_id();
-                        if let Some(region) = self.context.data.regions.get_mut(&id) {
-                            //region.data.settings = data.ok().unwrap();
-                            region.save_data();
-                        }
-                    //}
+                        self.context.code_editor_error = None;
+
+                            let id = self.content[self.state as usize].1.as_mut().unwrap().get_region_id();
+                            if let Some(region) = self.context.data.regions.get_mut(&id) {
+                                region.data.settings = sink;
+                                region.save_data();
+                            }
+                        //}
+                    } else {
+                        self.context.code_editor_error = Some((sink.error.clone().unwrap().1, Some(sink.error.unwrap().0)));
+                    }
                 }
 
                 self.context.code_editor_node_behavior_value.4 = self.context.code_editor_value.clone();

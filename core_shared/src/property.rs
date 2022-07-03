@@ -1,8 +1,10 @@
 
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct Property {
     pub name                    : String,
     pub value                   : PropertyValue,
@@ -15,6 +17,14 @@ impl Property {
         Self {
             name,
             value               : PropertyValue::Int(value),
+        }
+    }
+
+    pub fn new_float(name: String, value: f32) -> Self {
+
+        Self {
+            name,
+            value               : PropertyValue::Float(value),
         }
     }
 
@@ -97,6 +107,8 @@ pub enum PropertyValue {
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
 pub struct PropertySink {
     pub properties              : Vec<Property>,
+
+    pub error                   : Option<(usize, String)>
 }
 
 impl PropertySink {
@@ -104,7 +116,83 @@ impl PropertySink {
     pub fn new() -> Self {
         Self {
             properties          : vec![],
+
+            error               : None
         }
+    }
+
+    /// Returns true if a property by the given name exists in the sink
+    pub fn load_from_string(&mut self, source: String) -> bool {
+        let mut lines = source.lines();
+
+        self.error = None;
+        self.properties = vec![];
+
+        let mut line_counter = 1_usize;
+
+        while let Some(line) = lines.next() {
+
+            let mut split_comment = line.split("#");
+
+            if let Some(left_of_comment) = split_comment.next() {
+                if left_of_comment.is_empty() == false {
+
+                    let mut split_equal = left_of_comment.split("=");
+
+                    if let Some(mut left) = split_equal.next() {
+                        if let Some(mut right) = split_equal.next() {
+
+                            left = left.trim();
+                            right = right.trim();
+
+                            if left.is_empty() == false && right.is_empty() == false && split_equal.next().is_none() {
+                                //println!("{} = {}", left, right);
+
+                                if right == "false" || right == "true" {
+                                    if right == "false" {
+                                        self.properties.push(Property::new_bool(left.to_string(), false));
+                                    } else {
+                                        self.properties.push(Property::new_bool(left.to_string(), true));
+                                    }
+                                } else
+                                // String ?
+                                if right.starts_with("\"") && right.ends_with("\"") {
+                                    let mut chars = right.chars();
+                                    chars.next();
+                                    chars.next_back();
+                                    self.properties.push(Property::new_string(left.to_string(),  chars.as_str().to_string()));
+                                } else
+                                // Int ?
+                                if let Some(value) = right.parse::<i32>().ok() {
+                                    self.properties.push(Property::new_int(left.to_string(), value));
+                                } else
+                                // Float ?
+                                if let Some(value) = right.parse::<f32>().ok() {
+                                    self.properties.push(Property::new_float(left.to_string(), value));
+                                } else{
+                                    self.error = Some((line_counter, "Unknown Type".to_string()));
+                                    return false;
+                                }
+                            } else {
+                                self.error = Some((line_counter, "Syntax Error".to_string()));
+                                return false;
+                            }
+                        }  else {
+                            self.error = Some((line_counter, "Syntax Error".to_string()));
+                            return false;
+                        }
+                    } else {
+                        self.error = Some((line_counter, "Syntax Error".to_string()));
+                        return false;
+                    }
+                }
+            }
+
+            line_counter += 1;
+        }
+
+        println!("{:?}", self.properties);
+        true
     }
 
     /// Returns true if a property by the given name exists in the sink
@@ -135,10 +223,16 @@ impl PropertySink {
     }
 
     /// Convert the sink to a string
-    pub fn to_string(&self) -> String {
+    pub fn to_string(&self, descriptions: HashMap<String, Vec<String>>) -> String {
         let mut string = "".to_string();
 
         for p in & self.properties {
+            if let Some(desc) = descriptions.get(&p.name) {
+                for s in desc {
+                    let add = "# ".to_string() + s + "\n";
+                    string += add.as_str();
+                }
+            }
             string += (p.to_string() + "\n").as_str();
         }
 
