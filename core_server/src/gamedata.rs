@@ -8,11 +8,12 @@ pub mod script;
 pub mod game;
 
 use core_shared::characterdata::CharacterData;
+use core_shared::light::Light;
 use core_shared::message::{MessageType};
 use core_shared::regiondata::GameRegionData;
 use core_shared::update::GameUpdate;
 use core_shared::asset::{ TileUsage, Asset };
-use core_shared::actions::*;
+use core_shared::{actions::*};
 
 use rhai::{ Engine, Scope, AST };
 
@@ -91,8 +92,10 @@ pub struct GameData<'a> {
 
     pub runs_in_editor          : bool,
 
-    // Current characters per region
+    /// Current characters per region
     pub characters              : HashMap<usize, Vec<CharacterData>>,
+    /// Lights per region
+    pub lights                  : HashMap<usize, Vec<Light>>,
 
     // Characters instance indices in a given region area
     pub area_characters         : HashMap<(usize, usize), Vec<usize>>,
@@ -408,6 +411,7 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::UnlockTree, nodes::unlock_tree);
         nodes.insert(BehaviorNodeType::SetState, nodes::set_state);
 
+        nodes.insert(BehaviorNodeType::Always, nodes_area::always);
         nodes.insert(BehaviorNodeType::InsideArea, nodes_area::inside_area);
         nodes.insert(BehaviorNodeType::EnterArea, nodes_area::enter_area);
         nodes.insert(BehaviorNodeType::LeaveArea, nodes_area::leave_area);
@@ -415,6 +419,7 @@ impl GameData<'_> {
         nodes.insert(BehaviorNodeType::TeleportArea, nodes_area::teleport_area);
         nodes.insert(BehaviorNodeType::MessageArea, nodes_area::message_area);
         nodes.insert(BehaviorNodeType::AudioArea, nodes_area::audio_area);
+        nodes.insert(BehaviorNodeType::LightArea, nodes_area::light_area);
 
         nodes.insert(BehaviorNodeType::Move, nodes::player_move);
 
@@ -485,6 +490,7 @@ impl GameData<'_> {
             runs_in_editor          : false,
 
             characters              : HashMap::new(),
+            lights                  : HashMap::new(),
             area_characters         : HashMap::new(),
             prev_area_characters    : HashMap::new(),
 
@@ -569,6 +575,7 @@ impl GameData<'_> {
             runs_in_editor          : false,
 
             characters              : HashMap::new(),
+            lights                  : HashMap::new(),
             area_characters         : HashMap::new(),
             prev_area_characters    : HashMap::new(),
 
@@ -1293,6 +1300,7 @@ impl GameData<'_> {
         self.executed_connections = vec![];
         self.changed_variables = vec![];
         self.characters = HashMap::new();
+        self.lights = HashMap::new();
         self.prev_area_characters = self.area_characters.clone();
         self.area_characters = HashMap::new();
 
@@ -1385,7 +1393,7 @@ impl GameData<'_> {
                 region.displacements = HashMap::new();
                 for area_index in 0..region.data.areas.len() {
                     for (node_id, node) in &region.behaviors[area_index].data.nodes {
-                        if node.behavior_type == BehaviorNodeType::InsideArea || node.behavior_type == BehaviorNodeType::EnterArea || node.behavior_type == BehaviorNodeType::LeaveArea {
+                        if node.behavior_type == BehaviorNodeType::InsideArea || node.behavior_type == BehaviorNodeType::EnterArea || node.behavior_type == BehaviorNodeType::LeaveArea || node.behavior_type == BehaviorNodeType::Always {
                             to_execute.push((area_index, *node_id));
                         }
                     }
@@ -1431,6 +1439,7 @@ impl GameData<'_> {
                 let mut region        : Option<GameRegionData> = None;
                 let mut characters    : Vec<CharacterData> = vec![];
                 let mut displacements : HashMap<(isize, isize), (usize, usize, usize, TileUsage)> = HashMap::new();
+                let mut lights        : Vec<Light> = vec![];
 
                 if let Some(position) = self.instances[inst_index].position {
 
@@ -1448,6 +1457,10 @@ impl GameData<'_> {
                     if let Some(chars) = self.characters.get(&position.0) {
                         characters = chars.clone();
                     }
+
+                    if self.lights.contains_key(&position.0) {
+                        lights = self.lights[&position.0].clone();
+                    }
                 }
 
                 let update = GameUpdate{
@@ -1455,6 +1468,7 @@ impl GameData<'_> {
                     tile                    : self.instances[inst_index].tile,
                     screen                  : screen,
                     region,
+                    lights,
                     displacements,
                     characters,
                     messages                : self.instances[inst_index].messages.clone(),

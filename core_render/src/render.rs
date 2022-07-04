@@ -1,8 +1,8 @@
 
 use std::{path::PathBuf, collections::{HashMap, HashSet}};
 
-use core_shared::{asset::{Asset, TileUsage}, update::GameUpdate, regiondata::GameRegionData, message::MessageData};
-use crate::{draw2d::Draw2D, script_types::*};
+use core_shared::{asset::{Asset, TileUsage}, update::GameUpdate, regiondata::GameRegionData, message::MessageData, light::Light};
+use crate::{draw2d::Draw2D, script_types::*, lighting::compute_lighting};
 use rhai::{ Engine, Scope, AST, Dynamic };
 
 use core_shared::actions::*;
@@ -27,6 +27,7 @@ pub struct GameRender<'a> {
     pub tile_size               : usize,
 
     pub regions                 : HashMap<usize, GameRegionData>,
+    pub lights                  : HashMap<usize, Vec<Light>>,
 
     pub messages                : Vec<MessageData>,
 
@@ -106,6 +107,7 @@ impl GameRender<'_> {
             tile_size           : 32,
 
             regions             : HashMap::new(),
+            lights              : HashMap::new(),
 
             messages            : vec![],
 
@@ -203,6 +205,12 @@ impl GameRender<'_> {
                 self.play_audio(m.clone());
             }
         }
+
+        // Insert the lights
+        if let Some(position) = update.position {
+            self.lights.insert(position.0, update.lights.clone());
+        }
+
         None
     }
 
@@ -480,6 +488,12 @@ impl GameRender<'_> {
                 }
             }
 
+            // Compute the light_map
+            let mut light_map : HashMap<(isize, isize), f64> = HashMap::new();
+            if let Some(lights) = self.lights.get(&region.id) {
+                light_map = compute_lighting(&region, lights);
+            }
+
             // Clear if not in a transition
             if set.is_none() {
                 self.draw2d.draw_rect(&mut self.frame[..], &rect, self.width, &background);
@@ -506,6 +520,8 @@ impl GameRender<'_> {
                 offset.1 -= top;
             }
 
+            let base_light = 0.5;
+
             // Draw Region
             for y in 0..y_tiles {
                 for x in 0..x_tiles {
@@ -525,8 +541,13 @@ impl GameRender<'_> {
                             //self.draw2d.draw_rect(&mut self.frame[..], &(pos.0, pos.1, tile_size, tile_size), stride, &clear.unwrap());
                         }
 
+                        let mut light = base_light;
+                        if let Some(l) = light_map.get(&(x + offset.0, y + offset.1)) {
+                            light += *l;
+                        }
+
                         let map = self.asset.get_map_of_id(value.0);
-                        self.draw2d.draw_animated_tile_with_blended_color(&mut self.frame[..], &pos, map, stride, &(value.1, value.2), anim_counter, tile_size, &background, 0.5);
+                        self.draw2d.draw_animated_tile_with_blended_color(&mut self.frame[..], &pos, map, stride, &(value.1, value.2), anim_counter, tile_size, &background, light);
                     }
                 }
             }
@@ -550,8 +571,13 @@ impl GameRender<'_> {
                             }
                         }
 
+                        let mut light = base_light;
+                        if let Some(l) = light_map.get(&(position.1, position.2)) {
+                            light += *l;
+                        }
+
                         let map = self.asset.get_map_of_id(tile.0);
-                        self.draw2d.draw_animated_tile_with_blended_color(&mut self.frame[..], &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size, &background, 0.5);
+                        self.draw2d.draw_animated_tile_with_blended_color(&mut self.frame[..], &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size, &background, light);
                     }
                 }
             }

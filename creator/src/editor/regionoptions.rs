@@ -126,9 +126,9 @@ impl EditorOptions for RegionOptions {
     AtomData::new_as_int("NodeList".to_string(), 0));
         node_list.drag_enabled = true;
 
-        node_list.add_group_list(context.color_green, context.color_light_green, vec!["Enter Area".to_string(), "Leave Area".to_string(), "Inside Area".to_string(), "Spawn".to_string()]);
+        node_list.add_group_list(context.color_green, context.color_light_green, vec!["Always".to_string(), "Enter Area".to_string(), "Leave Area".to_string(), "Inside Area".to_string()]);
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio Area".to_string(), "Displace Tiles".to_string(), "Light Area".to_string(), "Message Area".to_string(), "Teleport Area".to_string()]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio".to_string(), "Displace Tiles".to_string(), "Light".to_string(), "Message".to_string(), "Spawn".to_string(), "Teleport".to_string()]);
 
         node_list.set_rect((rect.0 + 10, rect.1 + 200, rect.2 - 20, rect.3 - 200), asset, context);
         behavior_widgets.push(node_list);
@@ -323,7 +323,7 @@ impl EditorOptions for RegionOptions {
                         if let Some(el_content) = content {
                             if let Some(region) = context.data.regions.get_mut(&el_content.get_region_id()) {
                                 let id = region.create_area();
-                                context.curr_region_area_index = region.behaviors.len() - 1;
+                                self.area_widgets[0].curr_index = region.behaviors.len() - 1;
                                 if let Some(graph) = el_content.get_behavior_graph() {
                                     graph.set_behavior_id(id, context);
                                 }

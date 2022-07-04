@@ -1166,7 +1166,7 @@ impl EditorContent for NodeGraph  {
                 "Expression" => BehaviorNodeType::Expression,
                 "Number" => BehaviorNodeType::VariableNumber,
                 "Position" => BehaviorNodeType::VariablePosition,
-                "Message" => BehaviorNodeType::Message,
+                "Message" if self.graph_type != BehaviorType::Regions => BehaviorNodeType::Message,
                 "Pathfinder" => BehaviorNodeType::Pathfinder,
                 "Script" => BehaviorNodeType::Script,
                 "Lookout" => BehaviorNodeType::Lookout,
@@ -1180,6 +1180,7 @@ impl EditorContent for NodeGraph  {
                 "Linear" => BehaviorNodeType::Linear,
                 "Move" => BehaviorNodeType::Move,
 
+                "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
                 "Leave Area" => BehaviorNodeType::LeaveArea,
                 "Inside Area" => BehaviorNodeType::InsideArea,
@@ -1190,9 +1191,10 @@ impl EditorContent for NodeGraph  {
                 "Widget" => BehaviorNodeType::Widget,
                 "Settings" => BehaviorNodeType::Settings,
 
-                "Teleport Area" => BehaviorNodeType::TeleportArea,
-                "Message Area" => BehaviorNodeType::MessageArea,
-                "Audio Area" => BehaviorNodeType::AudioArea,
+                "Teleport" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::TeleportArea,
+                "Message" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::MessageArea,
+                "Audio" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::AudioArea,
+                "Light" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::LightArea,
 
                 _ => BehaviorNodeType::BehaviorTree
             };
@@ -1599,6 +1601,10 @@ impl EditorContent for NodeGraph  {
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
         } else
+        if node_data.behavior_type == BehaviorNodeType::Always {
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+        } else
         if node_data.behavior_type == BehaviorNodeType::EnterArea {
             let mut atom1 = AtomWidget::new(vec!["Everyone".to_string(), "First Only".to_string()], AtomWidgetType::NodeMenuButton,
             AtomData::new_as_int("character".to_string(), 0));
@@ -1665,6 +1671,10 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
             node_widget.widgets.push(atom1);
 
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_data.behavior_type == BehaviorNodeType::LightArea {
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
         }

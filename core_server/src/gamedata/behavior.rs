@@ -56,6 +56,7 @@ pub enum BehaviorNodeType {
     MessageArea,
     AudioArea,
     LightArea,
+    Always
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

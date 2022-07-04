@@ -4,7 +4,13 @@ use crate::gamedata::GameData;
 use super::behavior::{ BehaviorType };
 use crate::gamedata::get_node_value;
 use core_shared::asset::TileUsage;
+use core_shared::light::Light;
 use core_shared::message::{MessageType, MessageData};
+
+/// Always
+pub fn always(_region_id: usize, _id: (usize, usize), _data: &mut GameData, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    BehaviorNodeConnector::Right
+}
 
 /// Enter Area
 pub fn enter_area(region_id: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> BehaviorNodeConnector {
@@ -274,5 +280,23 @@ pub fn audio_area(region_id: usize, id: (usize, usize), data: &mut GameData, beh
             }
         }
     }
+    BehaviorNodeConnector::Fail
+}
+
+/// Light Area
+pub fn light_area(region_id: usize, id: (usize, usize), data: &mut GameData, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    if let Some(region) = data.regions.get_mut(&region_id) {
+        for pos in &region.data.areas[id.0].area {
+            //data.lights.insert
+            let light = Light::new(core_shared::light::LightType::PointLight, (pos.0, pos.1), 1);
+            if let Some(list) = data.lights.get_mut(&region_id) {
+                list.push(light);
+            } else {
+                data.lights.insert(region_id, vec![light]);
+            }
+        }
+    }
+
     BehaviorNodeConnector::Fail
 }

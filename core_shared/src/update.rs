@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{regiondata::GameRegionData, characterdata::CharacterData, asset::TileUsage, message::MessageData};
+use crate::{regiondata::GameRegionData, characterdata::CharacterData, asset::TileUsage, message::MessageData, light::Light};
 
 #[derive(Serialize, Deserialize)]
 pub struct GameUpdate {
@@ -16,6 +16,9 @@ pub struct GameUpdate {
 
     /// A region
     pub region                  : Option<GameRegionData>,
+
+    /// Current lights in the region
+    pub lights                  : Vec<Light>,
 
     /// Tile displacements for the region
     #[serde(with = "vectorize")]
@@ -40,6 +43,7 @@ impl GameUpdate {
             tile                : None,
             screen              : None,
             region              : None,
+            lights              : vec![],
             displacements       : HashMap::new(),
             characters          : vec![],
             messages            : vec![],

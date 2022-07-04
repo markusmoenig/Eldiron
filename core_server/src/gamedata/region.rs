@@ -54,17 +54,14 @@ impl GameRegion {
 
         // Read the behaviors
         let mut behaviors : Vec<GameBehavior> = vec![];
-        let area_path = path.clone();
 
-        if let Some(paths) = fs::read_dir(area_path).ok() {
-            for path in paths {
-                let path = &path.unwrap().path();
-                let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
-                if file_name.starts_with("area_") {
-                    let behavior = GameBehavior::load_from_path(path, path);
-                    behaviors.push(behavior);
-                }
-            }
+        let file_name = path.file_stem().unwrap().to_str().unwrap().to_string();
+
+        for a in &data.areas {
+            let name = format!("game/regions/{}/area_{}.json", file_name, a.id);
+            let path = std::path::Path::new(&name).to_path_buf();
+            let behavior = GameBehavior::load_from_path(&path, &path);
+            behaviors.push(behavior);
         }
 
         Self {
