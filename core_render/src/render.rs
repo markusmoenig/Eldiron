@@ -7,11 +7,9 @@ use rhai::{ Engine, Scope, AST, Dynamic };
 
 use core_shared::actions::*;
 
-#[cfg(target_arch = "wasm32")]
 use audio_engine::{AudioEngine, WavDecoder};
 
 #[cfg(feature = "embed_binaries")]
-#[allow(unused_imports)]
 use core_embed_binaries::Embedded;
 
 pub struct GameRender<'a> {
@@ -39,7 +37,7 @@ pub struct GameRender<'a> {
 
     pub player_id               : usize,
 
-    #[cfg(target_arch = "wasm32")]
+    //#[cfg(target_arch = "wasm32")]
     pub audio_engine            : Option<AudioEngine>
 }
 
@@ -94,14 +92,6 @@ impl GameRender<'_> {
 
         engine.on_print(|x| println!("{}", x));
 
-        #[cfg(target_arch = "wasm32")]
-        let mut audio_engine : Option<AudioEngine> = None;
-
-        #[cfg(target_arch = "wasm32")]
-        if let Some(audio) = AudioEngine::new().ok() {
-            audio_engine = Some(audio);
-        }
-
         Self {
 
             engine,
@@ -126,8 +116,8 @@ impl GameRender<'_> {
 
             player_id,
 
-            #[cfg(target_arch = "wasm32")]
-            audio_engine
+            //#[cfg(target_arch = "wasm32")]
+            audio_engine        : None,
         }
     }
 
@@ -536,7 +526,7 @@ impl GameRender<'_> {
                         }
 
                         let map = self.asset.get_map_of_id(value.0);
-                        self.draw2d.draw_animated_tile(&mut self.frame[..], &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
+                        self.draw2d.draw_animated_tile_with_blended_color(&mut self.frame[..], &pos, map, stride, &(value.1, value.2), anim_counter, tile_size, &background, 0.5);
                     }
                 }
             }
@@ -561,7 +551,7 @@ impl GameRender<'_> {
                         }
 
                         let map = self.asset.get_map_of_id(tile.0);
-                        self.draw2d.draw_animated_tile(&mut self.frame[..], &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size);
+                        self.draw2d.draw_animated_tile_with_blended_color(&mut self.frame[..], &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size, &background, 0.5);
                     }
                 }
             }
@@ -716,6 +706,32 @@ impl GameRender<'_> {
 
         #[cfg(not(feature = "embed_binaries"))]
         {
+            if self.audio_engine.is_none() {
+                self.audio_engine = AudioEngine::new().ok();
+            }
+
+            for (index, n) in self.asset.audio_names.iter().enumerate() {
+                if *n == name {
+                    //if let Some(bytes) = Embedded::get(self.asset.audio_paths[index].to_str().unwrap()) {
+                    if let Some(file) = std::fs::File::open(self.asset.audio_paths[index].clone()).ok() {
+                        if let Some(audio_engine) = &self.audio_engine {
+
+                            let buffered = std::io::BufReader::new(file);
+
+                            if let Some(wav) = WavDecoder::new(buffered).ok() {
+
+                                if let Some(mut sound) = audio_engine.new_sound(wav).ok() {
+                                    sound.play();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /*
+        {
             use rodio::{Decoder, OutputStream, Sink};
 
             for (index, n) in self.asset.audio_names.iter().enumerate() {
@@ -738,21 +754,32 @@ impl GameRender<'_> {
 
                 break;
             }
-        }
+        }*/
+
 
         #[cfg(feature = "embed_binaries")]
         {
-            // for (index, n) in self.asset.audio_names.iter().enumerate() {
-            //     if *n == name {
-            //         if let Some(bytes) = Embedded::get(self.asset.audio_paths[index].to_str().unwrap()) {
-            //             if let Some(audio_engine) = &self.audio_engine {
-            //                 if let Some(mut sound) = audio_engine.new_sound(WavDecoder::new(std::io::Cursor::new(bytes.data))).ok() {
-            //                     sound.play();
-            //                 }
-            //             }
-            //         }
-            //     }
-            // }
+            if self.audio_engine.is_none() {
+                self.audio_engine = AudioEngine::new().ok();
+            }
+
+            for (index, n) in self.asset.audio_names.iter().enumerate() {
+                if *n == name {
+                    if let Some(bytes) = Embedded::get(self.asset.audio_paths[index].to_str().unwrap()) {
+                        if let Some(audio_engine) = &self.audio_engine {
+
+                            let buffered = std::io::BufReader::new(std::io::Cursor::new(bytes.data));
+
+                            if let Some(wav) = WavDecoder::new(buffered).ok() {
+
+                                if let Some(mut sound) = audio_engine.new_sound(wav).ok() {
+                                    sound.play();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
     }

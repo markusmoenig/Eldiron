@@ -38,7 +38,6 @@ rhai = "*"
 regex = "1.5"
 directories = "4.0"
 fs_extra = "1.2.0"
-audio-engine = "0.2.3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"

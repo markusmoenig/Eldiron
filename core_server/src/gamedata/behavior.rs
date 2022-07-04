@@ -55,6 +55,7 @@ pub enum BehaviorNodeType {
     TeleportArea,                                           // Teleport Characters inside an area
     MessageArea,
     AudioArea,
+    LightArea,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

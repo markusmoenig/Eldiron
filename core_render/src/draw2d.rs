@@ -543,6 +543,43 @@ impl Draw2D {
     }
 
     /// Draws the given animated tile
+    pub fn draw_animated_tile_with_blended_color(&self,  frame: &mut [u8], pos: &(usize, usize), map: &TileMap, stride: usize, grid_pos: &(usize, usize), anim_counter: usize, target_size: usize, blend_color: &[u8; 4], blend: f64) {
+        let pixels = &map.pixels;
+        let scale = target_size as f32 / map.settings.grid_size as f32;
+
+        let new_size = ((map.settings.grid_size as f32 * scale) as usize, (map.settings.grid_size as f32 * scale) as usize);
+
+        let tile = map.get_tile(grid_pos);
+
+        let mut cg_pos = grid_pos;
+
+        if tile.anim_tiles.len() > 0 {
+            let index = anim_counter % tile.anim_tiles.len();
+            cg_pos = &tile.anim_tiles[index];
+        }
+
+        let g_pos = (cg_pos.0 * map.settings.grid_size, cg_pos.1 * map.settings.grid_size);
+
+        for sy in 0..new_size.0 {
+            let y = (sy as f32 / scale) as usize;
+            for sx in 0..new_size.1 {
+
+                let x = (sx as f32 / scale) as usize;
+
+                let d = pos.0 * 4 + sx * 4 + (sy + pos.1) * stride * 4;
+                let s = (x + g_pos.0) * 4 + (y + g_pos.1) * map.width * 4;
+
+                let mixed_color = self.mix_color(blend_color, &[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]], blend);
+
+                let background = &[frame[d], frame[d+1], frame[d+2], frame[d+3]];
+                let c = self.mix_color(&background, &mixed_color, pixels[s+3] as f64 / 255.0);
+
+                frame[d..d + 4].copy_from_slice(&c);
+            }
+        }
+    }
+
+    /// Draws the given animated tile
     pub fn draw_animated_tile_sat(&self,  frame: &mut [u8], pos: &(usize, usize), map: &TileMap, stride: usize, grid_pos: &(usize, usize), anim_counter: usize, target_size: usize, mult_color: [u8; 4]) {
         let pixels = &map.pixels;
         let scale = target_size as f32 / map.settings.grid_size as f32;
