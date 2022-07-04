@@ -1,1 +1,1 @@
-{"nodes":{"0":{"behavior_type":"LightArea","name":"Light","values":{},"id":0,"position":[97,56]}},"connections":[],"id":1527691047,"name":"New Behavior","curr_node_id":0}
+{"nodes":{"0":{"behavior_type":"LightArea","name":"Light","values":{},"id":0,"position":[249,70]},"1":{"behavior_type":"Always","name":"Always","values":{},"id":1,"position":[22,46]}},"connections":[[1,"Right",0,"Left"]],"id":1527691047,"name":"New Behavior","curr_node_id":0}
