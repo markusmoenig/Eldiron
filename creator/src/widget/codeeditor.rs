@@ -20,8 +20,6 @@ pub struct CodeEditor {
     pub rect                : (usize, usize, usize, usize),
     pub text                : String,
 
-    offset                  : (isize, isize),
-
     pub font_size           : f32,
 
     cursor_offset           : usize,
@@ -45,7 +43,11 @@ pub struct CodeEditor {
 
     pub theme               : CodeEditorTheme,
 
-    error                   : Option<(String, Option<usize>)>
+    error                   : Option<(String, Option<usize>)>,
+
+    mouse_wheel_delta       : (isize, isize),
+    offset                  : (isize, isize),
+    max_offset              : (usize, usize),
 }
 
 impl TextEditorWidget for CodeEditor {
@@ -53,35 +55,37 @@ impl TextEditorWidget for CodeEditor {
     fn new() -> Self where Self: Sized {
 
         Self {
-            rect            : (0, 0, 0, 0),
-            text            : "".to_string(),
+            rect                        : (0, 0, 0, 0),
+            text                        : "".to_string(),
 
-            offset          : (0, 0),
+            font_size                   : 17.0,
 
-            font_size       : 17.0,
+            cursor_offset               : 0,
+            cursor_pos                  : (0, 0),
+            cursor_rect                 : (0, 0, 2, 0),
 
-            cursor_offset   : 0,
-            cursor_pos      : (0, 0),
-            cursor_rect     : (0, 0, 2, 0),
+            needs_update                : true,
+            mode                        : CodeEditorMode::Rhai,
 
-            needs_update    : true,
-            mode            : CodeEditorMode::Rhai,
+            text_buffer                 : vec![0;1],
+            text_buffer_size            : (0, 0),
 
-            text_buffer     : vec![0;1],
-            text_buffer_size  : (0, 0),
+            metrics                     : HashMap::new(),
+            advance_width               : 10,
+            advance_height              : 22,
 
-            metrics         : HashMap::new(),
-            advance_width   : 10,
-            advance_height  : 22,
+            shift                       : false,
+            ctrl                        : false,
+            alt                         : false,
+            logo                        : false,
 
-            shift           : false,
-            ctrl            : false,
-            alt             : false,
-            logo            : false,
+            theme                       : CodeEditorTheme::new(),
 
-            theme           : CodeEditorTheme::new(),
+            error                       : None,
 
-            error           : None,
+            mouse_wheel_delta           : (0, 0),
+            offset                      : (0, 0),
+            max_offset                  : (0, 0),
         }
     }
 
@@ -111,36 +115,11 @@ impl TextEditorWidget for CodeEditor {
         draw2d.draw_rect(frame, &rect, stride, &self.theme.background);
         draw2d.draw_rect(frame, &(rect.0, rect.1, 95, rect.3), stride, &self.theme.line_numbers_bg);
 
-        // Limit the scrolling area
-        if self.offset.0 > 0 {
-            self.offset.0 = 0;
-        }
-
-        if rect.2 < self.text_buffer_size.0 {
-            if self.offset.0.abs() + rect.2 as isize >= self.text_buffer_size.0 as isize {
-                self.offset.0 = -(self.text_buffer_size.0 as isize) + rect.2 as isize;
-            }
-        } else {
-            self.offset.0 = 0;
-        }
-
-        if self.offset.1 > 0 {
-            self.offset.1 = 0;
-        }
-
-        if rect.3 < self.text_buffer_size.1 {
-            if self.offset.1.abs() + rect.3 as isize >= self.text_buffer_size.1 as isize {
-                self.offset.1 = -(self.text_buffer_size.1 as isize) + rect.3 as isize;
-            }
-        } else {
-            self.offset.1 = 0;
-        }
-
-        let x = rect.0 as isize + self.offset.0;
-        let y = rect.1 as isize + self.offset.1;
+        let x = rect.0 as isize - self.offset.0 * self.advance_width as isize;
+        let y = rect.1 as isize - self.offset.1 * self.advance_height as isize;
         draw2d.blend_slice_safe(frame, &mut self.text_buffer[..], &(x, y, self.text_buffer_size.0, self.text_buffer_size.1), stride, &rect);
 
-        draw2d.draw_rect_safe(frame, &((rect.0 + self.cursor_rect.0) as isize + self.offset.0, (rect.1 + self.cursor_rect.1) as isize + self.offset.1, self.cursor_rect.2, self.cursor_rect.3), stride, &self.theme.cursor, &rect);
+        draw2d.draw_rect_safe(frame, &((rect.0 + self.cursor_rect.0) as isize - self.offset.0 * self.advance_width as isize, (rect.1 + self.cursor_rect.1) as isize - self.offset.1 * self.advance_height as isize, self.cursor_rect.2, self.cursor_rect.3), stride, &self.theme.cursor, &rect);
     }
 
     /// Takes the current text and renders it to the text_buffer bitmap
@@ -174,6 +153,8 @@ impl TextEditorWidget for CodeEditor {
         }
 
         //println!("{} x {}", screen_width, screen_height);
+
+        self.max_offset.0 = screen_width / self.advance_width;
 
         let left_size = 100;
         screen_width += left_size;
@@ -282,6 +263,8 @@ impl TextEditorWidget for CodeEditor {
                 }
             }
         }
+
+        self.max_offset.1 = line_number;
     }
 
     /// Sets the cursor offset based on the given screen position
@@ -461,8 +444,7 @@ impl TextEditorWidget for CodeEditor {
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), font: &Font) -> bool {
-        let consumed = self.set_cursor_offset_from_pos((pos.0 + self.offset.0.abs() as usize, pos.1 + self.offset.1.abs() as usize), font);
-        //println!("{:?}", pos);
+        let consumed = self.set_cursor_offset_from_pos((pos.0 + self.offset.0 as usize * self.advance_width as usize, pos.1 + self.offset.1 as usize * self.advance_height as usize), font);
         consumed
     }
 
@@ -471,8 +453,7 @@ impl TextEditorWidget for CodeEditor {
     }
 
     fn mouse_dragged(&mut self, pos: (usize, usize), font: &Font) -> bool {
-        let consumed = self.set_cursor_offset_from_pos((pos.0 + self.offset.0.abs() as usize, pos.1 + self.offset.1.abs() as usize), font);
-        //println!("{:?}", self.cursor_offset);
+        let consumed = self.set_cursor_offset_from_pos((pos.0 + self.offset.0 as usize * self.advance_width as usize, pos.1 + self.offset.1 as usize * self.advance_height as usize), font);
         consumed
     }
 
@@ -481,8 +462,16 @@ impl TextEditorWidget for CodeEditor {
     }
 
     fn mouse_wheel(&mut self, delta: (isize, isize), _font: &Font) -> bool {
-        self.offset.0 -= delta.0 / 2;
-        self.offset.1 += delta.1 / 2;
+        //self.offset.0 -= delta.0 / 2;
+        //self.offset.1 += delta.1 / 2;
+        self.mouse_wheel_delta.0 += delta.0;
+        self.mouse_wheel_delta.1 += delta.1;
+        self.offset.0 += self.mouse_wheel_delta.0 / (self.advance_width as isize * 6);
+        self.offset.1 += self.mouse_wheel_delta.1 / (self.advance_height as isize * 1);
+        self.offset.0 = self.offset.0.clamp(0, self.max_offset.0 as isize);
+        self.offset.1 = self.offset.1.clamp(0, self.max_offset.1 as isize);
+        self.mouse_wheel_delta.0 -= (self.mouse_wheel_delta.0 / (self.advance_width as isize * 6)) * self.advance_width as isize;
+        self.mouse_wheel_delta.1 -= (self.mouse_wheel_delta.1 / (self.advance_height as isize * 1)) * self.advance_height as isize;
         true
     }
 

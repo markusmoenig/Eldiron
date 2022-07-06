@@ -9,7 +9,7 @@ pub struct TileLighting {
     pub dynamic                 : f32,
 }*/
 
-pub fn compute_lighting(region: &GameRegionData, lights: &Vec<Light>) -> HashMap<(isize, isize), f64> {
+pub fn compute_lighting(_region: &GameRegionData, lights: &Vec<Light>) -> HashMap<(isize, isize), f64> {
     let mut map : HashMap<(isize, isize), f64> = HashMap::new();
 
     //for (index, area) in region.areas.iter().enumerate() {
