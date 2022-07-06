@@ -306,7 +306,11 @@ impl TextEditorWidget for CodeEditor {
                 self.cursor_rect.3 = line_height;
 
                 if px > 100 {
-                    self.cursor_pos.0 = std::cmp::min((px - 100) / self.advance_width + 1, line.len());
+                    self.cursor_pos.0 = (px - 100) / self.advance_width + 1;
+                    if (px - 100) % self.advance_width < self.advance_width /2 && self.cursor_pos.0 > 0 && self.cursor_pos.0 <= line.len() {
+                        self.cursor_pos.0 -= 1;
+                    }
+                    self.cursor_pos.0 = std::cmp::min(self.cursor_pos.0, line.len());
                     self.cursor_rect.0 += self.cursor_pos.0 * self.advance_width - 2;
                 }
 
