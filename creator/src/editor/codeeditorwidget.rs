@@ -84,7 +84,7 @@ impl CodeEditorWidget {
         dest_rect.1 = dest_rect.1 + dest_rect.3 - height;
         dest_rect.3 = height;
 
-        if self.dirty {
+        if self.dirty || self.editor.drag_pos.is_some() {
             for i in &mut self.buffer[..] { *i = 0 }
             let buffer_frame = &mut self.buffer[..];
 

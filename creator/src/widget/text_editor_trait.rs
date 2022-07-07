@@ -14,6 +14,9 @@ pub trait TextEditorWidget {
 
     fn set_mode(&mut self, mode: CodeEditorMode);
 
+    fn inside_selection(&self, x: usize, y: usize) -> bool;
+    fn copy_range(&self, start: Option<(usize, usize)>, end: Option<(usize, usize)>) -> String { "".to_lowercase() }
+
     fn process_text(&mut self, font: &Font, draw2d: &Draw2D);
     fn set_cursor_offset_from_pos(&mut self, pos: (usize, usize), font: &Font) -> bool;
 

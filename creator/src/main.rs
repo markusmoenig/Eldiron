@@ -145,6 +145,11 @@ fn main() -> Result<(), Error> {
                             window.request_redraw();
                         }
                     },
+                    VirtualKeyCode::Tab => {
+                        if curr_screen.key_down(None, Some(WidgetKey::Tab), &mut asset) {
+                            window.request_redraw();
+                        }
+                    },
                     VirtualKeyCode::Return => {
                         if curr_screen.key_down(None, Some(WidgetKey::Return), &mut asset) {
                             window.request_redraw();

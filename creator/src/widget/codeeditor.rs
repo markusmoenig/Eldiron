@@ -48,6 +48,12 @@ pub struct CodeEditor {
     mouse_wheel_delta       : (isize, isize),
     offset                  : (isize, isize),
     max_offset              : (usize, usize),
+
+    range_buffer            : (usize, usize),
+    range_start             : Option<(usize, usize)>,
+    range_end               : Option<(usize, usize)>,
+
+    pub drag_pos            : Option<(usize, usize)>,
 }
 
 impl TextEditorWidget for CodeEditor {
@@ -86,6 +92,12 @@ impl TextEditorWidget for CodeEditor {
             mouse_wheel_delta           : (0, 0),
             offset                      : (0, 0),
             max_offset                  : (0, 0),
+
+            range_buffer                : (0, 0),
+            range_start                 : None,
+            range_end                   : None,
+
+            drag_pos                    : None,
         }
     }
 
@@ -110,6 +122,21 @@ impl TextEditorWidget for CodeEditor {
             self.process_text(font, draw2d);
         }
 
+        if let Some(drag_pos) = self.drag_pos {
+            if drag_pos.1 >= rect.1 + rect.3 - 75 {
+                if (self.offset.1 as usize) < self.max_offset.1 {
+                    self.offset.1 += 1;
+                    self.mouse_dragged(drag_pos, font);
+                }
+            } else
+            if drag_pos.1 <= rect.1 + 75 {
+                if self.offset.1 > 0 {
+                    self.offset.1 -= 1;
+                    self.mouse_dragged(drag_pos, font);
+                }
+            }
+        }
+
         self.rect = rect.clone();
 
         draw2d.draw_rect(frame, &rect, stride, &self.theme.background);
@@ -120,6 +147,21 @@ impl TextEditorWidget for CodeEditor {
         draw2d.blend_slice_safe(frame, &mut self.text_buffer[..], &(x, y, self.text_buffer_size.0, self.text_buffer_size.1), stride, &rect);
 
         draw2d.draw_rect_safe(frame, &((rect.0 + self.cursor_rect.0) as isize - self.offset.0 * self.advance_width as isize, (rect.1 + self.cursor_rect.1) as isize - self.offset.1 * self.advance_height as isize, self.cursor_rect.2, self.cursor_rect.3), stride, &self.theme.cursor, &rect);
+    }
+
+    // Inside the selection range ?
+    fn inside_selection(&self, x: usize, y: usize) -> bool {
+        let mut inside = false;
+
+        if let Some(range_start) = self.range_start {
+            if let Some(range_end) = self.range_end {
+                if y > range_start.1 && y < range_end.1 || (y == range_start.1 && x >= range_start.0 && y != range_end.1) || (y == range_end.1 && x <= range_end.0 && y != range_start.1) || (y == range_start.1 && y == range_end.1 && x >= range_start.0 && x <= range_end.0) {
+                    inside = true;
+                }
+            }
+        }
+
+        inside
     }
 
     /// Takes the current text and renders it to the text_buffer bitmap
@@ -179,12 +221,12 @@ impl TextEditorWidget for CodeEditor {
         let mut color : [u8;4] = self.theme.text;
         let mut number_printed_for_line = 0_usize;
 
+        let selection_color = [45, 133, 200, 255];//self.theme.keywords;
+
         while finished == false {
 
             let token = scanner.scan_token();
             let mut printit = false;
-
-            //println!("{:?} : {}", token.kind, token.lexeme);
 
             match token.kind {
 
@@ -201,11 +243,27 @@ impl TextEditorWidget for CodeEditor {
                     draw2d.draw_text_rect(&mut self.text_buffer[..], &(0, y, 60, self.advance_height), stride, font, self.font_size, format!("{}", line_number).as_str(), &text_color, &self.theme.background, crate::draw2d::TextAlignment::Right);
                     number_printed_for_line = line_number;
 
+                    if x == 100 {
+                        // Draw empty selection marker ?
+                        if self.inside_selection(0,  y / self.advance_height) {
+                            let bcolor = [45, 133, 200, 255];//self.theme.keywords;
+                            draw2d.blend_rect(&mut self.text_buffer[..], &(x, y, self.advance_width / 2, self.advance_height), stride, &bcolor);
+                        }
+                    }
                     x = left_size;
                     y += self.advance_height;
                     line_number += 1;
                 },
-                TokenType::Space => { x += self.advance_width },
+                TokenType::Space => {
+
+                    // Inside the selection range ?
+                    if self.inside_selection((x - left_size) / self.advance_width,  y / self.advance_height) {
+                        let bcolor = [45, 133, 200, 255];//self.theme.keywords;
+                        draw2d.blend_rect(&mut self.text_buffer[..], &(x, y, self.advance_width, self.advance_height), stride, &bcolor);
+                    }
+
+                    x += self.advance_width
+                },
                 TokenType::Eof => {
 
                     if number_printed_for_line != line_number {
@@ -240,12 +298,21 @@ impl TextEditorWidget for CodeEditor {
 
             // Print the current lexeme
             if printit {
+
                 let mut chars = token.lexeme.chars();
                 while let Some(c) = chars.next() {
 
                     if let Some((metrics, bitmap)) = self.metrics.get(&c) {
-                        let text_buffer_frame = &mut self.text_buffer[..];
 
+                        let mut bcolor = self.theme.background;
+
+                        // Inside the selection range ?
+                        if self.inside_selection((x - left_size) / self.advance_width,  y / self.advance_height) {
+                            bcolor = selection_color;
+                            draw2d.blend_rect( &mut self.text_buffer[..], &(x, y, self.advance_width, self.advance_height), stride, &bcolor);
+                        }
+
+                        let text_buffer_frame = &mut self.text_buffer[..];
                         for cy in 0..metrics.height {
                             for cx in 0..metrics.width {
 
@@ -254,11 +321,10 @@ impl TextEditorWidget for CodeEditor {
                                 let i = (x + cx + metrics.xmin as usize) * 4 + (y + cy + fy) * stride * 4;
                                 let m = bitmap[cx + cy * metrics.width];
 
-                                text_buffer_frame[i..i + 4].copy_from_slice(&draw2d.mix_color(&self.theme.background, &color, m as f64 / 255.0));
+                                text_buffer_frame[i..i + 4].copy_from_slice(&draw2d.mix_color(&bcolor, &color, m as f64 / 255.0));
                             }
                         }
-
-                        x += self.advance_width;//metrics.advance_width as usize;
+                        x += self.advance_width;
                     }
                 }
             }
@@ -343,7 +409,86 @@ impl TextEditorWidget for CodeEditor {
         true
     }
 
+    /// Copies the given range and returns it
+    fn copy_range(&self, start: Option<(usize, usize)>, end: Option<(usize, usize)>) -> String {
+        let mut s = "".to_string();
+
+        let mut x = 0;
+        let mut y = 0;
+
+        let mut inside = false;
+
+        let mut chars = self.text.chars();
+
+        while let Some(c) = chars.next() {
+
+            if inside == false {
+                if let Some(start) = start {
+                    if y > start.1 || (y == start.1 && x >= start.0)  {
+                        inside = true;
+                    }
+                } else {
+                    inside = true;
+                }
+            }
+
+            if inside {
+                if let Some(end) = end {
+                    if y > end.1 || (y == end.1 && x > end.0) {
+                        break;
+                    }
+                }
+            }
+
+            if inside {
+                s.push(c);
+            }
+
+            if c == '\n' {
+                x = 0;
+                y += 1;
+            } else {
+                x += 1;
+            }
+        }
+        s
+    }
+
     fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, font: &Font, draw2d: &Draw2D) -> bool {
+
+        if self.logo || self.ctrl {
+            use copypasta::{ClipboardContext, ClipboardProvider};
+
+            // Copy
+            if char == Some('c') || char == Some('C') {
+                let clip = self.copy_range(self.range_start, self.range_end);
+                //println!("{}", clip);
+
+                let mut ctx = ClipboardContext::new().unwrap();
+                _ = ctx.set_contents(clip.to_owned());
+
+                return true;
+            }
+
+            // Paste
+            if char == Some('v') || char == Some('V') {
+                let mut ctx = ClipboardContext::new().unwrap();
+                if let Some(text) = ctx.get_contents().ok() {
+
+                    let mut half = self.cursor_pos.clone();
+                    if half.0 > 0 { half.0 -= 1; }
+
+                    let first_half = self.copy_range(None, Some(half));
+                    let second_half = self.copy_range(Some(self.cursor_pos), None);
+
+                    let new_text = first_half + text.as_str() + second_half.as_str();
+
+                    self.text = new_text;
+                    self.needs_update = true;
+                }
+                return true;
+            }
+        }
 
         if let Some(key) = key {
             match key {
@@ -371,6 +516,14 @@ impl TextEditorWidget for CodeEditor {
                             self.set_cursor_offset_from_pos((100 + number_of_chars_on_prev_line * self.advance_width - 2, self.cursor_rect.1 - 5), font);
                         }
                     }
+                    return  true;
+                },
+
+                WidgetKey::Tab => {
+                    self.text.insert(self.cursor_offset, ' ');
+                    self.text.insert(self.cursor_offset + 1, ' ');
+                    self.process_text(font, draw2d);
+                    self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width * 2, self.cursor_rect.1 + 10), font);
                     return  true;
                 },
 
@@ -449,15 +602,43 @@ impl TextEditorWidget for CodeEditor {
 
     fn mouse_down(&mut self, pos: (usize, usize), font: &Font) -> bool {
         let consumed = self.set_cursor_offset_from_pos((pos.0 + self.offset.0 as usize * self.advance_width as usize, pos.1 + self.offset.1 as usize * self.advance_height as usize), font);
+        self.range_buffer = self.cursor_pos.clone();
+        self.range_start = Some(self.cursor_pos.clone());
+        self.range_end = None;
+        self.needs_update = true;
         consumed
     }
 
     fn mouse_up(&mut self, _pos: (usize, usize), _font: &Font) -> bool {
+        if self.range_start.is_none() || self.range_end.is_none() {
+            self.range_start = None;
+            self.range_end = None;
+            self.needs_update = true;
+        }
+        self.drag_pos = None;
         false
     }
 
     fn mouse_dragged(&mut self, pos: (usize, usize), font: &Font) -> bool {
         let consumed = self.set_cursor_offset_from_pos((pos.0 + self.offset.0 as usize * self.advance_width as usize, pos.1 + self.offset.1 as usize * self.advance_height as usize), font);
+
+        if (self.cursor_pos.1 == self.range_buffer.1 && self.cursor_pos.0 <= self.range_buffer.0) || self.cursor_pos.1 < self.range_buffer.1 {
+            self.range_start = Some(self.cursor_pos.clone());
+            let mut end = self.range_buffer.clone();
+            if end.0 > 0 { end.0 -= 1; }
+            self.range_end = Some(end);
+        } else {
+            if self.range_end.is_some() {
+                self.range_start = Some(self.range_buffer);
+                self.range_end = Some(self.cursor_pos.clone());
+            } else {
+                self.range_end = Some(self.cursor_pos.clone());
+            }
+        }
+
+        self.drag_pos = Some(pos);
+
+        self.needs_update = true;
         consumed
     }
 
@@ -466,12 +647,10 @@ impl TextEditorWidget for CodeEditor {
     }
 
     fn mouse_wheel(&mut self, delta: (isize, isize), _font: &Font) -> bool {
-        //self.offset.0 -= delta.0 / 2;
-        //self.offset.1 += delta.1 / 2;
         self.mouse_wheel_delta.0 += delta.0;
         self.mouse_wheel_delta.1 += delta.1;
         self.offset.0 += self.mouse_wheel_delta.0 / (self.advance_width as isize * 6);
-        self.offset.1 += self.mouse_wheel_delta.1 / (self.advance_height as isize * 1);
+        self.offset.1 -= self.mouse_wheel_delta.1 / (self.advance_height as isize * 1);
         self.offset.0 = self.offset.0.clamp(0, self.max_offset.0 as isize);
         self.offset.1 = self.offset.1.clamp(0, self.max_offset.1 as isize);
         self.mouse_wheel_delta.0 -= (self.mouse_wheel_delta.0 / (self.advance_width as isize * 6)) * self.advance_width as isize;

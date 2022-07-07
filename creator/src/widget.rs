@@ -19,6 +19,7 @@ pub enum WidgetKey {
     Down,
     Left,
     Space,
+    Tab
 }
 
 #[allow(unused)]
