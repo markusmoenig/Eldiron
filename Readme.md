@@ -14,19 +14,19 @@ Eldiron v1 will be able to create games similar to the classic Ultima series but
 
 ![screenshot](docs/moody_goes_raiding_3.gif)
 
-Eldiron is a cross platform RPG engine. Eldiron Creator itself runs on all Desktops (Mac, Windows and Linux) while the game clients also run on iOS and Android devices and on any other device Rust compiles on. The engine is designed from the ground up to be extremely portable.
+Eldiron is a cross-platform RPG engine. Eldiron Creator itself runs on all Desktops (Mac, Windows, and Linux) while the game clients also run on iOS and Android devices and any other device Rust compiles on. The engine is designed from the ground up to be extremely portable.
 
-Eldiron comes with a range of freely usable tile-maps, however you can of course use your own maps.
+Eldiron comes with a range of freely usable tile maps, however, you can, of course, use your maps.
 
 The game engine contains client and server modules, although currently no multi-player options exist yet, the code has been written with multi-player support in mind from the ground up.
 
-Support for retro 3D areas like dungeons is upcoming. In general I want to explore many different ways to display and create content, from procedurally created tiles to 3D assets. These kind of features will get implemented over time.
+Support for retro 3D areas like dungeons is upcoming. In general, I want to explore many different ways to display and create content, from procedurally created tiles to 3D assets. These kinds of features will get implemented over time.
 
 Join the community on [Discord](https://discord.gg/ZrNj6baSZU).
 
 ## Eldiron Book
 
-Below on this page is an overview of the functionality of Eldiron Creator. However I am currently working on the [Eldiron Book](https://book.eldiron.com). Please refer to the Book for more detailed information on the creator, the server and clients and the overall project.
+Below on this page is an overview of the functionality of Eldiron Creator. However, I am currently working on the [Eldiron Book](https://book.eldiron.com). Please refer to the Book for more detailed information on the creator, the server and clients and the overall project.
 
 <!---
 I also try to maintain a development blog on [YouTube](https://www.youtube.com/channel/UCCmrO356zLQv_m8dPEqBUfA).
@@ -48,31 +48,31 @@ At a later stage I will provide pre-build binaries for each platform.
 
 ![update_screenshot](docs/screen_tiles.png)
 
-In the Tiles view you can assign roles and animations to individual tiles in the currently available tilemaps.
+In the Tiles view, you can assign roles and animations to individual tiles in the currently available tilemaps.
 
-Eldiron reads all assets from the assets directory, this is a top level directory in this repository. If you want to add your own tilemaps to Eldiron you will need to paste the tilemap image into the assets/tilemaps directory. Note that right now only tilemaps with square tiles are supported.
+Eldiron reads all assets from the assets directory, this is a top-level directory in this repository. If you want to add your tilemaps to Eldiron you will need to paste the tilemap image into the assets/tilemaps directory. Note that right now only tilemaps with square tiles are supported.
 
 You can multi-select a range of tiles (via mouse click and drag) and by clicking the *Set Anim* button you create an animation for the first tile in the range. The other tiles will be set to *Unused* by default.
 
 When you click the *Enter Tags* button you can assign **,** separated tags to a tile, like *cupboard* or *waterfall*. Tags are always lower case.
 
-The *Clear Anim* button will remove an animation sequence form the currently selected tile.
+The *Clear Anim* button will remove an animation sequence from the currently selected tile.
 
 The *Set Default* button will set the currently selected tile as the default tile of the tilemap, it will be shown as a tilemap icon in the tilemap overview.
 
 The roles a tile can have are:
 
 * **Unused** - This tile is ignored and will not be shown in the area editor.
-* **Environment** - This is the default tile type for any kind of non blocking terrain. Use it for grass, floors etc.
+* **Environment** - This is the default tile type for any kind of nonblocking terrain. Use it for grass, floors, etc.
 * **Road** - Same as Environment but the AI in the upcoming Pathfinder node will prefer road tiles over environment tiles.
-* **Blocking** - Every environment tile which is not accessible to the player, like rocks, mountains, walls etc.
+* **Blocking** - Every environment tile which is not accessible to the player, like rocks, mountains, walls, etc.
 * **Character** - Character tiles, like animation tiles for a warrior.
 * **Utility** - Utility character tiles. Like a ship or a horse.
 * **Water** - Water tiles. Tiles where a ship can go.
 * **Effect** - Effect tiles, like an explosion.
 * **Icon** - Icons.
 
-Note that the behavior and look for tiles in a certain area or for a given tile in general can be freely adjusted via the Behavior node system.
+Note that the behavior and look for tiles in a certain area or a given tile, in general, can be freely adjusted via the Behavior node system.
 
 ## The Regions View (70% Done)
 
