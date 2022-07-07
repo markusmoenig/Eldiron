@@ -575,7 +575,7 @@ impl TextEditorWidget for CodeEditor {
                                 self.set_cursor_offset_from_pos((100, self.cursor_rect.1 + 30), font);
                             } else {
                                 // Go Right
-                                self.set_cursor_offset_from_pos((self.cursor_rect.0 + 6, self.cursor_rect.1 + 10), font);
+                                self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width, self.cursor_rect.1 + 10), font);
                             }
                         }
                     }
@@ -593,7 +593,7 @@ impl TextEditorWidget for CodeEditor {
                     self.text.insert(self.cursor_offset, c);
                 }
                 self.process_text(font, draw2d);
-                self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width / 2, self.cursor_rect.1 + 10), font);
+                self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width, self.cursor_rect.1 + 10), font);
                 return true;
             }
         }
@@ -630,9 +630,13 @@ impl TextEditorWidget for CodeEditor {
         } else {
             if self.range_end.is_some() {
                 self.range_start = Some(self.range_buffer);
-                self.range_end = Some(self.cursor_pos.clone());
+                let mut end = self.cursor_pos.clone();
+                if end.0 > 0 { end.0 -= 1; }
+                self.range_end = Some(end);
             } else {
-                self.range_end = Some(self.cursor_pos.clone());
+                let mut end = self.cursor_pos.clone();
+                if end.0 > 0 { end.0 -= 1; }
+                self.range_end = Some(end);
             }
         }
 
