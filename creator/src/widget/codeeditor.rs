@@ -334,7 +334,7 @@ impl TextEditorWidget for CodeEditor {
     }
 
     /// Sets the cursor offset based on the given screen position
-    fn set_cursor_offset_from_pos(&mut self, pos: (usize, usize), _font: &Font) -> bool {
+    fn set_cursor_offset_from_pos(&mut self, pos: (usize, usize)) -> bool {
 
         let mut lines = self.text.lines();
 
@@ -409,6 +409,14 @@ impl TextEditorWidget for CodeEditor {
         true
     }
 
+    /// Sets the cursor to the given position
+    fn set_cursor(&mut self, pos: (usize, usize)) {
+        self.cursor_pos = pos;
+        self.cursor_rect.0 = 100 + pos.0 * self.advance_width;
+        self.cursor_rect.1 = (pos.1+1) * self.advance_height;
+        self.set_cursor_offset_from_pos((self.cursor_rect.0, self.cursor_rect.1));
+    }
+
     /// Copies the given range and returns it
     fn copy_range(&self, start: Option<(usize, usize)>, end: Option<(usize, usize)>) -> String {
         let mut s = "".to_string();
@@ -470,6 +478,31 @@ impl TextEditorWidget for CodeEditor {
                 return true;
             }
 
+            // Cut
+            if char == Some('x') || char == Some('X') {
+                let clip = self.copy_range(self.range_start, self.range_end);
+
+                let mut ctx = ClipboardContext::new().unwrap();
+                _ = ctx.set_contents(clip.to_owned());
+
+                if let Some(start) = self.range_start {
+                    if let Some(end) = self.range_end {
+                        let first_half = self.copy_range(None, Some((std::cmp::max(start.0 - 1, 0), start.1)));
+                        let second_half = self.copy_range(Some((end.0 + 1, end.1)), None);
+                        let text = first_half + second_half.as_str();
+                        self.text = text;
+                        self.process_text(font, draw2d);
+
+                        self.set_cursor((start.0, start.1));
+
+                        self.range_start = None;
+                        self.range_end = None;
+                    }
+                }
+
+                return true;
+            }
+
             // Paste
             if char == Some('v') || char == Some('V') {
                 let mut ctx = ClipboardContext::new().unwrap();
@@ -493,7 +526,23 @@ impl TextEditorWidget for CodeEditor {
         if let Some(key) = key {
             match key {
                 WidgetKey::Delete => {
-                    if self.text.is_empty() == false && self.cursor_offset >= 1 {
+
+                    let mut handled = false;
+                    if let Some(start) = self.range_start {
+                        if let Some(end) = self.range_end {
+                            let first_half = self.copy_range(None, Some((std::cmp::max(start.0 - 1, 0), start.1)));
+                            let second_half = self.copy_range(Some((end.0 + 1, end.1)), None);
+                            let text = first_half + second_half.as_str();
+                            self.text = text;
+                            self.process_text(font, draw2d);
+                            handled = true;
+
+                            self.set_cursor(start);
+                            self.range_start = None;
+                            self.range_end = None;
+                        }
+                    }
+                    if handled == false && self.text.is_empty() == false && self.cursor_offset >= 1 {
                         let index  = self.cursor_offset - 1;
 
                         let mut number_of_chars_on_prev_line = 0_usize;
@@ -511,9 +560,9 @@ impl TextEditorWidget for CodeEditor {
                         self.process_text(font, draw2d);
 
                         if delete_line == false {
-                            self.set_cursor_offset_from_pos((self.cursor_rect.0 - self.advance_width, self.cursor_rect.1 + 10), font);
+                            self.set_cursor_offset_from_pos((self.cursor_rect.0 - self.advance_width, self.cursor_rect.1 + 10));
                         } else {
-                            self.set_cursor_offset_from_pos((100 + number_of_chars_on_prev_line * self.advance_width - 2, self.cursor_rect.1 - 5), font);
+                            self.set_cursor_offset_from_pos((100 + number_of_chars_on_prev_line * self.advance_width - 2, self.cursor_rect.1 - 5));
                         }
                     }
                     return  true;
@@ -523,42 +572,42 @@ impl TextEditorWidget for CodeEditor {
                     self.text.insert(self.cursor_offset, ' ');
                     self.text.insert(self.cursor_offset + 1, ' ');
                     self.process_text(font, draw2d);
-                    self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width * 2, self.cursor_rect.1 + 10), font);
+                    self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width * 2, self.cursor_rect.1 + 10));
                     return  true;
                 },
 
                 WidgetKey::Return => {
                     self.text.insert(self.cursor_offset, '\n');
                     self.process_text(font, draw2d);
-                    self.set_cursor_offset_from_pos((100, self.cursor_rect.1 + 30), font);
+                    self.set_cursor_offset_from_pos((100, self.cursor_rect.1 + 30));
                     return  true;
                 },
 
                 WidgetKey::Up => {
                     if self.cursor_rect.1 >= 5 {
-                        self.set_cursor_offset_from_pos((self.cursor_rect.0, self.cursor_rect.1 - 5), font);
+                        self.set_cursor_offset_from_pos((self.cursor_rect.0, self.cursor_rect.1 - 5));
                     }
                     return  true;
                 },
 
                 WidgetKey::Down => {
-                    self.set_cursor_offset_from_pos((self.cursor_rect.0, self.cursor_rect.1 + 30), font);
+                    self.set_cursor_offset_from_pos((self.cursor_rect.0, self.cursor_rect.1 + 30));
                     return  true;
                 },
 
                 WidgetKey::Left => {
 
                     if self.logo || self.ctrl {
-                        self.set_cursor_offset_from_pos((100, self.cursor_rect.1 + 10), font);
+                        self.set_cursor_offset_from_pos((100, self.cursor_rect.1 + 10));
                     } else {
 
                         if self.cursor_pos.0 > 0 && self.cursor_rect.0 >= 100 {
                             // Go one left
-                            self.set_cursor_offset_from_pos((self.cursor_rect.0 - self.advance_width, self.cursor_rect.1 + 10), font);
+                            self.set_cursor_offset_from_pos((self.cursor_rect.0 - self.advance_width, self.cursor_rect.1 + 10));
                         } else {
                             // Go one up
                             if self.cursor_rect.1 >= 5 {
-                                self.set_cursor_offset_from_pos((100000, self.cursor_rect.1 - 5), font);
+                                self.set_cursor_offset_from_pos((100000, self.cursor_rect.1 - 5));
                             }
                         }
                     }
@@ -567,15 +616,15 @@ impl TextEditorWidget for CodeEditor {
 
                 WidgetKey::Right => {
                     if self.logo || self.ctrl {
-                        self.set_cursor_offset_from_pos((100000, self.cursor_rect.1 + 10), font);
+                        self.set_cursor_offset_from_pos((100000, self.cursor_rect.1 + 10));
                     } else {
                         if let Some(c) = self.text.chars().nth(self.cursor_offset) {
                             if c == '\n' {
                                 // Go down
-                                self.set_cursor_offset_from_pos((100, self.cursor_rect.1 + 30), font);
+                                self.set_cursor_offset_from_pos((100, self.cursor_rect.1 + 30));
                             } else {
                                 // Go Right
-                                self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width, self.cursor_rect.1 + 10), font);
+                                self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width, self.cursor_rect.1 + 10));
                             }
                         }
                     }
@@ -587,21 +636,41 @@ impl TextEditorWidget for CodeEditor {
 
         if let Some(c) = char {
             if c.is_ascii() && c.is_control() == false {
-                if self.text.is_empty() {
-                    self.text.push(c);
-                } else {
-                    self.text.insert(self.cursor_offset, c);
+
+                let mut handled = false;
+                if let Some(start) = self.range_start {
+                    if let Some(end) = self.range_end {
+                        let first_half = self.copy_range(None, Some((std::cmp::max(start.0 - 1, 0), start.1)));
+                        let second_half = self.copy_range(Some((end.0 + 1, end.1)), None);
+                        let text = first_half + c.to_string().as_str() + second_half.as_str();
+                        self.text = text;
+                        self.process_text(font, draw2d);
+                        handled = true;
+
+                        self.set_cursor((start.0 + 1, start.1));
+
+                        self.range_start = None;
+                        self.range_end = None;
+                    }
                 }
-                self.process_text(font, draw2d);
-                self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width, self.cursor_rect.1 + 10), font);
+
+                if handled == false {
+                    if self.text.is_empty() {
+                        self.text.push(c);
+                    } else {
+                        self.text.insert(self.cursor_offset, c);
+                    }
+                    self.process_text(font, draw2d);
+                    self.set_cursor_offset_from_pos((self.cursor_rect.0 + self.advance_width, self.cursor_rect.1 + 10));
+                }
                 return true;
             }
         }
         false
     }
 
-    fn mouse_down(&mut self, pos: (usize, usize), font: &Font) -> bool {
-        let consumed = self.set_cursor_offset_from_pos((pos.0 + self.offset.0 as usize * self.advance_width as usize, pos.1 + self.offset.1 as usize * self.advance_height as usize), font);
+    fn mouse_down(&mut self, pos: (usize, usize), _font: &Font) -> bool {
+        let consumed = self.set_cursor_offset_from_pos((pos.0 + self.offset.0 as usize * self.advance_width as usize, pos.1 + self.offset.1 as usize * self.advance_height as usize));
         self.range_buffer = self.cursor_pos.clone();
         self.range_start = Some(self.cursor_pos.clone());
         self.range_end = None;
@@ -619,8 +688,8 @@ impl TextEditorWidget for CodeEditor {
         false
     }
 
-    fn mouse_dragged(&mut self, pos: (usize, usize), font: &Font) -> bool {
-        let consumed = self.set_cursor_offset_from_pos((pos.0 + self.offset.0 as usize * self.advance_width as usize, pos.1 + self.offset.1 as usize * self.advance_height as usize), font);
+    fn mouse_dragged(&mut self, pos: (usize, usize), _font: &Font) -> bool {
+        let consumed = self.set_cursor_offset_from_pos((pos.0 + self.offset.0 as usize * self.advance_width as usize, pos.1 + self.offset.1 as usize * self.advance_height as usize));
 
         if (self.cursor_pos.1 == self.range_buffer.1 && self.cursor_pos.0 <= self.range_buffer.0) || self.cursor_pos.1 < self.range_buffer.1 {
             self.range_start = Some(self.cursor_pos.clone());

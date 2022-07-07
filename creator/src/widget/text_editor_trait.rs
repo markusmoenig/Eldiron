@@ -18,7 +18,8 @@ pub trait TextEditorWidget {
     fn copy_range(&self, start: Option<(usize, usize)>, end: Option<(usize, usize)>) -> String { "".to_lowercase() }
 
     fn process_text(&mut self, font: &Font, draw2d: &Draw2D);
-    fn set_cursor_offset_from_pos(&mut self, pos: (usize, usize), font: &Font) -> bool;
+    fn set_cursor_offset_from_pos(&mut self, pos: (usize, usize)) -> bool;
+    fn set_cursor(&mut self, pos: (usize, usize));
 
     fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), stride: usize, font: &Font, draw2d: &Draw2D);
 
