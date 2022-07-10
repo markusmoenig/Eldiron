@@ -172,6 +172,13 @@ impl AtomWidget {
         }
     }
 
+    pub fn set_rect2(&mut self, rect: (usize, usize, usize, usize)) {
+        self.rect = rect;
+        if self.buffer.len() != rect.2 * rect.3 * 4 {
+            self.buffer = vec![0;rect.2 * rect.3 * 4];
+        }
+    }
+
     pub fn draw(&mut self, frame: &mut [u8], stride: usize, _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
 
         let rect = (0_usize, 0_usize, self.rect.2, self.rect.3);

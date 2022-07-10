@@ -50,4 +50,11 @@ pub trait TextEditorWidget {
     fn modifier_changed(&mut self, shift: bool, ctrl: bool, alt: bool, logo: bool, _font: &Font) -> bool {
         false
     }
+
+    fn get_time(&self) -> u128 {
+        let stop = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("Time went backwards");
+            stop.as_millis()
+    }
 }

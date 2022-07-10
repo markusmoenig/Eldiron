@@ -738,4 +738,5 @@ impl TextEditorWidget for CodeEditor {
         self.logo = logo;
         false
     }
+
 }

@@ -564,9 +564,9 @@ impl ScreenWidget for Editor<'_> {
                     options = element.0;
                     content = element.1;
 
-                    if let Some(mut el_option) = options {
-                        el_option.set_area_name(self.context.dialog_new_name.clone(), &mut self.context, &mut content);
-                        options = Some(el_option);
+                    if let Some(mut el_content) = content {
+                        el_content.set_area_name(self.context.dialog_new_name.clone(), &mut self.context);
+                        content = Some(el_content);
                     }
                 }
                 self.content.insert(index, (options, content));

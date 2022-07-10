@@ -38,7 +38,6 @@ pub trait EditorOptions {
     /// Options are closing
     fn closing(&mut self, asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) { }
 
-
     // For TilemapOptions
 
     /// Updates the group widget based on the selected tile
@@ -58,14 +57,9 @@ pub trait EditorOptions {
 
     // For RegionOptions
 
-    /// Returns the current region editor mode
+    /// Return and set the current region editor mode
     fn get_editor_mode(&self) -> RegionEditorMode { RegionEditorMode::Tiles }
-
-    /// Update the area ui
-    fn update_area_ui(&mut self, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {}
-
-    /// Sets a new name for the current area
-    fn set_area_name(&mut self, name: String, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {}
+    fn set_editor_mode(&mut self, mode: RegionEditorMode) {}
 
     /// Get the current tile usage
     fn get_tile_usage(&self) -> TileUsage { TileUsage::Environment }
@@ -81,9 +75,6 @@ pub trait EditorOptions {
 
     /// Set the tags
     fn set_region_tags(&mut self, tags: String, asset: &mut Asset, context: &ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {}
-
-    /// Sets the area names
-    fn set_area_names(&mut self, names: Vec<String>) {}
 
     // For ScreenOptions
 
@@ -159,6 +150,11 @@ pub trait EditorContent {
     /// Return the behavior graph
     fn get_behavior_graph(&mut self) -> Option<&mut NodeGraph> { None }
 
+    /// Update the area ui
+    fn update_area_ui(&mut self, context: &mut ScreenContext) {}
+
+    /// Sets a new name for the current area
+    fn set_area_name(&mut self, name: String, context: &mut ScreenContext) {}
 
     // For NodeGraphs
 
