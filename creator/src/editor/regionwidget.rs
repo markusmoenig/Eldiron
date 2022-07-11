@@ -147,9 +147,8 @@ impl EditorContent for RegionWidget {
             let editor_mode = options.get_editor_mode();
 
             let mut rect = self.rect.clone();
-            //if editor_mode != RegionEditorMode::Areas {
-                rect.3 -= self.selector_size + self.toolbar_size;
-            //}
+            rect.3 -= self.selector_size + self.toolbar_size;
+
             let grid_size = self.grid_size;
 
             let left_offset = (rect.2 % grid_size) / 2;
@@ -251,6 +250,9 @@ impl EditorContent for RegionWidget {
 
         let mut consumed = false;
 
+        let mut rect = self.rect.clone();
+        rect.3 -= self.selector_size + self.toolbar_size;
+
         if let Some(options) = options {
 
             for atom in &mut self.widgets {
@@ -284,7 +286,7 @@ impl EditorContent for RegionWidget {
                 }
             }
 
-            if consumed == false && context.contains_pos_for(pos, self.rect) {
+            if consumed == false && context.contains_pos_for(pos, rect) {
                 if let Some(id) = self.get_tile_id(pos) {
                     self.clicked = Some(id);
                     let editor_mode = options.get_editor_mode();
