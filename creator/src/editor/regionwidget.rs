@@ -4,6 +4,7 @@ use core_shared::asset::tileset::TileUsage;
 
 use crate::widget::WidgetState;
 use crate::widget::atom::{AtomWidget, AtomWidgetType, AtomData};
+use crate::widget::characterselector::CharacterSelectorWidget;
 use crate::widget::codeeditor::CodeEditorMode;
 use crate::widget::context::ScreenContext;
 use crate::editor::{ TileSelectorWidget, NodeGraph, GraphMode };
@@ -22,11 +23,13 @@ pub struct RegionWidget {
     widgets                 : Vec<AtomWidget>,
 
     area_widgets            : Vec<AtomWidget>,
+    character_widgets       : Vec<AtomWidget>,
 
     offset                  : (isize, isize),
     screen_offset           : (usize, usize),
 
     pub tile_selector       : TileSelectorWidget,
+    pub character_selector  : CharacterSelectorWidget,
 
     pub behavior_graph      : Box::<NodeGraph>,
 
@@ -35,7 +38,7 @@ pub struct RegionWidget {
     mouse_hover_pos         : (usize, usize),
     pub clicked             : Option<(isize, isize)>,
 
-    selector_size           : usize,
+    bottom_size             : usize,
     toolbar_size            : usize,
 }
 
@@ -48,7 +51,7 @@ impl EditorContent for RegionWidget {
 
         let mut widgets = vec![];
 
-        let mut mode_button = AtomWidget::new(vec!["Draw Tiles".to_string(), "Edit Areas".to_string(), "Settings".to_string()], AtomWidgetType::SliderButton,
+        let mut mode_button = AtomWidget::new(vec!["Draw Tiles".to_string(), "Edit Areas".to_string(), "Characters".to_string(), "Settings".to_string()], AtomWidgetType::SliderButton,
         AtomData::new_as_int("Mode".to_string(), 0));
         mode_button.atom_data.text = "Mode".to_string();
         mode_button.set_rect((rect.0 + 10, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 200, 40), asset, context);
@@ -58,6 +61,8 @@ impl EditorContent for RegionWidget {
         // Tile Selector
         let mut tile_selector = TileSelectorWidget::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context);
         tile_selector.set_tile_type(vec![TileUsage::Environment], None, None, &asset);
+
+        let character_selector = CharacterSelectorWidget::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context);
 
         // Graph
         let mut behavior_graph = NodeGraph::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), BehaviorType::Regions, asset, &context);
@@ -105,20 +110,22 @@ impl EditorContent for RegionWidget {
 
             widgets                 : widgets,
 
-            area_widgets            : area_widgets,
+            area_widgets,
+            character_widgets       : vec![],
 
             offset                  : (0, 0),
             screen_offset           : (0, 0),
 
             tile_selector,
+            character_selector,
             behavior_graph          : Box::new(behavior_graph),
 
             mouse_wheel_delta       : (0, 0),
             mouse_hover_pos         : (0, 0),
             clicked                 : None,
 
-            selector_size           : bottom_size,
-            toolbar_size            : toolbar_size,
+            bottom_size,
+            toolbar_size,
         }
     }
 
@@ -126,18 +133,19 @@ impl EditorContent for RegionWidget {
         self.rect.2 = width;
         self.rect.3 = height;
 
-        self.widgets[0].set_rect2((self.rect.0 + 10, self.rect.1 + self.rect.3 - self.selector_size - self.toolbar_size - 5, 200, 40));
+        self.widgets[0].set_rect2((self.rect.0 + 10, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 200, 40));
 
-        self.area_widgets[0].set_rect2((self.rect.0 + 230, self.rect.1 + self.rect.3 - self.selector_size - self.toolbar_size - 5, 180, 40));
-        self.area_widgets[1].set_rect2((self.rect.0 + 230 + 200, self.rect.1 + self.rect.3 - self.selector_size - self.toolbar_size - 5, 140, 40));
-        self.area_widgets[2].set_rect2((self.rect.0 + 230 + 200 + 150, self.rect.1 + self.rect.3 - self.selector_size - self.toolbar_size - 5, 140, 40));
-        self.area_widgets[3].set_rect2((self.rect.0 + 230 + 200 + 150 + 150, self.rect.1 + self.rect.3 - self.selector_size - self.toolbar_size - 5, 140, 40));
-        self.area_widgets[4].set_rect2((self.rect.0 +  230 + 200 + 150 + 150 + 150, self.rect.1 + self.rect.3 - self.selector_size - self.toolbar_size - 5, 160, 40));
+        self.area_widgets[0].set_rect2((self.rect.0 + 230, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 180, 40));
+        self.area_widgets[1].set_rect2((self.rect.0 + 230 + 200, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
+        self.area_widgets[2].set_rect2((self.rect.0 + 230 + 200 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
+        self.area_widgets[3].set_rect2((self.rect.0 + 230 + 200 + 150 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
+        self.area_widgets[4].set_rect2((self.rect.0 +  230 + 200 + 150 + 150 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 160, 40));
 
-        self.behavior_graph.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.selector_size, width, self.selector_size);
+        self.behavior_graph.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.bottom_size, width, self.bottom_size);
         self.behavior_graph.set_mode_and_rect(GraphMode::Detail, self.behavior_graph.rect, context);
-        self.tile_selector.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.selector_size, width, self.selector_size);
-        self.tile_selector.resize(width, self.selector_size);
+        self.tile_selector.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.bottom_size, width, self.bottom_size);
+        self.tile_selector.resize(width, self.bottom_size);
+        self.character_selector.resize(width, self.bottom_size);
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
@@ -147,7 +155,7 @@ impl EditorContent for RegionWidget {
             let editor_mode = options.get_editor_mode();
 
             let mut rect = self.rect.clone();
-            rect.3 -= self.selector_size + self.toolbar_size;
+            rect.3 -= self.bottom_size + self.toolbar_size;
 
             let grid_size = self.grid_size;
 
@@ -228,10 +236,10 @@ impl EditorContent for RegionWidget {
                         }
                     }
                 }
-            }
-
-            if editor_mode == RegionEditorMode::Areas {
                 self.behavior_graph.draw(frame, anim_counter, asset, context, &mut None);
+            } else
+            if editor_mode == RegionEditorMode::Characters {
+                self.character_selector.draw(frame, context.width, anim_counter, asset, context);
             }
 
             if self.mouse_hover_pos != (0,0) {
@@ -251,7 +259,7 @@ impl EditorContent for RegionWidget {
         let mut consumed = false;
 
         let mut rect = self.rect.clone();
-        rect.3 -= self.selector_size + self.toolbar_size;
+        rect.3 -= self.bottom_size + self.toolbar_size;
 
         if let Some(options) = options {
 
@@ -279,6 +287,17 @@ impl EditorContent for RegionWidget {
                     return consumed;
                 } else {
                     for atom in &mut self.area_widgets {
+                        if atom.mouse_down(pos, asset, context) {
+                            return true;
+                        }
+                    }
+                }
+            } else
+            if editor_mode == RegionEditorMode::Characters {
+                if self.character_selector.mouse_down(pos, asset, context) {
+                    consumed = true;
+                } else {
+                    for atom in &mut self.character_widgets {
                         if atom.mouse_down(pos, asset, context) {
                             return true;
                         }
@@ -335,6 +354,10 @@ impl EditorContent for RegionWidget {
                             options.set_editor_mode(RegionEditorMode::Areas);
                         } else
                         if atom.curr_index == 2 {
+                            options.set_editor_mode(RegionEditorMode::Characters);
+                            self.character_selector.collect(context);
+                        } else
+                        if atom.curr_index == 3 {
                             options.set_editor_mode(RegionEditorMode::Settings);
                             context.code_editor_is_active = true;
                             context.code_editor_just_opened = true;
@@ -484,6 +507,11 @@ impl EditorContent for RegionWidget {
                 if context.contains_pos_for(self.mouse_hover_pos, self.behavior_graph.rect) && self.behavior_graph.mouse_wheel(delta, asset, context, &mut None, &mut None) {
                     consumed = true;
                 }
+            } else
+            if editor_mode == RegionEditorMode::Characters {
+                if context.contains_pos_for(self.mouse_hover_pos, self.character_selector.rect) && self.character_selector.mouse_wheel(delta, asset, context) {
+                    consumed = true;
+                }
             }
 
             if consumed == false {
@@ -538,7 +566,7 @@ impl EditorContent for RegionWidget {
     fn get_tile_id(&self, pos: (usize, usize)) -> Option<(isize, isize)> {
         let grid_size = self.grid_size;
         if pos.0 > self.rect.0 + self.screen_offset.0 && pos.1 > self.rect.1 + self.screen_offset.1
-        && pos.0 < self.rect.0 + self.rect.2 - self.screen_offset.0  && pos.1 < self.rect.1 + self.rect.3 - self.screen_offset.1 - self.selector_size
+        && pos.0 < self.rect.0 + self.rect.2 - self.screen_offset.0  && pos.1 < self.rect.1 + self.rect.3 - self.screen_offset.1 - self.bottom_size
         {
             let x = ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
             let y = ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;

@@ -17,6 +17,7 @@ use crate::editor::traits::{ EditorOptions, EditorContent };
 pub enum RegionEditorMode {
     Tiles,
     Areas,
+    Characters,
     Settings
 }
 

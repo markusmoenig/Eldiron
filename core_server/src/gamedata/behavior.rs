@@ -312,7 +312,7 @@ impl GameBehavior {
             }
 
         }
-
         names
     }
+
 }
