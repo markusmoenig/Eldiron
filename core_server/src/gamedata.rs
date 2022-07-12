@@ -793,7 +793,7 @@ impl GameData<'_> {
 
             let index = self.instances.len();
 
-            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![] };
+            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0 };
 
             // Make sure id is unique
             let mut has_id_already = true;
@@ -866,7 +866,7 @@ impl GameData<'_> {
 
         let index = self.instances.len();
 
-        let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.data.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::GameLogic, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![]};
+        let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.data.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::GameLogic, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0 };
 
         // Make sure id is unique
         let mut has_id_already = true;
@@ -1310,6 +1310,15 @@ impl GameData<'_> {
             self.instances[inst_index].messages = vec![];
             self.instances[inst_index].audio = vec![];
 
+            if  self.instances[inst_index].old_position.is_some() {
+                self.instances[inst_index].curr_transition_time += 1;
+
+                if self.instances[inst_index].curr_transition_time > self.instances[inst_index].max_transition_time {
+                    self.instances[inst_index].old_position = None;
+                    self.instances[inst_index].curr_transition_time = 0;
+                }
+            }
+
             // Skip Sleep cycles
             if self.instances[inst_index].sleep_cycles > 0 {
                 self.instances[inst_index].sleep_cycles -= 1;
@@ -1371,11 +1380,15 @@ impl GameData<'_> {
 
             if let Some(position) = self.instances[inst_index].position {
                 if let Some(tile) = self.instances[inst_index].tile {
-                    let character = CharacterData { position,
+                    let character = CharacterData {
+                        position,
+                        old_position            : self.instances[inst_index].old_position,
+                        max_transition_time     : self.instances[inst_index].max_transition_time,
+                        curr_transition_time    : self.instances[inst_index].curr_transition_time,
                         tile,
-                        name:   self.instances[inst_index].name.clone(),
-                        id:     self.instances[inst_index].id,
-                        index:  inst_index,
+                        name                    : self.instances[inst_index].name.clone(),
+                        id                      : self.instances[inst_index].id,
+                        index                   : inst_index,
                      };
                      if let Some(list) = self.characters.get_mut(&position.0) {
                          list.push(character);

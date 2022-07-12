@@ -9,6 +9,7 @@ use crate::{regiondata::GameRegionData, characterdata::CharacterData, asset::Til
 pub struct GameUpdate {
 
     pub position                : Option<(usize, isize, isize)>,
+
     pub tile                    : Option<(usize, usize, usize)>,
 
     /// The script for the current screen which handles the drawing

@@ -555,15 +555,39 @@ impl GameRender<'_> {
             // Draw Characters
             for character in &update.characters {
 
-                let position = character.position;
+                let mut position = character.position;
                 let tile = character.tile;
+
+                let mut tr = (0, 0);
+
+                if let Some(old_position) = character.old_position {
+
+                    let t = (character.curr_transition_time as f64 * (self.tile_size as f64 / (character.max_transition_time as f64 + 1.0))) as isize;
+
+                    if position.1 > old_position.1 {
+                        tr.0 = t;
+                    } else
+                    if position.1 < old_position.1 {
+                        tr.0 = -t;
+                    }
+
+                    if position.2 > old_position.2 {
+                        tr.1 = t;
+                    } else
+                    if position.2 < old_position.2 {
+                        tr.1 = -t;
+                    }
+
+                    println!("{}", tr.0);
+                    position = old_position;
+                }
 
                 // Row check
                 if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
                     // Column check
                     if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
                         // Visible
-                        let pos = (rect.0 + left_offset + ((position.1 - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.2 - offset.1) as usize) * tile_size);
+                        let pos = (rect.0 + left_offset + (((position.1 - offset.0) * tile_size as isize) + tr.0) as usize, rect.1 + top_offset + ((position.2 - offset.1) * tile_size as isize + tr.1) as usize);
 
                         if let Some(set) = &set {
                             if set.contains(&(((pos.0 - rect.0) / self.tile_size) as isize, ((pos.1 - rect.1) / self.tile_size) as isize)) == false {

@@ -148,6 +148,10 @@ pub struct BehaviorInstance {
 
     // For characters, the 2D position id and the currently displayed tile id.
     pub position                : Option<(usize, isize, isize)>,
+    pub old_position            : Option<(usize, isize, isize)>,
+    pub max_transition_time     : usize,
+    pub curr_transition_time    : usize,
+
     pub tile                    : Option<(usize, usize, usize)>,
 
     // Messages for this player in the current tick
