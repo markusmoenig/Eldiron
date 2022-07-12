@@ -212,6 +212,9 @@ pub fn teleport_area(region_id: usize, id: (usize, usize), data: &mut GameData, 
         if let Some(value) = value {
             for index in area_list {
                 data.instances[*index].position = Some((value.0 as usize, value.1 as isize, value.2 as isize));
+                data.instances[*index].old_position = None;
+                data.instances[*index].max_transition_time = 0;
+                data.instances[*index].curr_transition_time = 0;
             }
         }
     }

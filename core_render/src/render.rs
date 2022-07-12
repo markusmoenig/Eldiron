@@ -578,7 +578,6 @@ impl GameRender<'_> {
                         tr.1 = -t;
                     }
 
-                    println!("{}", tr.0);
                     position = old_position;
                 }
 
