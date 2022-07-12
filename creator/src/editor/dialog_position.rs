@@ -17,6 +17,8 @@ pub struct DialogPositionWidget {
 
     clicked_id                  : String,
 
+    curr_area_id                : usize,
+
     region_rect                 : (usize, usize, usize, usize),
     region_offset               : (isize, isize),
     region_scroll_offset        : (isize, isize),
@@ -34,16 +36,16 @@ impl DialogPositionWidget {
         AtomData::new_as_int("Regions".to_string(), 0));
         widgets.push(region_menu);
 
-        let clear_button = AtomWidget::new(vec!["Clear".to_string()], AtomWidgetType::ToolBarButton,
-        AtomData::new_as_int("Clear".to_string(), 0));
-        widgets.push(clear_button);
+        let areas_button = AtomWidget::new(vec!["Areas".to_string()], AtomWidgetType::ToolBarCheckButton,
+        AtomData::new_as_int("Areas".to_string(), 0));
+        widgets.push(areas_button);
 
         let ok_button = AtomWidget::new(vec!["Accept".to_string()], AtomWidgetType::ToolBarButton,
         AtomData::new_as_int("Accept".to_string(), 0));
         widgets.push(ok_button);
 
         Self {
-            rect                    : (0, 0, 600, 200),
+            rect                    : (0, 0, 800, 600),
 
             widgets                 : widgets,
 
@@ -51,6 +53,8 @@ impl DialogPositionWidget {
             buffer                  : vec![0],
 
             clicked_id              : "".to_string(),
+
+            curr_area_id            : 0,
 
             region_rect             : (0,0,0,0),
             region_offset           : (0,0),
@@ -77,11 +81,24 @@ impl DialogPositionWidget {
                 context.target_fps = context.default_fps;
 
                 self.widgets[0].text = context.data.regions_names.clone();
+                self.widgets[0].dirty = true;
 
                 self.widgets[1].state = WidgetState::Normal;
                 self.widgets[2].state = WidgetState::Normal;
+                self.widgets[1].dirty = true;
+                self.widgets[2].dirty = true;
+
+                // Display the correct region
+                let region_id = context.dialog_node_behavior_value.0 as usize;
+                for (index, id) in context.data.regions_ids.iter().enumerate() {
+                    if region_id == *id {
+                        self.widgets[0].curr_index = index;
+                        break;
+                    }
+                }
 
                 self.region_scroll_offset = (0, 0);
+                self.curr_area_id = context.dialog_node_behavior_value.3 as usize;
                 self.new_value = false;
             }
             self.dirty = true;
@@ -101,6 +118,7 @@ impl DialogPositionWidget {
             self.buffer = vec![0;rect.2 * rect.3 * 4];
         }
 
+        let area_mode = self.area_mode();
         let buffer_frame = &mut self.buffer[..];
 
         if self.dirty {
@@ -117,7 +135,11 @@ impl DialogPositionWidget {
 
                 let title_text_size = 30.0;
 
-                context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Select Position".to_string(), &context.color_white, &context.color_black);
+                if area_mode {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Select Area".to_string(), &context.color_white, &context.color_black);
+                } else {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Select Position".to_string(), &context.color_white, &context.color_black);
+                }
 
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &region_rect, rect.2, &(region_rect.2 as f64 - 1.0, region_rect.3 as f64 - 1.0), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &border_color, 1.5);
 
@@ -128,6 +150,43 @@ impl DialogPositionWidget {
 
                         let position = (context.dialog_node_behavior_value.1 as isize, context.dialog_node_behavior_value.2 as isize);
                         self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &region_rect, &position, &self.region_scroll_offset, rect.2, 32, 0, asset, context);
+
+                        // Draw areas
+                        if area_mode {
+
+                            let grid_size = 32;
+
+                            let x_tiles = (region_rect.2 / grid_size) as isize;
+                            let y_tiles = (region_rect.3 / grid_size) as isize;
+
+                            let left_offset = (region_rect.2 % grid_size) / 2;
+                            let top_offset = (region_rect.3 % grid_size) / 2;
+
+                            for y in 0..y_tiles {
+                                for x in 0..x_tiles {
+
+                                    let rx = x + self.region_offset.0;
+                                    let ry = y + self.region_offset.1;
+
+                                    for area_index in 0..region.data.areas.len() {
+
+                                        if region.data.areas[area_index].area.contains(&(rx, ry)) {
+                                            let pos = (region_rect.0 + left_offset + (x as usize) * grid_size, region_rect.1 + top_offset + (y as usize) * grid_size);
+
+                                            let mut c = context.color_white.clone();
+
+                                            if self.curr_area_id == region.data.areas[area_index].id {
+                                                c = context.color_red.clone();
+                                                c[3] = 100;
+                                            } else {
+                                                c[3] = 50;
+                                            }
+                                            context.draw2d.blend_rect(buffer_frame, &(pos.0, pos.1, grid_size, grid_size), rect.2, &c);
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -217,11 +276,25 @@ impl DialogPositionWidget {
 
             let x = self.region_offset.0 + ((cpos.0 - self.region_rect.0 - left_offset) / region_tile_size) as isize;
             let y = self.region_offset.1 + ((cpos.1 - self.region_rect.1 - top_offset) / region_tile_size) as isize;
-            context.dialog_node_behavior_value = (context.data.regions_ids[self.widgets[0].curr_index] as f64, x as f64, y as f64, 0.0, "".to_string());
 
-            self.region_scroll_offset = (0, 0);
             self.dirty = true;
 
+            if self.area_mode() == false {
+                self.region_scroll_offset = (0, 0);
+                context.dialog_node_behavior_value = (context.data.regions_ids[self.widgets[0].curr_index] as f64, x as f64, y as f64, -1.0, "".to_string());
+            } else {
+                let region_id = context.data.regions_ids[self.widgets[0].curr_index];
+                if let Some(region) = context.data.regions.get(&region_id) {
+
+                    for area_index in 0..region.data.areas.len() {
+                        if region.data.areas[area_index].area.contains(&(x, y)) {
+                            self.curr_area_id = region.data.areas[area_index].id;
+                            let id = region.data.areas[area_index].id as f64;
+                            context.dialog_node_behavior_value = (context.data.regions_ids[self.widgets[0].curr_index] as f64, x as f64, y as f64, id, "".to_string());
+                        }
+                    }
+                }
+            }
             return true;
         }
 
@@ -292,5 +365,9 @@ impl DialogPositionWidget {
         self.region_scroll_offset.1 += delta.1 / 8 as isize;
         self.dirty = true;
         true
+    }
+
+    fn area_mode(&self) -> bool {
+        self.widgets[1].checked
     }
 }

@@ -709,7 +709,7 @@ impl ScreenWidget for Editor<'_> {
 
         // Dialog Position
         if self.context.dialog_position_state != DialogState::Closed {
-            self.dialog_position.rect.0 = (self.context.width - self.dialog.rect.2) / 2;
+            self.dialog_position.rect.0 = (self.context.width - self.dialog_position.rect.2) / 2;
             self.dialog_position.draw(frame, anim_counter, asset, &mut self.context);
         } else
         if self.dialog_position.new_value {
