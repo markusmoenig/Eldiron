@@ -1477,7 +1477,11 @@ impl GameData<'_> {
                 }
 
                 let update = GameUpdate{
-                    position                : if self.instances[inst_index].old_position.is_some() { self.instances[inst_index].old_position } else { self.instances[inst_index].position },
+                    id                      : self.instances[inst_index].id,
+                    position                : self.instances[inst_index].position,//if self.instances[inst_index].old_position.is_some() { self.instances[inst_index].old_position } else { self.instances[inst_index].position },
+                    old_position            : self.instances[inst_index].old_position,
+                    max_transition_time     : self.instances[inst_index].max_transition_time,
+                    curr_transition_time    : self.instances[inst_index].curr_transition_time,
                     tile                    : self.instances[inst_index].tile,
                     screen                  : screen,
                     region,

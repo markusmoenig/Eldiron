@@ -112,6 +112,15 @@ pub fn compute_distance(p0: &(usize, isize, isize), p1: &(usize, isize, isize)) 
     ((dx * dx + dy * dy) as f64).sqrt()
 }
 
+/// Returns the current position of the instance_index, takes into account an ongoing animation
+pub fn get_instance_position(inst_index: usize, instances: &Vec<super::behavior::BehaviorInstance>) -> Option<(usize, isize, isize)> {
+    if let Some(old_position) = instances[inst_index].old_position {
+        return Some(old_position);
+    }
+    instances[inst_index].position
+}
+
+
 pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp: Option<(usize, isize, isize)>, exclude_dp: bool, data: &mut GameData) -> BehaviorNodeConnector {
 
     // Cache the character positions

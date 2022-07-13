@@ -2,6 +2,7 @@ use crate::gamedata::behavior::{ BehaviorNodeConnector };
 use crate::gamedata::GameData;
 
 use super::behavior::{ BehaviorType };
+use super::nodes_utility::get_instance_position;
 use crate::gamedata::get_node_value;
 use core_shared::asset::TileUsage;
 use core_shared::light::Light;
@@ -27,7 +28,7 @@ pub fn enter_area(region_id: usize, id: (usize, usize), data: &mut GameData, beh
     if let Some(region) = data.regions.get_mut(&region_id) {
         if let Some(characters) = data.characters.get(&region_id) {
             for character_data in characters {
-                if let Some(position) = data.instances[character_data.index].position {
+                if let Some(position) = get_instance_position(character_data.index, &data.instances) {
                     if region.data.areas[id.0].area.contains(&(position.1, position.2)) {
 
                         if data.area_characters.contains_key(&(region_id, id.0)) == false {
@@ -95,7 +96,7 @@ pub fn leave_area(region_id: usize, id: (usize, usize), data: &mut GameData, beh
     if let Some(region) = data.regions.get_mut(&region_id) {
         if let Some(characters) = data.characters.get(&region_id) {
             for character_data in characters {
-                if let Some(position) = data.instances[character_data.index].position {
+                if let Some(position) = get_instance_position(character_data.index, &data.instances) {
                     if region.data.areas[id.0].area.contains(&(position.1, position.2)) == false {
 
                         let mut was_inside_already = false;
@@ -143,7 +144,7 @@ pub fn inside_area(region_id: usize, id: (usize, usize), data: &mut GameData, _b
     if let Some(region) = data.regions.get_mut(&region_id) {
         if let Some(characters) = data.characters.get(&region_id) {
             for character_data in characters {
-                if let Some(position) = data.instances[character_data.index].position {
+                if let Some(position) = get_instance_position(character_data.index, &data.instances) {
                     if region.data.areas[id.0].area.contains(&(position.1, position.2)) {
                         //println!("{} is in area {}", data.instances[*instance_index].name, region.data.areas[id.0].name);
                         if data.area_characters.contains_key(&(region_id, id.0)) == false {

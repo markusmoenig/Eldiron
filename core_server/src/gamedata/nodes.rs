@@ -118,7 +118,13 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut GameData
         return BehaviorNodeConnector::Success;
     }
 
-    walk_towards(instance_index, p, dp,false, data)
+    let rc  = walk_towards(instance_index, p, dp,false, data);
+    if  rc == BehaviorNodeConnector::Right {
+        data.instances[instance_index].max_transition_time = delay as usize + 1;
+        data.instances[instance_index].curr_transition_time = 1;
+    }
+
+    rc
 }
 
 /// Lookout
@@ -209,7 +215,12 @@ pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut GameData, 
         return BehaviorNodeConnector::Success;
     }
 
-    walk_towards(instance_index, p, dp, true, data)
+    let rc = walk_towards(instance_index, p, dp, true, data);
+    if  rc == BehaviorNodeConnector::Right {
+        data.instances[instance_index].max_transition_time = delay as usize + 1;
+        data.instances[instance_index].curr_transition_time = 1;
+    }
+    rc
 }
 
 /// Systems Call

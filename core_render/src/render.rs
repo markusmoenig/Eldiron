@@ -467,7 +467,9 @@ impl GameRender<'_> {
     }
 
     /// Draws the game in the given rect
-    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), position: (usize, isize, isize), anim_counter: usize, update: &GameUpdate, set: Option<HashSet<(isize, isize)>>) {
+    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), cposition: (usize, isize, isize), anim_counter: usize, update: &GameUpdate, set: Option<HashSet<(isize, isize)>>) {
+
+        let mut position = cposition;
 
         let stride = self.width;
         let tile_size = self.tile_size;
@@ -500,6 +502,29 @@ impl GameRender<'_> {
             }
 
             let mut offset = (0, 0);
+
+            let mut gr = (0, 0);
+
+            if let Some(old_position) = update.old_position {
+
+                let t = (update.curr_transition_time as f64 * (self.tile_size as f64 / (update.max_transition_time as f64 + 1.0))) as isize;
+
+                if position.1 > old_position.1 {
+                    gr.0 = t;
+                } else
+                if position.1 < old_position.1 {
+                    gr.0 = -t;
+                }
+                if position.2 > old_position.2 {
+                    gr.1 = t;
+                } else
+                if position.2 < old_position.2 {
+                    gr.1 = -t;
+                }
+
+                position = old_position;
+            }
+
             offset.0 = position.1;
             offset.1 = position.2;
 
@@ -508,12 +533,14 @@ impl GameRender<'_> {
 
             if region_width * tile_size as isize  <= rect.2 as isize {
                 offset.0 = region.min_pos.0;
+                gr.0 = 0;
             } else {
                 let left = x_tiles / 2;
                 offset.0 -= left;
             }
 
             if region_height * tile_size as isize  <= rect.3 as isize {
+                gr.1 = 0;
                 offset.1 = region.min_pos.1;
             } else {
                 let top = y_tiles / 2;
@@ -523,12 +550,13 @@ impl GameRender<'_> {
             let base_light = 0.5;
 
             // Draw Region
+
             for y in 0..y_tiles {
                 for x in 0..x_tiles {
 
                     let values = self.get_region_value(region, (x + offset.0, y + offset.1), update);
                     for value in values {
-                        let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
+                        let pos = (rect.0 + left_offset + (x * tile_size as isize - gr.0) as usize, rect.1 + top_offset + (y * tile_size as isize - gr.1) as usize);
 
                         if let Some(set) = &set {
                             if set.contains(&(x, y)) == false {
@@ -562,20 +590,25 @@ impl GameRender<'_> {
 
                 if let Some(old_position) = character.old_position {
 
-                    let t = (character.curr_transition_time as f64 * (self.tile_size as f64 / (character.max_transition_time as f64 + 1.0))) as isize;
+                    if character.id != update.id || (character.id == update.id && gr.0 == 0 && gr.1 == 0) {
+                        let t = (character.curr_transition_time as f64 * (self.tile_size as f64 / (character.max_transition_time as f64 + 1.0))) as isize;
 
-                    if position.1 > old_position.1 {
-                        tr.0 = t;
-                    } else
-                    if position.1 < old_position.1 {
-                        tr.0 = -t;
-                    }
+                        if position.1 > old_position.1 {
+                            tr.0 = t;
+                        } else
+                        if position.1 < old_position.1 {
+                            tr.0 = -t;
+                        }
 
-                    if position.2 > old_position.2 {
-                        tr.1 = t;
-                    } else
-                    if position.2 < old_position.2 {
-                        tr.1 = -t;
+                        if position.2 > old_position.2 {
+                            tr.1 = t;
+                        } else
+                        if position.2 < old_position.2 {
+                            tr.1 = -t;
+                        }
+
+                        tr.0 -= gr.0;
+                        tr.1 -= gr.1;
                     }
 
                     position = old_position;

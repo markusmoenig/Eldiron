@@ -8,7 +8,12 @@ use crate::{regiondata::GameRegionData, characterdata::CharacterData, asset::Til
 #[derive(Serialize, Deserialize)]
 pub struct GameUpdate {
 
+    pub id                      : usize,
+
     pub position                : Option<(usize, isize, isize)>,
+    pub old_position            : Option<(usize, isize, isize)>,
+    pub max_transition_time     : usize,
+    pub curr_transition_time    : usize,
 
     pub tile                    : Option<(usize, usize, usize)>,
 
@@ -40,7 +45,11 @@ impl GameUpdate {
     pub fn new() -> Self {
 
         Self {
+            id                  : 0,
             position            : None,
+            old_position        : None,
+            max_transition_time : 0,
+            curr_transition_time: 0,
             tile                : None,
             screen              : None,
             region              : None,
