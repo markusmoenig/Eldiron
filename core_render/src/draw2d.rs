@@ -14,6 +14,7 @@ pub enum TextAlignment {
 }
 
 pub struct Draw2D {
+    pub scissor             : Option<(usize, usize, usize, usize)>
 }
 
 impl Draw2D {
@@ -564,17 +565,19 @@ impl Draw2D {
             let y = (sy as f32 / scale) as usize;
             for sx in 0..new_size.1 {
 
-                let x = (sx as f32 / scale) as usize;
+                if self.is_safe(pos.0 + sx, pos.1 + sy) {
+                    let x = (sx as f32 / scale) as usize;
 
-                let d = pos.0 * 4 + sx * 4 + (sy + pos.1) * stride * 4;
-                let s = (x + g_pos.0) * 4 + (y + g_pos.1) * map.width * 4;
+                    let d = pos.0 * 4 + sx * 4 + (sy + pos.1) * stride * 4;
+                    let s = (x + g_pos.0) * 4 + (y + g_pos.1) * map.width * 4;
 
-                let mixed_color = self.mix_color(blend_color, &[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]], blend);
+                    let mixed_color = self.mix_color(blend_color, &[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]], blend);
 
-                let background = &[frame[d], frame[d+1], frame[d+2], frame[d+3]];
-                let c = self.mix_color(&background, &mixed_color, pixels[s+3] as f64 / 255.0);
+                    let background = &[frame[d], frame[d+1], frame[d+2], frame[d+3]];
+                    let c = self.mix_color(&background, &mixed_color, pixels[s+3] as f64 / 255.0);
 
-                frame[d..d + 4].copy_from_slice(&c);
+                    frame[d..d + 4].copy_from_slice(&c);
+                }
             }
         }
     }
@@ -624,6 +627,17 @@ impl Draw2D {
                 frame[d..d + 4].copy_from_slice(&c);
             }
         }
+    }
+
+    /// Safe to write a pixel
+    fn is_safe(&self, x: usize, y: usize) -> bool {
+        if let Some(s) = &self.scissor {
+            if x < s.0 || x >= s.0 + s.2 || y < s.1 || y >= s.1 + s.3 {
+                return false;
+            }
+        }
+
+        true
     }
 
 }

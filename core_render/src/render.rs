@@ -99,7 +99,7 @@ impl GameRender<'_> {
             scope               : Scope::new(),
             ast                 : None,
 
-            draw2d              : Draw2D {},
+            draw2d              : Draw2D { scissor: None },
             asset,
             frame               : vec![0; 1024 * 608 * 4],
             width               : 1024,
@@ -469,6 +469,8 @@ impl GameRender<'_> {
     /// Draws the game in the given rect
     pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), cposition: (usize, isize, isize), anim_counter: usize, update: &GameUpdate, set: Option<HashSet<(isize, isize)>>) {
 
+        self.draw2d.scissor = Some(rect);
+
         let mut position = cposition;
 
         let stride = self.width;
@@ -477,8 +479,8 @@ impl GameRender<'_> {
         let left_offset = (rect.2 % tile_size) / 2;
         let top_offset = (rect.3 % tile_size) / 2;
 
-        let x_tiles = (rect.2 / tile_size) as isize;
-        let y_tiles = (rect.3 / tile_size) as isize;
+        let mut x_tiles = (rect.2 / tile_size) as isize;
+        let mut y_tiles = (rect.3 / tile_size) as isize;
 
         if let Some(region) = self.regions.get(&position.0) {
 
@@ -547,12 +549,33 @@ impl GameRender<'_> {
                 offset.1 -= top;
             }
 
+            // Expand the drawn area if scrolling is in progress
+
+            let mut from_x = 0;
+            let mut from_y = 0;
+
+            if gr.0 != 0 {
+                if gr.0 < 0 {
+                    from_x = -1;
+                } else {
+                    x_tiles += 1;
+                }
+            }
+
+            if gr.1 != 0 {
+                if gr.1 < 0 {
+                    from_y = -1;
+                } else {
+                    y_tiles += 1;
+                }
+            }
+
             let base_light = 0.5;
 
             // Draw Region
 
-            for y in 0..y_tiles {
-                for x in 0..x_tiles {
+            for y in from_y..y_tiles {
+                for x in from_x..x_tiles {
 
                     let values = self.get_region_value(region, (x + offset.0, y + offset.1), update);
                     for value in values {
@@ -606,12 +629,14 @@ impl GameRender<'_> {
                         if position.2 < old_position.2 {
                             tr.1 = -t;
                         }
-
-                        tr.0 -= gr.0;
-                        tr.1 -= gr.1;
                     }
 
                     position = old_position;
+                }
+
+                if character.id != update.id {
+                    tr.0 -= gr.0;
+                    tr.1 -= gr.1;
                 }
 
                 // Row check
@@ -641,6 +666,7 @@ impl GameRender<'_> {
             println!("Region not found");
         }
 
+        self.draw2d.scissor = None;
     }
 
     /// Gets the given region value
