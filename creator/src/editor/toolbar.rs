@@ -20,6 +20,7 @@ impl Widget for ToolBar {
         let mut item_button = AtomWidget::new(asset.tileset.maps_names.clone(), AtomWidgetType::ToolBarSliderButton,
         AtomData::new_as_int("Game".to_string(), 0));
         item_button.set_rect((rect.0 + 10, rect.1, 200, rect.3), asset, context);
+        item_button.hover_help_text = Some("Iterate over the items in the view.".to_string());
         widgets.push(item_button);
 
         let mut tiles_button = AtomWidget::new(vec!["Assets".to_string()], AtomWidgetType::ToolBarSwitchButton,
@@ -27,6 +28,8 @@ impl Widget for ToolBar {
         tiles_button.set_rect((rect.0 + 220, rect.1, 150, rect.3), asset, context);
         tiles_button.selected = true;
         tiles_button.custom_color = Some([44, 145, 209, 255]);
+        tiles_button.hover_help_title = Some("Assets".to_string());
+        tiles_button.hover_help_text = Some("Browse and edit all assets in your game.\nPress '0' for the asset overview, '1' for detail view.".to_string());
         widgets.push(tiles_button);
 
         let mut areas_button = AtomWidget::new(vec!["Regions".to_string()], AtomWidgetType::ToolBarSwitchButton,

@@ -127,7 +127,16 @@ pub struct ScreenContext<'a> {
     pub menu_mask                       : [u8;20*20],
     pub open_mask                       : [u8;20*20],
 
-    pub curr_project_path               : std::path::PathBuf
+    pub curr_project_path               : std::path::PathBuf,
+
+    // Hover Help
+
+    pub hover_help_pos                  : Option<(usize, usize)>,
+    pub hover_help_pos_last             : Option<(usize, usize)>,
+    pub hover_help_counter              : usize,
+    pub hover_help_target               : usize,
+    pub hover_help_title                : Option<String>,
+    pub hover_help_text                 : Option<String>
 }
 
 impl ScreenContext<'_> {
@@ -312,7 +321,14 @@ impl ScreenContext<'_> {
             menu_mask,
             open_mask,
 
-            curr_project_path           : std::path::Path::new("").to_path_buf()
+            curr_project_path           : std::path::Path::new("").to_path_buf(),
+
+            hover_help_pos              : None,
+            hover_help_pos_last         : None,
+            hover_help_counter          : 0,
+            hover_help_target           : 5,
+            hover_help_title            : None,
+            hover_help_text             : None,
         }
     }
 
@@ -423,5 +439,14 @@ impl ScreenContext<'_> {
             }
         }
         None
+    }
+
+    /// Resets the hover help metadata
+    pub fn hover_help_reset(&mut self) {
+        self.hover_help_pos = None;
+        self.hover_help_pos_last = None;
+        self.hover_help_counter = 0;
+        self.hover_help_title = None;
+        self.hover_help_text = None;
     }
 }

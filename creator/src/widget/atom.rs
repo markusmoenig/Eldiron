@@ -119,7 +119,10 @@ pub struct AtomWidget {
     // For embedded atoms (in a node), provide the offset to the absolute position
     pub emb_offset              : (isize, isize),
 
-    pub custom_color            : Option<[u8;4]>
+    pub custom_color            : Option<[u8;4]>,
+
+    pub hover_help_title        : Option<String>,
+    pub hover_help_text         : Option<String>,
 }
 
 impl AtomWidget {
@@ -162,6 +165,9 @@ impl AtomWidget {
 
             emb_offset          : (0,0),
             custom_color        : None,
+
+            hover_help_title    : None,
+            hover_help_text     : None,
         }
     }
 
@@ -1124,7 +1130,13 @@ impl AtomWidget {
         false
     }
 
-    pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+
+        if context.contains_pos_for(pos, self.rect) {
+            context.hover_help_title = self.hover_help_title.clone();
+            context.hover_help_text = self.hover_help_text.clone();
+        }
+
         if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::ToolBarCheckButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::ToolBarMenuButton {
             if self.contains_pos_for(pos, self.content_rect) {
                 if self.state != WidgetState::Disabled {

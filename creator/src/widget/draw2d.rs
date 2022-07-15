@@ -776,4 +776,73 @@ impl Draw2D {
             }
         }
     }
+
+    /// Draw hover help
+    pub fn draw_hover_help(&self, frame: &mut [u8], pos: (usize, usize), font: &Font, title: Option<String>, text: String, safe_rect: (usize, usize, usize, usize) ) {
+
+        let mut rect = (pos.0, pos.1, 300, 200);
+        let stride = safe_rect.2;
+
+        let mut title_space = 10;
+        if title.is_some() { title_space = 20; };
+        let font_size_title = 16.0;
+        let font_size_text = 14.0;
+
+        let mut vert_size = 30 + title_space;
+        if title.is_none() { vert_size -= 20; };
+
+        let background = [40, 40, 40, 255];
+        let border_color = [128, 128, 128, 255];
+        let title_color = [255, 255, 255, 255];
+        let text_color = [240, 240, 240, 255];
+
+        let fonts = &[font];
+
+        let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
+        layout.reset(&LayoutSettings {
+            max_width : Some(rect.2 as f32 - 20.0),
+            max_height : None,//Some(rect.3 as f32 - vert_size as f32),
+            horizontal_align : HorizontalAlign::Left,
+            vertical_align : VerticalAlign::Top,
+            ..LayoutSettings::default()
+        });
+        layout.append(fonts, &TextStyle::new(text.as_str(), font_size_text, 0));
+
+        rect.3 = layout.height().ceil() as usize + vert_size;
+
+        if rect.0 + rect.2 > safe_rect.2 {
+            rect.0 -= rect.0 + rect.2 - safe_rect.2 - 10;
+        }
+
+        if rect.1 + rect.3 > safe_rect.3 {
+            rect.1 -= rect.1 + rect.3 - safe_rect.3 - 10;
+        }
+
+        self.draw_rect(frame, &rect, stride, &background);
+        self.draw_rect_outline(frame, &rect, stride, border_color);
+
+        if let Some(title) = title {
+            self.draw_text(frame, &(rect.0 + 10, rect.1 + 10), stride, font, font_size_title, title.as_str(), &title_color, &background);
+            rect.1 += title_space;
+            rect.1 += 10;
+        }
+
+        rect.0 += 10;
+        rect.1 += 10;
+
+        for glyph in layout.glyphs() {
+            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+
+            for y in 0..metrics.height {
+                for x in 0..metrics.width {
+                    let i = (x+rect.0+glyph.x as usize) * 4 + (y + rect.1 + glyph.y as usize) * stride * 4;
+                    let m = alphamap[x + y * metrics.width];
+
+                    frame[i..i + 4].copy_from_slice(&self.mix_color(&background, &text_color, m as f64 / 255.0));
+                }
+            }
+        }
+
+    }
+
 }
