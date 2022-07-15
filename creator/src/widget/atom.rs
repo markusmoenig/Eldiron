@@ -1265,4 +1265,21 @@ impl AtomWidget {
         }
         context.node_button_height
     }
+
+    /// Set the state of a switch button
+    pub fn set_switch_button_state(&mut self, left_selected: bool, right_selected: bool) {
+        self.selected = left_selected;
+        self.right_selected = right_selected;
+        self.dirty = true;
+    }
+
+    /// Sets the next slider button state
+    pub fn next_slider_button_state(&mut self) {
+        if self.curr_index < self.text.len() - 1 {
+            self.curr_index += 1;
+        } else {
+            self.curr_index = 0;
+        }
+        self.dirty = true;
+    }
 }

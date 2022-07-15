@@ -60,6 +60,7 @@ use self::dialog_position::DialogPositionWidget;
 use self::screeneditor_options::ScreenEditorOptions;
 use self::tilemapoptions::TileMapOptions;
 use self::statusbar::StatusBar;
+use self::toolbar::ToolBarButtons;
 
 use crate::editor::traits::{ EditorContent, GraphMode, EditorOptions };
 
@@ -259,6 +260,70 @@ impl ScreenWidget for Editor<'_> {
             self.content_state_is_changing(self.state, asset, true);
             self.state = EditorState::GameDetail;
             return true;
+        } else {
+            // General shortcuts
+
+            // Deselects all toolbar buttons
+            let mut deselect_all = || {
+                for i in 1..=6 {
+                    self.toolbar.widgets[i].selected = false;
+                    self.toolbar.widgets[i].right_selected = false;
+                    self.toolbar.widgets[i].checked = false;
+                    self.toolbar.widgets[i].dirty = true;
+                }
+            };
+
+            if key == Some(WidgetKey::Tab) {
+                self.toolbar.widgets[ToolBarButtons::Iterator as usize].next_slider_button_state();
+            } else
+            if key == Some(WidgetKey::Space) {
+                if self.state == EditorState::TilesOverview {
+                    self.context.switch_editor_state = Some(EditorState::TilesDetail);
+                    self.toolbar.widgets[ToolBarButtons::Assets as usize].set_switch_button_state(false, true);
+                } else
+                if self.state == EditorState::TilesDetail {
+                    self.context.switch_editor_state = Some(EditorState::TilesOverview);
+                    self.toolbar.widgets[ToolBarButtons::Assets as usize].set_switch_button_state(true, false);
+                }
+                return true;
+            } else
+            if char == Some('1') {
+                deselect_all();
+                self.context.switch_editor_state = Some(EditorState::TilesOverview);
+                self.toolbar.widgets[ToolBarButtons::Assets as usize].set_switch_button_state(true, false);
+                return true;
+            } else
+            if char == Some('2') {
+                deselect_all();
+                self.context.switch_editor_state = Some(EditorState::RegionOverview);
+                self.toolbar.widgets[ToolBarButtons::Regions as usize].set_switch_button_state(true, false);
+                return true;
+            } else
+            if char == Some('3') {
+                deselect_all();
+                self.context.switch_editor_state = Some(EditorState::BehaviorOverview);
+                self.toolbar.widgets[ToolBarButtons::Characters as usize].set_switch_button_state(true, false);
+                return true;
+            } else
+            if char == Some('4') {
+                deselect_all();
+                self.context.switch_editor_state = Some(EditorState::SystemsOverview);
+                self.toolbar.widgets[ToolBarButtons::Systems as usize].set_switch_button_state(true, false);
+                return true;
+            } else
+            if char == Some('5') {
+                deselect_all();
+                self.context.switch_editor_state = Some(EditorState::ItemsOverview);
+                self.toolbar.widgets[ToolBarButtons::Items as usize].set_switch_button_state(true, false);
+                return true;
+            } else
+            if char == Some('6') {
+                deselect_all();
+                self.context.switch_editor_state = Some(EditorState::GameDetail);
+                self.toolbar.widgets[ToolBarButtons::Game as usize].checked = true;
+                self.toolbar.widgets[ToolBarButtons::Game as usize].dirty = true;
+                return true;
+            }
         }
         false
     }
@@ -393,17 +458,21 @@ impl ScreenWidget for Editor<'_> {
             } else
             if state == EditorState::BehaviorDetail {
                 self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
-
                 self.context.curr_graph_type = BehaviorType::Behaviors;
                 self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.behaviors_ids[self.context.curr_behavior_index] , &mut self.context);
             } else
             if state == EditorState::SystemsDetail {
                 self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
-
                 self.context.curr_graph_type = BehaviorType::Systems;
                 self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
             } else
             if state == EditorState::ItemsDetail {
+            } else
+            if state == EditorState::GameDetail {
+                self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                self.state = EditorState::GameDetail;
+                self.context.curr_graph_type = BehaviorType::GameLogic;
+                self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_behavior_id(0, &mut self.context);
             }
         }
 
@@ -757,6 +826,8 @@ impl ScreenWidget for Editor<'_> {
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
+
+        self.context.hover_help_reset();
 
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.mouse_down(pos, asset, &mut self.context);

@@ -56,6 +56,9 @@ impl EditorContent for RegionWidget {
         mode_button.atom_data.text = "Mode".to_string();
         mode_button.set_rect((rect.0 + 10, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 200, 40), asset, context);
         mode_button.custom_color = Some([217, 64, 51, 255]);
+        mode_button.hover_help_title = Some("Region Mode".to_string());
+        mode_button.hover_help_text = Some("Select \"Draw Tiles\" (shortcut 'D') for drawing the tiles in the region. \"Edit Area\" ('E') to create and edit named areas and their behavior. \"Characters\" ('C') to place characters and \"Settings\" ('S') to edit the settings of the region.".to_string());
+
         widgets.push(mode_button);
 
         // Tile Selector
