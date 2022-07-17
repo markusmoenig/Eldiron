@@ -103,7 +103,7 @@ impl EditorContent for RegionWidget {
         AtomData::new_as_int("Area".to_string(), 0));
         area_editing_mode.atom_data.text = "Area".to_string();
         area_editing_mode.set_rect((rect.0 +  230 + 200 + 150 + 150 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 160, 40), asset, context);
-        area_editing_mode.state = WidgetState::Disabled;
+        //area_editing_mode.state = WidgetState::Disabled;
         area_widgets.push(area_editing_mode);
 
         Self {
@@ -325,8 +325,23 @@ impl EditorContent for RegionWidget {
                         if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                             if region.data.areas.len() > 0 {
                                 let area = &mut region.data.areas[context.curr_region_area_index];
-                                if area.area.contains(&id) == false {
-                                    area.area.push(id);
+
+                                //
+
+                                let mode = self.area_widgets[4].curr_index;
+
+                                if mode == 0 {
+                                    // Add
+                                    if area.area.contains(&id) == false {
+                                        area.area.push(id);
+                                    }
+                                } else
+                                if mode == 1 {
+                                    // Remove
+                                    if area.area.contains(&id) == true {
+                                        let index = area.area.iter().position(|&r| r == id).unwrap();
+                                        area.area.remove(index);
+                                    }
                                 }
                                 region.save_data();
                             }
