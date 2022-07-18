@@ -395,7 +395,25 @@ impl ScreenWidget for Editor<'_> {
                 return true;
             }
         }
-        false
+
+        let index = self.state as usize;
+        let mut options : Option<Box<dyn EditorOptions>> = None;
+        let mut content : Option<Box<dyn EditorContent>> = None;
+
+        let mut consumed = false;
+        if let Some(element) = self.content.drain(index..index+1).next() {
+            options = element.0;
+            content = element.1;
+
+            if let Some(mut el_content) = content {
+                consumed = el_content.key_down(char, key, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
+                content = Some(el_content);
+            }
+
+        }
+        self.content.insert(index, (options, content));
+
+        consumed
     }
 
     // Resize the editor

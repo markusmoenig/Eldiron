@@ -1,4 +1,5 @@
 use crate::editor::node::NodeWidget;
+use crate::widget::WidgetKey;
 use core_server::gamedata::behavior::*;
 use core_shared::asset::{Asset, TileUsage};
 
@@ -113,6 +114,8 @@ pub trait EditorContent {
     fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool;
 
     fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool { false }
+
+    fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool { false }
 
     /// Content is opening
     fn opening(&mut self, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {}

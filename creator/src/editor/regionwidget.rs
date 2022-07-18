@@ -2,7 +2,7 @@ use core_server::gamedata::region::generate_region_sink_descriptions;
 use core_shared::asset::{ Asset };
 use core_shared::asset::tileset::TileUsage;
 
-use crate::widget::WidgetState;
+use crate::widget::{WidgetState, WidgetKey};
 use crate::widget::atom::{AtomWidget, AtomWidgetType, AtomData};
 use crate::widget::characterselector::CharacterSelectorWidget;
 use crate::widget::codeeditor::CodeEditorMode;
@@ -57,7 +57,7 @@ impl EditorContent for RegionWidget {
         mode_button.set_rect((rect.0 + 10, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 200, 40), asset, context);
         mode_button.custom_color = Some([217, 64, 51, 255]);
         mode_button.hover_help_title = Some("Region Mode".to_string());
-        mode_button.hover_help_text = Some("Select \"Draw Tiles\" (shortcut 'D') for drawing the tiles in the region. \"Edit Area\" ('E') to create and edit named areas and their behavior. \"Characters\" ('C') to place characters and \"Settings\" ('S') to edit the settings of the region.".to_string());
+        mode_button.hover_help_text = Some("Select \"Draw Tiles\" (hotkey 'D') for drawing the tiles in the region. \"Edit Area\" ('E') to create and edit named areas and their behavior. \"Characters\" ('C') to place characters and \"Settings\" ('S') to edit the settings of the region.".to_string());
 
         widgets.push(mode_button);
 
@@ -546,6 +546,41 @@ impl EditorContent for RegionWidget {
         true
     }
 
+    /// Key down
+    fn key_down(&mut self, char: Option<char>, _key: Option<WidgetKey>, _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+
+        if let Some(options) = options {
+            if let Some(char) = char {
+                if char == 'd' {
+                    self.widgets[0].curr_index = 0;
+                    self.widgets[0].dirty = true;
+                    options.set_editor_mode(RegionEditorMode::Tiles);
+                    return true;
+                } else
+                if char == 'e' {
+                    self.widgets[0].curr_index = 1;
+                    self.widgets[0].dirty = true;
+                    options.set_editor_mode(RegionEditorMode::Areas);
+                    return true;
+                } else
+                if char == 'c' {
+                    self.widgets[0].curr_index = 2;
+                    self.widgets[0].dirty = true;
+                    options.set_editor_mode(RegionEditorMode::Characters);
+                    return true;
+                } else
+                if char == 's' {
+                    self.widgets[0].curr_index = 3;
+                    self.widgets[0].dirty = true;
+                    options.set_editor_mode(RegionEditorMode::Settings);
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
     /// Sets a region id
     fn set_region_id(&mut self, id: usize, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
         self.region_id = id;
@@ -667,4 +702,5 @@ impl EditorContent for RegionWidget {
             self.update_area_ui(context);
         }
     }
+
 }
