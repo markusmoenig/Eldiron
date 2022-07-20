@@ -547,7 +547,7 @@ impl EditorContent for RegionWidget {
     }
 
     /// Key down
-    fn key_down(&mut self, char: Option<char>, _key: Option<WidgetKey>, _asset: &mut Asset, _context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn key_down(&mut self, char: Option<char>, _key: Option<WidgetKey>, _asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
         if let Some(options) = options {
             if let Some(char) = char {
@@ -573,6 +573,13 @@ impl EditorContent for RegionWidget {
                     self.widgets[0].curr_index = 3;
                     self.widgets[0].dirty = true;
                     options.set_editor_mode(RegionEditorMode::Settings);
+                    context.code_editor_is_active = true;
+                    context.code_editor_just_opened = true;
+                    context.code_editor_mode = CodeEditorMode::Settings;
+                    if let Some(region) = context.data.regions.get(&self.get_region_id()) {
+                        context.code_editor_node_behavior_value.4 = region.data.settings.to_string(generate_region_sink_descriptions());
+                    }
+                    context.code_editor_node_behavior_id.0 = 130000;
                     return true;
                 }
             }
