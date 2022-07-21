@@ -57,7 +57,7 @@ impl EditorContent for RegionWidget {
         mode_button.set_rect((rect.0 + 10, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 200, 40), asset, context);
         mode_button.custom_color = Some([217, 64, 51, 255]);
         mode_button.hover_help_title = Some("Region Mode".to_string());
-        mode_button.hover_help_text = Some("Select \"Draw Tiles\" (hotkey 'D') for drawing the tiles in the region. \"Edit Area\" ('E') to create and edit named areas and their behavior. \"Characters\" ('C') to place characters and \"Settings\" ('S') to edit the settings of the region.".to_string());
+        mode_button.hover_help_text = Some("Select \"Draw Tiles\" (hotkey 'D') for drawing the tiles in the region. \"Edit Area\" ('E') to create and edit named areas and their behavior. \"Characters\" ('C') to place character instances and \"Settings\" ('S') to edit the settings of the region.".to_string());
 
         widgets.push(mode_button);
 
@@ -103,8 +103,16 @@ impl EditorContent for RegionWidget {
         AtomData::new_as_int("Area".to_string(), 0));
         area_editing_mode.atom_data.text = "Area".to_string();
         area_editing_mode.set_rect((rect.0 +  230 + 200 + 150 + 150 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 160, 40), asset, context);
-        //area_editing_mode.state = WidgetState::Disabled;
         area_widgets.push(area_editing_mode);
+
+        // Character Widgets
+        let mut character_widgets : Vec<AtomWidget> = vec![];
+
+        let mut char_editing_mode = AtomWidget::new(vec!["Add Instance".to_string(), "Remove".to_string()], AtomWidgetType::SliderButton,
+        AtomData::new_as_int("Area".to_string(), 0));
+        char_editing_mode.atom_data.text = "Area".to_string();
+        char_editing_mode.set_rect((rect.0 + 230, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 190, 40), asset, context);
+        character_widgets.push(char_editing_mode);
 
         Self {
             rect,
@@ -114,7 +122,7 @@ impl EditorContent for RegionWidget {
             widgets                 : widgets,
 
             area_widgets,
-            character_widgets       : vec![],
+            character_widgets,
 
             offset                  : (0, 0),
             screen_offset           : (0, 0),
@@ -170,21 +178,30 @@ impl EditorContent for RegionWidget {
             if let Some(region) = context.data.regions.get(&self.region_id) {
 
                 if context.is_running == false {
-                    let x_tiles = (rect.2 / grid_size) as isize;
-                    let y_tiles = (rect.3 / grid_size) as isize;
 
-                    for y in 0..y_tiles {
-                        for x in 0..x_tiles {
-                            let values = region.get_value((x - self.offset.0, y - self.offset.1));
+                    if editor_mode != RegionEditorMode::Characters {
+                        context.draw2d.draw_region(frame, region, &rect, &(-self.offset.0, -self.offset.1), context.width, grid_size, anim_counter, asset);
+                    } else {
 
-                            if values.is_empty() == false {
-                                let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
-                                for value in values {
-                                    let map = asset.get_map_of_id(value.0);
-                                    context.draw2d.draw_animated_tile(frame, &pos, map,context.width,&(value.1, value.2), anim_counter, grid_size);
+                        context.draw2d.draw_region_with_behavior(frame, region, &rect, &(-self.offset.0, -self.offset.1), context.width, grid_size, anim_counter, asset, context);
+
+                        /*
+                        let x_tiles = (rect.2 / grid_size) as isize;
+                        let y_tiles = (rect.3 / grid_size) as isize;
+
+                        for y in 0..y_tiles {
+                            for x in 0..x_tiles {
+                                let values = region.get_value((x - self.offset.0, y - self.offset.1));
+
+                                if values.is_empty() == false {
+                                    let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
+                                    for value in values {
+                                        let map = asset.get_map_of_id(value.0);
+                                        context.draw2d.draw_animated_tile(frame, &pos, map,context.width,&(value.1, value.2), anim_counter, grid_size);
+                                    }
                                 }
                             }
-                        }
+                        }*/
                     }
                 } else {
                     context.draw2d.draw_region_with_instances(frame, region, &rect, &(-self.offset.0, -self.offset.1), context.width, grid_size, anim_counter, asset, context);
@@ -242,6 +259,9 @@ impl EditorContent for RegionWidget {
                 self.behavior_graph.draw(frame, anim_counter, asset, context, &mut None);
             } else
             if editor_mode == RegionEditorMode::Characters {
+                for w in &mut self.character_widgets {
+                    w.draw(frame, context.width, anim_counter, asset, context);
+                }
                 self.character_selector.draw(frame, context.width, anim_counter, asset, context);
             }
 
@@ -346,6 +366,35 @@ impl EditorContent for RegionWidget {
                                 region.save_data();
                             }
                         }
+                    } else
+                    if editor_mode == RegionEditorMode::Characters {
+                        if let Some(id) = self.get_tile_id(pos) {
+                            if let Some(meta) = self.character_selector.selected.clone() {
+                                if let Some(behavior) = context.data.get_mut_behavior(meta.id, BehaviorType::Behaviors) {
+                                    if behavior.data.instances.is_none() {
+                                        behavior.data.instances = Some(vec![]);
+                                    }
+
+                                    let mode = self.character_widgets[0].curr_index;
+
+                                    if mode == 0 {
+                                        // Add
+                                        let index = behavior.data.instances.as_ref().unwrap().iter().position(|&r| r == (self.region_id, id.0, id.1));
+
+                                        if index.is_none() {
+                                            behavior.data.instances.as_mut().unwrap().push((self.region_id, id.0, id.1));
+                                        }
+                                    } else
+                                    if mode == 1 {
+                                        // Remove
+                                        if let Some(index) = behavior.data.instances.as_ref().unwrap().iter().position(|&r| r == (self.region_id, id.0, id.1)) {
+                                            behavior.data.instances.as_mut().unwrap().remove(index);
+                                        }
+                                    }
+                                    behavior.save_data();
+                                }
+                            }
+                        }
                     }
                 }
                 consumed = true;
@@ -443,6 +492,14 @@ impl EditorContent for RegionWidget {
                     }
                 }
             }
+            if editor_mode == RegionEditorMode::Characters {
+                for atom in &mut self.character_widgets {
+                    if atom.mouse_up(pos, asset, context) {
+                        if atom.atom_data.id == "Area" {
+                        }
+                    }
+                }
+            }
         }
 
         consumed
@@ -460,6 +517,13 @@ impl EditorContent for RegionWidget {
             let editor_mode = options.get_editor_mode();
             if editor_mode == RegionEditorMode::Areas {
                 for atom in &mut self.area_widgets {
+                    if atom.mouse_hover(pos, asset, context) {
+                        return true;
+                    }
+                }
+            } else
+            if editor_mode == RegionEditorMode::Characters {
+                for atom in &mut self.character_widgets {
                     if atom.mouse_hover(pos, asset, context) {
                         return true;
                     }
@@ -567,6 +631,7 @@ impl EditorContent for RegionWidget {
                     self.widgets[0].curr_index = 2;
                     self.widgets[0].dirty = true;
                     options.set_editor_mode(RegionEditorMode::Characters);
+                    self.character_selector.collect(context);
                     return true;
                 } else
                 if char == 's' {

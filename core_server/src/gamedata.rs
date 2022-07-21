@@ -7,21 +7,24 @@ pub mod nodes_game;
 pub mod script;
 pub mod game;
 
-use core_shared::characterdata::CharacterData;
-use core_shared::light::Light;
-use core_shared::message::{MessageType};
-use core_shared::regiondata::GameRegionData;
-use core_shared::update::GameUpdate;
-use core_shared::asset::{ TileUsage, Asset };
-use core_shared::{actions::*};
+use core_shared::prelude::*;
 
 use rhai::{ Engine, Scope, AST };
 
 use std::collections::{HashMap, HashSet};
 use std::fs::metadata;
 
-use crate::gamedata::region::GameRegion;
-use crate::gamedata::behavior::{ BehaviorNodeConnector, BehaviorInstance, GameBehavior, BehaviorNodeType, BehaviorType, BehaviorInstanceState };
+pub mod prelude {
+    pub use crate::gamedata::behavior::*;
+    pub use crate::gamedata::game::*;
+    pub use crate::gamedata::region::*;
+    pub use crate::gamedata::nodes_area::*;
+    pub use crate::gamedata::nodes_utility::*;
+    pub use crate::gamedata::nodes::*;
+    pub use crate::gamedata::script::*;
+}
+
+use crate::gamedata::prelude::*;
 
 #[cfg(not(feature = "embed_binaries"))]
 use itertools::Itertools;
@@ -30,10 +33,6 @@ use std::path::{self, PathBuf};
 use std::fs;
 
 use rand::prelude::*;
-
-use self::behavior::BehaviorInstanceType;
-use self::game::Game;
-use self::nodes_utility::get_node_value;
 
 #[cfg(feature = "embed_binaries")]
 use core_embed_binaries::Embedded;

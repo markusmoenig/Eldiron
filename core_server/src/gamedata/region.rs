@@ -1,5 +1,4 @@
-use core_shared::property::Property;
-use core_shared::property::PropertySink;
+use core_shared::prelude::*;
 use rand::prelude::*;
 
 use std::fs;
@@ -7,10 +6,6 @@ use std::path;
 use std::path::PathBuf;
 
 use std::collections::HashMap;
-
-use core_shared::regiondata::{ GameRegionData, RegionArea };
-use core_shared::asset::tileset::TileUsage;
-use core_shared::asset::Asset;
 
 use super::behavior::GameBehavior;
 

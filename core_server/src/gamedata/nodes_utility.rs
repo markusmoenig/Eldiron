@@ -1,8 +1,7 @@
+use core_shared::prelude::*;
+
 use crate::gamedata::{ GameData, BehaviorNodeConnector, BehaviorType };
-use core_shared::asset::TileUsage;
-
 use pathfinding::prelude::bfs;
-
 use super::behavior::{BehaviorInstanceState};
 
 /// Retrieves a number instance value

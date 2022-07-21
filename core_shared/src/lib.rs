@@ -6,3 +6,14 @@ pub mod update;
 pub mod message;
 pub mod property;
 pub mod light;
+
+pub mod prelude {
+    pub use crate::asset::*;
+    pub use crate::actions::*;
+    pub use crate::regiondata::*;
+    pub use crate::characterdata::*;
+    pub use crate::update::*;
+    pub use crate::message::*;
+    pub use crate::property::*;
+    pub use crate::light::*;
+}

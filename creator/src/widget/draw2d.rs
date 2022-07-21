@@ -603,6 +603,60 @@ impl Draw2D {
         }
     }
 
+    /// Draws the given region with the given offset into the rectangle (and draws all character behaviors)
+    pub fn draw_region_with_behavior(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), offset: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) {
+        let left_offset = (rect.2 % tile_size) / 2;
+        let top_offset = (rect.3 % tile_size) / 2;
+
+        let x_tiles = (rect.2 / tile_size) as isize;
+        let y_tiles = (rect.3 / tile_size) as isize;
+
+        for y in 0..y_tiles {
+            for x in 0..x_tiles {
+                let values = region.get_value((x + offset.0, y + offset.1));
+                for value in values {
+                    let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
+
+                    let map = asset.get_map_of_id(value.0);
+                    self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
+                }
+            }
+        }
+
+        let mut draw_character = |id: usize, position: (usize, isize, isize)| {
+            // In the same region ?
+            if position.0 == region.data.id {
+
+                // Row check
+                if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
+                    // Column check
+                    if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
+                        // Visible
+                        if let Some(tile) = context.data.get_behavior_default_tile(id) {
+
+                            let pos = (rect.0 + left_offset + ((position.1 - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.2 - offset.1) as usize) * tile_size);
+
+                            let map = asset.get_map_of_id(tile.0);
+                            self.draw_animated_tile(frame, &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size);
+                        }
+                    }
+                }
+            }
+        };
+
+        // Draw Behaviors
+        for (id, behavior) in &context.data.behaviors {
+            if let Some(position) = context.data.get_behavior_default_position(*id) {
+                draw_character(*id, position);
+            }
+            if let Some(instances) = &behavior.data.instances {
+                for position in instances {
+                    draw_character(*id, *position);
+                }
+            }
+        }
+    }
+
     /// Draws the given region centered at the given center and returns the top left offset into the region
     pub fn draw_region_centered_with_behavior(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), center: &(isize, isize), scroll_offset: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {
         let left_offset = (rect.2 % tile_size) / 2;

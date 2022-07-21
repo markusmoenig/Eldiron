@@ -151,12 +151,18 @@ impl CharacterSelectorWidget {
 
         for id in &context.data.behaviors_ids {
             if let Some(behavior) = context.data.behaviors.get(&id) {
-                if let Some(tile) = context.data.get_behavior_default_tile(*id) {
+                if behavior.name != "Player" {
+                    if let Some(tile) = context.data.get_behavior_default_tile(*id) {
 
-                    let meta = CharacterMetaData {id: *id, tile: tile.clone(), name: behavior.name.clone() };
-                    self.characters.push(meta);
+                        let meta = CharacterMetaData {id: *id, tile: tile.clone(), name: behavior.name.clone() };
+                        self.characters.push(meta);
+                    }
                 }
             }
+        }
+
+        if self.characters.is_empty() == false {
+            self.selected = Some(self.characters[0].clone());
         }
     }
 

@@ -1,7 +1,6 @@
-use core_shared::message::MessageData;
+use core_shared::prelude::*;
 use serde::{Deserialize, Serialize};
 use rand::prelude::*;
-use core_shared::actions::PlayerAction;
 
 use std::collections::HashSet;
 use std::fs;
@@ -10,6 +9,8 @@ use std::path::PathBuf;
 
 use std::collections::HashMap;
 use itertools::Itertools;
+
+type Position = (usize, isize, isize);
 
 #[cfg(feature = "embed_binaries")]
 use core_embed_binaries::Embedded;
@@ -190,6 +191,8 @@ pub struct GameBehaviorData {
     pub name                    : String,
 
     pub curr_node_id            : Option<usize>,
+
+    pub instances               : Option<Vec<Position>>,
 }
 
 pub struct GameBehavior {
@@ -210,7 +213,7 @@ impl GameBehavior {
 
         // Construct the json settings
         let data = serde_json::from_str(&contents)
-            .unwrap_or(GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None });
+            .unwrap_or(GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]) });
 
         Self {
             name            : name.to_string(),
@@ -226,7 +229,7 @@ impl GameBehavior {
         let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
 
         // Construct the json settings
-        let mut data = GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None };
+        let mut data = GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]) };
 
         if let Some(bytes) = Embedded::get(file_name) {
             if let Some(string) = std::str::from_utf8(bytes.data.as_ref()).ok() {
@@ -248,7 +251,7 @@ impl GameBehavior {
             name            : "name".to_string(),
             path            : std::path::Path::new("").to_path_buf(),
             behavior_path   : std::path::Path::new("").to_path_buf(),
-            data            : GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None }
+            data            : GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]) }
         }
     }
 

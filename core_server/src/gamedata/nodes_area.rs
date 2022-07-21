@@ -4,9 +4,8 @@ use crate::gamedata::GameData;
 use super::behavior::{ BehaviorType };
 use super::nodes_utility::get_instance_position;
 use crate::gamedata::get_node_value;
-use core_shared::asset::TileUsage;
-use core_shared::light::Light;
-use core_shared::message::{MessageType, MessageData};
+
+use core_shared::prelude::*;
 
 /// Always
 pub fn always(_region_id: usize, _id: (usize, usize), _data: &mut GameData, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
