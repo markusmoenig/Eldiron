@@ -119,6 +119,10 @@ async fn run() {
     game.startup();
     let player_id = 131313;
 
+    let mut server = core_server::server::Server::new();
+    server.collect_data(&game);
+    server.start(None);
+
     let mut game_rect = (0, 0, 0, 0);
 
     // Init renderer

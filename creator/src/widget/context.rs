@@ -117,6 +117,10 @@ pub struct ScreenContext<'a> {
 
     pub player_id                       : usize,
 
+    // Server
+
+    pub server                          : Option<core_server::server::Server>,
+
     // Masks
     pub left_arrow_mask                 : [u8;12*18],
     pub right_arrow_mask                : [u8;12*18],
@@ -310,6 +314,8 @@ impl ScreenContext<'_> {
             just_stopped_running        : false,
 
             player_id                   : 131313,
+
+            server                      : None,
 
             // UI Masks
             left_arrow_mask,

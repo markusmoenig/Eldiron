@@ -1,13 +1,5 @@
 use core_shared::prelude::*;
-use rand::prelude::*;
-
-use std::fs;
-use std::path;
-use std::path::PathBuf;
-
-use std::collections::HashMap;
-
-use super::behavior::GameBehavior;
+use crate::prelude::*;
 
 #[cfg(feature = "embed_binaries")]
 use core_embed_binaries::Embedded;

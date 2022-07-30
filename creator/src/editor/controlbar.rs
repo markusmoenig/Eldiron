@@ -135,6 +135,13 @@ impl Widget for ControlBar {
                         atom_widget.text[0] = "Stop".to_string();
                         context.data.messages = vec![];
 
+                        // Start server
+                        let mut server = core_server::server::Server::new();
+                        server.collect_data(&context.data);
+                        _ = server.start(10);
+
+                        context.server = Some(server);
+
                         for index in 0..self.widgets.len() {
                             if index != ControlWidgets::Play as usize {
                                 self.widgets[index].state = WidgetState::Disabled;
