@@ -138,7 +138,7 @@ impl Widget for ControlBar {
                         // Start server
                         let mut server = core_server::server::Server::new();
                         server.collect_data(&context.data);
-                        _ = server.start(10);
+                        _ = server.start(Some(10));
 
                         context.server = Some(server);
 
