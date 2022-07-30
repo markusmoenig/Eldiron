@@ -2,32 +2,46 @@ use crate::prelude::*;
 
 pub mod region_instance;
 pub mod region_pool;
+pub mod message;
+
+use crossbeam_channel::{ Sender, Receiver, unbounded };
+
+pub struct RegionPoolMeta {
+    sender                  : Sender<Message>,
+    receiver                : Receiver<Message>,
+
+    region_ids              : Vec<usize>,
+}
 
 pub struct Server {
 
-    pub regions             : Vec<String>,
+    pub regions             : HashMap<usize, String>,
     pub behaviors           : Vec<String>,
 
     /// If we don't use threads (for example for the web), all regions are in here.
-    pub pool                : RegionPool
+    pub pool                : Option<RegionPool>,
+
+    /// The meta data for all pools
+    metas                   : Vec<RegionPoolMeta>,
 }
 
 impl Server {
 
     pub fn new() -> Self {
         Self {
-            regions         : vec![],
+            regions         : HashMap::new(),
             behaviors       : vec![],
-            pool            : RegionPool::new(false)
+            pool            : None,
+            metas           : vec![],
         }
     }
 
     /// Collects all data (assets, regions, behaviors etc.) and store them as JSON so that we can distribute them to threads as needed.
     pub fn collect_data(&mut self, data: &GameData) {
 
-        for (_id, region) in &data.regions {
+        for (id, region) in &data.regions {
             if let Some(json) = serde_json::to_string(&region.data).ok() {
-                self.regions.push(json);
+                self.regions.insert(*id, json);
             }
         }
 
@@ -43,36 +57,57 @@ impl Server {
 
         if let Some(max_num_threads) = max_num_threads {
             let max_regions_per_pool = 100;
-            let mut regions = vec![];
 
-            let start_thread = |regions: Vec<String>| {
+            let mut regions = vec![];
+            let mut region_ids = vec![];
+
+            let mut start_thread = |region_ids: Vec<usize>, regions: Vec<String>| {
+
+                let (sender, receiver) = unbounded();
+
+                let s = sender.clone();
+                let r = receiver.clone();
+
+                let meta = RegionPoolMeta {
+                    sender,
+                    receiver,
+                    region_ids,
+                };
+
                 let behaviors = self.behaviors.clone();
 
-                std::thread::spawn( move || {
-                    let mut pool = RegionPool::new(true);
+                let _handle = std::thread::spawn( move || {
+                    let mut pool = RegionPool::new(true, s, r);
                     pool.add_regions(regions, behaviors);
                 });
+
+                meta.sender.send(Message::Status("Startup".to_string())).unwrap();
+                self.metas.push(meta);
             };
 
-            for json in &self.regions {
+            for (id, json) in &self.regions {
 
                 if regions.len() < max_regions_per_pool {
                     regions.push(json.clone());
+                    region_ids.push(*id);
                 } else {
-                    start_thread(regions.clone());
+                    start_thread(region_ids, regions.clone());
                     regions = vec![];
+                    region_ids = vec![];
                 }
             }
 
             if regions.is_empty() == false {
-                start_thread(regions.clone());
+                start_thread(region_ids, regions.clone());
             }
         } else {
-            self.pool.add_regions(self.regions.clone(), self.behaviors.clone());
+            let (sender, receiver) = unbounded();
+
+            let mut pool = RegionPool::new(false, sender, receiver);
+            pool.add_regions(self.regions.values().cloned().collect(), self.behaviors.clone());
+            self.pool = Some(pool);
         }
 
         Ok(())
     }
-
-
 }

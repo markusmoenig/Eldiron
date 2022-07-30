@@ -1,7 +1,5 @@
 [lib]
 name = "core_server"
-#When building for Xcode
-#crate-type = ["staticlib", "cdylib"]
 
 [package]
 name = "core_server"
@@ -22,9 +20,9 @@ itertools = "0.10.2"
 rand = "0.8.5"
 pathfinding = "3.0.11"
 rhai = "*"
-#rhai = { git = "https://github.com/rhaiscript/rhai/" }
 regex = "1.5"
 console_log = "0.2"
+crossbeam-channel = "0.5.6"
 
 [features]
 default = []
