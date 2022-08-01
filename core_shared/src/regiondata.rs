@@ -31,3 +31,20 @@ pub struct GameRegionData {
 
     pub settings        : PropertySink,
 }
+
+impl GameRegionData {
+    pub fn new() -> Self {
+        Self {
+            layer1      : HashMap::new(),
+            layer2      : HashMap::new(),
+            layer3      : HashMap::new(),
+            layer4      : HashMap::new(),
+            id          : 0,
+            curr_pos    : (0,0),
+            min_pos     : (10000,10000),
+            max_pos     : (-10000, -10000),
+            areas       : vec![],
+            settings    : PropertySink::new(),
+        }
+    }
+}

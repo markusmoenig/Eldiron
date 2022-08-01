@@ -4,11 +4,14 @@ pub mod server;
 pub mod prelude {
     pub use crate::gamedata::GameData;
     pub use crate::gamedata::behavior::GameBehavior;
+    pub use crate::gamedata::region::GameRegion;
 
     pub use crate::server::Server;
     pub use crate::server::region_instance::RegionInstance;
     pub use crate::server::region_pool::RegionPool;
     pub use crate::server::message::Message;
+
+    pub use core_shared::prelude::GameRegionData;
 
     pub use std::collections::HashMap;
 

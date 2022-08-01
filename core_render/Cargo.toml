@@ -22,7 +22,7 @@ rand = "0.8.5"
 rhai = "*"
 regex = "1.5"
 colori = "0.1.1"
-audio-engine = "0.3.0"
+audio-engine = "0.4.0" #{ git = "https://github.com/Rodrigodd/audio-engine" }
 
 [features]
 default = []

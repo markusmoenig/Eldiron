@@ -155,6 +155,10 @@ impl Widget for ControlBar {
                         atom_widget.text[0] = "Play".to_string();
                         context.just_stopped_running = true;
 
+                        if let Some(server) = &mut context.server {
+                            _ = server.shutdown();
+                        }
+
                         for index in 0..self.widgets.len() {
                             if index != ControlWidgets::Play as usize {
                                 self.widgets[index].state = WidgetState::Normal;

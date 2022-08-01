@@ -9,6 +9,12 @@ use core_shared::actions::*;
 
 use audio_engine::{AudioEngine, WavDecoder};
 
+#[derive(Eq, Hash, PartialEq)]
+pub enum Group {
+    Effect,
+    Music,
+}
+
 #[cfg(feature = "embed_binaries")]
 use core_embed_binaries::Embedded;
 
@@ -39,7 +45,7 @@ pub struct GameRender<'a> {
     pub player_id               : usize,
 
     //#[cfg(target_arch = "wasm32")]
-    pub audio_engine            : Option<AudioEngine>
+    pub audio_engine            : Option<AudioEngine<Group>>
 }
 
 impl GameRender<'_> {
@@ -815,7 +821,7 @@ impl GameRender<'_> {
         #[cfg(not(feature = "embed_binaries"))]
         {
             if self.audio_engine.is_none() {
-                self.audio_engine = AudioEngine::new().ok();
+                self.audio_engine = AudioEngine::with_groups::<Group>().ok();
             }
 
             for (index, n) in self.asset.audio_names.iter().enumerate() {
@@ -827,9 +833,9 @@ impl GameRender<'_> {
                             let buffered = std::io::BufReader::new(file);
 
                             if let Some(wav) = WavDecoder::new(buffered).ok() {
-
-                                if let Some(mut sound) = audio_engine.new_sound(wav).ok() {
+                                if let Some(mut sound) = audio_engine.new_sound_with_group(Group::Effect, wav).ok() {
                                     sound.play();
+                                    //audio_engine.set_group_volume(Group::Effect, 0.1);
                                 }
                             }
                         }
@@ -838,37 +844,10 @@ impl GameRender<'_> {
             }
         }
 
-        /*
-        {
-            use rodio::{Decoder, OutputStream, Sink};
-
-            for (index, n) in self.asset.audio_names.iter().enumerate() {
-                if *n == name {
-
-                    let file = std::io::BufReader::new(std::fs::File::open(self.asset.audio_paths[index].clone()).unwrap());
-
-                    let handle = std::thread::spawn(move || {
-
-                        let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-                        let sink = Sink::try_new(&stream_handle).unwrap();
-
-                        sink.set_volume(0.5);
-                        let source = Decoder::new(file).unwrap();
-
-                        sink.append(source);
-                        sink.sleep_until_end();
-                    });
-                }
-
-                break;
-            }
-        }*/
-
-
         #[cfg(feature = "embed_binaries")]
         {
             if self.audio_engine.is_none() {
-                self.audio_engine = AudioEngine::new().ok();
+                self.audio_engine = AudioEngine::with_groups::<Group>().ok();
             }
 
             for (index, n) in self.asset.audio_names.iter().enumerate() {
@@ -880,8 +859,9 @@ impl GameRender<'_> {
 
                             if let Some(wav) = WavDecoder::new(buffered).ok() {
 
-                                if let Some(mut sound) = audio_engine.new_sound(wav).ok() {
+                                if let Some(mut sound) = audio_engine.new_sound_with_group(Group::Effect, wav).ok() {
                                     sound.play();
+                                    audio_engine.set_group_volume(Group::Effect, 0.1);
                                 }
                             }
                         }

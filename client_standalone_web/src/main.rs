@@ -121,7 +121,7 @@ async fn run() {
 
     let mut server = core_server::server::Server::new();
     server.collect_data(&game);
-    server.start(None);
+    _ = server.start(None);
 
     let mut game_rect = (0, 0, 0, 0);
 
@@ -330,6 +330,7 @@ async fn run() {
 
             // Game tick ?
             if curr_time > game_tick_timer + GAME_TICK_IN_MS {
+                server.tick();
                 game.tick();
                 game_tick_timer = curr_time;
                 anim_counter = anim_counter.wrapping_add(1);
