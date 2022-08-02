@@ -651,7 +651,7 @@ impl Draw2D {
             }
             if let Some(instances) = &behavior.data.instances {
                 for position in instances {
-                    draw_character(*id, *position);
+                    draw_character(*id, position.position);
                 }
             }
         }

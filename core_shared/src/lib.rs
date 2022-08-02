@@ -16,4 +16,6 @@ pub mod prelude {
     pub use crate::message::*;
     pub use crate::property::*;
     pub use crate::light::*;
+
+    pub use uuid::Uuid;
 }

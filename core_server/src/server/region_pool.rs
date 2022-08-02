@@ -2,16 +2,16 @@ use crate::prelude::*;
 
 use crossbeam_channel::{ Sender, Receiver, tick, select };
 
-pub struct RegionPool {
+pub struct RegionPool<'a> {
 
     sender                  : Sender<Message>,
     receiver                : Receiver<Message>,
 
     threaded                : bool,
-    instances               : Vec<RegionInstance>,
+    instances               : Vec<RegionInstance<'a>>,
 }
 
-impl RegionPool {
+impl RegionPool<'_> {
 
     pub fn new(threaded: bool, sender: Sender<Message>, receiver: Receiver<Message>) -> Self {
         Self {
@@ -28,7 +28,7 @@ impl RegionPool {
 
         for region in regions {
             let mut instance = RegionInstance::new();
-            instance.start(region, behaviors.clone(), systems.clone(), items.clone(), game.clone());
+            instance.setup(region, behaviors.clone(), systems.clone(), items.clone(), game.clone());
             self.instances.push(instance);
         }
 
@@ -66,6 +66,9 @@ impl RegionPool {
 
     /// Game tick
     pub fn tick(&mut self) {
+        for instance in &mut self.instances {
+            instance.tick();
+        }
     }
 
     /// Number of region instances handled by this pool

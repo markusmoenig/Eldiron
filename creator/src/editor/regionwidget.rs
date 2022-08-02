@@ -1,3 +1,5 @@
+use core_server::prelude::*;
+
 use core_server::gamedata::region::generate_region_sink_descriptions;
 use core_shared::asset::{ Asset };
 use core_shared::asset::tileset::TileUsage;
@@ -379,15 +381,19 @@ impl EditorContent for RegionWidget {
 
                                     if mode == 0 {
                                         // Add
-                                        let index = behavior.data.instances.as_ref().unwrap().iter().position(|&r| r == (self.region_id, id.0, id.1));
+                                        let index = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == (self.region_id, id.0, id.1));
 
                                         if index.is_none() {
-                                            behavior.data.instances.as_mut().unwrap().push((self.region_id, id.0, id.1));
+                                            let instance = CharacterInstanceData {
+                                                position: (self.region_id, id.0, id.1),
+                                                name: None,
+                                                tile: None };
+                                            behavior.data.instances.as_mut().unwrap().push(instance);
                                         }
                                     } else
                                     if mode == 1 {
                                         // Remove
-                                        if let Some(index) = behavior.data.instances.as_ref().unwrap().iter().position(|&r| r == (self.region_id, id.0, id.1)) {
+                                        if let Some(index) = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == (self.region_id, id.0, id.1)) {
                                             behavior.data.instances.as_mut().unwrap().remove(index);
                                         }
                                     }

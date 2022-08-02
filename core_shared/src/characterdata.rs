@@ -1,10 +1,10 @@
-
+use crate::prelude::*;
 
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone)]
 pub struct CharacterData {
     pub name                    : String,
-    pub id                      : usize,
+    pub id                      : Uuid,
     pub index                   : usize,
 
     pub position                : (usize, isize, isize),

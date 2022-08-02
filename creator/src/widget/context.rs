@@ -119,7 +119,7 @@ pub struct ScreenContext<'a> {
 
     // Server
 
-    pub server                          : Option<core_server::server::Server>,
+    pub server                          : Option<core_server::server::Server<'a>>,
 
     // Masks
     pub left_arrow_mask                 : [u8;12*18],

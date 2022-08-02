@@ -3,7 +3,7 @@ pub mod server;
 
 pub mod prelude {
     pub use crate::gamedata::GameData;
-    pub use crate::gamedata::behavior::GameBehavior;
+    pub use crate::gamedata::behavior::*;
     pub use crate::gamedata::region::GameRegion;
 
     pub use crate::server::Server;
@@ -16,6 +16,8 @@ pub mod prelude {
     pub use std::collections::HashMap;
 
     pub use rand::prelude::*;
+
+    pub use uuid::Uuid;
 
     pub use std::fs;
     pub use std::path;

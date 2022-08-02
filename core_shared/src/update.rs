@@ -1,14 +1,12 @@
+use crate::prelude::*;
 
 use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
-
-use crate::{regiondata::GameRegionData, characterdata::CharacterData, asset::TileUsage, message::MessageData, light::Light};
 
 #[derive(Serialize, Deserialize)]
 pub struct GameUpdate {
 
-    pub id                      : usize,
+    pub id                      : Uuid,
 
     pub position                : Option<(usize, isize, isize)>,
     pub old_position            : Option<(usize, isize, isize)>,
@@ -45,7 +43,7 @@ impl GameUpdate {
     pub fn new() -> Self {
 
         Self {
-            id                  : 0,
+            id                  : Uuid::new_v4(),
             position            : None,
             old_position        : None,
             max_transition_time : 0,

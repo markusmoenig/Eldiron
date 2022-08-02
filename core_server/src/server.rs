@@ -13,7 +13,7 @@ pub struct RegionPoolMeta {
     region_ids              : Vec<usize>,
 }
 
-pub struct Server {
+pub struct Server<'a> {
 
     pub regions             : HashMap<usize, String>,
     pub behaviors           : Vec<String>,
@@ -22,13 +22,13 @@ pub struct Server {
     pub game                : String,
 
     /// If we don't use threads (for example for the web), all regions are in here.
-    pub pool                : Option<RegionPool>,
+    pub pool                : Option<RegionPool<'a>>,
 
     /// The meta data for all pools
     metas                   : Vec<RegionPoolMeta>,
 }
 
-impl Server {
+impl Server<'_> {
 
     pub fn new() -> Self {
         Self {

@@ -22,6 +22,7 @@ pub mod prelude {
     pub use crate::gamedata::nodes_utility::*;
     pub use crate::gamedata::nodes::*;
     pub use crate::gamedata::script::*;
+    pub use uuid::Uuid;
 }
 
 use crate::gamedata::prelude::*;
@@ -792,22 +793,7 @@ impl GameData<'_> {
 
             let index = self.instances.len();
 
-            let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0 };
-
-            // Make sure id is unique
-            let mut has_id_already = true;
-            while has_id_already {
-                has_id_already = false;
-                for index in 0..self.instances.len() {
-                    if self.instances[index].id == instance.id {
-                        has_id_already = true;
-                    }
-                }
-
-                if has_id_already {
-                    instance.id += 1;
-                }
-            }
+            let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: id, tree_ids: to_execute.clone(), position, tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0 };
 
             self.instances.push(instance);
             self.scopes.push(scope);
@@ -865,22 +851,7 @@ impl GameData<'_> {
 
         let index = self.instances.len();
 
-        let mut instance = BehaviorInstance {id: thread_rng().gen_range(1..=u32::MAX) as usize, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.data.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::GameLogic, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0 };
-
-        // Make sure id is unique
-        let mut has_id_already = true;
-        while has_id_already {
-            has_id_already = false;
-            for index in 0..self.instances.len() {
-                if self.instances[index].id == instance.id {
-                    has_id_already = true;
-                }
-            }
-
-            if has_id_already {
-                instance.id += 1;
-            }
-        }
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.data.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: behavior::BehaviorInstanceType::GameLogic, update: None, regions_send: HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0 };
 
         self.instances.push(instance);
         self.scopes.push(scope);
@@ -1477,7 +1448,7 @@ impl GameData<'_> {
 
                 let update = GameUpdate{
                     id                      : self.instances[inst_index].id,
-                    position                : self.instances[inst_index].position,//if self.instances[inst_index].old_position.is_some() { self.instances[inst_index].old_position } else { self.instances[inst_index].position },
+                    position                : self.instances[inst_index].position,
                     old_position            : self.instances[inst_index].old_position,
                     max_transition_time     : self.instances[inst_index].max_transition_time,
                     curr_transition_time    : self.instances[inst_index].curr_transition_time,

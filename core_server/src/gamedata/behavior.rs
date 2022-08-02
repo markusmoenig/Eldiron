@@ -1,6 +1,7 @@
 use core_shared::prelude::*;
 use serde::{Deserialize, Serialize};
 use rand::prelude::*;
+use uuid::Uuid;
 
 use std::collections::HashSet;
 use std::fs;
@@ -10,7 +11,8 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 use itertools::Itertools;
 
-type Position = (usize, isize, isize);
+pub type Position = (usize, isize, isize);
+pub type Tile = (usize, usize, usize);
 
 #[cfg(feature = "embed_binaries")]
 use core_embed_binaries::Embedded;
@@ -100,11 +102,12 @@ pub enum BehaviorInstanceType {
     GameLogic
 }
 
+// Server instance of a behavior
 #[derive(Serialize, Deserialize, PartialEq)]
 pub struct BehaviorInstance {
 
     // The instance id (unique)
-    pub id                      : usize,
+    pub id                      : Uuid,
 
     // The instance state
     pub instance_type           : BehaviorInstanceType,
@@ -182,6 +185,14 @@ pub struct BehaviorInstance {
     pub game_locked_tree        : Option<usize>,
 }
 
+// An instance of a game behavior data
+#[derive(Serialize, Deserialize, Clone)]
+pub struct CharacterInstanceData {
+    pub position                : Position,
+    pub name                    : Option<String>,
+    pub tile                    : Option<Tile>,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct GameBehaviorData {
     pub nodes                   : HashMap<usize, BehaviorNode>,
@@ -192,7 +203,20 @@ pub struct GameBehaviorData {
 
     pub curr_node_id            : Option<usize>,
 
-    pub instances               : Option<Vec<Position>>,
+    pub instances               : Option<Vec<CharacterInstanceData>>,
+}
+
+impl GameBehaviorData {
+    pub fn new() -> Self {
+        Self {
+            nodes: HashMap::new(),
+            connections: vec![],
+            id: 0,
+            name: "".to_string(),
+            curr_node_id: None,
+            instances: Some(vec![]),
+        }
+    }
 }
 
 pub struct GameBehavior {
@@ -212,8 +236,10 @@ impl GameBehavior {
             .unwrap_or("".to_string());
 
         // Construct the json settings
-        let data = serde_json::from_str(&contents)
+        let mut data = serde_json::from_str(&contents)
             .unwrap_or(GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]) });
+
+        data.name = name.to_owned();
 
         Self {
             name            : name.to_string(),
