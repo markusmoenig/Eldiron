@@ -3,6 +3,7 @@ use crate::prelude::*;
 pub mod region_instance;
 pub mod region_pool;
 pub mod message;
+pub mod utilities;
 
 use crossbeam_channel::{ Sender, Receiver, unbounded };
 
