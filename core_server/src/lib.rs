@@ -17,6 +17,8 @@ pub mod prelude {
 
     pub use rand::prelude::*;
 
+    pub use core_shared::prelude::*;
+
     pub use uuid::Uuid;
 
     pub use std::fs;

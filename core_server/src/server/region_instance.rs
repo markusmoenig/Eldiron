@@ -9,11 +9,21 @@ pub struct RegionInstance<'a> {
     game_data                       : GameBehaviorData,
 
     // Character instances
-    instances                       : Vec<BehaviorInstance>,
+    pub instances                   : Vec<BehaviorInstance>,
     scopes                          : Vec<rhai::Scope<'a>>,
 
-    // The index of the game instance
-    game_instance_index             : Option<usize>
+    /// The index of the game instance
+    game_instance_index             : Option<usize>,
+
+    /// Player uuid => player instance index
+    pub player_uuid_indices         : HashMap<Uuid, usize>,
+
+    // Used by ticks for state memory
+
+    // Characters instance indices in a given region area
+    area_characters                 : HashMap<usize, Vec<usize>>,
+    // The character instances from the previous tick, used to figure out onEnter, onLeave etc events
+    prev_area_characters            : HashMap<usize, Vec<usize>>,
 }
 
 impl RegionInstance<'_> {
@@ -30,11 +40,95 @@ impl RegionInstance<'_> {
             scopes                  : vec![],
 
             game_instance_index     : None,
+
+            player_uuid_indices     : HashMap::new(),
+
+            area_characters         : HashMap::new(),
+            prev_area_characters    : HashMap::new(),
         }
     }
 
+    /// Game tick
     pub fn tick(&mut self) {
-        println!("tick");
+        // let executed_connections = vec![];
+        // let changed_variables = vec![];
+        // let characters = HashMap::new();
+        let lights : HashMap<usize, Vec<Light>> = HashMap::new();
+        self.prev_area_characters = self.area_characters.clone();
+        self.area_characters = HashMap::new();
+
+        // Execute behaviors
+        for inst_index in 0..self.instances.len() {
+
+            self.instances[inst_index].messages = vec![];
+            self.instances[inst_index].audio = vec![];
+
+            if  self.instances[inst_index].old_position.is_some() {
+                self.instances[inst_index].curr_transition_time += 1;
+
+                if self.instances[inst_index].curr_transition_time > self.instances[inst_index].max_transition_time {
+                    self.instances[inst_index].old_position = None;
+                    self.instances[inst_index].curr_transition_time = 0;
+                }
+            }
+
+            // Skip Sleep cycles
+            if self.instances[inst_index].sleep_cycles > 0 {
+                self.instances[inst_index].sleep_cycles -= 1;
+            } else {
+
+                // Killed or Purged: Skip
+                if self.instances[inst_index].state == BehaviorInstanceState::Purged || self.instances[inst_index].state == BehaviorInstanceState::Killed {
+                    continue;
+                }
+
+                if self.instances[inst_index].instance_type == BehaviorInstanceType::NonPlayerCharacter {
+                    // Execute trees of an NPC
+
+                    // Has a locked tree ?
+                    if let Some(locked_tree) = self.instances[inst_index].locked_tree {
+                            //self.execute_node(inst_index, locked_tree);
+                    } else {
+                        // Unlocked, execute all valid trees
+                        let trees = self.instances[inst_index].tree_ids.clone();
+                        for node_id in &trees {
+
+                            // Only execute trees here with an "Always" execute setting (0)
+                            // if let Some(value)= get_node_value((self.instances[inst_index].behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors, 0) {
+                            //     if value.0 != 0.0 {
+                            //         continue;
+                            //     }
+                            // }
+                            // self.execute_node(inst_index, node_id.clone());
+                        }
+                    }
+                } else {
+                    // Execute the tree which matches the current action, i.e. "onXXX", like "onMove"
+
+                    let mut tree_id: Option<usize> = None;
+                    if let Some(action) = &self.instances[inst_index].action {
+                        for id in &self.instances[inst_index].tree_ids {
+                            // if let Some(behavior) = self.get_behavior(self.instances[inst_index].behavior_id, BehaviorType::Behaviors) {
+                            //     if let Some(node) = behavior.data.nodes.get(&id) {
+                            //         if node.name == action.action {
+                            //             tree_id = Some(*id);
+                            //             break;
+                            //         }
+                            //     }
+                            // }
+                        }
+
+                        if let Some(tree_id) = tree_id {
+                            //self.execute_node(inst_index, tree_id);
+                        } else {
+                            println!("Cannot find valid tree for action {}", action.action);
+                        }
+
+                        self.instances[inst_index].action = None;
+                    }
+                }
+            }
+        }
     }
 
     /// Setup the region instance data by decoding the JSON for all game elements and sets up the npc and game behavior instances.
@@ -140,6 +234,7 @@ impl RegionInstance<'_> {
             self.instances[index].instance_type = BehaviorInstanceType::Player;
             self.instances[index].id = uuid;
             self.instances[index].position = Some(position);
+            self.player_uuid_indices.insert(uuid, index);
             log::info!("Player instance {} created.", uuid);
         }
     }
@@ -230,8 +325,8 @@ impl RegionInstance<'_> {
 
     /// Returns a game node value
     fn get_game_node_value(&mut self, node_id: usize, node_property: &str) -> Option<(f64, f64, f64, f64, String)> {
-        if let Some(node) = self.game_data.nodes.get_mut(&node_id) {
-            if let Some(value) = node.values.get_mut(node_property) {
+        if let Some(node) = self.game_data.nodes.get(&node_id) {
+            if let Some(value) = node.values.get(node_property) {
                 return Some(value.clone());
             }
         }

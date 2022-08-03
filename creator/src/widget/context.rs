@@ -120,6 +120,7 @@ pub struct ScreenContext<'a> {
     // Server
 
     pub server                          : Option<core_server::server::Server<'a>>,
+    pub player_uuid                     : uuid::Uuid,
 
     // Masks
     pub left_arrow_mask                 : [u8;12*18],
@@ -316,6 +317,7 @@ impl ScreenContext<'_> {
             player_id                   : 131313,
 
             server                      : None,
+            player_uuid                 : uuid::Uuid::new_v4(),
 
             // UI Masks
             left_arrow_mask,

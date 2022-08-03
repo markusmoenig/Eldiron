@@ -236,7 +236,11 @@ impl ScreenWidget for Editor<'_> {
                     let rc = render.key_down(key_string.to_owned(), self.context.player_id);
                     self.context.code_editor_error = rc.1;
                     for cmd in rc.0 {
-                        self.context.data.execute_packed_instance_action(cmd);
+                        self.context.data.execute_packed_instance_action(cmd.clone());
+                        let player_uuid = self.context.player_uuid;
+                        if let Some(server) = &mut self.context.server {
+                            server.execute_packed_player_action(player_uuid, cmd);
+                        }
                     }
                 }
             }

@@ -62,6 +62,18 @@ impl RegionPool<'_> {
                                         inst.create_player_instance(uuid, position);
                                     }
                                 }
+                            },
+                            Message::ExecutePlayerAction(uuid, region_id, player_action) => {
+                                for inst in &mut self.instances {
+                                    if inst.region_data.id == region_id {
+                                        //inst.create_player_instance(uuid, position);
+                                        if let Some(inst_index) = inst.player_uuid_indices.get(&uuid) {
+                                            inst.instances[*inst_index].action = Some(player_action);
+                                            println!("Applied player action");
+                                            break;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

@@ -677,6 +677,7 @@ dependencies = [
  "rhai",
  "serde",
  "serde_json",
+ "uuid",
  "vectorize",
  "winit",
  "winit_input_helper",

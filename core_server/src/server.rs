@@ -28,7 +28,11 @@ pub struct Server<'a> {
     /// The meta data for all pools
     metas                   : Vec<RegionPoolMeta>,
 
+    /// The default starting position for players
     player_default_position : Option<Position>,
+
+    /// The region ids for each player uuid so that we know where to send messages.
+    players_region_ids      : HashMap<Uuid, usize>
 }
 
 impl Server<'_> {
@@ -42,7 +46,9 @@ impl Server<'_> {
             game                        : "".to_string(),
             pool                        : None,
             metas                       : vec![],
-            player_default_position     : None
+
+            player_default_position     : None,
+            players_region_ids          : HashMap::new(),
         }
     }
 
@@ -164,14 +170,24 @@ impl Server<'_> {
         }
     }
 
-    /// Create a player instance
+    /// Create a new player instance
     pub fn create_player_instance(&mut self) -> Uuid {
         let uuid = uuid::Uuid::new_v4();
-        println!("{:?}", self.player_default_position);
         if let Some(position) = self.player_default_position {
             self.send_message_to_region(position.0, Message::CreatePlayerInstance(uuid, position));
+            self.players_region_ids.insert(uuid, position.0);
         }
         uuid
+    }
+
+    /// Assign an action to an instance
+    pub fn execute_packed_player_action(&mut self, player_uuid: Uuid, action: String) {
+        if let Some(region_id) = self.players_region_ids.get(&player_uuid) {
+            if let Some(action) = serde_json::from_str::<PlayerAction>(&action).ok() {
+                let message = Message::ExecutePlayerAction(player_uuid, *region_id, action);
+                self.send_message_to_region(*region_id, message);
+            }
+        }
     }
 
     /// Send a message to the given region
