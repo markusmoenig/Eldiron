@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 pub struct RegionInstance<'a> {
     // Game data
-    region_data                     : GameRegionData,
+    pub region_data                 : GameRegionData,
     behaviors                       : HashMap<usize, GameBehaviorData>,
     systems                         : HashMap<usize, GameBehaviorData>,
     items                           : HashMap<usize, GameBehaviorData>,
@@ -127,18 +127,22 @@ impl RegionInstance<'_> {
 
     }
 
-    /*
-    /// Creates a new player instance and returns the region id the player is located in
-    pub fn create_player_instance(&mut self, player_id: usize) -> Option<usize> {
-        let index = self.create_behavior_instance(self.player_behavior_id);
-        self.instances[index].instance_type = BehaviorInstanceType::Player;
-        self.player_ids_inst_indices.insert(player_id, index);
-
-        if let Some(position) = self.instances[index].position {
-            return Some(position.0);
+    /// Creates a new player instance
+    pub fn create_player_instance(&mut self, uuid: Uuid, position: Position) {
+        let mut player_id : Option<usize> = None;
+        for b in &self.behaviors {
+            if b.1.name == "Player" {
+                player_id = Some(*b.0);
+            }
         }
-        None
-    }*/
+        if let Some(player_id) = player_id {
+            let index = self.create_behavior_instance(player_id, false);
+            self.instances[index].instance_type = BehaviorInstanceType::Player;
+            self.instances[index].id = uuid;
+            self.instances[index].position = Some(position);
+            log::info!("Player instance {} created.", uuid);
+        }
+    }
 
     /// Creates an instance of a behavior (character)
     fn create_behavior_instance(&mut self, id: usize, npc_only: bool) -> usize {

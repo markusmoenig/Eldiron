@@ -56,6 +56,13 @@ impl RegionPool<'_> {
                                 println!{"Received status {}", status};
                                 //log::error!("{:?}", status);
                             },
+                            Message::CreatePlayerInstance(uuid, position) => {
+                                for inst in &mut self.instances {
+                                    if inst.region_data.id == position.0 {
+                                        inst.create_player_instance(uuid, position);
+                                    }
+                                }
+                            }
                         }
                     }
                 }

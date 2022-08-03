@@ -27,19 +27,22 @@ pub struct Server<'a> {
 
     /// The meta data for all pools
     metas                   : Vec<RegionPoolMeta>,
+
+    player_default_position : Option<Position>,
 }
 
 impl Server<'_> {
 
     pub fn new() -> Self {
         Self {
-            regions         : HashMap::new(),
-            behaviors       : vec![],
-            systems         : vec![],
-            items           : vec![],
-            game            : "".to_string(),
-            pool            : None,
-            metas           : vec![],
+            regions                     : HashMap::new(),
+            behaviors                   : vec![],
+            systems                     : vec![],
+            items                       : vec![],
+            game                        : "".to_string(),
+            pool                        : None,
+            metas                       : vec![],
+            player_default_position     : None
         }
     }
 
@@ -52,7 +55,10 @@ impl Server<'_> {
             }
         }
 
-        for (_id, behavior) in &data.behaviors {
+        for (id, behavior) in &data.behaviors {
+            if behavior.data.name == "Player" {
+                self.player_default_position = data.get_behavior_default_position(*id);
+            }
             if let Some(json) = serde_json::to_string(&behavior.data).ok() {
                 self.behaviors.push(json);
             }
@@ -136,6 +142,8 @@ impl Server<'_> {
             self.pool = Some(pool);
         }
 
+        log::info!("Server started successfully!");
+
         Ok(())
     }
 
@@ -153,6 +161,26 @@ impl Server<'_> {
     pub fn tick(&mut self) {
         if let Some(pool) = &mut self.pool {
             pool.tick();
+        }
+    }
+
+    /// Create a player instance
+    pub fn create_player_instance(&mut self) -> Uuid {
+        let uuid = uuid::Uuid::new_v4();
+        println!("{:?}", self.player_default_position);
+        if let Some(position) = self.player_default_position {
+            self.send_message_to_region(position.0, Message::CreatePlayerInstance(uuid, position));
+        }
+        uuid
+    }
+
+    /// Send a message to the given region
+    pub fn send_message_to_region(&self, region_id: usize, message: Message) {
+        for m in &self.metas {
+            if m.region_ids.contains(&region_id) {
+                _ = m.sender.send(message);
+                break;
+            }
         }
     }
 
