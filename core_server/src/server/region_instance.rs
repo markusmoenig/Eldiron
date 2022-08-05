@@ -6,6 +6,8 @@ type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut RegionI
 pub struct RegionInstance<'a> {
     // Game data
     pub region_data                 : GameRegionData,
+    pub region_behavior             : Vec<GameBehaviorData>,
+
     pub behaviors                   : HashMap<usize, GameBehaviorData>,
     pub systems                     : HashMap<usize, GameBehaviorData>,
     pub items                       : HashMap<usize, GameBehaviorData>,
@@ -14,6 +16,7 @@ pub struct RegionInstance<'a> {
     // For faster lookup
     pub system_names                : Vec<String>,
     pub system_ids                  : Vec<usize>,
+    pub area_ids                    : Vec<usize>,
 
     // All nodes
     nodes                           : HashMap<BehaviorNodeType, NodeCall>,
@@ -89,10 +92,36 @@ impl RegionInstance<'_> {
 
         let mut nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
 
-        nodes.insert(BehaviorNodeType::Move,player_move);
+        nodes.insert(BehaviorNodeType::Expression, expression);
+        nodes.insert(BehaviorNodeType::Script, script);
+        nodes.insert(BehaviorNodeType::Message, message);
+        nodes.insert(BehaviorNodeType::Pathfinder, pathfinder);
+        nodes.insert(BehaviorNodeType::Lookout, lookout);
+        nodes.insert(BehaviorNodeType::CloseIn, close_in);
+        nodes.insert(BehaviorNodeType::CallSystem, call_system);
+        nodes.insert(BehaviorNodeType::CallBehavior, call_behavior);
+        nodes.insert(BehaviorNodeType::LockTree, lock_tree);
+        nodes.insert(BehaviorNodeType::UnlockTree, unlock_tree);
+        nodes.insert(BehaviorNodeType::SetState, set_state);
+
+        nodes.insert(BehaviorNodeType::Always, always);
+        nodes.insert(BehaviorNodeType::InsideArea, inside_area);
+        nodes.insert(BehaviorNodeType::EnterArea, enter_area);
+        nodes.insert(BehaviorNodeType::LeaveArea, leave_area);
+        nodes.insert(BehaviorNodeType::DisplaceTiles, displace_tiles);
+        nodes.insert(BehaviorNodeType::TeleportArea, teleport_area);
+        nodes.insert(BehaviorNodeType::MessageArea, message_area);
+        nodes.insert(BehaviorNodeType::AudioArea, audio_area);
+        nodes.insert(BehaviorNodeType::LightArea, light_area);
+
+        nodes.insert(BehaviorNodeType::Move, player_move);
+
+        nodes.insert(BehaviorNodeType::Screen, screen);
 
         Self {
             region_data             : GameRegionData::new(),
+            region_behavior         : vec![],
+
             behaviors               : HashMap::new(),
             systems                 : HashMap::new(),
             items                   : HashMap::new(),
@@ -100,6 +129,7 @@ impl RegionInstance<'_> {
 
             system_names            : vec![],
             system_ids              : vec![],
+            area_ids                : vec![],
 
             engine,
             ast                     : HashMap::new(),
@@ -175,7 +205,7 @@ impl RegionInstance<'_> {
                         for node_id in &trees {
 
                             // Only execute trees here with an "Always" execute setting (0)
-                            if let Some(value)= get_node_value((self.instances[inst_index].behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors, 0) {
+                            if let Some(value)= get_node_value((self.instances[inst_index].behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors) {
                                 if value.0 != 0.0 {
                                     continue;
                                 }
@@ -231,23 +261,100 @@ impl RegionInstance<'_> {
                      }
                 }
             }
+        }
 
-            // Execute region area behaviors
-            let mut to_execute: Vec<(usize, usize)> = vec![];
-            self.displacements = HashMap::new();
-            for area_index in 0..self.region_data.areas.len() {
-                /*
-                for (node_id, node) in &self.region_data.behaviors[area_index].data.nodes {
-                    if node.behavior_type == BehaviorNodeType::InsideArea || node.behavior_type == BehaviorNodeType::EnterArea || node.behavior_type == BehaviorNodeType::LeaveArea || node.behavior_type == BehaviorNodeType::Always {
-                        to_execute.push((area_index, *node_id));
-                    }
-                }*/
-            }
-
-            for pairs in to_execute {
-                self.execute_area_node(self.region_data.id, pairs.0, pairs.1);
+        // Execute region area behaviors
+        let mut to_execute: Vec<(usize, usize)> = vec![];
+        self.displacements = HashMap::new();
+        for area_index in 0..self.region_data.areas.len() {
+            for (node_id, node) in &self.region_behavior[area_index].nodes {
+                if node.behavior_type == BehaviorNodeType::InsideArea || node.behavior_type == BehaviorNodeType::EnterArea || node.behavior_type == BehaviorNodeType::LeaveArea || node.behavior_type == BehaviorNodeType::Always {
+                    to_execute.push((area_index, *node_id));
+                }
             }
         }
+
+        for pairs in to_execute {
+            self.execute_area_node(self.region_data.id, pairs.0, pairs.1);
+        }
+
+       // Parse the player characters and generate updates
+
+        for inst_index in 0..self.instances.len() {
+            if self.instances[inst_index].instance_type == BehaviorInstanceType::Player {
+
+                // Set the player index
+                self.curr_player_inst_index = inst_index;
+                let old_screen_id = self.instances[inst_index].curr_player_screen_id;
+
+                let mut screen : Option<String> = None;
+
+                // Execute the game behavior
+                if let Some(game_inst_index) = self.game_instance_index {
+                    if self.scopes.is_empty() == false {
+                        if let Some(locked_tree) = self.instances[game_inst_index].locked_tree {
+                            self.execute_game_node(game_inst_index, locked_tree);
+                        }
+                    }
+                }
+
+                // Check if we need to send a new screen
+
+                if let Some(new_screen_id) = &self.instances[inst_index].curr_player_screen_id {
+                    if let Some(old_screen_id) = &old_screen_id {
+                        if new_screen_id != old_screen_id {
+                            screen = Some(self.instances[inst_index].curr_player_screen.clone());
+                        }
+                    } else {
+                        screen = Some(self.instances[inst_index].curr_player_screen.clone());
+                    }
+                }
+
+                let mut region        : Option<GameRegionData> = None;
+                let mut characters    : Vec<CharacterData> = vec![];
+                let mut displacements : HashMap<(isize, isize), (usize, usize, usize, TileUsage)> = HashMap::new();
+                let mut lights        : Vec<Light> = vec![];
+
+                if let Some(position) = self.instances[inst_index].position {
+
+                    // Check if the character is in a region we did not send to the client yet
+                    if self.instances[inst_index].regions_send.contains(&position.0) == false {
+                        region = Some(self.region_data.clone());
+                        self.instances[inst_index].regions_send.insert(position.0);
+                    }
+                    // Copy the displacements
+                    displacements = self.displacements.clone();
+
+                    // Send the characters of the client region
+                    if let Some(chars) = self.characters.get(&position.0) {
+                        characters = chars.clone();
+                    }
+
+                    if self.lights.contains_key(&position.0) {
+                        lights = self.lights[&position.0].clone();
+                    }
+                }
+
+                let update = GameUpdate{
+                    id                      : self.instances[inst_index].id,
+                    position                : self.instances[inst_index].position,
+                    old_position            : self.instances[inst_index].old_position,
+                    max_transition_time     : self.instances[inst_index].max_transition_time,
+                    curr_transition_time    : self.instances[inst_index].curr_transition_time,
+                    tile                    : self.instances[inst_index].tile,
+                    screen                  : screen,
+                    region,
+                    lights,
+                    displacements,
+                    characters,
+                    messages                : self.instances[inst_index].messages.clone(),
+                    audio                   : self.instances[inst_index].audio.clone(),
+                 };
+
+                self.instances[inst_index].update = serde_json::to_string(&update).ok();
+            }
+        }
+
     }
 
     /// Executes the given node and follows the connection chain
@@ -412,13 +519,82 @@ impl RegionInstance<'_> {
         let mut connected_node_ids : Vec<usize> = vec![];
 
         let mut rc : Option<BehaviorNodeConnector> = None;
-        /*
+
         // Call the node and get the resulting BehaviorNodeConnector
-        if let Some(region) = self.regions.get_mut(&region_id) {
-            if let Some(node) = region.behaviors[area_index].data.nodes.get_mut(&node_id) {
+        if let Some(node) = self.region_behavior[area_index].nodes.get_mut(&node_id) {
+
+            if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
+                let connector = node_call(region_id, (area_index, node_id), self, BehaviorType::Regions);
+                rc = Some(connector);
+                connectors.push(connector);
+            } else {
+                connectors.push(BehaviorNodeConnector::Bottom);
+            }
+        }
+
+
+        // Search the connections to check if we can find an ongoing node connection
+        for connector in connectors {
+            for c in &self.region_behavior[area_index].connections {
+                if c.0 == node_id && c.1 == connector {
+                    connected_node_ids.push(c.2);
+                    self.executed_connections.push((BehaviorType::Regions, c.0, c.1));
+                }
+            }
+        }
+
+        // And if yes execute it
+        for (_index, connected_node_id) in connected_node_ids.iter().enumerate() {
+            self.execute_area_node(region_id, area_index, *connected_node_id);
+        }
+        rc
+    }
+
+    /// Executes the given node and follows the connection chain
+    fn execute_game_node(&mut self, instance_index: usize, node_id: usize) -> Option<BehaviorNodeConnector> {
+
+        let mut connectors : Vec<BehaviorNodeConnector> = vec![];
+        let mut connected_node_ids : Vec<usize> = vec![];
+        let mut possibly_executed_connections : Vec<(BehaviorType, usize, BehaviorNodeConnector)> = vec![];
+
+        let mut is_sequence = false;
+        let mut rc : Option<BehaviorNodeConnector> = None;
+
+        // Call the node and get the resulting BehaviorNodeConnector
+        let behavior = &mut self.game_data;
+        if let Some(node) = behavior.nodes.get_mut(&node_id) {
+
+            // Handle special nodes
+            if node.behavior_type == BehaviorNodeType::Screen{
+                connectors.push(BehaviorNodeConnector::Bottom1);
+                connectors.push(BehaviorNodeConnector::Bottom2);
+                connectors.push(BehaviorNodeConnector::Bottom);
+                connectors.push(BehaviorNodeConnector::Bottom3);
+                connectors.push(BehaviorNodeConnector::Bottom4);
 
                 if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
-                    let connector = node_call(region_id, (area_index, node_id), self, BehaviorType::Regions);
+                    let behavior_id = self.instances[instance_index].behavior_id.clone();
+                    _ = node_call(instance_index, (behavior_id, node_id), self, BehaviorType::GameLogic);
+                }
+            } else
+            if node.behavior_type == BehaviorNodeType::BehaviorTree || node.behavior_type == BehaviorNodeType::Linear {
+                connectors.push(BehaviorNodeConnector::Bottom1);
+                connectors.push(BehaviorNodeConnector::Bottom2);
+                connectors.push(BehaviorNodeConnector::Bottom);
+                connectors.push(BehaviorNodeConnector::Bottom3);
+                connectors.push(BehaviorNodeConnector::Bottom4);
+            } else
+            if node.behavior_type == BehaviorNodeType::Sequence {
+                connectors.push(BehaviorNodeConnector::Bottom1);
+                connectors.push(BehaviorNodeConnector::Bottom2);
+                connectors.push(BehaviorNodeConnector::Bottom);
+                connectors.push(BehaviorNodeConnector::Bottom3);
+                connectors.push(BehaviorNodeConnector::Bottom4);
+                is_sequence = true;
+            } else {
+                if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
+                    let behavior_id = self.instances[instance_index].behavior_id.clone();
+                    let connector = node_call(instance_index, (behavior_id, node_id), self, BehaviorType::GameLogic);
                     rc = Some(connector);
                     connectors.push(connector);
                 } else {
@@ -429,29 +605,51 @@ impl RegionInstance<'_> {
 
         // Search the connections to check if we can find an ongoing node connection
         for connector in connectors {
-            if let Some(region) = self.regions.get_mut(&region_id) {
-                for c in &region.behaviors[area_index].data.connections {
-                    if c.0 == node_id && c.1 == connector {
-                        connected_node_ids.push(c.2);
-                        self.executed_connections.push((BehaviorType::Regions, c.0, c.1));
+            let behavior = &mut self.game_data;
+            for c in &behavior.connections {
+                if c.0 == node_id && c.1 == connector {
+                    connected_node_ids.push(c.2);
+                    if is_sequence == false {
+                        self.executed_connections.push((BehaviorType::GameLogic, c.0, c.1));
+                    } else {
+                        possibly_executed_connections.push((BehaviorType::GameLogic, c.0, c.1));
                     }
                 }
             }
         }
 
         // And if yes execute it
-        for (_index, connected_node_id) in connected_node_ids.iter().enumerate() {
-            self.execute_area_node(region_id, area_index, *connected_node_id);
+        for (index, connected_node_id) in connected_node_ids.iter().enumerate() {
+
+            // If this is a sequence, mark this connection as executed
+            if is_sequence {
+                self.executed_connections.push(possibly_executed_connections[index]);
+            }
+
+            if let Some(connector) = self.execute_game_node(instance_index, *connected_node_id) {
+                if is_sequence {
+                    // Inside a sequence break out if the connector is not Success
+                    if connector == BehaviorNodeConnector::Fail || connector == BehaviorNodeConnector::Right {
+                        break;
+                    }
+                }
+            }
         }
-        */
         rc
     }
 
     /// Setup the region instance data by decoding the JSON for all game elements and sets up the npc and game behavior instances.
-    pub fn setup(&mut self, region: String, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, game: String) {
+    pub fn setup(&mut self, region: String, region_behavior: HashMap<usize, Vec<String>>,behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, game: String) {
         // Decode all JSON
         if let Some(region_data) = serde_json::from_str(&region).ok() {
             self.region_data = region_data;
+            if let Some(areas) = region_behavior.get(&self.region_data.id) {
+                for a in areas {
+                    if let Some(ab) = serde_json::from_str::<GameBehaviorData>(&a).ok() {
+                        self.region_behavior.push(ab);
+                    }
+                }
+            }
         }
         for b in behaviors {
             if let Some(behavior_data) = serde_json::from_str::<GameBehaviorData>(&b).ok() {
@@ -654,7 +852,6 @@ impl RegionInstance<'_> {
     /// Returns the layered tiles at the given position and checks for displacements
     pub fn get_tile_at(&self, pos: (isize, isize)) -> Vec<(usize, usize, usize, TileUsage)> {
         let mut rc = vec![];
-
         if let Some(t) = self.displacements.get(&pos) {
             rc.push(t.clone());
         } else {
@@ -695,16 +892,13 @@ impl RegionInstance<'_> {
 
     /// Gets the behavior for the given id
     pub fn get_behavior(&self, id: usize, behavior_type: BehaviorType) -> Option<&GameBehaviorData> {
-        /*
         if behavior_type == BehaviorType::Regions {
-            for (_index, region) in &self.regions {
-                for index in 0..region.behaviors.len() {
-                    if region.behaviors[index].data.id == id {
-                        return Some(&region.behaviors[index]);
-                    }
+            for b in &self.region_behavior {
+                if b.id == id {
+                    return Some(&b);
                 }
             }
-        } else*/
+        } else
         if behavior_type == BehaviorType::Behaviors {
             return self.behaviors.get(&id);
         } else
@@ -722,16 +916,13 @@ impl RegionInstance<'_> {
 
     /// Gets the mutable behavior for the given behavior type
     pub fn get_mut_behavior(&mut self, id: usize, behavior_type: BehaviorType) -> Option<&mut GameBehaviorData> {
-        /*
         if behavior_type == BehaviorType::Regions {
-            for (_index, region) in &mut self.regions {
-                for index in 0..region.behaviors.len() {
-                    if region.behaviors[index].data.id == id {
-                        return Some(&mut region.behaviors[index]);
-                    }
+            for b in &mut self.region_behavior {
+                if b.id == id {
+                    return Some(b);
                 }
             }
-        } else*/
+        } else
         if behavior_type == BehaviorType::Behaviors {
             return self.behaviors.get_mut(&id);
         } else

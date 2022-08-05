@@ -23,12 +23,12 @@ impl RegionPool<'_> {
         }
     }
 
-    pub fn add_regions(&mut self, regions: Vec<String>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, game: String) {
+    pub fn add_regions(&mut self, regions: Vec<String>, regions_behavior: HashMap<usize, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, game: String) {
         println!("Pool: Adding {}", regions.len());
 
         for region in regions {
             let mut instance = RegionInstance::new();
-            instance.setup(region, behaviors.clone(), systems.clone(), items.clone(), game.clone());
+            instance.setup(region, regions_behavior.clone(), behaviors.clone(), systems.clone(), items.clone(), game.clone());
             self.instances.push(instance);
         }
 

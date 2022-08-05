@@ -23,25 +23,22 @@ pub fn set_number_variable(instance_index: usize, variable: String, value: f64, 
 }
 
 /// Retrieves a node value
-pub fn get_node_value(id: (usize, usize, &str), data: &mut RegionInstance, behavior_type: BehaviorType, region_id: usize) -> Option<(f64, f64, f64, f64, String)> {
+pub fn get_node_value(id: (usize, usize, &str), data: &mut RegionInstance, behavior_type: BehaviorType) -> Option<(f64, f64, f64, f64, String)> {
     if behavior_type == BehaviorType::Regions {
 
-        /*
-        if let Some(region) = data.regions.get_mut(&region_id) {
-            let behavior = &mut region.behaviors[id.0];
-            if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
-                if let Some(value) = node.values.get_mut(id.2) {
-                    return Some(value.clone());
-                }
+        let behavior = &mut data.region_behavior[id.0];
+        if let Some(node) = behavior.nodes.get_mut(&id.1) {
+            if let Some(value) = node.values.get_mut(id.2) {
+                return Some(value.clone());
             }
         } else
         if let Some(behavior) = data.behaviors.get_mut(&id.0) {
-            if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
+            if let Some(node) = behavior.nodes.get_mut(&id.1) {
                 if let Some(value) = node.values.get_mut(id.2) {
                     return Some(value.clone());
                 }
             }
-        }*/
+        }
     } else
     if behavior_type == BehaviorType::Behaviors {
         if let Some(behavior) = data.behaviors.get_mut(&id.0) {

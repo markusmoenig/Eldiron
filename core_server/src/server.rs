@@ -21,7 +21,9 @@ pub struct RegionPoolMeta {
 pub struct Server<'a> {
 
     pub regions             : HashMap<usize, String>,
-    pub behaviors           : Vec<String>,
+    pub region_behavior     : HashMap<usize, Vec<String>>,
+
+    pub behavior            : Vec<String>,
     pub systems             : Vec<String>,
     pub items               : Vec<String>,
     pub game                : String,
@@ -44,7 +46,9 @@ impl Server<'_> {
     pub fn new() -> Self {
         Self {
             regions                     : HashMap::new(),
-            behaviors                   : vec![],
+            region_behavior             : HashMap::new(),
+
+            behavior                    : vec![],
             systems                     : vec![],
             items                       : vec![],
             game                        : "".to_string(),
@@ -62,6 +66,14 @@ impl Server<'_> {
         for (id, region) in &data.regions {
             if let Some(json) = serde_json::to_string(&region.data).ok() {
                 self.regions.insert(*id, json);
+
+                let mut behavior = vec![];
+                for b in &region.behaviors {
+                    if let Some(json) = serde_json::to_string(&b.data).ok() {
+                        behavior.push(json);
+                    }
+                }
+                self.region_behavior.insert(*id, behavior);
             }
         }
 
@@ -70,7 +82,7 @@ impl Server<'_> {
                 self.player_default_position = data.get_behavior_default_position(*id);
             }
             if let Some(json) = serde_json::to_string(&behavior.data).ok() {
-                self.behaviors.push(json);
+                self.behavior.push(json);
             }
         }
 
@@ -107,20 +119,26 @@ impl Server<'_> {
                 let s = sender.clone();
                 let r = receiver.clone();
 
+                let mut region_behavior: HashMap<usize, Vec<String>> = HashMap::new();
+                for rid in &region_ids {
+                    let behavior = self.region_behavior.get(rid).unwrap().clone();
+                    region_behavior.insert(*rid, behavior);
+                }
+
                 let meta = RegionPoolMeta {
                     sender,
                     receiver,
                     region_ids,
                 };
 
-                let behaviors = self.behaviors.clone();
+                let behaviors = self.behavior.clone();
                 let systems = self.systems.clone();
                 let items = self.items.clone();
                 let game = self.game.clone();
 
                 let _handle = std::thread::spawn( move || {
                     let mut pool = RegionPool::new(true, s, r);
-                    pool.add_regions(regions, behaviors, systems, items, game);
+                    pool.add_regions(regions, region_behavior, behaviors, systems, items, game);
                 });
 
                 meta.sender.send(Message::Status("Startup".to_string())).unwrap();
@@ -148,7 +166,7 @@ impl Server<'_> {
             sender.send(Message::Status("Startup".to_string())).unwrap();
 
             let mut pool = RegionPool::new(false, sender, receiver);
-            pool.add_regions(self.regions.values().cloned().collect(), self.behaviors.clone(), self.systems.clone(), self.items.clone(), self.game.clone());
+            pool.add_regions(self.regions.values().cloned().collect(), self.region_behavior.clone(), self.behavior.clone(), self.systems.clone(), self.items.clone(), self.game.clone());
             self.pool = Some(pool);
         }
 

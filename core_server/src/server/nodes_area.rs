@@ -10,7 +10,7 @@ pub fn enter_area(region_id: usize, id: (usize, usize), data: &mut RegionInstanc
 
     let mut enter_everyone = true;
 
-    if let Some(value) = get_node_value((id.0, id.1, "character"), data, behavior_type, region_id) {
+    if let Some(value) = get_node_value((id.0, id.1, "character"), data, behavior_type) {
         if value.0 == 1.0 {
             enter_everyone = false;
         }
@@ -78,7 +78,7 @@ pub fn leave_area(region_id: usize, id: (usize, usize), data: &mut RegionInstanc
 
     let mut enter_everyone = true;
 
-    if let Some(value) = get_node_value((id.0, id.1, "character"), data, behavior_type, region_id) {
+    if let Some(value) = get_node_value((id.0, id.1, "character"), data, behavior_type) {
         if value.0 == 1.0 {
             enter_everyone = false;
         }
@@ -160,13 +160,13 @@ pub fn inside_area(region_id: usize, id: (usize, usize), data: &mut RegionInstan
 }
 
 /// Displace Tiles
-pub fn displace_tiles(region_id: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn displace_tiles(_region_id: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    if let Some(value) = get_node_value((id.0, id.1, "tile"), data, behavior_type, region_id) {
+    if let Some(value) = get_node_value((id.0, id.1, "tile"), data, behavior_type) {
         let tile_id = (value.0 as usize, value.1 as usize, value.2 as usize, TileUsage::Environment);
 
         // Filter based ?
-        if let Some(value) = get_node_value((id.0, id.1, "filter"), data, behavior_type, region_id) {
+        if let Some(value) = get_node_value((id.0, id.1, "filter"), data, behavior_type) {
             let filter_id = (value.0 as usize, value.1 as usize, value.2 as usize);
 
             for (x,y) in &data.region_data.areas[id.0].area {
@@ -193,9 +193,9 @@ pub fn displace_tiles(region_id: usize, id: (usize, usize), data: &mut RegionIns
 }
 
 /// Teleport Area
-pub fn teleport_area(region_id: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn teleport_area(_region_id: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    let value = get_node_value((id.0, id.1, "position"), data, behavior_type, region_id);
+    let value = get_node_value((id.0, id.1, "position"), data, behavior_type);
 
     // Somebody is in the area ?
     if let Some(area_list) = data.area_characters.get(&id.0) {
@@ -212,13 +212,13 @@ pub fn teleport_area(region_id: usize, id: (usize, usize), data: &mut RegionInst
 }
 
 /// Message Area
-pub fn message_area(region_id: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn message_area(_region_id: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let mut message_type : MessageType = MessageType::Status;
     let text;
 
     // Message Type
-    if let Some(value) = get_node_value((id.0, id.1, "type"), data, behavior_type, 0) {
+    if let Some(value) = get_node_value((id.0, id.1, "type"), data, behavior_type) {
         message_type = match value.0 as usize {
             1 => MessageType::Say,
             2 => MessageType::Yell,
@@ -228,7 +228,7 @@ pub fn message_area(region_id: usize, id: (usize, usize), data: &mut RegionInsta
         }
     }
 
-    if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type, 0) {
+    if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type) {
         text = value.4;
     } else {
         text = "Hello".to_string();
@@ -260,9 +260,9 @@ pub fn message_area(region_id: usize, id: (usize, usize), data: &mut RegionInsta
 
 
 /// Audio Area
-pub fn audio_area(region_id: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn audio_area(_region_id: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    if let Some(value) = get_node_value((id.0, id.1, "audio"), data, behavior_type, 0) {
+    if let Some(value) = get_node_value((id.0, id.1, "audio"), data, behavior_type) {
 
         if value.4.is_empty() == false {
             // Somebody is in the area ?
