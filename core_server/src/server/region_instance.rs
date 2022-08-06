@@ -159,7 +159,7 @@ impl RegionInstance<'_> {
     }
 
     /// Game tick
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self) -> Vec<Message> {
         self.executed_connections = vec![];
         self.changed_variables = vec![];
         self.messages = vec![];
@@ -167,6 +167,8 @@ impl RegionInstance<'_> {
         self.lights = HashMap::new();
         self.prev_area_characters = self.area_characters.clone();
         self.area_characters = HashMap::new();
+
+        let mut messages = vec![];
 
         // Execute behaviors
         for inst_index in 0..self.instances.len() {
@@ -283,6 +285,10 @@ impl RegionInstance<'_> {
         for inst_index in 0..self.instances.len() {
             if self.instances[inst_index].instance_type == BehaviorInstanceType::Player {
 
+                if self.instances[inst_index].state == BehaviorInstanceState::Purged {
+                    continue;
+                }
+
                 // Set the player index
                 self.curr_player_inst_index = inst_index;
                 let old_screen_id = self.instances[inst_index].curr_player_screen_id;
@@ -315,8 +321,13 @@ impl RegionInstance<'_> {
                 let mut displacements : HashMap<(isize, isize), (usize, usize, usize, TileUsage)> = HashMap::new();
                 let mut lights        : Vec<Light> = vec![];
 
+                let mut needs_transfer_to: Option<usize> = None;
                 if let Some(position) = self.instances[inst_index].position {
 
+                    if position.0 != self.region_data.id {
+                        // We need to transfer the character to a new region
+                        needs_transfer_to = Some(position.0);
+                    } else
                     // Check if the character is in a region we did not send to the client yet
                     if self.instances[inst_index].regions_send.contains(&position.0) == false {
                         region = Some(self.region_data.clone());
@@ -351,10 +362,16 @@ impl RegionInstance<'_> {
                     audio                   : self.instances[inst_index].audio.clone(),
                  };
 
-                self.instances[inst_index].update = serde_json::to_string(&update).ok();
+                //self.instances[inst_index].update = serde_json::to_string(&update).ok();
+                if let Some(transfer_to) = needs_transfer_to {
+                    self.instances[inst_index].scope_buffer = Some(ScopeBuffer::new(&self.scopes[inst_index]));
+                    messages.push(Message::TransferCharacter(transfer_to, self.instances[inst_index].clone()));
+                    self.purge_instance(inst_index);
+                }
+                messages.push(Message::PlayerUpdate(update.id, update));
             }
         }
-
+        messages
     }
 
     /// Executes the given node and follows the connection chain
@@ -639,7 +656,7 @@ impl RegionInstance<'_> {
     }
 
     /// Setup the region instance data by decoding the JSON for all game elements and sets up the npc and game behavior instances.
-    pub fn setup(&mut self, region: String, region_behavior: HashMap<usize, Vec<String>>,behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, game: String) {
+    pub fn setup(&mut self, region: String, region_behavior: HashMap<usize, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, game: String) {
         // Decode all JSON
         if let Some(region_data) = serde_json::from_str(&region).ok() {
             self.region_data = region_data;
@@ -720,7 +737,7 @@ impl RegionInstance<'_> {
 
         let index = self.instances.len();
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0 };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: 0, action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0 };
 
         self.instances.push(instance);
         self.scopes.push(scope);
@@ -829,7 +846,7 @@ impl RegionInstance<'_> {
                 }
 
                 //println!("Creating instance {}", inst.name.unwrap());
-                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), number_values: HashMap::new(), sleep_cycles: 0, systems_id: 0, action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0 };
+                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: 0, action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0 };
 
                 index = self.instances.len();
                 self.instances.push(instance);
@@ -936,6 +953,24 @@ impl RegionInstance<'_> {
             return Some(&mut self.game_data);
         }
         None
+    }
+
+    /// Purges this instance, voiding it.
+    pub fn purge_instance(&mut self, inst_index: usize) {
+        self.instances[inst_index].state = BehaviorInstanceState::Purged;
+        self.player_uuid_indices.remove(&self.instances[inst_index].id);
+    }
+
+    /// Transfers a character instance into this region
+    pub fn transfer_character_into(&mut self, instance: BehaviorInstance) {
+        // TODO, fill in purged
+        self.player_uuid_indices.insert(instance.id, self.instances.len());
+        let mut scope = rhai::Scope::new();
+        if let Some(buffer) = &instance.scope_buffer {
+            fill_scope_from_buffer(&mut scope, buffer);
+        }
+        self.instances.push(instance);
+        self.scopes.push(scope);
     }
 
 }

@@ -24,8 +24,6 @@ impl RegionPool<'_> {
     }
 
     pub fn add_regions(&mut self, regions: Vec<String>, regions_behavior: HashMap<usize, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, game: String) {
-        println!("Pool: Adding {}", regions.len());
-
         for region in regions {
             let mut instance = RegionInstance::new();
             instance.setup(region, regions_behavior.clone(), behaviors.clone(), systems.clone(), items.clone(), game.clone());
@@ -53,7 +51,7 @@ impl RegionPool<'_> {
                                 break;
                             },
                             Message::Status(status) => {
-                                println!{"Received status {}", status};
+                                println!{"Pool received status {}", status};
                                 //log::error!("{:?}", status);
                             },
                             Message::CreatePlayerInstance(uuid, position) => {
@@ -66,15 +64,14 @@ impl RegionPool<'_> {
                             Message::ExecutePlayerAction(uuid, region_id, player_action) => {
                                 for inst in &mut self.instances {
                                     if inst.region_data.id == region_id {
-                                        //inst.create_player_instance(uuid, position);
                                         if let Some(inst_index) = inst.player_uuid_indices.get(&uuid) {
                                             inst.instances[*inst_index].action = Some(player_action);
-                                            println!("Applied player action");
                                             break;
                                         }
                                     }
                                 }
-                            }
+                            },
+                            _ => { log::error!("Unhandled message for region pool: {:?}", message); }
                         }
                     }
                 }
@@ -85,13 +82,45 @@ impl RegionPool<'_> {
 
     /// Game tick
     pub fn tick(&mut self) {
+
+        let mut characters_to_transfer : Vec<(usize, BehaviorInstance)> = vec![];
+
         for instance in &mut self.instances {
-            instance.tick();
+            let messages = instance.tick();
+            for m in messages {
+                match m {
+                    Message::TransferCharacter(region_id, instance) => {
+                        characters_to_transfer.push((region_id, instance));
+                    },
+                    _ => self.sender.send(m).unwrap(),
+                }
+            }
+        }
+
+        for transfer in characters_to_transfer {
+            for i in &mut self.instances {
+                if i.region_data.id == transfer.0 {
+                    let uuid = transfer.1.id;
+                    i.transfer_character_into(transfer.1);
+                    self.sender.send(Message::CharacterHasBeenTransferredInsidePool(uuid, i.region_data.id)).unwrap();
+                    break;
+                }
+            }
         }
     }
 
     /// Number of region instances handled by this pool
     pub fn instances(&self) -> usize {
         self.instances.len()
+    }
+
+    /// Contains true if this pool contains the region with the given id
+    pub fn contains_region(&self, region_id: usize) -> bool {
+        for i in &self.instances {
+            if i.region_data.id == region_id {
+                return true;
+            }
+        }
+        false
     }
 }

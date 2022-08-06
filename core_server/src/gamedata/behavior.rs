@@ -1,3 +1,5 @@
+use crate::prelude::*;
+
 use core_shared::prelude::*;
 use serde::{Deserialize, Serialize};
 use rand::prelude::*;
@@ -76,7 +78,7 @@ pub enum BehaviorNodeConnector {
     Bottom4,
 }
 
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct BehaviorNode {
     pub behavior_type           : BehaviorNodeType,
     pub name                    : String,
@@ -103,7 +105,7 @@ pub enum BehaviorInstanceType {
 }
 
 // Server instance of a behavior
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct BehaviorInstance {
 
     // The instance id (unique)
@@ -127,9 +129,9 @@ pub struct BehaviorInstance {
     // The name of the instance
     pub name                    : String,
 
-    // Store number variables.
+    // Store all variables in the instances rhai::Scope
     // This is for serialization only / deserialization only, not used at runtime
-    pub number_values           : HashMap<String, f64>,
+    pub scope_buffer            : Option<ScopeBuffer>,
 
     // An instance id of the entity we are currently interacting with
     pub target_instance_index   : Option<usize>,
@@ -186,14 +188,14 @@ pub struct BehaviorInstance {
 }
 
 // An instance of a game behavior data
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CharacterInstanceData {
     pub position                : Position,
     pub name                    : Option<String>,
     pub tile                    : Option<Tile>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct GameBehaviorData {
     pub nodes                   : HashMap<usize, BehaviorNode>,
     pub connections             : Vec<(usize, BehaviorNodeConnector, usize, BehaviorNodeConnector)>,

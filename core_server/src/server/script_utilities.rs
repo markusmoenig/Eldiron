@@ -332,3 +332,8 @@ pub fn eval_dynamic_expression_instance_editor(instance_index: usize, id: (Behav
     }
     false
 }
+
+
+pub fn fill_scope_from_buffer(scope: &mut rhai::Scope, buffer: &ScopeBuffer) {
+
+}

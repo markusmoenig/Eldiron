@@ -13,10 +13,10 @@ use crate::editor::gameoptions::GameOptions;
 use crate::widget:: {ScreenWidget, Widget, WidgetState, WidgetKey};
 use crate::atom:: { AtomWidget, AtomWidgetType, AtomData };
 use core_render::render::GameRender;
+use core_server::prelude::Message;
 use core_shared::asset::Asset;
 use core_server::gamedata::behavior::BehaviorType;
 use core_shared::property::PropertySink;
-use core_shared::update::GameUpdate;
 
 use crate::editor::dialog::DialogWidget;
 
@@ -472,6 +472,34 @@ impl ScreenWidget for Editor<'_> {
             }
 
             if let Some(render) = &mut self.game_render {
+                if let Some(server) = &mut self.context.server {
+                    if let Some(message) = server.check_for_messages() {
+                        match message {
+                            Message::PlayerUpdate(_uuid, update) => {
+                                render.draw(anim_counter, &update);
+                            },
+                            _ => {}
+                        }
+                    }
+
+                    let mut cx : usize = 0;
+                    let mut cy : usize = 0;
+
+                    if render.width < clear_frame.2 {
+                        cx = (clear_frame.2 - render.width) / 2;
+                    }
+
+                    if render.height < clear_frame.3 {
+                        cy = (clear_frame.3 - render.height) / 2;
+                    }
+
+                    self.game_rect = (cx, cy + self.context.toolbar_height / 2, render.width, render.height);
+                    self.context.draw2d.copy_slice(frame, &mut render.frame, &self.game_rect, self.context.width);
+                }
+            }
+
+            /*
+            if let Some(render) = &mut self.game_render {
                 if let Some(update_string) = self.context.data.poll_update(131313) {
 
                     let update = serde_json::from_str::<GameUpdate>(&update_string).ok();
@@ -494,7 +522,7 @@ impl ScreenWidget for Editor<'_> {
                     self.game_rect = (cx, cy + self.context.toolbar_height / 2, render.width, render.height);
                     self.context.draw2d.copy_slice(frame, &mut render.frame, &self.game_rect, self.context.width);
                 }
-            }
+            }*/
             return;
         }
 

@@ -6,4 +6,7 @@ pub enum Message {
     Status(String),
     CreatePlayerInstance(Uuid, Position),
     ExecutePlayerAction(Uuid, usize, PlayerAction),
+    PlayerUpdate(Uuid, GameUpdate),
+    TransferCharacter(usize, BehaviorInstance),
+    CharacterHasBeenTransferredInsidePool(Uuid, usize),
 }

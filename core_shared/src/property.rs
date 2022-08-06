@@ -144,7 +144,7 @@ pub enum PropertyValue {
     Color(String)
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct PropertySink {
     pub properties              : Vec<Property>,
 

@@ -7,18 +7,22 @@ pub mod nodes_utilities;
 pub mod nodes_behavior;
 pub mod nodes_area;
 pub mod nodes_game;
+pub mod scope_buffer;
 pub mod script_utilities;
 
 use crossbeam_channel::{ Sender, Receiver, unbounded };
 
 pub struct RegionPoolMeta {
     sender                  : Sender<Message>,
-    receiver                : Receiver<Message>,
+    _receiver               : Receiver<Message>,
 
     region_ids              : Vec<usize>,
 }
 
 pub struct Server<'a> {
+
+    to_server_receiver      : Receiver<Message>,
+    to_server_sender        : Sender<Message>,
 
     pub regions             : HashMap<usize, String>,
     pub region_behavior     : HashMap<usize, Vec<String>>,
@@ -44,7 +48,14 @@ pub struct Server<'a> {
 impl Server<'_> {
 
     pub fn new() -> Self {
+
+        let (sender, receiver) = unbounded();
+
         Self {
+
+            to_server_receiver          : receiver,
+            to_server_sender            : sender,
+
             regions                     : HashMap::new(),
             region_behavior             : HashMap::new(),
 
@@ -106,7 +117,7 @@ impl Server<'_> {
     /// Starts the server and distributes regions over threads. max_num_threads limits the max number of threads or does not use threads at all if None.
     pub fn start(&mut self, max_num_threads: Option<i32>) -> Result<(), String> {
 
-        if  let Some(max_num_threads) = max_num_threads {
+        if  let Some(_max_num_threads) = max_num_threads {
             let max_regions_per_pool = 100;
 
             let mut regions = vec![];
@@ -116,7 +127,6 @@ impl Server<'_> {
 
                 let (sender, receiver) = unbounded();
 
-                let s = sender.clone();
                 let r = receiver.clone();
 
                 let mut region_behavior: HashMap<usize, Vec<String>> = HashMap::new();
@@ -127,7 +137,7 @@ impl Server<'_> {
 
                 let meta = RegionPoolMeta {
                     sender,
-                    receiver,
+                    _receiver : receiver,
                     region_ids,
                 };
 
@@ -136,8 +146,10 @@ impl Server<'_> {
                 let items = self.items.clone();
                 let game = self.game.clone();
 
+                let to_server_sender = self.to_server_sender.clone();
+
                 let _handle = std::thread::spawn( move || {
-                    let mut pool = RegionPool::new(true, s, r);
+                    let mut pool = RegionPool::new(true, to_server_sender, r);
                     pool.add_regions(regions, region_behavior, behaviors, systems, items, game);
                 });
 
@@ -190,6 +202,20 @@ impl Server<'_> {
         if let Some(pool) = &mut self.pool {
             pool.tick();
         }
+    }
+
+    ///
+    pub fn check_for_messages(&mut self) -> Option<Message> {
+        if let Some(message) = self.to_server_receiver.try_recv().ok() {
+            //println!("message {:?}", message);
+            match message {
+                Message::CharacterHasBeenTransferredInsidePool(uuid, region_id) => {
+                    self.players_region_ids.insert(uuid, region_id);
+                }
+                _ => return Some(message)
+            }
+        }
+        None
     }
 
     /// Create a new player instance
