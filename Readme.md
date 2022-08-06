@@ -21,7 +21,7 @@ Eldiron is currently under active development and a v1 is planned for the first 
 * Support games similar to Ultima 4 / 5 or any game which uses a rectangular grid layout.
 * Eldiron comes with integrated tile-maps or your can use your own square tiles with up to four levels of transparency.
 * Single-player or multi-player experiences. Eldiron has a sophisticated multi-threaded server architecture to allow for as many player or NPC characters as possible.
-* Cross platform. Eldiron is written in Rust and can nearly everywhere, i.e. Web, macOS, Windows, Linux, iOS, Android etc. Eldiron creator can run on any desktop.
+* Cross platform. Eldiron is written in Rust and can nearly run everywhere, i.e. on the Web, macOS, Windows, Linux, iOS, Android etc. Eldiron Creator can run on any desktop.
 * A sophisticated behavior node graph makes AI behavior for NPCs easy. The node system is backed by a full-featured scripting language.
 * Eldiron Creator has editors for tile-maps and node based graphs for character behavior, systems (like crafting), items and the overall game logic.
 
