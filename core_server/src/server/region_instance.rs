@@ -57,7 +57,14 @@ pub struct RegionInstance<'a> {
     // Lights for this region
     pub lights                      : HashMap<usize, Vec<Light>>,
 
-    // These are fields which provide feedback to the editor / game while running
+    // These are fields which provide debug feedback while running and are only used in the editors debug mode
+
+    // The behavior id to debug, this is send from the server
+    debug_behavior_id               : Option<usize>,
+
+    // We are debugging the current tick characters
+    is_debugging                    : bool,
+
     pub messages                    : Vec<(String, MessageType)>,
     pub executed_connections        : Vec<(BehaviorType, usize, BehaviorNodeConnector)>,
     pub changed_variables           : Vec<(usize, usize, usize, f64)>, // A variable has been changed: instance index, behavior id, node id, new value
@@ -152,6 +159,9 @@ impl RegionInstance<'_> {
             prev_area_characters    : HashMap::new(),
             lights                  : HashMap::new(),
 
+            debug_behavior_id       : None,
+            is_debugging            : false,
+
             messages                : vec![],
             executed_connections    : vec![],
             changed_variables       : vec![],
@@ -160,7 +170,6 @@ impl RegionInstance<'_> {
 
     /// Game tick
     pub fn tick(&mut self) -> Vec<Message> {
-        self.executed_connections = vec![];
         self.changed_variables = vec![];
         self.messages = vec![];
         self.characters = HashMap::new();
@@ -172,6 +181,9 @@ impl RegionInstance<'_> {
 
         // Execute behaviors
         for inst_index in 0..self.instances.len() {
+
+            self.messages = vec![];
+            self.executed_connections = vec![];
 
             self.instances[inst_index].messages = vec![];
             self.instances[inst_index].audio = vec![];
@@ -194,6 +206,9 @@ impl RegionInstance<'_> {
                 if self.instances[inst_index].state == BehaviorInstanceState::Purged || self.instances[inst_index].state == BehaviorInstanceState::Killed {
                     continue;
                 }
+
+                // Are we debugging this character ?
+                self.is_debugging = Some(self.instances[inst_index].behavior_id) == self.debug_behavior_id;
 
                 if self.instances[inst_index].instance_type == BehaviorInstanceType::NonPlayerCharacter {
                     // Execute trees of an NPC
@@ -239,6 +254,14 @@ impl RegionInstance<'_> {
 
                         self.instances[inst_index].action = None;
                     }
+                }
+
+                // If we are debugging this instance, send the debug data
+                if Some(self.instances[inst_index].behavior_id) == self.debug_behavior_id {
+                    let debug = BehaviorDebugData {
+                        executed_connections    : self.executed_connections.clone()
+                    };
+                    messages.push(Message::DebugData(debug));
                 }
             }
 
@@ -971,6 +994,11 @@ impl RegionInstance<'_> {
         }
         self.instances.push(instance);
         self.scopes.push(scope);
+    }
+
+    /// Sets the debugging behavior id.
+    pub fn set_debug_behavior_id(&mut self, behavior_id: usize) {
+        self.debug_behavior_id = Some(behavior_id);
     }
 
 }

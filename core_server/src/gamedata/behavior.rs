@@ -221,6 +221,12 @@ impl GameBehaviorData {
     }
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct BehaviorDebugData {
+    //pub messages                    : Vec<(String, MessageType)>,
+    pub executed_connections        : Vec<(BehaviorType, usize, BehaviorNodeConnector)>,
+}
+
 pub struct GameBehavior {
     pub name                    : String,
     pub path                    : PathBuf,

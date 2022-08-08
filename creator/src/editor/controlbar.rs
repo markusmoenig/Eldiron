@@ -107,11 +107,19 @@ impl Widget for ControlBar {
                         // context.data.create_behavior_instances();
                         // context.data.create_player_instance(context.player_id);
                         // context.data.activate_region_instances(context.data.regions_ids[context.curr_region_index]);
-                        context.data.startup();
+                        // context.data.startup();
                         context.is_running = true;
                         context.is_debugging = true;
                         atom_widget.text[0] = "Stop".to_string();
                         context.data.messages = vec![];
+
+                        // Start server
+                        let mut server = core_server::server::Server::new();
+                        server.collect_data(&context.data);
+                        _ = server.start(Some(10));
+                        context.player_uuid = server.create_player_instance();
+
+                        context.server = Some(server);
 
                         for index in 0..self.widgets.len() {
                             if index != ControlWidgets::Debug as usize {
@@ -121,6 +129,9 @@ impl Widget for ControlBar {
                         }
                     } else {
                         self.stop_debugging(context);
+                        if let Some(server) = &mut context.server {
+                            _ = server.shutdown();
+                        }
                     }
                 } else
                 if atom_widget.atom_data.id == "Play" {
@@ -129,7 +140,7 @@ impl Widget for ControlBar {
                         // context.data.create_behavior_instances();
                         // context.data.create_player_instance(context.player_id);
                         // context.data.activate_region_instances(context.data.regions_ids[context.curr_region_index]);
-                        context.data.startup();
+                        // context.data.startup();
                         context.is_running = true;
                         context.is_debugging = false;
                         atom_widget.text[0] = "Stop".to_string();
@@ -151,7 +162,7 @@ impl Widget for ControlBar {
                         }
                     } else {
                         //context.data.clear_instances();
-                        context.data.shutdown();
+                        // context.data.shutdown();
                         context.is_running = false;
                         atom_widget.text[0] = "Play".to_string();
                         context.just_stopped_running = true;
@@ -175,7 +186,7 @@ impl Widget for ControlBar {
     }
 
     fn stop_debugging(&mut self, context: &mut ScreenContext) {
-        context.data.shutdown();
+        // context.data.shutdown();
         context.is_running = false;
         context.is_debugging = false;
         self.widgets[ControlWidgets::Debug as usize].text[0] = "Debug".to_string();

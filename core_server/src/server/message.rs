@@ -9,4 +9,6 @@ pub enum Message {
     PlayerUpdate(Uuid, GameUpdate),
     TransferCharacter(usize, BehaviorInstance),
     CharacterHasBeenTransferredInsidePool(Uuid, usize),
+    SetDebugBehaviorId(usize),
+    DebugData(BehaviorDebugData),
 }

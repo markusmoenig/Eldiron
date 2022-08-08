@@ -4,6 +4,7 @@ use crate::editor::node_preview::NodePreviewWidget;
 use crate::editor::dialog::{ DialogState, DialogEntry };
 use crate::widget::Widget;
 
+use core_server::prelude::BehaviorDebugData;
 use zeno::{Mask, Stroke};
 use crate::editor::ToolBar;
 
@@ -49,6 +50,8 @@ pub struct NodeGraph  {
 
     visible_node_ids            : Vec<usize>,
     behavior_id                 : usize,
+
+    behavior_debug_data         : Option<BehaviorDebugData>,
 }
 
 impl EditorContent for NodeGraph  {
@@ -85,12 +88,15 @@ impl EditorContent for NodeGraph  {
             visible_node_ids            : vec![],
 
             behavior_id                 : 0,
+
+            behavior_debug_data         : None,
         }
     }
 
     /// Update the editor and the preview, this is called during debugging
-    fn update(&mut self, _context: &mut ScreenContext) {
+    fn update(&mut self, _context: &mut ScreenContext, debug: Option<BehaviorDebugData>) {
         self.dirty = true;
+        self.behavior_debug_data = debug;
         if let Some(preview) = &mut self.preview {
             preview.dirty = true;
         }
@@ -357,9 +363,15 @@ impl EditorContent for NodeGraph  {
                             control_end_x = end_x + (edx * d) as isize;
                             control_end_y = end_y + (edy * d) as isize;
 
-                            if context.data.executed_connections.contains(&(self.graph_type, *source_node_id, *source_connector)) {
-                                orange_path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
-                            } else {
+                            let mut connection_drawn = false;
+                            if let Some(debug_data) = &self.behavior_debug_data {
+                                if debug_data.executed_connections.contains(&(self.graph_type, *source_node_id, *source_connector)) {
+                                    orange_path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
+                                    connection_drawn = true;
+                                }
+                            }
+
+                            if connection_drawn == false {
                                 path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
                             }
                         }
@@ -486,6 +498,8 @@ impl EditorContent for NodeGraph  {
                 atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
             }
         }
+
+        self.behavior_debug_data = None;
     }
 
     /// Returns the rectangle for the given node either in relative or absolute coordinates

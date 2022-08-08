@@ -186,21 +186,23 @@ impl ScreenWidget for Editor<'_> {
     /// Game tick if the game is running
     fn update(&mut self) {
         // let start = self.get_time();
+        /*
         if self.context.is_debugging == true {
             self.context.data.tick();
-            self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context);
+            self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context, None);
         } else
         if self.context.is_running {
             self.context.data.tick();
-        }
+        }*/
         // let stop = self.get_time();
         // println!("update time {:?}", stop - start);
 
         // When stopped, update the graph
+        /*
         if self.context.just_stopped_running {
-            self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context);
+            self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context, None);
             self.context.just_stopped_running = false;
-        }
+        }*/
     }
 
     /// A key was pressed
@@ -454,8 +456,6 @@ impl ScreenWidget for Editor<'_> {
             }
         }
 
-        //println!("{}, {:?}", self.context.hover_help_counter, self.context.hover_help_text);
-
         // let start = self.get_time();
 
         // Playback
@@ -473,8 +473,12 @@ impl ScreenWidget for Editor<'_> {
 
             if let Some(render) = &mut self.game_render {
                 if let Some(server) = &mut self.context.server {
-                    if let Some(message) = server.check_for_messages() {
+                    let messages = server.check_for_messages();
+                    for message in messages {
                         match message {
+                            // Message::DebugData(debug) => {
+                            //     println!("{:?}", debug);
+                            // },
                             Message::PlayerUpdate(_uuid, update) => {
                                 render.draw(anim_counter, &update);
                             },
@@ -497,42 +501,38 @@ impl ScreenWidget for Editor<'_> {
                     self.context.draw2d.copy_slice(frame, &mut render.frame, &self.game_rect, self.context.width);
                 }
             }
-
-            /*
-            if let Some(render) = &mut self.game_render {
-                if let Some(update_string) = self.context.data.poll_update(131313) {
-
-                    let update = serde_json::from_str::<GameUpdate>(&update_string).ok();
-
-                    if let Some(update) = update {
-                        render.draw(anim_counter, &update);
-                    }
-
-                    let mut cx : usize = 0;
-                    let mut cy : usize = 0;
-
-                    if render.width < clear_frame.2 {
-                        cx = (clear_frame.2 - render.width) / 2;
-                    }
-
-                    if render.height < clear_frame.3 {
-                        cy = (clear_frame.3 - render.height) / 2;
-                    }
-
-                    self.game_rect = (cx, cy + self.context.toolbar_height / 2, render.width, render.height);
-                    self.context.draw2d.copy_slice(frame, &mut render.frame, &self.game_rect, self.context.width);
-                }
-            }*/
             return;
+        } else
+        if self.context.is_debugging == true {
+            if let Some(server) = &mut self.context.server {
+
+                // Request debug data for the currently selected character.
+                let behavior_id = self.context.data.behaviors_ids[self.context.curr_behavior_index];
+                server.set_debug_behavior_id(behavior_id);
+
+                let messages = server.check_for_messages();
+                for message in messages {
+                    match message {
+                        Message::DebugData(debug) => {
+                            self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context, Some(debug));
+                        },
+                        _ => {}
+                    }
+                }
+            }
         }
 
         // To update the variables
         if self.context.just_stopped_running {
+
+            self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context, None);
             self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_dirty();
 
             if let Some(preview) = self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().get_preview_widget() {
                 preview.dirty = true;
             }
+
+            self.context.just_stopped_running = false;
         }
 
         // Do we need to load a new project ?

@@ -71,6 +71,11 @@ impl RegionPool<'_> {
                                     }
                                 }
                             },
+                            Message::SetDebugBehaviorId(id) => {
+                                for inst in &mut self.instances {
+                                    inst.set_debug_behavior_id(id);
+                                }
+                            }
                             _ => { log::error!("Unhandled message for region pool: {:?}", message); }
                         }
                     }

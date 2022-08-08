@@ -153,7 +153,7 @@ impl Server<'_> {
                     pool.add_regions(regions, region_behavior, behaviors, systems, items, game);
                 });
 
-                meta.sender.send(Message::Status("Startup".to_string())).unwrap();
+                //meta.sender.send(Message::Status("Startup".to_string())).unwrap();
                 self.metas.push(meta);
             };
 
@@ -174,8 +174,6 @@ impl Server<'_> {
             }
         } else {
             let (sender, receiver) = unbounded::<Message>();
-
-            sender.send(Message::Status("Startup".to_string())).unwrap();
 
             let mut pool = RegionPool::new(false, sender, receiver);
             pool.add_regions(self.regions.values().cloned().collect(), self.region_behavior.clone(), self.behavior.clone(), self.systems.clone(), self.items.clone(), self.game.clone());
@@ -204,18 +202,23 @@ impl Server<'_> {
         }
     }
 
-    ///
-    pub fn check_for_messages(&mut self) -> Option<Message> {
-        if let Some(message) = self.to_server_receiver.try_recv().ok() {
-            //println!("message {:?}", message);
-            match message {
-                Message::CharacterHasBeenTransferredInsidePool(uuid, region_id) => {
-                    self.players_region_ids.insert(uuid, region_id);
+    /// Gets the current messages to the server from the queue
+    pub fn check_for_messages(&mut self) -> Vec<Message> {
+        let mut messages : Vec<Message> = vec![];
+        loop {
+            if let Some(message) = self.to_server_receiver.try_recv().ok() {
+                //println!("message {:?}", message);
+                match message {
+                    Message::CharacterHasBeenTransferredInsidePool(uuid, region_id) => {
+                        self.players_region_ids.insert(uuid, region_id);
+                    }
+                    _ => messages.push(message),
                 }
-                _ => return Some(message)
+            } else {
+                break;
             }
         }
-        None
+        messages
     }
 
     /// Create a new player instance
@@ -226,6 +229,13 @@ impl Server<'_> {
             self.players_region_ids.insert(uuid, position.0);
         }
         uuid
+    }
+
+    /// Send the behavior id to debug to all pools.
+    pub fn set_debug_behavior_id(&self, behavior_id: usize) {
+        for m in &self.metas {
+            m.sender.send(Message::SetDebugBehaviorId(behavior_id)).unwrap();
+        }
     }
 
     /// Assign an action to an instance

@@ -126,6 +126,12 @@ impl NodePreviewWidget {
 
             if self.graph_type == BehaviorType::Behaviors {
                 if context.is_running {
+                    // let behavior_id = context.data.behaviors_ids[context.curr_behavior_index];
+
+                    // if let Some(server) = &context.server {
+                    //     server.set_debug_behavior_id(behavior_id);
+                    // }
+                    /*
                     // Find the behavior instance for the current behavior id
                     let mut inst_index = 0_usize;
                     let behavior_id = context.data.behaviors_ids[context.curr_behavior_index];
@@ -134,12 +140,13 @@ impl NodePreviewWidget {
                             inst_index = index;
                             break;
                         }
-                    }
+                    }*/
+                    /* TODO
                     if let Some(position) = context.data.instances[inst_index].position {
                         if let Some(region) = context.data.regions.get(&position.0) {
                             self.region_offset = context.draw2d.draw_region_centered_with_instances(buffer_frame, region, &self.region_rect, inst_index, stride, 32, anim_counter, asset, context);
                         }
-                    }
+                    }*/
                 } else {
                     if let Some(position) = context.data.get_behavior_default_position(context.data.behaviors_ids[context.curr_behavior_index]) {
                         if let Some(region) = context.data.regions.get(&position.0) {
