@@ -2,7 +2,7 @@ use crate::prelude::*;
 use pathfinding::prelude::bfs;
 
 /// Retrieves a number instance value
-pub fn get_number_variable(instance_index: usize, variable: String, data: &mut GameData) -> Option<f64> {
+pub fn get_number_variable(instance_index: usize, variable: String, data: &mut RegionInstance) -> Option<f64> {
     if let Some(value) = data.scopes[instance_index].get_value::<f64>(&variable) {
         return Some(value.clone());
     }
@@ -10,7 +10,7 @@ pub fn get_number_variable(instance_index: usize, variable: String, data: &mut G
 }
 
 /// Retrieves a number instance value or 0
-pub fn get_number_variable_or_zero(instance_index: usize, variable: String, data: &GameData) -> f64 {
+pub fn get_number_variable_or_zero(instance_index: usize, variable: String, data: &RegionInstance) -> f64 {
     if let Some(value) = data.scopes[instance_index].get_value::<f64>(&variable) {
         return value.clone();
     }
@@ -18,7 +18,7 @@ pub fn get_number_variable_or_zero(instance_index: usize, variable: String, data
 }
 
 /// Sets a number instance value
-pub fn set_number_variable(instance_index: usize, variable: String, value: f64, data: &mut GameData) {
+pub fn set_number_variable(instance_index: usize, variable: String, value: f64, data: &mut RegionInstance) {
     data.scopes[instance_index].set_value(&variable, value);
 }
 

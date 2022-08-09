@@ -175,7 +175,10 @@ impl Server<'_> {
         } else {
             let (sender, receiver) = unbounded::<Message>();
 
-            let mut pool = RegionPool::new(false, sender, receiver);
+            let to_server_sender = self.to_server_sender.clone();
+            sender.send(Message::Status("Startup".to_string())).unwrap();
+
+            let mut pool = RegionPool::new(false, to_server_sender, receiver);
             pool.add_regions(self.regions.values().cloned().collect(), self.region_behavior.clone(), self.behavior.clone(), self.systems.clone(), self.items.clone(), self.game.clone());
             self.pool = Some(pool);
         }
@@ -199,6 +202,8 @@ impl Server<'_> {
     pub fn tick(&mut self) {
         if let Some(pool) = &mut self.pool {
             pool.tick();
+
+            log::error!("tick!");
         }
     }
 

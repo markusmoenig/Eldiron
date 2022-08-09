@@ -179,7 +179,7 @@ impl EditorContent for RegionWidget {
 
             if let Some(region) = context.data.regions.get(&self.region_id) {
 
-                if context.is_running == false {
+                //if context.is_running == false {
 
                     if editor_mode != RegionEditorMode::Characters {
                         context.draw2d.draw_region(frame, region, &rect, &(-self.offset.0, -self.offset.1), context.width, grid_size, anim_counter, asset);
@@ -205,9 +205,9 @@ impl EditorContent for RegionWidget {
                             }
                         }*/
                     }
-                } else {
-                    context.draw2d.draw_region_with_instances(frame, region, &rect, &(-self.offset.0, -self.offset.1), context.width, grid_size, anim_counter, asset, context);
-                }
+                //} else {
+                    //context.draw2d.draw_region_with_instances(frame, region, &rect, &(-self.offset.0, -self.offset.1), context.width, grid_size, anim_counter, asset, context);
+                //}
             }
 
             context.draw2d.draw_rect(frame, &(rect.0, rect.1 + rect.3, rect.2, self.toolbar_size), context.width, &context.color_black);

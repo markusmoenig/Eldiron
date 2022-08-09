@@ -233,12 +233,25 @@ impl ScreenWidget for Editor<'_> {
                 key_string = "left";
             }
 
+            // Execute game key command
             if key_string.is_empty() == false && self.context.is_debugging == false {
                 if let Some(render) = &mut self.game_render {
                     let rc = render.key_down(key_string.to_owned(), self.context.player_id);
                     self.context.code_editor_error = rc.1;
                     for cmd in rc.0 {
-                        self.context.data.execute_packed_instance_action(cmd.clone());
+                        let player_uuid = self.context.player_uuid;
+                        if let Some(server) = &mut self.context.server {
+                            server.execute_packed_player_action(player_uuid, cmd);
+                        }
+                    }
+                }
+            } else
+            // Execute debug key command TODO::Execute only if Player is the current behavior ?
+            if key_string.is_empty() == false && self.context.is_debugging == true {
+                if let Some(render) = &mut self.context.debug_render {
+                    let rc = render.key_down(key_string.to_owned(), self.context.player_id);
+                    self.context.code_editor_error = rc.1;
+                    for cmd in rc.0 {
                         let player_uuid = self.context.player_uuid;
                         if let Some(server) = &mut self.context.server {
                             server.execute_packed_player_action(player_uuid, cmd);
@@ -506,6 +519,11 @@ impl ScreenWidget for Editor<'_> {
         if self.context.is_debugging == true {
             if let Some(server) = &mut self.context.server {
 
+                self.content[self.state as usize].1.as_mut().unwrap().set_dirty();
+                if let Some(preview)  = self.content[self.state as usize].1.as_mut().unwrap().get_preview_widget() {
+                    preview.dirty = true;
+                }
+
                 // Request debug data for the currently selected character.
                 let behavior_id = self.context.data.behaviors_ids[self.context.curr_behavior_index];
                 server.set_debug_behavior_id(behavior_id);
@@ -515,6 +533,11 @@ impl ScreenWidget for Editor<'_> {
                     match message {
                         Message::DebugData(debug) => {
                             self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context, Some(debug));
+                        },
+                        Message::PlayerUpdate(_uuid, update) => {
+                            if let Some(preview)  = self.content[self.state as usize].1.as_mut().unwrap().get_preview_widget() {
+                                preview.debug_update(update);
+                            }
                         },
                         _ => {}
                     }
@@ -532,6 +555,7 @@ impl ScreenWidget for Editor<'_> {
                 preview.dirty = true;
             }
 
+            self.context.debug_render = None;
             self.context.just_stopped_running = false;
         }
 
@@ -980,7 +1004,10 @@ impl ScreenWidget for Editor<'_> {
                     let rc = render.mouse_down((pos.0 - self.game_rect.0, pos.1 - self.game_rect.1), self.context.player_id);
                     self.context.code_editor_error = rc.1;
                     for cmd in rc.0 {
-                        self.context.data.execute_packed_instance_action(cmd);
+                        let player_uuid = self.context.player_uuid;
+                        if let Some(server) = &mut self.context.server {
+                            server.execute_packed_player_action(player_uuid, cmd);
+                        }
                     }
                 }
             }

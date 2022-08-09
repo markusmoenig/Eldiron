@@ -306,7 +306,19 @@ impl RegionInstance<'_> {
        // Parse the player characters and generate updates
 
         for inst_index in 0..self.instances.len() {
-            if self.instances[inst_index].instance_type == BehaviorInstanceType::Player {
+
+            let mut send_update = false;
+
+            // Send update if this is a player and no editor debugging
+            if self.instances[inst_index].instance_type == BehaviorInstanceType::Player && self.debug_behavior_id.is_none() {
+                send_update = true;
+            } else
+            // Otherwise send this update if this is the current character being debugged in the editor
+            if Some(self.instances[inst_index].behavior_id) == self.debug_behavior_id {
+                send_update = true;
+            }
+
+            if send_update {
 
                 if self.instances[inst_index].state == BehaviorInstanceState::Purged {
                     continue;
@@ -351,8 +363,8 @@ impl RegionInstance<'_> {
                         // We need to transfer the character to a new region
                         needs_transfer_to = Some(position.0);
                     } else
-                    // Check if the character is in a region we did not send to the client yet
-                    if self.instances[inst_index].regions_send.contains(&position.0) == false {
+                    // Check if the character is in a region we did not send to the client yet OR if the editor is debugging
+                    if self.instances[inst_index].regions_send.contains(&position.0) == false || self.debug_behavior_id.is_some() {
                         region = Some(self.region_data.clone());
                         self.instances[inst_index].regions_send.insert(position.0);
                     }

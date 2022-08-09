@@ -269,6 +269,7 @@ impl EditorContent for NodeGraph  {
 
                     // If the preview is running, check if this node represents a variable which has been changed
                     // And if yes, marks it for redraw
+                    /* TODO
                     if context.is_running {
                         for i in 0..context.data.changed_variables.len() {
                             if context.data.changed_variables[i].2 == self.nodes[vindex].id {
@@ -278,7 +279,7 @@ impl EditorContent for NodeGraph  {
                                 }
                             }
                         }
-                    }
+                    }*/
 
                     if self.nodes[vindex].dirty {
                         let selected = if Some(self.nodes[index].id) == self.get_curr_node_id(context) { true } else { false };

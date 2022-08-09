@@ -6,8 +6,7 @@ mod prelude {
 }
 
 use core_render::render::GameRender;
-use core_server::gamedata::GameData;
-use core_shared::update::GameUpdate;
+use core_server::prelude::*;
 use prelude::*;
 
 use std::rc::Rc;
@@ -115,26 +114,23 @@ async fn run() {
     };
 
     // Init server
-    let mut game = GameData::load_from_path(PathBuf::new());//std::path::Path::new("/").to_path_buf());
-    game.startup();
-    let player_id = 131313;
+    let game_data = GameData::load_from_path(PathBuf::new());//std::path::Path::new("/").to_path_buf());
 
     let mut server = core_server::server::Server::new();
-    server.collect_data(&game);
+    server.collect_data(&game_data);
     _ = server.start(None);
+    let player_uuid = server.create_player_instance();
 
     let mut game_rect = (0, 0, 0, 0);
 
     // Init renderer
-    let mut render = GameRender::new(PathBuf::new(), player_id);
+    let mut render = GameRender::new(PathBuf::new(), player_uuid);
 
     let mut anim_counter : usize = 0;
     let mut timer : u128 = 0;
     let mut game_tick_timer : u128 = 0;
 
     let mut curr_time = 0;
-
-    //let handle = beep();
 
     event_loop.run(move |event, _, control_flow| {
         use winit::event::{ElementState, VirtualKeyCode};
@@ -143,39 +139,43 @@ async fn run() {
 
         if let Event::RedrawRequested(_) = event {
 
-            // Poll the update and draw it
-            if let Some(update_string) = game.poll_update(131313) {
-                let update = serde_json::from_str::<GameUpdate>(&update_string).ok();
-
-                if let Some(update) = update {
-                    render.draw(anim_counter, &update);
-
-                    let mut cx : usize = 0;
-                    let mut cy : usize = 0;
-
-                    let frame = pixels.get_frame();
-
-                    if render.width < width {
-                        cx = (width - render.width) / 2;
-                    }
-
-                    if render.height < height {
-                        cy = (height - render.height) / 2;
-                    }
-
-                    game_rect = (cx, cy, render.width, render.height);
-
-                    fn copy_slice(dest: &mut [u8], source: &[u8], rect: &(usize, usize, usize, usize), dest_stride: usize) {
-                        for y in 0..rect.3 {
-                            let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
-                            let s = y * rect.2 * 4;
-                            dest[d..d + rect.2 * 4].copy_from_slice(&source[s..s + rect.2 * 4]);
-                        }
-                    }
-
-                    copy_slice(frame, &mut render.frame, &game_rect, width);
+            let messages = server.check_for_messages();
+            for message in messages {
+                match message {
+                    Message::PlayerUpdate(_uuid, update) => {
+                        render.draw(anim_counter, &update);
+                    },
+                    _ => {}
                 }
             }
+
+            // Draw current screen
+
+            let mut cx : usize = 0;
+            let mut cy : usize = 0;
+
+            let frame = pixels.get_frame();
+
+            if render.width < width {
+                cx = (width - render.width) / 2;
+            }
+
+            if render.height < height {
+                cy = (height - render.height) / 2;
+            }
+
+            game_rect = (cx, cy, render.width, render.height);
+
+            fn copy_slice(dest: &mut [u8], source: &[u8], rect: &(usize, usize, usize, usize), dest_stride: usize) {
+                for y in 0..rect.3 {
+                    let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
+                    let s = y * rect.2 * 4;
+                    dest[d..d + rect.2 * 4].copy_from_slice(&source[s..s + rect.2 * 4]);
+                }
+            }
+
+            copy_slice(frame, &mut render.frame, &game_rect, width);
+
             if pixels
                 .render()
                 .map_err(|e| error!("pixels.render() failed: {}", e))
@@ -259,9 +259,9 @@ async fn run() {
 
         // Perform key action
         if key_string.is_empty() == false {
-            let rc = render.key_down(key_string.to_owned(), player_id);
+            let rc = render.key_down(key_string.to_owned(), player_uuid);
             for cmd in rc.0 {
-                game.execute_packed_instance_action(cmd);
+                server.execute_packed_player_action(player_uuid, cmd);
             }
         }
 
@@ -270,7 +270,7 @@ async fn run() {
             // Close events
             if /*input.key_pressed(VirtualKeyCode::Escape) ||*/ input.quit() {
                 *control_flow = ControlFlow::Exit;
-                game.shutdown();
+                _ = server.shutdown();
                 return;
             }
 
@@ -280,9 +280,9 @@ async fn run() {
                    .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
                 if contains_pos_for(pixel_pos, game_rect) {
-                    let rc = render.mouse_down((pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1), player_id);
+                    let rc = render.mouse_down((pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1), player_uuid);
                     for cmd in rc.0 {
-                        game.execute_packed_instance_action(cmd);
+                        server.execute_packed_player_action(player_uuid, cmd);
                     }
                 }
             }
@@ -331,7 +331,6 @@ async fn run() {
             // Game tick ?
             if curr_time > game_tick_timer + GAME_TICK_IN_MS {
                 server.tick();
-                game.tick();
                 game_tick_timer = curr_time;
                 anim_counter = anim_counter.wrapping_add(1);
             } else {
@@ -365,66 +364,3 @@ pub fn contains_pos_for(pos: (usize, usize), rect: (usize, usize, usize, usize))
     }
 }
 
-/*
-
-
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::Stream;
-
-pub struct Handle(Stream);
-pub fn beep() -> Handle {
-    let host = cpal::default_host();
-    let device = host
-        .default_output_device()
-        .expect("failed to find a default output device");
-    let config = device.default_output_config().unwrap();
-
-    //log::error!("{:?}", config);
-
-    Handle(match config.sample_format() {
-        cpal::SampleFormat::F32 => run_audio::<f32>(&device, &config.into()),
-        cpal::SampleFormat::I16 => run_audio::<i16>(&device, &config.into()),
-        cpal::SampleFormat::U16 => run_audio::<u16>(&device, &config.into()),
-    })
-}
-
-fn run_audio<T>(device: &cpal::Device, config: &cpal::StreamConfig) -> Stream
-where
-    T: cpal::Sample,
-{
-    let sample_rate = config.sample_rate.0 as f32;
-    let channels = config.channels as usize;
-
-    // Produce a sinusoid of maximum amplitude.
-    let mut sample_clock = 0f32;
-    let mut next_value = move || {
-        sample_clock = (sample_clock + 1.0) % sample_rate;
-        (sample_clock * 440.0 * 2.0 * 3.141592 / sample_rate).sin()
-    };
-
-    //let err_fn = |err| /*log::error!(format!("an error occurred on stream: {}", err.to_owned()).into()*/;
-
-    let stream = device
-        .build_output_stream(
-            config,
-            move |data: &mut [T], _| { /*log::error!("{:?}", data.len());*/ write_data(data, channels, &mut next_value); },
-             |err| { log::error!("{}", err.to_string())},
-        )
-        .unwrap();
-    stream.play().unwrap();
-    stream
-}
-
-fn write_data<T>(output: &mut [T], channels: usize, next_sample: &mut dyn FnMut() -> f32)
-where
-    T: cpal::Sample,
-{
-    for frame in output.chunks_mut(channels) {
-        let value: T = cpal::Sample::from::<f32>(&next_sample());
-        for sample in frame.iter_mut() {
-            *sample = value;
-        }
-    }
-}
-
-*/

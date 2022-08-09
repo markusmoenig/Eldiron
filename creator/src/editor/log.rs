@@ -38,6 +38,7 @@ impl LogWidget {
             self.buffer = vec![0;self.size.0 * self.size.1 * 4];
         }
 
+        /*
         if context.data.messages.len() != self.drawn_lines {
             self.dirty = true;
         }
@@ -70,7 +71,7 @@ impl LogWidget {
             }
 
             self.drawn_lines = context.data.messages.len();
-        }
+        }*/
         self.dirty = false;
     }
 

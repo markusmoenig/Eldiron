@@ -3,7 +3,7 @@ mod prelude {
 }
 
 use core_render::render::GameRender;
-use core_server::gamedata::GameData;
+use core_server::prelude::*;
 use core_shared::update::GameUpdate;
 use prelude::*;
 
@@ -55,14 +55,17 @@ fn main() -> Result<(), Error> {
     };
 
     // Init server
-    let mut game = GameData::load_from_path(PathBuf::new());
-    game.startup();
-    let player_id = 131313;
+    let game_data = GameData::load_from_path(PathBuf::new());
+
+    let mut server = core_server::server::Server::new();
+    server.collect_data(&game_data);
+    _ = server.start(Some(10));
+    let player_uuid = server.create_player_instance();
 
     let mut game_rect = (0, 0, 0, 0);
 
     // Init renderer
-    let mut render = GameRender::new(PathBuf::new(), player_id);
+    let mut render = GameRender::new(PathBuf::new(), player_uuid);
 
     let mut anim_counter : usize = 0;
     let mut timer : u128 = 0;
@@ -80,7 +83,7 @@ fn main() -> Result<(), Error> {
             // Game tick ?
             if curr_time > game_tick_timer + GAME_TICK_IN_MS {
                 // let start = get_time();
-                game.tick();
+
                 // let stop = get_time();
                 // println!("tick time {:?}", stop - start);
                 //window.request_redraw();
@@ -88,39 +91,45 @@ fn main() -> Result<(), Error> {
                 anim_counter = anim_counter.wrapping_add(1);
             }
 
-            // Poll the update and draw it
-            if let Some(update_string) = game.poll_update(131313) {
-                let update = serde_json::from_str::<GameUpdate>(&update_string).ok();
+            // Get server updates
 
-                if let Some(update) = update {
-                    render.draw(anim_counter, &update);
-
-                    let mut cx : usize = 0;
-                    let mut cy : usize = 0;
-
-                    let frame = pixels.get_frame();
-
-                    if render.width < width {
-                        cx = (width - render.width) / 2;
-                    }
-
-                    if render.height < height {
-                        cy = (height - render.height) / 2;
-                    }
-
-                    game_rect = (cx, cy, render.width, render.height);
-
-                    fn copy_slice(dest: &mut [u8], source: &[u8], rect: &(usize, usize, usize, usize), dest_stride: usize) {
-                        for y in 0..rect.3 {
-                            let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
-                            let s = y * rect.2 * 4;
-                            dest[d..d + rect.2 * 4].copy_from_slice(&source[s..s + rect.2 * 4]);
-                        }
-                    }
-
-                    copy_slice(frame, &mut render.frame, &game_rect, width);
+            let messages = server.check_for_messages();
+            for message in messages {
+                match message {
+                    Message::PlayerUpdate(_uuid, update) => {
+                        render.draw(anim_counter, &update);
+                    },
+                    _ => {}
                 }
             }
+
+            // Draw the frame
+
+            let mut cx : usize = 0;
+            let mut cy : usize = 0;
+
+            let frame = pixels.get_frame();
+
+            if render.width < width {
+                cx = (width - render.width) / 2;
+            }
+
+            if render.height < height {
+                cy = (height - render.height) / 2;
+            }
+
+            game_rect = (cx, cy, render.width, render.height);
+
+            fn copy_slice(dest: &mut [u8], source: &[u8], rect: &(usize, usize, usize, usize), dest_stride: usize) {
+                for y in 0..rect.3 {
+                    let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
+                    let s = y * rect.2 * 4;
+                    dest[d..d + rect.2 * 4].copy_from_slice(&source[s..s + rect.2 * 4]);
+                }
+            }
+
+            copy_slice(frame, &mut render.frame, &game_rect, width);
+
             if pixels
                 .render()
                 .map_err(|e| error!("pixels.render() failed: {}", e))
@@ -204,9 +213,9 @@ fn main() -> Result<(), Error> {
 
         // Perform key action
         if key_string.is_empty() == false {
-            let rc = render.key_down(key_string.to_owned(), player_id);
+            let rc = render.key_down(key_string.to_owned(), player_uuid);
             for cmd in rc.0 {
-                game.execute_packed_instance_action(cmd);
+                server.execute_packed_player_action(player_uuid, cmd);
             }
         }
 
@@ -215,7 +224,7 @@ fn main() -> Result<(), Error> {
             // Close events
             if /*input.key_pressed(VirtualKeyCode::Escape) ||*/ input.quit() {
                 *control_flow = ControlFlow::Exit;
-                game.shutdown();
+                _ = server.shutdown();
                 return;
             }
 
@@ -225,9 +234,9 @@ fn main() -> Result<(), Error> {
                    .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
                 if contains_pos_for(pixel_pos, game_rect) {
-                    let rc = render.mouse_down((pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1), player_id);
+                    let rc = render.mouse_down((pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1), player_uuid);
                     for cmd in rc.0 {
-                        game.execute_packed_instance_action(cmd);
+                        server.execute_packed_player_action(player_uuid, cmd);
                     }
                 }
             }

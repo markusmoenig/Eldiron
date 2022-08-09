@@ -399,6 +399,7 @@ impl AtomWidget {
 
                 let mut v = self.atom_data.data.0.round();
 
+                /* TODO chamge this system to the new server layout
                 if context.is_running  {
                     if let Some(my_id) = &self.behavior_id {
                         for index in 0..context.data.changed_variables.len() {
@@ -408,6 +409,7 @@ impl AtomWidget {
                         }
                     }
                 }
+                */
 
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &fill_color, 1.5);
 

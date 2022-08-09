@@ -1,5 +1,5 @@
-use core_server::gamedata::behavior::BehaviorType;
-
+use core_render::render::GameRender;
+use core_server::prelude::*;
 use core_shared::asset::Asset;
 use crate::atom:: { AtomWidget };
 use crate::editor::ScreenContext;
@@ -37,9 +37,11 @@ pub struct NodePreviewWidget {
 
     pub graph_offset            : (isize, isize),
 
-    pub clicked_region_id         : Option<(usize, isize, isize)>,
+    pub clicked_region_id       : Option<(usize, isize, isize)>,
 
-    pub curr_region_index         : usize,
+    pub curr_region_index       : usize,
+
+    debug_update                : Option<GameUpdate>,
 }
 
 impl NodePreviewWidget {
@@ -83,9 +85,11 @@ impl NodePreviewWidget {
 
             graph_offset        : (0,0),
 
-            clicked_region_id     : None,
+            clicked_region_id   : None,
 
-            curr_region_index     : 0,
+            curr_region_index   : 0,
+
+            debug_update        : None,
         }
     }
 
@@ -126,6 +130,17 @@ impl NodePreviewWidget {
 
             if self.graph_type == BehaviorType::Behaviors {
                 if context.is_running {
+
+                    if context.debug_render.is_none() {
+                        context.debug_render = Some(GameRender::new(context.curr_project_path.clone(), context.player_id ));
+                    }
+
+                    if let Some(update) = &self.debug_update {
+                        if let Some(render) = &mut context.debug_render {
+                            render.process_update(update);
+                            render.process_game_draw(self.region_rect, anim_counter, update, &mut Some(buffer_frame), stride);
+                        }
+                    }
                     // let behavior_id = context.data.behaviors_ids[context.curr_behavior_index];
 
                     // if let Some(server) = &context.server {
@@ -263,5 +278,10 @@ impl NodePreviewWidget {
         self.region_scroll_offset.1 += delta.1 / self.tile_size as isize;
         self.dirty = true;
         true
+    }
+
+    /// Apply an update when debugging. Previews only show behavior debug output.
+    pub fn debug_update(&mut self, update: GameUpdate) {
+        self.debug_update = Some(update);
     }
 }

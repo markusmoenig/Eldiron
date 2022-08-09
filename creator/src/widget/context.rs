@@ -1,8 +1,9 @@
 
 use crate::editor::{ codeeditorwidget::CodeEditorWidgetState, EditorState, dialog::{ DialogState, DialogEntry } };
 use crate::{draw2d::Draw2D};
-use core_shared::asset::TileUsage;
-use core_server::{gamedata::{ behavior::BehaviorType, GameData }};
+use core_shared::prelude::*;
+use core_server::prelude::*;
+use core_render::prelude::*;
 use zeno::{Mask, Stroke};
 use directories::{ UserDirs };
 
@@ -25,7 +26,7 @@ pub struct ScreenContext<'a> {
     pub width                           : usize,
     pub height                          : usize,
 
-    pub data                            : GameData<'a>,
+    pub data                            : GameData,
 
     pub switch_editor_state             : Option<EditorState>,
 
@@ -115,7 +116,7 @@ pub struct ScreenContext<'a> {
     pub is_debugging                    : bool,
     pub just_stopped_running            : bool,
 
-    pub player_id                       : usize,
+    pub player_id                       : Uuid,
 
     // Server
 
@@ -141,7 +142,10 @@ pub struct ScreenContext<'a> {
     pub hover_help_counter              : usize,
     pub hover_help_target               : usize,
     pub hover_help_title                : Option<String>,
-    pub hover_help_text                 : Option<String>
+    pub hover_help_text                 : Option<String>,
+
+    // Debug renderer
+    pub debug_render                    : Option<GameRender<'a>>
 }
 
 impl ScreenContext<'_> {
@@ -314,7 +318,7 @@ impl ScreenContext<'_> {
             is_debugging                : false,
             just_stopped_running        : false,
 
-            player_id                   : 131313,
+            player_id                   : uuid::Uuid::new_v4(),
 
             server                      : None,
             player_uuid                 : uuid::Uuid::new_v4(),
@@ -337,6 +341,8 @@ impl ScreenContext<'_> {
             hover_help_target           : 5,
             hover_help_title            : None,
             hover_help_text             : None,
+
+            debug_render                : None,
         }
     }
 
@@ -360,8 +366,6 @@ impl ScreenContext<'_> {
 
     /// Create a new project
     pub fn create_project(&mut self, name: String) -> Result<std::path::PathBuf, String> {
-
-        use std::fs;
 
         if let Some(user_dirs) = UserDirs::new() {
             if let Some(dir) = user_dirs.document_dir() {
@@ -414,7 +418,6 @@ impl ScreenContext<'_> {
     /// Returns a list of the current projects
     pub fn get_project_list(&self) -> Vec<String> {
 
-        use std::fs;
         let mut projects: Vec<String> = vec![];
 
         if let Some(user_dirs) = UserDirs::new() {

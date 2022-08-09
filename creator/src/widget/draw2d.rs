@@ -718,6 +718,7 @@ impl Draw2D {
         offset
     }
 
+    /*
     /// Draws the given region centered at the given center and returns the top left offset into the region
     pub fn draw_region_centered_with_instances(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), index_to_center: usize, stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {
         let left_offset = (rect.2 % tile_size) / 2;
@@ -829,7 +830,7 @@ impl Draw2D {
                 }
             }
         }
-    }
+    }*/
 
     /// Draw hover help
     pub fn draw_hover_help(&self, frame: &mut [u8], pos: (usize, usize), font: &Font, title: Option<String>, text: String, safe_rect: (usize, usize, usize, usize) ) {

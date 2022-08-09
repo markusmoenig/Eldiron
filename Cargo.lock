@@ -547,6 +547,7 @@ dependencies = [
  "rhai",
  "serde",
  "serde_json",
+ "uuid",
  "vectorize",
 ]
 

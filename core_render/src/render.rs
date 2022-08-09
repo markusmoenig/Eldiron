@@ -1,6 +1,7 @@
 
 use std::{path::PathBuf, collections::{HashMap, HashSet}};
 
+use crate::prelude::*;
 use core_shared::{asset::{Asset, TileUsage}, update::GameUpdate, regiondata::GameRegionData, message::MessageData, light::Light};
 use crate::{draw2d::Draw2D, script_types::*, lighting::compute_lighting};
 use rhai::{ Engine, Scope, AST, Dynamic };
@@ -42,7 +43,7 @@ pub struct GameRender<'a> {
     pub transition_counter      : isize,
     pub transition_active       : bool,
 
-    pub player_id               : usize,
+    pub player_id               : Uuid,
 
     //#[cfg(target_arch = "wasm32")]
     pub audio_engine            : Option<AudioEngine<Group>>
@@ -51,7 +52,7 @@ pub struct GameRender<'a> {
 impl GameRender<'_> {
 
     #[allow(unused)]
-    pub fn new(path: PathBuf, player_id: usize) -> Self {
+    pub fn new(path: PathBuf, player_id: Uuid) -> Self {
 
         let mut asset = Asset::new();
         #[cfg(not(feature = "embed_binaries"))]
@@ -124,7 +125,6 @@ impl GameRender<'_> {
 
             player_id,
 
-            //#[cfg(target_arch = "wasm32")]
             audio_engine        : None,
         }
     }
@@ -402,52 +402,8 @@ impl GameRender<'_> {
                     },
                     ScriptDrawCmd::DrawGame(rect) => {
                         if rect.is_safe(self.width, self.height) {
-                            if let Some(position) = update.position {
-
-                                if self.transition_active == false {
-                                    if position.0 != self.last_position.0 && self.last_position.0 != 100000 {
-                                        // Start transition
-                                        self.transition_active = true;
-                                        self.transition_counter = 1;
-                                        self.transition_steps = 6;
-                                    } else {
-                                        self.last_position = position;
-                                    }
-                                }
-
-
-                                if self.transition_active {
-                                    self.draw_game_rect(rect.rect, self.last_position, anim_counter, update, None);
-
-                                    let mut r = rect.rect.clone();
-
-                                    let mut set: HashSet<(isize, isize)> = HashSet::new();
-
-                                    let x_tiles = rect.rect.2 / self.tile_size;
-
-                                    let step_x = (x_tiles as f32 / self.transition_steps as f32) as f32;
-
-                                    r.0 = x_tiles / 2 - (((step_x * self.transition_counter as f32) / 2.0)) as usize;
-                                    r.2 = (step_x * self.transition_counter as f32) as usize;
-
-                                    for y in 0..r.3 {
-                                        for x in r.0..r.0+r.2 {
-                                            set.insert((x as isize, y as isize));
-                                        }
-                                    }
-
-                                    self.draw_game_rect(rect.rect, position, anim_counter, update, Some(set));
-
-                                    self.transition_counter += 1;
-                                    if self.transition_counter == self.transition_steps {
-                                        self.transition_active = false;
-                                        self.last_position = position;
-                                    }
-                                } else
-                                if self.transition_active == false {
-                                    self.draw_game_rect(rect.rect, position, anim_counter, update, None);
-                                }
-                            }
+                            //let frame = &mut self.frame[..];
+                            self.process_game_draw(rect.rect, anim_counter, update, &mut None, self.width);
                         }
                     },
                     ScriptDrawCmd::DrawRegion(_name, _rect, _size) => {
@@ -472,14 +428,61 @@ impl GameRender<'_> {
         None
     }
 
+    pub fn process_game_draw(&mut self, rect: (usize, usize, usize, usize), anim_counter: usize, update: &GameUpdate, external_frame: &mut Option<&mut [u8]>, stride: usize) {
+        if let Some(position) = update.position {
+
+            if self.transition_active == false {
+                if position.0 != self.last_position.0 && self.last_position.0 != 100000 {
+                    // Start transition
+                    self.transition_active = true;
+                    self.transition_counter = 1;
+                    self.transition_steps = 6;
+                } else {
+                    self.last_position = position;
+                }
+            }
+
+            if self.transition_active {
+                self.draw_game_rect(rect, self.last_position, anim_counter, update, None, external_frame, stride);
+
+                let mut r = rect.clone();
+
+                let mut set: HashSet<(isize, isize)> = HashSet::new();
+
+                let x_tiles = rect.2 / self.tile_size;
+
+                let step_x = (x_tiles as f32 / self.transition_steps as f32) as f32;
+
+                r.0 = x_tiles / 2 - (((step_x * self.transition_counter as f32) / 2.0)) as usize;
+                r.2 = (step_x * self.transition_counter as f32) as usize;
+
+                for y in 0..r.3 {
+                    for x in r.0..r.0+r.2 {
+                        set.insert((x as isize, y as isize));
+                    }
+                }
+
+                self.draw_game_rect(rect, position, anim_counter, update, Some(set), external_frame, stride);
+
+                self.transition_counter += 1;
+                if self.transition_counter == self.transition_steps {
+                    self.transition_active = false;
+                    self.last_position = position;
+                }
+            } else
+            if self.transition_active == false {
+                self.draw_game_rect(rect, position, anim_counter, update, None, external_frame, stride);
+            }
+        }
+    }
+
     /// Draws the game in the given rect
-    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), cposition: (usize, isize, isize), anim_counter: usize, update: &GameUpdate, set: Option<HashSet<(isize, isize)>>) {
+    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), cposition: (usize, isize, isize), anim_counter: usize, update: &GameUpdate, set: Option<HashSet<(isize, isize)>>, external_frame: &mut Option<&mut [u8]>, stride: usize) {
 
         self.draw2d.scissor = Some(rect);
 
         let mut position = cposition;
 
-        let stride = self.width;
         let tile_size = self.tile_size;
 
         let left_offset = (rect.2 % tile_size) / 2;
@@ -593,8 +596,15 @@ impl GameRender<'_> {
                             }
                         }
 
+                        let frame;
+                        if external_frame.is_some() {
+                            frame = external_frame.as_deref_mut().unwrap();
+                        } else {
+                            frame = &mut self.frame[..];
+                        }
+
                         if set.is_some() {
-                            self.draw2d.draw_rect(&mut self.frame[..], &(pos.0, pos.1, tile_size, tile_size), stride, &background);
+                            self.draw2d.draw_rect(frame/*if external_frame.is_some() { &mut(external_frame.as_deref_mut().unwrap()) } else { &mut self.frame[..]}*/, &(pos.0, pos.1, tile_size, tile_size), stride, &background);
                             //self.draw2d.draw_rect(&mut self.frame[..], &(pos.0, pos.1, tile_size, tile_size), stride, &clear.unwrap());
                         }
 
@@ -604,7 +614,7 @@ impl GameRender<'_> {
                         }
 
                         let map = self.asset.get_map_of_id(value.0);
-                        self.draw2d.draw_animated_tile_with_blended_color(&mut self.frame[..], &pos, map, stride, &(value.1, value.2), anim_counter, tile_size, &background, light);
+                        self.draw2d.draw_animated_tile_with_blended_color(frame/*&mut self.frame[..]*/, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size, &background, light);
                     }
                 }
             }
@@ -645,6 +655,13 @@ impl GameRender<'_> {
                     tr.1 -= gr.1;
                 }
 
+                let frame;
+                if external_frame.is_some() {
+                    frame = external_frame.as_deref_mut().unwrap();
+                } else {
+                    frame = &mut self.frame[..];
+                }
+
                 // Row check
                 if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
                     // Column check
@@ -664,7 +681,7 @@ impl GameRender<'_> {
                         }
 
                         let map = self.asset.get_map_of_id(tile.0);
-                        self.draw2d.draw_animated_tile_with_blended_color(&mut self.frame[..], &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size, &background, light);
+                        self.draw2d.draw_animated_tile_with_blended_color(frame, &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size, &background, light);
                     }
                 }
             }
@@ -698,7 +715,7 @@ impl GameRender<'_> {
         rc
     }
 
-    pub fn key_down(&mut self, key: String, player_id: usize) -> (Vec<String>, Option<(String, Option<usize>)>) {
+    pub fn key_down(&mut self, key: String, player_id: Uuid) -> (Vec<String>, Option<(String, Option<usize>)>) {
         // Call the draw function
         if let Some(ast) = &self.ast {
             let result = self.engine.call_fn_raw(
@@ -728,7 +745,7 @@ impl GameRender<'_> {
 
     }
 
-    pub fn mouse_down(&mut self, pos: (usize, usize), player_id: usize) -> (Vec<String>, Option<(String, Option<usize>)>) {
+    pub fn mouse_down(&mut self, pos: (usize, usize), player_id: Uuid) -> (Vec<String>, Option<(String, Option<usize>)>) {
         // Call the draw function
 
         if let Some(ast) = &self.ast {
@@ -760,7 +777,7 @@ impl GameRender<'_> {
     }
 
 
-    fn process_cmds(&mut self, player_id: usize) -> Vec<String> {
+    fn process_cmds(&mut self, player_id: Uuid) -> Vec<String> {
         let mut commands = vec![];
 
         if let Some(mut cmd) = self.scope.get_value::<ScriptCmd>("cmd") {

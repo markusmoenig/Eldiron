@@ -6,7 +6,6 @@ use core_shared::asset::Asset;
 use crate::widget::atom:: { AtomWidget, AtomWidgetType };
 use crate::widget::context::ScreenContext;
 
-
 #[derive(PartialEq, Eq, Hash)]
 enum ControlWidgets {
     _Undo,
@@ -103,15 +102,10 @@ impl Widget for ControlBar {
                 } else
                 if atom_widget.atom_data.id == "Debug" {
                     if context.is_running == false {
-                        context.data.runs_in_editor = true;
-                        // context.data.create_behavior_instances();
-                        // context.data.create_player_instance(context.player_id);
-                        // context.data.activate_region_instances(context.data.regions_ids[context.curr_region_index]);
-                        // context.data.startup();
+
                         context.is_running = true;
                         context.is_debugging = true;
                         atom_widget.text[0] = "Stop".to_string();
-                        context.data.messages = vec![];
 
                         // Start server
                         let mut server = core_server::server::Server::new();
@@ -136,15 +130,10 @@ impl Widget for ControlBar {
                 } else
                 if atom_widget.atom_data.id == "Play" {
                     if context.is_running == false {
-                        context.data.runs_in_editor = false;
-                        // context.data.create_behavior_instances();
-                        // context.data.create_player_instance(context.player_id);
-                        // context.data.activate_region_instances(context.data.regions_ids[context.curr_region_index]);
-                        // context.data.startup();
+
                         context.is_running = true;
                         context.is_debugging = false;
                         atom_widget.text[0] = "Stop".to_string();
-                        context.data.messages = vec![];
 
                         // Start server
                         let mut server = core_server::server::Server::new();
@@ -161,8 +150,7 @@ impl Widget for ControlBar {
                             }
                         }
                     } else {
-                        //context.data.clear_instances();
-                        // context.data.shutdown();
+
                         context.is_running = false;
                         atom_widget.text[0] = "Play".to_string();
                         context.just_stopped_running = true;
