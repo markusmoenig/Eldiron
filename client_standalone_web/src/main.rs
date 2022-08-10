@@ -327,7 +327,7 @@ async fn run() {
                 pixels.resize_surface(size.width, size.height);
             }
 
-            curr_time += 1000 / 60;
+            curr_time = web_sys::window().unwrap().performance().unwrap().now() as u128;
 
             // Game tick ?
             if curr_time > game_tick_timer + GAME_TICK_IN_MS {
