@@ -4,8 +4,6 @@ pub mod game;
 
 use core_shared::prelude::*;
 
-use rhai::{ Engine, Scope, AST };
-
 use std::collections::HashMap;
 use std::fs::metadata;
 
@@ -26,8 +24,6 @@ use std::fs;
 
 #[cfg(feature = "embed_binaries")]
 use core_embed_binaries::Embedded;
-
-type NodeCall = fn(instance_index: usize, id: (usize, usize), data: &mut GameData, behavior_type: BehaviorType) -> behavior::BehaviorNodeConnector;
 
 pub struct GameData {
 
@@ -396,10 +392,6 @@ impl GameData {
         // Game
 
         let game = Game::new();
-
-        //
-        let nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
-        let engine = Engine::new();
 
         Self {
 

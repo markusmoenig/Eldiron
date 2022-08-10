@@ -144,6 +144,7 @@ impl EditorContent for NodeGraph  {
                     self.dirty = true;
                 }
             }
+            self.behavior_debug_data = None;
         }
 
         if self.dirty {
@@ -499,8 +500,6 @@ impl EditorContent for NodeGraph  {
                 atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
             }
         }
-
-        self.behavior_debug_data = None;
     }
 
     /// Returns the rectangle for the given node either in relative or absolute coordinates

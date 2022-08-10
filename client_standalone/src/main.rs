@@ -4,7 +4,6 @@ mod prelude {
 
 use core_render::render::GameRender;
 use core_server::prelude::*;
-use core_shared::update::GameUpdate;
 use prelude::*;
 
 use log::error;

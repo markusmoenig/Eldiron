@@ -43,7 +43,9 @@ impl RegionPool<'_> {
         loop {
 
             select! {
-                recv(ticker) -> _ => self.tick(),
+                recv(ticker) -> _ => {
+                    _ = self.tick()
+                },
                 recv(self.receiver) -> mess => {
                     if let Some(message) = mess.ok() {
                         match message {
@@ -55,22 +57,10 @@ impl RegionPool<'_> {
                                 log::error!("{:?}", status);
                             },
                             Message::CreatePlayerInstance(uuid, position) => {
-                                for inst in &mut self.instances {
-                                    if inst.region_data.id == position.0 {
-                                        inst.create_player_instance(uuid, position);
-                                        log::error!("create player");
-                                    }
-                                }
+                                self.create_player_instance(uuid, position);
                             },
                             Message::ExecutePlayerAction(uuid, region_id, player_action) => {
-                                for inst in &mut self.instances {
-                                    if inst.region_data.id == region_id {
-                                        if let Some(inst_index) = inst.player_uuid_indices.get(&uuid) {
-                                            inst.instances[*inst_index].action = Some(player_action);
-                                            break;
-                                        }
-                                    }
-                                }
+                                self.execute_player_action(uuid, region_id, player_action);
                             },
                             Message::SetDebugBehaviorId(id) => {
                                 for inst in &mut self.instances {
@@ -86,9 +76,10 @@ impl RegionPool<'_> {
         println!("Exiting");
     }
 
-    /// Game tick
-    pub fn tick(&mut self) {
+    /// Game tick, uses messages when running multi-threaded, otherwise returns the messages back to the server.
+    pub fn tick(&mut self) -> Option<Vec<Message>> {
 
+        let mut ret_messages : Vec<Message> = vec![];
         let mut characters_to_transfer : Vec<(usize, BehaviorInstance)> = vec![];
 
         for instance in &mut self.instances {
@@ -98,7 +89,13 @@ impl RegionPool<'_> {
                     Message::TransferCharacter(region_id, instance) => {
                         characters_to_transfer.push((region_id, instance));
                     },
-                    _ => self.sender.send(m).unwrap(),
+                    _ => {
+                        if self.threaded {
+                            self.sender.send(m).unwrap()
+                        } else {
+                            ret_messages.push(m);
+                        }
+                    }
                 }
             }
         }
@@ -108,7 +105,41 @@ impl RegionPool<'_> {
                 if i.region_data.id == transfer.0 {
                     let uuid = transfer.1.id;
                     i.transfer_character_into(transfer.1);
-                    self.sender.send(Message::CharacterHasBeenTransferredInsidePool(uuid, i.region_data.id)).unwrap();
+                    let message = Message::CharacterHasBeenTransferredInsidePool(uuid, i.region_data.id);
+                    if self.threaded {
+                        self.sender.send(message).unwrap();
+                    } else {
+                        ret_messages.push(message);
+                    }
+                    break;
+                }
+            }
+        }
+
+        // If running none
+        if self.threaded == false {
+            return Some(ret_messages);
+        }
+
+        None
+
+    }
+
+    /// Create a new player instance
+    pub fn create_player_instance(&mut self, uuid: Uuid, position: Position) {
+        for inst in &mut self.instances {
+            if inst.region_data.id == position.0 {
+                inst.create_player_instance(uuid, position);
+            }
+        }
+    }
+
+    /// Executes the given player action
+    pub fn execute_player_action(&mut self, uuid: Uuid, region_id: usize, player_action: PlayerAction) {
+        for inst in &mut self.instances {
+            if inst.region_data.id == region_id {
+                if let Some(inst_index) = inst.player_uuid_indices.get(&uuid) {
+                    inst.instances[*inst_index].action = Some(player_action);
                     break;
                 }
             }

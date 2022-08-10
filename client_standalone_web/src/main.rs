@@ -132,6 +132,8 @@ async fn run() {
 
     let mut curr_time = 0;
 
+    let mut messages : Vec<Message> = vec![];
+
     event_loop.run(move |event, _, control_flow| {
         use winit::event::{ElementState, VirtualKeyCode};
 
@@ -139,8 +141,7 @@ async fn run() {
 
         if let Event::RedrawRequested(_) = event {
 
-            let messages = server.check_for_messages();
-            for message in messages {
+            for message in &messages {
                 match message {
                     Message::PlayerUpdate(_uuid, update) => {
                         render.draw(anim_counter, &update);
@@ -330,7 +331,7 @@ async fn run() {
 
             // Game tick ?
             if curr_time > game_tick_timer + GAME_TICK_IN_MS {
-                server.tick();
+                messages = server.tick();
                 game_tick_timer = curr_time;
                 anim_counter = anim_counter.wrapping_add(1);
             } else {

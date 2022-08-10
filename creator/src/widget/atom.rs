@@ -397,7 +397,7 @@ impl AtomWidget {
 
                 let fill_color = if self.state == WidgetState::Clicked { context.color_light_orange } else { context.color_orange };
 
-                let mut v = self.atom_data.data.0.round();
+                let v = self.atom_data.data.0.round();
 
                 /* TODO chamge this system to the new server layout
                 if context.is_running  {

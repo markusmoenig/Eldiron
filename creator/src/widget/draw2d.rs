@@ -1,6 +1,5 @@
 
 use core_shared::asset::{TileMap, Asset};
-use core_server::gamedata::behavior::BehaviorInstanceState;
 use core_server::gamedata::region::GameRegion;
 use fontdue::layout::{ Layout, LayoutSettings, CoordinateSystem, TextStyle, VerticalAlign, HorizontalAlign };
 use fontdue::Font;
