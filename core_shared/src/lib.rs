@@ -18,4 +18,5 @@ pub mod prelude {
     pub use crate::light::*;
 
     pub use uuid::Uuid;
+    pub use std::collections::HashMap;
 }

@@ -27,7 +27,7 @@ pub struct CodeEditor {
     pub cursor_rect         : (usize, usize, usize, usize),
 
     needs_update            : bool,
-    mode                    : CodeEditorMode,
+    pub mode                : CodeEditorMode,
 
     text_buffer             : Vec<u8>,
     text_buffer_size        : (usize, usize),

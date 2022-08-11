@@ -7,14 +7,19 @@ mod widget;
 
 mod prelude {
     pub const GAME_TICK_IN_MS : u128 = 250;
+
+    pub use core_server::prelude::*;
+    pub use core_shared::prelude::*;
+    pub use core_render::prelude::*;
+
+    pub use crate::game::*;
+    pub use crate::widget::*;
+    pub use crate::editor::*;
+
+    pub use crate::widget::codeeditor::*;
 }
 
-use core_shared::asset::Asset;
 use prelude::*;
-
-use crate::game::*;
-use crate::widget::*;
-use crate::editor::*;
 
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};

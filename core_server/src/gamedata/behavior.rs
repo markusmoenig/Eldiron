@@ -210,17 +210,20 @@ pub struct GameBehaviorData {
     pub curr_node_id            : Option<usize>,
 
     pub instances               : Option<Vec<CharacterInstanceData>>,
+
+    pub settings                : Option<PropertySink>
 }
 
 impl GameBehaviorData {
     pub fn new() -> Self {
         Self {
-            nodes: HashMap::new(),
-            connections: vec![],
-            id: 0,
-            name: "".to_string(),
-            curr_node_id: None,
-            instances: Some(vec![]),
+            nodes                   : HashMap::new(),
+            connections             : vec![],
+            id                      : 0,
+            name                    : "".to_string(),
+            curr_node_id            : None,
+            instances               : Some(vec![]),
+            settings                : None,
         }
     }
 }
@@ -249,7 +252,7 @@ impl GameBehavior {
 
         // Construct the json settings
         let mut data = serde_json::from_str(&contents)
-            .unwrap_or(GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]) });
+            .unwrap_or(GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None });
 
         data.name = name.to_owned();
 
@@ -267,7 +270,7 @@ impl GameBehavior {
         let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
 
         // Construct the json settings
-        let mut data = GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]) };
+        let mut data = GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None };
 
         if let Some(bytes) = Embedded::get(file_name) {
             if let Some(string) = std::str::from_utf8(bytes.data.as_ref()).ok() {
@@ -289,7 +292,7 @@ impl GameBehavior {
             name            : "name".to_string(),
             path            : std::path::Path::new("").to_path_buf(),
             behavior_path   : std::path::Path::new("").to_path_buf(),
-            data            : GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]) }
+            data            : GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name            : "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None }
         }
     }
 

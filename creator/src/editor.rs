@@ -1,3 +1,5 @@
+use crate::prelude::*;
+
 use crate::tileselector::TileSelectorWidget;
 use crate::editor::regionoptions::RegionOptions;
 use crate::editor::behavioroptions::BehaviorOptions;
@@ -373,7 +375,30 @@ impl ScreenWidget for Editor<'_> {
                 if self.state == EditorState::ItemsDetail {
                     self.context.switch_editor_state = Some(EditorState::ItemsOverview);
                     self.toolbar.widgets[ToolBarButtons::Items as usize].set_switch_button_state(true, false);
+                } else
+                if self.state == EditorState::GameDetail {
+                    self.toolbar.widgets[ToolBarButtons::Game as usize].set_switch_button_state(false, true);
+
+                    if self.context.code_editor_is_active == false {
+                        self.context.code_editor_is_active = true;
+                        self.context.code_editor_just_opened = true;
+                        self.context.code_editor_mode = CodeEditorMode::Settings;
+                        if self.context.data.game.behavior.data.settings == None {
+                            self.context.data.game.behavior.data.settings = Some(PropertySink::new());
+                        }
+                        if let Some(settings) = &mut self.context.data.game.behavior.data.settings {
+                            core_server::gamedata::prelude::update_game_sink(settings);
+                            self.context.code_editor_node_behavior_value.4 = settings.to_string(core_server::gamedata::prelude::generate_game_sink_descriptions());
+
+                        }
+                        self.context.code_editor_node_behavior_id.0 = 120000;
+                    } else {
+                        self.context.code_editor_is_active = false;
+                    }
                 }
+
+
+
                 return true;
             } else
             if char == Some('1') {
@@ -409,8 +434,7 @@ impl ScreenWidget for Editor<'_> {
             if char == Some('6') {
                 deselect_all();
                 self.context.switch_editor_state = Some(EditorState::GameDetail);
-                self.toolbar.widgets[ToolBarButtons::Game as usize].checked = true;
-                self.toolbar.widgets[ToolBarButtons::Game as usize].dirty = true;
+                self.toolbar.widgets[ToolBarButtons::Game as usize].set_switch_button_state(true, false);
                 return true;
             }
         }
@@ -665,18 +689,24 @@ impl ScreenWidget for Editor<'_> {
                 // Region settings ?
                 if self.state == EditorState::RegionDetail && self.context.code_editor_node_behavior_id.0 == 130000 {
 
-                    //let data = serde_json::from_str(&self.context.code_editor_value);
                     let mut sink = PropertySink::new();
                     if sink.load_from_string(self.context.code_editor_value.clone()) {
-
                         self.context.code_editor_error = None;
-
-                            let id = self.content[self.state as usize].1.as_mut().unwrap().get_region_id();
-                            if let Some(region) = self.context.data.regions.get_mut(&id) {
-                                region.data.settings = sink;
-                                region.save_data();
-                            }
-                        //}
+                        let id = self.content[self.state as usize].1.as_mut().unwrap().get_region_id();
+                        if let Some(region) = self.context.data.regions.get_mut(&id) {
+                            region.data.settings = sink;
+                            region.save_data();
+                        }
+                    } else {
+                        self.context.code_editor_error = Some((sink.error.clone().unwrap().1, Some(sink.error.unwrap().0)));
+                    }
+                } else
+                if self.state == EditorState::GameDetail && self.context.code_editor_node_behavior_id.0 == 120000 {
+                    let mut sink = PropertySink::new();
+                    if sink.load_from_string(self.context.code_editor_value.clone()) {
+                        self.context.code_editor_error = None;
+                        self.context.data.game.behavior.data.settings = Some(sink);
+                        self.context.data.game.save_data();
                     } else {
                         self.context.code_editor_error = Some((sink.error.clone().unwrap().1, Some(sink.error.unwrap().0)));
                     }
@@ -1018,6 +1048,7 @@ impl ScreenWidget for Editor<'_> {
 
             // Tile Button
             if self.toolbar.widgets[1].clicked {
+                self.context.code_editor_is_active = false;
                 if self.toolbar.widgets[1].selected {
                     self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (0, self.rect.1 + self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::TilesOverview;
@@ -1030,7 +1061,7 @@ impl ScreenWidget for Editor<'_> {
                     self.content[EditorState::TilesDetail as usize].1.as_mut().unwrap().set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
                 }
 
-                for i in 2..=5 {
+                for i in 2..=6 {
                     self.toolbar.widgets[i].selected = false;
                     self.toolbar.widgets[i].right_selected = false;
                     self.toolbar.widgets[i].dirty = true;
@@ -1039,12 +1070,10 @@ impl ScreenWidget for Editor<'_> {
                 self.toolbar.widgets[0].text = asset.tileset.maps_names.clone();
                 self.toolbar.widgets[0].curr_index = self.context.curr_tileset_index;
                 self.toolbar.widgets[0].dirty = true;
-
-                self.toolbar.widgets[6].checked = false;
-                self.toolbar.widgets[6].dirty = true;
             } else
             // Region Button
             if self.toolbar.widgets[2].clicked {
+                self.context.code_editor_is_active = false;
                 if self.toolbar.widgets[2].selected {
                     self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::RegionOverview;
@@ -1069,7 +1098,7 @@ impl ScreenWidget for Editor<'_> {
                     self.content.insert(index, (options, content));
                 }
 
-                for i in 1..=5 {
+                for i in 1..=6 {
                     if i == 2 { continue; }
                     self.toolbar.widgets[i].selected = false;
                     self.toolbar.widgets[i].right_selected = false;
@@ -1079,12 +1108,10 @@ impl ScreenWidget for Editor<'_> {
                 self.toolbar.widgets[0].text = self.context.data.regions_names.clone();
                 self.toolbar.widgets[0].curr_index = self.context.curr_region_index;
                 self.toolbar.widgets[0].dirty = true;
-
-                self.toolbar.widgets[6].checked = false;
-                self.toolbar.widgets[6].dirty = true;
             } else
             // Behavior Button
             if self.toolbar.widgets[3].clicked {
+                self.context.code_editor_is_active = false;
                 if self.toolbar.widgets[3].selected {
                     self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::BehaviorOverview;
@@ -1097,7 +1124,7 @@ impl ScreenWidget for Editor<'_> {
                     self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.behaviors_ids[self.context.curr_behavior_index] , &mut self.context);
                 }
 
-                for i in 1..=5 {
+                for i in 1..=6 {
                     if i == 3 { continue; }
                     self.toolbar.widgets[i].selected = false;
                     self.toolbar.widgets[i].right_selected = false;
@@ -1107,12 +1134,10 @@ impl ScreenWidget for Editor<'_> {
                 self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
                 self.toolbar.widgets[0].curr_index = self.context.curr_behavior_index;
                 self.toolbar.widgets[0].dirty = true;
-
-                self.toolbar.widgets[6].checked = false;
-                self.toolbar.widgets[6].dirty = true;
             } else
             // Systems Button
             if self.toolbar.widgets[4].clicked {
+                self.context.code_editor_is_active = false;
                 if self.toolbar.widgets[4].selected {
                     self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::SystemsOverview;
@@ -1125,7 +1150,7 @@ impl ScreenWidget for Editor<'_> {
                     self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
                 }
 
-                for i in 1..=5 {
+                for i in 1..=6 {
                     if i == 4 { continue; }
                     self.toolbar.widgets[i].selected = false;
                     self.toolbar.widgets[i].right_selected = false;
@@ -1135,12 +1160,10 @@ impl ScreenWidget for Editor<'_> {
                 self.toolbar.widgets[0].text = self.context.data.systems_names.clone();
                 self.toolbar.widgets[0].curr_index = self.context.curr_systems_index;
                 self.toolbar.widgets[0].dirty = true;
-
-                self.toolbar.widgets[6].checked = false;
-                self.toolbar.widgets[6].dirty = true;
             } else
             // Items Button
             if self.toolbar.widgets[5].clicked {
+                self.context.code_editor_is_active = false;
                 if self.toolbar.widgets[5].selected {
                     self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::ItemsOverview;
@@ -1153,7 +1176,7 @@ impl ScreenWidget for Editor<'_> {
                     //self.node_graph_items_details.set_behavior_id(self.context.data.items_ids[self.context.curr_items_index], &mut self.context);
                 }
 
-                for i in 1..5 {
+                for i in 1..6 {
                     self.toolbar.widgets[i].selected = false;
                     self.toolbar.widgets[i].right_selected = false;
                     self.toolbar.widgets[i].dirty = true;
@@ -1162,17 +1185,29 @@ impl ScreenWidget for Editor<'_> {
                 self.toolbar.widgets[0].text = self.context.data.items_names.clone();
                 self.toolbar.widgets[0].curr_index = self.context.curr_items_index;
                 self.toolbar.widgets[0].dirty = true;
-
-                self.toolbar.widgets[6].checked = false;
-                self.toolbar.widgets[6].dirty = true;
             } else
             // Game Button
             if self.toolbar.widgets[6].clicked {
+                self.context.code_editor_is_active = false;
                 self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                 self.state = EditorState::GameDetail;
                 self.context.curr_graph_type = BehaviorType::GameLogic;
                 self.toolbar.widgets[6].checked = true;
                 self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_behavior_id(0, &mut self.context);
+                if self.toolbar.widgets[6].right_selected {
+                    self.context.code_editor_is_active = true;
+                    self.context.code_editor_just_opened = true;
+                    self.context.code_editor_mode = CodeEditorMode::Settings;
+                    if self.context.data.game.behavior.data.settings == None {
+                        self.context.data.game.behavior.data.settings = Some(PropertySink::new());
+                    }
+                    if let Some(settings) = &mut self.context.data.game.behavior.data.settings {
+                        core_server::gamedata::prelude::update_game_sink(settings);
+                        self.context.code_editor_node_behavior_value.4 = settings.to_string(core_server::gamedata::prelude::generate_game_sink_descriptions());
+
+                    }
+                    self.context.code_editor_node_behavior_id.0 = 120000;
+                }
 
                 for i in 1..=5 {
                     self.toolbar.widgets[i].selected = false;
