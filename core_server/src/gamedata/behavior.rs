@@ -117,6 +117,9 @@ pub struct BehaviorInstance {
     // The instance state
     pub state                   : BehaviorInstanceState,
 
+    // Alignment
+    pub alignment               : i64,
+
     // The behavior id for this instance
     pub behavior_id             : usize,
 
@@ -193,6 +196,7 @@ pub struct CharacterInstanceData {
     pub position                : Position,
     pub name                    : Option<String>,
     pub tile                    : Option<Tile>,
+    pub alignment               : i64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -772,7 +772,7 @@ impl RegionInstance<'_> {
 
         let index = self.instances.len();
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: 0, action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0 };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: 0, action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1 };
 
         self.instances.push(instance);
         self.scopes.push(scope);
@@ -821,10 +821,11 @@ impl RegionInstance<'_> {
             let mut to_create : Vec<CharacterInstanceData> = vec![];
 
             // Collect all the default data for the behavior from the nodes: Position, tile, behavior Trees and variables.
-            let mut to_execute : Vec<usize> = vec![];
-            let mut default_position : Option<(usize, isize, isize)> = None;
-            let mut default_tile     : Option<(usize, usize, usize)> = None;
-            let mut default_scope = rhai::Scope::new();
+            let mut to_execute              : Vec<usize> = vec![];
+            let mut default_position        : Option<(usize, isize, isize)> = None;
+            let mut default_tile            : Option<(usize, usize, usize)> = None;
+            let mut default_align           : i64 = 1;
+            let mut default_scope    = rhai::Scope::new();
 
             for (id, node) in &behavior.nodes {
                 if node.behavior_type == BehaviorNodeType::BehaviorTree {
@@ -842,6 +843,9 @@ impl RegionInstance<'_> {
                     if let Some(value )= node.values.get(&"tile".to_string()) {
                         default_tile = Some((value.0 as usize, value.1 as usize, value.2 as usize));
                     }
+                    if let Some(value )= node.values.get(&"type".to_string()) {
+                        default_align = 2 - value.0 as i64 - 1;
+                    }
                 } else
                 if node.behavior_type == BehaviorNodeType::VariableNumber {
                     if let Some(value )= node.values.get(&"value".to_string()) {
@@ -857,6 +861,7 @@ impl RegionInstance<'_> {
                     position    : default_position.unwrap().clone(),
                     tile        : default_tile.clone(),
                     name        : Some(behavior.name.clone()),
+                    alignment   : default_align
                 };
                 to_create.push(main)
             }
@@ -881,11 +886,16 @@ impl RegionInstance<'_> {
                 }
 
                 //println!("Creating instance {}", inst.name.unwrap());
-                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: 0, action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0 };
+                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: 0, action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment };
 
                 index = self.instances.len();
                 self.instances.push(instance);
-                self.scopes.push(default_scope.clone());
+
+                // Set the default values into the scope
+                let mut scope = default_scope.clone();
+                scope.set_value("name", behavior.name.clone());
+                scope.set_value("alignment", inst.alignment as i64);
+                self.scopes.push(scope);
             }
         }
         index

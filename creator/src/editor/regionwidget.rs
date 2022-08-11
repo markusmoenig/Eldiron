@@ -372,6 +372,9 @@ impl EditorContent for RegionWidget {
                     if editor_mode == RegionEditorMode::Characters {
                         if let Some(id) = self.get_tile_id(pos) {
                             if let Some(meta) = self.character_selector.selected.clone() {
+
+                                let alignment = context.data.get_behavior_default_alignment(meta.id);
+
                                 if let Some(behavior) = context.data.get_mut_behavior(meta.id, BehaviorType::Behaviors) {
                                     if behavior.data.instances.is_none() {
                                         behavior.data.instances = Some(vec![]);
@@ -384,10 +387,11 @@ impl EditorContent for RegionWidget {
                                         let index = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == (self.region_id, id.0, id.1));
 
                                         if index.is_none() {
-                                            let instance = CharacterInstanceData {
-                                                position: (self.region_id, id.0, id.1),
-                                                name: None,
-                                                tile: None };
+                                            let instance     = CharacterInstanceData {
+                                                position    : (self.region_id, id.0, id.1),
+                                                name        : None,
+                                                tile        : None,
+                                                alignment   : alignment };
                                             behavior.data.instances.as_mut().unwrap().push(instance);
                                         }
                                     } else

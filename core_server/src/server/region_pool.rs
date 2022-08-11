@@ -73,7 +73,6 @@ impl RegionPool<'_> {
                 }
             }
         }
-        println!("Exiting");
     }
 
     /// Game tick, uses messages when running multi-threaded, otherwise returns the messages back to the server.

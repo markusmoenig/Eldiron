@@ -569,6 +569,21 @@ impl GameData {
         None
     }
 
+    #[cfg(feature = "data_editing")]
+    /// Gets the position for the given behavior
+    pub fn get_behavior_default_alignment(&self, id: usize) -> i64 {
+        if let Some(behavior) = self.behaviors.get(&id) {
+            for (_index, node) in &behavior.data.nodes {
+                if node.behavior_type == BehaviorNodeType::BehaviorType {
+                    if let Some(value) = node.values.get(&"align".to_string()) {
+                        return 2 - value.0 as i64 - 1;
+                    }
+                }
+            }
+        }
+        0
+    }
+
     /// Save data and return it
     // pub fn save(&self) -> String {
     //     let json = serde_json::to_string(&self.instances).unwrap();

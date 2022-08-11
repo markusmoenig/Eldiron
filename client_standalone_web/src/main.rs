@@ -342,7 +342,6 @@ async fn run() {
                 let tick_in_ms =  (1000.0 / 4 as f32) as u128;
 
                 if curr_time > timer + tick_in_ms {
-                    //curr_screen.update();
                     window.request_redraw();
                     timer = curr_time;
                 } else {
