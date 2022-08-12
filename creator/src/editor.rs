@@ -375,30 +375,7 @@ impl ScreenWidget for Editor<'_> {
                 if self.state == EditorState::ItemsDetail {
                     self.context.switch_editor_state = Some(EditorState::ItemsOverview);
                     self.toolbar.widgets[ToolBarButtons::Items as usize].set_switch_button_state(true, false);
-                } else
-                if self.state == EditorState::GameDetail {
-                    self.toolbar.widgets[ToolBarButtons::Game as usize].set_switch_button_state(false, true);
-
-                    if self.context.code_editor_is_active == false {
-                        self.context.code_editor_is_active = true;
-                        self.context.code_editor_just_opened = true;
-                        self.context.code_editor_mode = CodeEditorMode::Settings;
-                        if self.context.data.game.behavior.data.settings == None {
-                            self.context.data.game.behavior.data.settings = Some(PropertySink::new());
-                        }
-                        if let Some(settings) = &mut self.context.data.game.behavior.data.settings {
-                            core_server::gamedata::prelude::update_game_sink(settings);
-                            self.context.code_editor_node_behavior_value.4 = settings.to_string(core_server::gamedata::prelude::generate_game_sink_descriptions());
-
-                        }
-                        self.context.code_editor_node_behavior_id.0 = 120000;
-                    } else {
-                        self.context.code_editor_is_active = false;
-                    }
                 }
-
-
-
                 return true;
             } else
             if char == Some('1') {
@@ -435,7 +412,26 @@ impl ScreenWidget for Editor<'_> {
                 deselect_all();
                 self.context.switch_editor_state = Some(EditorState::GameDetail);
                 self.toolbar.widgets[ToolBarButtons::Game as usize].set_switch_button_state(true, false);
+                self.context.code_editor_is_active = false;
                 return true;
+            } else
+            if char == Some('7') {
+                deselect_all();
+                self.context.switch_editor_state = Some(EditorState::GameDetail);
+                self.toolbar.widgets[ToolBarButtons::Game as usize].set_switch_button_state(false, true);
+
+                self.context.code_editor_is_active = true;
+                self.context.code_editor_just_opened = true;
+                self.context.code_editor_mode = CodeEditorMode::Settings;
+                if self.context.data.game.behavior.data.settings == None {
+                    self.context.data.game.behavior.data.settings = Some(PropertySink::new());
+                }
+                if let Some(settings) = &mut self.context.data.game.behavior.data.settings {
+                    core_server::gamedata::prelude::update_game_sink(settings);
+                    self.context.code_editor_node_behavior_value.4 = settings.to_string(core_server::gamedata::prelude::generate_game_sink_descriptions());
+
+                }
+                self.context.code_editor_node_behavior_id.0 = 120000;
             }
         }
 

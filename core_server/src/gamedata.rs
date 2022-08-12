@@ -6,6 +6,7 @@ use core_shared::prelude::*;
 
 use std::collections::HashMap;
 use std::fs::metadata;
+use std::ops::Index;
 
 pub mod prelude {
     pub use crate::gamedata::behavior::*;
@@ -687,6 +688,57 @@ impl GameData {
             return Some(&mut self.game.behavior);
         }
         None
+    }
+
+    /// Returns a mutable reference to the game settings
+    pub fn get_game_settings(&mut self) -> &mut PropertySink {
+        if self.game.behavior.data.settings.is_none() {
+            let mut settings = PropertySink::new();
+            update_game_sink(&mut settings);
+            self.game.behavior.data.settings = Some(settings);
+        }
+
+        self.game.behavior.data.settings.as_mut().unwrap()
+    }
+
+    /// Checks all behaviors if they contain all character attributes defined in the game settings
+    pub fn check_all_behaviors_for_attributes(&mut self) {
+
+        let ids = self.behaviors_ids.clone();
+        for id in ids {
+            self.check_behavior_for_attributes(id);
+        }
+    }
+
+    /// Check the given behavior contains all character attributes defined in the game settings
+    pub fn check_behavior_for_attributes(&mut self, behavior_id: usize) {
+        // Check to see if we added all variables from the game settings.
+        let settings = self.get_game_settings();
+        let attr = settings.get("character_attributes").unwrap().as_string().unwrap();
+        let mut attributes : Vec<&str> = attr.split(',').collect();
+
+        for a in attributes.iter_mut() {
+            *a = a.trim();
+        }
+
+        if let Some(behavior) = self.behaviors.get_mut(&behavior_id) {
+            for (_id, node) in &behavior.data.nodes {
+                if node.behavior_type == BehaviorNodeType::VariableNumber {
+
+                    if let Some(index) = attributes.iter().position(|&a| a == node.name) {
+                        attributes.remove(index);
+                    }
+                }
+            }
+
+            for a in attributes {
+                let id = behavior.add_node(BehaviorNodeType::VariableNumber, a.clone().to_string());
+                if let Some(node) = behavior.data.nodes.get_mut(&id) {
+                    node.values.insert("value".to_string(), (10.0, 0.0, 0.0, 0.0, "".to_owned()));
+                }
+            }
+        }
+
     }
 
 }

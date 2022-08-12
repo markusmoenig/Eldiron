@@ -81,7 +81,7 @@ impl Widget for ToolBar {
         game_button.set_rect((rect.0 + 725 + 175 + 170, rect.1, 140, rect.3), asset, context);
         game_button.custom_color = Some([215, 30, 146, 255]);
         game_button.hover_help_title = Some("Game".to_string());
-        game_button.hover_help_text = Some("Edit the game logic.\nHotkey: '6'.".to_string());
+        game_button.hover_help_text = Some("Edit the game logic and / or game settings.\nHotkey: '6', '7' for game settings.".to_string());
         widgets.push(game_button);
 
         Self {

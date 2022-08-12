@@ -1153,6 +1153,11 @@ impl EditorContent for NodeGraph  {
 
         self.behavior_id = id;
 
+        // For characters check if we have all character attributes as variables.
+        if self.graph_type == BehaviorType::Behaviors {
+            context.data.check_behavior_for_attributes(id);
+        }
+
         if let Some(behavior) = context.data.get_behavior(id, self.graph_type) {
             let sorted_keys = behavior.data.nodes.keys().sorted();
 
@@ -1203,7 +1208,6 @@ impl EditorContent for NodeGraph  {
 
                 "Screen" => BehaviorNodeType::Screen,
                 "Widget" => BehaviorNodeType::Widget,
-                "Settings" => BehaviorNodeType::Settings,
 
                 "Teleport" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::TeleportArea,
                 "Message" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::MessageArea,

@@ -31,7 +31,7 @@ impl EditorOptions for GameOptions {
 
         node_list.add_group_list(context.color_orange, context.color_light_orange, vec!["Number".to_string()]);
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec![ "Screen".to_string(), "Widget".to_string(), "Settings".to_string() ]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec![ "Screen".to_string(), "Widget".to_string() ]);
 
         node_list.set_rect(rect, asset, context);
         widgets.push(node_list);
