@@ -6,7 +6,6 @@ use core_shared::prelude::*;
 
 use std::collections::HashMap;
 use std::fs::metadata;
-use std::ops::Index;
 
 pub mod prelude {
     pub use crate::gamedata::behavior::*;
@@ -429,7 +428,7 @@ impl GameData {
 
     #[cfg(feature = "data_editing")]
     /// Sets a value in the region
-    pub fn set_region_value(&mut self, layer: usize, id: usize, pos: (isize, isize), value: (usize, usize, usize, TileUsage)) {
+    pub fn set_region_value(&mut self, layer: usize, id: usize, pos: (isize, isize), value: TileData) {
         let region = &mut self.regions.get_mut(&id).unwrap();
         region.set_value(layer, pos, value);
     }
@@ -592,7 +591,7 @@ impl GameData {
     // }
 
     /// Returns the layered tiles at the given position
-    pub fn get_tile_at(&self, pos: (usize, isize, isize)) -> Vec<(usize, usize, usize, TileUsage)> {
+    pub fn get_tile_at(&self, pos: (usize, isize, isize)) -> Vec<TileData> {
         if let Some(region) = self.regions.get(&pos.0) {
             return region.get_value((pos.1, pos.2));
         }

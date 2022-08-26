@@ -595,8 +595,8 @@ impl Draw2D {
                 for value in values {
                     let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
-                    let map = asset.get_map_of_id(value.0);
-                    self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
+                    let map = asset.get_map_of_id(value.tilemap);
+                    self.draw_animated_tile(frame, &pos, map, stride, &(value.grid_x, value.grid_y), anim_counter, tile_size);
                 }
             }
         }
@@ -616,8 +616,8 @@ impl Draw2D {
                 for value in values {
                     let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
-                    let map = asset.get_map_of_id(value.0);
-                    self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
+                    let map = asset.get_map_of_id(value.tilemap);
+                    self.draw_animated_tile(frame, &pos, map, stride, &(value.grid_x, value.grid_y), anim_counter, tile_size);
                 }
             }
         }
@@ -681,8 +681,8 @@ impl Draw2D {
                 let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
                 for value in values {
 
-                    let map = asset.get_map_of_id(value.0);
-                    self.draw_animated_tile(frame, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size);
+                    let map = asset.get_map_of_id(value.tilemap);
+                    self.draw_animated_tile(frame, &pos, map, stride, &(value.grid_x, value.grid_y), anim_counter, tile_size);
                 }
 
                 if p.0 == center.0 && p.1 == center.1 {

@@ -2,7 +2,7 @@
 use std::{path::PathBuf, collections::{HashMap, HashSet}};
 
 use crate::prelude::*;
-use core_shared::{asset::{Asset, TileUsage}, update::GameUpdate, regiondata::GameRegionData, message::MessageData, light::Light};
+use core_shared::{asset::{Asset}, update::GameUpdate, regiondata::{GameRegionData, TileData}, message::MessageData, light::Light};
 use crate::{draw2d::Draw2D, script_types::*, lighting::compute_lighting};
 use rhai::{ Engine, Scope, AST, Dynamic };
 
@@ -94,7 +94,7 @@ impl GameRender<'_> {
         engine.register_type_with_name::<ScriptPosition>("Position")
             .register_fn("pos", ScriptPosition::new);
 
-        engine.register_type_with_name::<ScriptRect>("Rect")
+        engine.register_type_with_name::<ScriptRGB>("RGB")
             .register_fn("rgb", ScriptRGB::new)
             .register_fn("rgba", ScriptRGB::new_with_alpha);
 
@@ -613,8 +613,8 @@ impl GameRender<'_> {
                             light += *l;
                         }
 
-                        let map = self.asset.get_map_of_id(value.0);
-                        self.draw2d.draw_animated_tile_with_blended_color(frame/*&mut self.frame[..]*/, &pos, map, stride, &(value.1, value.2), anim_counter, tile_size, &background, light);
+                        let map = self.asset.get_map_of_id(value.tilemap);
+                        self.draw2d.draw_animated_tile_with_blended_color(frame/*&mut self.frame[..]*/, &pos, map, stride, &(value.grid_x, value.grid_y), anim_counter, tile_size, &background, light);
                     }
                 }
             }
@@ -693,7 +693,7 @@ impl GameRender<'_> {
     }
 
     /// Gets the given region value
-    pub fn get_region_value(&self, region: &GameRegionData, pos: (isize, isize), update: &GameUpdate) -> Vec<(usize, usize, usize, TileUsage)> {
+    pub fn get_region_value(&self, region: &GameRegionData, pos: (isize, isize), update: &GameUpdate) -> Vec<TileData> {
         let mut rc = vec![];
 
         if let Some(t) = update.displacements.get(&pos) {

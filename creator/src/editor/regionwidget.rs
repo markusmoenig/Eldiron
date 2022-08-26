@@ -711,7 +711,7 @@ impl EditorContent for RegionWidget {
     }
 
     /// Returns the selected tile
-    fn get_selected_tile(&self) -> Option<(usize, usize, usize, TileUsage)> {
+    fn get_selected_tile(&self) -> Option<TileData> {
         self.tile_selector.selected.clone()
     }
 

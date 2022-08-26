@@ -74,7 +74,7 @@ pub struct ScreenContext<'a> {
 
     pub curr_region_index               : usize,
     pub curr_region_area_index          : usize,
-    pub curr_region_tile                : Option<(usize, usize, usize, TileUsage)>,
+    pub curr_region_tile                : Option<TileData>,
 
     pub curr_behavior_index             : usize,
     pub curr_systems_index              : usize,

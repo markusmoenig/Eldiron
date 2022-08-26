@@ -1,3 +1,4 @@
+use core_server::prelude::TileData;
 use core_shared::asset::{Asset, TileUsage};
 
 use crate::atom::{ AtomWidget, AtomWidgetType, AtomData };
@@ -121,7 +122,12 @@ impl DialogWidget {
                     self.tile_selector_widget.set_tile_type(context.dialog_tile_usage.clone(), None, None, &asset);
                     self.text = "".to_string();
                     self.tile_selector_widget.grid_size = 32;
-                    self.tile_selector_widget.selected = Some((context.dialog_node_behavior_value.0 as usize, context.dialog_node_behavior_value.1 as usize, context.dialog_node_behavior_value.2 as usize, TileUsage::Character));
+                    self.tile_selector_widget.selected = Some(TileData {
+                        tilemap         : context.dialog_node_behavior_value.0 as usize,
+                        grid_x          : context.dialog_node_behavior_value.1 as usize,
+                        grid_y          : context.dialog_node_behavior_value.2 as usize,
+                        usage           : TileUsage::Character,
+                    });
                 } else
                 if context.dialog_entry == DialogEntry::NewName || context.dialog_entry == DialogEntry::Tags || context.dialog_entry == DialogEntry::NewProjectName {
                     self.text = context.dialog_new_name.clone();
@@ -341,9 +347,9 @@ impl DialogWidget {
         } else
         if context.dialog_entry == DialogEntry::NodeTile {
             if let Some(selected) = &self.tile_selector_widget.selected {
-                context.dialog_node_behavior_value.0 = selected.0 as f64;
-                context.dialog_node_behavior_value.1 = selected.1 as f64;
-                context.dialog_node_behavior_value.2 = selected.2 as f64;
+                context.dialog_node_behavior_value.0 = selected.tilemap as f64;
+                context.dialog_node_behavior_value.1 = selected.grid_x as f64;
+                context.dialog_node_behavior_value.2 = selected.grid_y as f64;
                 context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
 
                 return true;

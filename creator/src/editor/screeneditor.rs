@@ -1,5 +1,6 @@
 
 use core_render::render::GameRender;
+use core_server::prelude::TileData;
 use core_shared::asset::{ Asset };
 use core_shared::asset::tileset::TileUsage;
 use core_shared::update::GameUpdate;
@@ -249,7 +250,7 @@ impl EditorContent for ScreenEditor<'_> {
     }
 
     /// Returns the selected tile
-    fn get_selected_tile(&self) -> Option<(usize, usize, usize, TileUsage)> {
+    fn get_selected_tile(&self) -> Option<TileData> {
         self.tile_selector.selected.clone()
     }
 

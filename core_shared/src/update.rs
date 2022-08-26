@@ -26,7 +26,7 @@ pub struct GameUpdate {
 
     /// Tile displacements for the region
     #[serde(with = "vectorize")]
-    pub displacements           : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
+    pub displacements           : HashMap<(isize, isize), TileData>,
 
     /// Character information
     pub characters              : Vec<CharacterData>,

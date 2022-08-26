@@ -121,7 +121,7 @@ pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp:
             let tiles = data.get_tile_at((x, y));
             if tiles.is_empty() { return false; }
             for tile in tiles {
-                if tile.3 == TileUsage::EnvBlocking || tile.3 == TileUsage::Water {
+                if tile.usage == TileUsage::EnvBlocking || tile.usage == TileUsage::Water {
                     return false;
                 }
             }

@@ -1,6 +1,7 @@
 use crate::editor::node::NodeWidget;
 use crate::widget::WidgetKey;
 use core_server::gamedata::behavior::*;
+use core_server::prelude::TileData;
 use core_shared::asset::{Asset, TileUsage};
 
 use crate::editor::ScreenContext;
@@ -142,7 +143,7 @@ pub trait EditorContent {
     fn get_tile_id(&self, pos: (usize, usize)) -> Option<(isize, isize)> { None }
 
     /// Returns the selected tile
-    fn get_selected_tile(&self) -> Option<(usize, usize, usize, TileUsage)> { None }
+    fn get_selected_tile(&self) -> Option<TileData> { None }
 
     /// Return the tile selector
     fn get_tile_selector(&mut self) -> Option<&mut TileSelectorWidget> { None }

@@ -43,7 +43,7 @@ pub struct RegionInstance<'a> {
     pub player_uuid_indices         : HashMap<Uuid, usize>,
 
     /// The displacements for this region
-    pub displacements               : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
+    pub displacements               : HashMap<(isize, isize), TileData>,
 
     // Used by ticks for state memory
 
@@ -353,7 +353,7 @@ impl RegionInstance<'_> {
 
                 let mut region        : Option<GameRegionData> = None;
                 let mut characters    : Vec<CharacterData> = vec![];
-                let mut displacements : HashMap<(isize, isize), (usize, usize, usize, TileUsage)> = HashMap::new();
+                let mut displacements : HashMap<(isize, isize), TileData> = HashMap::new();
                 let mut lights        : Vec<Light> = vec![];
 
                 let mut needs_transfer_to: Option<usize> = None;
@@ -912,7 +912,7 @@ impl RegionInstance<'_> {
     }
 
     /// Returns the layered tiles at the given position and checks for displacements
-    pub fn get_tile_at(&self, pos: (isize, isize)) -> Vec<(usize, usize, usize, TileUsage)> {
+    pub fn get_tile_at(&self, pos: (isize, isize)) -> Vec<TileData> {
         let mut rc = vec![];
         if let Some(t) = self.displacements.get(&pos) {
             rc.push(t.clone());
@@ -934,7 +934,7 @@ impl RegionInstance<'_> {
     }
 
     /// Returns the layered tiles at the given position and checks for displacements
-    pub fn get_tile_without_displacements_at(&self, pos: (isize, isize)) -> Vec<(usize, usize, usize, TileUsage)> {
+    pub fn get_tile_without_displacements_at(&self, pos: (isize, isize)) -> Vec<TileData> {
         let mut rc = vec![];
 
         if let Some(t) = self.region_data.layer1.get(&pos) {

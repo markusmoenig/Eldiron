@@ -163,7 +163,12 @@ pub fn inside_area(region_id: usize, id: (usize, usize), data: &mut RegionInstan
 pub fn displace_tiles(_region_id: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     if let Some(value) = get_node_value((id.0, id.1, "tile"), data, behavior_type) {
-        let tile_id = (value.0 as usize, value.1 as usize, value.2 as usize, TileUsage::Environment);
+        let tile_id = TileData {
+            tilemap     : value.0 as usize,
+            grid_x      : value.1 as usize,
+            grid_y      : value.2 as usize,
+            usage       : TileUsage::Environment
+        };
 
         // Filter based ?
         if let Some(value) = get_node_value((id.0, id.1, "filter"), data, behavior_type) {
@@ -173,7 +178,7 @@ pub fn displace_tiles(_region_id: usize, id: (usize, usize), data: &mut RegionIn
                 let tiles = data.get_tile_without_displacements_at((*x, *y));
 
                 for tile in tiles {
-                    if tile.0 == filter_id.0 && tile.1 == filter_id.1 && tile.2 == filter_id.2 {
+                    if tile.tilemap == filter_id.0 && tile.grid_x == filter_id.1 && tile.grid_y == filter_id.2 {
                         data.displacements.insert((*x, *y), tile_id.clone());
                     }
                 }

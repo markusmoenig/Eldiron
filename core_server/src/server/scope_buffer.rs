@@ -4,22 +4,22 @@ use crate::prelude::*;
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct ScopeBuffer {
 
-    pub floats                  : HashMap<String, f64>,
+    pub _floats                  : HashMap<String, f64>,
 }
 
 impl ScopeBuffer {
     pub fn new(scope: &rhai::Scope) -> Self {
 
-        let mut floats = HashMap::new();
+        let mut _floats = HashMap::new();
 
         let iter = scope.iter();
 
-        for val in iter {
+        for _val in iter {
             //println!("Got: {:?}", val);
         }
 
         Self {
-            floats,
+            _floats,
         }
     }
 }

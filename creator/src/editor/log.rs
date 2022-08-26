@@ -32,7 +32,7 @@ impl LogWidget {
         }
     }
 
-    pub fn draw(&mut self, _frame: &mut [u8], _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
+    pub fn draw(&mut self, _frame: &mut [u8], _anim_counter: usize, _asset: &mut Asset, _context: &mut ScreenContext) {
 
         if self.buffer.len() != self.size.0 * self.size.1 * 4 {
             self.buffer = vec![0;self.size.0 * self.size.1 * 4];

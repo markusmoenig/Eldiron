@@ -10,7 +10,7 @@ pub struct GameRegion {
     pub region_path     : PathBuf,
     pub data            : GameRegionData,
     pub behaviors       : Vec<GameBehavior>,
-    pub displacements   : HashMap<(isize, isize), (usize, usize, usize, TileUsage)>,
+    pub displacements   : HashMap<(isize, isize), TileData>,
 }
 
 impl GameRegion {
@@ -120,7 +120,7 @@ impl GameRegion {
     }
 
     /// Returns the layered tiles at the given position and checks for displacements
-    pub fn get_value(&self, pos: (isize, isize)) -> Vec<(usize, usize, usize, TileUsage)> {
+    pub fn get_value(&self, pos: (isize, isize)) -> Vec<TileData> {
         let mut rc = vec![];
 
         if let Some(t) = self.displacements.get(&pos) {
@@ -144,7 +144,7 @@ impl GameRegion {
 
 
     /// Returns the layered tiles at the given position
-    pub fn get_value_without_displacements(&self, pos: (isize, isize)) -> Vec<(usize, usize, usize, TileUsage)> {
+    pub fn get_value_without_displacements(&self, pos: (isize, isize)) -> Vec<TileData> {
         let mut rc = vec![];
 
         if let Some(t) = self.data.layer1.get(&pos) {
@@ -163,7 +163,7 @@ impl GameRegion {
     }
 
     /// Sets a value at the given position
-    pub fn set_value(&mut self, layer: usize, pos: (isize, isize), value: (usize, usize, usize, TileUsage)) {
+    pub fn set_value(&mut self, layer: usize, pos: (isize, isize), value: TileData) {
 
         if layer == 1 {
             self.data.layer1.insert(pos, value);
@@ -225,13 +225,18 @@ impl GameRegion {
 
     /// Remaps the TileUsage field of the tiles
     pub fn remap(&mut self, asset: &mut Asset) {
-        let mut tiles : HashMap<(isize, isize), (usize, usize, usize, TileUsage)> = HashMap::new();
+        let mut tiles : HashMap<(isize, isize), TileData> = HashMap::new();
         let ids: Vec<&(isize, isize)> = self.data.layer1.keys().collect();
         for id in &ids {
             let value = &self.data.layer1[id];
-            let tile = asset.get_tile(&(value.0, value.1, value.2));
+            let tile = asset.get_tile(&(value.tilemap, value.grid_x, value.grid_y));
 
-            tiles.insert(**id, (value.0, value.1, value.2, tile.usage));
+            tiles.insert(**id, TileData {
+                tilemap     : value.tilemap,
+                grid_x      : value.grid_x,
+                grid_y      : value.grid_y,
+                usage       : tile.usage,
+            });
         }
         self.data.layer1 = tiles;
         self.save_data();

@@ -271,7 +271,6 @@ fn main() -> Result<(), Error> {
 
             // Game tick ?
             if curr_time > game_tick_timer + GAME_TICK_IN_MS {
-                curr_screen.update();
                 window.request_redraw();
                 game_tick_timer = curr_time;
                 anim_counter = anim_counter.wrapping_add(1);
