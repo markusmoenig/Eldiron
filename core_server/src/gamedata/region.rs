@@ -192,6 +192,23 @@ impl GameRegion {
         }
     }
 
+    /// Sets a value at the given position
+    pub fn clear_value(&mut self, layer: usize, pos: (isize, isize)) {
+
+        if layer == 1 {
+            self.data.layer1.remove(&pos);
+        } else
+        if layer == 2 {
+            self.data.layer1.remove(&pos);
+        } else
+        if layer == 3 {
+            self.data.layer1.remove(&pos);
+        } else
+        if layer == 4 {
+            self.data.layer1.remove(&pos);
+        }
+    }
+
     /// Calculates the min / max positions
     pub fn calc_dimensions(&mut self) {
         let mut min_pos = (10000, 10000);

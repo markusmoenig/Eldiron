@@ -25,6 +25,7 @@ pub struct RegionWidget {
     widgets                 : Vec<AtomWidget>,
 
     area_widgets            : Vec<AtomWidget>,
+    editing_widgets         : Vec<AtomWidget>,
     character_widgets       : Vec<AtomWidget>,
 
     offset                  : (isize, isize),
@@ -59,7 +60,7 @@ impl EditorContent for RegionWidget {
         mode_button.set_rect((rect.0 + 10, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 200, 40), asset, context);
         mode_button.custom_color = Some([217, 64, 51, 255]);
         mode_button.hover_help_title = Some("Region Mode".to_string());
-        mode_button.hover_help_text = Some("Select \"Draw Tiles\" (hotkey 'D') for drawing the tiles in the region. \"Edit Area\" ('E') to create and edit named areas and their behavior. \"Characters\" ('C') to place character instances and \"Settings\" ('S') to edit the settings of the region.".to_string());
+        mode_button.hover_help_text = Some("Select \"Draw Tiles\" (hotkey 'D') for drawing the tiles in the region. \"Edit Area\" ('E') to create and edit named areas and their behavior. \"Characters\" ('A') to place character instances and \"Settings\" ('S') to edit the settings of the region.".to_string());
 
         widgets.push(mode_button);
 
@@ -81,30 +82,39 @@ impl EditorContent for RegionWidget {
         AtomData::new_as_int("Area".to_string(), 0));
         regions_button.atom_data.text = "Area".to_string();
         regions_button.set_rect((rect.0 + 230, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 180, 40), asset, context);
-        //regions_button.state = WidgetState::Disabled;
+        regions_button.hover_help_title = Some("Cycles Areas".to_string());
+        regions_button.hover_help_text = Some("Cycles through the current areas.".to_string());
         area_widgets.push(regions_button);
 
         let mut add_area_button = AtomWidget::new(vec!["Add Area".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Add Area".to_string(), 0));
         add_area_button.set_rect((rect.0 + 230 + 200, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
+        add_area_button.hover_help_title = Some("Add Area".to_string());
+        add_area_button.hover_help_text = Some("Adds a new, empty area.".to_string());
         area_widgets.push(add_area_button);
 
         let mut del_area_button = AtomWidget::new(vec!["Delete".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Delete".to_string(), 0));
         del_area_button.state = WidgetState::Disabled;
         del_area_button.set_rect((rect.0 + 230 + 200 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
+        del_area_button.hover_help_title = Some("Delete Area".to_string());
+        del_area_button.hover_help_text = Some("Deletes the current area.".to_string());
         area_widgets.push(del_area_button);
 
         let mut rename_area_button = AtomWidget::new(vec!["Rename".to_string()], AtomWidgetType::Button,
             AtomData::new_as_int("Rename".to_string(), 0));
         rename_area_button.state = WidgetState::Disabled;
         rename_area_button.set_rect((rect.0 + 230 + 200 + 150 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
+        rename_area_button.hover_help_title = Some("Rename Area".to_string());
+        rename_area_button.hover_help_text = Some("Renames the current area.".to_string());
         area_widgets.push(rename_area_button);
 
-        let mut area_editing_mode = AtomWidget::new(vec!["Add Tile".to_string(), "Remove".to_string()], AtomWidgetType::SliderButton,
+        let mut area_editing_mode = AtomWidget::new(vec!["Add Tile".to_string(), "Remove".to_string(), "Pick".to_string()], AtomWidgetType::SliderButton,
         AtomData::new_as_int("Area".to_string(), 0));
         area_editing_mode.atom_data.text = "Area".to_string();
         area_editing_mode.set_rect((rect.0 +  230 + 200 + 150 + 150 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 160, 40), asset, context);
+        area_editing_mode.hover_help_title = Some("Area Editing Mode".to_string());
+        area_editing_mode.hover_help_text = Some("Adds, removes the clicked tile to / from the area or selects the clicked area.".to_string());
         area_widgets.push(area_editing_mode);
 
         // Character Widgets
@@ -116,6 +126,24 @@ impl EditorContent for RegionWidget {
         char_editing_mode.set_rect((rect.0 + 230, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 190, 40), asset, context);
         character_widgets.push(char_editing_mode);
 
+        // Editing Widgets
+        let mut editing_widgets : Vec<AtomWidget> = vec![];
+
+        let mut clear_button = AtomWidget::new(vec!["Clear".to_string()], AtomWidgetType::CheckButton,
+            AtomData::new_as_int("Clear".to_string(), 0));
+        clear_button.set_rect((rect.0 + 230, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
+        clear_button.hover_help_title = Some("Drawing Mode".to_string());
+        clear_button.hover_help_text = Some("Toggles between drawing and clearing modes.\nHotkey: 'C'.".to_string());
+        editing_widgets.push(clear_button);
+
+        let mut mode_button = AtomWidget::new(vec!["Pick".to_string()], AtomWidgetType::CheckButton,
+        AtomData::new_as_int("Pick".to_string(), 0));
+        mode_button.atom_data.text = "Pick".to_string();
+        mode_button.set_rect((rect.0 + 230 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 150, 40), asset, context);
+        mode_button.hover_help_title = Some("Pick".to_string());
+        mode_button.hover_help_text = Some("Picks the next selected tile.\nHotkey: 'P'.".to_string());
+        editing_widgets.push(mode_button);
+
         Self {
             rect,
             region_id               : 0,
@@ -124,6 +152,7 @@ impl EditorContent for RegionWidget {
             widgets                 : widgets,
 
             area_widgets,
+            editing_widgets,
             character_widgets,
 
             offset                  : (0, 0),
@@ -154,10 +183,16 @@ impl EditorContent for RegionWidget {
         self.area_widgets[3].set_rect2((self.rect.0 + 230 + 200 + 150 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
         self.area_widgets[4].set_rect2((self.rect.0 +  230 + 200 + 150 + 150 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 160, 40));
 
+        self.character_widgets[0].set_rect2((self.rect.0 + 230, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 190, 40));
+
+        self.editing_widgets[0].set_rect2((self.rect.0 + 230, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
+        self.editing_widgets[1].set_rect2((self.rect.0 + 230 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 150, 40));
+
         self.behavior_graph.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.bottom_size, width, self.bottom_size);
         self.behavior_graph.set_mode_and_rect(GraphMode::Detail, self.behavior_graph.rect, context);
         self.tile_selector.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.bottom_size, width, self.bottom_size);
         self.tile_selector.resize(width, self.bottom_size);
+        self.character_selector.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.bottom_size, width, self.bottom_size);
         self.character_selector.resize(width, self.bottom_size);
     }
 
@@ -218,6 +253,9 @@ impl EditorContent for RegionWidget {
 
             if editor_mode == RegionEditorMode::Tiles {
                 self.tile_selector.draw(frame, context.width, anim_counter, asset, context);
+                for w in &mut self.editing_widgets {
+                    w.draw(frame, context.width, anim_counter, asset, context);
+                }
             } else
             if editor_mode == RegionEditorMode::Areas {
 
@@ -245,12 +283,13 @@ impl EditorContent for RegionWidget {
 
                                     let mut c = context.color_white.clone();
                                     if curr_area_index == area_index {
+                                        c = context.color_red.clone();
                                         c[3] = 100;
                                     } else {
-                                        if editor_mode == RegionEditorMode::Areas {
-                                            continue;
-                                        }
-                                        c[3] = 50;
+                                        //if editor_mode == RegionEditorMode::Areas {
+                                        //    continue;
+                                        //}
+                                        c[3] = 100;
                                     }
                                     context.draw2d.blend_rect(frame, &(pos.0, pos.1, grid_size, grid_size), context.width, &c);
                                 }
@@ -305,6 +344,11 @@ impl EditorContent for RegionWidget {
                         context.curr_region_tile = None;
                     }
                 }
+                for atom in &mut self.editing_widgets {
+                    if atom.mouse_down(pos, asset, context) {
+                        return true;
+                    }
+                }
             } else
             if editor_mode == RegionEditorMode::Areas {
                 if context.contains_pos_for(pos, self.behavior_graph.rect) {
@@ -336,10 +380,30 @@ impl EditorContent for RegionWidget {
                     let editor_mode = options.get_editor_mode();
 
                     if editor_mode == RegionEditorMode::Tiles {
-                        if let Some(selected) = &self.tile_selector.selected {
+                        if self.editing_widgets[0].checked == false {
+                            if self.editing_widgets[1].checked == false {
+                                if let Some(selected) = &self.tile_selector.selected {
+                                    if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                                        region.set_value(options.get_layer(), id, selected.clone());
+                                        region.save_data();
+                                    }
+                                }
+                            } else {
+                                if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                                    let s = region.get_value(id);
+                                    if s.len() > 0 {
+                                        self.tile_selector.selected = Some(s[0].clone());
+                                        self.editing_widgets[1].checked = false;
+                                        self.editing_widgets[1].dirty = true;
+                                    }
+                                }
+                            }
+                        } else {
                             if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                                region.set_value(options.get_layer(), id, selected.clone());
-                                region.save_data();
+                                if self.editing_widgets[0].checked == true {
+                                    region.clear_value(options.get_layer(), id);
+                                    region.save_data();
+                                }
                             }
                         }
                     } else
@@ -363,6 +427,17 @@ impl EditorContent for RegionWidget {
                                     if area.area.contains(&id) == true {
                                         let index = area.area.iter().position(|&r| r == id).unwrap();
                                         area.area.remove(index);
+                                    }
+                                } else
+                                if mode == 2 {
+                                    // Pick
+                                    for (index, area) in region.data.areas.iter().enumerate() {
+                                        if area.area.contains(&id) {
+                                            self.area_widgets[0].curr_index = index;
+                                            self.area_widgets[0].dirty = true;
+                                            context.curr_region_area_index = index;
+                                            break;
+                                        }
                                     }
                                 }
                                 region.save_data();
@@ -502,6 +577,12 @@ impl EditorContent for RegionWidget {
                     }
                 }
             }
+            if editor_mode == RegionEditorMode::Tiles {
+                for atom in &mut self.editing_widgets {
+                    if atom.mouse_up(pos, asset, context) {
+                    }
+                }
+            }
             if editor_mode == RegionEditorMode::Characters {
                 for atom in &mut self.character_widgets {
                     if atom.mouse_up(pos, asset, context) {
@@ -532,6 +613,13 @@ impl EditorContent for RegionWidget {
                     }
                 }
             } else
+            if editor_mode == RegionEditorMode::Tiles {
+                for atom in &mut self.editing_widgets {
+                    if atom.mouse_hover(pos, asset, context) {
+                        return true;
+                    }
+                }
+            }
             if editor_mode == RegionEditorMode::Characters {
                 for atom in &mut self.character_widgets {
                     if atom.mouse_hover(pos, asset, context) {
@@ -637,7 +725,7 @@ impl EditorContent for RegionWidget {
                     options.set_editor_mode(RegionEditorMode::Areas);
                     return true;
                 } else
-                if char == 'c' {
+                if char == 'a' {
                     self.widgets[0].curr_index = 2;
                     self.widgets[0].dirty = true;
                     options.set_editor_mode(RegionEditorMode::Characters);
@@ -655,6 +743,16 @@ impl EditorContent for RegionWidget {
                         context.code_editor_node_behavior_value.4 = region.data.settings.to_string(generate_region_sink_descriptions());
                     }
                     context.code_editor_node_behavior_id.0 = 130000;
+                    return true;
+                } else
+                if char == 'c' {
+                    self.editing_widgets[0].checked = !self.editing_widgets[0].checked;
+                    self.editing_widgets[0].dirty = true;
+                    return true;
+                } else
+                if char == 'p' {
+                    self.editing_widgets[1].checked = !self.editing_widgets[0].checked;
+                    self.editing_widgets[1].dirty = true;
                     return true;
                 }
             }

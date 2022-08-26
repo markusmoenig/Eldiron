@@ -498,19 +498,22 @@ impl AtomWidget {
             }  else
 
             // Normal
-            if self.atom_widget_type == AtomWidgetType::CheckButton {
+            if self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::CheckButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
 
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.button_rounding, &context.color_light_gray, 1.5);
-                context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
-            } else
-            if self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton{
-                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
 
-                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                let fill_color = if self.state != WidgetState::Clicked { &context.color_black } else { &context.color_light_gray };
+                let fill_color;
+                if self.atom_widget_type != AtomWidgetType::CheckButton {
+                    fill_color = if self.state != WidgetState::Clicked { &context.color_black } else { &context.color_light_gray };
+                } else {
+                    if self.state == WidgetState::Hover {
+                        fill_color = &context.color_light_gray;
+                    } else {
+                        fill_color = if self.checked == false { &context.color_black } else { &context.color_gray };
+                    }
+                }
+
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.button_rounding, &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_light_gray}, 1.5);
 
                 if self.text[0].is_empty() == false {
@@ -780,7 +783,7 @@ impl AtomWidget {
                 self.dirty = true;
                 return true;
             } else
-            if self.atom_widget_type == AtomWidgetType::ToolBarCheckButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarCheckButton || self.atom_widget_type == AtomWidgetType::CheckButton {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
@@ -1139,7 +1142,7 @@ impl AtomWidget {
             context.hover_help_text = self.hover_help_text.clone();
         }
 
-        if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::ToolBarCheckButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::ToolBarMenuButton {
+        if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::ToolBarCheckButton || self.atom_widget_type == AtomWidgetType::CheckButton|| self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::ToolBarMenuButton {
             if self.contains_pos_for(pos, self.content_rect) {
                 if self.state != WidgetState::Disabled {
                     if self.state != WidgetState::Hover {
