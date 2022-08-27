@@ -115,6 +115,13 @@ impl EditorOptions for RegionOptions {
         }
 
         if mode == RegionEditorMode::Tiles {
+
+            if let Some(content) = content {
+                let mask = content.get_layer_mask(context);
+                self.tile_widgets[3].button_mask = mask;
+                self.tile_widgets[3].dirty = true;
+            }
+
             for atom in &mut self.tile_widgets {
                 atom.draw(frame, context.width, anim_counter, asset, context);
             }

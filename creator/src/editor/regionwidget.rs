@@ -306,6 +306,7 @@ impl EditorContent for RegionWidget {
                 self.character_selector.draw(frame, context.width, anim_counter, asset, context);
             }
 
+            // Draw a white border around the tile under the mouse cursor
             if self.mouse_hover_pos != (0,0) {
                 if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
                     let pos = (rect.0 + left_offset + ((id.0 + self.offset.0) as usize) * grid_size, rect.1 + top_offset + ((id.1 + self.offset.1) as usize) * grid_size);
@@ -316,6 +317,16 @@ impl EditorContent for RegionWidget {
                 }
             }
         }
+    }
+
+    fn get_layer_mask(&mut self, context: &mut ScreenContext) -> Option<Vec<bool>> {
+        if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
+            if let Some(region) = context.data.regions.get(&self.region_id) {
+                let mask = region.get_layer_mask(id);
+                return Some(mask);
+            }
+        }
+        None
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {

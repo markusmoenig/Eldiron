@@ -160,6 +160,9 @@ pub trait EditorContent {
     /// Sets a new name for the current area
     fn set_area_name(&mut self, name: String, context: &mut ScreenContext) {}
 
+    /// Gets the layer mask for the hovered tile (if any)
+    fn get_layer_mask(&mut self, context: &mut ScreenContext) -> Option<Vec<bool>> { None }
+
     // For NodeGraphs
 
     fn update(&mut self, context: &mut ScreenContext, executed_connections: Option<BehaviorDebugData>) {}

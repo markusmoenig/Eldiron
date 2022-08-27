@@ -123,6 +123,8 @@ pub struct AtomWidget {
 
     pub hover_help_title        : Option<String>,
     pub hover_help_text         : Option<String>,
+
+    pub button_mask             : Option<Vec<bool>>,
 }
 
 impl AtomWidget {
@@ -168,6 +170,8 @@ impl AtomWidget {
 
             hover_help_title    : None,
             hover_help_text     : None,
+
+            button_mask         : None,
         }
     }
 
@@ -608,7 +612,15 @@ impl AtomWidget {
                     let r = (x, rect.1, cell_size, rect.3);
 
                     let fill_color = if index != self.curr_index { &context.color_black } else { &context.color_light_gray };
-                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &((cell_size - 2) as f64, (cell_size - 2) as f64), &fill_color, &(0.0, 0.0, 0.0, 0.0), &context.color_light_gray, 1.5);
+
+                    let mut border_color = &context.color_light_gray;
+                    if let Some(mask) = &self.button_mask {
+                        if mask[index] == true {
+                            border_color = &context.color_white;
+                        }
+                    }
+
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &((cell_size - 2) as f64, (cell_size - 2) as f64), &fill_color, &(0.0, 0.0, 0.0, 0.0), border_color, 1.5);
 
                     context.draw2d.draw_text_rect(buffer_frame, &r, rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
 

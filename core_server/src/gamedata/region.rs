@@ -119,6 +119,34 @@ impl GameRegion {
         }
     }
 
+    /// Returns which layer has a tile for this position
+    pub fn get_layer_mask(&self, pos: (isize, isize)) -> Vec<bool> {
+        let mut rc = vec![];
+
+        if self.data.layer1.contains_key(&pos) {
+            rc.push(true);
+        } else {
+            rc.push(false)
+        }
+        if self.data.layer2.contains_key(&pos) {
+            rc.push(true);
+        }  else {
+            rc.push(false)
+        }
+        if self.data.layer3.contains_key(&pos) {
+            rc.push(true);
+        } else {
+            rc.push(false)
+        }
+        if self.data.layer4.contains_key(&pos) {
+            rc.push(true);
+        } else {
+            rc.push(false)
+        }
+
+        rc
+    }
+
     /// Returns the layered tiles at the given position and checks for displacements
     pub fn get_value(&self, pos: (isize, isize)) -> Vec<TileData> {
         let mut rc = vec![];
@@ -141,7 +169,6 @@ impl GameRegion {
         }
         rc
     }
-
 
     /// Returns the layered tiles at the given position
     pub fn get_value_without_displacements(&self, pos: (isize, isize)) -> Vec<TileData> {
