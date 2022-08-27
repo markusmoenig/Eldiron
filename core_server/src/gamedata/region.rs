@@ -226,13 +226,13 @@ impl GameRegion {
             self.data.layer1.remove(&pos);
         } else
         if layer == 2 {
-            self.data.layer1.remove(&pos);
+            self.data.layer2.remove(&pos);
         } else
         if layer == 3 {
-            self.data.layer1.remove(&pos);
+            self.data.layer3.remove(&pos);
         } else
         if layer == 4 {
-            self.data.layer1.remove(&pos);
+            self.data.layer4.remove(&pos);
         }
     }
 
