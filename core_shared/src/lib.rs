@@ -6,6 +6,7 @@ pub mod update;
 pub mod message;
 pub mod property;
 pub mod light;
+pub mod undo;
 
 pub mod prelude {
     pub use crate::asset::*;
@@ -16,6 +17,7 @@ pub mod prelude {
     pub use crate::message::*;
     pub use crate::property::*;
     pub use crate::light::*;
+    pub use crate::undo::*;
 
     pub use uuid::Uuid;
     pub use std::collections::HashMap;

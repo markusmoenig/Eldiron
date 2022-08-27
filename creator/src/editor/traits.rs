@@ -251,4 +251,12 @@ pub trait EditorContent {
 
     fn get_hover_rect(&self) -> Option<(usize, usize, usize, usize)> { None }
 
+    // Undo / Redo
+
+    fn is_undo_available(&self, context: &ScreenContext) -> bool { false }
+    fn is_redo_available(&self, context: &ScreenContext) -> bool { false }
+
+    fn undo(&mut self, context: &mut ScreenContext) {}
+    fn redo(&mut self, context: &mut ScreenContext) {}
+
 }

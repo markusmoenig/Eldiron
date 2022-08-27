@@ -894,4 +894,43 @@ impl EditorContent for RegionWidget {
         }
     }
 
+    // Undo / Redo
+
+    fn is_undo_available(&self, context: &ScreenContext) -> bool {
+        if self.widgets[0].curr_index == 0 {
+            // Tiles
+            if let Some(region) = context.data.regions.get(&self.get_region_id()) {
+                return region.is_undo_available();
+            }
+        }
+        false
+    }
+    fn is_redo_available(&self, context: &ScreenContext) -> bool {
+        if self.widgets[0].curr_index == 0 {
+            // Tiles
+            if let Some(region) = context.data.regions.get(&self.get_region_id()) {
+                return region.is_redo_available();
+            }
+        }
+        false
+    }
+
+    fn undo(&mut self, context: &mut ScreenContext) {
+        if self.widgets[0].curr_index == 0 {
+            // Tiles
+            if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
+                region.undo();
+            }
+        }
+    }
+
+    fn redo(&mut self, context: &mut ScreenContext) {
+        if self.widgets[0].curr_index == 0 {
+            // Tiles
+            if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
+                region.redo();
+            }
+        }
+    }
+
 }

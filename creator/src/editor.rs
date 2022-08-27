@@ -640,6 +640,30 @@ impl ScreenWidget for Editor<'_> {
             }
         }
 
+        // Undo / Redo states
+
+        let has_undo = self.content[self.state as usize].1.as_mut().unwrap().is_undo_available(&self.context);
+        let has_redo = self.content[self.state as usize].1.as_mut().unwrap().is_redo_available(&self.context);
+
+        if self.controlbar.widgets[0].state == WidgetState::Disabled && has_undo == true {
+            self.controlbar.widgets[0].state = WidgetState::Normal;
+            self.controlbar.widgets[0].dirty = true;
+        } else
+        if self.controlbar.widgets[0].state != WidgetState::Disabled && has_undo == false {
+            self.controlbar.widgets[0].state = WidgetState::Disabled;
+            self.controlbar.widgets[0].dirty = true;
+        } else
+        if self.controlbar.widgets[1].state == WidgetState::Disabled && has_redo == true {
+            self.controlbar.widgets[1].state = WidgetState::Normal;
+            self.controlbar.widgets[1].dirty = true;
+        } else
+        if self.controlbar.widgets[1].state != WidgetState::Disabled && has_redo == false {
+            self.controlbar.widgets[1].state = WidgetState::Disabled;
+            self.controlbar.widgets[1].dirty = true;
+        }
+
+        // --
+
         self.controlbar.draw(frame, anim_counter, asset, &mut self.context);
 
         if self.content.is_empty() == false {
@@ -1010,6 +1034,14 @@ impl ScreenWidget for Editor<'_> {
 
         if self.controlbar.mouse_down(pos, asset, &mut self.context) {
             consumed = true;
+            if self.controlbar.widgets[0].clicked {
+                // Undo
+                self.content[self.state as usize].1.as_mut().unwrap().undo(&mut self.context);
+            } else
+            if self.controlbar.widgets[1].clicked {
+                // Undo
+                self.content[self.state as usize].1.as_mut().unwrap().redo(&mut self.context);
+            } else
             if self.controlbar.show_help {
                 match self.state {
                     EditorState::TilesOverview => _ = open::that("https://book.eldiron.com/tiles/overview.html"),

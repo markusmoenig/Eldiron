@@ -11,6 +11,8 @@ pub struct GameRegion {
     pub data            : GameRegionData,
     pub behaviors       : Vec<GameBehavior>,
     pub displacements   : HashMap<(isize, isize), TileData>,
+
+    undo                : UndoStack,
 }
 
 impl GameRegion {
@@ -58,6 +60,8 @@ impl GameRegion {
             data,
             behaviors,
             displacements       : HashMap::new(),
+
+            undo                : UndoStack::new(),
         }
     }
 
@@ -107,6 +111,8 @@ impl GameRegion {
             data,
             behaviors,
             displacements       : HashMap::new(),
+
+            undo                : UndoStack::new(),
         }
     }
 
@@ -191,6 +197,7 @@ impl GameRegion {
 
     /// Sets a value at the given position
     pub fn set_value(&mut self, layer: usize, pos: (isize, isize), value: TileData) {
+        let undo = self.get_data();
 
         if layer == 1 {
             self.data.layer1.insert(pos, value);
@@ -217,10 +224,12 @@ impl GameRegion {
         if self.data.max_pos.1 < pos.1 {
             self.data.max_pos.1 = pos.1;
         }
+        self.undo.add(undo, self.get_data());
     }
 
     /// Sets a value at the given position
     pub fn clear_value(&mut self, layer: usize, pos: (isize, isize)) {
+        let undo = self.get_data();
 
         if layer == 1 {
             self.data.layer1.remove(&pos);
@@ -234,6 +243,7 @@ impl GameRegion {
         if layer == 4 {
             self.data.layer4.remove(&pos);
         }
+        self.undo.add(undo, self.get_data());
     }
 
     /// Calculates the min / max positions
@@ -346,6 +356,36 @@ impl GameRegion {
         }
     }
 
+    // Undo / Redo
+
+    pub fn is_undo_available(&self) -> bool {
+        self.undo.has_undo()
+    }
+
+    pub fn is_redo_available(&self) -> bool {
+        self.undo.has_redo()
+    }
+
+    pub fn undo(&mut self) {
+        let undo = self.undo.undo();
+        self.data = serde_json::from_str(&undo).unwrap();
+        self.save_data();
+    }
+
+    pub fn redo(&mut self) {
+        let redo = self.undo.redo();
+        self.data = serde_json::from_str(&redo).unwrap();
+        self.save_data();
+    }
+
+    /// Get the region data as string
+    fn get_data(&self) -> String {
+        if let Some(json) = serde_json::to_string(&self.data).ok() {
+            json
+        } else {
+            "".to_string()
+        }
+    }
 }
 
 // Generate region sink
