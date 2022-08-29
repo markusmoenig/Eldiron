@@ -3,24 +3,10 @@ use core_shared::asset::Asset;
 use serde::{Deserialize, Serialize};
 
 use self::{context::ScreenContext, atom::AtomWidget};
+use code_editor::prelude::*;
 
 pub mod context;
 pub mod draw2d;
-
-/// The widget state
-
-#[derive(PartialEq, Debug, Copy, Clone)]
-pub enum WidgetKey {
-    Escape,
-    Return,
-    Delete,
-    Up,
-    Right,
-    Down,
-    Left,
-    Space,
-    Tab
-}
 
 #[allow(unused)]
 
@@ -83,10 +69,6 @@ pub trait ScreenWidget {
 // General purpose widgets
 pub mod atom;
 pub mod tileselector;
-pub mod text_editor_trait;
-pub mod codeeditor;
-pub mod codeeditor_theme;
-pub mod codeeditor_scanner;
 pub mod characterselector;
 
 /// The widget state

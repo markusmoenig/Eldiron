@@ -12,7 +12,7 @@ use crate::editor::regionwidget::RegionWidget;
 use crate::editor::region_overview_options::RegionOverviewOptions;
 use crate::editor::log::LogWidget;
 use crate::editor::gameoptions::GameOptions;
-use crate::widget:: {ScreenWidget, Widget, WidgetState, WidgetKey};
+use crate::widget:: {ScreenWidget, Widget, WidgetState};
 use crate::atom:: { AtomWidget, AtomWidgetType, AtomData };
 use core_render::render::GameRender;
 use core_server::prelude::Message;

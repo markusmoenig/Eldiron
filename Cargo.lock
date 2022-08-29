@@ -369,6 +369,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "code_editor"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "027862d23f511270a96d9c4c1d85a8d91423bd01e273681a9e2af1f873dc99c7"
+dependencies = [
+ "copypasta",
+ "fontdue",
+]
+
+[[package]]
 name = "codespan-reporting"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -659,6 +669,7 @@ dependencies = [
 name = "creator"
 version = "0.5.5"
 dependencies = [
+ "code_editor",
  "copypasta",
  "core_render",
  "core_server",

@@ -16,7 +16,7 @@ mod prelude {
     pub use crate::widget::*;
     pub use crate::editor::*;
 
-    pub use crate::widget::codeeditor::*;
+    pub use code_editor::prelude::*;
 }
 
 use prelude::*;

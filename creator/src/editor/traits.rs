@@ -1,5 +1,5 @@
+use crate::prelude::*;
 use crate::editor::node::NodeWidget;
-use crate::widget::WidgetKey;
 use core_server::gamedata::behavior::*;
 use core_server::prelude::TileData;
 use core_shared::asset::{Asset, TileUsage};

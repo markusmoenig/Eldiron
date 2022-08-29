@@ -43,7 +43,7 @@ impl Draw2D {
     }
 
     /// Draws the given rectangle
-    pub fn draw_rect_safe(&self, frame: &mut [u8], rect: &(isize, isize, usize, usize), stride: usize, color: &[u8; 4], safe_rect: &(usize, usize, usize, usize)) {
+    pub fn _draw_rect_safe(&self, frame: &mut [u8], rect: &(isize, isize, usize, usize), stride: usize, color: &[u8; 4], safe_rect: &(usize, usize, usize, usize)) {
         let dest_stride_isize = stride as isize;
         for y in rect.1..rect.1+rect.3 as isize {
             if y >= safe_rect.1 as isize && y < (safe_rect.1 + safe_rect.3) as isize {

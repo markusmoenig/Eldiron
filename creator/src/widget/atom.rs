@@ -2,7 +2,7 @@ use core_shared::asset::{Asset, TileUsage};
 
 use crate::{widget::*, editor::{dialog::{DialogState, DialogEntry}, codeeditorwidget::CodeEditorWidgetState}};
 
-use super::{ context::ScreenDragContext, codeeditor::CodeEditorMode };
+use super::{ context::ScreenDragContext};
 
 pub struct GroupedList {
     color                       : [u8;4],

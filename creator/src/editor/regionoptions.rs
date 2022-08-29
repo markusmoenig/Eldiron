@@ -1,5 +1,6 @@
+use crate::prelude::*;
+
 use crate::atom::AtomData;
-use crate::widget::codeeditor::CodeEditorMode;
 use core_server::gamedata::region::generate_region_sink_descriptions;
 use core_shared::asset::Asset;
 use core_shared::asset::TileUsage;
