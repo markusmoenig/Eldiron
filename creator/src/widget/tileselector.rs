@@ -1,7 +1,5 @@
 use crate::widget::*;
 
-use core_server::prelude::TileData;
-use core_shared::asset::{TileUsage, Asset};
 use itertools::Itertools;
 
 pub struct TileSelectorWidget {

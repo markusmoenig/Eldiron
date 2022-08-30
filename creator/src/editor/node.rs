@@ -1,10 +1,4 @@
-use std::collections::HashMap;
-
-use core_server::gamedata::behavior::{GameBehaviorData, BehaviorNode, BehaviorNodeConnector};
-
-use crate::atom:: { AtomWidget };
-use crate::editor::ScreenContext;
-use core_shared::asset::Asset;
+use crate::prelude::*;
 
 pub struct NodeUserData {
     pub position                : (isize, isize)

@@ -1,10 +1,4 @@
-
-use crate::atom::AtomData;
-use crate::widget::*;
-use core_shared::asset::Asset;
-
-use crate::widget::atom:: { AtomWidget, AtomWidgetType };
-use crate::widget::context::ScreenContext;
+use crate::prelude::*;
 
 #[derive(PartialEq, Eq, Hash)]
 enum ControlWidgets {

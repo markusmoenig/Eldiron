@@ -1,12 +1,4 @@
-
-use core_shared::asset::{ Asset };
-use core_shared::asset::tileset::TileUsage;
-use core_server::gamedata::behavior::BehaviorType;
-use crate::widget::context::ScreenContext;
-use crate::editor::ToolBar;
-use crate::widget:: { WidgetState };
-
-use crate::editor::{ EditorOptions, EditorContent };
+use crate::prelude::*;
 
 pub struct TileMapWidget {
     rect                    : (usize, usize, usize, usize),

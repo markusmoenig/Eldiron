@@ -1,9 +1,4 @@
 use crate::prelude::*;
-use crate::editor::{ codeeditorwidget::CodeEditorWidgetState, EditorState, dialog::{ DialogState, DialogEntry } };
-use crate::{draw2d::Draw2D};
-use core_shared::prelude::*;
-use core_server::prelude::*;
-use core_render::prelude::*;
 use zeno::{Mask, Stroke};
 use directories::{ UserDirs };
 

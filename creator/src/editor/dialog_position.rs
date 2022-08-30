@@ -1,12 +1,4 @@
 use crate::prelude::*;
-use core_shared::asset::{Asset};
-
-use crate::atom::{ AtomWidget, AtomWidgetType, AtomData };
-use crate::widget::{ WidgetState };
-
-use crate::context::ScreenContext;
-
-use super::dialog::{DialogState};
 
 pub struct DialogPositionWidget {
     pub rect                    : (usize, usize, usize, usize),

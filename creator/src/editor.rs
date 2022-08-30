@@ -1,70 +1,31 @@
 use crate::prelude::*;
-
-use crate::tileselector::TileSelectorWidget;
-use crate::editor::regionoptions::RegionOptions;
-use crate::editor::behavioroptions::BehaviorOptions;
-use crate::editor::behavior_overview_options::BehaviorOverviewOptions;
-use crate::editor::systemsoptions::SystemsOptions;
-use crate::editor::systems_overview_options::SystemsOverviewOptions;
-use crate::editor::itemsoptions::ItemsOptions;
-use crate::editor::items_overview_options::ItemsOverviewOptions;
-use crate::editor::regionwidget::RegionWidget;
-use crate::editor::region_overview_options::RegionOverviewOptions;
 use crate::editor::log::LogWidget;
-use crate::editor::gameoptions::GameOptions;
-use crate::widget:: {ScreenWidget, Widget, WidgetState};
-use crate::atom:: { AtomWidget, AtomWidgetType, AtomData };
-use core_render::render::GameRender;
-use core_server::prelude::Message;
-use core_shared::asset::Asset;
-use core_server::gamedata::behavior::BehaviorType;
-use core_shared::property::PropertySink;
 
-use crate::editor::dialog::DialogWidget;
-
-mod controlbar;
-mod toolbar;
+pub mod controlbar;
+pub mod toolbar;
 pub mod nodegraph;
-mod tilemapoptions;
-mod tilemapwidget;
-mod region_overview_options;
-mod regionwidget;
-mod regionoptions;
-mod behavioroptions;
-mod behavior_overview_options;
-mod systemsoptions;
-mod systems_overview_options;
-mod itemsoptions;
-mod items_overview_options;
-mod node;
-mod node_preview;
-mod statusbar;
+pub mod tilemapoptions;
+pub mod tilemapwidget;
+pub mod region_overview_options;
+pub mod regionwidget;
+pub mod regionoptions;
+pub mod behavioroptions;
+pub mod behavior_overview_options;
+pub mod systemsoptions;
+pub mod systems_overview_options;
+pub mod itemsoptions;
+pub mod items_overview_options;
+pub mod node;
+pub mod node_preview;
+pub mod statusbar;
 pub mod dialog;
 pub mod dialog_position;
 mod log;
-mod gameoptions;
+pub mod gameoptions;
 pub mod traits;
 pub mod codeeditorwidget;
 pub mod screeneditor;
 pub mod screeneditor_options;
-
-use crate::editor::toolbar::ToolBar;
-use crate::editor::controlbar::ControlBar;
-use tilemapwidget::TileMapWidget;
-
-use crate::context::ScreenContext;
-use crate::editor::node::{ NodeUserData, NodeWidget };
-use crate::editor::nodegraph::NodeGraph;
-
-use self::codeeditorwidget::CodeEditorWidget;
-use self::dialog::{DialogState, DialogEntry};
-use self::dialog_position::DialogPositionWidget;
-use self::screeneditor_options::ScreenEditorOptions;
-use self::tilemapoptions::TileMapOptions;
-use self::statusbar::StatusBar;
-use self::toolbar::ToolBarButtons;
-
-use crate::editor::traits::{ EditorContent, GraphMode, EditorOptions };
 
 #[derive (PartialEq, Copy, Clone, Debug)]
 pub enum EditorState {
@@ -112,9 +73,9 @@ pub struct Editor<'a> {
     project_to_load                 : Option<std::path::PathBuf>
 }
 
-impl ScreenWidget for Editor<'_> {
+impl Editor<'_> {
 
-    fn new(asset: &mut Asset, width: usize, height: usize) -> Self where Self: Sized {
+    pub fn new(asset: &mut Asset, width: usize, height: usize) -> Self where Self: Sized {
 
         asset.load_editor_font("OpenSans".to_string(), "Open_Sans/static/OpenSans/OpenSans-Regular.ttf".to_string());
         asset.load_editor_font("OpenSans_Light".to_string(), "Open_Sans/static/OpenSans/OpenSans-Light.ttf".to_string());
@@ -186,7 +147,7 @@ impl ScreenWidget for Editor<'_> {
     }
 
     /// Game tick if the game is running
-    fn update(&mut self) {
+    pub fn update(&mut self) {
         // let start = self.get_time();
         /*
         if self.context.is_debugging == true {
@@ -208,7 +169,7 @@ impl ScreenWidget for Editor<'_> {
     }
 
     /// A key was pressed
-    fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset) -> bool {
+    pub fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset) -> bool {
 
         if self.context.is_running {
 
@@ -456,7 +417,7 @@ impl ScreenWidget for Editor<'_> {
     }
 
     // Resize the editor
-    fn resize(&mut self, width: usize, height: usize) {
+    pub fn resize(&mut self, width: usize, height: usize) {
         self.context.width = width; self.rect.2 = width;
         self.context.height = height; self.rect.3 = height;
         self.controlbar.resize(width, height, &self.context);
@@ -474,7 +435,7 @@ impl ScreenWidget for Editor<'_> {
     }
 
     /// Draw the editor
-    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset) {
+    pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset) {
 
         // Check hover help
 
@@ -1019,7 +980,7 @@ impl ScreenWidget for Editor<'_> {
         }
     }
 
-    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
+    pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
 
         self.context.hover_help_reset();
 
@@ -1281,7 +1242,7 @@ impl ScreenWidget for Editor<'_> {
         consumed
     }
 
-    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
+    pub fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
 
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.mouse_up(pos, asset, &mut self.context);
@@ -1485,7 +1446,7 @@ impl ScreenWidget for Editor<'_> {
         consumed
     }
 
-    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
+    pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
 
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.mouse_dragged(pos, asset, &mut self.context);
@@ -1535,7 +1496,7 @@ impl ScreenWidget for Editor<'_> {
         consumed
     }
 
-    fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
+    pub fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
 
         self.context.hover_help_reset();
         self.context.hover_help_pos = Some(pos);
@@ -1583,7 +1544,7 @@ impl ScreenWidget for Editor<'_> {
         consumed
     }
 
-    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset) -> bool {
+    pub fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset) -> bool {
 
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.mouse_wheel(delta, asset, &mut self.context);
@@ -1625,7 +1586,7 @@ impl ScreenWidget for Editor<'_> {
         consumed
     }
 
-    fn modifier_changed(&mut self, shift: bool, ctrl: bool, alt: bool, logo: bool, asset: &mut Asset) -> bool {
+    pub fn modifier_changed(&mut self, shift: bool, ctrl: bool, alt: bool, logo: bool, asset: &mut Asset) -> bool {
 
         let mut consumed = false;
 
@@ -1636,7 +1597,7 @@ impl ScreenWidget for Editor<'_> {
         consumed
     }
 
-    fn get_target_fps(&self) -> usize {
+    pub fn get_target_fps(&self) -> usize {
         self.context.target_fps
     }
 

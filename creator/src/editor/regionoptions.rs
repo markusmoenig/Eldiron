@@ -1,19 +1,5 @@
 use crate::prelude::*;
 
-use crate::atom::AtomData;
-use core_server::gamedata::region::generate_region_sink_descriptions;
-use core_shared::asset::Asset;
-use core_shared::asset::TileUsage;
-
-use crate::widget::atom::AtomWidget;
-use crate::widget::atom::AtomWidgetType;
-use crate::widget::context::ScreenContext;
-
-use crate::widget::*;
-use crate::widget::context::ScreenDragContext;
-
-use crate::editor::traits::{ EditorOptions, EditorContent };
-
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum RegionEditorMode {
     Tiles,

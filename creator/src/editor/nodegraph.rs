@@ -1,21 +1,7 @@
-use crate::editor::node::{NodeConnector, NodeWidget};
-use crate::atom:: { AtomData, AtomWidget, AtomWidgetType };
-use crate::editor::node_preview::NodePreviewWidget;
-use crate::editor::dialog::{ DialogState, DialogEntry };
-use crate::widget::Widget;
+use crate::prelude::*;
 
-use core_server::prelude::BehaviorDebugData;
 use zeno::{Mask, Stroke};
-use crate::editor::ToolBar;
-
-use core_server::gamedata::behavior::{GameBehaviorData, BehaviorNodeType, BehaviorNode, BehaviorNodeConnector, BehaviorType };
-
-use core_shared::asset::Asset;
-use crate::editor::{ ScreenContext };
-
 use itertools::Itertools;
-
-use crate::editor::traits::{ EditorOptions, EditorContent, GraphMode };
 
 pub struct NodeGraph  {
     pub rect                    : (usize, usize, usize, usize),

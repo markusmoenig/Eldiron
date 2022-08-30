@@ -9,5 +9,5 @@ members = [
     "client_standalone_web"
 ]
 
-edition = "2021"
+#edition = "2021"
 resolver = "2"

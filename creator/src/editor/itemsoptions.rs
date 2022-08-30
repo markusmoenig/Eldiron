@@ -1,14 +1,4 @@
-use crate::widget::*;
-
-use crate::atom::AtomData;
-use crate::widget::context::ScreenDragContext;
-use core_shared::asset::Asset;
-
-use crate::widget::atom::AtomWidget;
-use crate::widget::atom::AtomWidgetType;
-use crate::widget::context::ScreenContext;
-
-use crate::editor::{ EditorOptions, EditorContent };
+use crate::prelude::*;
 
 pub struct ItemsOptions {
     rect                    : (usize, usize, usize, usize),

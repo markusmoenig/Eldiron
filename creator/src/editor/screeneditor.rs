@@ -1,22 +1,4 @@
-
-use core_render::render::GameRender;
-use core_server::prelude::TileData;
-use core_shared::asset::{ Asset };
-use core_shared::asset::tileset::TileUsage;
-use core_shared::update::GameUpdate;
-
-use crate::widget::context::ScreenContext;
-use crate::editor::{ TileSelectorWidget };
-use core_server::gamedata::behavior::{ BehaviorType, BehaviorNodeType };
-
-use crate::editor::{ EditorOptions, EditorContent };
-use crate::editor::regionoptions::RegionEditorMode;
-
-use crate::editor::ToolBar;
-
-use super::screeneditor_options::ScreenEditorMode;
-
-//use super::screeneditor_options::{ ScreenEditorMode };
+use crate::prelude::*;
 
 pub struct ScreenEditor<'a> {
     pub rect                : (usize, usize, usize, usize),

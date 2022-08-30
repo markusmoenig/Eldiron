@@ -1,7 +1,5 @@
 use crate::widget::*;
 
-use core_shared::asset::{Asset};
-
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub struct CharacterMetaData {
     pub id                  : usize,

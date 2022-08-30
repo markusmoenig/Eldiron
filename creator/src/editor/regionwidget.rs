@@ -1,21 +1,4 @@
 use crate::prelude::*;
-use core_server::prelude::*;
-
-use core_server::gamedata::region::generate_region_sink_descriptions;
-use core_shared::asset::{ Asset };
-use core_shared::asset::tileset::TileUsage;
-
-use crate::widget::{WidgetState};
-use crate::widget::atom::{AtomWidget, AtomWidgetType, AtomData};
-use crate::widget::characterselector::CharacterSelectorWidget;
-use crate::widget::context::ScreenContext;
-use crate::editor::{ TileSelectorWidget, NodeGraph, GraphMode };
-use core_server::gamedata::behavior::{ BehaviorType };
-
-use crate::editor::{ EditorOptions, EditorContent };
-use crate::editor::regionoptions::RegionEditorMode;
-
-use crate::editor::ToolBar;
 
 pub struct RegionWidget {
     pub rect                : (usize, usize, usize, usize),
@@ -572,7 +555,6 @@ impl EditorContent for RegionWidget {
                                 self.update_area_ui(context);
                             } else
                             if atom.atom_data.id == "Rename" {
-                                use crate::editor::dialog::{DialogState, DialogEntry};
                                 context.dialog_state = DialogState::Opening;
                                 context.dialog_height = 0;
                                 context.target_fps = 60;

@@ -1,20 +1,50 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-mod game;
 mod editor;
 mod widget;
 
 mod prelude {
     pub const GAME_TICK_IN_MS : u128 = 250;
 
+    pub use serde::{Deserialize, Serialize};
+
     pub use core_server::prelude::*;
     pub use core_shared::prelude::*;
     pub use core_render::prelude::*;
 
-    pub use crate::game::*;
+    pub use crate::draw2d::Draw2D;
     pub use crate::widget::*;
     pub use crate::editor::*;
+    pub use crate::context::*;
+    pub use crate::atom::*;
+    pub use crate::tilemapwidget::*;
+    pub use crate::tileselector::*;
+    pub use crate::characterselector::*;
+
+    pub use crate::editor::dialog::*;
+    pub use crate::editor::codeeditorwidget::*;
+    pub use crate::editor::toolbar::*;
+    pub use crate::editor::controlbar::*;
+    pub use crate::editor::node::*;
+    pub use crate::editor::tilemapwidget::*;
+    pub use crate::editor::regionoptions::*;
+    pub use crate::editor::regionwidget::*;
+    pub use crate::editor::traits::*;
+    pub use crate::editor::nodegraph::*;
+    pub use crate::editor::behavioroptions::*;
+    pub use crate::editor::behavior_overview_options::*;
+    pub use crate::editor::systemsoptions::*;
+    pub use crate::editor::systems_overview_options::*;
+    pub use crate::editor::itemsoptions::*;
+    pub use crate::editor::items_overview_options::*;
+    pub use crate::editor::region_overview_options::*;
+    pub use crate::editor::gameoptions::*;
+    pub use crate::dialog_position::*;
+    pub use crate::screeneditor_options::*;
+    pub use crate::tilemapoptions::*;
+    pub use crate::statusbar::*;
+    pub use crate::node_preview::*;
 
     pub use code_editor::prelude::*;
 }
@@ -61,10 +91,7 @@ fn main() -> Result<(), Error> {
 
     let mut asset = Asset::new();
 
-    let game : Box<dyn ScreenWidget> = Box::new(Game::new(&mut asset, width, height));
-    let editor : Box<dyn ScreenWidget> = Box::new(Editor::new(&mut asset, width, height));
-
-    let mut curr_screen = editor;
+    let mut editor = Editor::new(&mut asset, width, height);
 
     let mut anim_counter : usize = 0;
     let mut timer : u128 = 0;
@@ -76,7 +103,7 @@ fn main() -> Result<(), Error> {
         use winit::event::{ElementState, VirtualKeyCode};
 
         if let Event::RedrawRequested(_) = event {
-            curr_screen.draw(pixels.get_frame(), anim_counter, &mut asset);
+            editor.draw(pixels.get_frame(), anim_counter, &mut asset);
             if pixels
                 .render()
                 .map_err(|e| error!("pixels.render() failed: {}", e))
@@ -92,7 +119,7 @@ fn main() -> Result<(), Error> {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::ReceivedCharacter(char ) => match char {
                     _ => {
-                        if curr_screen.key_down(Some(*char), None, &mut asset) {
+                        if editor.key_down(Some(*char), None, &mut asset) {
                             window.request_redraw();
                         }
                     }
@@ -100,7 +127,7 @@ fn main() -> Result<(), Error> {
 
                 WindowEvent::ModifiersChanged(state) => match state {
                     _ => {
-                        if curr_screen.modifier_changed(state.shift(), state.ctrl(), state.alt(), state.logo(), &mut asset) {
+                        if editor.modifier_changed(state.shift(), state.ctrl(), state.alt(), state.logo(), &mut asset) {
                             window.request_redraw();
                         }
                     }
@@ -116,52 +143,52 @@ fn main() -> Result<(), Error> {
                     ..
                 } => match virtual_code {
                     VirtualKeyCode::Delete => {
-                        if curr_screen.key_down(None, Some(WidgetKey::Delete), &mut asset) {
+                        if editor.key_down(None, Some(WidgetKey::Delete), &mut asset) {
                             window.request_redraw();
                         }
                     },
                     VirtualKeyCode::Back => {
-                        if curr_screen.key_down(None, Some(WidgetKey::Delete), &mut asset) {
+                        if editor.key_down(None, Some(WidgetKey::Delete), &mut asset) {
                             window.request_redraw();
                         }
                     },
                     VirtualKeyCode::Up => {
-                        if curr_screen.key_down(None, Some(WidgetKey::Up), &mut asset) {
+                        if editor.key_down(None, Some(WidgetKey::Up), &mut asset) {
                             window.request_redraw();
                         }
                     },
                     VirtualKeyCode::Right => {
-                        if curr_screen.key_down(None, Some(WidgetKey::Right), &mut asset) {
+                        if editor.key_down(None, Some(WidgetKey::Right), &mut asset) {
                             window.request_redraw();
                         }
                     },
                     VirtualKeyCode::Down => {
-                        if curr_screen.key_down(None, Some(WidgetKey::Down), &mut asset) {
+                        if editor.key_down(None, Some(WidgetKey::Down), &mut asset) {
                             window.request_redraw();
                         }
                     },
                     VirtualKeyCode::Left => {
-                        if curr_screen.key_down(None, Some(WidgetKey::Left), &mut asset) {
+                        if editor.key_down(None, Some(WidgetKey::Left), &mut asset) {
                             window.request_redraw();
                         }
                     },
                     VirtualKeyCode::Space => {
-                        if curr_screen.key_down(None, Some(WidgetKey::Space), &mut asset) {
+                        if editor.key_down(None, Some(WidgetKey::Space), &mut asset) {
                             window.request_redraw();
                         }
                     },
                     VirtualKeyCode::Tab => {
-                        if curr_screen.key_down(None, Some(WidgetKey::Tab), &mut asset) {
+                        if editor.key_down(None, Some(WidgetKey::Tab), &mut asset) {
                             window.request_redraw();
                         }
                     },
                     VirtualKeyCode::Return => {
-                        if curr_screen.key_down(None, Some(WidgetKey::Return), &mut asset) {
+                        if editor.key_down(None, Some(WidgetKey::Return), &mut asset) {
                             window.request_redraw();
                         }
                     },
                     VirtualKeyCode::Escape => {
-                        if curr_screen.key_down(None, Some(WidgetKey::Escape), &mut asset) {
+                        if editor.key_down(None, Some(WidgetKey::Escape), &mut asset) {
                             window.request_redraw();
                         }
                     }
@@ -180,7 +207,7 @@ fn main() -> Result<(), Error> {
                     }
                     winit::event::MouseScrollDelta::PixelDelta(p) => {
                         //println!("mouse wheel Pixel Delta: ({},{})", p.x, p.y);
-                        if curr_screen.mouse_wheel((p.x as isize, p.y as isize), &mut asset) {
+                        if editor.mouse_wheel((p.x as isize, p.y as isize), &mut asset) {
                             window.request_redraw();
                             mouse_wheel_ongoing = true;
                         }
@@ -217,7 +244,7 @@ fn main() -> Result<(), Error> {
                 let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
                     .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                if curr_screen.mouse_down((pixel_pos.0, pixel_pos.1), &mut asset) {
+                if editor.mouse_down((pixel_pos.0, pixel_pos.1), &mut asset) {
                     window.request_redraw();
                 }
             }
@@ -227,7 +254,7 @@ fn main() -> Result<(), Error> {
                 let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
                     .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                if curr_screen.mouse_up((pixel_pos.0, pixel_pos.1), &mut asset) {
+                if editor.mouse_up((pixel_pos.0, pixel_pos.1), &mut asset) {
                     window.request_redraw();
                 }
             }
@@ -239,7 +266,7 @@ fn main() -> Result<(), Error> {
                     let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
                         .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                    if curr_screen.mouse_dragged((pixel_pos.0, pixel_pos.1), &mut asset) {
+                    if editor.mouse_dragged((pixel_pos.0, pixel_pos.1), &mut asset) {
                         window.request_redraw();
                     }
                 }
@@ -250,7 +277,7 @@ fn main() -> Result<(), Error> {
                     let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
                         .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                    if curr_screen.mouse_hover((pixel_pos.0, pixel_pos.1), &mut asset) {
+                    if editor.mouse_hover((pixel_pos.0, pixel_pos.1), &mut asset) {
                         window.request_redraw();
                     }
                 }
@@ -261,13 +288,13 @@ fn main() -> Result<(), Error> {
                 pixels.resize_surface(size.width, size.height);
                 let scale = window.scale_factor() as u32;
                 pixels.resize_buffer(size.width / scale, size.height / scale);
-                curr_screen.resize(size.width as usize / scale as usize, size.height as usize / scale as usize);
+                editor.resize(size.width as usize / scale as usize, size.height as usize / scale as usize);
                 //width = size.width as usize / scale as usize;
                 //height = size.height as usize / scale as usize;
                 window.request_redraw();
             }
 
-            let curr_time = game.get_time();
+            let curr_time = get_time();
 
             // Game tick ?
             if curr_time > game_tick_timer + GAME_TICK_IN_MS {
@@ -277,12 +304,12 @@ fn main() -> Result<(), Error> {
             } else {
 
                 // If not, lets see if we need to redraw for the target fps
-                let fps =  curr_screen.get_target_fps() as f32;//if mouse_wheel_ongoing { 60.0 } else { curr_screen.get_target_fps() as f32 };
+                let fps = editor.get_target_fps() as f32;//if mouse_wheel_ongoing { 60.0 } else { curr_screen.get_target_fps() as f32 };
                 //println!("{}", fps);
                 let tick_in_ms =  (1000.0 / fps) as u128;
 
                 if curr_time > timer + tick_in_ms {
-                    curr_screen.update();
+                    editor.update();
                     window.request_redraw();
                     timer = curr_time;
                 } else
@@ -295,4 +322,13 @@ fn main() -> Result<(), Error> {
             }
         }
     });
+}
+
+// Get the the current time in ms
+
+fn get_time() -> u128 {
+    let stop = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("Time went backwards");
+        stop.as_millis()
 }

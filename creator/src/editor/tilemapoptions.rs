@@ -1,13 +1,4 @@
-use crate::atom::AtomData;
-use core_shared::asset::Asset;
-
-use core_shared::asset::tileset::TileUsage;
-
-use crate::widget::atom::{AtomWidget, AtomWidgetType};
-use crate::widget::context::ScreenContext;
-use crate::widget::WidgetState;
-
-use crate::editor::traits::{ EditorOptions, EditorContent };
+use crate::prelude::*;
 
 pub struct TileMapOptions {
     rect                    : (usize, usize, usize, usize),

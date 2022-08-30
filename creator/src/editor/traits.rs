@@ -1,16 +1,4 @@
 use crate::prelude::*;
-use crate::editor::node::NodeWidget;
-use core_server::gamedata::behavior::*;
-use core_server::prelude::TileData;
-use core_shared::asset::{Asset, TileUsage};
-
-use crate::editor::ScreenContext;
-use crate::WidgetState;
-use crate::editor::{ ToolBar, TileSelectorWidget, NodeGraph };
-
-use crate::editor::regionoptions::RegionEditorMode;
-
-use super::node_preview::NodePreviewWidget;
 
 #[allow(unused)]
 pub trait EditorOptions {

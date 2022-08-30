@@ -1,70 +1,7 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-use core_shared::asset::Asset;
-use serde::{Deserialize, Serialize};
-
-use self::{context::ScreenContext, atom::AtomWidget};
-use code_editor::prelude::*;
+use crate::prelude::*;
 
 pub mod context;
 pub mod draw2d;
-
-#[allow(unused)]
-
-/// Top level screen widget
-pub trait ScreenWidget {
-
-    fn new(asset: &mut Asset, width: usize, height: usize) -> Self where Self: Sized;
-
-    fn update(&mut self);
-    fn resize(&mut self, width: usize, height: usize) {
-    }
-
-    fn load_project(&mut self, path: std::path::PathBuf, asset: &mut Asset) {
-    }
-
-    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset);
-
-    fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset) -> bool {
-        false
-    }
-
-    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
-        false
-    }
-
-    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
-        false
-    }
-
-    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
-        false
-    }
-
-    fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
-        false
-    }
-
-    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset) -> bool {
-        false
-    }
-
-    fn modifier_changed(&mut self, shift: bool, ctrl: bool, alt: bool, logo: bool, asset: &mut Asset) -> bool {
-        false
-    }
-
-    /// Gets the current time in milliseconds
-    fn get_time(&self) -> u128 {
-        let stop = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
-            stop.as_millis()
-    }
-
-    fn get_target_fps(&self) -> usize;
-
-    fn content_state_is_changing(&mut self, state: crate::editor::EditorState, asset: &mut Asset, closing: bool) {}
-
-}
 
 // General purpose widgets
 pub mod atom;

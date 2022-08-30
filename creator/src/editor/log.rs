@@ -1,5 +1,4 @@
-use core_shared::asset::Asset;
-use crate::editor::ScreenContext;
+use crate::prelude::*;
 
 pub struct LogWidget {
     pub rect                    : (isize, isize, usize, usize),

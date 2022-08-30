@@ -1,8 +1,4 @@
-use core_render::render::GameRender;
-use core_server::prelude::*;
-use core_shared::asset::Asset;
-use crate::atom:: { AtomWidget };
-use crate::editor::ScreenContext;
+use crate::prelude::*;
 
 pub struct NodePreviewWidget {
     pub rect                    : (usize, usize, usize, usize),
