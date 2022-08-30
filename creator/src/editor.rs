@@ -26,6 +26,7 @@ pub mod traits;
 pub mod codeeditorwidget;
 pub mod screeneditor;
 pub mod screeneditor_options;
+pub mod assets_overview_options;
 
 #[derive (PartialEq, Copy, Clone, Debug)]
 pub enum EditorState {
@@ -1039,7 +1040,7 @@ impl Editor<'_> {
             if self.toolbar.widgets[1].clicked {
                 self.context.code_editor_is_active = false;
                 if self.toolbar.widgets[1].selected {
-                    self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (0, self.rect.1 + self.context.toolbar_height, self.rect.2, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
                     self.state = EditorState::TilesOverview;
                     self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().mark_all_dirty();
                 } else
@@ -1652,7 +1653,7 @@ impl Editor<'_> {
         let get_pos = |index: usize, max_width: usize| -> (isize, isize) {
             let item_width = (250 + 20) as isize;
             let item_height = (120 + 20) as isize;
-            let per_row = max_width as isize % item_width;
+            let per_row = max_width as isize / item_width;
             (20 + (index as isize % per_row) * item_width, 20 + (index as isize / per_row) * item_height)
         };
 
@@ -1663,8 +1664,8 @@ impl Editor<'_> {
 
         let mut tile_nodes = vec![];
         for (index, t) in asset.tileset.maps_names.iter().enumerate() {
-            let p = get_pos(index, width - left_width);
-            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: p });
+            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: (0,0) });
+            node.sub_type = NodeSubType::Tilemap;
 
             let mut size_text = "".to_string();
             if let Some(tilemap) = asset.tileset.maps.get(&asset.tileset.maps_ids[index]) {
@@ -1681,10 +1682,22 @@ impl Editor<'_> {
             tile_nodes.push(node);
         }
 
-        let mut node_graph_tiles = NodeGraph::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), BehaviorType::Tiles, asset, &context);
-        node_graph_tiles.set_mode_and_nodes(GraphMode::Overview, tile_nodes, &context);
+        for t in &asset.audio_names {
+            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: (0,0) });
+            node.sub_type = NodeSubType::Audio;
 
-        self.content.push( (None, Some(Box::new(node_graph_tiles))) );
+            tile_nodes.push(node);
+        }
+
+        let mut node_graph_tiles = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Tiles, asset, &context);
+        node_graph_tiles.set_mode_and_nodes(GraphMode::Overview, tile_nodes, &context);
+        node_graph_tiles.sub_type = NodeSubType::Tilemap;
+
+        let assets_overview_options = AssetsOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+
+        node_graph_tiles.sort();
+
+        self.content.push( (Some(Box::new(assets_overview_options)), Some(Box::new(node_graph_tiles))) );
         self.content.push( (Some(Box::new(tilemap_options)), Some(Box::new(tilemap))) );
 
         // Region views and nodes

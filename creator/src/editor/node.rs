@@ -1,5 +1,13 @@
 use crate::prelude::*;
 
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum NodeSubType {
+    None,
+    Audio,
+    Image,
+    Tilemap,
+}
+
 pub struct NodeUserData {
     pub position                : (isize, isize)
 }
@@ -12,6 +20,8 @@ pub struct NodeWidget {
     pub text                    : Vec<String>,
     pub widgets                 : Vec<AtomWidget>,
     pub menu                    : Option<AtomWidget>,
+
+    pub visible                 : bool,
 
     pub clicked                 : bool,
 
@@ -34,6 +44,8 @@ pub struct NodeWidget {
     pub graph_offset            : (isize, isize),
 
     pub color                   : [u8;4],
+
+    pub sub_type                : NodeSubType,
 }
 
 impl NodeWidget {
@@ -45,6 +57,8 @@ impl NodeWidget {
             widgets             : vec![],
             menu                : None,
             clicked             : false,
+
+            visible             : true,
 
             id                  : 0,
 
@@ -64,7 +78,9 @@ impl NodeWidget {
 
             graph_offset        : (0,0),
 
-            color               : [0, 0, 0, 255]
+            color               : [0, 0, 0, 255],
+
+            sub_type            : NodeSubType::None,
         }
     }
 
@@ -74,6 +90,8 @@ impl NodeWidget {
             text                : vec![behavior_node.name.clone()],
             widgets             : vec![],
             menu                : None,
+
+            visible             : true,
 
             clicked             : false,
 
@@ -95,7 +113,9 @@ impl NodeWidget {
 
             graph_offset        : (0,0),
 
-            color               : [0, 0, 0, 255]
+            color               : [0, 0, 0, 255],
+
+            sub_type            : NodeSubType::None,
         }
     }
 

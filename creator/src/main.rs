@@ -45,6 +45,7 @@ mod prelude {
     pub use crate::tilemapoptions::*;
     pub use crate::statusbar::*;
     pub use crate::node_preview::*;
+    pub use crate::assets_overview_options::*;
 
     pub use code_editor::prelude::*;
 }

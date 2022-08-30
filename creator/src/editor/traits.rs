@@ -234,6 +234,11 @@ pub trait EditorContent {
     /// Get the preview widget
     fn get_preview_widget(&mut self) -> Option<&mut NodePreviewWidget> { None }
 
+    /// Set the sub type of the node
+    fn set_sub_node_type(&mut self, sub_type: NodeSubType) {}
+
+    /// Sort / update the node graph
+    fn sort(&mut self) {}
 
     // For ScreenEditor
 

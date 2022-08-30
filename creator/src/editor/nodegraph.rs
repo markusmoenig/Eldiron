@@ -38,6 +38,8 @@ pub struct NodeGraph  {
     behavior_id                 : usize,
 
     behavior_debug_data         : Option<BehaviorDebugData>,
+
+    pub sub_type                : NodeSubType,
 }
 
 impl EditorContent for NodeGraph  {
@@ -76,6 +78,8 @@ impl EditorContent for NodeGraph  {
             behavior_id                 : 0,
 
             behavior_debug_data         : None,
+
+            sub_type                    : NodeSubType::None,
         }
     }
 
@@ -115,6 +119,8 @@ impl EditorContent for NodeGraph  {
         self.dirty = true;
         self.rect.2 = width;
         self.rect.3 = height;
+
+        self.sort();
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
@@ -138,6 +144,8 @@ impl EditorContent for NodeGraph  {
 
             if self.graph_mode == GraphMode::Overview {
                 for index in 0..self.nodes.len() {
+
+                    if self.nodes[index].visible == false { continue; }
 
                     let mut selected = false;
 
@@ -169,7 +177,7 @@ impl EditorContent for NodeGraph  {
 
                     if self.nodes[index].dirty {
                         let mut preview_buffer = vec![0; 100 * 100 * 4];
-                        if self.graph_type == BehaviorType::Tiles {
+                        if self.graph_type == BehaviorType::Tiles && self.sub_type ==  NodeSubType::Tilemap {
                             // For tile maps draw the default_tile
                             if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[index]) {
                                 if let Some(default_tile) = map.settings.default_tile {
@@ -1941,5 +1949,45 @@ impl EditorContent for NodeGraph  {
             return behavior.data.curr_node_id;
         }
         None
+    }
+
+    /// Se the sub type
+    fn set_sub_node_type(&mut self, sub_type: NodeSubType) {
+        self.sub_type = sub_type;
+        self.sort();
+        self.dirty = true;
+    }
+
+    /// Sort the items
+    fn sort(&mut self) {
+        let item_width = (280 + 20) as isize;
+        let item_height = (120 + 20) as isize;
+        let per_row = self.rect.2 as isize / item_width;
+
+        if self.graph_type == BehaviorType::Tiles {
+
+            let mut c = 0;
+            let mut indices = vec![];
+            for index in 0..self.nodes.len() {
+                if self.nodes[index].sub_type == self.sub_type {
+                    c += 1;
+                    indices.push(index);
+                    self.nodes[index].visible = true;
+                } else {
+                    self.nodes[index].visible = false;
+                }
+            }
+
+            for i in 0..c {
+                let index = indices[i];
+                self.nodes[index].user_data.position = (20 + (i as isize % per_row) * item_width, 20 + (i as isize / per_row) * item_height);
+                self.nodes[index].dirty = true;
+            }
+        } else {
+            for index in 0..self.nodes.len() {
+                self.nodes[index].user_data.position = (20 + (index as isize % per_row) * item_width, 20 + (index as isize / per_row) * item_height);
+                self.nodes[index].dirty = true;
+            }
+        }
     }
 }
