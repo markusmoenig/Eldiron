@@ -40,6 +40,7 @@ pub struct NodeGraph  {
     behavior_debug_data         : Option<BehaviorDebugData>,
 
     pub sub_type                : NodeSubType,
+    pub active_indices          : Vec<usize>
 }
 
 impl EditorContent for NodeGraph  {
@@ -80,6 +81,7 @@ impl EditorContent for NodeGraph  {
             behavior_debug_data         : None,
 
             sub_type                    : NodeSubType::None,
+            active_indices              : vec![],
         }
     }
 
@@ -99,7 +101,7 @@ impl EditorContent for NodeGraph  {
         self.graph_mode = mode;
     }
 
-    fn set_mode_and_rect(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &ScreenContext) {
+    fn set_mode_and_rect(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &mut ScreenContext) {
         if mode == GraphMode::Detail && (self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Systems || self.graph_type == BehaviorType::GameLogic) && self.preview.is_none() {
             self.preview = Some(NodePreviewWidget::new(context, self.graph_type));
         }
@@ -114,13 +116,13 @@ impl EditorContent for NodeGraph  {
         self.mark_all_dirty();
     }
 
-    fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
+    fn resize(&mut self, width: usize, height: usize, context: &mut ScreenContext) {
         self.buffer.resize(width * height * 4, 0);
         self.dirty = true;
         self.rect.2 = width;
         self.rect.3 = height;
 
-        self.sort();
+        self.sort(context);
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
@@ -573,7 +575,9 @@ impl EditorContent for NodeGraph  {
         }
 
         if self.graph_mode == GraphMode::Overview {
-            for index in 0..self.nodes.len() {
+            for active_index in 0..self.active_indices.len() {
+                let index = self.active_indices[active_index];
+
                 let rect= self.get_node_rect(index, false);
 
                 if context.contains_pos_for_isize(pos, rect) {
@@ -584,7 +588,6 @@ impl EditorContent for NodeGraph  {
 
                     if self.graph_type == BehaviorType::Tiles {
                         if context.curr_tileset_index != index {
-
                             self.nodes[context.curr_tileset_index].dirty = true;
                             context.curr_tileset_index = index;
                             self.nodes[index].dirty = true;
@@ -635,8 +638,8 @@ impl EditorContent for NodeGraph  {
 
                     if let Some(toolbar) = toolbar {
                         if let Some(atom) = toolbar.get_atom_at_index(0) {
-                            if atom.curr_index != index {
-                                atom.curr_index = index;
+                            if atom.curr_index != active_index {
+                                atom.curr_index = active_index;
                                 atom.dirty = true;
                             }
                         }
@@ -657,7 +660,8 @@ impl EditorContent for NodeGraph  {
             }
 
             // Check the nodes
-            for index in 0..self.nodes.len() {
+            for active_index in 0..self.active_indices.len() {
+                let index = self.active_indices[active_index];
 
                 let rect= self.get_node_rect(index, false);
                 if context.contains_pos_for_isize(pos, rect) {
@@ -794,10 +798,18 @@ impl EditorContent for NodeGraph  {
         // Switch the editor state if an overview was clicked
         if self.overview_preview_clicked {
 
+            let mut change_index = true;
+
             let mut widget_index = 0;
             if self.graph_type == BehaviorType::Tiles {
-                context.switch_editor_state = Some(super::EditorState::TilesDetail);
-                widget_index = 1;
+                if self.nodes[context.curr_tileset_index].sub_type == NodeSubType::Tilemap {
+                    context.switch_editor_state = Some(super::EditorState::TilesDetail);
+                    widget_index = 1;
+                } else {
+                    change_index = false;
+                    self.dirty = true;
+                    self.nodes[context.curr_tileset_index].dirty = true;
+                }
             } else
             if self.graph_type == BehaviorType::Regions {
                 context.switch_editor_state = Some(super::EditorState::RegionDetail);
@@ -816,10 +828,12 @@ impl EditorContent for NodeGraph  {
                 widget_index = 5;
             }
 
-            if let Some(toolbar) = toolbar {
-                toolbar.widgets[widget_index].selected = false;
-                toolbar.widgets[widget_index].right_selected = true;
-                toolbar.widgets[widget_index].dirty = true;
+            if change_index {
+                if let Some(toolbar) = toolbar {
+                    toolbar.widgets[widget_index].selected = false;
+                    toolbar.widgets[widget_index].right_selected = true;
+                    toolbar.widgets[widget_index].dirty = true;
+                }
             }
         }
 
@@ -1952,22 +1966,22 @@ impl EditorContent for NodeGraph  {
     }
 
     /// Se the sub type
-    fn set_sub_node_type(&mut self, sub_type: NodeSubType) {
+    fn set_sub_node_type(&mut self, sub_type: NodeSubType, context: &mut ScreenContext) {
         self.sub_type = sub_type;
-        self.sort();
+        self.sort(context);
         self.dirty = true;
     }
 
     /// Sort the items
-    fn sort(&mut self) {
+    fn sort(&mut self, context: &mut ScreenContext) {
         let item_width = (280 + 20) as isize;
         let item_height = (120 + 20) as isize;
         let per_row = self.rect.2 as isize / item_width;
 
-        if self.graph_type == BehaviorType::Tiles {
+        let mut indices = vec![];
 
+        if self.graph_type == BehaviorType::Tiles {
             let mut c = 0;
-            let mut indices = vec![];
             for index in 0..self.nodes.len() {
                 if self.nodes[index].sub_type == self.sub_type {
                     c += 1;
@@ -1983,11 +1997,26 @@ impl EditorContent for NodeGraph  {
                 self.nodes[index].user_data.position = (20 + (i as isize % per_row) * item_width, 20 + (i as isize / per_row) * item_height);
                 self.nodes[index].dirty = true;
             }
+
+            if indices.len() > 0 && !indices.contains(&context.curr_tileset_index) {
+                context.curr_tileset_index = indices[0];
+            }
         } else {
             for index in 0..self.nodes.len() {
                 self.nodes[index].user_data.position = (20 + (index as isize % per_row) * item_width, 20 + (index as isize / per_row) * item_height);
+                self.nodes[index].visible = true;
                 self.nodes[index].dirty = true;
+                indices.push(index);
             }
         }
+
+        self.active_indices = indices.clone();
+
     }
+
+    /// Get the currently active indices in the node graph
+    fn get_active_indices(&mut self) -> Vec<usize> {
+        self.active_indices.clone()
+    }
+
 }

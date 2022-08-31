@@ -9,7 +9,7 @@ pub trait EditorOptions {
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>);
 
-    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool;
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>, toolbar: &mut Option<&mut ToolBar>) -> bool;
 
     fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool;
 
@@ -90,7 +90,7 @@ pub trait EditorContent {
 
     fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), behavior_type: BehaviorType, asset: &Asset, context: &ScreenContext) -> Self where Self: Sized;
 
-    fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext);
+    fn resize(&mut self, width: usize, height: usize, _context: &mut ScreenContext);
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>);
 
@@ -156,7 +156,7 @@ pub trait EditorContent {
     fn update(&mut self, context: &mut ScreenContext, executed_connections: Option<BehaviorDebugData>) {}
 
     fn set_mode(&mut self, mode: GraphMode, context: &ScreenContext) {}
-    fn set_mode_and_rect(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &ScreenContext) {}
+    fn set_mode_and_rect(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &mut ScreenContext) {}
     fn set_mode_and_nodes(&mut self, mode: GraphMode, nodes: Vec<NodeWidget>, _context: &ScreenContext) {}
 
     /// Returns the rectangle for the given node either in relative or absolute coordinates
@@ -235,10 +235,13 @@ pub trait EditorContent {
     fn get_preview_widget(&mut self) -> Option<&mut NodePreviewWidget> { None }
 
     /// Set the sub type of the node
-    fn set_sub_node_type(&mut self, sub_type: NodeSubType) {}
+    fn set_sub_node_type(&mut self, sub_type: NodeSubType, context: &mut ScreenContext) {}
 
     /// Sort / update the node graph
-    fn sort(&mut self) {}
+    fn sort(&mut self, context: &mut ScreenContext) {}
+
+    /// Get the currently active indices in the node graph
+    fn get_active_indices(&mut self) -> Vec<usize> { vec![] }
 
     // For ScreenEditor
 

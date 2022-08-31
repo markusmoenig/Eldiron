@@ -930,17 +930,21 @@ impl AtomWidget {
 
             if self.atom_widget_type == AtomWidgetType::ToolBarSliderButton || self.atom_widget_type == AtomWidgetType::SliderButton {
                 if self.right_has_hover {
-                    self.curr_index += 1;
-                    self.curr_index %= self.text.len();
-                    self.new_selection = Some(self.curr_index);
+                    if self.text.len() > 1 {
+                        self.curr_index += 1;
+                        self.curr_index %= self.text.len();
+                        self.new_selection = Some(self.curr_index);
+                    }
                 } else
                 if self.has_hover {
-                    if self.curr_index > 0 {
-                        self.curr_index -= 1;
-                    } else {
-                        self.curr_index = self.text.len() - 1;
+                    if self.text.len() > 1 {
+                        if self.curr_index > 0 {
+                            self.curr_index -= 1;
+                        } else {
+                            self.curr_index = self.text.len() - 1;
+                        }
+                        self.new_selection = Some(self.curr_index);
                     }
-                    self.new_selection = Some(self.curr_index);
                 }
                 self.atom_data.data.0 = self.curr_index as f64;
             } else

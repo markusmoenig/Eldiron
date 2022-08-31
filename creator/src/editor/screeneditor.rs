@@ -67,7 +67,7 @@ impl EditorContent for ScreenEditor<'_> {
         }
     }
 
-    fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
+    fn resize(&mut self, width: usize, height: usize, _context: &mut ScreenContext) {
         self.rect.2 = width;
         self.rect.3 = height;
 

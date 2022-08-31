@@ -428,9 +428,9 @@ impl Editor<'_> {
         for index in 0..self.content.len() {
             if self.content[index].0.is_some() {
                 self.content[index].0.as_mut().unwrap().resize(self.left_width, height - self.context.toolbar_height, &self.context);
-                self.content[index].1.as_mut().unwrap().resize(width - self.left_width, height - self.context.toolbar_height, &self.context);
+                self.content[index].1.as_mut().unwrap().resize(width - self.left_width, height - self.context.toolbar_height, &mut self.context);
             } else {
-                self.content[index].1.as_mut().unwrap().resize(width, height - self.context.toolbar_height, &self.context);
+                self.content[index].1.as_mut().unwrap().resize(width, height - self.context.toolbar_height, &mut self.context);
             }
         }
     }
@@ -583,19 +583,19 @@ impl Editor<'_> {
                 self.content.insert(index, (options, content));
             } else
             if state == EditorState::BehaviorDetail {
-                self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                 self.context.curr_graph_type = BehaviorType::Behaviors;
                 self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.behaviors_ids[self.context.curr_behavior_index] , &mut self.context);
             } else
             if state == EditorState::SystemsDetail {
-                self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                 self.context.curr_graph_type = BehaviorType::Systems;
                 self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
             } else
             if state == EditorState::ItemsDetail {
             } else
             if state == EditorState::GameDetail {
-                self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                 self.state = EditorState::GameDetail;
                 self.context.curr_graph_type = BehaviorType::GameLogic;
                 self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_behavior_id(0, &mut self.context);
@@ -1040,7 +1040,7 @@ impl Editor<'_> {
             if self.toolbar.widgets[1].clicked {
                 self.context.code_editor_is_active = false;
                 if self.toolbar.widgets[1].selected {
-                    self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                     self.state = EditorState::TilesOverview;
                     self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().mark_all_dirty();
                 } else
@@ -1065,7 +1065,7 @@ impl Editor<'_> {
             if self.toolbar.widgets[2].clicked {
                 self.context.code_editor_is_active = false;
                 if self.toolbar.widgets[2].selected {
-                    self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                     self.state = EditorState::RegionOverview;
                     self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().mark_all_dirty();
                 } else
@@ -1103,12 +1103,12 @@ impl Editor<'_> {
             if self.toolbar.widgets[3].clicked {
                 self.context.code_editor_is_active = false;
                 if self.toolbar.widgets[3].selected {
-                    self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                     self.state = EditorState::BehaviorOverview;
                     self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().mark_all_dirty();
                 } else
                 if self.toolbar.widgets[3].right_selected {
-                    self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                     self.state = EditorState::BehaviorDetail;
                     self.context.curr_graph_type = BehaviorType::Behaviors;
                     self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.behaviors_ids[self.context.curr_behavior_index] , &mut self.context);
@@ -1129,12 +1129,12 @@ impl Editor<'_> {
             if self.toolbar.widgets[4].clicked {
                 self.context.code_editor_is_active = false;
                 if self.toolbar.widgets[4].selected {
-                    self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                     self.state = EditorState::SystemsOverview;
                     self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().mark_all_dirty();
                 } else
                 if self.toolbar.widgets[4].right_selected {
-                    self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                     self.state = EditorState::SystemsDetail;
                     self.context.curr_graph_type = BehaviorType::Systems;
                     self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
@@ -1155,12 +1155,12 @@ impl Editor<'_> {
             if self.toolbar.widgets[5].clicked {
                 self.context.code_editor_is_active = false;
                 if self.toolbar.widgets[5].selected {
-                    self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Overview, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                     self.state = EditorState::ItemsOverview;
                     self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().mark_all_dirty();
                 } else
                 if self.toolbar.widgets[5].right_selected {
-                    self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                    self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                     self.state = EditorState::ItemsDetail;
                     self.context.curr_graph_type = BehaviorType::Items;
                     //self.node_graph_items_details.set_behavior_id(self.context.data.items_ids[self.context.curr_items_index], &mut self.context);
@@ -1179,7 +1179,7 @@ impl Editor<'_> {
             // Game Button
             if self.toolbar.widgets[6].clicked {
                 self.context.code_editor_is_active = false;
-                self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &self.context);
+                self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                 self.state = EditorState::GameDetail;
                 self.context.curr_graph_type = BehaviorType::GameLogic;
                 self.toolbar.widgets[6].checked = true;
@@ -1225,7 +1225,7 @@ impl Editor<'_> {
 
                 if consumed == false {
                     if let Some(mut el_option) = options {
-                        consumed = el_option.mouse_down(pos, asset, &mut self.context, &mut content);
+                        consumed = el_option.mouse_down(pos, asset, &mut self.context, &mut content, &mut Some(&mut self.toolbar));
                         options = Some(el_option);
                     }
                 }
@@ -1335,6 +1335,17 @@ impl Editor<'_> {
         // Node Drag ?
         if let Some(drag_context) = &self.context.drag_context {
 
+            if self.state == EditorState::TilesOverview {
+                if drag_context.text == "Tilemaps" {
+                    // let res = rfd::FileDialog::new()
+                        // .add_filter("text", &["txt", "rs"])
+                        // .add_filter("rust", &["rs", "toml"])
+                        // .set_directory(&path)
+                        // .pick_files();
+
+                    // println!("The user choose: {:#?}", res);
+                }
+            } else
             if self.state == EditorState::RegionOverview {
                 let rect = self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_rect();
                 let offset = self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_offset();
@@ -1647,7 +1658,6 @@ impl Editor<'_> {
         let left_width = 180_usize;
         let width = self.rect.2;
         let height = self.rect.3;
-        let context = &mut self.context;
 
         // Calculate an overview node position based on it's index
         let get_pos = |index: usize, max_width: usize| -> (isize, isize) {
@@ -1659,8 +1669,8 @@ impl Editor<'_> {
 
         // Tile views and nodes
 
-        let tilemap_options = TileMapOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
-        let tilemap = TileMapWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Tiles, asset, &context);
+        let tilemap_options = TileMapOptions::new(vec!(), (0, self.context.toolbar_height, left_width, height - self.context.toolbar_height), asset, &self.context);
+        let tilemap = TileMapWidget::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Tiles, asset, &self.context);
 
         let mut tile_nodes = vec![];
         for (index, t) in asset.tileset.maps_names.iter().enumerate() {
@@ -1689,27 +1699,27 @@ impl Editor<'_> {
             tile_nodes.push(node);
         }
 
-        let mut node_graph_tiles = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Tiles, asset, &context);
-        node_graph_tiles.set_mode_and_nodes(GraphMode::Overview, tile_nodes, &context);
+        let mut node_graph_tiles = NodeGraph::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Tiles, asset, &self.context);
+        node_graph_tiles.set_mode_and_nodes(GraphMode::Overview, tile_nodes, &self.context);
         node_graph_tiles.sub_type = NodeSubType::Tilemap;
 
-        let assets_overview_options = AssetsOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let assets_overview_options = AssetsOverviewOptions::new(vec!(), (0, self.context.toolbar_height, left_width, height - self.context.toolbar_height), asset, &self.context);
 
-        node_graph_tiles.sort();
+        node_graph_tiles.sort(&mut self.context);
 
         self.content.push( (Some(Box::new(assets_overview_options)), Some(Box::new(node_graph_tiles))) );
         self.content.push( (Some(Box::new(tilemap_options)), Some(Box::new(tilemap))) );
 
         // Region views and nodes
 
-        let region_options = RegionOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let region_options = RegionOptions::new(vec!(), (0, self.context.toolbar_height, left_width, height - self.context.toolbar_height), asset, &self.context);
 
-        let region_overview_options = RegionOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let region_overview_options = RegionOverviewOptions::new(vec!(), (0, self.context.toolbar_height, left_width, height - self.context.toolbar_height), asset, &self.context);
 
-        let region_widget = RegionWidget::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Tiles, asset, &context);
+        let region_widget = RegionWidget::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Tiles, asset, &self.context);
 
         let mut region_nodes = vec![];
-        for (index, t) in context.data.regions_names.iter().enumerate() {
+        for (index, t) in self.context.data.regions_names.iter().enumerate() {
             let p = get_pos(index, width - left_width);
             let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: p});
 
@@ -1719,20 +1729,20 @@ impl Editor<'_> {
             region_nodes.push(node);
         }
 
-        let mut node_graph_regions = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Regions, asset, &context );
-        node_graph_regions.set_mode_and_nodes(GraphMode::Overview, region_nodes, &context);
+        let mut node_graph_regions = NodeGraph::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Regions, asset, &self.context );
+        node_graph_regions.set_mode_and_nodes(GraphMode::Overview, region_nodes, &self.context);
 
         self.content.push( (Some(Box::new(region_overview_options)), Some(Box::new(node_graph_regions))) );
         self.content.push( (Some(Box::new(region_options)), Some(Box::new(region_widget))) );
 
         // Behavior nodegraph
 
-        let behavior_options = BehaviorOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let behavior_options = BehaviorOptions::new(vec!(), (0, self.context.toolbar_height, left_width, height - self.context.toolbar_height), asset, &self.context);
 
-        let behavior_overview_options = BehaviorOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let behavior_overview_options = BehaviorOverviewOptions::new(vec!(), (0, self.context.toolbar_height, left_width, height - self.context.toolbar_height), asset, &self.context);
 
         let mut behavior_nodes = vec![];
-        for (index, behavior_name) in context.data.behaviors_names.iter().enumerate() {
+        for (index, behavior_name) in self.context.data.behaviors_names.iter().enumerate() {
             let p = get_pos(index, width - left_width);
             let mut node = NodeWidget::new(vec![behavior_name.to_string()],
              NodeUserData { position: p });
@@ -1742,23 +1752,23 @@ impl Editor<'_> {
 
             behavior_nodes.push(node);
         }
-        let mut node_graph_behavior = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Behaviors, asset, &context);
-        node_graph_behavior.set_mode_and_nodes(GraphMode::Overview, behavior_nodes, &context);
+        let mut node_graph_behavior = NodeGraph::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Behaviors, asset, &self.context);
+        node_graph_behavior.set_mode_and_nodes(GraphMode::Overview, behavior_nodes, &self.context);
 
-        let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Behaviors, asset, &context);
-        node_graph_behavior_details.set_mode(GraphMode::Detail, &context);
+        let mut node_graph_behavior_details = NodeGraph::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Behaviors, asset, &self.context);
+        node_graph_behavior_details.set_mode(GraphMode::Detail, &self.context);
 
         self.content.push( (Some(Box::new(behavior_overview_options)), Some(Box::new(node_graph_behavior))) );
         self.content.push( (Some(Box::new(behavior_options)), Some(Box::new(node_graph_behavior_details))) );
 
         // Systems nodegraph
 
-        let systems_options = SystemsOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let systems_options = SystemsOptions::new(vec!(), (0, self.context.toolbar_height, left_width, height - self.context.toolbar_height), asset, &self.context);
 
-        let systems_overview_options = SystemsOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let systems_overview_options = SystemsOverviewOptions::new(vec!(), (0, self.context.toolbar_height, left_width, height - self.context.toolbar_height), asset, &self.context);
 
         let mut systems_nodes = vec![];
-        for (index, system_name) in context.data.systems_names.iter().enumerate() {
+        for (index, system_name) in self.context.data.systems_names.iter().enumerate() {
             let p = get_pos(index, width - left_width);
             let mut node = NodeWidget::new(vec![system_name.to_string()],
              NodeUserData { position: p });
@@ -1768,46 +1778,46 @@ impl Editor<'_> {
 
             systems_nodes.push(node);
         }
-        let mut node_graph_systems = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Systems, asset, &context);
-        node_graph_systems.set_mode_and_nodes(GraphMode::Overview, systems_nodes, &context);
+        let mut node_graph_systems = NodeGraph::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Systems, asset, &self.context);
+        node_graph_systems.set_mode_and_nodes(GraphMode::Overview, systems_nodes, &self.context);
 
-        let mut node_graph_systems_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Systems, asset, &context);
-        node_graph_systems_details.set_mode(GraphMode::Overview, &context);
+        let mut node_graph_systems_details = NodeGraph::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Systems, asset, &self.context);
+        node_graph_systems_details.set_mode(GraphMode::Overview, &self.context);
 
         self.content.push( (Some(Box::new(systems_overview_options)), Some(Box::new(node_graph_systems))) );
         self.content.push( (Some(Box::new(systems_options)), Some(Box::new(node_graph_systems_details))) );
 
         // Items nodegraph
 
-        let items_options = ItemsOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let items_options = ItemsOptions::new(vec!(), (0, self.context.toolbar_height, left_width, height - self.context.toolbar_height), asset, &self.context);
 
-        let items_overview_options = ItemsOverviewOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let items_overview_options = ItemsOverviewOptions::new(vec!(), (0, self.context.toolbar_height, left_width, height - self.context.toolbar_height), asset, &self.context);
 
         let items_nodes = vec![];
 
-        let mut node_graph_items = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Items, asset, &context);
-        node_graph_items.set_mode_and_nodes(GraphMode::Overview, items_nodes, &context);
+        let mut node_graph_items = NodeGraph::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Items, asset, &self.context);
+        node_graph_items.set_mode_and_nodes(GraphMode::Overview, items_nodes, &self.context);
 
-        let mut node_graph_items_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Items, asset, &context);
-        node_graph_items_details.set_mode(GraphMode::Detail, &context);
+        let mut node_graph_items_details = NodeGraph::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Items, asset, &self.context);
+        node_graph_items_details.set_mode(GraphMode::Detail, &self.context);
 
         self.content.push( (Some(Box::new(items_overview_options)), Some(Box::new(node_graph_items))) );
         self.content.push( (Some(Box::new(items_options)), Some(Box::new(node_graph_items_details))) );
 
         // Game NodeGraph
 
-        let game_options = GameOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let game_options = GameOptions::new(vec!(), (0, self.context.toolbar_height, left_width, height - self.context.toolbar_height), asset, &self.context);
 
-        let mut node_graph_game_details = NodeGraph::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::GameLogic,  asset, &context);
-        node_graph_game_details.set_mode(GraphMode::Detail, &context);
+        let mut node_graph_game_details = NodeGraph::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::GameLogic,  asset, &self.context);
+        node_graph_game_details.set_mode(GraphMode::Detail, &self.context);
 
         self.content.push( (Some(Box::new(game_options)), Some(Box::new(node_graph_game_details))) );
 
         // Screen Editor
 
-        let screen_editor_options = ScreenEditorOptions::new(vec!(), (0, context.toolbar_height, left_width, height - context.toolbar_height), asset, &context);
+        let screen_editor_options = ScreenEditorOptions::new(vec!(), (0, self.context.toolbar_height, left_width, height - self.context.toolbar_height), asset, &self.context);
 
-        let screen_editor = screeneditor::ScreenEditor::new(vec!(), (left_width, context.toolbar_height, width - left_width, height - context.toolbar_height), BehaviorType::Tiles, asset, &context);
+        let screen_editor = screeneditor::ScreenEditor::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Tiles, asset, &self.context);
 
         self.content.push( (Some(Box::new(screen_editor_options)), Some(Box::new(screen_editor))) );
 

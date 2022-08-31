@@ -46,7 +46,7 @@ impl EditorOptions for SystemsOptions {
         }
     }
 
-    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_down(pos, asset, context) {
                 if atom.clicked {

@@ -17,7 +17,7 @@ impl EditorOptions for AssetsOverviewOptions {
     AtomData::new_as_int("NodeList".to_string(), 0));
         node_list.drag_enabled = true;
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio".to_string(), "Image".to_string(), "Tilemap".to_string()]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio".to_string(), "Images".to_string(), "Tilemaps".to_string()]);
 
         node_list.curr_item_index = 2;
 
@@ -44,20 +44,37 @@ impl EditorOptions for AssetsOverviewOptions {
         }
     }
 
-    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>, toolbar: &mut Option<&mut ToolBar>) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_down(pos, asset, context) {
                 if atom.clicked {
                     if atom.atom_data.id == "NodeList" {
                         if let Some(el_content) = content {
                             if atom.curr_item_index == 0 {
-                                el_content.set_sub_node_type(NodeSubType::Audio);
+                                el_content.set_sub_node_type(NodeSubType::Audio, context);
                             } else
                             if atom.curr_item_index == 1 {
-                                el_content.set_sub_node_type(NodeSubType::Image);
+                                el_content.set_sub_node_type(NodeSubType::Image, context);
                             } else
                             if atom.curr_item_index == 2 {
-                                el_content.set_sub_node_type(NodeSubType::Tilemap);
+                                el_content.set_sub_node_type(NodeSubType::Tilemap, context);
+                            }
+                            if let Some(toolbar) = toolbar {
+
+                                let mut items = vec![];
+                                let indices = el_content.get_active_indices();
+
+                                if let Some(nodes) = el_content.get_nodes() {
+                                    for i in &indices {
+                                        items.push(nodes[*i].text[0].clone());
+                                    }
+                                }
+
+                                toolbar.widgets[0].text = items;
+                                toolbar.widgets[0].dirty = true;
+                                if indices.len() > 0 {
+                                    toolbar.widgets[0].curr_index = 0;
+                                }
                             }
                         }
                         return true;

@@ -154,7 +154,7 @@ impl EditorContent for RegionWidget {
         }
     }
 
-    fn resize(&mut self, width: usize, height: usize, context: &ScreenContext) {
+    fn resize(&mut self, width: usize, height: usize, context: &mut ScreenContext) {
         self.rect.2 = width;
         self.rect.3 = height;
 
