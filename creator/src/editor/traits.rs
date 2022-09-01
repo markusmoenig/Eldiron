@@ -177,6 +177,9 @@ pub trait EditorContent {
     /// Adds a node of the type identified by its name
     fn add_node_of_name(&mut self, name: String, position: (isize, isize), context: &mut ScreenContext) {}
 
+    /// Adds an overview node
+    fn add_overview_node(&mut self, node: NodeWidget, context: &mut ScreenContext) {}
+
     /// Inits the node widget (atom widgets, id)
     fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {}
 

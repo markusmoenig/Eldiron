@@ -561,7 +561,10 @@ impl Editor<'_> {
 
             if state == EditorState::TilesDetail {
                 self.context.curr_graph_type = BehaviorType::Tiles;
-                self.content[EditorState::TilesDetail as usize].1.as_mut().unwrap().set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
+                let active_indices = self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_active_indices();
+                if let Some(index) = active_indices.iter().position(|&r| r == self.context.curr_tileset_index) {
+                    self.content[EditorState::TilesDetail as usize].1.as_mut().unwrap().set_tilemap_id(asset.tileset.maps_ids[index]);
+                }
             } else
             if state == EditorState::RegionDetail {
                 self.context.curr_graph_type = BehaviorType::Regions;
@@ -1058,7 +1061,10 @@ impl Editor<'_> {
                 }
 
                 self.toolbar.widgets[0].text = asset.tileset.maps_names.clone();
-                self.toolbar.widgets[0].curr_index = self.context.curr_tileset_index;
+                let active_indices = self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_active_indices();
+                if let Some(index) = active_indices.iter().position(|&r| r == self.context.curr_tileset_index) {
+                    self.toolbar.widgets[0].curr_index = index;
+                }
                 self.toolbar.widgets[0].dirty = true;
             } else
             // Region Button
@@ -1337,13 +1343,46 @@ impl Editor<'_> {
 
             if self.state == EditorState::TilesOverview {
                 if drag_context.text == "Tilemaps" {
-                    // let res = rfd::FileDialog::new()
-                        // .add_filter("text", &["txt", "rs"])
-                        // .add_filter("rust", &["rs", "toml"])
-                        // .set_directory(&path)
-                        // .pick_files();
+                    let res = rfd::FileDialog::new()
+                        .add_filter("PNG", &["png"])
+                        .set_title("Choose Image")
+                        .pick_files();
 
-                    // println!("The user choose: {:#?}", res);
+                    // Add Tilemap
+                    if let Some(paths) = res {
+                        for p in paths {
+
+                            let dest_path = asset.tileset.path.join("assets").join("tilemaps").join(p.file_name().unwrap()).clone();
+                            let rc = fs_extra::file::copy(p.clone(), dest_path, &fs_extra::file::CopyOptions::new());
+
+                            if rc.is_ok() {
+                                if asset.tileset.add(p) {
+
+                                    println!("{}", asset.tileset.maps_ids.len());
+                                    let index = asset.tileset.maps_names.len() - 1;
+                                    let name = asset.tileset.maps_names[index].clone();
+                                    let mut node = NodeWidget::new(vec![name.clone()], NodeUserData { position: (0,0) });
+                                    node.sub_type = NodeSubType::Tilemap;
+
+                                    let mut size_text = "".to_string();
+                                    if let Some(tilemap) = asset.tileset.maps.get(&asset.tileset.maps_ids[index]) {
+                                        size_text = format!("{}", tilemap.settings.grid_size);
+                                    }
+
+                                    let mut size_atom = AtomWidget::new(vec!["Grid Size".to_string()], AtomWidgetType::NodeGridSizeButton,
+                                    AtomData::new_as_int("grid_size".to_string(), 0));
+                                    size_atom.atom_data.text = "Grid Size".to_string();
+                                    size_atom.atom_data.data = (index as f64, 0.0, 0.0, 0.0, size_text);
+                                    size_atom.behavior_id = Some((index, 0, "".to_string()));
+                                    //size_atom.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Hello".to_string()), self.graph_type);
+                                    node.widgets.push(size_atom);
+                                    self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
+
+                                    self.toolbar.widgets[0].text.push(name);
+                                }
+                            }
+                        }
+                    }
                 }
             } else
             if self.state == EditorState::RegionOverview {

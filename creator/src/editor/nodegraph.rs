@@ -145,9 +145,8 @@ impl EditorContent for NodeGraph  {
             context.draw2d.draw_square_pattern(&mut self.buffer[..], &safe_rect, safe_rect.2, &[44, 44, 46, 255], &[56, 56, 56, 255], 40);
 
             if self.graph_mode == GraphMode::Overview {
-                for index in 0..self.nodes.len() {
-
-                    if self.nodes[index].visible == false { continue; }
+                for active_index in 0..self.active_indices.len() {
+                    let index = self.active_indices[active_index];
 
                     let mut selected = false;
 
@@ -181,7 +180,7 @@ impl EditorContent for NodeGraph  {
                         let mut preview_buffer = vec![0; 100 * 100 * 4];
                         if self.graph_type == BehaviorType::Tiles && self.sub_type ==  NodeSubType::Tilemap {
                             // For tile maps draw the default_tile
-                            if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[index]) {
+                            if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[active_index]) {
                                 if let Some(default_tile) = map.settings.default_tile {
                                     context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &default_tile, 0, 100);
                                 }
@@ -1178,6 +1177,13 @@ impl EditorContent for NodeGraph  {
         self.dirty = true;
         self.check_node_visibility(context);
         context.jump_to_position = context.data.get_behavior_default_position(id);
+    }
+
+    /// Adds the given node
+    fn add_overview_node(&mut self, node: NodeWidget, context: &mut ScreenContext) {
+        self.nodes.push(node);
+        self.sort(context);
+        self.dirty = true;
     }
 
     /// Adds a node of the type identified by its name
