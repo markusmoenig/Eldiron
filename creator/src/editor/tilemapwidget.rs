@@ -11,6 +11,8 @@ pub struct TileMapWidget {
     max_line_offset         : usize,
 
     mouse_wheel_delta       : isize,
+
+    is_image                : bool,
 }
 
 impl EditorContent for TileMapWidget {
@@ -28,6 +30,8 @@ impl EditorContent for TileMapWidget {
             max_line_offset         : 0,
 
             mouse_wheel_delta       : 0,
+
+            is_image                : false,
         }
     }
 
@@ -38,93 +42,98 @@ impl EditorContent for TileMapWidget {
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
 
-        //context.draw2d.draw_rect(frame, &self.rect, context.width, &[44, 44, 44, 255]);
         context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
-        if asset.tileset.maps.is_empty() { return }
 
-        let scale = self.scale;
-        let map = &asset.tileset.maps[&self.tilemap_id];
-        let scaled_grid_size = (map.settings.grid_size as f32 * scale) as usize;
+        if self.is_image {
+            if asset.tileset.images.is_empty() { return }
 
-        //context.draw2d.draw_square_pattern(frame, &self.rect, self.rect.2, &[44, 44, 46, 255], &[56, 56, 56, 255], scaled_grid_size);
+        } else {
+            if asset.tileset.maps.is_empty() { return }
 
-        let x_tiles = map.width / map.settings.grid_size;
-        let y_tiles = map.height / map.settings.grid_size;
+            let scale = self.scale;
+            let map = &asset.tileset.maps[&self.tilemap_id];
+            let scaled_grid_size = (map.settings.grid_size as f32 * scale) as usize;
 
-        let total_tiles = (x_tiles * y_tiles) as usize;
+            //context.draw2d.draw_square_pattern(frame, &self.rect, self.rect.2, &[44, 44, 46, 255], &[56, 56, 56, 255], scaled_grid_size);
 
-        let screen_x = self.rect.2 / scaled_grid_size;
-        let screen_y = self.rect.3 / scaled_grid_size;
+            let x_tiles = map.width / map.settings.grid_size;
+            let y_tiles = map.height / map.settings.grid_size;
 
-        let left_offset = (self.rect.2 % scaled_grid_size) / 2;
-        let top_offset = (self.rect.3 % scaled_grid_size) / 2;
+            let total_tiles = (x_tiles * y_tiles) as usize;
 
-        self.screen_offset = (left_offset, top_offset);
+            let screen_x = self.rect.2 / scaled_grid_size;
+            let screen_y = self.rect.3 / scaled_grid_size;
 
-        let tiles_per_page = screen_x * screen_y;
+            let left_offset = (self.rect.2 % scaled_grid_size) / 2;
+            let top_offset = (self.rect.3 % scaled_grid_size) / 2;
 
-        self.max_line_offset = 0;
+            self.screen_offset = (left_offset, top_offset);
 
-        if total_tiles > tiles_per_page {
-            self.max_line_offset = (total_tiles - tiles_per_page) / screen_x;
-            if (total_tiles - tiles_per_page) % screen_x != 0 {
-                self.max_line_offset += 1;
-            }
-        }
+            let tiles_per_page = screen_x * screen_y;
 
-        let mut x_off = 0_usize;
-        let mut y_off = 0_usize;
+            self.max_line_offset = 0;
 
-        let offset = self.line_offset as usize * screen_x;
-
-        // Draw the tiles
-        for tile in 0..tiles_per_page {
-
-            if tile + offset >= total_tiles {
-                break;
+            if total_tiles > tiles_per_page {
+                self.max_line_offset = (total_tiles - tiles_per_page) / screen_x;
+                if (total_tiles - tiles_per_page) % screen_x != 0 {
+                    self.max_line_offset += 1;
+                }
             }
 
-            let x_step = (x_off as f32 * map.settings.grid_size as f32 * scale) as usize;
-            let y_step = (y_off as f32 * map.settings.grid_size as f32 * scale) as usize;
+            let mut x_off = 0_usize;
+            let mut y_off = 0_usize;
 
-            let x = (tile+offset) % x_tiles as usize;
-            let y = (tile+offset) / x_tiles as usize;
+            let offset = self.line_offset as usize * screen_x;
 
-            let tile = map.get_tile(&(x, y));
+            // Draw the tiles
+            for tile in 0..tiles_per_page {
 
-            let pp = &(x_step + self.rect.0 + left_offset, y_step + self.rect.1 + top_offset);
+                if tile + offset >= total_tiles {
+                    break;
+                }
 
-            if tile.anim_tiles.len() > 0 {
-                let index = anim_counter % tile.anim_tiles.len() as usize;
-                context.draw2d.draw_tile(frame, pp, map, context.width, &tile.anim_tiles[index], scale);
-            } else
-            if tile.usage == TileUsage::Unused {
-                context.draw2d.draw_tile_mixed(frame, pp, map, context.width, &(x, y), [128, 128, 128, 255], scale);
-            } else {
-                context.draw2d.draw_tile(frame, pp, map, context.width, &(x, y), scale);
-            }
+                let x_step = (x_off as f32 * map.settings.grid_size as f32 * scale) as usize;
+                let y_step = (y_off as f32 * map.settings.grid_size as f32 * scale) as usize;
 
-            if let Some(selection) = context.curr_tile {
-                if x == selection.0 && y == selection.1 {
-                    context.draw2d.draw_rect_outline(frame, &(pp.0, pp.1, scaled_grid_size, scaled_grid_size), context.width, context.color_white);
+                let x = (tile+offset) % x_tiles as usize;
+                let y = (tile+offset) / x_tiles as usize;
+
+                let tile = map.get_tile(&(x, y));
+
+                let pp = &(x_step + self.rect.0 + left_offset, y_step + self.rect.1 + top_offset);
+
+                if tile.anim_tiles.len() > 0 {
+                    let index = anim_counter % tile.anim_tiles.len() as usize;
+                    context.draw2d.draw_tile(frame, pp, map, context.width, &tile.anim_tiles[index], scale);
+                } else
+                if tile.usage == TileUsage::Unused {
+                    context.draw2d.draw_tile_mixed(frame, pp, map, context.width, &(x, y), [128, 128, 128, 255], scale);
                 } else {
-                    if let Some(selection_end) = context.selection_end {
-                        if  y > selection.1 || y == selection.1 && x >= selection.0 { // >=
-                            if  y < selection_end.1 || y == selection_end.1 && x <= selection_end.0 { // <=
-                                context.draw2d.draw_rect_outline(frame, &(pp.0, pp.1, scaled_grid_size, scaled_grid_size), context.width, context.color_white);
+                    context.draw2d.draw_tile(frame, pp, map, context.width, &(x, y), scale);
+                }
+
+                if let Some(selection) = context.curr_tile {
+                    if x == selection.0 && y == selection.1 {
+                        context.draw2d.draw_rect_outline(frame, &(pp.0, pp.1, scaled_grid_size, scaled_grid_size), context.width, context.color_white);
+                    } else {
+                        if let Some(selection_end) = context.selection_end {
+                            if  y > selection.1 || y == selection.1 && x >= selection.0 { // >=
+                                if  y < selection_end.1 || y == selection_end.1 && x <= selection_end.0 { // <=
+                                    context.draw2d.draw_rect_outline(frame, &(pp.0, pp.1, scaled_grid_size, scaled_grid_size), context.width, context.color_white);
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            x_off += 1;
+                x_off += 1;
 
-            if x_off >= screen_x {
-                x_off = 0;
-                y_off += 1;
-                if y_off >= screen_y {
-                    break;
+                if x_off >= screen_x {
+                    x_off = 0;
+                    y_off += 1;
+                    if y_off >= screen_y {
+                        break;
+                    }
                 }
             }
         }
@@ -175,9 +184,15 @@ impl EditorContent for TileMapWidget {
     }
 
     /// Sets a new map index
-    fn set_tilemap_id(&mut self, id: usize) {
+    fn set_tilemap_id(&mut self, id: usize, asset: &mut Asset) {
         self.tilemap_id = id;
         self.line_offset = 0;
+        self.is_image = asset.tileset.images_ids.contains(&id);
+    }
+
+    // Returns true if we show an image
+    fn is_image(&mut self) -> bool {
+        self.is_image
     }
 
     /// Converts a screen position to a map grid position

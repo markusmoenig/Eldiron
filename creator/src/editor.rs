@@ -259,11 +259,13 @@ impl Editor<'_> {
             if key == Some(WidgetKey::Tab) {
                 self.toolbar.widgets[ToolBarButtons::Iterator as usize].next_slider_button_state();
                 if self.state == EditorState::TilesOverview || self.state == EditorState::TilesDetail {
-                    self.content[0].1.as_mut().unwrap().changed_selection(self.context.curr_tileset_index, self.toolbar.widgets[0].curr_index);
-                    self.context.curr_tileset_index = self.toolbar.widgets[0].curr_index;
-                    self.content[1].1.as_mut().unwrap().set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
-                    self.context.curr_tile = None;
-                    self.content[1].0.as_mut().unwrap().set_state(WidgetState::Disabled);
+                    if self.toolbar.widgets[0].text.len() > 1 {
+                        self.content[0].1.as_mut().unwrap().changed_selection(self.context.curr_tileset_index, self.toolbar.widgets[0].curr_index);
+                        self.context.curr_tileset_index = self.toolbar.widgets[0].curr_index;
+                        self.set_asset_id(asset);
+                        self.context.curr_tile = None;
+                        self.content[1].0.as_mut().unwrap().set_state(WidgetState::Disabled);
+                    }
                 } else
                 if self.state == EditorState::RegionOverview || self.state == EditorState::RegionDetail {
                     self.content[2].1.as_mut().unwrap().changed_selection(self.context.curr_region_index, self.toolbar.widgets[0].curr_index);
@@ -561,10 +563,7 @@ impl Editor<'_> {
 
             if state == EditorState::TilesDetail {
                 self.context.curr_graph_type = BehaviorType::Tiles;
-                let active_indices = self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_active_indices();
-                if let Some(index) = active_indices.iter().position(|&r| r == self.context.curr_tileset_index) {
-                    self.content[EditorState::TilesDetail as usize].1.as_mut().unwrap().set_tilemap_id(asset.tileset.maps_ids[index]);
-                }
+                self.set_asset_id(asset);
             } else
             if state == EditorState::RegionDetail {
                 self.context.curr_graph_type = BehaviorType::Regions;
@@ -1051,7 +1050,7 @@ impl Editor<'_> {
                     self.state = EditorState::TilesDetail;
                     self.context.curr_graph_type = BehaviorType::Tiles;
 
-                    self.content[EditorState::TilesDetail as usize].1.as_mut().unwrap().set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
+                    self.set_asset_id(asset);
                 }
 
                 for i in 2..=6 {
@@ -1271,7 +1270,7 @@ impl Editor<'_> {
                 if self.state == EditorState::TilesOverview || self.state == EditorState::TilesDetail {
                     self.content[0].1.as_mut().unwrap().changed_selection(self.context.curr_tileset_index, self.toolbar.widgets[0].curr_index);
                     self.context.curr_tileset_index = self.toolbar.widgets[0].curr_index;
-                    self.content[1].1.as_mut().unwrap().set_tilemap_id(asset.tileset.maps_ids[self.context.curr_tileset_index]);
+                    self.set_asset_id(asset);
                     self.context.curr_tile = None;
                     self.content[1].0.as_mut().unwrap().set_state(WidgetState::Disabled);
                 } else
@@ -1356,9 +1355,8 @@ impl Editor<'_> {
                             let rc = fs_extra::file::copy(p.clone(), dest_path, &fs_extra::file::CopyOptions::new());
 
                             if rc.is_ok() {
-                                if asset.tileset.add(p) {
+                                if asset.tileset.add_tilemap(p) {
 
-                                    println!("{}", asset.tileset.maps_ids.len());
                                     let index = asset.tileset.maps_names.len() - 1;
                                     let name = asset.tileset.maps_names[index].clone();
                                     let mut node = NodeWidget::new(vec![name.clone()], NodeUserData { position: (0,0) });
@@ -1374,11 +1372,42 @@ impl Editor<'_> {
                                     size_atom.atom_data.text = "Grid Size".to_string();
                                     size_atom.atom_data.data = (index as f64, 0.0, 0.0, 0.0, size_text);
                                     size_atom.behavior_id = Some((index, 0, "".to_string()));
-                                    //size_atom.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Hello".to_string()), self.graph_type);
                                     node.widgets.push(size_atom);
+
                                     self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
 
                                     self.toolbar.widgets[0].text.push(name);
+                                    self.toolbar.widgets[0].dirty = true;
+                                }
+                            }
+                        }
+                    }
+                } else
+                if drag_context.text == "Images" {
+                    let res = rfd::FileDialog::new()
+                        .add_filter("PNG", &["png"])
+                        .set_title("Choose Image")
+                        .pick_files();
+
+                    // Add Image
+                    if let Some(paths) = res {
+                        for p in paths {
+
+                            let dest_path = asset.tileset.path.join("assets").join("images").join(p.file_name().unwrap()).clone();
+                            let rc = fs_extra::file::copy(p.clone(), dest_path, &fs_extra::file::CopyOptions::new());
+
+                            if rc.is_ok() {
+                                if asset.tileset.add_image(p) {
+
+                                    let index = asset.tileset.images_names.len() - 1;
+                                    let name = asset.tileset.images_names[index].clone();
+                                    let mut node = NodeWidget::new(vec![name.clone()], NodeUserData { position: (0,0) });
+                                    node.sub_type = NodeSubType::Image;
+
+                                    self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
+
+                                    self.toolbar.widgets[0].text.push(name);
+                                    self.toolbar.widgets[0].dirty = true;
                                 }
                             }
                         }
@@ -1738,6 +1767,13 @@ impl Editor<'_> {
             tile_nodes.push(node);
         }
 
+        for t in &asset.tileset.images_names {
+            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: (0,0) });
+            node.sub_type = NodeSubType::Image;
+
+            tile_nodes.push(node);
+        }
+
         let mut node_graph_tiles = NodeGraph::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Tiles, asset, &self.context);
         node_graph_tiles.set_mode_and_nodes(GraphMode::Overview, tile_nodes, &self.context);
         node_graph_tiles.sub_type = NodeSubType::Tilemap;
@@ -1866,5 +1902,21 @@ impl Editor<'_> {
         self.toolbar.widgets[0].text = asset.tileset.maps_names.clone();
         self.controlbar.widgets[2].state = WidgetState::Normal;
         self.controlbar.widgets[2].dirty = true;
+    }
+
+    /// Switches the asset view to the current asset index
+    fn set_asset_id(&mut self, asset:&mut Asset) {
+        let active_indices = self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_active_indices();
+        if let Some(index) = active_indices.iter().position(|&r| r == self.context.curr_tileset_index) {
+
+            let sub_type = self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_sub_node_type();
+
+            if sub_type == NodeSubType::Tilemap {
+                self.content[EditorState::TilesDetail as usize].1.as_mut().unwrap().set_tilemap_id(asset.tileset.maps_ids[index], asset);
+            } else
+            if sub_type == NodeSubType::Image {
+                self.content[EditorState::TilesDetail as usize].1.as_mut().unwrap().set_tilemap_id(asset.tileset.images_ids[index], asset);
+            }
+        }
     }
 }

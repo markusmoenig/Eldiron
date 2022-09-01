@@ -115,8 +115,11 @@ pub trait EditorContent {
 
     // For TileMapWidget
 
+    // Returns true if we show an image
+    fn is_image(&mut self) -> bool { false }
+
     // Set the current tilemap id
-    fn set_tilemap_id(&mut self, id: usize) {}
+    fn set_tilemap_id(&mut self, id: usize, asset: &mut Asset) {}
 
     /// Converts a screen position to a map grid position
     fn screen_to_map(&self, asset: &Asset, screen_pos: (usize, usize)) -> Option<(usize, usize)> { None }
@@ -236,6 +239,9 @@ pub trait EditorContent {
 
     /// Get the preview widget
     fn get_preview_widget(&mut self) -> Option<&mut NodePreviewWidget> { None }
+
+    /// Get the sub node type
+    fn get_sub_node_type(&mut self) -> NodeSubType { NodeSubType::None }
 
     /// Set the sub type of the node
     fn set_sub_node_type(&mut self, sub_type: NodeSubType, context: &mut ScreenContext) {}

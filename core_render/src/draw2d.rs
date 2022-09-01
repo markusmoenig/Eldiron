@@ -4,7 +4,7 @@ use fontdue::Font;
 
 use colori::{RgbColor, HslColor};
 
-use core_shared::asset::TileMap;
+use core_shared::prelude::*;
 
 #[derive(PartialEq)]
 pub enum TextAlignment {

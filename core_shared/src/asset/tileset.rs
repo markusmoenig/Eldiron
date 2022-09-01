@@ -1,199 +1,26 @@
-use serde::{Deserialize, Serialize};
-//use serde_json::to_string;
+use crate::prelude::*;
 
 use std::fs;
-use std::fs::File;
 use std::path;
 use std::fs::metadata;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use rand::prelude::*;
 
 #[cfg(feature = "embed_binaries")]
 use core_embed_binaries::Embedded;
 
-// Tile implementation
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub enum TileUsage {
-    Unused,
-    Environment,
-    EnvRoad,
-    EnvBlocking,
-    Character,
-    UtilityChar,
-    Water,
-    Effect,
-    Icon,
-    UIElement,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Tile {
-    pub usage               : TileUsage,
-    pub anim_tiles          : Vec<(usize, usize)>,
-    pub tags                : String,
-    pub role                : usize,
-}
-
-// TileMap implementation
-
-#[derive(Serialize, Deserialize)]
-pub struct TileMapSettings {
-    pub grid_size       : usize,
-    #[serde(with = "vectorize")]
-    pub tiles           : HashMap<(usize, usize), Tile>,
-    pub id              : usize,
-    pub default_tile    : Option<(usize, usize)>
-}
-
-pub struct TileMap {
-    pub base_path       : PathBuf,
-    pub pixels          : Vec<u8>,
-    pub file_path       : PathBuf,
-    pub width           : usize,
-    pub height          : usize,
-    pub settings        : TileMapSettings,
-}
-
-impl TileMap {
-    fn new(file_name: &PathBuf, base_path: &PathBuf) -> TileMap {
-
-        fn load(file_name: &PathBuf) -> (Vec<u8>, u32, u32) {
-
-            let decoder = png::Decoder::new(File::open(file_name).unwrap());
-            if let Ok(mut reader) = decoder.read_info() {
-                let mut buf = vec![0; reader.output_buffer_size()];
-                let info = reader.next_frame(&mut buf).unwrap();
-                let bytes = &buf[..info.buffer_size()];
-
-                return (bytes.to_vec(), info.width, info.height);
-            }
-            (vec![], 0 , 0)
-        }
-
-        // Load the atlas pixels
-        let info = load(file_name);
-
-        // Gets the content of the settings file
-        let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
-        let json_path = path::Path::new(base_path).join("assets").join("tilemaps").join( format!("{}{}", name, ".json"));
-        let contents = fs::read_to_string( json_path )
-            .unwrap_or("".to_string());
-
-        // Construct the json settings
-        let settings = serde_json::from_str(&contents)
-            .unwrap_or(TileMapSettings { grid_size: 16, tiles: HashMap::new(), id: thread_rng().gen_range(1..=u32::MAX) as usize, default_tile: None } );
-
-        TileMap {
-            base_path       : base_path.clone(),
-            pixels          : info.0,
-            file_path       : file_name.to_path_buf(),
-            width           : info.1 as usize,
-            height          : info.2 as usize,
-            settings
-        }
-    }
-
-    fn new_from_embedded(file_name: &str) -> TileMap {
-
-        fn load(file_name: &str) -> (Vec<u8>, u32, u32) {
-
-            if let Some(file) = Embedded::get(file_name) {
-
-                let data = std::io::Cursor::new(file.data);
-
-                let decoder = png::Decoder::new(data);
-                if let Ok(mut reader) = decoder.read_info() {
-                    let mut buf = vec![0; reader.output_buffer_size()];
-                    let info = reader.next_frame(&mut buf).unwrap();
-                    let bytes = &buf[..info.buffer_size()];
-
-                    return (bytes.to_vec(), info.width, info.height);
-                }
-            }
-            (vec![], 0 , 0)
-        }
-
-        let info = load(file_name);
-
-        // Gets the content of the settings file
-        let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
-        let json_path = path::Path::new("").join("assets").join("tilemaps").join( format!("{}{}", name, ".json"));
-
-        let mut contents = "".to_string();
-        if let Some(bytes) = Embedded::get(json_path.to_str().unwrap()) {
-            if let Some(string) = std::str::from_utf8(bytes.data.as_ref()).ok() {
-                contents = string.to_string();
-            }
-        }
-
-        // Construct the json settings
-        let settings = serde_json::from_str(&contents)
-            .unwrap_or(TileMapSettings { grid_size: 16, tiles: HashMap::new(), id: thread_rng().gen_range(1..=u32::MAX) as usize, default_tile: None } );
-
-        TileMap {
-            base_path       : PathBuf::new(),
-            pixels          : info.0,
-            file_path       : std::path::Path::new(file_name).to_path_buf(),
-            width           : info.1 as usize,//           : 800,//info.1 as usize,
-            height          : info.2 as usize,//,//info.2 as usize,
-            settings
-        }
-    }
-
-    /// Get the tile for the given id
-    pub fn get_tile(&self, tile_id: &(usize, usize)) -> Tile {
-        if let Some(t) = self.settings.tiles.get(&tile_id) {
-            Tile { usage: t.usage.clone(), anim_tiles: t.anim_tiles.clone(), tags: t.tags.clone(), role: t.role.clone() }
-        } else {
-            Tile { usage: TileUsage::Environment, anim_tiles: vec![], tags: "".to_string(), role: 0 }
-        }
-    }
-
-    /// Set the tile for the given id
-    pub fn set_tile(&mut self, tile_id: (usize, usize), tile: Tile) {
-        self.settings.tiles.insert(tile_id, tile);
-    }
-
-    /// Returns the name of the tilemap
-    pub fn get_name(&self) -> String {
-        path::Path::new(&self.file_path).file_stem().unwrap().to_str().unwrap().to_string()
-    }
-
-    /// Save the TileMapSettings to file
-    pub fn save_settings(&self) {
-        let name = path::Path::new(&self.file_path).file_stem().unwrap().to_str().unwrap();
-        let json_path = self.base_path.join("assets").join("tilemaps").join( format!("{}{}", name, ".json"));
-
-        let json = serde_json::to_string(&self.settings).unwrap();
-        fs::write(json_path, json)
-           .expect("Unable to write file");
-    }
-
-    /// Returns the amount of tiles for this tilemap
-    pub fn max_tiles(&self) -> usize {
-        (self.width / self.settings.grid_size) * (self.height / self.settings.grid_size)
-    }
-
-    /// Returns the amount of tiles per row
-    pub fn max_tiles_per_row(&self) -> usize {
-        self.width / self.settings.grid_size
-    }
-
-    /// Returns the amount of tiles for this tilemap
-    pub fn offset_to_id(&self, offset: usize) -> (usize, usize) {
-        (offset % (self.width / self.settings.grid_size), offset / (self.width / self.settings.grid_size))
-    }
-}
-
 /// The TileSet struct consists of several TileMaps, each representing one atlas and it's tiles.
 pub struct TileSet {
     pub path            : PathBuf,
+
     pub maps            : HashMap<usize, TileMap>,
     pub maps_names      : Vec<String>,
     pub maps_ids        : Vec<usize>,
+
+    pub images          : HashMap<usize, Image>,
+    pub images_names    : Vec<String>,
+    pub images_ids      : Vec<usize>,
 }
 
 impl TileSet {
@@ -203,8 +30,6 @@ impl TileSet {
         let mut maps : HashMap<usize, TileMap> = HashMap::new();
 
         let tilemaps_path = base_path.join("assets").join("tilemaps");
-        //let paths = fs::read_dir(tilemaps_path).unwrap();
-
         let mut paths: Vec<_> = fs::read_dir(tilemaps_path.clone()).unwrap()
                                                 .map(|r| r.unwrap())
                                                 .collect();
@@ -258,11 +83,70 @@ impl TileSet {
             }
         }
 
+        let mut images : HashMap<usize, Image> = HashMap::new();
+
+        let images_path = base_path.join("assets").join("images");
+        let mut paths: Vec<_> = fs::read_dir(images_path.clone()).unwrap()
+                                                .map(|r| r.unwrap())
+                                                .collect();
+        paths.sort_by_key(|dir| dir.path());
+
+        let mut images_names  : Vec<String> = vec![];
+        let mut images_ids    : Vec<usize> = vec![];
+
+        for path in paths {
+
+            // Generate the tile map for this dir element
+            let path = &path.path();
+            let md = metadata(path).unwrap();
+
+            if md.is_file() {
+                if let Some(name) = path::Path::new(&path).extension() {
+                    if name == "png" || name == "PNG" {
+
+                        let mut image = Image::new(&path, &base_path);
+                        if image.width != 0 {
+                            images_names.push(image.get_name());
+
+                            // Make sure we create a unique id (check if the id already exists in the set)
+                            let mut has_id_already = true;
+                            while has_id_already {
+
+                                has_id_already = false;
+                                for (key, _value) in &maps {
+                                    if key == &image.settings.id {
+                                        has_id_already = true;
+                                    }
+                                }
+
+                                if has_id_already {
+                                    image.settings.id += 1;
+                                }
+                            }
+
+                            images_ids.push(image.settings.id);
+
+                            // If the tilemap has no tiles we assume it's new and we save the settings
+                            if image.settings.tiles.len() == 0 {
+                                image.save_settings();
+                            }
+
+                            // Insert the tilemap
+                            images.insert(image.settings.id, image);
+                        }
+                    }
+                }
+            }
+        }
+
         TileSet {
             path        : base_path,
             maps,
             maps_names,
-            maps_ids
+            maps_ids,
+            images,
+            images_names,
+            images_ids
         }
     }
 
@@ -291,11 +175,36 @@ impl TileSet {
             }
         }
 
+        let mut images : HashMap<usize, Image> = HashMap::new();
+        let mut images_names  : Vec<String> = vec![];
+        let mut images_ids    : Vec<usize> = vec![];
+
+        for file in Embedded::iter() {
+            let name = file.as_ref();
+            let path = std::path::Path::new(name);
+            if let Some(extension) = path.extension() {
+
+                if name.starts_with("assets/images/") && (extension == "png" || extension == "PNG") {
+
+                    let image = Image::new_from_embedded(name);
+                    if image.width != 0 {
+                        images_names.push(image.get_name());
+                        images_ids.push(image.settings.id);
+
+                        images.insert(image.settings.id, image);
+                    }
+                }
+            }
+        }
+
         TileSet {
             path            : PathBuf::new(),
             maps,
             maps_names,
-            maps_ids
+            maps_ids,
+            images,
+            images_names,
+            images_ids
         }
     }
 
@@ -305,16 +214,23 @@ impl TileSet {
         let maps_names      : Vec<String> = vec![];
         let maps_ids        : Vec<usize> = vec![];
 
+        let images          : HashMap<usize, Image> = HashMap::new();
+        let images_names    : Vec<String> = vec![];
+        let images_ids      : Vec<usize> = vec![];
+
         Self {
             path            : PathBuf::new(),
             maps,
             maps_names,
-            maps_ids
+            maps_ids,
+            images,
+            images_names,
+            images_ids
         }
     }
 
     /// Add a tilemap from the given path
-    pub fn add(&mut self, path: PathBuf) -> bool {
+    pub fn add_tilemap(&mut self, path: PathBuf) -> bool {
         // Generate the tile map for this dir element
         let md = metadata(path.clone()).unwrap();
 
@@ -358,4 +274,49 @@ impl TileSet {
         }
         false
     }
+
+    /// Add a tilemap from the given path
+    pub fn add_image(&mut self, path: PathBuf) -> bool {
+        let md = metadata(path.clone()).unwrap();
+        if md.is_file() {
+            if let Some(name) = path::Path::new(&path).extension() {
+                if name == "png" || name == "PNG" {
+
+                    let mut image = Image::new(&path, &self.path);
+                    if image.width != 0 {
+                        self.images_names.push(image.get_name());
+
+                        // Make sure we create a unique id (check if the id already exists in the set)
+                        let mut has_id_already = true;
+                        while has_id_already {
+
+                            has_id_already = false;
+                            for (key, _value) in &self.maps {
+                                if key == &image.settings.id {
+                                    has_id_already = true;
+                                }
+                            }
+
+                            if has_id_already {
+                                image.settings.id += 1;
+                            }
+                        }
+
+                        self.images_ids.push(image.settings.id);
+
+                        // If the tilemap has no tiles we assume it's new and we save the settings
+                        if image.settings.tiles.len() == 0 {
+                            image.save_settings();
+                        }
+
+                        // Insert the tilemap
+                        self.images.insert(image.settings.id, image);
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
 }

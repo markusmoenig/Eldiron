@@ -1292,11 +1292,13 @@ impl AtomWidget {
 
     /// Sets the next slider button state
     pub fn next_slider_button_state(&mut self) {
-        if self.curr_index < self.text.len() - 1 {
-            self.curr_index += 1;
-        } else {
-            self.curr_index = 0;
+        if self.text.len() > 1 {
+            if self.curr_index < self.text.len() - 1 {
+                self.curr_index += 1;
+            } else {
+                self.curr_index = 0;
+            }
+            self.dirty = true;
         }
-        self.dirty = true;
     }
 }

@@ -10,6 +10,10 @@ pub mod undo;
 
 pub mod prelude {
     pub use crate::asset::*;
+    pub use crate::asset::tilemap::*;
+    pub use crate::asset::tileset::*;
+    pub use crate::asset::image::*;
+
     pub use crate::actions::*;
     pub use crate::regiondata::*;
     pub use crate::characterdata::*;
@@ -21,4 +25,5 @@ pub mod prelude {
 
     pub use uuid::Uuid;
     pub use std::collections::HashMap;
+    pub use serde::{Deserialize, Serialize};
 }

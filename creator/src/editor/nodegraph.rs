@@ -801,7 +801,7 @@ impl EditorContent for NodeGraph  {
 
             let mut widget_index = 0;
             if self.graph_type == BehaviorType::Tiles {
-                if self.nodes[context.curr_tileset_index].sub_type == NodeSubType::Tilemap {
+                if self.nodes[context.curr_tileset_index].sub_type == NodeSubType::Tilemap || self.nodes[context.curr_tileset_index].sub_type == NodeSubType::Image {
                     context.switch_editor_state = Some(super::EditorState::TilesDetail);
                     widget_index = 1;
                 } else {
@@ -1971,7 +1971,12 @@ impl EditorContent for NodeGraph  {
         None
     }
 
-    /// Se the sub type
+    /// Get the sub type
+    fn get_sub_node_type(&mut self) -> NodeSubType {
+        self.sub_type
+    }
+
+    /// Set the sub type
     fn set_sub_node_type(&mut self, sub_type: NodeSubType, context: &mut ScreenContext) {
         self.sub_type = sub_type;
         self.sort(context);
