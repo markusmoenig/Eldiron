@@ -190,6 +190,7 @@ impl TileMap {
 
 /// The TileSet struct consists of several TileMaps, each representing one atlas and it's tiles.
 pub struct TileSet {
+    pub path            : PathBuf,
     pub maps            : HashMap<usize, TileMap>,
     pub maps_names      : Vec<String>,
     pub maps_ids        : Vec<usize>,
@@ -204,7 +205,7 @@ impl TileSet {
         let tilemaps_path = base_path.join("assets").join("tilemaps");
         //let paths = fs::read_dir(tilemaps_path).unwrap();
 
-        let mut paths: Vec<_> = fs::read_dir(tilemaps_path).unwrap()
+        let mut paths: Vec<_> = fs::read_dir(tilemaps_path.clone()).unwrap()
                                                 .map(|r| r.unwrap())
                                                 .collect();
         paths.sort_by_key(|dir| dir.path());
@@ -258,6 +259,7 @@ impl TileSet {
         }
 
         TileSet {
+            path        : base_path,
             maps,
             maps_names,
             maps_ids
@@ -290,6 +292,7 @@ impl TileSet {
         }
 
         TileSet {
+            path            : PathBuf::new(),
             maps,
             maps_names,
             maps_ids
@@ -298,14 +301,61 @@ impl TileSet {
 
     pub fn new() -> Self {
 
-        let maps        : HashMap<usize, TileMap> = HashMap::new();
-        let maps_names  : Vec<String> = vec![];
-        let maps_ids    : Vec<usize> = vec![];
+        let maps            : HashMap<usize, TileMap> = HashMap::new();
+        let maps_names      : Vec<String> = vec![];
+        let maps_ids        : Vec<usize> = vec![];
 
         Self {
+            path            : PathBuf::new(),
             maps,
             maps_names,
             maps_ids
         }
+    }
+
+    /// Add a tilemap from the given path
+    pub fn add(&mut self, path: PathBuf) -> bool {
+        // Generate the tile map for this dir element
+        let md = metadata(path.clone()).unwrap();
+
+        if md.is_file() {
+            if let Some(name) = path::Path::new(&path).extension() {
+                if name == "png" || name == "PNG" {
+
+                    let mut tile_map = TileMap::new(&path, &self.path);
+                    if tile_map.width != 0 {
+                        self.maps_names.push(tile_map.get_name());
+
+                        // Make sure we create a unique id (check if the id already exists in the set)
+                        let mut has_id_already = true;
+                        while has_id_already {
+
+                            has_id_already = false;
+                            for (key, _value) in &self.maps {
+                                if key == &tile_map.settings.id {
+                                    has_id_already = true;
+                                }
+                            }
+
+                            if has_id_already {
+                                tile_map.settings.id += 1;
+                            }
+                        }
+
+                        self.maps_ids.push(tile_map.settings.id);
+
+                        // If the tilemap has no tiles we assume it's new and we save the settings
+                        if tile_map.settings.tiles.len() == 0 {
+                            tile_map.save_settings();
+                        }
+
+                        // Insert the tilemap
+                        self.maps.insert(tile_map.settings.id, tile_map);
+                        return true;
+                    }
+                }
+            }
+        }
+        false
     }
 }
