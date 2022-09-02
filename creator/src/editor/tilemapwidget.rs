@@ -10,7 +10,9 @@ pub struct TileMapWidget {
     line_offset             : isize,
     max_line_offset         : usize,
 
-    mouse_wheel_delta       : isize,
+    image_offset            : (isize, isize),
+
+    mouse_wheel_delta       : (isize, isize),
 
     is_image                : bool,
 }
@@ -29,7 +31,9 @@ impl EditorContent for TileMapWidget {
             line_offset             : 0,
             max_line_offset         : 0,
 
-            mouse_wheel_delta       : 0,
+            image_offset            : (0, 0),
+
+            mouse_wheel_delta       : (0, 0),
 
             is_image                : false,
         }
@@ -46,6 +50,39 @@ impl EditorContent for TileMapWidget {
 
         if self.is_image {
             if asset.tileset.images.is_empty() { return }
+
+            let image = &asset.tileset.images[&self.tilemap_id];
+            let source = &image.pixels[..];
+
+            //pub fn blend_slice_safe(&self, dest: &mut [u8], source: &[u8], rect: &(isize, isize, usize, usize), dest_stride: usize, safe_rect: &(usize, usize, usize, usize)) {
+
+            //context.draw2d.blend_slice_safe(frame, &image.pixels[..], &(self.rect.0 as isize + self.image_offset.0, self.rect.1 as isize - self.image_offset.1, image.width, image.height), context.width, &(self.rect.0, self.rect.1, self.rect.2, self.rect.3));
+
+            let rect = (self.rect.0 as isize + self.image_offset.0, self.rect.1 as isize - self.image_offset.1, image.width, image.height);
+            let safe_rect = (self.rect.0, self.rect.1, self.rect.2, self.rect.3);
+
+            let dest_stride_isize = context.width as isize;
+            for y in 0..rect.3 as isize {
+                let d = rect.0 * 4 + (y + rect.1) * dest_stride_isize * 4;
+                let s = y * (rect.2 as isize) * 4;
+
+                // TODO: Make this faster
+
+                if (y + rect.1 as isize) >= safe_rect.1 as isize && (y + rect.1 as isize) < (safe_rect.1 + safe_rect.3) as isize {
+                    for x in 0..rect.2 as isize {
+
+                        if (x + rect.0 as isize) >= safe_rect.0 as isize && (x + rect.0 as isize) < (safe_rect.0 + safe_rect.2) as isize {
+                            let dd = (d + x * 4) as usize;
+                            let ss = (s + x * 4) as usize;
+
+                            //let background = &[frame[dd], frame[dd+1], frame[dd+2], frame[dd+3]];
+                            let color = &[source[ss], source[ss+1], source[ss+2], source[ss+3]];
+                            //frame[dd..dd + 4].copy_from_slice(&self.mix_color(&background, &color, (color[3] as f64) / 255.0));
+                            frame[dd..dd + 4].copy_from_slice(color);
+                        }
+                    }
+                }
+            }
 
         } else {
             if asset.tileset.maps.is_empty() { return }
@@ -175,11 +212,24 @@ impl EditorContent for TileMapWidget {
     }
 
     fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
-        let grid_size = 32_isize;
-        self.mouse_wheel_delta += delta.1;
-        self.line_offset += self.mouse_wheel_delta / grid_size as isize;
-        self.line_offset = self.line_offset.clamp(0, self.max_line_offset as isize);
-        self.mouse_wheel_delta -= (self.mouse_wheel_delta / grid_size) * grid_size;
+        if self.is_image {
+            let grid_size = 32_isize;
+            self.mouse_wheel_delta.0 += delta.0;
+            self.mouse_wheel_delta.1 += delta.1;
+
+            self.image_offset.0 -= self.mouse_wheel_delta.0 / grid_size as isize;
+            self.image_offset.1 -= self.mouse_wheel_delta.1 / grid_size as isize;
+            //self.image_offset.1 = self.image_offset.1.clamp(0, self.max_line_offset as isize);
+
+            self.mouse_wheel_delta.0 -= (self.mouse_wheel_delta.0 / grid_size) * grid_size;
+            self.mouse_wheel_delta.1 -= (self.mouse_wheel_delta.1 / grid_size) * grid_size;
+        } else {
+            let grid_size = 32_isize;
+            self.mouse_wheel_delta.1 += delta.1;
+            self.line_offset -= self.mouse_wheel_delta.1 / grid_size as isize;
+            self.line_offset = self.line_offset.clamp(0, self.max_line_offset as isize);
+            self.mouse_wheel_delta.1 -= (self.mouse_wheel_delta.1 / grid_size) * grid_size;
+        }
         true
     }
 
