@@ -104,7 +104,9 @@ fn main() -> Result<(), Error> {
         use winit::event::{ElementState, VirtualKeyCode};
 
         if let Event::RedrawRequested(_) = event {
+            // let start = get_time();
             editor.draw(pixels.get_frame(), anim_counter, &mut asset);
+            // println!("Time: {}", get_time() - start);
             if pixels
                 .render()
                 .map_err(|e| error!("pixels.render() failed: {}", e))

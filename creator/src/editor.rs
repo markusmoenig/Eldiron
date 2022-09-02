@@ -1636,7 +1636,7 @@ impl Editor<'_> {
         let mut consumed = false;
 
         if self.context.code_editor_is_active && self.context.contains_pos_for(self.mouse_hover_pos, self.code_editor.rect) {
-            self.code_editor.mouse_wheel(delta, asset, &mut self.context);
+            return self.code_editor.mouse_wheel(delta, asset, &mut self.context);
         } else {
             let index = self.state as usize;
             let mut options : Option<Box<dyn EditorOptions>> = None;
