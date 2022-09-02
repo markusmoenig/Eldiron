@@ -7,7 +7,6 @@ pub mod nodes_utilities;
 pub mod nodes_behavior;
 pub mod nodes_area;
 pub mod nodes_game;
-pub mod scope_buffer;
 pub mod script_utilities;
 
 use crossbeam_channel::{ Sender, Receiver, unbounded };

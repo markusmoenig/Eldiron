@@ -22,6 +22,7 @@ log = "0.4"
 console_log = "0.2"
 cpal = "0.13.5"
 colors-transform = "0.2.11"
+rhai = "*"
 
 [features]
 default = ["embed_binaries"]

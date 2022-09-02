@@ -519,9 +519,7 @@ impl Editor<'_> {
                             self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context, Some(debug));
                         },
                         Message::PlayerUpdate(_uuid, update) => {
-                            if let Some(preview)  = self.content[self.state as usize].1.as_mut().unwrap().get_preview_widget() {
-                                preview.debug_update(update);
-                            }
+                            self.content[self.state as usize].1.as_mut().unwrap().debug_update(update);
                         },
                         _ => {}
                     }
@@ -533,7 +531,7 @@ impl Editor<'_> {
         if self.context.just_stopped_running {
 
             self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context, None);
-            self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_dirty();
+            self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().debugging_stopped();
 
             if let Some(preview) = self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().get_preview_widget() {
                 preview.dirty = true;

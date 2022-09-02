@@ -36,6 +36,9 @@ pub struct GameUpdate {
 
     /// Audio files to play
     pub audio                   : Vec<String>,
+
+    /// Scope
+    pub scope_buffer            : ScopeBuffer,
 }
 
 impl GameUpdate {
@@ -56,6 +59,7 @@ impl GameUpdate {
             characters          : vec![],
             messages            : vec![],
             audio               : vec![],
+            scope_buffer        : ScopeBuffer::new(),
         }
     }
 }

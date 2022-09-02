@@ -240,6 +240,12 @@ pub trait EditorContent {
     /// Get the preview widget
     fn get_preview_widget(&mut self) -> Option<&mut NodePreviewWidget> { None }
 
+    /// A game debug update
+    fn debug_update(&mut self, update: GameUpdate) {}
+
+    /// Debugging stopped
+    fn debugging_stopped(&mut self) {}
+
     /// Get the sub node type
     fn get_sub_node_type(&mut self) -> NodeSubType { NodeSubType::None }
 

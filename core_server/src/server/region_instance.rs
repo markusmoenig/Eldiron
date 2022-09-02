@@ -355,6 +355,7 @@ impl RegionInstance<'_> {
                 let mut characters    : Vec<CharacterData> = vec![];
                 let mut displacements : HashMap<(isize, isize), TileData> = HashMap::new();
                 let mut lights        : Vec<Light> = vec![];
+                let mut scope_buffer  = ScopeBuffer::new();
 
                 let mut needs_transfer_to: Option<usize> = None;
                 if let Some(position) = self.instances[inst_index].position {
@@ -379,6 +380,8 @@ impl RegionInstance<'_> {
                     if self.lights.contains_key(&position.0) {
                         lights = self.lights[&position.0].clone();
                     }
+
+                    scope_buffer.read_from_scope(&self.scopes[inst_index]);
                 }
 
                 let update = GameUpdate{
@@ -395,11 +398,15 @@ impl RegionInstance<'_> {
                     characters,
                     messages                : self.instances[inst_index].messages.clone(),
                     audio                   : self.instances[inst_index].audio.clone(),
+                    scope_buffer            : scope_buffer,
                  };
 
                 //self.instances[inst_index].update = serde_json::to_string(&update).ok();
                 if let Some(transfer_to) = needs_transfer_to {
-                    self.instances[inst_index].scope_buffer = Some(ScopeBuffer::new(&self.scopes[inst_index]));
+                    let mut scope_buffer = ScopeBuffer::new();
+                    scope_buffer.read_from_scope(&self.scopes[inst_index]);
+
+                    self.instances[inst_index].scope_buffer = Some(scope_buffer);
                     messages.push(Message::TransferCharacter(transfer_to, self.instances[inst_index].clone()));
                     self.purge_instance(inst_index);
                 }
@@ -1012,7 +1019,7 @@ impl RegionInstance<'_> {
         self.player_uuid_indices.insert(instance.id, self.instances.len());
         let mut scope = rhai::Scope::new();
         if let Some(buffer) = &instance.scope_buffer {
-            fill_scope_from_buffer(&mut scope, buffer);
+            buffer.write_to_scope(&mut scope);
         }
         self.instances.push(instance);
         self.scopes.push(scope);

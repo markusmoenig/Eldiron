@@ -272,7 +272,7 @@ impl PropertySink {
         for p in & self.properties {
             if let Some(desc) = descriptions.get(&p.name) {
                 for s in desc {
-                    let add = "// ".to_string() + s + "\n";
+                    let add = "// ".to_string() + s.as_str() + "\n";
                     string += add.as_str();
                 }
             }

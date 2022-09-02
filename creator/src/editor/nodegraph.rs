@@ -40,7 +40,7 @@ pub struct NodeGraph  {
     behavior_debug_data         : Option<BehaviorDebugData>,
 
     pub sub_type                : NodeSubType,
-    pub active_indices          : Vec<usize>
+    pub active_indices          : Vec<usize>,
 }
 
 impl EditorContent for NodeGraph  {
@@ -127,19 +127,6 @@ impl EditorContent for NodeGraph  {
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
         let safe_rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
-
-        // Stopped running ?
-        if context.just_stopped_running {
-            // If preview just stopped running, mark all variables as dirty (as they may have changed)
-            for index in 0..self.nodes.len() {
-                if self.nodes[index].widgets.len() == 1 && self.nodes[index].widgets[0].atom_widget_type == AtomWidgetType::NodeNumberButton {
-                    self.nodes[index].dirty = true;
-                    self.nodes[index].widgets[0].dirty = true;
-                    self.dirty = true;
-                }
-            }
-            self.behavior_debug_data = None;
-        }
 
         if self.dirty {
             context.draw2d.draw_square_pattern(&mut self.buffer[..], &safe_rect, safe_rect.2, &[44, 44, 46, 255], &[56, 56, 56, 255], 40);
@@ -260,28 +247,11 @@ impl EditorContent for NodeGraph  {
                 }
 
                 for index in 0..variables.len() {
-
                     let vindex = variables[index];
-
-                    // If the preview is running, check if this node represents a variable which has been changed
-                    // And if yes, marks it for redraw
-                    /* TODO
-                    if context.is_running {
-                        for i in 0..context.data.changed_variables.len() {
-                            if context.data.changed_variables[i].2 == self.nodes[vindex].id {
-                                self.nodes[vindex].dirty = true;
-                                for w in 0..self.nodes[vindex].widgets.len() {
-                                    self.nodes[vindex].widgets[w].dirty = true;
-                                }
-                            }
-                        }
-                    }*/
-
                     if self.nodes[vindex].dirty {
                         let selected = if Some(self.nodes[index].id) == self.get_curr_node_id(context) { true } else { false };
                         self.nodes[vindex].draw(frame, anim_counter, asset, context, selected);
                     }
-
                     let rect= self.get_node_rect(vindex, true);
                     self.nodes[vindex].graph_offset = (rect.0, rect.1);
                     self.nodes[vindex].graph_offset = (rect.0, rect.1);
@@ -1969,6 +1939,41 @@ impl EditorContent for NodeGraph  {
             return behavior.data.curr_node_id;
         }
         None
+    }
+
+    /// A game debug update
+    fn debug_update(&mut self, update: GameUpdate) {
+
+        // Update the variables
+        for index in 0..self.nodes.len() {
+            if self.nodes[index].is_variable_node {
+                if let Some(v) = update.scope_buffer.floats.get(&self.nodes[index].text[0]) {
+                    self.nodes[index].widgets[0].debug_value = Some(*v);
+                    self.nodes[index].widgets[0].dirty = true;
+                    self.nodes[index].dirty = true;
+                    self.dirty = true;
+                }
+            }
+        }
+
+        // Update the preview
+        if let Some(preview) = &mut self.preview {
+            preview.debug_update(update);
+        }
+    }
+
+    /// Debugging stopped
+    fn debugging_stopped(&mut self) {
+        // If preview just stopped running, mark all variables as dirty (as they may have changed)
+        for index in 0..self.nodes.len() {
+            if self.nodes[index].widgets.len() == 1 && self.nodes[index].widgets[0].atom_widget_type == AtomWidgetType::NodeNumberButton {
+                self.nodes[index].dirty = true;
+                self.nodes[index].widgets[0].dirty = true;
+                self.nodes[index].widgets[0].debug_value = None;
+                self.dirty = true;
+            }
+        }
+        self.behavior_debug_data = None;
     }
 
     /// Get the sub type

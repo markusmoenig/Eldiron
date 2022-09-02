@@ -627,6 +627,7 @@ dependencies = [
  "log",
  "png",
  "rand",
+ "rhai",
  "serde",
  "serde_json",
  "uuid",

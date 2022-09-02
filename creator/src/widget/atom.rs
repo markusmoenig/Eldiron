@@ -15,7 +15,7 @@ struct GroupItem {
 pub struct AtomData {
     pub text                    : String,
     pub id                      : String,
-    pub data                    : (f64, f64, f64, f64, String)
+    pub data                    : (f64, f64, f64, f64, String),
 }
 
 impl AtomData {
@@ -25,7 +25,7 @@ impl AtomData {
         Self {
             text                : "".to_string(),
             id                  : id,
-            data                : (value as f64,0.0,0.0,0.0, "".to_string())
+            data                : (value as f64,0.0,0.0,0.0, "".to_string()),
         }
     }
 
@@ -34,7 +34,7 @@ impl AtomData {
         Self {
             text                : "".to_string(),
             id                  : id,
-            data                : (value as f64, min as f64, max as f64, step as f64, "".to_string())
+            data                : (value as f64, min as f64, max as f64, step as f64, "".to_string()),
         }
     }
 }
@@ -121,6 +121,8 @@ pub struct AtomWidget {
     pub hover_help_text         : Option<String>,
 
     pub button_mask             : Option<Vec<bool>>,
+
+    pub debug_value             : Option<f64>,
 }
 
 impl AtomWidget {
@@ -168,6 +170,8 @@ impl AtomWidget {
             hover_help_text     : None,
 
             button_mask         : None,
+
+            debug_value         : None,
         }
     }
 
@@ -397,19 +401,19 @@ impl AtomWidget {
 
                 let fill_color = if self.state == WidgetState::Clicked { context.color_light_orange } else { context.color_orange };
 
-                let v = self.atom_data.data.0.round();
+                let mut v = self.atom_data.data.0.round();
 
-                /* TODO chamge this system to the new server layout
-                if context.is_running  {
-                    if let Some(my_id) = &self.behavior_id {
-                        for index in 0..context.data.changed_variables.len() {
-                            if context.data.changed_variables[index].1 == my_id.0 && context.data.changed_variables[index].2 == my_id.1 {
-                                v = context.data.changed_variables[index].3;
-                            }
-                        }
-                    }
+                /* TODO chamge this system to the new server layout */
+                if context.is_running && self.debug_value.is_some() {
+                    // if let Some(my_id) = &self.behavior_id {
+                    //     for index in 0..context.data.changed_variables.len() {
+                    //         if context.data.changed_variables[index].1 == my_id.0 && context.data.changed_variables[index].2 == my_id.1 {
+                    //             v = context.data.changed_variables[index].3;
+                    //         }
+                    //     }
+                    // }
+                    v = self.debug_value.unwrap();
                 }
-                */
 
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &fill_color, 1.5);
 
