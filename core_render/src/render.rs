@@ -38,7 +38,7 @@ pub struct GameRender<'a> {
 
     pub messages                : Vec<MessageData>,
 
-    pub last_position           : (usize, isize, isize),
+    pub last_position           : Position,
     pub transition_steps        : isize,
     pub transition_counter      : isize,
     pub transition_active       : bool,
@@ -118,7 +118,7 @@ impl GameRender<'_> {
 
             messages            : vec![],
 
-            last_position       : (100000, 0, 0),
+            last_position       : Position::new(Uuid::new_v4(), 0, 0),
             transition_steps    : 5,
             transition_counter  : 0,
             transition_active   : false,
@@ -429,21 +429,21 @@ impl GameRender<'_> {
     }
 
     pub fn process_game_draw(&mut self, rect: (usize, usize, usize, usize), anim_counter: usize, update: &GameUpdate, external_frame: &mut Option<&mut [u8]>, stride: usize) {
-        if let Some(position) = update.position {
+        if let Some(position) = update.position.clone(){
 
             if self.transition_active == false {
-                if position.0 != self.last_position.0 && self.last_position.0 != 100000 {
+                if position.map != self.last_position.map {//TODO && self.last_position.map != 100000 {
                     // Start transition
                     self.transition_active = true;
                     self.transition_counter = 1;
                     self.transition_steps = 6;
                 } else {
-                    self.last_position = position;
+                    self.last_position = position.clone();
                 }
             }
 
             if self.transition_active {
-                self.draw_game_rect(rect, self.last_position, anim_counter, update, None, external_frame, stride);
+                self.draw_game_rect(rect, self.last_position.clone(), anim_counter, update, None, external_frame, stride);
 
                 let mut r = rect.clone();
 
@@ -462,22 +462,22 @@ impl GameRender<'_> {
                     }
                 }
 
-                self.draw_game_rect(rect, position, anim_counter, update, Some(set), external_frame, stride);
+                self.draw_game_rect(rect, position.clone(), anim_counter, update, Some(set), external_frame, stride);
 
                 self.transition_counter += 1;
                 if self.transition_counter == self.transition_steps {
                     self.transition_active = false;
-                    self.last_position = position;
+                    self.last_position = position.clone();
                 }
             } else
             if self.transition_active == false {
-                self.draw_game_rect(rect, position, anim_counter, update, None, external_frame, stride);
+                self.draw_game_rect(rect, position.clone(), anim_counter, update, None, external_frame, stride);
             }
         }
     }
 
     /// Draws the game in the given rect
-    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), cposition: (usize, isize, isize), anim_counter: usize, update: &GameUpdate, set: Option<HashSet<(isize, isize)>>, external_frame: &mut Option<&mut [u8]>, stride: usize) {
+    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), cposition: Position, anim_counter: usize, update: &GameUpdate, set: Option<HashSet<(isize, isize)>>, external_frame: &mut Option<&mut [u8]>, stride: usize) {
         /*
         self.draw2d.scissor = Some(rect);
 
