@@ -119,10 +119,10 @@ pub struct BehaviorInstance {
     pub alignment               : i64,
 
     // The behavior id for this instance
-    pub behavior_id             : usize,
+    pub behavior_id             : Uuid,
 
     // The current systems id
-    pub systems_id              : usize,
+    pub systems_id              : Uuid,
 
     // The ids of the behavior tree nodes for this instance
     pub tree_ids                : Vec<Uuid>,
@@ -134,7 +134,7 @@ pub struct BehaviorInstance {
     // This is for serialization only / deserialization only, not used at runtime
     pub scope_buffer            : Option<ScopeBuffer>,
 
-    // An instance id of the entity we are currently interacting with
+    // An instance index of the entity we are currently interacting with
     pub target_instance_index   : Option<usize>,
 
     // The number of ticks this instance is skipping
@@ -229,7 +229,7 @@ impl GameBehaviorData {
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct BehaviorDebugData {
     //pub messages                    : Vec<(String, MessageType)>,
-    pub executed_connections        : Vec<(BehaviorType, usize, BehaviorNodeConnector)>,
+    pub executed_connections        : Vec<(BehaviorType, Uuid, BehaviorNodeConnector)>,
 }
 
 pub struct GameBehavior {

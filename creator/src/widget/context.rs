@@ -99,7 +99,7 @@ pub struct ScreenContext<'a> {
     pub code_editor_update_node         : bool,
     pub code_editor_value               : String,
     pub code_editor_node_behavior_id    : (Uuid, Uuid, String),
-    pub code_editor_node_behavior_value : (f64, f64, f64, f64, String),
+    pub code_editor_node_behavior_value : Value,
     pub code_editor_error               : Option<(String, Option<usize>)>,
 
     pub active_position_id              : Option<(Uuid, Uuid, String)>,
@@ -303,7 +303,7 @@ impl ScreenContext<'_> {
             code_editor_update_node          : false,
             code_editor_value                : "".to_string(),
             code_editor_node_behavior_id     : (Uuid::new_v4(), Uuid::new_v4(), "".to_string()),
-            code_editor_node_behavior_value  : (0.0, 0.0, 0.0, 0.0, "".to_string()),
+            code_editor_node_behavior_value  : Value::Empty(),
             code_editor_error                : None,
 
             active_position_id          : None,
@@ -472,6 +472,21 @@ impl ScreenContext<'_> {
         self.dialog_value = value;
         self.dialog_height = 0;
         self.target_fps = 60;
+    }
+
+    /// Opens the position dialog
+    pub fn open_code_editor(&mut self, id: (Uuid, Uuid, String), value: Value, anim: bool) {
+        if anim {
+            if self.code_editor_state != CodeEditorWidgetState::Open {
+                self.code_editor_state = CodeEditorWidgetState::Opening;
+                self.code_editor_visible_y = 0;
+                self.target_fps = 60;
+            }
+        }
+        self.code_editor_node_behavior_id = id;
+        self.code_editor_node_behavior_value = value;
+        self.code_editor_is_active = true;
+        self.code_editor_just_opened = true;
     }
 
     /// Creates a property id

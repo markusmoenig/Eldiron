@@ -8,15 +8,15 @@ pub struct RegionInstance<'a> {
     pub region_data                 : GameRegionData,
     pub region_behavior             : Vec<GameBehaviorData>,
 
-    pub behaviors                   : HashMap<usize, GameBehaviorData>,
-    pub systems                     : HashMap<usize, GameBehaviorData>,
-    pub items                       : HashMap<usize, GameBehaviorData>,
+    pub behaviors                   : HashMap<Uuid, GameBehaviorData>,
+    pub systems                     : HashMap<Uuid, GameBehaviorData>,
+    pub items                       : HashMap<Uuid, GameBehaviorData>,
     pub game_data                   : GameBehaviorData,
 
     // For faster lookup
     pub system_names                : Vec<String>,
-    pub system_ids                  : Vec<usize>,
-    pub area_ids                    : Vec<usize>,
+    pub system_ids                  : Vec<Uuid>,
+    pub area_ids                    : Vec<Uuid>,
 
     // All nodes
     nodes                           : HashMap<BehaviorNodeType, NodeCall>,
@@ -48,25 +48,25 @@ pub struct RegionInstance<'a> {
     // Used by ticks for state memory
 
     /// Current characters per region
-    pub characters                  : HashMap<usize, Vec<CharacterData>>,
+    pub characters                  : HashMap<Uuid, Vec<CharacterData>>,
     // Characters instance indices in a given area
     pub area_characters             : HashMap<usize, Vec<usize>>,
     // The character instances from the previous tick, used to figure out onEnter, onLeave etc events
     pub prev_area_characters        : HashMap<usize, Vec<usize>>,
 
     // Lights for this region
-    pub lights                      : HashMap<usize, Vec<Light>>,
+    pub lights                      : HashMap<Uuid, Vec<Light>>,
 
     // These are fields which provide debug feedback while running and are only used in the editors debug mode
 
     // The behavior id to debug, this is send from the server
-    debug_behavior_id               : Option<usize>,
+    debug_behavior_id               : Option<Uuid>,
 
     // We are debugging the current tick characters
     is_debugging                    : bool,
 
     pub messages                    : Vec<(String, MessageType)>,
-    pub executed_connections        : Vec<(BehaviorType, usize, BehaviorNodeConnector)>,
+    pub executed_connections        : Vec<(BehaviorType, Uuid, BehaviorNodeConnector)>,
     pub changed_variables           : Vec<(usize, usize, usize, f64)>, // A variable has been changed: instance index, behavior id, node id, new value
 }
 
@@ -181,7 +181,7 @@ impl RegionInstance<'_> {
         self.area_characters = HashMap::new();
 
         let mut messages = vec![];
-        /*
+
         // Execute behaviors
         for inst_index in 0..self.instances.len() {
 
@@ -226,8 +226,10 @@ impl RegionInstance<'_> {
 
                             // Only execute trees here with an "Always" execute setting (0)
                             if let Some(value)= get_node_value((self.instances[inst_index].behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors) {
-                                if value.0 != 0.0 {
-                                    continue;
+                                if let Some(value) = value.to_integer() {
+                                    if value != 0 {
+                                        continue;
+                                    }
                                 }
                             }
                             self.execute_node(inst_index, node_id.clone());
@@ -236,7 +238,7 @@ impl RegionInstance<'_> {
                 } else {
                     // Execute the tree which matches the current action, i.e. "onXXX", like "onMove"
 
-                    let mut tree_id: Option<usize> = None;
+                    let mut tree_id: Option<Uuid> = None;
                     if let Some(action) = &self.instances[inst_index].action {
                         for id in &self.instances[inst_index].tree_ids {
                             if let Some(behavior) = self.get_behavior(self.instances[inst_index].behavior_id, BehaviorType::Behaviors) {
@@ -270,11 +272,11 @@ impl RegionInstance<'_> {
 
             // Add to the characters
 
-            if let Some(position) = self.instances[inst_index].position {
+            if let Some(position) = self.instances[inst_index].position.clone() {
                 if let Some(tile) = self.instances[inst_index].tile {
                     let character = CharacterData {
-                        position,
-                        old_position            : self.instances[inst_index].old_position,
+                        position                : position.clone(),
+                        old_position            : self.instances[inst_index].old_position.clone(),
                         max_transition_time     : self.instances[inst_index].max_transition_time,
                         curr_transition_time    : self.instances[inst_index].curr_transition_time,
                         tile,
@@ -282,17 +284,17 @@ impl RegionInstance<'_> {
                         id                      : self.instances[inst_index].id,
                         index                   : inst_index,
                      };
-                     if let Some(list) = self.characters.get_mut(&position.0) {
+                     if let Some(list) = self.characters.get_mut(&position.map) {
                          list.push(character);
                      } else {
-                         self.characters.insert(position.0, vec![character]);
+                         self.characters.insert(position.map, vec![character]);
                      }
                 }
             }
         }
 
         // Execute region area behaviors
-        let mut to_execute: Vec<(usize, usize)> = vec![];
+        let mut to_execute: Vec<(usize, Uuid)> = vec![];
         self.displacements = HashMap::new();
         for area_index in 0..self.region_data.areas.len() {
             for (node_id, node) in &self.region_behavior[area_index].nodes {
@@ -360,28 +362,28 @@ impl RegionInstance<'_> {
                 let mut lights        : Vec<Light> = vec![];
                 let mut scope_buffer  = ScopeBuffer::new();
 
-                let mut needs_transfer_to: Option<usize> = None;
-                if let Some(position) = self.instances[inst_index].position {
+                let mut needs_transfer_to: Option<Uuid> = None;
+                if let Some(position) = self.instances[inst_index].position.clone() {
 
-                    if position.0 != self.region_data.id {
+                    if position.map != self.region_data.id {
                         // We need to transfer the character to a new region
-                        needs_transfer_to = Some(position.0);
+                        needs_transfer_to = Some(position.map);
                     } else
                     // Check if the character is in a region we did not send to the client yet OR if the editor is debugging
-                    if self.instances[inst_index].regions_send.contains(&position.0) == false || self.debug_behavior_id.is_some() {
+                    if self.instances[inst_index].regions_send.contains(&position.map) == false || self.debug_behavior_id.is_some() {
                         region = Some(self.region_data.clone());
-                        self.instances[inst_index].regions_send.insert(position.0);
+                        self.instances[inst_index].regions_send.insert(position.map);
                     }
                     // Copy the displacements
                     displacements = self.displacements.clone();
 
                     // Send the characters of the client region
-                    if let Some(chars) = self.characters.get(&position.0) {
+                    if let Some(chars) = self.characters.get(&position.map) {
                         characters = chars.clone();
                     }
 
-                    if self.lights.contains_key(&position.0) {
-                        lights = self.lights[&position.0].clone();
+                    if self.lights.contains_key(&position.map) {
+                        lights = self.lights[&position.map].clone();
                     }
 
                     scope_buffer.read_from_scope(&self.scopes[inst_index]);
@@ -389,8 +391,8 @@ impl RegionInstance<'_> {
 
                 let update = GameUpdate{
                     id                      : self.instances[inst_index].id,
-                    position                : self.instances[inst_index].position,
-                    old_position            : self.instances[inst_index].old_position,
+                    position                : self.instances[inst_index].position.clone(),
+                    old_position            : self.instances[inst_index].old_position.clone(),
                     max_transition_time     : self.instances[inst_index].max_transition_time,
                     curr_transition_time    : self.instances[inst_index].curr_transition_time,
                     tile                    : self.instances[inst_index].tile,
@@ -415,7 +417,7 @@ impl RegionInstance<'_> {
                 }
                 messages.push(Message::PlayerUpdate(update.id, update));
             }
-        }*/
+        }
         messages
     }
 
@@ -423,12 +425,12 @@ impl RegionInstance<'_> {
     pub fn execute_node(&mut self, instance_index: usize, node_id: Uuid) -> Option<BehaviorNodeConnector> {
 
         let mut connectors : Vec<BehaviorNodeConnector> = vec![];
-        let mut connected_node_ids : Vec<usize> = vec![];
-        let mut possibly_executed_connections : Vec<(BehaviorType, usize, BehaviorNodeConnector)> = vec![];
+        let mut connected_node_ids : Vec<Uuid> = vec![];
+        let mut possibly_executed_connections : Vec<(BehaviorType, Uuid, BehaviorNodeConnector)> = vec![];
 
         let mut is_sequence = false;
         let mut rc : Option<BehaviorNodeConnector> = None;
-        /*
+
         // Call the node and get the resulting BehaviorNodeConnector
         if let Some(behavior) = self.behaviors.get_mut(&self.instances[instance_index].behavior_id) {
             if let Some(node) = behavior.nodes.get_mut(&node_id) {
@@ -494,7 +496,7 @@ impl RegionInstance<'_> {
                     }
                 }
             }
-        }*/
+        }
         rc
     }
 
@@ -502,12 +504,12 @@ impl RegionInstance<'_> {
     pub fn execute_systems_node(&mut self, instance_index: usize, node_id: Uuid) -> Option<BehaviorNodeConnector> {
 
         let mut connectors : Vec<BehaviorNodeConnector> = vec![];
-        let mut connected_node_ids : Vec<usize> = vec![];
-        let mut possibly_executed_connections : Vec<(BehaviorType, usize, BehaviorNodeConnector)> = vec![];
+        let mut connected_node_ids : Vec<Uuid> = vec![];
+        let mut possibly_executed_connections : Vec<(BehaviorType, Uuid, BehaviorNodeConnector)> = vec![];
 
         let mut is_sequence = false;
         let mut rc : Option<BehaviorNodeConnector> = None;
-        /*
+
         // Call the node and get the resulting BehaviorNodeConnector
         if let Some(system) = self.systems.get_mut(&self.instances[instance_index].systems_id) {
             if let Some(node) = system.nodes.get_mut(&node_id) {
@@ -570,30 +572,30 @@ impl RegionInstance<'_> {
                     }
                 }
             }
-        }*/
+        }
         rc
     }
 
     /// Executes the given node and follows the connection chain
-    fn execute_area_node(&mut self, region_id: usize, area_index: usize, node_id: Uuid) -> Option<BehaviorNodeConnector> {
+    fn execute_area_node(&mut self, region_id: Uuid, area_index: usize, node_id: Uuid) -> Option<BehaviorNodeConnector> {
 
         let mut connectors : Vec<BehaviorNodeConnector> = vec![];
-        let mut connected_node_ids : Vec<usize> = vec![];
+        let mut connected_node_ids : Vec<Uuid> = vec![];
 
         let mut rc : Option<BehaviorNodeConnector> = None;
-        /*
+
         // Call the node and get the resulting BehaviorNodeConnector
         if let Some(node) = self.region_behavior[area_index].nodes.get_mut(&node_id) {
 
+            /* TODO
             if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
                 let connector = node_call(region_id, (area_index, node_id), self, BehaviorType::Regions);
                 rc = Some(connector);
                 connectors.push(connector);
             } else {
                 connectors.push(BehaviorNodeConnector::Bottom);
-            }
+            }*/
         }
-
 
         // Search the connections to check if we can find an ongoing node connection
         for connector in connectors {
@@ -608,20 +610,20 @@ impl RegionInstance<'_> {
         // And if yes execute it
         for (_index, connected_node_id) in connected_node_ids.iter().enumerate() {
             self.execute_area_node(region_id, area_index, *connected_node_id);
-        }*/
+        }
         rc
     }
 
     /// Executes the given node and follows the connection chain
-    fn execute_game_node(&mut self, instance_index: usize, node_id: usize) -> Option<BehaviorNodeConnector> {
+    fn execute_game_node(&mut self, instance_index: usize, node_id: Uuid) -> Option<BehaviorNodeConnector> {
 
         let mut connectors : Vec<BehaviorNodeConnector> = vec![];
-        let mut connected_node_ids : Vec<usize> = vec![];
-        let mut possibly_executed_connections : Vec<(BehaviorType, usize, BehaviorNodeConnector)> = vec![];
+        let mut connected_node_ids : Vec<Uuid> = vec![];
+        let mut possibly_executed_connections : Vec<(BehaviorType, Uuid, BehaviorNodeConnector)> = vec![];
 
         let mut is_sequence = false;
         let mut rc : Option<BehaviorNodeConnector> = None;
-        /*
+
         // Call the node and get the resulting BehaviorNodeConnector
         let behavior = &mut self.game_data;
         if let Some(node) = behavior.nodes.get_mut(&node_id) {
@@ -696,13 +698,12 @@ impl RegionInstance<'_> {
                     }
                 }
             }
-        }*/
+        }
         rc
     }
 
     /// Setup the region instance data by decoding the JSON for all game elements and sets up the npc and game behavior instances.
-    pub fn setup(&mut self, region: String, region_behavior: HashMap<usize, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, game: String) {
-        /*
+    pub fn setup(&mut self, region: String, region_behavior: HashMap<Uuid, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, game: String) {
         // Decode all JSON
         if let Some(region_data) = serde_json::from_str(&region).ok() {
             self.region_data = region_data;
@@ -736,15 +737,15 @@ impl RegionInstance<'_> {
         }
 
         // Create all behavior instances of characters inside this region
-        let ids : Vec<usize> = self.behaviors.keys().cloned().collect();
+        let ids : Vec<Uuid> = self.behaviors.keys().cloned().collect();
         for id in ids {
             self.create_behavior_instance(id, true);
         }
 
         // Create the game instance itself
-        let mut to_execute : Vec<usize> = vec![];
+        let mut to_execute : Vec<Uuid> = vec![];
         let mut startup_name : Option<String> = None;
-        let mut locked_tree  : Option<usize> = None;
+        let mut locked_tree  : Option<Uuid> = None;
         let mut scope = rhai::Scope::new();
         let behavior = &mut self.game_data;
 
@@ -752,12 +753,12 @@ impl RegionInstance<'_> {
         for (_id, node) in &behavior.nodes {
             if node.behavior_type == BehaviorNodeType::BehaviorType {
                 if let Some(value )= node.values.get(&"startup".to_string()) {
-                    startup_name = Some(value.4.clone());
+                    startup_name = Some(value.to_string_value());
                 }
             } else
             if node.behavior_type == BehaviorNodeType::VariableNumber {
                 if let Some(value )= node.values.get(&"value".to_string()) {
-                    scope.push(node.name.clone(), value.0.clone());
+                    scope.push(node.name.clone(), value.to_float());
                 } else {
                     scope.push(node.name.clone(), 0.0_f64);
                 }
@@ -783,7 +784,7 @@ impl RegionInstance<'_> {
 
         let index = self.instances.len();
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: 0, action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1 };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1 };
 
         self.instances.push(instance);
         self.scopes.push(scope);
@@ -791,18 +792,19 @@ impl RegionInstance<'_> {
         for tree_id in &to_execute {
             // Execute this tree if it is a "Startup" Only tree
             if let Some(value)= self.get_game_node_value(*tree_id, "execute") {
-                if value.0 == 1.0 {
-                    //self.execute_game_node(index, tree_id.clone());
+                if let Some(value) = value.to_integer() {
+                    if value == 1 {
+                        self.execute_game_node(index, tree_id.clone());
+                    }
                 }
             }
         }
         self.game_instance_index = Some(index);
-        */
     }
 
     /// Creates a new player instance
     pub fn create_player_instance(&mut self, uuid: Uuid, position: Position) {
-        let mut player_id : Option<usize> = None;
+        let mut player_id : Option<Uuid> = None;
         for b in &self.behaviors {
             if b.1.name == "Player" {
                 player_id = Some(*b.0);
@@ -819,7 +821,7 @@ impl RegionInstance<'_> {
     }
 
     /// Creates an instance of a behavior (character)
-    fn create_behavior_instance(&mut self, id: usize, npc_only: bool) -> usize {
+    fn create_behavior_instance(&mut self, id: Uuid, npc_only: bool) -> usize {
 
         let mut index = 0;
         /*
@@ -833,8 +835,8 @@ impl RegionInstance<'_> {
             let mut to_create : Vec<CharacterInstanceData> = vec![];
 
             // Collect all the default data for the behavior from the nodes: Position, tile, behavior Trees and variables.
-            let mut to_execute              : Vec<usize> = vec![];
-            let mut default_position        : Option<(usize, isize, isize)> = None;
+            let mut to_execute              : Vec<Uuid> = vec![];
+            let mut default_position        : Option<Position> = None;
             let mut default_tile            : Option<(Uuid, usize, usize)> = None;
             let mut default_align           : i64 = 1;
             let mut default_scope    = rhai::Scope::new();
@@ -893,12 +895,13 @@ impl RegionInstance<'_> {
             for inst in to_create {
 
                 // Only create when instance ins in this region
-                if inst.position.0 != self.region_data.id {
+                if inst.position.map != self.region_data.id {
                     continue;
                 }
 
                 //println!("Creating instance {}", inst.name.unwrap());
-                // let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: 0, action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment };
+                /*
+                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: 0, action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment };*/
 
                 index = self.instances.len();
                 // self.instances.push(instance); TODO
@@ -914,13 +917,12 @@ impl RegionInstance<'_> {
     }
 
     /// Returns a game node value
-    fn get_game_node_value(&mut self, node_id: usize, node_property: &str) -> Option<(f64, f64, f64, f64, String)> {
-        /*
+    fn get_game_node_value(&mut self, node_id: Uuid, node_property: &str) -> Option<Value> {
         if let Some(node) = self.game_data.nodes.get(&node_id) {
             if let Some(value) = node.values.get(node_property) {
                 return Some(value.clone());
             }
-        }*/
+        }
         None
     }
 
@@ -966,8 +968,7 @@ impl RegionInstance<'_> {
     }
 
     /// Gets the behavior for the given id
-    pub fn get_behavior(&self, id: usize, behavior_type: BehaviorType) -> Option<&GameBehaviorData> {
-        /*
+    pub fn get_behavior(&self, id: Uuid, behavior_type: BehaviorType) -> Option<&GameBehaviorData> {
         if behavior_type == BehaviorType::Regions {
             for b in &self.region_behavior {
                 if b.id == id {
@@ -986,13 +987,12 @@ impl RegionInstance<'_> {
         } else
         if behavior_type == BehaviorType::GameLogic {
             return Some(&self.game_data);
-        }*/
+        }
         None
     }
 
     /// Gets the mutable behavior for the given behavior type
-    pub fn get_mut_behavior(&mut self, id: usize, behavior_type: BehaviorType) -> Option<&mut GameBehaviorData> {
-        /*
+    pub fn get_mut_behavior(&mut self, id: Uuid, behavior_type: BehaviorType) -> Option<&mut GameBehaviorData> {
         if behavior_type == BehaviorType::Regions {
             for b in &mut self.region_behavior {
                 if b.id == id {
@@ -1011,7 +1011,7 @@ impl RegionInstance<'_> {
         } else
         if behavior_type == BehaviorType::GameLogic {
             return Some(&mut self.game_data);
-        }*/
+        }
         None
     }
 
@@ -1034,7 +1034,7 @@ impl RegionInstance<'_> {
     }
 
     /// Sets the debugging behavior id.
-    pub fn set_debug_behavior_id(&mut self, behavior_id: usize) {
+    pub fn set_debug_behavior_id(&mut self, behavior_id: Uuid) {
         self.debug_behavior_id = Some(behavior_id);
     }
 

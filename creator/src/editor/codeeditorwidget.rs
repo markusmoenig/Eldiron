@@ -154,7 +154,7 @@ impl CodeEditorWidget {
 
     pub fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, _asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
-        if key == Some(WidgetKey::Escape) {
+        if key == Some(WidgetKey::Escape) && context.code_editor_node_behavior_id.2 != "region_settings" {
             context.code_editor_state = CodeEditorWidgetState::Closing;
             context.target_fps = 60;
             context.code_editor_visible_y = self.get_height();

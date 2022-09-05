@@ -66,9 +66,6 @@ pub trait EditorOptions {
     /// Get the current layer
     fn get_layer(&self) -> usize { 0 }
 
-    /// Set the tags
-    fn set_region_tags(&mut self, tags: String, asset: &mut Asset, context: &ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {}
-
     // For ScreenOptions
 
     /// Update the ui

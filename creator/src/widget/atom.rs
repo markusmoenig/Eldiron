@@ -444,7 +444,7 @@ impl AtomWidget {
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &fill_color, 1.5);
 
-                context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 5, rect.1, rect.2 - 10, rect.3), rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &self.atom_data.data.4, &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
+                context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 5, rect.1, rect.2 - 10, rect.3), rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &self.atom_data.value.to_string_value(), &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
             if self.atom_widget_type == AtomWidgetType::NodeMenu {
                 self.content_rect = self.rect.clone();
@@ -963,18 +963,11 @@ impl AtomWidget {
             } else
             if self.atom_widget_type == AtomWidgetType::NodeScreenButton {
                 context.switch_editor_state = Some(crate::editor::EditorState::ScreenDetail);
-
-                if context.code_editor_state != CodeEditorWidgetState::Open {
-                    context.code_editor_state = CodeEditorWidgetState::Opening;
-                    context.code_editor_visible_y = 0;
-                    context.target_fps = 60;
-                }
-                context.code_editor_is_active = true;
-                context.code_editor_just_opened = true;
                 context.code_editor_mode = CodeEditorMode::Rhai;
-                context.code_editor_node_behavior_id = self.behavior_id.clone().unwrap();
-                context.code_editor_node_behavior_value = self.atom_data.data.clone();
-                context.code_editor_value = self.atom_data.data.4.clone();
+                if let Some(id) = &self.behavior_id {
+                    context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
+                }
+                //context.code_editor_value = self.atom_data.data.4.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeNumberButton {
                 context.dialog_state = DialogState::Opening;
@@ -993,56 +986,25 @@ impl AtomWidget {
                 context.dialog_node_behavior_value = self.atom_data.data.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeExpressionButton {
-                if context.code_editor_state != CodeEditorWidgetState::Open {
-                    context.code_editor_state = CodeEditorWidgetState::Opening;
-                    context.code_editor_visible_y = 0;
-                    context.target_fps = 60;
-                }
-                context.code_editor_is_active = true;
-                context.code_editor_just_opened = true;
                 context.code_editor_mode = CodeEditorMode::Rhai;
-                context.code_editor_node_behavior_id = self.behavior_id.clone().unwrap();
-                context.code_editor_node_behavior_value = self.atom_data.data.clone();
-            } else
+                if let Some(id) = &self.behavior_id {
+                    context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
+                }            } else
             if self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton {
-                if context.code_editor_state != CodeEditorWidgetState::Open {
-                    context.code_editor_state = CodeEditorWidgetState::Opening;
-                    context.code_editor_visible_y = 0;
-                    context.target_fps = 60;
-                }
-                context.code_editor_is_active = true;
-                context.code_editor_just_opened = true;
                 context.code_editor_mode = CodeEditorMode::Rhai;
-                context.code_editor_node_behavior_id = self.behavior_id.clone().unwrap();
-                context.code_editor_node_behavior_value = self.atom_data.data.clone();
-            } else
+                if let Some(id) = &self.behavior_id {
+                    context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
+                }            } else
             if self.atom_widget_type == AtomWidgetType::NodeScriptButton {
-                if context.code_editor_state != CodeEditorWidgetState::Open {
-                    context.code_editor_state = CodeEditorWidgetState::Opening;
-                    context.code_editor_visible_y = 0;
-                    context.target_fps = 60;
-                }
-                context.code_editor_is_active = true;
-                context.code_editor_just_opened = true;
                 context.code_editor_mode = CodeEditorMode::Rhai;
-                context.code_editor_node_behavior_id = self.behavior_id.clone().unwrap();
-                context.code_editor_node_behavior_value = self.atom_data.data.clone();
-            } else
+                if let Some(id) = &self.behavior_id {
+                    context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
+                }            } else
             if self.atom_widget_type == AtomWidgetType::NodeTextButton {
-                if context.code_editor_state != CodeEditorWidgetState::Open {
-                    context.code_editor_state = CodeEditorWidgetState::Opening;
-                    context.code_editor_visible_y = 0;
-                    context.target_fps = 60;
-                }
-                // context.dialog_entry = DialogEntry::NodeText;
-                // context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
-                // context.dialog_node_behavior_value = self.atom_data.data.clone();
-                context.code_editor_is_active = true;
-                context.code_editor_just_opened = true;
                 context.code_editor_mode = CodeEditorMode::Text;
-                context.code_editor_node_behavior_id = self.behavior_id.clone().unwrap();
-                context.code_editor_node_behavior_value = self.atom_data.data.clone();
-            } else
+                if let Some(id) = &self.behavior_id {
+                    context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
+                }            } else
             if self.atom_widget_type == AtomWidgetType::NodeGridSizeButton {
                 context.dialog_state = DialogState::Opening;
                 context.dialog_height = 0;

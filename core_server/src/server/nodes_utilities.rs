@@ -21,17 +21,18 @@ pub fn get_number_variable_or_zero(instance_index: usize, variable: String, data
 pub fn set_number_variable(instance_index: usize, variable: String, value: f64, data: &mut RegionInstance) {
     data.scopes[instance_index].set_value(&variable, value);
 }
-
+*/
 /// Retrieves a node value
-pub fn get_node_value(id: (usize, usize, &str), data: &mut RegionInstance, behavior_type: BehaviorType) -> Option<(f64, f64, f64, f64, String)> {
+pub fn get_node_value(id: (Uuid, Uuid, &str), data: &mut RegionInstance, behavior_type: BehaviorType) -> Option<Value> {
     if behavior_type == BehaviorType::Regions {
 
+        /* TODO
         let behavior = &mut data.region_behavior[id.0];
         if let Some(node) = behavior.nodes.get_mut(&id.1) {
             if let Some(value) = node.values.get_mut(id.2) {
                 return Some(value.clone());
             }
-        } else
+        } else*/
         if let Some(behavior) = data.behaviors.get_mut(&id.0) {
             if let Some(node) = behavior.nodes.get_mut(&id.1) {
                 if let Some(value) = node.values.get_mut(id.2) {
@@ -68,7 +69,7 @@ pub fn get_node_value(id: (usize, usize, &str), data: &mut RegionInstance, behav
     }
     None
 }
-
+/*
 /// Computes the distance between two locations
 pub fn compute_distance(p0: &(usize, isize, isize), p1: &(usize, isize, isize)) -> f64 {
     let dx = p0.1 - p1.1;

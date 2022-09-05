@@ -392,7 +392,7 @@ impl Editor<'_> {
                 }
                 if let Some(settings) = &mut self.context.data.game.behavior.data.settings {
                     core_server::gamedata::prelude::update_game_sink(settings);
-                    self.context.code_editor_node_behavior_value.4 = settings.to_string(core_server::gamedata::prelude::generate_game_sink_descriptions());
+                    self.context.code_editor_node_behavior_value = Value::String(settings.to_string(core_server::gamedata::prelude::generate_game_sink_descriptions()));
 
                 }
                 // TODO self.context.code_editor_node_behavior_id.0 = 120000;
@@ -667,6 +667,24 @@ impl Editor<'_> {
             // Do we need to update the node from the code editor ?
             if self.context.code_editor_update_node {
 
+                let index = self.state as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
+
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
+                    if let Some(mut el_content) = content {
+                        el_content.update_from_dialog(self.context.code_editor_node_behavior_id.clone(), Value::String(self.context.code_editor_value.clone()), asset, &mut self.context, &mut options);
+                        content = Some(el_content);
+                    }
+
+                    if let Some(mut el_options) = options {
+                        el_options.update_from_dialog(self.context.code_editor_node_behavior_id.clone(), Value::String(self.context.code_editor_value.clone()), asset, &mut self.context, &mut content);
+                        options = Some(el_options);
+                    }
+                }
+                self.content.insert(index, (options, content));
                 /* TODO
                 // Region settings ?
                 if self.state == EditorState::RegionDetail && self.context.code_editor_node_behavior_id.0 == 130000 {
@@ -711,7 +729,7 @@ impl Editor<'_> {
 
             if self.context.code_editor_just_opened {
                 self.code_editor.set_mode(self.context.code_editor_mode);
-                self.code_editor.set_code(self.context.code_editor_node_behavior_value.4.clone());
+                self.code_editor.set_code(self.context.code_editor_node_behavior_value.to_string_value());
                 self.context.code_editor_just_opened = false;
             }
 
@@ -1243,7 +1261,7 @@ impl Editor<'_> {
                     }
                     if let Some(settings) = &mut self.context.data.game.behavior.data.settings {
                         core_server::gamedata::prelude::update_game_sink(settings);
-                        self.context.code_editor_node_behavior_value.4 = settings.to_string(core_server::gamedata::prelude::generate_game_sink_descriptions());
+                        self.context.code_editor_node_behavior_value = Value::String(settings.to_string(core_server::gamedata::prelude::generate_game_sink_descriptions()));
 
                     }
                     // TODO self.context.code_editor_node_behavior_id.0 = 120000;

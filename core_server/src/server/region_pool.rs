@@ -23,7 +23,7 @@ impl RegionPool<'_> {
         }
     }
 
-    pub fn add_regions(&mut self, regions: Vec<String>, regions_behavior: HashMap<usize, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, game: String) {
+    pub fn add_regions(&mut self, regions: Vec<String>, regions_behavior: HashMap<Uuid, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, game: String) {
         for region in regions {
             let mut instance = RegionInstance::new();
             instance.setup(region, regions_behavior.clone(), behaviors.clone(), systems.clone(), items.clone(), game.clone());
@@ -79,7 +79,7 @@ impl RegionPool<'_> {
     pub fn tick(&mut self) -> Option<Vec<Message>> {
 
         let mut ret_messages : Vec<Message> = vec![];
-        let mut characters_to_transfer : Vec<(usize, BehaviorInstance)> = vec![];
+        let mut characters_to_transfer : Vec<(Uuid, BehaviorInstance)> = vec![];
 
         for instance in &mut self.instances {
             let messages = instance.tick();
@@ -100,7 +100,6 @@ impl RegionPool<'_> {
         }
 
         for transfer in characters_to_transfer {
-            /*
             for i in &mut self.instances {
                 if i.region_data.id == transfer.0 {
                     let uuid = transfer.1.id;
@@ -113,7 +112,7 @@ impl RegionPool<'_> {
                     }
                     break;
                 }
-            }*/
+            }
         }
 
         // If running none
@@ -127,17 +126,15 @@ impl RegionPool<'_> {
 
     /// Create a new player instance
     pub fn create_player_instance(&mut self, uuid: Uuid, position: Position) {
-        /*
         for inst in &mut self.instances {
-            if inst.region_data.id == position.0 {
-                inst.create_player_instance(uuid, position);
+            if inst.region_data.id == position.map {
+                inst.create_player_instance(uuid, position.clone());
             }
-        }*/
+        }
     }
 
     /// Executes the given player action
-    pub fn execute_player_action(&mut self, uuid: Uuid, region_id: usize, player_action: PlayerAction) {
-        /*
+    pub fn execute_player_action(&mut self, uuid: Uuid, region_id: Uuid, player_action: PlayerAction) {
         for inst in &mut self.instances {
             if inst.region_data.id == region_id {
                 if let Some(inst_index) = inst.player_uuid_indices.get(&uuid) {
@@ -145,7 +142,7 @@ impl RegionPool<'_> {
                     break;
                 }
             }
-        }*/
+        }
     }
 
     /// Number of region instances handled by this pool
@@ -154,13 +151,12 @@ impl RegionPool<'_> {
     }
 
     /// Contains true if this pool contains the region with the given id
-    pub fn contains_region(&self, region_id: usize) -> bool {
-        /*
+    pub fn contains_region(&self, region_id: Uuid) -> bool {
         for i in &self.instances {
             if i.region_data.id == region_id {
                 return true;
             }
-        }*/
+        }
         false
     }
 }

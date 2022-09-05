@@ -15,7 +15,7 @@ pub struct RegionPoolMeta {
     sender                  : Sender<Message>,
     _receiver               : Receiver<Message>,
 
-    region_ids              : Vec<usize>,
+    region_ids              : Vec<Uuid>,
 }
 
 pub struct Server<'a> {
@@ -23,8 +23,8 @@ pub struct Server<'a> {
     to_server_receiver      : Receiver<Message>,
     to_server_sender        : Sender<Message>,
 
-    pub regions             : HashMap<usize, String>,
-    pub region_behavior     : HashMap<usize, Vec<String>>,
+    pub regions             : HashMap<Uuid, String>,
+    pub region_behavior     : HashMap<Uuid, Vec<String>>,
 
     pub behavior            : Vec<String>,
     pub systems             : Vec<String>,
@@ -41,7 +41,7 @@ pub struct Server<'a> {
     player_default_position : Option<Position>,
 
     /// The region ids for each player uuid so that we know where to send messages.
-    players_region_ids      : HashMap<Uuid, usize>,
+    players_region_ids      : HashMap<Uuid, Uuid>,
 
     /// We are multi-threaded
     threaded                : bool,
@@ -78,7 +78,6 @@ impl Server<'_> {
     /// Collects all data (assets, regions, behaviors etc.) and store them as JSON so that we can distribute them to threads as needed.
     pub fn collect_data(&mut self, data: &GameData) {
 
-        /*
         for (id, region) in &data.regions {
             if let Some(json) = serde_json::to_string(&region.data).ok() {
                 self.regions.insert(*id, json);
@@ -116,7 +115,7 @@ impl Server<'_> {
 
         if let Some(json) = serde_json::to_string(&data.game.behavior.data).ok() {
             self.game = json;
-        }*/
+        }
     }
 
     /// Starts the server and distributes regions over threads. max_num_threads limits the max number of threads or does not use threads at all if None.
@@ -129,15 +128,15 @@ impl Server<'_> {
             let max_regions_per_pool = 100;
 
             let mut regions = vec![];
-            let mut region_ids = vec![];
+            let mut region_ids : Vec<Uuid> = vec![];
 
-            let mut start_thread = |region_ids: Vec<usize>, regions: Vec<String>| {
+            let mut start_thread = |region_ids: Vec<Uuid>, regions: Vec<String>| {
 
                 let (sender, receiver) = unbounded();
 
                 let r = receiver.clone();
 
-                let mut region_behavior: HashMap<usize, Vec<String>> = HashMap::new();
+                let mut region_behavior: HashMap<Uuid, Vec<String>> = HashMap::new();
                 for rid in &region_ids {
                     let behavior = self.region_behavior.get(rid).unwrap().clone();
                     region_behavior.insert(*rid, behavior);
@@ -248,22 +247,21 @@ impl Server<'_> {
     /// Create a new player instance
     pub fn create_player_instance(&mut self) -> Uuid {
         let uuid = uuid::Uuid::new_v4();
-        /*
-        if let Some(position) = self.player_default_position {
+        if let Some(position) = &self.player_default_position {
             if self.threaded {
-                self.send_message_to_region(position.0, Message::CreatePlayerInstance(uuid, position));
+                self.send_message_to_region(position.map, Message::CreatePlayerInstance(uuid, position.clone()));
             } else {
                 if let Some(pool) = &mut self.pool {
-                    pool.create_player_instance(uuid, position);
+                    pool.create_player_instance(uuid, position.clone());
                 }
             }
-            self.players_region_ids.insert(uuid, position.0);
-        }*/
+            self.players_region_ids.insert(uuid, position.map);
+        }
         uuid
     }
 
     /// Send the behavior id to debug to all pools.
-    pub fn set_debug_behavior_id(&self, behavior_id: usize) {
+    pub fn set_debug_behavior_id(&self, behavior_id: Uuid) {
         for m in &self.metas {
             m.sender.send(Message::SetDebugBehaviorId(behavior_id)).unwrap();
         }
@@ -286,7 +284,7 @@ impl Server<'_> {
     }
 
     /// Send a message to the given region
-    pub fn send_message_to_region(&self, region_id: usize, message: Message) {
+    pub fn send_message_to_region(&self, region_id: Uuid, message: Message) {
         for m in &self.metas {
             if m.region_ids.contains(&region_id) {
                 _ = m.sender.send(message);

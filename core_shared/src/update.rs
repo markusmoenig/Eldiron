@@ -8,8 +8,8 @@ pub struct GameUpdate {
 
     pub id                      : Uuid,
 
-    pub position                : Option<(usize, isize, isize)>,
-    pub old_position            : Option<(usize, isize, isize)>,
+    pub position                : Option<Position>,
+    pub old_position            : Option<Position>,
     pub max_transition_time     : usize,
     pub curr_transition_time    : usize,
 

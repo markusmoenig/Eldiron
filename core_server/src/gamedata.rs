@@ -468,7 +468,7 @@ impl GameData {
 
     #[cfg(feature = "data_editing")]
     /// Gets the position for the given behavior
-    pub fn get_behavior_default_position(&self, id: Uuid) -> Option<(Uuid, isize, isize)> {
+    pub fn get_behavior_default_position(&self, id: Uuid) -> Option<(Position)> {
         /*
         if let Some(behavior) = self.behaviors.get(&id) {
             for (_index, node) in &behavior.data.nodes {

@@ -503,13 +503,15 @@ impl EditorContent for RegionWidget {
                         } else
                         if atom.curr_index == 3 {
                             options.set_editor_mode(RegionEditorMode::Settings);
-                            context.code_editor_is_active = true;
-                            context.code_editor_just_opened = true;
-                            context.code_editor_mode = CodeEditorMode::Settings;
+                            let value;
                             if let Some(region) = context.data.regions.get(&self.get_region_id()) {
-                                context.code_editor_node_behavior_value.4 = region.data.settings.to_string(generate_region_sink_descriptions());
+                                value = Value::String(region.data.settings.to_string(generate_region_sink_descriptions()));
+                            } else {
+                                return false;
                             }
-                            // TODO context.code_editor_node_behavior_id.0 = 130000;
+                            let id = context.create_property_id("region_settings");
+                            context.code_editor_mode = CodeEditorMode::Settings;
+                            context.open_code_editor(id,  value, false);
                         }
                     }
                     return true;
@@ -724,13 +726,15 @@ impl EditorContent for RegionWidget {
                     self.widgets[0].curr_index = 3;
                     self.widgets[0].dirty = true;
                     options.set_editor_mode(RegionEditorMode::Settings);
-                    context.code_editor_is_active = true;
-                    context.code_editor_just_opened = true;
-                    context.code_editor_mode = CodeEditorMode::Settings;
-                    if let Some(region) = context.data.regions.get(&self.get_region_id()) {
-                        context.code_editor_node_behavior_value.4 = region.data.settings.to_string(generate_region_sink_descriptions());
+                    let value;
+                    if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
+                        value = Value::String(region.data.settings.to_string(generate_region_sink_descriptions()));
+                    } else {
+                        return false;
                     }
-                    // TODO context.code_editor_node_behavior_id.0 = 130000;
+                    let id = context.create_property_id("region_settings");
+                    context.code_editor_mode = CodeEditorMode::Settings;
+                    context.open_code_editor(id, value, false);
                     return true;
                 } else
                 if char == 'c' {
@@ -767,13 +771,16 @@ impl EditorContent for RegionWidget {
         if let Some(options) = options {
             let mode = options.get_editor_mode();
             if mode == RegionEditorMode::Settings {
+                let value;
                 if let Some(region) = context.data.regions.get_mut(&id) {
-                    context.code_editor_is_active = true;
-                    context.code_editor_just_opened = true;
-                    context.code_editor_mode = CodeEditorMode::Settings;
-                    context.code_editor_node_behavior_value.4 = region.data.settings.to_string(generate_region_sink_descriptions());
-                    // TODO context.code_editor_node_behavior_id.0 = 130000;
+                    value = Value::String(region.data.settings.to_string(generate_region_sink_descriptions()));
+                } else {
+                    return
                 }
+
+                let id = context.create_property_id("region_settings");
+                context.code_editor_mode = CodeEditorMode::Settings;
+                context.open_code_editor(id, value, false);
             }
         }
 
@@ -822,9 +829,23 @@ impl EditorContent for RegionWidget {
         self.behavior_graph.add_node_of_name(name, position, context);
     }
 
-    /// Update the behavior graph when a setting changed
+    /// Update based on changes
     fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
-        self.behavior_graph.update_from_dialog(id, value, asset, context, options);
+        if id.2 == "region_settings" {
+            let mut sink = PropertySink::new();
+            if sink.load_from_string(context.code_editor_value.clone()) {
+                context.code_editor_error = None;
+                let id = self.get_region_id();
+                if let Some(region) = context.data.regions.get_mut(&id) {
+                    region.data.settings = sink;
+                    region.save_data();
+                }
+            } else {
+                context.code_editor_error = Some((sink.error.clone().unwrap().1, Some(sink.error.unwrap().0)));
+            }
+        } else {
+            self.behavior_graph.update_from_dialog(id, value, asset, context, options);
+        }
     }
 
     /// Update the area ui

@@ -330,18 +330,18 @@ impl EditorContent for NodeGraph  {
                             control_end_x = end_x + (edx * d) as isize;
                             control_end_y = end_y + (edy * d) as isize;
 
-                            /*
                             let mut connection_drawn = false;
+                            /*
                             if let Some(debug_data) = &self.behavior_debug_data {
                                 if debug_data.executed_connections.contains(&(self.graph_type, *source_node_id, *source_connector)) {
                                     orange_path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
                                     connection_drawn = true;
                                 }
-                            }
+                            }*/
 
                             if connection_drawn == false {
                                 path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
-                            }*/
+                            }
                         }
                     }
                 }
@@ -1352,13 +1352,16 @@ impl EditorContent for NodeGraph  {
         node_widget.menu = Some(node_menu_atom);
 
         if node_behavior_type == BehaviorNodeType::BehaviorTree {
+            let tree_menu = create_menu_atom("Execute".to_string(), vec!["Always".to_string(), "On Startup".to_string(), "On Target".to_string()], Value::Integer(0));
+
+            /*
             let mut atom1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Target".to_string()], AtomWidgetType::NodeMenuButton,
             AtomData::new_as_int("execute".to_string(), 0));
             atom1.atom_data.text = "Execute".to_string();
             let id = (behavior_data_id, node_id, "execute".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.curr_index = context.data.get_behavior_id_value(id, Value::Integer(0), self.graph_type).to_integer().unwrap() as usize;
-            node_widget.widgets.push(atom1);
+            atom1.curr_index = context.data.get_behavior_id_value(id, Value::Integer(0), self.graph_type).to_integer().unwrap() as usize;*/
+            node_widget.widgets.push(tree_menu);
             node_widget.color = context.color_green.clone();
 
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
@@ -1387,8 +1390,22 @@ impl EditorContent for NodeGraph  {
 
             node_widget.color = context.color_orange.clone();
             node_widget.is_variable_node = true;
-        }
+        } else
+        if node_behavior_type == BehaviorNodeType::Script {
+            let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScriptButton,
+            AtomData::new_as_int("script".to_string(), 0));
+            atom1.atom_data.text = "Script".to_string();
+            let id = (behavior_data_id, node_id, "script".to_string());
+            atom1.behavior_id = Some(id.clone());
+            //atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("".to_owned()), self.graph_type);
+            node_widget.widgets.push(atom1);
 
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        }
     }
 
     /// Inits the node widget (atom widgets, id)

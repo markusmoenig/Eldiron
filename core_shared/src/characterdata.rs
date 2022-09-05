@@ -7,8 +7,8 @@ pub struct CharacterData {
     pub id                      : Uuid,
     pub index                   : usize,
 
-    pub position                : (usize, isize, isize),
-    pub old_position            : Option<(usize, isize, isize)>,
+    pub position                : Position,
+    pub old_position            : Option<Position>,
     pub max_transition_time     : usize,
     pub curr_transition_time    : usize,
 
