@@ -27,7 +27,7 @@ pub struct NodePreviewWidget {
     pub region_offset           : (isize, isize),
     pub region_scroll_offset    : (isize, isize),
 
-    pub curr_position           : Option<(Uuid, isize, isize)>,
+    pub curr_position           : Option<Position>,
 
     pub tile_size               : usize,
 
@@ -102,7 +102,7 @@ impl NodePreviewWidget {
         let rect = (0, 0, self.size.0, self.size.1);
 
         // Go to this position
-        if let Some(jump_to_position) = context.jump_to_position {
+        if let Some(jump_to_position) = context.jump_to_position.clone() {
             self.dirty = true;
             self.curr_position = Some(jump_to_position);
             self.region_scroll_offset = (0, 0);

@@ -23,8 +23,8 @@ pub struct ScreenEditor<'a> {
 
     game_render             : Option<GameRender<'a>>,
 
-    player_position         : Option<(usize, isize, isize)>,
-    player_tile             : Option<(usize, usize, usize)>,
+    player_position         : Option<Position>,
+    player_tile             : Option<Position>,
 
     hover_rect              : Option<(usize, usize, usize, usize)>
 }
@@ -88,7 +88,7 @@ impl EditorContent for ScreenEditor<'_> {
             if context.code_editor_update_node {
                 update.screen = Some(context.code_editor_value.clone());
             }
-            update.position = self.player_position;
+            update.position = self.player_position.clone();
             context.code_editor_error = render.draw(anim_counter, &update);
 
             let left_offset = 0;
@@ -279,7 +279,7 @@ impl EditorContent for ScreenEditor<'_> {
                     update.region = Some(region.data.clone());
                 }
             }*/
-            update.position = self.player_position;
+            update.position = self.player_position.clone();
             context.code_editor_error = render.process_update(&update);
         }
     }

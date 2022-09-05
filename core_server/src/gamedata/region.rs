@@ -282,16 +282,15 @@ impl GameRegion {
         let mut tiles : HashMap<(isize, isize), TileData> = HashMap::new();
         let ids: Vec<&(isize, isize)> = self.data.layer1.keys().collect();
         for id in &ids {
-            /*
             let value = &self.data.layer1[id];
-            let tile = asset.get_tile(&(value.tilemap, value.grid_x, value.grid_y));
-
-            tiles.insert(**id, TileData {
-                tilemap     : value.tilemap,
-                grid_x      : value.grid_x,
-                grid_y      : value.grid_y,
-                usage       : tile.usage,
-            });*/
+            if let Some(tile) = asset.get_tile(&TileId::new(value.tilemap, value.grid_x, value.grid_y)) {
+                tiles.insert(**id, TileData {
+                    tilemap     : value.tilemap,
+                    grid_x      : value.grid_x,
+                    grid_y      : value.grid_y,
+                    usage       : tile.usage.clone(),
+                });
+            }
         }
         self.data.layer1 = tiles;
         self.save_data();

@@ -104,7 +104,7 @@ pub struct ScreenContext<'a> {
 
     pub active_position_id              : Option<(Uuid, Uuid, String)>,
 
-    pub jump_to_position                : Option<(Uuid, isize, isize)>,
+    pub jump_to_position                : Option<Position>,
 
     pub is_running                      : bool,
     pub is_debugging                    : bool,
