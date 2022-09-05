@@ -8,6 +8,8 @@ pub mod property;
 pub mod light;
 pub mod undo;
 pub mod scope_buffer;
+pub mod value;
+pub mod structs;
 
 pub mod prelude {
     pub use crate::asset::*;
@@ -24,6 +26,10 @@ pub mod prelude {
     pub use crate::light::*;
     pub use crate::undo::*;
     pub use crate::scope_buffer::*;
+    pub use crate::structs::*;
+
+    pub use crate::value::Value;
+    pub use rustc_hash::FxHashMap;
 
     pub use uuid::Uuid;
     pub use std::collections::HashMap;

@@ -1,7 +1,6 @@
 use crate::prelude::*;
 
 use serde::{Deserialize, Serialize};
-use rand::prelude::*;
 use uuid::Uuid;
 
 use std::collections::HashSet;
@@ -12,8 +11,8 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 use itertools::Itertools;
 
-pub type Position = (usize, isize, isize);
-pub type Tile = (usize, usize, usize);
+//pub type Position = (usize, isize, isize);
+//pub type Tile = (Uuid, usize, usize);
 
 #[cfg(feature = "embed_binaries")]
 use core_embed_binaries::Embedded;
@@ -82,8 +81,8 @@ pub struct BehaviorNode {
     pub behavior_type           : BehaviorNodeType,
     pub name                    : String,
 
-    pub values                  : HashMap<String, (f64, f64, f64, f64, String)>,
-    pub id                      : usize,
+    pub values                  : FxHashMap<String, Value>,
+    pub id                      : Uuid,
 
     pub position                : (isize, isize),
 }
@@ -126,7 +125,7 @@ pub struct BehaviorInstance {
     pub systems_id              : usize,
 
     // The ids of the behavior tree nodes for this instance
-    pub tree_ids                : Vec<usize>,
+    pub tree_ids                : Vec<Uuid>,
 
     // The name of the instance
     pub name                    : String,
@@ -142,10 +141,10 @@ pub struct BehaviorInstance {
     pub sleep_cycles            : usize,
 
     // The locked tree, only this tree will be executed.
-    pub locked_tree             : Option<usize>,
+    pub locked_tree             : Option<Uuid>,
 
     // Instance ids of the entities in our party (including self)
-    pub party                   : Vec<usize>,
+    pub party                   : Vec<Uuid>,
 
     // Temporary values nodes can use to store instance data, these are NOT saved, i.e. emptied before saving.
     // The key is the behavior type and node id.
@@ -155,8 +154,8 @@ pub struct BehaviorInstance {
     pub state_values            : HashMap<String, (f64, f64, f64, f64, String)>,
 
     // For characters, the 2D position id and the currently displayed tile id.
-    pub position                : Option<(usize, isize, isize)>,
-    pub old_position            : Option<(usize, isize, isize)>,
+    pub position                : Option<Position>,
+    pub old_position            : Option<Position>,
     pub max_transition_time     : usize,
     pub curr_transition_time    : usize,
 
@@ -177,16 +176,16 @@ pub struct BehaviorInstance {
     pub update                  : Option<String>,
 
     /// The regions we send to the player client already
-    pub regions_send            : HashSet<usize>,
+    pub regions_send            : HashSet<Uuid>,
 
     /// Current screen id
-    pub curr_player_screen_id   : Option<usize>,
+    pub curr_player_screen_id   : Option<Uuid>,
 
     /// Current screen content
     pub curr_player_screen      : String,
 
     /// The locked tree for the game behavior for this player
-    pub game_locked_tree        : Option<usize>,
+    pub game_locked_tree        : Option<Uuid>,
 }
 
 // An instance of a game behavior data
@@ -194,19 +193,19 @@ pub struct BehaviorInstance {
 pub struct CharacterInstanceData {
     pub position                : Position,
     pub name                    : Option<String>,
-    pub tile                    : Option<Tile>,
+    pub tile                    : Option<TileId>,
     pub alignment               : i64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GameBehaviorData {
-    pub nodes                   : HashMap<usize, BehaviorNode>,
-    pub connections             : Vec<(usize, BehaviorNodeConnector, usize, BehaviorNodeConnector)>,
-    pub id                      : usize,
+    pub nodes                   : HashMap<Uuid, BehaviorNode>,
+    pub connections             : Vec<(Uuid, BehaviorNodeConnector, Uuid, BehaviorNodeConnector)>,
+    pub id                      : Uuid,
 
     pub name                    : String,
 
-    pub curr_node_id            : Option<usize>,
+    pub curr_node_id            : Option<Uuid>,
 
     pub instances               : Option<Vec<CharacterInstanceData>>,
 
@@ -218,7 +217,7 @@ impl GameBehaviorData {
         Self {
             nodes                   : HashMap::new(),
             connections             : vec![],
-            id                      : 0,
+            id                      : Uuid::new_v4(),
             name                    : "".to_string(),
             curr_node_id            : None,
             instances               : Some(vec![]),
@@ -251,7 +250,7 @@ impl GameBehavior {
 
         // Construct the json settings
         let mut data = serde_json::from_str(&contents)
-            .unwrap_or(GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None });
+            .unwrap_or(GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None });
 
         data.name = name.to_owned();
 
@@ -269,7 +268,7 @@ impl GameBehavior {
         let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
 
         // Construct the json settings
-        let mut data = GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None };
+        let mut data = GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None };
 
         if let Some(bytes) = Embedded::get(file_name) {
             if let Some(string) = std::str::from_utf8(bytes.data.as_ref()).ok() {
@@ -291,7 +290,7 @@ impl GameBehavior {
             name            : "name".to_string(),
             path            : std::path::Path::new("").to_path_buf(),
             behavior_path   : std::path::Path::new("").to_path_buf(),
-            data            : GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: thread_rng().gen_range(1..=u32::MAX) as usize, name            : "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None }
+            data            : GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: Uuid::new_v4(), name            : "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None }
         }
     }
 
@@ -303,33 +302,18 @@ impl GameBehavior {
     }
 
     /// Add a new node of the given type and name
-    pub fn add_node(&mut self, behavior_type: BehaviorNodeType, name: String) -> usize {
+    pub fn add_node(&mut self, behavior_type: BehaviorNodeType, name: String) -> Uuid {
 
         let mut node = BehaviorNode {
             behavior_type: behavior_type.clone(),
             name,
-            values: HashMap::new(),
-            id: 0,
-            position: (250, 50),
+            values      : FxHashMap::default(),
+            id          : Uuid::new_v4(),
+            position    : (250, 50),
         };
 
         if behavior_type == BehaviorNodeType::BehaviorType {
             node.position = (0, 0);
-        }
-
-        let mut has_id_already = true;
-        while has_id_already {
-
-            has_id_already = false;
-            for (key, _value) in &self.data.nodes {
-                if key == &node.id {
-                    has_id_already = true;
-                }
-            }
-
-            if has_id_already {
-                node.id += 1;
-            }
         }
 
         // Insert the node

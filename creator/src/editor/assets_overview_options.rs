@@ -66,7 +66,7 @@ impl EditorOptions for AssetsOverviewOptions {
 
                                 if let Some(nodes) = el_content.get_nodes() {
                                     for i in &indices {
-                                        items.push(nodes[*i].text[0].clone());
+                                        items.push(nodes[*i].name.clone());
                                     }
                                 }
 

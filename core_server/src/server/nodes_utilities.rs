@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use pathfinding::prelude::bfs;
-
+/*
 /// Retrieves a number instance value
 pub fn get_number_variable(instance_index: usize, variable: String, data: &mut RegionInstance) -> Option<f64> {
     if let Some(value) = data.scopes[instance_index].get_value::<f64>(&variable) {
@@ -163,4 +163,4 @@ pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp:
     }
 
     BehaviorNodeConnector::Fail
-}
+}*/

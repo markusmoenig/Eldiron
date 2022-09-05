@@ -257,6 +257,7 @@ impl EditorContent for ScreenEditor<'_> {
 
             // Get the region the player is in
 
+            /*
             if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[0]) {
                 for (_id, node) in &behavior.data.nodes {
                     if node.behavior_type == BehaviorNodeType::BehaviorType {
@@ -269,14 +270,15 @@ impl EditorContent for ScreenEditor<'_> {
                         break;
                     }
                 }
-            }
+            }*/
 
+            /*
             if let Some(position) = self.player_position {
                 if let Some(region) = context.data.regions.get(&position.0) {
                     // Send the region to the client_render
                     update.region = Some(region.data.clone());
                 }
-            }
+            }*/
             update.position = self.player_position;
             context.code_editor_error = render.process_update(&update);
         }

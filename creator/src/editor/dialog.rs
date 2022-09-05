@@ -114,15 +114,10 @@ impl DialogWidget {
                     self.tile_selector_widget.set_tile_type(context.dialog_tile_usage.clone(), None, None, &asset);
                     self.text = "".to_string();
                     self.tile_selector_widget.grid_size = 32;
-                    self.tile_selector_widget.selected = Some(TileData {
-                        tilemap         : context.dialog_node_behavior_value.0 as usize,
-                        grid_x          : context.dialog_node_behavior_value.1 as usize,
-                        grid_y          : context.dialog_node_behavior_value.2 as usize,
-                        usage           : TileUsage::Character,
-                    });
+                    self.tile_selector_widget.selected = context.dialog_value.to_tile_data();
                 } else
                 if context.dialog_entry == DialogEntry::NewName || context.dialog_entry == DialogEntry::Tags || context.dialog_entry == DialogEntry::NewProjectName {
-                    self.text = context.dialog_new_name.clone();
+                    self.text = context.dialog_value.to_string_value();
                 } else {
                 }
             }
@@ -282,13 +277,13 @@ impl DialogWidget {
             let int_value = self.text.parse::<i64>();
             if int_value.is_ok() {
                 context.dialog_node_behavior_value.0 = int_value.unwrap() as f64;
-                context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
+                // TODO context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
                 return true;
             }
             let float_value = self.text.parse::<f64>();
             if float_value.is_ok() {
                 context.dialog_node_behavior_value.0 = float_value.unwrap();
-                context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
+                // TODO context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
                 return true;
             }
         } else
@@ -316,13 +311,13 @@ impl DialogWidget {
             */
             if has_error == false {
                 context.dialog_node_behavior_value.4 = self.text.clone();
-                context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
+                // TODO context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
                 return true;
             }
         } else
         if context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeName {
             context.dialog_node_behavior_value.4 = self.text.clone();
-            context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
+            // TODO context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
             return true;
         } else
         if context.dialog_entry == DialogEntry::NodeGridSize {
@@ -334,16 +329,12 @@ impl DialogWidget {
             return true;
         } else
         if context.dialog_entry == DialogEntry::Tags {
-            context.dialog_new_name = self.text.clone();
+            context.dialog_value = Value::String(self.text.clone());
             return true;
         } else
         if context.dialog_entry == DialogEntry::NodeTile {
             if let Some(selected) = &self.tile_selector_widget.selected {
-                context.dialog_node_behavior_value.0 = selected.tilemap as f64;
-                context.dialog_node_behavior_value.1 = selected.grid_x as f64;
-                context.dialog_node_behavior_value.2 = selected.grid_y as f64;
-                context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
-
+                context.dialog_value = Value::TileData(selected.clone());
                 return true;
             }
         }

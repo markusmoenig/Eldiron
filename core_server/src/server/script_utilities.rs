@@ -55,6 +55,7 @@ pub fn add_target_to_scope(instance_index: usize, data: &mut RegionInstance) {
 
 /// Read out the target variables and if changed apply them
 pub fn apply_scope_to_target(instance_index: usize, data: &mut RegionInstance) {
+    /*
     if let Some(target_index) = data.instances[instance_index].target_instance_index {
         if let Some(target) = data.scopes[instance_index].get_value::<InstanceVariables>("target") {
             if let Some(behavior) = data.behaviors.get_mut(&data.instances[target_index].behavior_id) {
@@ -73,7 +74,7 @@ pub fn apply_scope_to_target(instance_index: usize, data: &mut RegionInstance) {
                 }
             }
         }
-    }
+    }*/
 }
 
 /// Replace the target strings, only called once before compilation for each script
@@ -92,6 +93,7 @@ pub fn replace_target_variables(input: String) -> String {
 
 /// Evaluates a boolean expression in the given instance.
 pub fn eval_bool_expression_instance(instance_index: usize, id: (BehaviorType, usize, usize, String), data: &mut RegionInstance) -> Option<bool> {
+    /*
     add_target_to_scope(instance_index, data);
 
     if let Some(ast) = data.ast.get(&id) {
@@ -114,13 +116,14 @@ pub fn eval_bool_expression_instance(instance_index: usize, id: (BehaviorType, u
                 }
             }
         }
-    }
+    }*/
 
     None
 }
 
 /// Evaluates a numerical expression in the given instance.
 pub fn eval_number_expression_instance(instance_index: usize, id: (BehaviorType, usize, usize, String), data: &mut RegionInstance) -> Option<f64> {
+    /*
     add_target_to_scope(instance_index, data);
 
     if let Some(ast) = data.ast.get(&id) {
@@ -155,7 +158,7 @@ pub fn eval_number_expression_instance(instance_index: usize, id: (BehaviorType,
                 }
             }
         }
-    }
+    }*/
 
     None
 }
@@ -167,6 +170,7 @@ pub fn eval_dynamic_script_instance(instance_index: usize, id: (BehaviorType, us
     //     return eval_dynamic_expression_instance_editor(instance_index, id, data);
     // }
 
+    /*
     add_target_to_scope(instance_index, data);
 
     if let Some(ast) = data.ast.get(&id) {
@@ -191,7 +195,7 @@ pub fn eval_dynamic_script_instance(instance_index: usize, id: (BehaviorType, us
                 }
             }
         }
-    }
+    }*/
 
     false
 }
@@ -199,6 +203,7 @@ pub fn eval_dynamic_script_instance(instance_index: usize, id: (BehaviorType, us
 /// Evaluates a dynamic script in the given instance.
 pub fn eval_dynamic_script_instance_for_game_player_scope(_instance_index: usize, id: (BehaviorType, usize, usize, String), data: &mut RegionInstance, custom_scope: usize) -> bool {
 
+    /*
     if let Some(ast) = data.ast.get(&id) {
         if let Some(custom_scope) = data.game_player_scopes.get_mut(&custom_scope) {
 
@@ -222,7 +227,7 @@ pub fn eval_dynamic_script_instance_for_game_player_scope(_instance_index: usize
                 }
             }
         }
-    }
+    }*/
 
     false
 }
@@ -230,6 +235,7 @@ pub fn eval_dynamic_script_instance_for_game_player_scope(_instance_index: usize
 /// Evaluates a dynamic script in the given instance.
 /// We have to send the editor the variables which have been updated for visual display.
 pub fn eval_dynamic_expression_instance_editor(instance_index: usize, id: (BehaviorType, usize, usize, String), data: &mut RegionInstance) -> bool {
+    /*
     add_target_to_scope(instance_index, data);
 
     let original = data.scopes[instance_index].clone();
@@ -329,6 +335,6 @@ pub fn eval_dynamic_expression_instance_editor(instance_index: usize, id: (Behav
                 println!("failed to compile {}", script);
             }
         }
-    }
+    }*/
     false
 }

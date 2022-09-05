@@ -2,9 +2,9 @@
 use std::{path::PathBuf, collections::{HashMap, HashSet}};
 
 use crate::prelude::*;
-use core_shared::{asset::{Asset}, update::GameUpdate, regiondata::{GameRegionData, TileData}, message::MessageData, light::Light};
-use crate::{draw2d::Draw2D, script_types::*, lighting::compute_lighting};
-use rhai::{ Engine, Scope, AST, Dynamic };
+use core_shared::{asset::{Asset}, update::GameUpdate, regiondata::{GameRegionData}, message::MessageData, light::Light};
+use crate::{draw2d::Draw2D, script_types::*};
+use rhai::{ Engine, Scope, AST };
 
 use core_shared::actions::*;
 
@@ -130,7 +130,7 @@ impl GameRender<'_> {
     }
 
     pub fn process_update(&mut self, update: &GameUpdate) -> Option<(String, Option<usize>)> {
-
+        /*
         // New screen script ?
         if let Some(screen_script) = &update.screen {
 
@@ -216,13 +216,13 @@ impl GameRender<'_> {
         if let Some(position) = update.position {
             self.lights.insert(position.0, update.lights.clone());
         }
-
+        */
         None
     }
 
     /// Draw the server response
     pub fn draw(&mut self, anim_counter: usize, update: &GameUpdate) -> Option<(String, Option<usize>)> {
-
+        /*
         let error = self.process_update(update);
         if error.is_some() {
             return error;
@@ -424,7 +424,7 @@ impl GameRender<'_> {
             draw.clear();
             self.scope.set_value("draw", draw);
         }
-
+        */
         None
     }
 
@@ -478,7 +478,7 @@ impl GameRender<'_> {
 
     /// Draws the game in the given rect
     pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), cposition: (usize, isize, isize), anim_counter: usize, update: &GameUpdate, set: Option<HashSet<(isize, isize)>>, external_frame: &mut Option<&mut [u8]>, stride: usize) {
-
+        /*
         self.draw2d.scissor = Some(rect);
 
         let mut position = cposition;
@@ -690,6 +690,7 @@ impl GameRender<'_> {
         }
 
         self.draw2d.scissor = None;
+        */
     }
 
     /// Gets the given region value

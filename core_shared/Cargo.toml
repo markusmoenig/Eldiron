@@ -20,9 +20,10 @@ png = "0.17.2"
 env_logger = "0.9"
 log = "0.4"
 console_log = "0.2"
-cpal = "0.13.5"
+cpal = "0.14.0"
 colors-transform = "0.2.11"
 rhai = "*"
+rustc-hash = "1.1.0"
 
 [features]
 default = ["embed_binaries"]

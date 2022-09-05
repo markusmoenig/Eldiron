@@ -395,7 +395,7 @@ impl Editor<'_> {
                     self.context.code_editor_node_behavior_value.4 = settings.to_string(core_server::gamedata::prelude::generate_game_sink_descriptions());
 
                 }
-                self.context.code_editor_node_behavior_id.0 = 120000;
+                // TODO self.context.code_editor_node_behavior_id.0 = 120000;
             }
         }
 
@@ -507,7 +507,7 @@ impl Editor<'_> {
                 if let Some(preview)  = self.content[self.state as usize].1.as_mut().unwrap().get_preview_widget() {
                     preview.dirty = true;
                 }
-
+                /* TODO
                 // Request debug data for the currently selected character.
                 let behavior_id = self.context.data.behaviors_ids[self.context.curr_behavior_index];
                 server.set_debug_behavior_id(behavior_id);
@@ -523,7 +523,7 @@ impl Editor<'_> {
                         },
                         _ => {}
                     }
-                }
+                }*/
             }
         }
 
@@ -575,7 +575,6 @@ impl Editor<'_> {
                     content = element.1;
 
                     if let Some(mut el_content) = content {
-
                         el_content.set_region_id(self.context.data.regions_ids[self.context.curr_region_index], &mut self.context, &mut options);
                         content = Some(el_content);
                     }
@@ -598,7 +597,7 @@ impl Editor<'_> {
                 self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                 self.state = EditorState::GameDetail;
                 self.context.curr_graph_type = BehaviorType::GameLogic;
-                self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_behavior_id(0, &mut self.context);
+                self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_behavior_id(Uuid::new_v4(), &mut self.context);
             }
         }
 
@@ -668,6 +667,7 @@ impl Editor<'_> {
             // Do we need to update the node from the code editor ?
             if self.context.code_editor_update_node {
 
+                /* TODO
                 // Region settings ?
                 if self.state == EditorState::RegionDetail && self.context.code_editor_node_behavior_id.0 == 130000 {
 
@@ -675,10 +675,11 @@ impl Editor<'_> {
                     if sink.load_from_string(self.context.code_editor_value.clone()) {
                         self.context.code_editor_error = None;
                         let id = self.content[self.state as usize].1.as_mut().unwrap().get_region_id();
+                        /* TODO
                         if let Some(region) = self.context.data.regions.get_mut(&id) {
                             region.data.settings = sink;
                             region.save_data();
-                        }
+                        }*/
                     } else {
                         self.context.code_editor_error = Some((sink.error.clone().unwrap().1, Some(sink.error.unwrap().0)));
                     }
@@ -694,6 +695,7 @@ impl Editor<'_> {
                     }
                 }
 
+
                 self.context.code_editor_node_behavior_value.4 = self.context.code_editor_value.clone();
                 self.context.dialog_node_behavior_value = self.context.code_editor_node_behavior_value.clone();
                 self.context.dialog_node_behavior_id = self.context.code_editor_node_behavior_id.clone();
@@ -701,8 +703,8 @@ impl Editor<'_> {
                     self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
                 } else {
                     self.content[self.state as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
-                }
-                self.context.data.set_behavior_id_value(self.context.code_editor_node_behavior_id.clone(), self.context.code_editor_node_behavior_value.clone(), self.context.curr_graph_type);
+                }*/
+                //self.context.data.set_behavior_id_value(self.context.code_editor_node_behavior_id.clone(), self.context.code_editor_node_behavior_value.clone(), self.context.curr_graph_type);
 
                 self.context.code_editor_update_node = false;
             }
@@ -733,6 +735,29 @@ impl Editor<'_> {
         } else
         if self.context.dialog_entry != DialogEntry::None {
 
+            // self.content[self.state as usize].0.as_mut().unwrap().update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context);
+
+            // self.content[self.state as usize].1.as_mut().unwrap().update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), &mut self.context);
+
+            let index = self.state as usize;
+            let mut options : Option<Box<dyn EditorOptions>> = None;
+            let mut content : Option<Box<dyn EditorContent>> = None;
+
+            if let Some(element) = self.content.drain(index..index+1).next() {
+                options = element.0;
+                content = element.1;
+                if let Some(mut el_content) = content {
+                    el_content.update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context, &mut options);
+                    content = Some(el_content);
+                }
+
+                if let Some(mut el_options) = options {
+                    el_options.update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context, &mut content);
+                    options = Some(el_options);
+                }
+            }
+            self.content.insert(index, (options, content));
+            /*
             if self.context.dialog_entry == DialogEntry::NewProjectName {
                 match self.context.create_project(self.context.dialog_new_name.clone()) {
                     Ok(path) => {
@@ -766,7 +791,7 @@ impl Editor<'_> {
                     //println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
 
                     if self.context.data.create_region(self.context.dialog_new_name.clone()) {
-                        let mut node = NodeWidget::new(vec![self.context.dialog_new_name.clone()],
+                        let mut node = NodeWidget::new(self.context.dialog_new_name.clone(),
                         NodeUserData { position: (100, 50 + 150 * self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().len() as isize) });
 
                         let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
@@ -781,7 +806,7 @@ impl Editor<'_> {
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {
                             if let Some(region) = self.context.data.regions.get_mut(&self.context.data.regions_ids[self.context.curr_region_index]) {
-                                self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_region_index].text[0] = self.context.dialog_node_behavior_value.4.clone();
+                                self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_region_index].name = self.context.dialog_node_behavior_value.4.clone();
                                 self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_region_index].dirty = true;
                                 self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().set_dirty();
                                 region.rename(self.context.dialog_node_behavior_value.4.clone());
@@ -864,14 +889,14 @@ impl Editor<'_> {
             } else
             if self.state == EditorState::BehaviorDetail {
                 if self.context.dialog_entry == DialogEntry::NodeTile {
-                    self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_node_atom_data(self.context.dialog_node_behavior_id.clone(), self.context.dialog_node_behavior_value.clone(), &mut self.context);
+                    //TODO self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_node_atom_data(self.context.dialog_node_behavior_id.clone(), self.context.dialog_node_behavior_value.clone(), &mut self.context);
                 } else {
                     self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
                 }
             } else
             if self.state == EditorState::SystemsDetail {
                 if self.context.dialog_entry == DialogEntry::NodeTile {
-                    self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_node_atom_data(self.context.dialog_node_behavior_id.clone(), self.context.dialog_node_behavior_value.clone(), &mut self.context);
+                    // TODO self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_node_atom_data(self.context.dialog_node_behavior_id.clone(), self.context.dialog_node_behavior_value.clone(), &mut self.context);
                 } else {
                     self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
                 }
@@ -881,7 +906,7 @@ impl Editor<'_> {
                     //println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
                     self.context.data.create_behavior(self.context.dialog_new_name.clone(), 0);
 
-                    let mut node = NodeWidget::new(vec![self.context.dialog_new_name.clone()],
+                    let mut node = NodeWidget::new(self.context.dialog_new_name.clone(),
                     NodeUserData { position: (100, 50 + 150 * self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().len() as isize) });
 
                     let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
@@ -895,7 +920,7 @@ impl Editor<'_> {
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {
                             if let Some(behavior) = self.context.data.behaviors.get_mut(&self.context.data.behaviors_ids[self.context.curr_behavior_index]) {
-                                self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_behavior_index].text[0] = self.context.dialog_node_behavior_value.4.clone();
+                                self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_behavior_index].name = self.context.dialog_node_behavior_value.4.clone();
                                 self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_behavior_index].dirty = true;
                                 self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().set_dirty();
                                 behavior.rename(self.context.dialog_node_behavior_value.4.clone());
@@ -914,7 +939,7 @@ impl Editor<'_> {
                     //println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
                     self.context.data.create_system(self.context.dialog_new_name.clone(), 0);
 
-                    let mut node = NodeWidget::new(vec![self.context.dialog_new_name.clone()],
+                    let mut node = NodeWidget::new(self.context.dialog_new_name.clone(),
                     NodeUserData { position: (100, 50 + 150 * self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().len() as isize) });
 
                     let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
@@ -928,7 +953,7 @@ impl Editor<'_> {
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {
                             if let Some(system) = self.context.data.systems.get_mut(&self.context.data.systems_ids[self.context.curr_systems_index]) {
-                                self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_systems_index].text[0] = self.context.dialog_node_behavior_value.4.clone();
+                                self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_systems_index].name = self.context.dialog_node_behavior_value.4.clone();
                                 self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_systems_index].dirty = true;
                                 self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().set_dirty();
                                 system.rename(self.context.dialog_node_behavior_value.4.clone());
@@ -944,6 +969,7 @@ impl Editor<'_> {
             if self.state == EditorState::GameDetail {
                 self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
             }
+            */
             self.context.dialog_entry = DialogEntry::None;
         }
 
@@ -953,6 +979,27 @@ impl Editor<'_> {
             self.dialog_position.draw(frame, anim_counter, asset, &mut self.context);
         } else
         if self.dialog_position.new_value {
+
+            let index = self.state as usize;
+            let mut options : Option<Box<dyn EditorOptions>> = None;
+            let mut content : Option<Box<dyn EditorContent>> = None;
+
+            if let Some(element) = self.content.drain(index..index+1).next() {
+                options = element.0;
+                content = element.1;
+                if let Some(mut el_content) = content {
+                    el_content.update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context, &mut options);
+                    content = Some(el_content);
+                }
+            }
+            self.content.insert(index, (options, content));
+
+            /*
+            self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_dirty();
+            if let Some(preview) = self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().get_preview_widget() {
+                preview.dirty = true;
+            }
+
             if self.state == EditorState::BehaviorDetail {
                 self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
                 self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_dirty();
@@ -966,7 +1013,7 @@ impl Editor<'_> {
                 if let Some(preview) = self.content[EditorState::RegionDetail as usize].1.as_mut().unwrap().get_preview_widget() {
                     preview.dirty = true;
                 }
-            }
+            }*/
             self.dialog_position.new_value = false;
         }
 
@@ -1186,7 +1233,7 @@ impl Editor<'_> {
                 self.state = EditorState::GameDetail;
                 self.context.curr_graph_type = BehaviorType::GameLogic;
                 self.toolbar.widgets[6].checked = true;
-                self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_behavior_id(0, &mut self.context);
+                self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_behavior_id(Uuid::new_v4(), &mut self.context);
                 if self.toolbar.widgets[6].right_selected {
                     self.context.code_editor_is_active = true;
                     self.context.code_editor_just_opened = true;
@@ -1199,7 +1246,7 @@ impl Editor<'_> {
                         self.context.code_editor_node_behavior_value.4 = settings.to_string(core_server::gamedata::prelude::generate_game_sink_descriptions());
 
                     }
-                    self.context.code_editor_node_behavior_id.0 = 120000;
+                    // TODO self.context.code_editor_node_behavior_id.0 = 120000;
                 }
 
                 for i in 1..=5 {
@@ -1285,7 +1332,6 @@ impl Editor<'_> {
                         content = element.1;
 
                         if let Some(mut el_content) = content {
-
                             el_content.set_region_id(self.context.data.regions_ids[self.context.curr_region_index], &mut self.context, &mut options);
                             content = Some(el_content);
                         }
@@ -1357,7 +1403,7 @@ impl Editor<'_> {
 
                                     let index = asset.tileset.maps_names.len() - 1;
                                     let name = asset.tileset.maps_names[index].clone();
-                                    let mut node = NodeWidget::new(vec![name.clone()], NodeUserData { position: (0,0) });
+                                    let mut node = NodeWidget::new(name.clone(), NodeUserData { position: (0,0) });
                                     node.sub_type = NodeSubType::Tilemap;
 
                                     let mut size_text = "".to_string();
@@ -1368,9 +1414,9 @@ impl Editor<'_> {
                                     let mut size_atom = AtomWidget::new(vec!["Grid Size".to_string()], AtomWidgetType::NodeGridSizeButton,
                                     AtomData::new_as_int("grid_size".to_string(), 0));
                                     size_atom.atom_data.text = "Grid Size".to_string();
-                                    size_atom.atom_data.data = (index as f64, 0.0, 0.0, 0.0, size_text);
-                                    size_atom.behavior_id = Some((index, 0, "".to_string()));
-                                    node.widgets.push(size_atom);
+                                    // TODO size_atom.atom_data.data = (index as f64, 0.0, 0.0, 0.0, size_text);
+                                    // size_atom.behavior_id = Some((index, 0, "".to_string()));
+                                    // node.widgets.push(size_atom);
 
                                     self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
 
@@ -1399,7 +1445,7 @@ impl Editor<'_> {
 
                                     let index = asset.tileset.images_names.len() - 1;
                                     let name = asset.tileset.images_names[index].clone();
-                                    let mut node = NodeWidget::new(vec![name.clone()], NodeUserData { position: (0,0) });
+                                    let mut node = NodeWidget::new(name.clone(), NodeUserData { position: (0,0) });
                                     node.sub_type = NodeSubType::Image;
 
                                     self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
@@ -1740,7 +1786,7 @@ impl Editor<'_> {
 
         let mut tile_nodes = vec![];
         for (index, t) in asset.tileset.maps_names.iter().enumerate() {
-            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: (0,0) });
+            let mut node = NodeWidget::new(t.to_string(), NodeUserData { position: (0,0) });
             node.sub_type = NodeSubType::Tilemap;
 
             let mut size_text = "".to_string();
@@ -1752,21 +1798,21 @@ impl Editor<'_> {
             AtomData::new_as_int("grid_size".to_string(), 0));
             size_atom.atom_data.text = "Grid Size".to_string();
             size_atom.atom_data.data = (index as f64, 0.0, 0.0, 0.0, size_text);
-            size_atom.behavior_id = Some((index, 0, "".to_string()));
-            //size_atom.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Hello".to_string()), self.graph_type);
+            // TODO size_atom.behavior_id = Some((index, 0, "".to_string()));
+            //size_atom.atom_data.value = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Hello".to_string()), self.graph_type);
             node.widgets.push(size_atom);
             tile_nodes.push(node);
         }
 
         for t in &asset.audio_names {
-            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: (0,0) });
+            let mut node = NodeWidget::new(t.to_string(), NodeUserData { position: (0,0) });
             node.sub_type = NodeSubType::Audio;
 
             tile_nodes.push(node);
         }
 
         for t in &asset.tileset.images_names {
-            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: (0,0) });
+            let mut node = NodeWidget::new(t.to_string(), NodeUserData { position: (0,0) });
             node.sub_type = NodeSubType::Image;
 
             tile_nodes.push(node);
@@ -1794,7 +1840,7 @@ impl Editor<'_> {
         let mut region_nodes = vec![];
         for (index, t) in self.context.data.regions_names.iter().enumerate() {
             let p = get_pos(index, width - left_width);
-            let mut node = NodeWidget::new(vec![t.to_string()], NodeUserData { position: p});
+            let mut node = NodeWidget::new(t.to_string(), NodeUserData { position: p});
 
             let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
             node.menu = Some(node_menu_atom);
@@ -1817,7 +1863,7 @@ impl Editor<'_> {
         let mut behavior_nodes = vec![];
         for (index, behavior_name) in self.context.data.behaviors_names.iter().enumerate() {
             let p = get_pos(index, width - left_width);
-            let mut node = NodeWidget::new(vec![behavior_name.to_string()],
+            let mut node = NodeWidget::new(behavior_name.to_string(),
              NodeUserData { position: p });
 
             let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
@@ -1843,7 +1889,7 @@ impl Editor<'_> {
         let mut systems_nodes = vec![];
         for (index, system_name) in self.context.data.systems_names.iter().enumerate() {
             let p = get_pos(index, width - left_width);
-            let mut node = NodeWidget::new(vec![system_name.to_string()],
+            let mut node = NodeWidget::new(system_name.to_string(),
              NodeUserData { position: p });
 
             let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));

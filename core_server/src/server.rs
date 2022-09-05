@@ -78,6 +78,7 @@ impl Server<'_> {
     /// Collects all data (assets, regions, behaviors etc.) and store them as JSON so that we can distribute them to threads as needed.
     pub fn collect_data(&mut self, data: &GameData) {
 
+        /*
         for (id, region) in &data.regions {
             if let Some(json) = serde_json::to_string(&region.data).ok() {
                 self.regions.insert(*id, json);
@@ -115,7 +116,7 @@ impl Server<'_> {
 
         if let Some(json) = serde_json::to_string(&data.game.behavior.data).ok() {
             self.game = json;
-        }
+        }*/
     }
 
     /// Starts the server and distributes regions over threads. max_num_threads limits the max number of threads or does not use threads at all if None.
@@ -247,6 +248,7 @@ impl Server<'_> {
     /// Create a new player instance
     pub fn create_player_instance(&mut self) -> Uuid {
         let uuid = uuid::Uuid::new_v4();
+        /*
         if let Some(position) = self.player_default_position {
             if self.threaded {
                 self.send_message_to_region(position.0, Message::CreatePlayerInstance(uuid, position));
@@ -256,7 +258,7 @@ impl Server<'_> {
                 }
             }
             self.players_region_ids.insert(uuid, position.0);
-        }
+        }*/
         uuid
     }
 

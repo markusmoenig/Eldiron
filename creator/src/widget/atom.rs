@@ -16,6 +16,7 @@ pub struct AtomData {
     pub text                    : String,
     pub id                      : String,
     pub data                    : (f64, f64, f64, f64, String),
+    pub value                   : Value,
 }
 
 impl AtomData {
@@ -26,9 +27,11 @@ impl AtomData {
             text                : "".to_string(),
             id                  : id,
             data                : (value as f64,0.0,0.0,0.0, "".to_string()),
+            value               : Value::Empty(),
         }
     }
 
+    /*
     pub fn _new_as_int_range(id: String, value: isize, min: isize, max: isize, step: isize) -> Self {
 
         Self {
@@ -36,7 +39,7 @@ impl AtomData {
             id                  : id,
             data                : (value as f64, min as f64, max as f64, step as f64, "".to_string()),
         }
-    }
+    }*/
 }
 
 #[derive(PartialEq, Debug)]
@@ -106,7 +109,7 @@ pub struct AtomWidget {
     pub new_selection           : Option<usize>,
 
     // Id for behavior data (BehaviorId, NodeId, AtomId)
-    pub  behavior_id            : Option<(usize, usize, String)>,
+    pub  behavior_id            : Option<(Uuid, Uuid, String)>,
 
     // Drag
     pub drag_enabled            : bool,
@@ -459,14 +462,15 @@ impl AtomWidget {
 
                 let border_color = if context.active_position_id == self.behavior_id { context.color_red } else { context.color_node_light_gray };
 
-                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &context.color_black, &context.node_button_rounding, &border_color, 1.5);
 
-                if self.atom_data.data.0 >= 0.0 {
-                    if let Some(region) = context.data.regions.get(&(self.atom_data.data.0 as usize)) {
-                        let center = (self.atom_data.data.1 as isize, self.atom_data.data.2 as isize);
-                        context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &(4, 1, rect.2 - 8, rect.3 - 2), &center, &(0, 0), rect.2, 14, 0, asset, context);
-                    }
+                match self.atom_data.value {
+                    Value::Position(region_id, x, y) => {
+                        if let Some(region) = context.data.regions.get(&region_id) {
+                            context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &(4, 1, rect.2 - 8, rect.3 - 2), &(x as isize, y as isize), &(0, 0), rect.2, 14, 0, asset, context);
+                        }
+                    },
+                    _ => {},
                 }
 
                 if self.clicked {
@@ -481,14 +485,22 @@ impl AtomWidget {
                 let fill_color = if self.state == WidgetState::Clicked { context.color_node_dark_gray } else { context.color_black };
                 let border_color = if self.state == WidgetState::Clicked { context.color_node_dark_gray } else { context.color_node_light_gray };
 
-                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &border_color, 1.5);
 
                 //context.draw2d.draw_text(buffer_frame, &(25, 1), rect.2, &asset.open_sans, context.node_button_text_size, &"Default Tile:".to_string(), &context.color_white, &fill_color);
 
-                if self.atom_data.data.0 >= 0.0 {
-                    context.draw2d.draw_animated_tile(buffer_frame, &(rect.2 / 2 - 9, 2),  asset.get_map_of_id(self.atom_data.data.0 as usize), rect.2, &(self.atom_data.data.1 as usize, self.atom_data.data.2 as usize), 0, 18);
+                match &self.atom_data.value {
+                    Value::TileData(data) => {
+                         if let Some(map) = asset.get_map_of_id(data.tilemap) {
+                            context.draw2d.draw_animated_tile(buffer_frame, &(rect.2 / 2 - 9, 2), map, rect.2, &(data.grid_x as usize, data.grid_y as usize), 0, 18);
+
+                         }
+                    },
+                    _ => {},
                 }
+                // TODO if self.atom_data.data.0 >= 0.0 {
+                //     context.draw2d.draw_animated_tile(buffer_frame, &(rect.2 / 2 - 9, 2),  asset.get_map_of_id(self.atom_data.data.0 as usize), rect.2, &(self.atom_data.data.1 as usize, self.atom_data.data.2 as usize), 0, 18);
+                // }
             }
 
             // Large
@@ -504,8 +516,6 @@ impl AtomWidget {
             // Normal
             if self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::CheckButton {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
-
-                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
 
                 let fill_color;
                 if self.atom_widget_type != AtomWidgetType::CheckButton {
@@ -635,7 +645,6 @@ impl AtomWidget {
                     border_color = custom_color;
                 }
 
-                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                 let fill_color = &context.color_black;//if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.button_rounding, &border_color, 1.5);
 
@@ -1043,13 +1052,9 @@ impl AtomWidget {
                 context.dialog_node_behavior_value = self.atom_data.data.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeCharTileButton {
-                context.dialog_state = DialogState::Opening;
-                context.dialog_height = 0;
-                context.target_fps = 60;
                 context.dialog_entry = DialogEntry::NodeTile;
-                context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
-                context.dialog_node_behavior_value = self.atom_data.data.clone();
                 context.dialog_tile_usage = vec![TileUsage::Character, TileUsage::UtilityChar];
+                context.open_dialog(self.behavior_id.clone().unwrap(), self.atom_data.value.clone());
             } else
             if self.atom_widget_type == AtomWidgetType::NodeEnvTileButton {
                 context.dialog_state = DialogState::Opening;
@@ -1061,20 +1066,15 @@ impl AtomWidget {
                 context.dialog_tile_usage = vec![TileUsage::Environment, TileUsage::EnvRoad, TileUsage::EnvBlocking, TileUsage::Water];
             } else
             if self.atom_widget_type == AtomWidgetType::TagsButton {
-                context.dialog_state = DialogState::Opening;
-                context.dialog_height = 0;
-                context.target_fps = 60;
                 context.dialog_entry = DialogEntry::Tags;
-                context.dialog_new_name = self.text[0].clone();
+                if self.behavior_id.is_none() {
+                    self.behavior_id = Some(context.create_property_id("tags"));
+                }
+                context.open_dialog(self.behavior_id.clone().unwrap(), Value::String(self.text[0].clone()));
             } else
             if self.atom_widget_type == AtomWidgetType::NodePositionButton {
-                context.dialog_position_state = DialogState::Opening;
-                context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
-                context.dialog_node_behavior_value = self.atom_data.data.clone();
-                context.dialog_height = 0;
-                context.target_fps = 60;
+                context.open_position_dialog(self.behavior_id.clone().unwrap(), self.atom_data.value.clone());
             }
-
 
             if self.state == WidgetState::Clicked {
                 self.state = WidgetState::Normal;
@@ -1083,6 +1083,7 @@ impl AtomWidget {
             if let Some(selection) = self.new_selection {
                 self.curr_index = selection;
                 self.atom_data.data.0 = self.curr_index as f64;
+                self.atom_data.value = Value::Integer(selection as i32);
             }
 
             return true;

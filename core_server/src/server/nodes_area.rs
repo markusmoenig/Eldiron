@@ -1,5 +1,5 @@
 use crate::prelude::*;
-
+/*
 /// Always
 pub fn always(_region_id: usize, _id: (usize, usize), _data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
     BehaviorNodeConnector::Right
@@ -296,4 +296,4 @@ pub fn light_area(region_id: usize, id: (usize, usize), data: &mut RegionInstanc
     }
 
     BehaviorNodeConnector::Fail
-}
+}*/

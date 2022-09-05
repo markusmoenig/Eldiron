@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 pub struct RegionWidget {
     pub rect                : (usize, usize, usize, usize),
-    pub region_id           : usize,
+    pub region_id           : Uuid,
 
     grid_size               : usize,
     widgets                 : Vec<AtomWidget>,
@@ -32,7 +32,7 @@ impl EditorContent for RegionWidget {
 
     fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _behavior_type: BehaviorType, asset: &Asset, context: &ScreenContext) -> Self {
 
-        let toolbar_size = 35;
+        let toolbar_size = 30;
         let bottom_size = 250;
 
         let mut widgets = vec![];
@@ -129,7 +129,7 @@ impl EditorContent for RegionWidget {
 
         Self {
             rect,
-            region_id               : 0,
+            region_id               : Uuid::new_v4(),
             grid_size               : 32,
 
             widgets                 : widgets,
@@ -313,7 +313,6 @@ impl EditorContent for RegionWidget {
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
-
         let mut consumed = false;
 
         let mut rect = self.rect.clone();
@@ -450,7 +449,7 @@ impl EditorContent for RegionWidget {
                                     }
 
                                     let mode = self.character_widgets[0].curr_index;
-
+                                    /*
                                     if mode == 0 {
                                         // Add
                                         let index = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == (self.region_id, id.0, id.1));
@@ -469,7 +468,7 @@ impl EditorContent for RegionWidget {
                                         if let Some(index) = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == (self.region_id, id.0, id.1)) {
                                             behavior.data.instances.as_mut().unwrap().remove(index);
                                         }
-                                    }
+                                    }*/
                                     behavior.save_data();
                                 }
                             }
@@ -486,7 +485,6 @@ impl EditorContent for RegionWidget {
         self.clicked = None;
 
         let mut consumed = false;
-
         if let Some(options) = options {
 
             for atom in &mut self.widgets {
@@ -511,7 +509,7 @@ impl EditorContent for RegionWidget {
                             if let Some(region) = context.data.regions.get(&self.get_region_id()) {
                                 context.code_editor_node_behavior_value.4 = region.data.settings.to_string(generate_region_sink_descriptions());
                             }
-                            context.code_editor_node_behavior_id.0 = 130000;
+                            // TODO context.code_editor_node_behavior_id.0 = 130000;
                         }
                     }
                     return true;
@@ -585,7 +583,6 @@ impl EditorContent for RegionWidget {
                 }
             }
         }
-
         consumed
     }
 
@@ -629,7 +626,6 @@ impl EditorContent for RegionWidget {
     fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
         let mut consumed = false;
-
         if let Some(options) = options {
             let editor_mode = options.get_editor_mode();
 
@@ -661,7 +657,6 @@ impl EditorContent for RegionWidget {
                 consumed = true;
             }
         }
-
         consumed
     }
 
@@ -735,7 +730,7 @@ impl EditorContent for RegionWidget {
                     if let Some(region) = context.data.regions.get(&self.get_region_id()) {
                         context.code_editor_node_behavior_value.4 = region.data.settings.to_string(generate_region_sink_descriptions());
                     }
-                    context.code_editor_node_behavior_id.0 = 130000;
+                    // TODO context.code_editor_node_behavior_id.0 = 130000;
                     return true;
                 } else
                 if char == 'c' {
@@ -750,27 +745,23 @@ impl EditorContent for RegionWidget {
                 }
             }
         }
-
         false
     }
 
     /// Sets a region id
-    fn set_region_id(&mut self, id: usize, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
+    fn set_region_id(&mut self, id: Uuid, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
         self.region_id = id;
-
         if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-            //if let Some(options) = options {
 
-                self.area_widgets[0].text = region.get_area_names();
-                self.area_widgets[0].dirty = true;
+            self.area_widgets[0].text = region.get_area_names();
+            self.area_widgets[0].dirty = true;
 
-                if context.curr_region_area_index >= region.data.areas.len() {
-                    context.curr_region_area_index = 0;
-                }
-                if region.behaviors.len() > 0 {
-                    self.behavior_graph.set_behavior_id(region.behaviors[context.curr_region_area_index].data.id, context);
-                }
-            //}
+            if context.curr_region_area_index >= region.data.areas.len() {
+                context.curr_region_area_index = 0;
+            }
+            if region.behaviors.len() > 0 {
+                self.behavior_graph.set_behavior_id(region.behaviors[context.curr_region_area_index].data.id, context);
+            }
         }
 
         if let Some(options) = options {
@@ -781,7 +772,7 @@ impl EditorContent for RegionWidget {
                     context.code_editor_just_opened = true;
                     context.code_editor_mode = CodeEditorMode::Settings;
                     context.code_editor_node_behavior_value.4 = region.data.settings.to_string(generate_region_sink_descriptions());
-                    context.code_editor_node_behavior_id.0 = 130000;
+                    // TODO context.code_editor_node_behavior_id.0 = 130000;
                 }
             }
         }
@@ -817,7 +808,7 @@ impl EditorContent for RegionWidget {
     }
 
     /// Returns the region_id
-    fn get_region_id(&self) -> usize {
+    fn get_region_id(&self) -> Uuid {
         self.region_id
     }
 
@@ -832,13 +823,12 @@ impl EditorContent for RegionWidget {
     }
 
     /// Update the behavior graph when a setting changed
-    fn update_from_dialog(&mut self, context: &mut ScreenContext) {
-        self.behavior_graph.update_from_dialog(context);
+    fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
+        self.behavior_graph.update_from_dialog(id, value, asset, context, options);
     }
 
     /// Update the area ui
     fn update_area_ui(&mut self, context: &mut ScreenContext) {
-
         if let Some(region) = context.data.regions.get(&self.get_region_id()) {
 
             let area_count = region.data.areas.len();
@@ -865,7 +855,6 @@ impl EditorContent for RegionWidget {
 
             region.save_data();
         }
-
     }
 
     /// Sets a new name for the current area

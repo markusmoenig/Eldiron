@@ -66,7 +66,7 @@ pub fn update_game_sink(sink: &mut PropertySink) {
 
     //
     if sink.contains("character_attributes") == false {
-        sink.properties.insert(0,Property::new_color("character_attributes".to_string(), "\"HP, STR\"".to_string()));
+        sink.properties.insert(0,Property::new_string("character_attributes".to_string(), "\"HP, STR\"".to_string()));
     }
     /*
     if sink.contains("lighting") == false {

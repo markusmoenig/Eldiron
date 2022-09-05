@@ -10,7 +10,7 @@ pub struct DialogPositionWidget {
 
     clicked_id                  : String,
 
-    curr_area_id                : usize,
+    curr_area_id                : Uuid,
 
     region_rect                 : (usize, usize, usize, usize),
     region_offset               : (isize, isize),
@@ -47,7 +47,7 @@ impl DialogPositionWidget {
 
             clicked_id              : "".to_string(),
 
-            curr_area_id            : 0,
+            curr_area_id            : Uuid::new_v4(),
 
             region_rect             : (0,0,0,0),
             region_offset           : (0,0),
@@ -81,17 +81,20 @@ impl DialogPositionWidget {
                 self.widgets[1].dirty = true;
                 self.widgets[2].dirty = true;
 
-                // Display the correct region
-                let region_id = context.dialog_node_behavior_value.0 as usize;
-                for (index, id) in context.data.regions_ids.iter().enumerate() {
-                    if region_id == *id {
-                        self.widgets[0].curr_index = index;
-                        break;
-                    }
+                match context.dialog_value {
+                    Value::Area(region_id, area_id) => {
+                        self.curr_area_id = area_id;
+                        for (index, id) in context.data.regions_ids.iter().enumerate() {
+                            if region_id == *id {
+                                self.widgets[0].curr_index = index;
+                                break;
+                            }
+                        }
+                    },
+                    _ => {}
                 }
 
                 self.region_scroll_offset = (0, 0);
-                self.curr_area_id = context.dialog_node_behavior_value.3 as usize;
                 self.new_value = false;
             }
             self.dirty = true;
@@ -141,7 +144,15 @@ impl DialogPositionWidget {
                     let region_id = context.data.regions_ids[self.widgets[0].curr_index];
                     if let Some(region) = context.data.regions.get(&region_id) {
 
-                        let position = (context.dialog_node_behavior_value.1 as isize, context.dialog_node_behavior_value.2 as isize);
+                        let mut position = (0,0);
+
+                        match context.dialog_value {
+                            Value::Position(_region_id, x, y) => {
+                                position = (x as isize, y as isize);
+                            },
+                            _ => {}
+                        }
+
                         self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &region_rect, &position, &self.region_scroll_offset, rect.2, 32, 0, asset, context);
 
                         // Draw areas
@@ -222,7 +233,7 @@ impl DialogPositionWidget {
                     context.target_fps = 60;
                     context.dialog_accepted = true;
 
-                    context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
+                    context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_value.clone(), context.curr_graph_type);
 
                     self.new_value = true;
 
@@ -274,7 +285,11 @@ impl DialogPositionWidget {
 
             if self.area_mode() == false {
                 self.region_scroll_offset = (0, 0);
-                context.dialog_node_behavior_value = (context.data.regions_ids[self.widgets[0].curr_index] as f64, x as f64, y as f64, -1.0, "".to_string());
+
+                let region_id = context.data.regions_ids[self.widgets[0].curr_index];
+                context.dialog_value = Value::Position(region_id, x as i32, y as i32);
+
+                //context.dialog_node_behavior_value = (context.data.regions_ids[self.widgets[0].curr_index] as f64, x as f64, y as f64, -1.0, "".to_string());
             } else {
                 let region_id = context.data.regions_ids[self.widgets[0].curr_index];
                 if let Some(region) = context.data.regions.get(&region_id) {
@@ -282,8 +297,13 @@ impl DialogPositionWidget {
                     for area_index in 0..region.data.areas.len() {
                         if region.data.areas[area_index].area.contains(&(x, y)) {
                             self.curr_area_id = region.data.areas[area_index].id;
-                            let id = region.data.areas[area_index].id as f64;
-                            context.dialog_node_behavior_value = (context.data.regions_ids[self.widgets[0].curr_index] as f64, x as f64, y as f64, id, "".to_string());
+
+                            let region_id = context.data.regions_ids[self.widgets[0].curr_index];
+                            let area_id = region.data.areas[area_index].id;
+
+                            context.dialog_value = Value::Area(region_id, area_id);
+                            //let id = region.data.areas[area_index].id as f64;
+                            //context.dialog_node_behavior_value = (context.data.regions_ids[self.widgets[0].curr_index] as f64, x as f64, y as f64, id, "".to_string());
                         }
                     }
                 }
@@ -308,7 +328,7 @@ impl DialogPositionWidget {
                     context.dialog_accepted = false;
 
                     context.dialog_node_behavior_value.1 = 100000.0;
-                    context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
+                    context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_value.clone(), context.curr_graph_type);
 
                     self.new_value = true;
                 } else
@@ -317,7 +337,7 @@ impl DialogPositionWidget {
                     context.target_fps = 60;
                     context.dialog_accepted = true;
 
-                    context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
+                    context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_value.clone(), context.curr_graph_type);
 
                     self.new_value = true;
                 }

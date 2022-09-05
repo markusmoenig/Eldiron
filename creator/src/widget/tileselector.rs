@@ -80,26 +80,27 @@ impl TileSelectorWidget {
 
                 let tile = &tiles[index + offset];
 
-                let map = asset.get_map_of_id(tile.tilemap);
-                context.draw2d.draw_animated_tile(frame, &(x, y), map, stride, &(tile.grid_x, tile.grid_y), anim_counter, self.grid_size);
+                if let Some(map) = asset.get_map_of_id(tile.tilemap) {
+                    context.draw2d.draw_animated_tile(frame, &(x, y), map, stride, &(tile.grid_x as usize, tile.grid_y as usize), anim_counter, self.grid_size);
 
-                //let mut selected_drawn = false;
-                if let Some(selected) = &self.selected {
-                    if selected.tilemap == map.settings.id && selected.grid_x == tile.grid_x && selected.grid_y == tile.grid_y {
-                        context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_white);
-                        //selected_drawn = true;
+                    //let mut selected_drawn = false;
+                    if let Some(selected) = &self.selected {
+                        if selected.tilemap == map.settings.id && selected.grid_x == tile.grid_x && selected.grid_y == tile.grid_y {
+                            context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_white);
+                            //selected_drawn = true;
+                        }
                     }
+
+                    /*
+                    if selected_drawn == false {
+                        if tile.3 == TileUsage::EnvBlocking {
+                            context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_red);
+                        } else
+                        if tile.3 == TileUsage::Water {
+                            context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_blue);
+                        }
+                    }*/
                 }
-
-                /*
-                if selected_drawn == false {
-                    if tile.3 == TileUsage::EnvBlocking {
-                        context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_red);
-                    } else
-                    if tile.3 == TileUsage::Water {
-                        context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_blue);
-                    }
-                }*/
 
                 x += self.grid_size;
                 if x + self.grid_size > self.rect.0 + self.rect.2 {
@@ -155,7 +156,7 @@ impl TileSelectorWidget {
         let mut tiles : Vec<TileData> = vec![];
         let sorted_keys= asset.tileset.maps.keys().sorted();
 
-        let mut tilemap_id : Option<usize> = None;
+        let mut tilemap_id : Option<Uuid> = None;
 
         if let Some(tilemap_index) = tilemap_index {
             tilemap_id = Some(asset.tileset.maps_ids[tilemap_index]);
@@ -166,26 +167,26 @@ impl TileSelectorWidget {
             let amount = map.max_tiles();
             for offset in 0..amount {
                 let id = map.offset_to_id(offset);
-                let tile = map.get_tile(&id);
-
-                if tile_usage.contains(&tile.usage) {
-                    if tilemap_id == None || tilemap_id.unwrap() == map.settings.id {
-                        if tags.is_some() {
-                            if tile.tags.contains(&tags.clone().unwrap()) {
+                if let Some(tile) = map.get_tile(&id) {
+                    if tile_usage.contains(&tile.usage) {
+                        if tilemap_id == None || tilemap_id.unwrap() == map.settings.id {
+                            if tags.is_some() {
+                                if tile.tags.contains(&tags.clone().unwrap()) {
+                                    tiles.push( TileData {
+                                        tilemap         : map.settings.id,
+                                        grid_x          : id.0 as u16,
+                                        grid_y          : id.1 as u16,
+                                        usage           : tile.usage.clone(),
+                                    });
+                                }
+                            } else {
                                 tiles.push( TileData {
                                     tilemap         : map.settings.id,
-                                    grid_x          : id.0,
-                                    grid_y          : id.1,
-                                    usage           : tile.usage,
+                                    grid_x          : id.0 as u16,
+                                    grid_y          : id.1 as u16,
+                                    usage           : tile.usage.clone(),
                                 });
                             }
-                        } else {
-                            tiles.push( TileData {
-                                tilemap         : map.settings.id,
-                                grid_x          : id.0,
-                                grid_y          : id.1,
-                                usage           : tile.usage,
-                            });
                         }
                     }
                 }

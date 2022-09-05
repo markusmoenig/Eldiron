@@ -17,7 +17,7 @@ pub struct NodePreviewWidget {
 
     pub size                    : (usize, usize),
 
-    pub clicked_id              : Option<(usize, usize, String)>,
+    pub clicked_id              : Option<(Uuid, Uuid, String)>,
 
     pub drag_size               : Option<(usize, usize)>,
 
@@ -27,7 +27,7 @@ pub struct NodePreviewWidget {
     pub region_offset           : (isize, isize),
     pub region_scroll_offset    : (isize, isize),
 
-    pub curr_position           : Option<(usize, isize, isize)>,
+    pub curr_position           : Option<(Uuid, isize, isize)>,
 
     pub tile_size               : usize,
 
@@ -159,11 +159,12 @@ impl NodePreviewWidget {
                         }
                     }*/
                 } else {
+                    /* TODO
                     if let Some(position) = context.data.get_behavior_default_position(context.data.behaviors_ids[context.curr_behavior_index]) {
                         if let Some(region) = context.data.regions.get(&position.0) {
                             self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &self.region_rect, &(position.1, position.2), &self.region_scroll_offset, stride, 32, 0, asset, context);
                         }
-                    }
+                    }*/
                 }
             } else {
                 /*
@@ -216,6 +217,7 @@ impl NodePreviewWidget {
         // Test region map
         if context.contains_pos_for(pos, self.region_rect) {
 
+            /*TODO
             let left_offset = (self.region_rect.2 % self.region_tile_size) / 2;
             let top_offset = (self.region_rect.3 % self.region_tile_size) / 2;
 
@@ -224,7 +226,7 @@ impl NodePreviewWidget {
             //println!("{} {}", x, y);
             if let Some(region) = context.data.regions.get(&context.data.regions_ids[self.curr_region_index]) {
                 self.clicked_region_id = Some((region.data.id.clone(), x, y));
-            }
+            }*/
             return true;
         }
         false

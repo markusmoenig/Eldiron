@@ -17,7 +17,7 @@ pub struct NodeConnector {
 }
 
 pub struct NodeWidget {
-    pub text                    : Vec<String>,
+    pub name                    : String,
     pub widgets                 : Vec<AtomWidget>,
     pub menu                    : Option<AtomWidget>,
 
@@ -25,7 +25,7 @@ pub struct NodeWidget {
 
     pub clicked                 : bool,
 
-    pub id                      : usize,
+    pub id                      : Uuid,
 
     pub dirty                   : bool,
     pub buffer                  : Vec<u8>,
@@ -37,7 +37,7 @@ pub struct NodeWidget {
 
     pub size                    : (usize, usize),
 
-    pub clicked_id              : Option<(usize, usize, String)>,
+    pub clicked_id              : Option<(Uuid, Uuid, String)>,
 
     pub node_connector          : HashMap<BehaviorNodeConnector, NodeConnector>,
 
@@ -50,17 +50,17 @@ pub struct NodeWidget {
 
 impl NodeWidget {
 
-    pub fn new(text: Vec<String>, user_data: NodeUserData) -> Self {
+    pub fn new(name: String, user_data: NodeUserData) -> Self {
 
         Self {
-            text,
+            name,
             widgets             : vec![],
             menu                : None,
             clicked             : false,
 
             visible             : true,
 
-            id                  : 0,
+            id                  : Uuid::new_v4(),
 
             dirty               : true,
             buffer              : vec![],
@@ -87,7 +87,7 @@ impl NodeWidget {
     pub fn new_from_behavior_data(_behavior: &GameBehaviorData, behavior_node: &BehaviorNode) -> Self {
 
         Self {
-            text                : vec![behavior_node.name.clone()],
+            name                : behavior_node.name.clone(),
             widgets             : vec![],
             menu                : None,
 
@@ -178,7 +178,7 @@ impl NodeWidget {
 
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3) as f64 - 2.5), &context.color_black, rounding, &context.color_black, 1.5);
 
-                context.draw2d.draw_text(buffer_frame, &(20, 10), stride, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[0], &context.color_white, &context.color_black);
+                context.draw2d.draw_text(buffer_frame, &(20, 10), stride, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.name, &context.color_white, &context.color_black);
 
                 if let Some(menu) = &mut self.menu {
                     menu.set_rect((0, 0, self.size.0 - 100, 40), asset, context);
@@ -213,7 +213,7 @@ impl NodeWidget {
                     context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3) as f64 - 2.5), &[0,0,0,0], rounding, &context.color_gray, 1.5);
                 }
 
-                context.draw2d.draw_text(buffer_frame, &(25, 10), stride, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[0], &context.color_white, title_color);
+                context.draw2d.draw_text(buffer_frame, &(25, 10), stride, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.name, &context.color_white, title_color);
 
                 // Draw menu
 
@@ -324,7 +324,7 @@ impl NodeWidget {
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
             context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(0, 0, self.size.1, self.size.1), rect.2, &((self.size.1 - 1) as f64, (self.size.1 - 1) as f64), &[0,0,0,255], &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
 
-            context.draw2d.draw_text_rect(buffer_frame, &(133, 80, self.size.0 - 146, 40), rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[0], &context.color_white, &context.color_black, crate::draw2d::TextAlignment::Left);
+            context.draw2d.draw_text_rect(buffer_frame, &(133, 80, self.size.0 - 146, 40), rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.name, &context.color_white, &context.color_black, crate::draw2d::TextAlignment::Left);
 
             // Draw atoms
 
@@ -410,7 +410,7 @@ impl NodeWidget {
                 for index in 0..self.widgets.len() {
                     if let Some(widget_id) = self.widgets[index].behavior_id.clone() {
                         if id == widget_id {
-                            context.data.set_behavior_id_value(id.clone(), self.widgets[index].atom_data.data.clone(), context.curr_graph_type);
+                            context.data.set_behavior_id_value(id.clone(), self.widgets[index].atom_data.value.clone(), context.curr_graph_type);
                         }
                     }
                 }

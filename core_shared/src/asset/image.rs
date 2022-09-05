@@ -6,7 +6,6 @@ use std::path;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use rand::prelude::*;
 
 #[cfg(feature = "embed_binaries")]
 use core_embed_binaries::Embedded;
@@ -27,7 +26,7 @@ pub struct ImageSettings {
     pub grid_size       : usize,
     #[serde(with = "vectorize")]
     pub tiles           : HashMap<(usize, usize), ImageTile>,
-    pub id              : usize,
+    pub id              : Uuid,
     pub default_tile    : Option<(usize, usize)>
 }
 
@@ -67,7 +66,11 @@ impl Image {
 
         // Construct the json settings
         let settings = serde_json::from_str(&contents)
-            .unwrap_or(ImageSettings { grid_size: 16, tiles: HashMap::new(), id: thread_rng().gen_range(1..=u32::MAX) as usize, default_tile: None } );
+            .unwrap_or(ImageSettings {
+                grid_size: 16,
+                tiles: HashMap::new(),
+                id: Uuid::new_v4(),
+                default_tile: None } );
 
         Self {
             base_path       : base_path.clone(),
@@ -114,7 +117,11 @@ impl Image {
 
         // Construct the json settings
         let settings = serde_json::from_str(&contents)
-            .unwrap_or(ImageSettings { grid_size: 16, tiles: HashMap::new(), id: thread_rng().gen_range(1..=u32::MAX) as usize, default_tile: None } );
+            .unwrap_or(ImageSettings {
+                grid_size: 16,
+                tiles: HashMap::new(),
+                id: Uuid::new_v4(),
+                default_tile: None } );
 
         Self {
             base_path       : PathBuf::new(),

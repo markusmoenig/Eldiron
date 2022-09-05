@@ -6,7 +6,6 @@ use std::path;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use rand::prelude::*;
 
 #[cfg(feature = "embed_binaries")]
 use core_embed_binaries::Embedded;
@@ -32,7 +31,17 @@ pub struct Tile {
     pub usage               : TileUsage,
     pub anim_tiles          : Vec<(usize, usize)>,
     pub tags                : String,
-    pub role                : usize,
+}
+
+impl Tile {
+    pub fn new() -> Self {
+
+        Self {
+            usage       : TileUsage::Environment,
+            anim_tiles  : vec![],
+            tags        : "".to_string(),
+        }
+    }
 }
 
 // TileMap implementation
@@ -41,8 +50,8 @@ pub struct Tile {
 pub struct TileMapSettings {
     pub grid_size       : usize,
     #[serde(with = "vectorize")]
-    pub tiles           : HashMap<(usize, usize), Tile>,
-    pub id              : usize,
+    pub tiles           : FxHashMap<(u16, u16), Tile>,
+    pub id              : Uuid,
     pub default_tile    : Option<(usize, usize)>
 }
 
@@ -82,7 +91,11 @@ impl TileMap {
 
         // Construct the json settings
         let settings = serde_json::from_str(&contents)
-            .unwrap_or(TileMapSettings { grid_size: 16, tiles: HashMap::new(), id: thread_rng().gen_range(1..=u32::MAX) as usize, default_tile: None } );
+            .unwrap_or(TileMapSettings {
+                grid_size: 16,
+                tiles: HashMap::default(),
+                id: Uuid::new_v4(),
+                default_tile: None } );
 
         TileMap {
             base_path       : base_path.clone(),
@@ -129,7 +142,11 @@ impl TileMap {
 
         // Construct the json settings
         let settings = serde_json::from_str(&contents)
-            .unwrap_or(TileMapSettings { grid_size: 16, tiles: HashMap::new(), id: thread_rng().gen_range(1..=u32::MAX) as usize, default_tile: None } );
+            .unwrap_or(TileMapSettings {
+                grid_size           : 16,
+                tiles               : FxHashMap::default(),
+                id                  : Uuid::new_v4(),
+                default_tile        : None } );
 
         TileMap {
             base_path       : PathBuf::new(),
@@ -141,18 +158,36 @@ impl TileMap {
         }
     }
 
-    /// Get the tile for the given id
-    pub fn get_tile(&self, tile_id: &(usize, usize)) -> Tile {
-        if let Some(t) = self.settings.tiles.get(&tile_id) {
-            Tile { usage: t.usage.clone(), anim_tiles: t.anim_tiles.clone(), tags: t.tags.clone(), role: t.role.clone() }
+    /// Get a reference to the tile of the given id
+    pub fn get_tile(&self, tile_id: &(usize, usize)) -> Option<&Tile> {
+        if let Some(tile) = self.settings.tiles.get(&(tile_id.0 as u16, tile_id.1 as u16)) {
+            Some(tile)
         } else {
-            Tile { usage: TileUsage::Environment, anim_tiles: vec![], tags: "".to_string(), role: 0 }
+            None
+        }
+    }
+
+    /// Get a reference to the tile of the given id
+    pub fn get_tile_u16(&self, tile_id: &(u16, u16)) -> Option<&Tile> {
+        if let Some(tile) = self.settings.tiles.get(&tile_id) {
+            Some(tile)
+        } else {
+            None
+        }
+    }
+
+    /// Get a mutable reference to the tile of the given id
+    pub fn get_mut_tile(&mut self, tile_id: &(usize, usize)) -> Option<&mut Tile> {
+        if let Some(tile) = self.settings.tiles.get_mut(&(tile_id.0 as u16, tile_id.1 as u16)) {
+            Some(tile)
+        } else {
+            None
         }
     }
 
     /// Set the tile for the given id
     pub fn set_tile(&mut self, tile_id: (usize, usize), tile: Tile) {
-        self.settings.tiles.insert(tile_id, tile);
+        self.settings.tiles.insert((tile_id.0 as u16, tile_id.1 as u16), tile);
     }
 
     /// Returns the name of the tilemap

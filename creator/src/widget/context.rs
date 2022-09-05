@@ -80,8 +80,9 @@ pub struct ScreenContext<'a> {
     pub dialog_state                    : DialogState,
     pub dialog_height                   : usize,
     pub dialog_entry                    : DialogEntry,
-    pub dialog_node_behavior_id         : (usize, usize, String),
+    pub dialog_node_behavior_id         : (Uuid, Uuid, String),
     pub dialog_node_behavior_value      : (f64, f64, f64, f64, String),
+    pub dialog_value                    : Value,
     pub dialog_new_name_type            : String,
     pub dialog_new_name                 : String,
     pub dialog_new_node_position        : (isize, isize),
@@ -97,13 +98,13 @@ pub struct ScreenContext<'a> {
     pub code_editor_mode                : CodeEditorMode,
     pub code_editor_update_node         : bool,
     pub code_editor_value               : String,
-    pub code_editor_node_behavior_id    : (usize, usize, String),
+    pub code_editor_node_behavior_id    : (Uuid, Uuid, String),
     pub code_editor_node_behavior_value : (f64, f64, f64, f64, String),
     pub code_editor_error               : Option<(String, Option<usize>)>,
 
-    pub active_position_id              : Option<(usize, usize, String)>,
+    pub active_position_id              : Option<(Uuid, Uuid, String)>,
 
-    pub jump_to_position                : Option<(usize, isize, isize)>,
+    pub jump_to_position                : Option<(Uuid, isize, isize)>,
 
     pub is_running                      : bool,
     pub is_debugging                    : bool,
@@ -283,8 +284,9 @@ impl ScreenContext<'_> {
             dialog_state                : DialogState::Closed,
             dialog_height               : 0,
             dialog_entry                : DialogEntry::None,
-            dialog_node_behavior_id     : (0, 0, "".to_string()),
+            dialog_node_behavior_id     : (Uuid::new_v4(), Uuid::new_v4(), "".to_string()),
             dialog_node_behavior_value  : (0.0, 0.0, 0.0, 0.0, "".to_string()),
+            dialog_value                : Value::Empty(),
             dialog_new_name_type        : "".to_string(),
             dialog_new_name             : "".to_string(),
             dialog_new_node_position    : (0,0),
@@ -300,7 +302,7 @@ impl ScreenContext<'_> {
             code_editor_mode                 : CodeEditorMode::Rhai,
             code_editor_update_node          : false,
             code_editor_value                : "".to_string(),
-            code_editor_node_behavior_id     : (0, 0, "".to_string()),
+            code_editor_node_behavior_id     : (Uuid::new_v4(), Uuid::new_v4(), "".to_string()),
             code_editor_node_behavior_value  : (0.0, 0.0, 0.0, 0.0, "".to_string()),
             code_editor_error                : None,
 
@@ -452,5 +454,28 @@ impl ScreenContext<'_> {
         self.hover_help_counter = 0;
         self.hover_help_title = None;
         self.hover_help_text = None;
+    }
+
+    /// Opens the dialog
+    pub fn open_dialog(&mut self, id: (Uuid, Uuid, String), value: Value) {
+        self.dialog_state = DialogState::Opening;
+        self.dialog_node_behavior_id = id;
+        self.dialog_value = value;
+        self.dialog_height = 0;
+        self.target_fps = 60;
+    }
+
+    /// Opens the position dialog
+    pub fn open_position_dialog(&mut self, id: (Uuid, Uuid, String), value: Value) {
+        self.dialog_position_state = DialogState::Opening;
+        self.dialog_node_behavior_id = id;
+        self.dialog_value = value;
+        self.dialog_height = 0;
+        self.target_fps = 60;
+    }
+
+    /// Creates a property id
+    pub fn create_property_id(&mut self, property: &str) -> (Uuid, Uuid, String) {
+        (Uuid::new_v4(), Uuid::new_v4(), property.to_string())
     }
 }

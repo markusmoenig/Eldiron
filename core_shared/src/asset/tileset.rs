@@ -14,20 +14,20 @@ use core_embed_binaries::Embedded;
 pub struct TileSet {
     pub path            : PathBuf,
 
-    pub maps            : HashMap<usize, TileMap>,
+    pub maps            : HashMap<Uuid, TileMap>,
     pub maps_names      : Vec<String>,
-    pub maps_ids        : Vec<usize>,
+    pub maps_ids        : Vec<Uuid>,
 
-    pub images          : HashMap<usize, Image>,
+    pub images          : HashMap<Uuid, Image>,
     pub images_names    : Vec<String>,
-    pub images_ids      : Vec<usize>,
+    pub images_ids      : Vec<Uuid>,
 }
 
 impl TileSet {
 
     pub fn load_from_path(base_path: PathBuf) -> TileSet {
 
-        let mut maps : HashMap<usize, TileMap> = HashMap::new();
+        let mut maps : HashMap<Uuid, TileMap> = HashMap::new();
 
         let tilemaps_path = base_path.join("assets").join("tilemaps");
         let mut paths: Vec<_> = fs::read_dir(tilemaps_path.clone()).unwrap()
@@ -36,7 +36,7 @@ impl TileSet {
         paths.sort_by_key(|dir| dir.path());
 
         let mut maps_names  : Vec<String> = vec![];
-        let mut maps_ids    : Vec<usize> = vec![];
+        let mut maps_ids    : Vec<Uuid> = vec![];
 
         for path in paths {
 
@@ -48,26 +48,9 @@ impl TileSet {
                 if let Some(name) = path::Path::new(&path).extension() {
                     if name == "png" || name == "PNG" {
 
-                        let mut tile_map = TileMap::new(&path, &base_path);
+                        let tile_map = TileMap::new(&path, &base_path);
                         if tile_map.width != 0 {
                             maps_names.push(tile_map.get_name());
-
-                            // Make sure we create a unique id (check if the id already exists in the set)
-                            let mut has_id_already = true;
-                            while has_id_already {
-
-                                has_id_already = false;
-                                for (key, _value) in &maps {
-                                    if key == &tile_map.settings.id {
-                                        has_id_already = true;
-                                    }
-                                }
-
-                                if has_id_already {
-                                    tile_map.settings.id += 1;
-                                }
-                            }
-
                             maps_ids.push(tile_map.settings.id);
 
                             // If the tilemap has no tiles we assume it's new and we save the settings
@@ -83,7 +66,7 @@ impl TileSet {
             }
         }
 
-        let mut images : HashMap<usize, Image> = HashMap::new();
+        let mut images : HashMap<Uuid, Image> = HashMap::new();
 
         let images_path = base_path.join("assets").join("images");
         let mut paths: Vec<_> = fs::read_dir(images_path.clone()).unwrap()
@@ -92,7 +75,7 @@ impl TileSet {
         paths.sort_by_key(|dir| dir.path());
 
         let mut images_names  : Vec<String> = vec![];
-        let mut images_ids    : Vec<usize> = vec![];
+        let mut images_ids    : Vec<Uuid> = vec![];
 
         for path in paths {
 
@@ -104,26 +87,9 @@ impl TileSet {
                 if let Some(name) = path::Path::new(&path).extension() {
                     if name == "png" || name == "PNG" {
 
-                        let mut image = Image::new(&path, &base_path);
+                        let image = Image::new(&path, &base_path);
                         if image.width != 0 {
                             images_names.push(image.get_name());
-
-                            // Make sure we create a unique id (check if the id already exists in the set)
-                            let mut has_id_already = true;
-                            while has_id_already {
-
-                                has_id_already = false;
-                                for (key, _value) in &maps {
-                                    if key == &image.settings.id {
-                                        has_id_already = true;
-                                    }
-                                }
-
-                                if has_id_already {
-                                    image.settings.id += 1;
-                                }
-                            }
-
                             images_ids.push(image.settings.id);
 
                             // If the tilemap has no tiles we assume it's new and we save the settings
@@ -153,9 +119,9 @@ impl TileSet {
     #[cfg(feature = "embed_binaries")]
     pub fn load_from_embedded() -> TileSet {
 
-        let mut maps : HashMap<usize, TileMap> = HashMap::new();
+        let mut maps : HashMap<Uuid, TileMap> = HashMap::new();
         let mut maps_names  : Vec<String> = vec![];
-        let mut maps_ids    : Vec<usize> = vec![];
+        let mut maps_ids    : Vec<Uuid> = vec![];
 
         for file in Embedded::iter() {
             let name = file.as_ref();
@@ -175,9 +141,9 @@ impl TileSet {
             }
         }
 
-        let mut images : HashMap<usize, Image> = HashMap::new();
+        let mut images : HashMap<Uuid, Image> = HashMap::new();
         let mut images_names  : Vec<String> = vec![];
-        let mut images_ids    : Vec<usize> = vec![];
+        let mut images_ids    : Vec<Uuid> = vec![];
 
         for file in Embedded::iter() {
             let name = file.as_ref();
@@ -210,13 +176,13 @@ impl TileSet {
 
     pub fn new() -> Self {
 
-        let maps            : HashMap<usize, TileMap> = HashMap::new();
+        let maps            : HashMap<Uuid, TileMap> = HashMap::new();
         let maps_names      : Vec<String> = vec![];
-        let maps_ids        : Vec<usize> = vec![];
+        let maps_ids        : Vec<Uuid> = vec![];
 
-        let images          : HashMap<usize, Image> = HashMap::new();
+        let images          : HashMap<Uuid, Image> = HashMap::new();
         let images_names    : Vec<String> = vec![];
-        let images_ids      : Vec<usize> = vec![];
+        let images_ids      : Vec<Uuid> = vec![];
 
         Self {
             path            : PathBuf::new(),
@@ -238,26 +204,9 @@ impl TileSet {
             if let Some(name) = path::Path::new(&path).extension() {
                 if name == "png" || name == "PNG" {
 
-                    let mut tile_map = TileMap::new(&path, &self.path);
+                    let tile_map = TileMap::new(&path, &self.path);
                     if tile_map.width != 0 {
                         self.maps_names.push(tile_map.get_name());
-
-                        // Make sure we create a unique id (check if the id already exists in the set)
-                        let mut has_id_already = true;
-                        while has_id_already {
-
-                            has_id_already = false;
-                            for (key, _value) in &self.maps {
-                                if key == &tile_map.settings.id {
-                                    has_id_already = true;
-                                }
-                            }
-
-                            if has_id_already {
-                                tile_map.settings.id += 1;
-                            }
-                        }
-
                         self.maps_ids.push(tile_map.settings.id);
 
                         // If the tilemap has no tiles we assume it's new and we save the settings
@@ -282,26 +231,9 @@ impl TileSet {
             if let Some(name) = path::Path::new(&path).extension() {
                 if name == "png" || name == "PNG" {
 
-                    let mut image = Image::new(&path, &self.path);
+                    let image = Image::new(&path, &self.path);
                     if image.width != 0 {
                         self.images_names.push(image.get_name());
-
-                        // Make sure we create a unique id (check if the id already exists in the set)
-                        let mut has_id_already = true;
-                        while has_id_already {
-
-                            has_id_already = false;
-                            for (key, _value) in &self.maps {
-                                if key == &image.settings.id {
-                                    has_id_already = true;
-                                }
-                            }
-
-                            if has_id_already {
-                                image.settings.id += 1;
-                            }
-                        }
-
                         self.images_ids.push(image.settings.id);
 
                         // If the tilemap has no tiles we assume it's new and we save the settings

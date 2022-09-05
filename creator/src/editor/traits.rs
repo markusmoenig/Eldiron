@@ -19,6 +19,9 @@ pub trait EditorOptions {
 
     fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) -> bool { false }
 
+    /// Updates a value from the dialog
+    fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {}
+
     // Sets the state of the atom widgets
     fn set_state(&mut self, state: WidgetState) {}
 
@@ -119,7 +122,7 @@ pub trait EditorContent {
     fn is_image(&mut self) -> bool { false }
 
     // Set the current tilemap id
-    fn set_tilemap_id(&mut self, id: usize, asset: &mut Asset) {}
+    fn set_tilemap_id(&mut self, id: Uuid, asset: &mut Asset) {}
 
     /// Converts a screen position to a map grid position
     fn screen_to_map(&self, asset: &Asset, screen_pos: (usize, usize)) -> Option<(usize, usize)> { None }
@@ -128,7 +131,7 @@ pub trait EditorContent {
 
 
     /// Sets a region id
-    fn set_region_id(&mut self, id: usize, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {}
+    fn set_region_id(&mut self, id: Uuid, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {}
 
     /// Get the tile id
     fn get_tile_id(&self, pos: (usize, usize)) -> Option<(isize, isize)> { None }
@@ -140,7 +143,7 @@ pub trait EditorContent {
     fn get_tile_selector(&mut self) -> Option<&mut TileSelectorWidget> { None }
 
     /// Returns the region_id
-    fn get_region_id(&self) -> usize { 0 }
+    fn get_region_id(&self) -> Uuid { Uuid::new_v4() }
 
     /// Return the behavior graph
     fn get_behavior_graph(&mut self) -> Option<&mut NodeGraph> { None }
@@ -166,7 +169,7 @@ pub trait EditorContent {
     fn get_node_rect(&self, node_index: usize, relative: bool) -> (isize, isize, usize, usize) { (0,0,0,0) }
 
     /// Updates a node value from the dialog
-    fn update_from_dialog(&mut self, context: &mut ScreenContext) {}
+    fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {}
 
     /// Marks the two nodes as dirty
     fn changed_selection(&mut self, old_selection: usize, new_selection: usize) {}
@@ -175,7 +178,7 @@ pub trait EditorContent {
     fn mark_all_dirty(&mut self) {}
 
     /// Set the behavior id, this will take the bevhavior node data and create the node widgets
-    fn set_behavior_id(&mut self, id: usize, context: &mut ScreenContext) {}
+    fn set_behavior_id(&mut self, id: Uuid, context: &mut ScreenContext) {}
 
     /// Adds a node of the type identified by its name
     fn add_node_of_name(&mut self, name: String, position: (isize, isize), context: &mut ScreenContext) {}
@@ -186,44 +189,47 @@ pub trait EditorContent {
     /// Inits the node widget (atom widgets, id)
     fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {}
 
+    fn init_node_widget2(&mut self, node_widget: &mut NodeWidget, context: &mut ScreenContext) {}
+
+
     /// Sets up the corner node widget
     fn setup_corner_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {}
 
     /// Converts the index of a node widget to a node id
-    fn widget_index_to_node_id(&self, index: usize) -> usize { 0 }
+    fn widget_index_to_node_id(&self, index: usize) -> Uuid { Uuid::new_v4() }
 
     /// Converts the id of a node to a widget index
-    fn node_id_to_widget_index(&self, id: usize) -> usize { 0 }
+    fn node_id_to_widget_index(&self, id: Uuid) -> usize { 0 }
 
     /// Returns true if the node connector is a source connector (Right or Bottom)
     fn connector_is_source(&self, connector: BehaviorNodeConnector) -> bool { false }
 
     /// Disconnect the node from all connections
-    fn disconnect_node(&mut self, id: usize, context: &mut ScreenContext) {}
+    fn disconnect_node(&mut self, id: Uuid, context: &mut ScreenContext) {}
 
     /// Disconnect the node from all connections
-    fn delete_node(&mut self, id: usize, context: &mut ScreenContext) {}
+    fn delete_node(&mut self, id: Uuid, context: &mut ScreenContext) {}
 
     /// Sets the widget and behavior data for the given atom id
-    fn set_node_atom_data(&mut self, node_atom_id: (usize, usize, String), data: (f64, f64, f64, f64, String), context: &mut ScreenContext) {}
+    fn set_node_atom_data(&mut self, node_atom_id: (Uuid, Uuid, String), value: Value, context: &mut ScreenContext) {}
 
     /// Checks the visibility of a node
     fn check_node_visibility(&mut self, context: &ScreenContext) {}
 
     /// Marks all connected nodes as visible
-    fn mark_connections_visible(&mut self, id: usize, context: &ScreenContext) {}
+    fn mark_connections_visible(&mut self, id: Uuid, context: &ScreenContext) {}
 
     /// Checks if the given node id is part of an unconnected branch.
-    fn belongs_to_standalone_branch(&mut self, id: usize, context: &ScreenContext) -> bool { false }
+    fn belongs_to_standalone_branch(&mut self, id: Uuid, context: &ScreenContext) -> bool { false }
 
     /// Collects the children indices of the given node id so that they can all be dragged at once
-    fn collect_drag_children_indices(&mut self, id: usize, context: &ScreenContext) {}
+    fn collect_drag_children_indices(&mut self, id: Uuid, context: &ScreenContext) {}
 
     /// Returns the behavior id for the current behavior and graph type
-    fn get_curr_behavior_id(&self, context: &ScreenContext) -> usize { 0 }
+    fn get_curr_behavior_id(&self, context: &ScreenContext) -> Uuid { Uuid::new_v4() }
 
     /// Returns the current node id for the given graph type
-    fn get_curr_node_id(&self, context: &ScreenContext) -> Option<usize> { None }
+    fn get_curr_node_id(&self, context: &ScreenContext) -> Option<Uuid> { None }
 
     /// Marks the node graph for redraw
     fn set_dirty(&mut self) {}

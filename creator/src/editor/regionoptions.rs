@@ -122,8 +122,9 @@ impl EditorOptions for RegionOptions {
         if mode == RegionEditorMode::Tiles {
             if let Some(content) = content {
                 if let Some(tile) = content.get_selected_tile() {
-                    context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + self.rect.3 - 120), asset.get_map_of_id(tile.tilemap), context.width, &(tile.grid_x, tile.grid_y), anim_counter, 100);
-
+                    if let Some(map) = asset.get_map_of_id(tile.tilemap) {
+                        context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + self.rect.3 - 120), map, context.width, &(tile.grid_x as usize, tile.grid_y as usize), anim_counter, 100);
+                    }
                     //context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 22, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("{}, {})", /*tile.0,*/ tile.1, tile.2), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
                 }
                 for atom in &mut self.tile_widgets {
@@ -144,6 +145,7 @@ impl EditorOptions for RegionOptions {
 
                 if atom.atom_data.id == "Mode" {
 
+                    /*
                     if atom.curr_item_index == 3 {
                         if let Some(content) = content {
                             if let Some(region) = context.data.regions.get_mut(&content.get_region_id()) {
@@ -157,7 +159,7 @@ impl EditorOptions for RegionOptions {
                         }
                     } else {
                         context.code_editor_is_active = false;
-                    }
+                    }*/
                 }
                 return true;
             }
@@ -178,9 +180,10 @@ impl EditorOptions for RegionOptions {
                             self.curr_layer = atom.curr_index + 1;
                         } else
                         if atom.atom_data.id == "remap" {
+                            /*
                             if let Some(region) = context.data.regions.get_mut(&content.get_region_id()) {
                                 region.remap(asset);
-                            }
+                            }*/
                         }
                     }
                     return true;
@@ -377,15 +380,16 @@ impl EditorOptions for RegionOptions {
         self.curr_layer
     }
 
-    /// Set the tags
-    fn set_region_tags(&mut self, tags: String, asset: &mut Asset, _context: &ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {
+    /// Updates a value from the dialog
+    fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, asset: &mut Asset, _context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {
+        if id.2 == "tags".to_string() {
+            self.tile_widgets[1].text[0] = value.to_string_value().to_lowercase();
+            self.tile_widgets[1].dirty = true;
 
-        self.tile_widgets[1].text[0] = tags.clone().to_lowercase();
-        self.tile_widgets[1].dirty = true;
-
-        if let Some(content) = content {
-            if let Some(tile_selector) = content.get_tile_selector() {
-                tile_selector.set_tile_type(vec![self.get_tile_usage()], self.get_tilemap_index(), self.get_tags(), &asset);
+            if let Some(content) = content {
+                if let Some(tile_selector) = content.get_tile_selector() {
+                    tile_selector.set_tile_type(vec![self.get_tile_usage()], self.get_tilemap_index(), self.get_tags(), &asset);
+                }
             }
         }
     }

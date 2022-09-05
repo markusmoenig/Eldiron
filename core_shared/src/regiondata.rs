@@ -5,19 +5,11 @@ use serde::{Deserialize, Serialize};
 use crate::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct TileData {
-    pub tilemap         : usize,
-    pub grid_x          : usize,
-    pub grid_y          : usize,
-    pub usage           : TileUsage,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RegionArea {
     pub name            : String,
-    pub id              : usize,
+    pub id              : Uuid,
     pub area            : Vec<(isize, isize)>,
-    pub behavior        : usize,
+    pub behavior        : Uuid,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -30,7 +22,7 @@ pub struct GameRegionData {
     pub layer3          : HashMap<(isize, isize), TileData>,
     #[serde(with = "vectorize")]
     pub layer4          : HashMap<(isize, isize), TileData>,
-    pub id              : usize,
+    pub id              : Uuid,
     pub curr_pos        : (isize, isize),
     pub min_pos         : (isize, isize),
     pub max_pos         : (isize, isize),
@@ -46,7 +38,7 @@ impl GameRegionData {
             layer2      : HashMap::new(),
             layer3      : HashMap::new(),
             layer4      : HashMap::new(),
-            id          : 0,
+            id          : Uuid::new_v4(),
             curr_pos    : (0,0),
             min_pos     : (10000,10000),
             max_pos     : (-10000, -10000),

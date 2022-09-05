@@ -31,21 +31,21 @@ pub struct GameData {
 
     pub path                    : PathBuf,
 
-    pub regions                 : HashMap<usize, GameRegion>,
+    pub regions                 : HashMap<Uuid, GameRegion>,
     pub regions_names           : Vec<String>,
-    pub regions_ids             : Vec<usize>,
+    pub regions_ids             : Vec<Uuid>,
 
-    pub behaviors               : HashMap<usize, GameBehavior>,
+    pub behaviors               : HashMap<Uuid, GameBehavior>,
     pub behaviors_names         : Vec<String>,
-    pub behaviors_ids           : Vec<usize>,
+    pub behaviors_ids           : Vec<Uuid>,
 
-    pub systems                 : HashMap<usize, GameBehavior>,
+    pub systems                 : HashMap<Uuid, GameBehavior>,
     pub systems_names           : Vec<String>,
-    pub systems_ids             : Vec<usize>,
+    pub systems_ids             : Vec<Uuid>,
 
-    pub items                   : HashMap<usize, GameBehavior>,
+    pub items                   : HashMap<Uuid, GameBehavior>,
     pub items_names             : Vec<String>,
-    pub items_ids               : Vec<usize>,
+    pub items_ids               : Vec<Uuid>,
 
     pub game                    : Game,
 }
@@ -56,7 +56,7 @@ impl GameData {
     pub fn load_from_path(path: path::PathBuf) -> Self {
 
         // Create the tile regions
-        let mut regions: HashMap<usize, GameRegion> = HashMap::new();
+        let mut regions: HashMap<Uuid, GameRegion> = HashMap::new();
         let mut regions_names = vec![];
         let mut regions_ids = vec![];
 
@@ -75,22 +75,6 @@ impl GameData {
                 if md.is_dir() {
                     let mut region = GameRegion::new(path, &region_path);
                     regions_names.push(region.name.clone());
-
-                    // Make sure we create a unique id (check if the id already exists in the set)
-                    let mut has_id_already = true;
-                    while has_id_already {
-
-                        has_id_already = false;
-                        for (key, _value) in &regions {
-                            if key == &region.data.id {
-                                has_id_already = true;
-                            }
-                        }
-
-                        if has_id_already {
-                            region.data.id += 1;
-                        }
-                    }
 
                     region.calc_dimensions();
 
@@ -127,7 +111,7 @@ impl GameData {
 
         // Behaviors
 
-        let mut behaviors: HashMap<usize, GameBehavior> = HashMap::new();
+        let mut behaviors: HashMap<Uuid, GameBehavior> = HashMap::new();
         let mut behaviors_names = vec![];
         let mut behaviors_ids = vec![];
 
@@ -145,22 +129,6 @@ impl GameData {
                             if name == "json" || name == "JSON" {
                                 let mut behavior = GameBehavior::load_from_path(path, &behavior_path);
                                 behaviors_names.push(behavior.name.clone());
-
-                                // Make sure we create a unique id (check if the id already exists in the set)
-                                let mut has_id_already = true;
-                                while has_id_already {
-
-                                    has_id_already = false;
-                                    for (key, _value) in &behaviors {
-                                        if key == &behavior.data.id {
-                                            has_id_already = true;
-                                        }
-                                    }
-
-                                    if has_id_already {
-                                        behavior.data.id += 1;
-                                    }
-                                }
 
                                 if behavior.data.nodes.len() == 0 {
                                     behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
@@ -207,7 +175,7 @@ impl GameData {
 
         // Systems
 
-        let mut systems: HashMap<usize, GameBehavior> = HashMap::new();
+        let mut systems: HashMap<Uuid, GameBehavior> = HashMap::new();
         let mut systems_names = vec![];
         let mut systems_ids = vec![];
 
@@ -225,22 +193,6 @@ impl GameData {
                             if name == "json" || name == "JSON" {
                                 let mut system = GameBehavior::load_from_path(path, &systems_path);
                                 systems_names.push(system.name.clone());
-
-                                // Make sure we create a unique id (check if the id already exists in the set)
-                                let mut has_id_already = true;
-                                while has_id_already {
-
-                                    has_id_already = false;
-                                    for (key, _value) in &systems {
-                                        if key == &system.data.id {
-                                            has_id_already = true;
-                                        }
-                                    }
-
-                                    if has_id_already {
-                                        system.data.id += 1;
-                                    }
-                                }
 
                                 if system.data.nodes.len() == 0 {
                                     // behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
@@ -272,7 +224,7 @@ impl GameData {
 
         // Items
 
-        let mut items: HashMap<usize, GameBehavior> = HashMap::new();
+        let mut items: HashMap<Uuid, GameBehavior> = HashMap::new();
         let mut items_names = vec![];
         let mut items_ids = vec![];
 
@@ -288,22 +240,6 @@ impl GameData {
                         if name == "json" || name == "JSON" {
                             let mut item = GameBehavior::load_from_path(path, &item_path);
                             items_names.push(item.name.clone());
-
-                            // Make sure we create a unique id (check if the id already exists in the set)
-                            let mut has_id_already = true;
-                            while has_id_already {
-
-                                has_id_already = false;
-                                for (key, _value) in &behaviors {
-                                    if key == &item.data.id {
-                                        has_id_already = true;
-                                    }
-                                }
-
-                                if has_id_already {
-                                    item.data.id += 1;
-                                }
-                            }
 
                             if item.data.nodes.len() == 0 {
                                 // behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
@@ -367,25 +303,25 @@ impl GameData {
     // Create an empty structure
     pub fn new() -> Self {
 
-        let regions: HashMap<usize, GameRegion> = HashMap::new();
+        let regions: HashMap<Uuid, GameRegion> = HashMap::new();
         let regions_names = vec![];
         let regions_ids = vec![];
 
         // Behaviors
 
-        let behaviors: HashMap<usize, GameBehavior> = HashMap::new();
+        let behaviors: HashMap<Uuid, GameBehavior> = HashMap::new();
         let behaviors_names = vec![];
         let behaviors_ids = vec![];
 
         // Systems
 
-        let systems: HashMap<usize, GameBehavior> = HashMap::new();
+        let systems: HashMap<Uuid, GameBehavior> = HashMap::new();
         let systems_names = vec![];
         let systems_ids = vec![];
 
         // Items
 
-        let items: HashMap<usize, GameBehavior> = HashMap::new();
+        let items: HashMap<Uuid, GameBehavior> = HashMap::new();
         let items_names = vec![];
         let items_ids = vec![];
 
@@ -420,7 +356,7 @@ impl GameData {
 
     #[cfg(feature = "data_editing")]
     /// Saves the region to disk
-    pub fn save_region(&self, id: usize) {
+    pub fn save_region(&self, id: Uuid) {
         if let Some(region) = &mut self.regions.get(&id) {
             region.save_data();
         }
@@ -428,25 +364,12 @@ impl GameData {
 
     #[cfg(feature = "data_editing")]
     /// Sets a value in the region
-    pub fn set_region_value(&mut self, layer: usize, id: usize, pos: (isize, isize), value: TileData) {
+    pub fn set_region_value(&mut self, layer: usize, id: Uuid, pos: (isize, isize), value: TileData) {
         let region = &mut self.regions.get_mut(&id).unwrap();
         region.set_value(layer, pos, value);
     }
 
     #[cfg(feature = "data_editing")]
-    /// Get region by name
-    pub fn get_region_by_name(&self, name: &String) -> Option<&GameRegion> {
-
-        for (index, n) in self.regions_names.iter().enumerate() {
-            if n == name {
-                return self.regions.get(&index);
-            }
-        }
-        None
-    }
-
-    #[cfg(feature = "data_editing")]
-
     /// Create a new behavior
     pub fn create_behavior(&mut self, name: String, _behavior_type: usize) {
 
@@ -506,7 +429,7 @@ impl GameData {
 
     #[cfg(feature = "data_editing")]
     /// Sets the value for the given behavior id
-    pub fn set_behavior_id_value(&mut self, id: (usize, usize, String), value: (f64, f64, f64, f64, String), behavior_type: BehaviorType) {
+    pub fn set_behavior_id_value(&mut self, id: (Uuid, Uuid, String), value: Value, behavior_type: BehaviorType) {
         if let Some(behavior) = self.get_mut_behavior(id.0, behavior_type) {
             if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
                 node.values.insert(id.2.clone(), value);
@@ -517,7 +440,7 @@ impl GameData {
 
     #[cfg(feature = "data_editing")]
     /// Sets the name for the given node
-    pub fn set_behavior_node_name(&mut self, id: (usize, usize), value: String, behavior_type: BehaviorType) {
+    pub fn set_behavior_node_name(&mut self, id: (Uuid, Uuid), value: String, behavior_type: BehaviorType) {
         if let Some(behavior) = self.get_mut_behavior(id.0, behavior_type) {
             if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
                 node.name = value;
@@ -528,11 +451,15 @@ impl GameData {
 
     #[cfg(feature = "data_editing")]
     /// Gets the value of the behavior id
-    pub fn get_behavior_id_value(&self, id: (usize, usize, String), def: (f64, f64, f64, f64, String), behavior_type: BehaviorType) -> (f64, f64, f64, f64, String) {
-        if let Some(behavior) = self.get_behavior(id.0, behavior_type) {
-            if let Some(node) = behavior.data.nodes.get(&id.1) {
+    pub fn get_behavior_id_value(&mut self, id: (Uuid, Uuid, String), def: Value, behavior_type: BehaviorType) -> Value {
+
+        if let Some(behavior) = self.get_mut_behavior(id.0, behavior_type) {
+            if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
                 if let Some(v) = node.values.get(&id.2) {
                     return v.clone();
+                } else {
+                    node.values.insert(id.2.clone(), def.clone());
+                    behavior.save_data();
                 }
             }
         }
@@ -541,7 +468,8 @@ impl GameData {
 
     #[cfg(feature = "data_editing")]
     /// Gets the position for the given behavior
-    pub fn get_behavior_default_position(&self, id: usize) -> Option<(usize, isize, isize)> {
+    pub fn get_behavior_default_position(&self, id: Uuid) -> Option<(Uuid, isize, isize)> {
+        /*
         if let Some(behavior) = self.behaviors.get(&id) {
             for (_index, node) in &behavior.data.nodes {
                 if node.behavior_type == BehaviorNodeType::BehaviorType {
@@ -550,18 +478,19 @@ impl GameData {
                     }
                 }
             }
-        }
+        }*/
         None
     }
 
     #[cfg(feature = "data_editing")]
     /// Gets the position for the given behavior
-    pub fn get_behavior_default_tile(&self, id: usize) -> Option<(usize, usize, usize)> {
+    pub fn get_behavior_default_tile(&self, id: Uuid) -> Option<TileId> {
         if let Some(behavior) = self.behaviors.get(&id) {
             for (_index, node) in &behavior.data.nodes {
                 if node.behavior_type == BehaviorNodeType::BehaviorType {
-                    if let Some(tile) = node.values.get(&"tile".to_string()) {
-                        return Some((tile.0 as usize, tile.1 as usize, tile.2 as usize));
+                    if let Some(value) = node.values.get(&"tile".to_string()) {
+                        return value.to_tile_id();
+                        //return Some((tile.0 as usize, tile.1 as usize, tile.2 as usize));
                     }
                 }
             }
@@ -570,13 +499,16 @@ impl GameData {
     }
 
     #[cfg(feature = "data_editing")]
-    /// Gets the position for the given behavior
-    pub fn get_behavior_default_alignment(&self, id: usize) -> i64 {
+    /// Gets the alignment variable
+    pub fn get_behavior_default_alignment(&self, id: Uuid) -> i32 {
         if let Some(behavior) = self.behaviors.get(&id) {
             for (_index, node) in &behavior.data.nodes {
                 if node.behavior_type == BehaviorNodeType::BehaviorType {
-                    if let Some(value) = node.values.get(&"align".to_string()) {
-                        return 2 - value.0 as i64 - 1;
+                    if let Some(value) = node.values.get(&"alignment".to_string()) {
+                        match value {
+                            Value::Integer(v) => return 2 - *v as i32 - 1,
+                            _ => {},
+                        }
                     }
                 }
             }
@@ -591,7 +523,7 @@ impl GameData {
     // }
 
     /// Returns the layered tiles at the given position
-    pub fn get_tile_at(&self, pos: (usize, isize, isize)) -> Vec<TileData> {
+    pub fn get_tile_at(&self, pos: (Uuid, isize, isize)) -> Vec<TileData> {
         if let Some(region) = self.regions.get(&pos.0) {
             return region.get_value((pos.1, pos.2));
         }
@@ -638,7 +570,7 @@ impl GameData {
     }
 
     /// Gets the behavior for the given behavior type
-    pub fn get_behavior(&self, id: usize, behavior_type: BehaviorType) -> Option<&GameBehavior> {
+    pub fn get_behavior(&self, id: Uuid, behavior_type: BehaviorType) -> Option<&GameBehavior> {
         if behavior_type == BehaviorType::Regions {
             for (_index, region) in &self.regions {
                 for index in 0..region.behaviors.len() {
@@ -664,7 +596,7 @@ impl GameData {
     }
 
     /// Gets the mutable behavior for the given behavior type
-    pub fn get_mut_behavior(&mut self, id: usize, behavior_type: BehaviorType) -> Option<&mut GameBehavior> {
+    pub fn get_mut_behavior(&mut self, id: Uuid, behavior_type: BehaviorType) -> Option<&mut GameBehavior> {
         if behavior_type == BehaviorType::Regions {
             for (_index, region) in &mut self.regions {
                 for index in 0..region.behaviors.len() {
@@ -702,7 +634,6 @@ impl GameData {
 
     /// Checks all behaviors if they contain all character attributes defined in the game settings
     pub fn check_all_behaviors_for_attributes(&mut self) {
-
         let ids = self.behaviors_ids.clone();
         for id in ids {
             self.check_behavior_for_attributes(id);
@@ -710,34 +641,36 @@ impl GameData {
     }
 
     /// Check the given behavior contains all character attributes defined in the game settings
-    pub fn check_behavior_for_attributes(&mut self, behavior_id: usize) {
+    pub fn check_behavior_for_attributes(&mut self, behavior_id: Uuid) {
         // Check to see if we added all variables from the game settings.
         let settings = self.get_game_settings();
-        let attr = settings.get("character_attributes").unwrap().as_string().unwrap();
-        let mut attributes : Vec<&str> = attr.split(',').collect();
+        if let Some(attr) = settings.get("character_attributes") {
+            if let Some(attr_string) = attr.as_string() {
+                let mut attributes : Vec<&str> = attr_string.split(',').collect();
 
-        for a in attributes.iter_mut() {
-            *a = a.trim();
-        }
+                for a in attributes.iter_mut() {
+                    *a = a.trim();
+                }
 
-        if let Some(behavior) = self.behaviors.get_mut(&behavior_id) {
-            for (_id, node) in &behavior.data.nodes {
-                if node.behavior_type == BehaviorNodeType::VariableNumber {
+                if let Some(behavior) = self.behaviors.get_mut(&behavior_id) {
+                    for (_id, node) in &behavior.data.nodes {
+                        if node.behavior_type == BehaviorNodeType::VariableNumber {
 
-                    if let Some(index) = attributes.iter().position(|&a| a == node.name) {
-                        attributes.remove(index);
+                            if let Some(index) = attributes.iter().position(|&a| a == node.name) {
+                                attributes.remove(index);
+                            }
+                        }
+                    }
+
+                    for a in attributes {
+                        let id = behavior.add_node(BehaviorNodeType::VariableNumber, a.clone().to_string());
+                        if let Some(node) = behavior.data.nodes.get_mut(&id) {
+                            node.values.insert("value".to_string(), Value::Float(10.0));
+                        }
                     }
                 }
             }
-
-            for a in attributes {
-                let id = behavior.add_node(BehaviorNodeType::VariableNumber, a.clone().to_string());
-                if let Some(node) = behavior.data.nodes.get_mut(&id) {
-                    node.values.insert("value".to_string(), (10.0, 0.0, 0.0, 0.0, "".to_owned()));
-                }
-            }
         }
-
     }
 
 }

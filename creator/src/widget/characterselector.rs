@@ -1,9 +1,9 @@
 use crate::widget::*;
 
-#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct CharacterMetaData {
-    pub id                  : usize,
-    pub tile                : (usize, usize, usize),
+    pub id                  : Uuid,
+    pub tile                : TileId,
     pub name                : String,
 }
 
@@ -86,12 +86,13 @@ impl CharacterSelectorWidget {
 
             let tile = &chars[index + offset];
 
-            let map = asset.get_map_of_id(tile.tile.0);
-            context.draw2d.draw_animated_tile(frame, &(x, y), map, stride, &(tile.tile.1, tile.tile.2), anim_counter, self.grid_size);
+            if let Some(map) = asset.get_map_of_id(tile.tile.map) {
+                context.draw2d.draw_animated_tile(frame, &(x, y), map, stride, &(tile.tile.x_off as usize, tile.tile.y_off as usize), anim_counter, self.grid_size);
 
-            if let Some(selected) = &self.selected {
-                if selected.tile.0 == map.settings.id && selected.tile.1 == tile.tile.1 && selected.tile.2 == tile.tile.2 {
-                    context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_white);
+                if let Some(selected) = &self.selected {
+                    if selected.tile.map == map.settings.id && selected.tile.x_off == tile.tile.x_off && selected.tile.y_off == tile.tile.y_off {
+                        context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_white);
+                    }
                 }
             }
 
@@ -146,7 +147,6 @@ impl CharacterSelectorWidget {
 
     pub fn collect(&mut self,  context: &mut ScreenContext) {
         self.characters = vec![];
-
         for id in &context.data.behaviors_ids {
             if let Some(behavior) = context.data.behaviors.get(&id) {
                 if behavior.name != "Player" {

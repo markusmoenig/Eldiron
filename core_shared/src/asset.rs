@@ -117,14 +117,23 @@ impl Asset  {
     }
 
     /// Returns the tilemap of the given id
-    pub fn get_map_of_id(&self, id: usize) -> &TileMap {
-        &self.tileset.maps[&id]
+    pub fn get_map_of_id(&self, id: Uuid) -> Option<&TileMap> {
+        self.tileset.maps.get(&id)
     }
 
-    /// Returns the tile fo the given id
-    pub fn get_tile(&self, id: &(usize, usize, usize)) -> Tile {
-        let map = self.get_map_of_id(id.0);
-        map.get_tile(&(id.1, id.2))
+    /// Returns a reference to the tile of the given id
+    pub fn get_tile(&self, id: &TileId) -> Option<&Tile> {
+        if let Some(map) = self.get_map_of_id(id.map) {
+            return map.get_tile(&(id.x_off as usize, id.y_off as usize));
+        }
+        None
     }
 
+    /// Returns a mutable reference to tile of the given id
+    pub fn get_mut_tile(&mut self, id: &TileId) -> Option<&mut Tile> {
+        if let Some(map) = self.tileset.maps.get_mut(&id.map) {
+            return map.get_mut_tile(&(id.x_off as usize, id.y_off as usize));
+        }
+        None
+    }
 }

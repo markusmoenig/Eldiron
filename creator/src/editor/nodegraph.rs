@@ -34,8 +34,8 @@ pub struct NodeGraph  {
     behavior_tree_rects         : Vec<(usize, usize, usize, usize)>,
     curr_behavior_tree_index    : Option<usize>,
 
-    visible_node_ids            : Vec<usize>,
-    behavior_id                 : usize,
+    visible_node_ids            : Vec<Uuid>,
+    behavior_id                 : Uuid,
 
     behavior_debug_data         : Option<BehaviorDebugData>,
 
@@ -76,7 +76,7 @@ impl EditorContent for NodeGraph  {
 
             visible_node_ids            : vec![],
 
-            behavior_id                 : 0,
+            behavior_id                 : Uuid::new_v4(),
 
             behavior_debug_data         : None,
 
@@ -182,11 +182,11 @@ impl EditorContent for NodeGraph  {
                         } else
                         if self.graph_type == BehaviorType::Behaviors {
                             // Draw the main behavior tile
-                            if let Some(tile_id) = context.data.get_behavior_default_tile(context.data.behaviors_ids[index]) {
-                                if let Some(map)= asset.tileset.maps.get_mut(&tile_id.0) {
-                                    context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.1, tile_id.2), 0, 100);
-                                }
-                            }
+                            // TODO if let Some(tile_id) = context.data.get_behavior_default_tile(context.data.behaviors_ids[index]) {
+                            //     if let Some(map)= asset.tileset.maps.get_mut(&tile_id.0) {
+                            //         context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.1, tile_id.2), 0, 100);
+                            //     }
+                            // }
                         }
 
                         self.nodes[index].draw_overview(frame, anim_counter, asset, context, selected, &preview_buffer, selected && self.overview_preview_clicked);
@@ -330,6 +330,7 @@ impl EditorContent for NodeGraph  {
                             control_end_x = end_x + (edx * d) as isize;
                             control_end_y = end_y + (edy * d) as isize;
 
+                            /*
                             let mut connection_drawn = false;
                             if let Some(debug_data) = &self.behavior_debug_data {
                                 if debug_data.executed_connections.contains(&(self.graph_type, *source_node_id, *source_connector)) {
@@ -340,7 +341,7 @@ impl EditorContent for NodeGraph  {
 
                             if connection_drawn == false {
                                 path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
-                            }
+                            }*/
                         }
                     }
                 }
@@ -427,7 +428,7 @@ impl EditorContent for NodeGraph  {
 
                     self.behavior_tree_rects.push(bt_rect.clone());
 
-                    context.draw2d.draw_text_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &asset.get_editor_font("OpenSans"), 16.0, &self.nodes[*bt_index].text[0], &context.color_white, &color, crate::draw2d::TextAlignment::Center);
+                    context.draw2d.draw_text_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &asset.get_editor_font("OpenSans"), 16.0, &self.nodes[*bt_index].name, &context.color_white, &color, crate::draw2d::TextAlignment::Center);
 
                     bt_rect.0 += 171;
                     if (bt_rect.0 + bt_rect.2) - left_start > total_width {
@@ -501,12 +502,13 @@ impl EditorContent for NodeGraph  {
     }
 
     /// Updates a node value from the dialog
-    fn update_from_dialog(&mut self, context: &mut ScreenContext) {
+    fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
+        //println!("graph {:?} {:?}", id, value);
         if context.dialog_entry == DialogEntry::NodeName {
             // Node based
             for node_index in 0..self.nodes.len() {
                 if self.nodes[node_index].id == context.dialog_node_behavior_id.0 {
-                    self.nodes[node_index].text[0] = context.dialog_node_behavior_value.4.clone();
+                    self.nodes[node_index].name = context.dialog_node_behavior_value.4.clone();
                     self.nodes[node_index].dirty = true;
                     self.dirty = true;
 
@@ -520,9 +522,9 @@ impl EditorContent for NodeGraph  {
         // Atom base
         for node_index in 0..self.nodes.len() {
             for atom_index in 0..self.nodes[node_index].widgets.len() {
-                if let Some(id) = &self.nodes[node_index].widgets[atom_index].behavior_id {
-                    if id.0 == context.dialog_node_behavior_id.0 && id.1 == context.dialog_node_behavior_id.1 && id.2 == context.dialog_node_behavior_id.2 {
-                        self.nodes[node_index].widgets[atom_index].atom_data.data = context.dialog_node_behavior_value.clone();
+                if let Some(node_id) = &self.nodes[node_index].widgets[atom_index].behavior_id {
+                    if node_id.0 == id.0 && node_id.1 == id.1 && node_id.2 == id.2 {
+                        self.nodes[node_index].widgets[atom_index].atom_data.value = value.clone();
                         self.nodes[node_index].widgets[atom_index].dirty = true;
                         self.nodes[node_index].dirty = true;
                         self.dirty = true;
@@ -680,15 +682,13 @@ impl EditorContent for NodeGraph  {
                                 }
                             }
                         }
-
                         self.drag_offset = (pos.0 as isize, pos.1 as isize);
                         self.drag_node_pos = vec!((self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize));
                         self.drag_indices = vec![index];
                         self.collect_drag_children_indices(self.widget_index_to_node_id(index), &context);
 
                         if self.get_curr_node_id(context) != Some(self.nodes[index].id) {
-
-                            // Update the told selection
+                            // Update the old selection
                             if let Some(selected_id) = self.get_curr_node_id(context) {
                                 let sel_index = self.node_id_to_widget_index(selected_id);
 
@@ -880,8 +880,8 @@ impl EditorContent for NodeGraph  {
                         context.dialog_height = 0;
                         context.target_fps = 60;
                         context.dialog_entry = DialogEntry::NodeName;
-                        context.dialog_node_behavior_id = (self.nodes[index].id, 0, "".to_string());
-                        context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].text[0].clone());
+                        //TODO context.dialog_node_behavior_id = (self.nodes[index].id, 0, "".to_string());
+                        context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].name.clone());
                     } else
                     if "Delete".to_string() == menu_activated {
                         if self.nodes.len() > 1 {
@@ -927,8 +927,8 @@ impl EditorContent for NodeGraph  {
                         context.dialog_height = 0;
                         context.target_fps = 60;
                         context.dialog_entry = DialogEntry::NodeName;
-                        context.dialog_node_behavior_id = (self.nodes[index].id, 0, "".to_string());
-                        context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].text[0].clone());
+                        // TODO context.dialog_node_behavior_id = (self.nodes[index].id, 0, "".to_string());
+                        context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].name.clone());
                     } else
                     if "Disconnect".to_string() == menu_activated {
                         // Disconnect node
@@ -1122,7 +1122,7 @@ impl EditorContent for NodeGraph  {
     }
 
     /// Set the behavior id, this will take the bevhavior node data and create node widgets
-    fn set_behavior_id(&mut self, id: usize, context: &mut ScreenContext) {
+    fn set_behavior_id(&mut self, id: Uuid, context: &mut ScreenContext) {
 
         self.nodes = vec![];
         self.behavior_tree_indices = vec![];
@@ -1135,15 +1135,24 @@ impl EditorContent for NodeGraph  {
             context.data.check_behavior_for_attributes(id);
         }
 
+        let mut nodes = vec![];
+
         if let Some(behavior) = context.data.get_behavior(id, self.graph_type) {
             let sorted_keys = behavior.data.nodes.keys().sorted();
 
+            // Create the nodes
             for i in sorted_keys {
-                let mut node_widget = NodeWidget::new_from_behavior_data(&behavior.data,  &behavior.data.nodes[i]);
-                self.init_node_widget(&behavior.data, &behavior.data.nodes[i], &mut node_widget, context);
-                self.nodes.push(node_widget);
+                let node_widget = NodeWidget::new_from_behavior_data(&behavior.data,  &behavior.data.nodes[i]);
+                nodes.push(node_widget);
             }
         }
+
+        // Init the nodes and add them
+        for mut node_widget in nodes {
+            self.init_node_widget2(&mut node_widget, context);
+            self.nodes.push(node_widget);
+        }
+
         self.dirty = true;
         self.check_node_visibility(context);
         context.jump_to_position = context.data.get_behavior_default_position(id);
@@ -1160,7 +1169,6 @@ impl EditorContent for NodeGraph  {
     fn add_node_of_name(&mut self, name: String, position: (isize, isize), context: &mut ScreenContext) {
 
         let mut node_widget : Option<NodeWidget> =  None;
-        let mut id : usize = 0;
 
         // Create the node
         if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
@@ -1201,17 +1209,23 @@ impl EditorContent for NodeGraph  {
                 _ => BehaviorNodeType::BehaviorTree
             };
 
-            id = behavior.add_node(node_type, name.clone());
+            let id = behavior.add_node(node_type, name.clone());
             if let Some(node) = behavior.data.nodes.get_mut(&id) {
                 node.position = position;
             }
 
             let node = NodeWidget::new_from_behavior_data(&behavior.data, &behavior.data.nodes.get(&id).unwrap());
-             node_widget = Some(node);
+            node_widget = Some(node);
 
             behavior.save_data();
         }
 
+        if let Some(mut node) = node_widget {
+            self.init_node_widget2( &mut node, context);
+            self.nodes.push(node);
+        }
+
+        /*
         // Add the atom widgets
         if let Some(mut node) = node_widget {
             if self.graph_type == BehaviorType::Regions {
@@ -1237,14 +1251,150 @@ impl EditorContent for NodeGraph  {
             }
             self.nodes.push(node);
         }
-
+        */
         self.check_node_visibility(context);
         self.dirty = true;
     }
 
     /// Inits the node widget (atom widgets, id)
+    fn init_node_widget2(&mut self, node_widget: &mut NodeWidget, context: &mut ScreenContext) {
+
+        let behavior_data_id;
+        let node_id;
+        let node_behavior_type;
+
+        if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
+
+            behavior_data_id = behavior.data.id;
+
+            if let Some(node) = behavior.data.nodes.get(&node_widget.id) {
+
+                node_id = node.id;
+                node_behavior_type = node.behavior_type;
+            } else {
+                return;
+            }
+        } else {
+            return;
+        }
+
+        // menu button factory
+        let mut create_menu_atom = |id: String, text: Vec<String>, def: Value| -> AtomWidget {
+            let mut atom = AtomWidget::new(text, AtomWidgetType::NodeMenuButton, AtomData::new_as_int(id.to_lowercase(), 0));
+            atom.atom_data.text = id.clone();
+            let id = (behavior_data_id, node_id, id.to_lowercase());
+            atom.behavior_id = Some(id.clone());
+            atom.atom_data.value = context.data.get_behavior_id_value(id, def, self.graph_type);
+            if let Some(index) = atom.atom_data.value.to_integer() {
+                atom.curr_index = index as usize;
+            }
+            atom
+        };
+
+        if node_behavior_type == BehaviorNodeType::BehaviorType {
+            if self.graph_type == BehaviorType::Behaviors {
+                node_widget.is_corner_node = true;
+
+                let aligh_menu = create_menu_atom("Alignment".to_string(), vec!["Hero".to_string(), "Neutral".to_string(), "Monster".to_string()], Value::Integer(0));
+
+                node_widget.widgets.push(aligh_menu);
+                node_widget.color = context.color_black.clone();
+
+                // Position
+                let mut position_atom = AtomWidget::new(vec![], AtomWidgetType::NodePositionButton,
+                AtomData::new_as_int("position".to_string(), 0));
+                position_atom.atom_data.text = "position".to_string();
+                let id = (behavior_data_id, node_id, "position".to_string());
+                position_atom.behavior_id = Some(id.clone());
+                //position_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
+                position_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+                node_widget.widgets.push(position_atom);
+
+                // Default Character Tile
+                let mut tile_atom = AtomWidget::new(vec![], AtomWidgetType::NodeCharTileButton,
+                    AtomData::new_as_int("tile".to_string(), 0));
+                tile_atom.atom_data.text = "tile".to_string();
+                let id = (behavior_data_id, node_id, "tile".to_string());
+                tile_atom.behavior_id = Some(id.clone());
+                // tile_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
+                tile_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+                node_widget.widgets.push(tile_atom);
+            } else
+            if self.graph_type == BehaviorType::GameLogic {
+                node_widget.is_corner_node = true;
+
+                // Name of the startup tree
+                let mut startup_atom = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+                AtomData::new_as_int("startup".to_string(), 0));
+                startup_atom.atom_data.text = "startup".to_string();
+                let id = (behavior_data_id, node_id, "startup".to_string());
+                startup_atom.behavior_id = Some(id.clone());
+                //startup_atom.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Game".to_string()), self.graph_type);
+                startup_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::String("Game".to_string()), self.graph_type);
+                node_widget.widgets.push(startup_atom);
+            }
+            return;
+        }
+
+        // Node menu
+
+        let mut menu_text : Vec<String> = vec!["Rename".to_string()];
+        if node_behavior_type != BehaviorNodeType::VariableNumber {
+            menu_text.push( "Disconnect".to_string());
+        }
+        menu_text.push( "Delete".to_string());
+
+        let mut node_menu_atom = AtomWidget::new(menu_text, AtomWidgetType::NodeMenu,
+        AtomData::new_as_int("menu".to_string(), 0));
+        node_menu_atom.atom_data.text = "menu".to_string();
+        let id = (behavior_data_id, node_id, "menu".to_string());
+        node_menu_atom.behavior_id = Some(id.clone());
+        node_widget.menu = Some(node_menu_atom);
+
+        if node_behavior_type == BehaviorNodeType::BehaviorTree {
+            let mut atom1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Target".to_string()], AtomWidgetType::NodeMenuButton,
+            AtomData::new_as_int("execute".to_string(), 0));
+            atom1.atom_data.text = "Execute".to_string();
+            let id = (behavior_data_id, node_id, "execute".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.curr_index = context.data.get_behavior_id_value(id, Value::Integer(0), self.graph_type).to_integer().unwrap() as usize;
+            node_widget.widgets.push(atom1);
+            node_widget.color = context.color_green.clone();
+
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            if self.graph_type != BehaviorType::GameLogic {
+                node_widget.node_connector.insert(BehaviorNodeConnector::Bottom1, NodeConnector { rect: (0,0,0,0) } );
+                node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
+                node_widget.node_connector.insert(BehaviorNodeConnector::Bottom3, NodeConnector { rect: (0,0,0,0) } );
+                node_widget.node_connector.insert(BehaviorNodeConnector::Bottom4, NodeConnector { rect: (0,0,0,0) } );
+            }
+
+            // Add the node to the behavior tree ids
+            self.behavior_tree_indices.push(self.nodes.len());
+            if self.curr_behavior_tree_index == None {
+                self.curr_behavior_tree_index = Some(self.nodes.len());
+            }
+        } else
+        if node_behavior_type == BehaviorNodeType::VariableNumber {
+
+            let mut atom1 = AtomWidget::new(vec!["Value".to_string()], AtomWidgetType::NodeNumberButton,
+            AtomData::new_as_int("value".to_string(), 0));
+            atom1.atom_data.text = "Value".to_string();
+            let id = (behavior_data_id, node_id, "value".to_string());
+            atom1.behavior_id = Some(id.clone());
+            //atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_orange.clone();
+            node_widget.is_variable_node = true;
+        }
+
+    }
+
+    /// Inits the node widget (atom widgets, id)
     fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
 
+        /*
         if node_data.behavior_type == BehaviorNodeType::BehaviorType {
 
             if self.graph_type == BehaviorType::Behaviors {
@@ -1696,16 +1846,16 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         }
-
+        */
     }
 
     /// Converts the index of a node widget to a node id
-    fn widget_index_to_node_id(&self, index: usize) -> usize {
+    fn widget_index_to_node_id(&self, index: usize) -> Uuid {
         self.nodes[index].id
     }
 
     /// Converts the id of a node to a widget index
-    fn node_id_to_widget_index(&self, id: usize) -> usize {
+    fn node_id_to_widget_index(&self, id: Uuid) -> usize {
         for index in 0..self.nodes.len() {
             if self.nodes[index].id == id {
                 return index;
@@ -1723,8 +1873,7 @@ impl EditorContent for NodeGraph  {
     }
 
     /// Disconnect the node from all connections
-    fn disconnect_node(&mut self, id: usize, context: &mut ScreenContext) {
-
+    fn disconnect_node(&mut self, id: Uuid, context: &mut ScreenContext) {
         if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
             let mut nothing_to_remove = false;
             while nothing_to_remove == false {
@@ -1745,7 +1894,7 @@ impl EditorContent for NodeGraph  {
     }
 
     /// Disconnect the node from all connections
-    fn delete_node(&mut self, id: usize, context: &mut ScreenContext) {
+    fn delete_node(&mut self, id: Uuid, context: &mut ScreenContext) {
         self.disconnect_node(id, context);
 
         // Remove node widget
@@ -1763,23 +1912,23 @@ impl EditorContent for NodeGraph  {
         }
 
         // If this is an BehaviorTree remove it from the current indices
-        if let Some(index) = self.behavior_tree_indices.iter().position(|&x| x == id) {
-            self.behavior_tree_indices.remove(index);
-        }
+        // TODO if let Some(index) = self.behavior_tree_indices.iter().position(|&x| x == id) {
+        //     self.behavior_tree_indices.remove(index);
+        // }
     }
 
     /// Sets the widget and behavior data for the given atom id
-    fn set_node_atom_data(&mut self, node_atom_id: (usize, usize, String), data: (f64, f64, f64, f64, String), context: &mut ScreenContext) {
+    fn set_node_atom_data(&mut self, node_atom_id: (Uuid, Uuid, String), value: Value, context: &mut ScreenContext) {
         for index in 0..self.nodes.len() {
             if self.nodes[index].id == node_atom_id.1 {
                 for atom_index in 0..self.nodes[index].widgets.len() {
                     if self.nodes[index].widgets[atom_index].atom_data.id == node_atom_id.2 {
-                        self.nodes[index].widgets[atom_index].atom_data.data = data.clone();
+                        self.nodes[index].widgets[atom_index].atom_data.value = value.clone();
                         self.nodes[index].widgets[atom_index].dirty = true;
                         self.nodes[index].dirty = true;
                         self.dirty = true;
 
-                        context.data.set_behavior_id_value(node_atom_id.clone(), data.clone(), self.graph_type);
+                        context.data.set_behavior_id_value(node_atom_id.clone(), value.clone(), self.graph_type);
 
                         break;
                     }
@@ -1842,7 +1991,7 @@ impl EditorContent for NodeGraph  {
     }
 
     /// Marks all connected nodes as visible
-    fn mark_connections_visible(&mut self, id: usize, context: &ScreenContext) {
+    fn mark_connections_visible(&mut self, id: Uuid, context: &ScreenContext) {
         if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
             for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
                 if *source_node_id == id {
@@ -1854,7 +2003,7 @@ impl EditorContent for NodeGraph  {
     }
 
     /// Checks if the given node id is part of an unconnected branch.
-    fn belongs_to_standalone_branch(&mut self, id: usize, context: &ScreenContext) -> bool {
+    fn belongs_to_standalone_branch(&mut self, id: Uuid, context: &ScreenContext) -> bool {
         if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
 
             for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
@@ -1869,12 +2018,11 @@ impl EditorContent for NodeGraph  {
                 }
             }
         }
-
         false
     }
 
     /// Collects the children indices of the given node id so that they can all be dragged at once
-    fn collect_drag_children_indices(&mut self, id: usize, context: &ScreenContext) {
+    fn collect_drag_children_indices(&mut self, id: Uuid, context: &ScreenContext) {
         if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
             for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
                 if *source_node_id == id {
@@ -1914,7 +2062,7 @@ impl EditorContent for NodeGraph  {
     }
 
     /// Returns the behavior id for the current behavior and graph type
-    fn get_curr_behavior_id(&self, context: &ScreenContext) -> usize {
+    fn get_curr_behavior_id(&self, context: &ScreenContext) -> Uuid {
         if self.graph_type == BehaviorType::Regions {
             if let Some(region) = context.data.regions.get(&context.data.regions_ids[context.curr_region_index]) {
                 return region.behaviors[context.curr_region_area_index].data.id;
@@ -1929,15 +2077,16 @@ impl EditorContent for NodeGraph  {
         if self.graph_type == BehaviorType::Items {
             return context.data.items_ids[context.curr_items_index];
         }
-        0
+        Uuid::new_v4()
     }
 
     /// Returns the current node id for the given graph type
-    fn get_curr_node_id(&self, context: &ScreenContext) -> Option<usize> {
+    fn get_curr_node_id(&self, context: &ScreenContext) -> Option<Uuid> {
 
+        /*
         if let Some(behavior) = context.data.get_behavior(self.behavior_id, self.graph_type) {
             return behavior.data.curr_node_id;
-        }
+        }*/
         None
     }
 
@@ -1947,7 +2096,7 @@ impl EditorContent for NodeGraph  {
         // Update the variables
         for index in 0..self.nodes.len() {
             if self.nodes[index].is_variable_node {
-                if let Some(v) = update.scope_buffer.floats.get(&self.nodes[index].text[0]) {
+                if let Some(v) = update.scope_buffer.floats.get(&self.nodes[index].name) {
                     self.nodes[index].widgets[0].debug_value = Some(*v);
                     self.nodes[index].widgets[0].dirty = true;
                     self.nodes[index].dirty = true;

@@ -31,4 +31,5 @@ pub mod prelude {
     pub use std::path::PathBuf;
 
     pub use serde::{Deserialize, Serialize};
+    pub use rustc_hash::FxHashMap;
 }

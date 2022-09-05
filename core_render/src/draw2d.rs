@@ -515,13 +515,12 @@ impl Draw2D {
 
         let new_size = ((map.settings.grid_size as f32 * scale) as usize, (map.settings.grid_size as f32 * scale) as usize);
 
-        let tile = map.get_tile(grid_pos);
-
         let mut cg_pos = grid_pos;
-
-        if tile.anim_tiles.len() > 0 {
-            let index = anim_counter % tile.anim_tiles.len();
-            cg_pos = &tile.anim_tiles[index];
+        if let Some(tile) = map.get_tile(grid_pos) {
+            if tile.anim_tiles.len() > 0 {
+                let index = anim_counter % tile.anim_tiles.len();
+                cg_pos = &tile.anim_tiles[index];
+            }
         }
 
         let g_pos = (cg_pos.0 * map.settings.grid_size, cg_pos.1 * map.settings.grid_size);
@@ -550,13 +549,13 @@ impl Draw2D {
 
         let new_size = ((map.settings.grid_size as f32 * scale) as usize, (map.settings.grid_size as f32 * scale) as usize);
 
-        let tile = map.get_tile(grid_pos);
-
         let mut cg_pos = grid_pos;
 
-        if tile.anim_tiles.len() > 0 {
-            let index = anim_counter % tile.anim_tiles.len();
-            cg_pos = &tile.anim_tiles[index];
+        if let Some(tile) = map.get_tile(grid_pos) {
+            if tile.anim_tiles.len() > 0 {
+                let index = anim_counter % tile.anim_tiles.len();
+                cg_pos = &tile.anim_tiles[index];
+            }
         }
 
         let g_pos = (cg_pos.0 * map.settings.grid_size, cg_pos.1 * map.settings.grid_size);
@@ -591,13 +590,14 @@ impl Draw2D {
 
         let new_size = ((map.settings.grid_size as f32 * scale) as usize, (map.settings.grid_size as f32 * scale) as usize);
 
-        let tile = map.get_tile(grid_pos);
-
         let mut cg_pos = grid_pos;
 
-        if tile.anim_tiles.len() > 0 {
-            let index = anim_counter % tile.anim_tiles.len();
-            cg_pos = &tile.anim_tiles[index];
+        if let Some(tile) = map.get_tile(grid_pos) {
+
+            if tile.anim_tiles.len() > 0 {
+                let index = anim_counter % tile.anim_tiles.len();
+                cg_pos = &tile.anim_tiles[index];
+            }
         }
 
         let g_pos = (cg_pos.0 * map.settings.grid_size, cg_pos.1 * map.settings.grid_size);

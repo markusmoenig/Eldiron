@@ -31,7 +31,7 @@ impl GameRegion {
                     layer2      : HashMap::new(),
                     layer3      : HashMap::new(),
                     layer4      : HashMap::new(),
-                    id          : thread_rng().gen_range(1..=u32::MAX) as usize,
+                    id          : Uuid::new_v4(),
                     curr_pos    : (0,0),
                     min_pos     : (10000,10000),
                     max_pos     : (-10000, -10000),
@@ -73,7 +73,7 @@ impl GameRegion {
             layer2      : HashMap::new(),
             layer3      : HashMap::new(),
             layer4      : HashMap::new(),
-            id          : thread_rng().gen_range(1..=u32::MAX) as usize,
+            id          : Uuid::new_v4(),
             curr_pos    : (0,0),
             min_pos     : (10000,10000),
             max_pos     : (-10000, -10000),
@@ -282,6 +282,7 @@ impl GameRegion {
         let mut tiles : HashMap<(isize, isize), TileData> = HashMap::new();
         let ids: Vec<&(isize, isize)> = self.data.layer1.keys().collect();
         for id in &ids {
+            /*
             let value = &self.data.layer1[id];
             let tile = asset.get_tile(&(value.tilemap, value.grid_x, value.grid_y));
 
@@ -290,16 +291,16 @@ impl GameRegion {
                 grid_x      : value.grid_x,
                 grid_y      : value.grid_y,
                 usage       : tile.usage,
-            });
+            });*/
         }
         self.data.layer1 = tiles;
         self.save_data();
     }
 
     /// Create area
-    pub fn create_area(&mut self) -> usize {
+    pub fn create_area(&mut self) -> Uuid {
 
-        let area_id = thread_rng().gen_range(1..=u32::MAX) as usize;
+        let area_id = Uuid::new_v4();
         let mut path = self.path.clone();
         path.push(format!("area_{}.json", area_id));
 

@@ -63,9 +63,11 @@ impl EditorOptions for TileMapOptions {
         }
 
         if let Some(grid_pos) = context.curr_tile {
-            context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 80) / 2, self.rect.1 + self.rect.3 - 102), asset.get_map_of_id(asset.tileset.maps_ids[context.curr_tileset_index]), context.width, &grid_pos, anim_counter, 80);
+            if let Some(map) = asset.get_map_of_id(asset.tileset.maps_ids[context.curr_tileset_index]) {
+                context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 80) / 2, self.rect.1 + self.rect.3 - 102), map, context.width, &grid_pos, anim_counter, 80);
 
-            context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 22, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("({}, {})", grid_pos.0, grid_pos.1), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
+                context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 22, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("({}, {})", grid_pos.0, grid_pos.1), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
+            }
         }
     }
 
@@ -120,12 +122,20 @@ impl EditorOptions for TileMapOptions {
                             }
 
                             for id in &tiles {
-                                let mut tile = asset.get_tile(&(asset.tileset.maps_ids[context.curr_tileset_index], id.0, id.1));
-                                tile.usage = usage.clone();
+                                let tid = TileId::new(asset.tileset.maps_ids[context.curr_tileset_index], id.0 as u16, id.1 as u16);
+                                if let Some(tile) = &mut asset.get_mut_tile(&tid) {
+                                    tile.usage = usage.clone();
 
-                                if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
-                                    map.set_tile(*id, tile);
-                                    map.save_settings();
+                                    if let Some(map) = asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
+                                        map.save_settings();
+                                    }
+                                } else {
+                                    let mut tile = Tile::new();
+                                    tile.usage = usage.clone();
+                                    if let Some(map) = asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
+                                        map.set_tile(*id, tile);
+                                        map.save_settings();
+                                    }
                                 }
                             }
                         }
@@ -182,23 +192,26 @@ impl EditorOptions for TileMapOptions {
     /// Updates the group widget based on the selected tile
     fn adjust_tile_usage(&mut self, asset: &Asset, context: &ScreenContext) {
         if let Some(tile_id) = context.curr_tile {
-            let tile = asset.get_tile(&(asset.tileset.maps_ids[context.curr_tileset_index], tile_id.0, tile_id.1));
-            match tile.usage {
-                TileUsage::Unused => self.widgets[0].curr_item_index = 0,
-                TileUsage::Environment => self.widgets[0].curr_item_index = 1,
-                TileUsage::EnvRoad => self.widgets[0].curr_item_index = 2,
-                TileUsage::EnvBlocking => self.widgets[0].curr_item_index = 3,
-                TileUsage::Character => self.widgets[0].curr_item_index = 4,
-                TileUsage::UtilityChar => self.widgets[0].curr_item_index = 5,
-                TileUsage::Water => self.widgets[0].curr_item_index = 6,
-                TileUsage::Effect => self.widgets[0].curr_item_index = 7,
-                TileUsage::Icon => self.widgets[0].curr_item_index = 8,
-                TileUsage::UIElement => self.widgets[0].curr_item_index = 9,
+            let tid = TileId::new(asset.tileset.maps_ids[context.curr_tileset_index], tile_id.0 as u16, tile_id.1 as u16);
+
+            if let Some(tile) = asset.get_tile(&tid) {
+                match tile.usage {
+                    TileUsage::Unused => self.widgets[0].curr_item_index = 0,
+                    TileUsage::Environment => self.widgets[0].curr_item_index = 1,
+                    TileUsage::EnvRoad => self.widgets[0].curr_item_index = 2,
+                    TileUsage::EnvBlocking => self.widgets[0].curr_item_index = 3,
+                    TileUsage::Character => self.widgets[0].curr_item_index = 4,
+                    TileUsage::UtilityChar => self.widgets[0].curr_item_index = 5,
+                    TileUsage::Water => self.widgets[0].curr_item_index = 6,
+                    TileUsage::Effect => self.widgets[0].curr_item_index = 7,
+                    TileUsage::Icon => self.widgets[0].curr_item_index = 8,
+                    TileUsage::UIElement => self.widgets[0].curr_item_index = 9,
+                }
+                self.widgets[1].text[0] = tile.tags.clone();
+            } else {
+                self.widgets[0].curr_item_index = 0;
+                self.widgets[1].text[0] = "".to_string();
             }
-            self.widgets[1].text[0] = tile.tags;
-        } else {
-            self.widgets[0].curr_item_index = 0;
-            self.widgets[1].text[0] = "".to_string();
         }
         self.widgets[0].dirty = true;
         self.widgets[1].dirty = true;
@@ -209,7 +222,6 @@ impl EditorOptions for TileMapOptions {
         if let Some(selection) = context.curr_tile {
             if let Some(selection_end) = context.selection_end {
                 if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
-                    let mut tile = map.get_tile(&selection);
 
                     let mut anim_tiles : Vec<(usize, usize)> = vec![];
                     let mut i = selection.clone();
@@ -224,15 +236,24 @@ impl EditorOptions for TileMapOptions {
                         }
                         anim_tiles.push(i);
 
-                        let mut tile = map.get_tile(&i);
-                        tile.usage = TileUsage::Unused;
-                        map.set_tile(i, tile);
+                        if let Some(tile) = map.get_mut_tile(&i) {
+                            tile.usage = TileUsage::Unused;
+                        } else {
+                            let mut tile = Tile::new();
+                            tile.usage = TileUsage::Unused;
+                            map.set_tile(i, tile);
+                        }
                     }
 
-                    tile.anim_tiles = anim_tiles;
-
-                    map.set_tile(selection, tile);
-                    map.save_settings();
+                    if let Some(tile) = map.get_mut_tile(&selection) {
+                        tile.anim_tiles = anim_tiles;
+                        map.save_settings();
+                    } else {
+                        let mut tile = Tile::new();
+                        tile.anim_tiles = anim_tiles;
+                        map.set_tile(selection, tile);
+                        map.save_settings();
+                    }
                 }
             }
         }
@@ -242,12 +263,15 @@ impl EditorOptions for TileMapOptions {
     fn clear_anim(&mut self, asset: &mut Asset, context: &ScreenContext) {
         if let Some(selection) = context.curr_tile {
             if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
-                let mut tile = map.get_tile(&selection);
-
-                tile.anim_tiles = vec![];
-
-                map.set_tile(selection, tile);
-                map.save_settings();
+                if let Some(tile) = map.get_mut_tile(&selection) {
+                    tile.anim_tiles = vec![];
+                    map.save_settings();
+                } else {
+                    let mut tile = Tile::new();
+                    tile.anim_tiles = vec![];
+                    map.set_tile(selection, tile);
+                    map.save_settings();
+                }
             }
         }
     }
@@ -255,7 +279,6 @@ impl EditorOptions for TileMapOptions {
     /// Sets the default tile for the current map
     fn set_default_tile(&mut self, asset: &mut Asset, context: &ScreenContext) {
         if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
-
             map.settings.default_tile = context.curr_tile;
             map.save_settings();
         }
@@ -289,12 +312,23 @@ impl EditorOptions for TileMapOptions {
         self.widgets[1].dirty = true;
 
         if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
-            for tiles in &tiles {
-                let mut tile = map.get_tile(&tiles);
-                tile.tags = tags.clone().to_lowercase();
-                map.set_tile(*tiles, tile);
+            for tile_id in &tiles {
+                if let Some(tile) = map.get_mut_tile(&tile_id) {
+                    tile.tags = tags.clone().to_lowercase();
+                } else {
+                    let mut tile = Tile::new();
+                    tile.tags = tags.clone().to_lowercase();
+                    map.set_tile(*tile_id, tile);
+                }
             }
             map.save_settings();
+        }
+    }
+
+    /// Updates a value from the dialog
+    fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {
+        if id.2 == "tags".to_string() {
+            self.set_tags(value.to_string_value(), asset, context);
         }
     }
 }
