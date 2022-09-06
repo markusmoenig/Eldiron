@@ -464,10 +464,10 @@ impl AtomWidget {
 
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &context.color_black, &context.node_button_rounding, &border_color, 1.5);
 
-                match self.atom_data.value {
-                    Value::Position(region_id, x, y) => {
-                        if let Some(region) = context.data.regions.get(&region_id) {
-                            context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &(4, 1, rect.2 - 8, rect.3 - 2), &(x as isize, y as isize), &(0, 0), rect.2, 14, 0, asset, context);
+                match &self.atom_data.value {
+                    Value::Position(pos) => {
+                        if let Some(region) = context.data.regions.get(&pos.region_id) {
+                            context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &(4, 1, rect.2 - 8, rect.3 - 2), &(pos.x as isize, pos.y as isize), &(0, 0), rect.2, 14, 0, asset, context);
                         }
                     },
                     _ => {},

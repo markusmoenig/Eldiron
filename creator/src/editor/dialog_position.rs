@@ -146,9 +146,9 @@ impl DialogPositionWidget {
 
                         let mut position = (0,0);
 
-                        match context.dialog_value {
-                            Value::Position(_region_id, x, y) => {
-                                position = (x as isize, y as isize);
+                        match &context.dialog_value {
+                            Value::Position(pos) => {
+                                position = (pos.x as isize, pos.y as isize);
                             },
                             _ => {}
                         }
@@ -287,7 +287,7 @@ impl DialogPositionWidget {
                 self.region_scroll_offset = (0, 0);
 
                 let region_id = context.data.regions_ids[self.widgets[0].curr_index];
-                context.dialog_value = Value::Position(region_id, x as i32, y as i32);
+                context.dialog_value = Value::Position(Position::new(region_id, x as i32, y as i32));
 
                 //context.dialog_node_behavior_value = (context.data.regions_ids[self.widgets[0].curr_index] as f64, x as f64, y as f64, -1.0, "".to_string());
             } else {

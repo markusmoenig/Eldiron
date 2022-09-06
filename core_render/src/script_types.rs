@@ -2,6 +2,8 @@
 // This module contains script support structs. These are passed to the Rhai scripting engine to provide
 // data structures which can be accessed from both Rust and scripts.
 
+use crate::prelude::*;
+
 //use crate::gamedata::MessageType;
 
 // --- Sending Messages
@@ -29,7 +31,7 @@ impl ScriptMessages {
 
 #[derive(Debug, Clone)]
 pub struct ScriptTilemaps {
-    pub maps            : HashMap<String, i64>
+    pub maps            : HashMap<String, Uuid>
 }
 
 impl ScriptTilemaps {
@@ -41,39 +43,39 @@ impl ScriptTilemaps {
 
     /// Returns the tilemap
     pub fn get(&mut self, name: &str) -> ScriptTilemap {
-        let mut rc : i64 = 0;
+        let mut rc = Uuid::new_v4();
         if let Some(id) = self.maps.get(&name.to_owned()) {
             rc = *id;
         }
-        ScriptTilemap { id: rc as usize }
+        ScriptTilemap { id: rc }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct ScriptTilemap {
-    pub         id : usize,
+    pub         id : Uuid,
 }
 
 impl ScriptTilemap {
-    pub fn new(id: usize) -> Self {
+    pub fn new(id: Uuid) -> Self {
         Self {
             id
         }
     }
 
     /// Returns the tile
-    pub fn get_tile(&mut self, x: i64, y: i64) -> ScriptTile {
-        ScriptTile { id: (self.id, x as usize, y as usize) }
+    pub fn get_tile(&mut self, x: u16, y: u16) -> ScriptTile {
+        ScriptTile { id: TileId::new(self.id, x, y) }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScriptTile {
-    pub id              : (usize, usize, usize),
+    pub id              : TileId,
 }
 
 impl ScriptTile {
-    pub fn new(id: (usize, usize, usize)) -> Self {
+    pub fn new(id: TileId) -> Self {
         Self {
             id
         }

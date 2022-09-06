@@ -127,7 +127,7 @@ impl RegionPool<'_> {
     /// Create a new player instance
     pub fn create_player_instance(&mut self, uuid: Uuid, position: Position) {
         for inst in &mut self.instances {
-            if inst.region_data.id == position.map {
+            if inst.region_data.id == position.region_id {
                 inst.create_player_instance(uuid, position.clone());
             }
         }

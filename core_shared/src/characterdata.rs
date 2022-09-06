@@ -12,5 +12,5 @@ pub struct CharacterData {
     pub max_transition_time     : usize,
     pub curr_transition_time    : usize,
 
-    pub tile                    : (usize, usize, usize),
+    pub tile                    : TileId,
 }

@@ -13,7 +13,7 @@ pub struct GameUpdate {
     pub max_transition_time     : usize,
     pub curr_transition_time    : usize,
 
-    pub tile                    : Option<(usize, usize, usize)>,
+    pub tile                    : Option<TileId>,
 
     /// The script for the current screen which handles the drawing
     pub screen                  : Option<String>,

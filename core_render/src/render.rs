@@ -4,7 +4,7 @@ use std::{path::PathBuf, collections::{HashMap, HashSet}};
 use crate::prelude::*;
 use core_shared::{asset::{Asset}, update::GameUpdate, regiondata::{GameRegionData}, message::MessageData, light::Light};
 use crate::{draw2d::Draw2D, script_types::*};
-use rhai::{ Engine, Scope, AST };
+use rhai::{ Engine, Scope, AST, Dynamic };
 
 use core_shared::actions::*;
 
@@ -33,12 +33,12 @@ pub struct GameRender<'a> {
     pub height                  : usize,
     pub tile_size               : usize,
 
-    pub regions                 : HashMap<usize, GameRegionData>,
-    pub lights                  : HashMap<usize, Vec<Light>>,
+    pub regions                 : HashMap<Uuid, GameRegionData>,
+    pub lights                  : HashMap<Uuid, Vec<Light>>,
 
     pub messages                : Vec<MessageData>,
 
-    pub last_position           : Position,
+    pub last_position           : Option<Position>,
     pub transition_steps        : isize,
     pub transition_counter      : isize,
     pub transition_active       : bool,
@@ -118,7 +118,7 @@ impl GameRender<'_> {
 
             messages            : vec![],
 
-            last_position       : Position::new(Uuid::new_v4(), 0, 0),
+            last_position       : None,
             transition_steps    : 5,
             transition_counter  : 0,
             transition_active   : false,
@@ -130,7 +130,7 @@ impl GameRender<'_> {
     }
 
     pub fn process_update(&mut self, update: &GameUpdate) -> Option<(String, Option<usize>)> {
-        /*
+
         // New screen script ?
         if let Some(screen_script) = &update.screen {
 
@@ -140,7 +140,7 @@ impl GameRender<'_> {
                 if let Some(ast) = result.ok() {
 
                     self.messages = vec![];
-                    self.last_position = (100000, 0, 0);
+                    self.last_position = None;
                     self.transition_active = false;
 
                     self.scope = Scope::new();
@@ -153,7 +153,7 @@ impl GameRender<'_> {
 
                     let mut tilemaps = ScriptTilemaps::new();
                     for index in 0..self.asset.tileset.maps_names.len() {
-                        tilemaps.maps.insert(self.asset.tileset.maps_names[index].clone(), self.asset.tileset.maps_ids[index] as i64);
+                        tilemaps.maps.insert(self.asset.tileset.maps_names[index].clone(), self.asset.tileset.maps_ids[index]);
                     }
                     self.scope.set_value("tilemaps", tilemaps);
 
@@ -213,16 +213,16 @@ impl GameRender<'_> {
         }
 
         // Insert the lights
-        if let Some(position) = update.position {
-            self.lights.insert(position.0, update.lights.clone());
+        if let Some(position) = &update.position {
+            self.lights.insert(position.region_id, update.lights.clone());
         }
-        */
+
         None
     }
 
     /// Draw the server response
     pub fn draw(&mut self, anim_counter: usize, update: &GameUpdate) -> Option<(String, Option<usize>)> {
-        /*
+
         let error = self.process_update(update);
         if error.is_some() {
             return error;
@@ -268,20 +268,23 @@ impl GameRender<'_> {
                     },
                     ScriptDrawCmd::DrawTile(pos, tile) => {
                         //if rect.is_safe(self.width, self.height) {
-                            let map = self.asset.get_map_of_id(tile.id.0);
-                            self.draw2d.draw_animated_tile( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.1, tile.id.2), anim_counter, self.tile_size);
+                            if let Some(map) = self.asset.get_map_of_id(tile.id.map) {
+                                self.draw2d.draw_animated_tile( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, self.tile_size);
+                            }
                         //}
                     },
                     ScriptDrawCmd::DrawTileSat(pos, tile, rgb) => {
                         //if rect.is_safe(self.width, self.height) {
-                            let map = self.asset.get_map_of_id(tile.id.0);
-                            self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.1, tile.id.2), anim_counter, self.tile_size, rgb.value);
+                            if let Some(map) = self.asset.get_map_of_id(tile.id.map) {
+                                self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, self.tile_size, rgb.value);
+                            }
                         //}
                     },
                     ScriptDrawCmd::DrawTileSized(pos, tile, size) => {
                         //if rect.is_safe(self.width, self.height) {
-                            let map = self.asset.get_map_of_id(tile.id.0);
-                            self.draw2d.draw_animated_tile( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.1, tile.id.2), anim_counter, *size as usize);
+                            if let Some(map) = self.asset.get_map_of_id(tile.id.map) {
+                                self.draw2d.draw_animated_tile( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, *size as usize);
+                            }
                         //}
                     },
                     ScriptDrawCmd::DrawFrame(rect, tile) => {
@@ -297,19 +300,21 @@ impl GameRender<'_> {
                                 for i in 0..tiles_x {
                                     let mut t;
                                     if i == 0 { t = tile.id.clone(); }
-                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.1 += 2; }
-                                    else { t = tile.id.clone(); t.1 += 1; }
+                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.x_off += 2; }
+                                    else { t = tile.id.clone(); t.x_off += 1; }
 
-                                    let map = self.asset.get_map_of_id(t.0);
-                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(x, top_y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size);
+                                    if let Some(map) = self.asset.get_map_of_id(t.map) {
+                                        self.draw2d.draw_animated_tile( &mut self.frame[..], &(x, top_y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size);
+                                    }
 
                                     let mut t;
-                                    if i == 0 { t = tile.id.clone(); t.2 += 2; }
-                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.1 += 2; t.2 += 2; }
-                                    else { t = tile.id.clone(); t.1 += 1; t.2 += 2; }
+                                    if i == 0 { t = tile.id.clone(); t.y_off += 2; }
+                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.x_off += 2; t.y_off += 2; }
+                                    else { t = tile.id.clone(); t.x_off += 1; t.y_off += 2; }
 
-                                    let map = self.asset.get_map_of_id(t.0);
-                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(x, bottom_y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size);
+                                    if let Some(map) = self.asset.get_map_of_id(t.map) {
+                                        self.draw2d.draw_animated_tile( &mut self.frame[..], &(x, bottom_y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size);
+                                    }
 
                                     x += self.tile_size;
                                 }
@@ -318,15 +323,17 @@ impl GameRender<'_> {
 
                                 let mut y = rect.rect.1 + self.tile_size;
                                 for _i in 0..tiles_y - 2 {
-                                    let mut t = tile.id.clone(); t.2 += 1;
+                                    let mut t = tile.id.clone(); t.y_off += 1;
 
-                                    let map = self.asset.get_map_of_id(t.0);
-                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(rect.rect.0, y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size);
+                                    if let Some(map) = self.asset.get_map_of_id(t.map) {
+                                        self.draw2d.draw_animated_tile( &mut self.frame[..], &(rect.rect.0, y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size);
+                                    }
 
-                                    let mut t = tile.id.clone(); t.1 += 2; t.2 += 1;
+                                    let mut t = tile.id.clone(); t.x_off += 2; t.y_off += 1;
 
-                                    let map = self.asset.get_map_of_id(t.0);
-                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(right_x, y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size);
+                                    if let Some(map) = self.asset.get_map_of_id(t.map) {
+                                        self.draw2d.draw_animated_tile( &mut self.frame[..], &(right_x, y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size);
+                                    }
 
                                     y += self.tile_size;
                                 }
@@ -346,19 +353,21 @@ impl GameRender<'_> {
                                 for i in 0..tiles_x {
                                     let mut t;
                                     if i == 0 { t = tile.id.clone(); }
-                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.1 += 2; }
-                                    else { t = tile.id.clone(); t.1 += 1; }
+                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.x_off += 2; }
+                                    else { t = tile.id.clone(); t.x_off += 1; }
 
-                                    let map = self.asset.get_map_of_id(t.0);
-                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(x, top_y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size, rgb.value);
+                                    if let Some(map) = self.asset.get_map_of_id(t.map) {
+                                        self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(x, top_y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size, rgb.value);
+                                    }
 
                                     let mut t;
-                                    if i == 0 { t = tile.id.clone(); t.2 += 2; }
-                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.1 += 2; t.2 += 2; }
-                                    else { t = tile.id.clone(); t.1 += 1; t.2 += 2; }
+                                    if i == 0 { t = tile.id.clone(); t.y_off += 2; }
+                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.x_off += 2; t.y_off += 2; }
+                                    else { t = tile.id.clone(); t.x_off += 1; t.y_off += 2; }
 
-                                    let map = self.asset.get_map_of_id(t.0);
-                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(x, bottom_y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size, rgb.value);
+                                    if let Some(map) = self.asset.get_map_of_id(t.map) {
+                                        self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(x, bottom_y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size, rgb.value);
+                                    }
 
                                     x += self.tile_size;
                                 }
@@ -367,15 +376,17 @@ impl GameRender<'_> {
 
                                 let mut y = rect.rect.1 + self.tile_size;
                                 for _i in 0..tiles_y - 2 {
-                                    let mut t = tile.id.clone(); t.2 += 1;
+                                    let mut t = tile.id.clone(); t.y_off += 1;
 
-                                    let map = self.asset.get_map_of_id(t.0);
-                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(rect.rect.0, y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size, rgb.value);
+                                    if let Some(map) = self.asset.get_map_of_id(t.map) {
+                                        self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(rect.rect.0, y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size, rgb.value);
+                                    }
 
-                                    let mut t = tile.id.clone(); t.1 += 2; t.2 += 1;
+                                    let mut t = tile.id.clone(); t.x_off += 2; t.y_off += 1;
 
-                                    let map = self.asset.get_map_of_id(t.0);
-                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(right_x, y), &map, stride, &(t.1, t.2), anim_counter, self.tile_size, rgb.value);
+                                    if let Some(map) = self.asset.get_map_of_id(t.map) {
+                                        self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(right_x, y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size, rgb.value);
+                                    }
 
                                     y += self.tile_size;
                                 }
@@ -424,7 +435,7 @@ impl GameRender<'_> {
             draw.clear();
             self.scope.set_value("draw", draw);
         }
-        */
+
         None
     }
 
@@ -432,18 +443,18 @@ impl GameRender<'_> {
         if let Some(position) = update.position.clone(){
 
             if self.transition_active == false {
-                if position.map != self.last_position.map {//TODO && self.last_position.map != 100000 {
+                if self.last_position.is_some() && position.region_id != self.last_position.clone().unwrap().region_id {
                     // Start transition
                     self.transition_active = true;
                     self.transition_counter = 1;
                     self.transition_steps = 6;
                 } else {
-                    self.last_position = position.clone();
+                    self.last_position = Some(position.clone());
                 }
             }
 
             if self.transition_active {
-                self.draw_game_rect(rect, self.last_position.clone(), anim_counter, update, None, external_frame, stride);
+                self.draw_game_rect(rect, self.last_position.clone().unwrap().clone(), anim_counter, update, None, external_frame, stride);
 
                 let mut r = rect.clone();
 
@@ -467,7 +478,7 @@ impl GameRender<'_> {
                 self.transition_counter += 1;
                 if self.transition_counter == self.transition_steps {
                     self.transition_active = false;
-                    self.last_position = position.clone();
+                    self.last_position = Some(position.clone());
                 }
             } else
             if self.transition_active == false {
@@ -478,7 +489,7 @@ impl GameRender<'_> {
 
     /// Draws the game in the given rect
     pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), cposition: Position, anim_counter: usize, update: &GameUpdate, set: Option<HashSet<(isize, isize)>>, external_frame: &mut Option<&mut [u8]>, stride: usize) {
-        /*
+
         self.draw2d.scissor = Some(rect);
 
         let mut position = cposition;
@@ -491,7 +502,7 @@ impl GameRender<'_> {
         let mut x_tiles = (rect.2 / tile_size) as isize;
         let mut y_tiles = (rect.3 / tile_size) as isize;
 
-        if let Some(region) = self.regions.get(&position.0) {
+        if let Some(region) = self.regions.get(&position.region_id) {
 
             // Get background color
             let mut background = [0, 0, 0, 255];
@@ -512,32 +523,32 @@ impl GameRender<'_> {
                 self.draw2d.draw_rect(&mut self.frame[..], &rect, self.width, &background);
             }
 
-            let mut offset = (0, 0);
+            let mut offset = (0_isize, 0_isize);
 
             let mut gr = (0, 0);
 
-            if let Some(old_position) = update.old_position {
+            if let Some(old_position) = &update.old_position {
 
                 let t = (update.curr_transition_time as f64 * (self.tile_size as f64 / (update.max_transition_time as f64 + 1.0))) as isize;
 
-                if position.1 > old_position.1 {
+                if position.x > old_position.x {
                     gr.0 = t;
                 } else
-                if position.1 < old_position.1 {
+                if position.x < old_position.x {
                     gr.0 = -t;
                 }
-                if position.2 > old_position.2 {
+                if position.y > old_position.y {
                     gr.1 = t;
                 } else
-                if position.2 < old_position.2 {
+                if position.y < old_position.y {
                     gr.1 = -t;
                 }
 
-                position = old_position;
+                position = old_position.clone();
             }
 
-            offset.0 = position.1;
-            offset.1 = position.2;
+            offset.0 = position.x as isize;
+            offset.1 = position.y as isize;
 
             let region_width = region.max_pos.0 - region.min_pos.0;
             let region_height = region.max_pos.1 - region.min_pos.1;
@@ -586,7 +597,7 @@ impl GameRender<'_> {
             for y in from_y..y_tiles {
                 for x in from_x..x_tiles {
 
-                    let values = self.get_region_value(region, (x + offset.0, y + offset.1), update);
+                    let values = self.get_region_value(region, (x + offset.0 as isize, y + offset.1), update);
                     for value in values {
                         let pos = (rect.0 + left_offset + (x * tile_size as isize - gr.0) as usize, rect.1 + top_offset + (y * tile_size as isize - gr.1) as usize);
 
@@ -613,8 +624,9 @@ impl GameRender<'_> {
                             light += *l;
                         }
 
-                        let map = self.asset.get_map_of_id(value.tilemap);
-                        self.draw2d.draw_animated_tile_with_blended_color(frame/*&mut self.frame[..]*/, &pos, map, stride, &(value.grid_x, value.grid_y), anim_counter, tile_size, &background, light);
+                        if let Some(map) = self.asset.get_map_of_id(value.tilemap) {
+                            self.draw2d.draw_animated_tile_with_blended_color(frame/*&mut self.frame[..]*/, &pos, map, stride, &(value.grid_x as usize, value.grid_y as usize), anim_counter, tile_size, &background, light);
+                        }
                     }
                 }
             }
@@ -622,32 +634,32 @@ impl GameRender<'_> {
             // Draw Characters
             for character in &update.characters {
 
-                let mut position = character.position;
-                let tile = character.tile;
+                let mut position = character.position.clone();
+                let tile = character.tile.clone();
 
                 let mut tr = (0, 0);
 
-                if let Some(old_position) = character.old_position {
+                if let Some(old_position) = &character.old_position {
 
                     if character.id != update.id || (character.id == update.id && gr.0 == 0 && gr.1 == 0) {
                         let t = (character.curr_transition_time as f64 * (self.tile_size as f64 / (character.max_transition_time as f64 + 1.0))) as isize;
 
-                        if position.1 > old_position.1 {
+                        if position.x > old_position.x {
                             tr.0 = t;
                         } else
-                        if position.1 < old_position.1 {
+                        if position.x < old_position.x {
                             tr.0 = -t;
                         }
 
-                        if position.2 > old_position.2 {
+                        if position.y > old_position.y {
                             tr.1 = t;
                         } else
-                        if position.2 < old_position.2 {
+                        if position.y < old_position.y {
                             tr.1 = -t;
                         }
                     }
 
-                    position = old_position;
+                    position = old_position.clone();
                 }
 
                 if character.id != update.id {
@@ -663,11 +675,11 @@ impl GameRender<'_> {
                 }
 
                 // Row check
-                if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
+                if position.x as isize >= offset.0 && (position.x as isize) < offset.0 + x_tiles {
                     // Column check
-                    if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
+                    if position.y as isize >= offset.1 && (position.y as isize) < offset.1 + y_tiles {
                         // Visible
-                        let pos = (rect.0 + left_offset + (((position.1 - offset.0) * tile_size as isize) + tr.0) as usize, rect.1 + top_offset + ((position.2 - offset.1) * tile_size as isize + tr.1) as usize);
+                        let pos = (rect.0 + left_offset + (((position.x as isize - offset.0) * tile_size as isize) + tr.0) as usize, rect.1 + top_offset + ((position.y as isize - offset.1) * tile_size as isize + tr.1) as usize);
 
                         if let Some(set) = &set {
                             if set.contains(&(((pos.0 - rect.0) / self.tile_size) as isize, ((pos.1 - rect.1) / self.tile_size) as isize)) == false {
@@ -676,12 +688,13 @@ impl GameRender<'_> {
                         }
 
                         let mut light = base_light;
-                        if let Some(l) = light_map.get(&(position.1, position.2)) {
+                        if let Some(l) = light_map.get(&(position.x as isize, position.y as isize)) {
                             light += *l;
                         }
 
-                        let map = self.asset.get_map_of_id(tile.0);
-                        self.draw2d.draw_animated_tile_with_blended_color(frame, &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size, &background, light);
+                        if let Some(map) = self.asset.get_map_of_id(tile.map) {
+                            self.draw2d.draw_animated_tile_with_blended_color(frame, &pos, map, stride, &(tile.x_off as usize, tile.y_off as usize), anim_counter, tile_size, &background, light);
+                        }
                     }
                 }
             }
@@ -690,7 +703,6 @@ impl GameRender<'_> {
         }
 
         self.draw2d.scissor = None;
-        */
     }
 
     /// Gets the given region value

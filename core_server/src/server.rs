@@ -249,13 +249,13 @@ impl Server<'_> {
         let uuid = uuid::Uuid::new_v4();
         if let Some(position) = &self.player_default_position {
             if self.threaded {
-                self.send_message_to_region(position.map, Message::CreatePlayerInstance(uuid, position.clone()));
+                self.send_message_to_region(position.region_id, Message::CreatePlayerInstance(uuid, position.clone()));
             } else {
                 if let Some(pool) = &mut self.pool {
                     pool.create_player_instance(uuid, position.clone());
                 }
             }
-            self.players_region_ids.insert(uuid, position.map);
+            self.players_region_ids.insert(uuid, position.region_id);
         }
         uuid
     }

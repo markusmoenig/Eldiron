@@ -273,7 +273,7 @@ impl RegionInstance<'_> {
             // Add to the characters
 
             if let Some(position) = self.instances[inst_index].position.clone() {
-                if let Some(tile) = self.instances[inst_index].tile {
+                if let Some(tile) = self.instances[inst_index].tile.clone() {
                     let character = CharacterData {
                         position                : position.clone(),
                         old_position            : self.instances[inst_index].old_position.clone(),
@@ -284,10 +284,10 @@ impl RegionInstance<'_> {
                         id                      : self.instances[inst_index].id,
                         index                   : inst_index,
                      };
-                     if let Some(list) = self.characters.get_mut(&position.map) {
+                     if let Some(list) = self.characters.get_mut(&position.region_id) {
                          list.push(character);
                      } else {
-                         self.characters.insert(position.map, vec![character]);
+                         self.characters.insert(position.region_id, vec![character]);
                      }
                 }
             }
@@ -365,25 +365,25 @@ impl RegionInstance<'_> {
                 let mut needs_transfer_to: Option<Uuid> = None;
                 if let Some(position) = self.instances[inst_index].position.clone() {
 
-                    if position.map != self.region_data.id {
+                    if position.region_id != self.region_data.id {
                         // We need to transfer the character to a new region
-                        needs_transfer_to = Some(position.map);
+                        needs_transfer_to = Some(position.region_id);
                     } else
                     // Check if the character is in a region we did not send to the client yet OR if the editor is debugging
-                    if self.instances[inst_index].regions_send.contains(&position.map) == false || self.debug_behavior_id.is_some() {
+                    if self.instances[inst_index].regions_send.contains(&position.region_id) == false || self.debug_behavior_id.is_some() {
                         region = Some(self.region_data.clone());
-                        self.instances[inst_index].regions_send.insert(position.map);
+                        self.instances[inst_index].regions_send.insert(position.region_id);
                     }
                     // Copy the displacements
                     displacements = self.displacements.clone();
 
                     // Send the characters of the client region
-                    if let Some(chars) = self.characters.get(&position.map) {
+                    if let Some(chars) = self.characters.get(&position.region_id) {
                         characters = chars.clone();
                     }
 
-                    if self.lights.contains_key(&position.map) {
-                        lights = self.lights[&position.map].clone();
+                    if self.lights.contains_key(&position.region_id) {
+                        lights = self.lights[&position.region_id].clone();
                     }
 
                     scope_buffer.read_from_scope(&self.scopes[inst_index]);
@@ -395,7 +395,7 @@ impl RegionInstance<'_> {
                     old_position            : self.instances[inst_index].old_position.clone(),
                     max_transition_time     : self.instances[inst_index].max_transition_time,
                     curr_transition_time    : self.instances[inst_index].curr_transition_time,
-                    tile                    : self.instances[inst_index].tile,
+                    tile                    : self.instances[inst_index].tile.clone(),
                     screen                  : screen,
                     region,
                     lights,
@@ -824,7 +824,7 @@ impl RegionInstance<'_> {
     fn create_behavior_instance(&mut self, id: Uuid, npc_only: bool) -> usize {
 
         let mut index = 0;
-        /*
+
         // Instances to create for this behavior
         if let Some(behavior) = self.behaviors.get_mut(&id) {
 
@@ -837,8 +837,8 @@ impl RegionInstance<'_> {
             // Collect all the default data for the behavior from the nodes: Position, tile, behavior Trees and variables.
             let mut to_execute              : Vec<Uuid> = vec![];
             let mut default_position        : Option<Position> = None;
-            let mut default_tile            : Option<(Uuid, usize, usize)> = None;
-            let mut default_align           : i64 = 1;
+            let mut default_tile            : Option<TileId> = None;
+            let mut default_alignment       : i32 = 1;
             let mut default_scope    = rhai::Scope::new();
 
             for (id, node) in &behavior.nodes {
@@ -852,20 +852,24 @@ impl RegionInstance<'_> {
                 } else
                 if node.behavior_type == BehaviorNodeType::BehaviorType {
                     if let Some(value )= node.values.get(&"position".to_string()) {
-                        default_position = Some((value.0 as usize, value.1 as isize, value.2 as isize));
+                        default_position = value.to_position();
                     }
-                    // TODO if let Some(value )= node.values.get(&"tile".to_string()) {
-                    //     default_tile = Some((value.0 as usize, value.1 as usize, value.2 as usize));
-                    // }
-                    if let Some(value )= node.values.get(&"type".to_string()) {
-                        default_align = 2 - value.0 as i64 - 1;
+                    if let Some(value )= node.values.get(&"tile".to_string()) {
+                        default_tile = value.to_tile_id()
+                    }
+                    if let Some(value )= node.values.get(&"alignment".to_string()) {
+                        if let Some(alignment) = value.to_integer() {
+                            default_alignment = 2 - alignment- 1;
+                        }
                     }
                 } else
                 if node.behavior_type == BehaviorNodeType::VariableNumber {
                     if let Some(value )= node.values.get(&"value".to_string()) {
-                        default_scope.push(node.name.clone(), value.0.clone());
+                        if let Some(v) = value.to_float() {
+                            default_scope.push(node.name.clone(), v);
+                        }
                     } else {
-                        default_scope.push(node.name.clone(), 0.0_f64);
+                        default_scope.push(node.name.clone(), 0.0_f32);
                     }
                 }
             }
@@ -875,7 +879,7 @@ impl RegionInstance<'_> {
                     position    : default_position.unwrap().clone(),
                     tile        : default_tile.clone(),
                     name        : Some(behavior.name.clone()),
-                    alignment   : default_align
+                    alignment   : default_alignment
                 };
                 to_create.push(main)
             }
@@ -895,16 +899,16 @@ impl RegionInstance<'_> {
             for inst in to_create {
 
                 // Only create when instance ins in this region
-                if inst.position.map != self.region_data.id {
+                if inst.position.region_id != self.region_data.id {
                     continue;
                 }
 
                 //println!("Creating instance {}", inst.name.unwrap());
-                /*
-                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: 0, action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment };*/
+
+                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment };
 
                 index = self.instances.len();
-                // self.instances.push(instance); TODO
+                self.instances.push(instance);
 
                 // Set the default values into the scope
                 let mut scope = default_scope.clone();
@@ -912,7 +916,7 @@ impl RegionInstance<'_> {
                 scope.set_value("alignment", inst.alignment as i64);
                 self.scopes.push(scope);
             }
-        }*/
+        }
         index
     }
 

@@ -116,7 +116,7 @@ pub struct BehaviorInstance {
     pub state                   : BehaviorInstanceState,
 
     // Alignment
-    pub alignment               : i64,
+    pub alignment               : i32,
 
     // The behavior id for this instance
     pub behavior_id             : Uuid,
@@ -159,7 +159,7 @@ pub struct BehaviorInstance {
     pub max_transition_time     : usize,
     pub curr_transition_time    : usize,
 
-    pub tile                    : Option<(usize, usize, usize)>,
+    pub tile                    : Option<TileId>,
 
     // Messages for this player in the current tick
     pub messages                : Vec<MessageData>,
@@ -194,7 +194,7 @@ pub struct CharacterInstanceData {
     pub position                : Position,
     pub name                    : Option<String>,
     pub tile                    : Option<TileId>,
-    pub alignment               : i64,
+    pub alignment               : i32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

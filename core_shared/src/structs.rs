@@ -3,15 +3,15 @@ use crate::prelude::*;
 // A position in a 2D map
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Position {
-    pub map                     : Uuid,
+    pub region_id               : Uuid,
     pub x                       : i32,
     pub y                       : i32,
 }
 
 impl Position {
-    pub fn new(map: Uuid, x: i32, y: i32) -> Self {
+    pub fn new(region_id: Uuid, x: i32, y: i32) -> Self {
         Self {
-            map,
+            region_id,
             x,
             y,
         }

@@ -9,7 +9,7 @@ pub enum Value {
     // Number, can be both float or integer
     Integer(i32),
     // Uuid of region, and 2D position
-    Position(Uuid, i32, i32),
+    Position(Position),
     // Uuid of region, and Uuid of area
     Area(Uuid, Uuid),
     // Uuid of tilemap and 2D offset
@@ -51,6 +51,13 @@ impl Value {
         match self {
             Value::String(value) => return value.clone(),
             _ => "".to_string(),
+        }
+    }
+
+    pub fn to_position(&self ) -> Option<Position> {
+        match self {
+            Value::Position(value) => return Some(value.clone()),
+            _ => None,
         }
     }
 

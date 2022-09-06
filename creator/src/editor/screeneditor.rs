@@ -24,7 +24,7 @@ pub struct ScreenEditor<'a> {
     game_render             : Option<GameRender<'a>>,
 
     player_position         : Option<Position>,
-    player_tile             : Option<Position>,
+    player_tile             : Option<TileId>,
 
     hover_rect              : Option<(usize, usize, usize, usize)>
 }
@@ -257,28 +257,26 @@ impl EditorContent for ScreenEditor<'_> {
 
             // Get the region the player is in
 
-            /*
             if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[0]) {
                 for (_id, node) in &behavior.data.nodes {
                     if node.behavior_type == BehaviorNodeType::BehaviorType {
                         if let Some(value )= node.values.get(&"position".to_string()) {
-                            self.player_position = Some((value.0 as usize, value.1 as isize, value.2 as isize));
+                            self.player_position = value.to_position();
                         }
                         if let Some(value )= node.values.get(&"tile".to_string()) {
-                            self.player_tile = Some((value.0 as usize, value.1 as usize, value.2 as usize));
+                            self.player_tile = value.to_tile_id();
                         }
                         break;
                     }
                 }
-            }*/
+            }
 
-            /*
-            if let Some(position) = self.player_position {
-                if let Some(region) = context.data.regions.get(&position.0) {
+            if let Some(position) = &self.player_position {
+                if let Some(region) = context.data.regions.get(&position.region_id) {
                     // Send the region to the client_render
                     update.region = Some(region.data.clone());
                 }
-            }*/
+            }
             update.position = self.player_position.clone();
             context.code_editor_error = render.process_update(&update);
         }
