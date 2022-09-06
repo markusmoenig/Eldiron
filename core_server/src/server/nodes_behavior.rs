@@ -263,12 +263,12 @@ pub fn call_system(instance_index: usize, id: (usize, usize), data: &mut RegionI
 
     BehaviorNodeConnector::Fail
 }
-
+*/
 /// Behavior Call
-pub fn call_behavior(instance_index: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn call_behavior(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let behavior_instance : Option<usize> = Some(instance_index);
-    let mut behavior_tree_id : Option<usize> = None;
+    let mut behavior_tree_id : Option<Uuid> = None;
 
     // TODO: Precompute this
 
@@ -288,20 +288,22 @@ pub fn call_behavior(instance_index: usize, id: (usize, usize), data: &mut Regio
     */
 
     if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
-        if let Some(behavior_instance) = behavior_instance {
-            if let Some(behavior) = data.behaviors.get(&data.instances[behavior_instance].behavior_id) {
-                for (node_id, node) in &behavior.nodes {
-                    if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == value.4 {
-                        behavior_tree_id = Some(*node_id);
-                        break;
+        if let Some(tree_name) = value.to_string() {
+            if let Some(behavior_instance) = behavior_instance {
+                if let Some(behavior) = data.behaviors.get(&data.instances[behavior_instance].behavior_id) {
+                    for (node_id, node) in &behavior.nodes {
+                        if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name {
+                            behavior_tree_id = Some(*node_id);
+                            break;
+                        }
                     }
                 }
             }
         }
     }
 
-    //println!("behavior instance {:?}", behavior_instance);
-    //println!("behavior_tree_id id {:?}", behavior_tree_id);
+    println!("behavior instance {:?}", behavior_instance);
+    println!("behavior_tree_id id {:?}", behavior_tree_id);
 
     if let Some(behavior_instance) = behavior_instance {
         if let Some(behavior_tree_id) = behavior_tree_id {
@@ -311,7 +313,7 @@ pub fn call_behavior(instance_index: usize, id: (usize, usize), data: &mut Regio
     }
     BehaviorNodeConnector::Fail
 }
-
+/*
 /// Lock Tree
 pub fn lock_tree(instance_index: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 

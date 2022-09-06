@@ -331,13 +331,12 @@ impl EditorContent for NodeGraph  {
                             control_end_y = end_y + (edy * d) as isize;
 
                             let mut connection_drawn = false;
-                            /*
                             if let Some(debug_data) = &self.behavior_debug_data {
                                 if debug_data.executed_connections.contains(&(self.graph_type, *source_node_id, *source_connector)) {
                                     orange_path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
                                     connection_drawn = true;
                                 }
-                            }*/
+                            }
 
                             if connection_drawn == false {
                                 path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
@@ -2110,11 +2109,9 @@ impl EditorContent for NodeGraph  {
 
     /// Returns the current node id for the given graph type
     fn get_curr_node_id(&self, context: &ScreenContext) -> Option<Uuid> {
-
-        /*
         if let Some(behavior) = context.data.get_behavior(self.behavior_id, self.graph_type) {
             return behavior.data.curr_node_id;
-        }*/
+        }
         None
     }
 

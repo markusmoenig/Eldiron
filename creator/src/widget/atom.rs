@@ -125,7 +125,7 @@ pub struct AtomWidget {
 
     pub button_mask             : Option<Vec<bool>>,
 
-    pub debug_value             : Option<f64>,
+    pub debug_value             : Option<f32>,
 }
 
 impl AtomWidget {
@@ -404,7 +404,10 @@ impl AtomWidget {
 
                 let fill_color = if self.state == WidgetState::Clicked { context.color_light_orange } else { context.color_orange };
 
-                let mut v = self.atom_data.data.0.round();
+                let mut v = 0.0_f32;
+                if let Some(value) = self.atom_data.value.to_float() {
+                    v = value;
+                }
 
                 /* TODO chamge this system to the new server layout */
                 if context.is_running && self.debug_value.is_some() {

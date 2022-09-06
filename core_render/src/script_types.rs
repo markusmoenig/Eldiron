@@ -64,8 +64,8 @@ impl ScriptTilemap {
     }
 
     /// Returns the tile
-    pub fn get_tile(&mut self, x: u16, y: u16) -> ScriptTile {
-        ScriptTile { id: TileId::new(self.id, x, y) }
+    pub fn get_tile(&mut self, x: i32, y: i32) -> ScriptTile {
+        ScriptTile { id: TileId::new(self.id, x as u16, y as u16) }
     }
 }
 
@@ -94,7 +94,7 @@ pub struct ScriptPosition {
 }
 
 impl ScriptPosition {
-    pub fn new(x: i64, y: i64) -> Self {
+    pub fn new(x: i32, y: i32) -> Self {
         Self {
             pos         : (x as usize, y as usize),
         }
@@ -109,7 +109,7 @@ pub struct ScriptRect {
 }
 
 impl ScriptRect {
-    pub fn new(x: i64, y: i64, width: i64, height: i64) -> Self {
+    pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
         Self {
             rect : (max(x, 0) as usize, max(y, 0) as usize, max(width, 0) as usize, max(height, 0) as usize)
         }
@@ -135,7 +135,7 @@ pub struct ScriptRGB {
 // --- ScriptRGB
 
 impl ScriptRGB {
-    pub fn new(r: i64, g: i64, b: i64) -> Self {
+    pub fn new(r: i32, g: i32, b: i32) -> Self {
         Self {
             value       : [r as u8, g as u8, b as u8, 255],
         }
@@ -153,11 +153,11 @@ pub enum ScriptDrawCmd {
     DrawRect(ScriptRect, ScriptRGB),
     DrawTile(ScriptPosition, ScriptTile),
     DrawTileSat(ScriptPosition, ScriptTile, ScriptRGB),
-    DrawTileSized(ScriptPosition, ScriptTile, i64),
+    DrawTileSized(ScriptPosition, ScriptTile, i32),
     DrawFrame(ScriptRect, ScriptTile),
     DrawFrameSat(ScriptRect, ScriptRGB, ScriptTile),
     DrawGame(ScriptRect),
-    DrawRegion(String, ScriptRect, i64),
+    DrawRegion(String, ScriptRect, i32),
     DrawText(ScriptPosition, String, String, f32, ScriptRGB),
     DrawMessages(ScriptRect, String, f32, ScriptRGB),
 }
@@ -190,7 +190,7 @@ impl ScriptDraw {
         self.commands.push(ScriptDrawCmd::DrawTileSat(pos, tile, rgb));
     }
 
-    pub fn tile_sized(&mut self, pos: ScriptPosition, tile: ScriptTile, size: i64) {
+    pub fn tile_sized(&mut self, pos: ScriptPosition, tile: ScriptTile, size: i32) {
         self.commands.push(ScriptDrawCmd::DrawTileSized(pos, tile, size));
     }
 
@@ -202,11 +202,11 @@ impl ScriptDraw {
         self.commands.push(ScriptDrawCmd::DrawFrameSat(rect, rgb, tile));
     }
 
-    pub fn text(&mut self, pos: ScriptPosition, text: &str, font_name: &str, size: f64, rgb: ScriptRGB) {
+    pub fn text(&mut self, pos: ScriptPosition, text: &str, font_name: &str, size: f32, rgb: ScriptRGB) {
         self.commands.push(ScriptDrawCmd::DrawText(pos, text.to_owned(), font_name.to_owned(), size as f32, rgb));
     }
 
-    pub fn messages(&mut self, rect: ScriptRect, font_name: &str, size: f64, rgb: ScriptRGB) {
+    pub fn messages(&mut self, rect: ScriptRect, font_name: &str, size: f32, rgb: ScriptRGB) {
         self.commands.push(ScriptDrawCmd::DrawMessages(rect, font_name.to_owned(), size as f32, rgb));
     }
 
@@ -214,7 +214,7 @@ impl ScriptDraw {
         self.commands.push(ScriptDrawCmd::DrawGame(rect));
     }
 
-    pub fn region(&mut self, name: &str, rect: ScriptRect, size: i64) {
+    pub fn region(&mut self, name: &str, rect: ScriptRect, size: i32) {
         self.commands.push(ScriptDrawCmd::DrawRegion(name.to_owned(), rect, size));
     }
 

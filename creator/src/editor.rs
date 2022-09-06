@@ -507,7 +507,7 @@ impl Editor<'_> {
                 if let Some(preview)  = self.content[self.state as usize].1.as_mut().unwrap().get_preview_widget() {
                     preview.dirty = true;
                 }
-                /* TODO
+
                 // Request debug data for the currently selected character.
                 let behavior_id = self.context.data.behaviors_ids[self.context.curr_behavior_index];
                 server.set_debug_behavior_id(behavior_id);
@@ -523,7 +523,7 @@ impl Editor<'_> {
                         },
                         _ => {}
                     }
-                }*/
+                }
             }
         }
 
@@ -753,6 +753,7 @@ impl Editor<'_> {
         } else
         if self.context.dialog_entry != DialogEntry::None {
 
+            // New Project Name
             if self.context.dialog_entry == DialogEntry::NewProjectName {
                 match self.context.create_project(self.context.dialog_new_name.clone()) {
                     Ok(path) => {
@@ -767,6 +768,7 @@ impl Editor<'_> {
                 }
             } else
             if self.state == EditorState::TilesOverview && self.context.dialog_entry == DialogEntry::NodeGridSize && self.context.dialog_accepted == true {
+                // Grid size for tilemaps
                 if let Some(value) = self.context.dialog_value.to_string_value().parse::<usize>().ok() {
                     let index = self.context.dialog_node_behavior_value.0 as usize;
                     if let Some(tilemap) = asset.tileset.maps.get_mut(&asset.tileset.maps_ids[index]) {
@@ -1457,8 +1459,8 @@ impl Editor<'_> {
                                     let mut size_atom = AtomWidget::new(vec!["Grid Size".to_string()], AtomWidgetType::NodeGridSizeButton,
                                     AtomData::new_as_int("grid_size".to_string(), 0));
                                     size_atom.atom_data.text = "Grid Size".to_string();
-                                    // TODO size_atom.atom_data.data = (index as f64, 0.0, 0.0, 0.0, size_text);
-                                    // size_atom.behavior_id = Some((index, 0, "".to_string()));
+                                    size_atom.atom_data.value = Value::String(size_text);
+                                    size_atom.behavior_id = Some(self.context.create_property_id("grid_size"));
                                     node.widgets.push(size_atom);
 
                                     self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);

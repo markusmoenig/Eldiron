@@ -242,7 +242,6 @@ impl GameRender<'_> {
 
             if result.is_err() {
                 if let Some(err) = result.err() {
-                    //println!("{:?}", err.,t);
                     let mut string = err.to_string();
                     let mut parts = string.split("(");
                     if let Some(first) = parts.next() {
@@ -769,7 +768,7 @@ impl GameRender<'_> {
                             false,
                             "touch_down",
                             None,
-                            [(pos.0 as i64).into(), (pos.1 as i64).into()]
+                            [(pos.0 as i32).into(), (pos.1 as i32).into()]
                         );
 
             if result.is_err() {

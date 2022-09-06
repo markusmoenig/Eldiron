@@ -83,9 +83,9 @@ impl RegionInstance<'_> {
             if name.starts_with("d") {
                 let mut s = name.to_string();
                 s.remove(0);
-                if let Some(n) = s.parse::<i64>().ok() {
+                if let Some(n) = s.parse::<i32>().ok() {
                     let mut rng = thread_rng();
-                    let random = rng.gen_range(1..=n) as f64;
+                    let random = rng.gen_range(1..=n) as f32;
                     //println!{"d{} {}",n, random};
                     return Ok(Some(random.into()));
                 }
@@ -107,7 +107,9 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::Lookout, lookout);
         nodes.insert(BehaviorNodeType::CloseIn, close_in);
         nodes.insert(BehaviorNodeType::CallSystem, call_system);
+        */
         nodes.insert(BehaviorNodeType::CallBehavior, call_behavior);
+        /*
         nodes.insert(BehaviorNodeType::LockTree, lock_tree);
         nodes.insert(BehaviorNodeType::UnlockTree, unlock_tree);
         nodes.insert(BehaviorNodeType::SetState, set_state);
@@ -123,9 +125,8 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::LightArea, light_area);
 
         nodes.insert(BehaviorNodeType::Move, player_move);
-
-        nodes.insert(BehaviorNodeType::Screen, screen);
         */
+        nodes.insert(BehaviorNodeType::Screen, screen);
 
         Self {
             region_data             : GameRegionData::new(),
@@ -173,7 +174,6 @@ impl RegionInstance<'_> {
     /// Game tick
     pub fn tick(&mut self) -> Vec<Message> {
 
-        self.changed_variables = vec![];
         self.messages = vec![];
         self.characters = HashMap::new();
         self.lights = HashMap::new();
@@ -627,7 +627,6 @@ impl RegionInstance<'_> {
         // Call the node and get the resulting BehaviorNodeConnector
         let behavior = &mut self.game_data;
         if let Some(node) = behavior.nodes.get_mut(&node_id) {
-
             // Handle special nodes
             if node.behavior_type == BehaviorNodeType::Screen{
                 connectors.push(BehaviorNodeConnector::Bottom1);

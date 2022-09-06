@@ -6,7 +6,7 @@ use rhai::Scope;
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct ScopeBuffer {
 
-    pub floats                      : HashMap<String, f64>,
+    pub floats                      : HashMap<String, f32>,
 }
 
 impl ScopeBuffer {

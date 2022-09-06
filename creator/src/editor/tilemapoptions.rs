@@ -326,7 +326,7 @@ impl EditorOptions for TileMapOptions {
     }
 
     /// Updates a value from the dialog
-    fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {
+    fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) {
         if id.2 == "tags".to_string() {
             self.set_tags(value.to_string_value(), asset, context);
         }

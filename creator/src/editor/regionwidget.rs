@@ -449,14 +449,14 @@ impl EditorContent for RegionWidget {
                                     }
 
                                     let mode = self.character_widgets[0].curr_index;
-                                    /*
+
                                     if mode == 0 {
                                         // Add
-                                        let index = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == (self.region_id, id.0, id.1));
+                                        let index = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == Position::new(self.region_id, id.0, id.1));
 
                                         if index.is_none() {
                                             let instance     = CharacterInstanceData {
-                                                position    : (self.region_id, id.0, id.1),
+                                                position    : Position::new(self.region_id, id.0, id.1),
                                                 name        : None,
                                                 tile        : None,
                                                 alignment   : alignment };
@@ -465,10 +465,10 @@ impl EditorContent for RegionWidget {
                                     } else
                                     if mode == 1 {
                                         // Remove
-                                        if let Some(index) = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == (self.region_id, id.0, id.1)) {
+                                        if let Some(index) = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == Position::new(self.region_id, id.0, id.1)) {
                                             behavior.data.instances.as_mut().unwrap().remove(index);
                                         }
-                                    }*/
+                                    }
                                     behavior.save_data();
                                 }
                             }

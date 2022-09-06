@@ -24,7 +24,7 @@ itertools = "0.10.2"
 zeno = "0.2.1"
 rand = "0.8.5"
 pathfinding = "3.0.11"
-rhai = "*"
+rhai = { version = "*", default-features = false, features = ["only_i32", "f32_float", "no_closure"] }
 #rhai = { git = "https://github.com/rhaiscript/rhai/" }
 regex = "1.5"
 directories = "4.0"
