@@ -596,7 +596,7 @@ impl Draw2D {
                     let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
                     if let Some(map) = asset.get_map_of_id(value.tilemap) {
-                        self.draw_animated_tile(frame, &pos, map, stride, &(value.grid_x as usize, value.grid_y as usize), anim_counter, tile_size);
+                        self.draw_animated_tile(frame, &pos, map, stride, &(value.x_off as usize, value.y_off as usize), anim_counter, tile_size);
                     }
                 }
             }
@@ -618,46 +618,46 @@ impl Draw2D {
                     let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
                     if let Some(map) = asset.get_map_of_id(value.tilemap) {
-                        self.draw_animated_tile(frame, &pos, map, stride, &(value.grid_x as usize, value.grid_y as usize), anim_counter, tile_size);
+                        self.draw_animated_tile(frame, &pos, map, stride, &(value.x_off as usize, value.y_off as usize), anim_counter, tile_size);
                     }
                 }
             }
         }
 
-        let mut draw_character = |id: usize, position: (usize, isize, isize)| {
+        let mut draw_character = |id: Uuid, position: &Position| {
             // In the same region ?
-            /*
-            if position.0 == region.data.id {
+            if position.region == region.data.id {
 
                 // Row check
-                if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
+                if position.x >= offset.0 && position.x < offset.0 + x_tiles {
                     // Column check
-                    if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
+                    if position.y >= offset.1 && position.y < offset.1 + y_tiles {
                         // Visible
                         if let Some(tile) = context.data.get_behavior_default_tile(id) {
 
-                            let pos = (rect.0 + left_offset + ((position.1 - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.2 - offset.1) as usize) * tile_size);
+                            let pos = (rect.0 + left_offset + ((position.x - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.y - offset.1) as usize) * tile_size);
 
-                            // TODO let map = asset.get_map_of_id(tile.0);
-                            // self.draw_animated_tile(frame, &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size);
+                            if let Some(map) = asset.get_map_of_id(tile.tilemap) {
+                                self.draw_animated_tile(frame, &pos, map, stride, &(tile.x_off as usize, tile.y_off as usize), anim_counter, tile_size);
+                            }
                         }
                     }
                 }
-            }*/
+            }
         };
 
         // Draw Behaviors
-        /*
+
         for (id, behavior) in &context.data.behaviors {
             if let Some(position) = context.data.get_behavior_default_position(*id) {
-                draw_character(*id, position);
+                draw_character(*id, &position);
             }
             if let Some(instances) = &behavior.data.instances {
                 for position in instances {
-                    draw_character(*id, position.position);
+                    draw_character(*id, &position.position);
                 }
             }
-        }*/
+        }
     }
 
     /// Draws the given region centered at the given center and returns the top left offset into the region
@@ -686,10 +686,11 @@ impl Draw2D {
                 for value in values {
 
                     if let Some(map) = asset.get_map_of_id(value.tilemap) {
-                        self.draw_animated_tile(frame, &pos, map, stride, &(value.grid_x as usize, value.grid_y as usize), anim_counter, tile_size);
+                        self.draw_animated_tile(frame, &pos, map, stride, &(value.x_off as usize, value.y_off as usize), anim_counter, tile_size);
                     }
                 }
 
+                // Draw an outline ?
                 if p.0 == center.0 && p.1 == center.1 {
                     self.draw_rect_outline(frame, &(pos.0, pos.1, tile_size, tile_size), stride, context.color_red);
                 }
@@ -700,24 +701,22 @@ impl Draw2D {
         for (id, _behavior) in &context.data.behaviors {
             if let Some(position) = context.data.get_behavior_default_position(*id) {
                 // In the same region ?
-                /*
-                if position.0 == region.data.id {
-
+                if position.region == region.data.id {
                     // Row check
-                    if position.1 >= offset.0 && position.1 < offset.0 + x_tiles {
+                    if position.x >= offset.0 && position.y < offset.0 + x_tiles {
                         // Column check
-                        if position.2 >= offset.1 && position.2 < offset.1 + y_tiles {
+                        if position.y >= offset.1 && position.y < offset.1 + y_tiles {
                             // Visible
                             if let Some(tile) = context.data.get_behavior_default_tile(*id) {
+                                let pos = (rect.0 + left_offset + ((position.x - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.y - offset.1) as usize) * tile_size);
 
-                                let pos = (rect.0 + left_offset + ((position.1 - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.2 - offset.1) as usize) * tile_size);
-
-                                // TODO let map = asset.get_map_of_id(tile.0);
-                                // self.draw_animated_tile(frame, &pos, map, stride, &(tile.1, tile.2), anim_counter, tile_size);
+                                if let Some(map) = asset.get_map_of_id(tile.tilemap) {
+                                    self.draw_animated_tile(frame, &pos, map, stride, &(tile.x_off as usize, tile.y_off as usize), anim_counter, tile_size);
+                                }
                             }
                         }
                     }
-                }*/
+                }
             }
         }
         offset

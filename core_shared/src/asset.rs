@@ -123,7 +123,7 @@ impl Asset  {
 
     /// Returns a reference to the tile of the given id
     pub fn get_tile(&self, id: &TileId) -> Option<&Tile> {
-        if let Some(map) = self.get_map_of_id(id.map) {
+        if let Some(map) = self.get_map_of_id(id.tilemap) {
             return map.get_tile(&(id.x_off as usize, id.y_off as usize));
         }
         None
@@ -131,7 +131,7 @@ impl Asset  {
 
     /// Returns a mutable reference to tile of the given id
     pub fn get_mut_tile(&mut self, id: &TileId) -> Option<&mut Tile> {
-        if let Some(map) = self.tileset.maps.get_mut(&id.map) {
+        if let Some(map) = self.tileset.maps.get_mut(&id.tilemap) {
             return map.get_mut_tile(&(id.x_off as usize, id.y_off as usize));
         }
         None

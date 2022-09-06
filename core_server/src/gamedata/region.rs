@@ -283,12 +283,13 @@ impl GameRegion {
         let ids: Vec<&(isize, isize)> = self.data.layer1.keys().collect();
         for id in &ids {
             let value = &self.data.layer1[id];
-            if let Some(tile) = asset.get_tile(&TileId::new(value.tilemap, value.grid_x, value.grid_y)) {
+            if let Some(tile) = asset.get_tile(&TileId::new(value.tilemap, value.x_off, value.y_off)) {
                 tiles.insert(**id, TileData {
                     tilemap     : value.tilemap,
-                    grid_x      : value.grid_x,
-                    grid_y      : value.grid_y,
+                    x_off       : value.x_off,
+                    y_off       : value.y_off,
                     usage       : tile.usage.clone(),
+                    size        : None,
                 });
             }
         }

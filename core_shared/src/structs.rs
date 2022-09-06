@@ -3,15 +3,15 @@ use crate::prelude::*;
 // A position in a 2D map
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Position {
-    pub region_id               : Uuid,
-    pub x                       : i32,
-    pub y                       : i32,
+    pub region                  : Uuid,
+    pub x                       : isize,
+    pub y                       : isize,
 }
 
 impl Position {
-    pub fn new(region_id: Uuid, x: i32, y: i32) -> Self {
+    pub fn new(region: Uuid, x: isize, y: isize) -> Self {
         Self {
-            region_id,
+            region,
             x,
             y,
         }
@@ -21,18 +21,27 @@ impl Position {
 // A tile in a tilemap or image
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct TileId {
-    pub map                     : Uuid,
+    pub tilemap                 : Uuid,
     pub x_off                   : u16,
     pub y_off                   : u16,
     pub size                    : Option<(u16, u16)>,
 }
 
 impl TileId {
-    pub fn new(map: Uuid, x_off: u16, y_off: u16) -> Self {
+    pub fn new(tilemap: Uuid, x_off: u16, y_off: u16) -> Self {
         Self {
-            map,
+            tilemap,
             x_off,
             y_off,
+            size                : None,
+        }
+    }
+
+    pub fn new_from_tile_data(tile_data: TileData) -> Self {
+        Self {
+            tilemap             : tile_data.tilemap,
+            x_off               : tile_data.x_off,
+            y_off               : tile_data.y_off,
             size                : None,
         }
     }
@@ -42,18 +51,20 @@ impl TileId {
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct TileData {
     pub tilemap                 : Uuid,
-    pub grid_x                  : u16,
-    pub grid_y                  : u16,
+    pub x_off                   : u16,
+    pub y_off                   : u16,
+    pub size                    : Option<(u16, u16)>,
     pub usage                   : TileUsage,
 }
-// pub struct TileRef {
-//     pub map                     : Uuid,
-//     pub x                       : u16,
-//     pub y                       : u16,
-//     pub size                    : Option<(u16, u16)>,
-//     pub usage                   : Option<TileUsage>
-// }
 
-// impl TileRef {
-
-// }
+impl TileData {
+    pub fn new(tilemap: Uuid, x_off: u16, y_off: u16) -> Self {
+        Self {
+            tilemap,
+            x_off,
+            y_off,
+            size                : None,
+            usage               : TileUsage::Environment
+        }
+    }
+}

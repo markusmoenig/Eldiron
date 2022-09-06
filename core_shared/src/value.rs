@@ -49,7 +49,9 @@ impl Value {
 
     pub fn to_string_value(&self ) -> String {
         match self {
-            Value::String(value) => return value.clone(),
+            Value::Float(value) => format!("{:?}", value),
+            Value::Integer(value) => format!("{:?}", value),
+            Value::String(value) => value.clone(),
             _ => "".to_string(),
         }
     }
@@ -71,9 +73,10 @@ impl Value {
     pub fn to_tile_id(&self ) -> Option<TileId> {
         match self {
             Value::Tile(value, x, y) => {
-                return Some(TileId::new(*value, *x, *y));
+                Some(TileId::new(*value, *x, *y))
             },
-            Value::TileId(value) => return Some(value.clone()),
+            Value::TileId(value) => Some(value.clone()),
+            Value::TileData(value) => Some(TileId::new(value.tilemap, value.x_off, value.y_off)),
             _ => None,
         }
     }

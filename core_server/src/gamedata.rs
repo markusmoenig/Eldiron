@@ -238,7 +238,7 @@ impl GameData {
                 if md.is_file() {
                     if let Some(name) = path::Path::new(&path).extension() {
                         if name == "json" || name == "JSON" {
-                            let mut item = GameBehavior::load_from_path(path, &item_path);
+                            let item = GameBehavior::load_from_path(path, &item_path);
                             items_names.push(item.name.clone());
 
                             if item.data.nodes.len() == 0 {
@@ -466,7 +466,6 @@ impl GameData {
         def
     }
 
-    #[cfg(feature = "data_editing")]
     /// Gets the position for the given behavior
     pub fn get_behavior_default_position(&self, id: Uuid) -> Option<Position> {
         if let Some(behavior) = self.behaviors.get(&id) {
@@ -481,15 +480,13 @@ impl GameData {
         None
     }
 
-    #[cfg(feature = "data_editing")]
-    /// Gets the position for the given behavior
-    pub fn get_behavior_default_tile(&self, id: Uuid) -> Option<TileId> {
+    /// Gets the default position for the given behavior
+    pub fn get_behavior_default_tile(&self, id: Uuid) -> Option<TileData> {
         if let Some(behavior) = self.behaviors.get(&id) {
             for (_index, node) in &behavior.data.nodes {
                 if node.behavior_type == BehaviorNodeType::BehaviorType {
                     if let Some(value) = node.values.get(&"tile".to_string()) {
-                        return value.to_tile_id();
-                        //return Some((tile.0 as usize, tile.1 as usize, tile.2 as usize));
+                        return value.to_tile_data();
                     }
                 }
             }
@@ -497,7 +494,6 @@ impl GameData {
         None
     }
 
-    #[cfg(feature = "data_editing")]
     /// Gets the alignment variable
     pub fn get_behavior_default_alignment(&self, id: Uuid) -> i32 {
         if let Some(behavior) = self.behaviors.get(&id) {

@@ -3,7 +3,7 @@ use crate::widget::*;
 #[derive(PartialEq, Clone, Debug)]
 pub struct CharacterMetaData {
     pub id                  : Uuid,
-    pub tile                : TileId,
+    pub tile                : TileData,
     pub name                : String,
 }
 
@@ -86,11 +86,11 @@ impl CharacterSelectorWidget {
 
             let tile = &chars[index + offset];
 
-            if let Some(map) = asset.get_map_of_id(tile.tile.map) {
+            if let Some(map) = asset.get_map_of_id(tile.tile.tilemap) {
                 context.draw2d.draw_animated_tile(frame, &(x, y), map, stride, &(tile.tile.x_off as usize, tile.tile.y_off as usize), anim_counter, self.grid_size);
 
                 if let Some(selected) = &self.selected {
-                    if selected.tile.map == map.settings.id && selected.tile.x_off == tile.tile.x_off && selected.tile.y_off == tile.tile.y_off {
+                    if selected.tile.tilemap == map.settings.id && selected.tile.x_off == tile.tile.x_off && selected.tile.y_off == tile.tile.y_off {
                         context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_white);
                     }
                 }

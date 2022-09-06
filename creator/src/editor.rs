@@ -753,28 +753,53 @@ impl Editor<'_> {
         } else
         if self.context.dialog_entry != DialogEntry::None {
 
-            // self.content[self.state as usize].0.as_mut().unwrap().update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context);
-
-            // self.content[self.state as usize].1.as_mut().unwrap().update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), &mut self.context);
-
-            let index = self.state as usize;
-            let mut options : Option<Box<dyn EditorOptions>> = None;
-            let mut content : Option<Box<dyn EditorContent>> = None;
-
-            if let Some(element) = self.content.drain(index..index+1).next() {
-                options = element.0;
-                content = element.1;
-                if let Some(mut el_content) = content {
-                    el_content.update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context, &mut options);
-                    content = Some(el_content);
+            if self.context.dialog_entry == DialogEntry::NewProjectName {
+                match self.context.create_project(self.context.dialog_new_name.clone()) {
+                    Ok(path) => {
+                        self.context.curr_project_path = path;
+                        self.state = EditorState::TilesOverview;
+                        self.controlbar.widgets[2].text = self.context.get_project_list();
+                        self.controlbar.widgets[2].dirty = true;
+                        self.project_to_load = self.context.get_project_path(self.context.dialog_new_name.clone());
+                        self.status_bar.add_message(format!("Created Documents >> Eldiron >> {}", self.context.dialog_new_name.clone()));
+                    },
+                    Err(err) => print!("Error: {}", err)
                 }
+            } else
+            if self.state == EditorState::TilesOverview && self.context.dialog_entry == DialogEntry::NodeGridSize && self.context.dialog_accepted == true {
+                if let Some(value) = self.context.dialog_value.to_string_value().parse::<usize>().ok() {
+                    let index = self.context.dialog_node_behavior_value.0 as usize;
+                    if let Some(tilemap) = asset.tileset.maps.get_mut(&asset.tileset.maps_ids[index]) {
+                        tilemap.settings.grid_size = value;
+                        tilemap.save_settings();
 
-                if let Some(mut el_options) = options {
-                    el_options.update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context, &mut content);
-                    options = Some(el_options);
+                        // Update the node and its widget with the new value
+                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[index].widgets[0].atom_data.value = self.context.dialog_value.clone();
+                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[index].widgets[0].dirty = true;
+                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[index].dirty = true;
+                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().set_dirty();
+                    }
                 }
+            } else {
+                let index = self.state as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
+
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
+                    if let Some(mut el_content) = content {
+                        el_content.update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context, &mut options);
+                        content = Some(el_content);
+                    }
+
+                    if let Some(mut el_options) = options {
+                        el_options.update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context, &mut content);
+                        options = Some(el_options);
+                    }
+                }
+                self.content.insert(index, (options, content));
             }
-            self.content.insert(index, (options, content));
             /*
             if self.context.dialog_entry == DialogEntry::NewProjectName {
                 match self.context.create_project(self.context.dialog_new_name.clone()) {
@@ -1434,7 +1459,7 @@ impl Editor<'_> {
                                     size_atom.atom_data.text = "Grid Size".to_string();
                                     // TODO size_atom.atom_data.data = (index as f64, 0.0, 0.0, 0.0, size_text);
                                     // size_atom.behavior_id = Some((index, 0, "".to_string()));
-                                    // node.widgets.push(size_atom);
+                                    node.widgets.push(size_atom);
 
                                     self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
 
@@ -1815,9 +1840,8 @@ impl Editor<'_> {
             let mut size_atom = AtomWidget::new(vec!["Grid Size".to_string()], AtomWidgetType::NodeGridSizeButton,
             AtomData::new_as_int("grid_size".to_string(), 0));
             size_atom.atom_data.text = "Grid Size".to_string();
-            size_atom.atom_data.data = (index as f64, 0.0, 0.0, 0.0, size_text);
-            // TODO size_atom.behavior_id = Some((index, 0, "".to_string()));
-            //size_atom.atom_data.value = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Hello".to_string()), self.graph_type);
+            size_atom.atom_data.value = Value::String(size_text);
+            size_atom.behavior_id = Some(self.context.create_property_id("grid_size"));
             node.widgets.push(size_atom);
             tile_nodes.push(node);
         }

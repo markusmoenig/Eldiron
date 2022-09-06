@@ -466,7 +466,7 @@ impl AtomWidget {
 
                 match &self.atom_data.value {
                     Value::Position(pos) => {
-                        if let Some(region) = context.data.regions.get(&pos.region_id) {
+                        if let Some(region) = context.data.regions.get(&pos.region) {
                             context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &(4, 1, rect.2 - 8, rect.3 - 2), &(pos.x as isize, pos.y as isize), &(0, 0), rect.2, 14, 0, asset, context);
                         }
                     },
@@ -489,18 +489,11 @@ impl AtomWidget {
 
                 //context.draw2d.draw_text(buffer_frame, &(25, 1), rect.2, &asset.open_sans, context.node_button_text_size, &"Default Tile:".to_string(), &context.color_white, &fill_color);
 
-                match &self.atom_data.value {
-                    Value::TileData(data) => {
-                         if let Some(map) = asset.get_map_of_id(data.tilemap) {
-                            context.draw2d.draw_animated_tile(buffer_frame, &(rect.2 / 2 - 9, 2), map, rect.2, &(data.grid_x as usize, data.grid_y as usize), 0, 18);
-
-                         }
-                    },
-                    _ => {},
+                if let Some(id) = self.atom_data.value.to_tile_id() {
+                    if let Some(map) = asset.get_map_of_id(id.tilemap) {
+                        context.draw2d.draw_animated_tile(buffer_frame, &(rect.2 / 2 - 9, 2), map, rect.2, &(id.x_off as usize, id.y_off as usize), 0, 18);
+                    }
                 }
-                // TODO if self.atom_data.data.0 >= 0.0 {
-                //     context.draw2d.draw_animated_tile(buffer_frame, &(rect.2 / 2 - 9, 2),  asset.get_map_of_id(self.atom_data.data.0 as usize), rect.2, &(self.atom_data.data.1 as usize, self.atom_data.data.2 as usize), 0, 18);
-                // }
             }
 
             // Large
@@ -1006,12 +999,8 @@ impl AtomWidget {
                     context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
                 }            } else
             if self.atom_widget_type == AtomWidgetType::NodeGridSizeButton {
-                context.dialog_state = DialogState::Opening;
-                context.dialog_height = 0;
-                context.target_fps = 60;
                 context.dialog_entry = DialogEntry::NodeGridSize;
-                context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
-                context.dialog_node_behavior_value = self.atom_data.data.clone();
+                context.open_dialog(self.behavior_id.clone().unwrap(), self.atom_data.value.clone());
             } else
             if self.atom_widget_type == AtomWidgetType::NodeCharTileButton {
                 context.dialog_entry = DialogEntry::NodeTile;

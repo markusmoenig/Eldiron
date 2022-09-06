@@ -284,10 +284,10 @@ impl RegionInstance<'_> {
                         id                      : self.instances[inst_index].id,
                         index                   : inst_index,
                      };
-                     if let Some(list) = self.characters.get_mut(&position.region_id) {
+                     if let Some(list) = self.characters.get_mut(&position.region) {
                          list.push(character);
                      } else {
-                         self.characters.insert(position.region_id, vec![character]);
+                         self.characters.insert(position.region, vec![character]);
                      }
                 }
             }
@@ -365,25 +365,25 @@ impl RegionInstance<'_> {
                 let mut needs_transfer_to: Option<Uuid> = None;
                 if let Some(position) = self.instances[inst_index].position.clone() {
 
-                    if position.region_id != self.region_data.id {
+                    if position.region != self.region_data.id {
                         // We need to transfer the character to a new region
-                        needs_transfer_to = Some(position.region_id);
+                        needs_transfer_to = Some(position.region);
                     } else
                     // Check if the character is in a region we did not send to the client yet OR if the editor is debugging
-                    if self.instances[inst_index].regions_send.contains(&position.region_id) == false || self.debug_behavior_id.is_some() {
+                    if self.instances[inst_index].regions_send.contains(&position.region) == false || self.debug_behavior_id.is_some() {
                         region = Some(self.region_data.clone());
-                        self.instances[inst_index].regions_send.insert(position.region_id);
+                        self.instances[inst_index].regions_send.insert(position.region);
                     }
                     // Copy the displacements
                     displacements = self.displacements.clone();
 
                     // Send the characters of the client region
-                    if let Some(chars) = self.characters.get(&position.region_id) {
+                    if let Some(chars) = self.characters.get(&position.region) {
                         characters = chars.clone();
                     }
 
-                    if self.lights.contains_key(&position.region_id) {
-                        lights = self.lights[&position.region_id].clone();
+                    if self.lights.contains_key(&position.region) {
+                        lights = self.lights[&position.region].clone();
                     }
 
                     scope_buffer.read_from_scope(&self.scopes[inst_index]);
@@ -899,7 +899,7 @@ impl RegionInstance<'_> {
             for inst in to_create {
 
                 // Only create when instance ins in this region
-                if inst.position.region_id != self.region_data.id {
+                if inst.position.region != self.region_data.id {
                     continue;
                 }
 

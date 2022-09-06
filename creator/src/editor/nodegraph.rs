@@ -1316,7 +1316,6 @@ impl EditorContent for NodeGraph  {
                 tile_atom.atom_data.text = "tile".to_string();
                 let id = (behavior_data_id, node_id, "tile".to_string());
                 tile_atom.behavior_id = Some(id.clone());
-                // tile_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
                 tile_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
                 node_widget.widgets.push(tile_atom);
             } else

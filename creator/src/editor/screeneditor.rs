@@ -272,7 +272,7 @@ impl EditorContent for ScreenEditor<'_> {
             }
 
             if let Some(position) = &self.player_position {
-                if let Some(region) = context.data.regions.get(&position.region_id) {
+                if let Some(region) = context.data.regions.get(&position.region) {
                     // Send the region to the client_render
                     update.region = Some(region.data.clone());
                 }

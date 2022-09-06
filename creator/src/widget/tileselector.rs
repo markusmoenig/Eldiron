@@ -81,11 +81,11 @@ impl TileSelectorWidget {
                 let tile = &tiles[index + offset];
 
                 if let Some(map) = asset.get_map_of_id(tile.tilemap) {
-                    context.draw2d.draw_animated_tile(frame, &(x, y), map, stride, &(tile.grid_x as usize, tile.grid_y as usize), anim_counter, self.grid_size);
+                    context.draw2d.draw_animated_tile(frame, &(x, y), map, stride, &(tile.x_off as usize, tile.y_off as usize), anim_counter, self.grid_size);
 
                     //let mut selected_drawn = false;
                     if let Some(selected) = &self.selected {
-                        if selected.tilemap == map.settings.id && selected.grid_x == tile.grid_x && selected.grid_y == tile.grid_y {
+                        if selected.tilemap == map.settings.id && selected.x_off == tile.x_off && selected.y_off == tile.y_off {
                             context.draw2d.draw_rect_outline(frame, &(x, y, grid_size, grid_size), stride, context.color_white);
                             //selected_drawn = true;
                         }
@@ -174,17 +174,19 @@ impl TileSelectorWidget {
                                 if tile.tags.contains(&tags.clone().unwrap()) {
                                     tiles.push( TileData {
                                         tilemap         : map.settings.id,
-                                        grid_x          : id.0 as u16,
-                                        grid_y          : id.1 as u16,
+                                        x_off           : id.0 as u16,
+                                        y_off           : id.1 as u16,
                                         usage           : tile.usage.clone(),
+                                        size            : None,
                                     });
                                 }
                             } else {
                                 tiles.push( TileData {
                                     tilemap         : map.settings.id,
-                                    grid_x          : id.0 as u16,
-                                    grid_y          : id.1 as u16,
+                                    x_off           : id.0 as u16,
+                                    y_off           : id.1 as u16,
                                     usage           : tile.usage.clone(),
+                                    size            : None,
                                 });
                             }
                         }

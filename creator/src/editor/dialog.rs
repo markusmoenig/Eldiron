@@ -108,7 +108,7 @@ impl DialogWidget {
                     self.text = format!("{}", context.dialog_node_behavior_value.0);
                 } else
                 if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript || context.dialog_entry == DialogEntry::NodeText || context.dialog_entry == DialogEntry::NodeGridSize || context.dialog_entry == DialogEntry::NodeName {
-                    self.text = context.dialog_node_behavior_value.4.clone();
+                    self.text = context.dialog_value.to_string_value();
                 } else
                 if context.dialog_entry == DialogEntry::NodeTile {
                     self.tile_selector_widget.set_tile_type(context.dialog_tile_usage.clone(), None, None, &asset);
@@ -321,7 +321,7 @@ impl DialogWidget {
             return true;
         } else
         if context.dialog_entry == DialogEntry::NodeGridSize {
-            context.dialog_node_behavior_value.4 = self.text.clone();
+            context.dialog_value = Value::String(self.text.clone());
             return true;
         } else
         if context.dialog_entry == DialogEntry::NewName || context.dialog_entry == DialogEntry::NewProjectName  {

@@ -159,12 +159,11 @@ impl NodePreviewWidget {
                         }
                     }*/
                 } else {
-                    /* TODO
                     if let Some(position) = context.data.get_behavior_default_position(context.data.behaviors_ids[context.curr_behavior_index]) {
-                        if let Some(region) = context.data.regions.get(&position.0) {
-                            self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &self.region_rect, &(position.1, position.2), &self.region_scroll_offset, stride, 32, 0, asset, context);
+                        if let Some(region) = context.data.regions.get(&position.region) {
+                            self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &self.region_rect, &(position.x, position.y), &self.region_scroll_offset, stride, 32, 0, asset, context);
                         }
-                    }*/
+                    }
                 }
             } else {
                 /*
