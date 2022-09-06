@@ -119,9 +119,9 @@ impl NodePreviewWidget {
             context.draw2d.draw_rect(buffer_frame, &(rect.2-2, 0, 2, rect.3 - 1), stride, &context.color_black);
             context.draw2d.draw_rect(buffer_frame, &(1, 1, 1, 1), stride, &[65, 65, 65, 255]);
 
-            self.region_rect.0 = 10;
+            self.region_rect.0 = 0;
             self.region_rect.1 = 5;
-            self.region_rect.2 = rect.2 - 20;
+            self.region_rect.2 = rect.2 - 5;
             self.region_rect.3 = rect.3 - 30;
 
             if self.graph_type == BehaviorType::Behaviors {

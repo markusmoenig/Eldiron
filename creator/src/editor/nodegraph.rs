@@ -182,11 +182,11 @@ impl EditorContent for NodeGraph  {
                         } else
                         if self.graph_type == BehaviorType::Behaviors {
                             // Draw the main behavior tile
-                            // TODO if let Some(tile_id) = context.data.get_behavior_default_tile(context.data.behaviors_ids[index]) {
-                            //     if let Some(map)= asset.tileset.maps.get_mut(&tile_id.0) {
-                            //         context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.1, tile_id.2), 0, 100);
-                            //     }
-                            // }
+                            if let Some(tile_id) = context.data.get_behavior_default_tile(context.data.behaviors_ids[index]) {
+                                if let Some(map)= asset.tileset.maps.get_mut(&tile_id.tilemap) {
+                                    context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.x_off as usize, tile_id.y_off as usize), 0, 100);
+                                }
+                            }
                         }
 
                         self.nodes[index].draw_overview(frame, anim_counter, asset, context, selected, &preview_buffer, selected && self.overview_preview_clicked);
@@ -527,6 +527,9 @@ impl EditorContent for NodeGraph  {
                         self.nodes[node_index].widgets[atom_index].dirty = true;
                         self.nodes[node_index].dirty = true;
                         self.dirty = true;
+
+                        context.data.set_behavior_id_value(id.clone(), value.clone(), context.curr_graph_type);
+
                         break;
                     }
                 }

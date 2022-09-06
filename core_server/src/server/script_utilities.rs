@@ -55,7 +55,6 @@ pub fn add_target_to_scope(instance_index: usize, data: &mut RegionInstance) {
 
 /// Read out the target variables and if changed apply them
 pub fn apply_scope_to_target(instance_index: usize, data: &mut RegionInstance) {
-    /*
     if let Some(target_index) = data.instances[instance_index].target_instance_index {
         if let Some(target) = data.scopes[instance_index].get_value::<InstanceVariables>("target") {
             if let Some(behavior) = data.behaviors.get_mut(&data.instances[target_index].behavior_id) {
@@ -68,13 +67,12 @@ pub fn apply_scope_to_target(instance_index: usize, data: &mut RegionInstance) {
                         if n.is_some() && o.is_some() && o.unwrap() != *n.unwrap() {
                             let value = n.unwrap().clone();
                             data.scopes[target_index].set_value(node.name.clone(), value);
-                            data.changed_variables.push((target_index, behavior.id, node.id, value));
                         }
                     }
                 }
             }
         }
-    }*/
+    }
 }
 
 /// Replace the target strings, only called once before compilation for each script
@@ -92,8 +90,7 @@ pub fn replace_target_variables(input: String) -> String {
 }
 
 /// Evaluates a boolean expression in the given instance.
-pub fn eval_bool_expression_instance(instance_index: usize, id: (BehaviorType, usize, usize, String), data: &mut RegionInstance) -> Option<bool> {
-    /*
+pub fn eval_bool_expression_instance(instance_index: usize, id: (BehaviorType, Uuid, Uuid, String), data: &mut RegionInstance) -> Option<bool> {
     add_target_to_scope(instance_index, data);
 
     if let Some(ast) = data.ast.get(&id) {
@@ -105,25 +102,26 @@ pub fn eval_bool_expression_instance(instance_index: usize, id: (BehaviorType, u
         }
     } else {
         if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0) {
-            let script = replace_target_variables(value.4);
-            if let Some(ast) = data.engine.compile_expression_with_scope(&mut  data.scopes[instance_index], script.as_str()).ok() {
-                let r = data.engine.eval_ast_with_scope(&mut  data.scopes[instance_index], &ast);
-                if r.is_ok() {
-                    data.ast.insert(id.clone(), ast);
-                    return Some(r.unwrap());
-                } else {
-                    println!("{:?}", r);
+            if let Some(code) = value.to_string() {
+                let script = replace_target_variables(code);
+                if let Some(ast) = data.engine.compile_expression_with_scope(&mut  data.scopes[instance_index], script.as_str()).ok() {
+                    let r = data.engine.eval_ast_with_scope(&mut  data.scopes[instance_index], &ast);
+                    if r.is_ok() {
+                        data.ast.insert(id.clone(), ast);
+                        return Some(r.unwrap());
+                    } else {
+                        println!("{:?}", r);
+                    }
                 }
             }
         }
-    }*/
+    }
 
     None
 }
 
 /// Evaluates a numerical expression in the given instance.
-pub fn eval_number_expression_instance(instance_index: usize, id: (BehaviorType, usize, usize, String), data: &mut RegionInstance) -> Option<f64> {
-    /*
+pub fn eval_number_expression_instance(instance_index: usize, id: (BehaviorType, Uuid, Uuid, String), data: &mut RegionInstance) -> Option<f32> {
     add_target_to_scope(instance_index, data);
 
     if let Some(ast) = data.ast.get(&id) {
@@ -134,43 +132,39 @@ pub fn eval_number_expression_instance(instance_index: usize, id: (BehaviorType,
                 return Some(n);
             }
             if let Some(n) = nn.as_int().ok() {
-                return Some(n as f64);
+                return Some(n as f32);
             }
         } else {
             println!("{:?}", r);
         }
     } else {
         if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0) {
-            let script = replace_target_variables(value.4);
-            if let Some(ast) = data.engine.compile_expression_with_scope(&mut  data.scopes[instance_index], script.as_str()).ok() {
-                let r = data.engine.eval_ast_with_scope::<Dynamic>(&mut  data.scopes[instance_index], &ast);
-                if r.is_ok() {
-                    data.ast.insert(id.clone(), ast);
-                    let nn = r.unwrap();
-                    if let Some(n) = nn.as_float().ok() {
-                        return Some(n);
+            if let Some(code) = value.to_string() {
+                let script = replace_target_variables(code);
+                if let Some(ast) = data.engine.compile_expression_with_scope(&mut  data.scopes[instance_index], script.as_str()).ok() {
+                    let r = data.engine.eval_ast_with_scope::<Dynamic>(&mut  data.scopes[instance_index], &ast);
+                    if r.is_ok() {
+                        data.ast.insert(id.clone(), ast);
+                        let nn = r.unwrap();
+                        if let Some(n) = nn.as_float().ok() {
+                            return Some(n);
+                        }
+                        if let Some(n) = nn.as_int().ok() {
+                            return Some(n as f32);
+                        }
+                    } else {
+                        println!("{:?}", r);
                     }
-                    if let Some(n) = nn.as_int().ok() {
-                        return Some(n as f64);
-                    }
-                } else {
-                    println!("{:?}", r);
                 }
             }
         }
-    }*/
-
+    }
     None
 }
 
 /// Evaluates a dynamic script in the given instance.
-pub fn eval_dynamic_script_instance(instance_index: usize, id: (BehaviorType, usize, usize, String), data: &mut RegionInstance) -> bool {
+pub fn eval_dynamic_script_instance(instance_index: usize, id: (BehaviorType, Uuid, Uuid, String), data: &mut RegionInstance) -> bool {
 
-    // TODO if data.runs_in_editor {
-    //     return eval_dynamic_expression_instance_editor(instance_index, id, data);
-    // }
-
-    /*
     add_target_to_scope(instance_index, data);
 
     if let Some(ast) = data.ast.get(&id) {
@@ -183,27 +177,28 @@ pub fn eval_dynamic_script_instance(instance_index: usize, id: (BehaviorType, us
         }
     } else {
         if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0) {
-            let script = replace_target_variables(value.4);
-            if let Some(ast) = data.engine.compile_with_scope(&mut  data.scopes[instance_index], script.as_str()).ok() {
-                let r = data.engine.eval_ast_with_scope::<Dynamic>(&mut  data.scopes[instance_index], &ast);
-                if r.is_ok() {
-                    data.ast.insert(id.clone(), ast);
-                    apply_scope_to_target(instance_index, data);
-                    return true
-                } else {
-                    println!("{:?}", r);
+            if let Some(code) = value.to_string() {
+                let script = replace_target_variables(code);
+                if let Some(ast) = data.engine.compile_with_scope(&mut  data.scopes[instance_index], script.as_str()).ok() {
+                    let r = data.engine.eval_ast_with_scope::<Dynamic>(&mut  data.scopes[instance_index], &ast);
+                    if r.is_ok() {
+                        data.ast.insert(id.clone(), ast);
+                        apply_scope_to_target(instance_index, data);
+                        return true
+                    } else {
+                        println!("{:?}", r);
+                    }
                 }
             }
         }
-    }*/
+    }
 
     false
 }
 
 /// Evaluates a dynamic script in the given instance.
-pub fn eval_dynamic_script_instance_for_game_player_scope(_instance_index: usize, id: (BehaviorType, usize, usize, String), data: &mut RegionInstance, custom_scope: usize) -> bool {
+pub fn eval_dynamic_script_instance_for_game_player_scope(_instance_index: usize, id: (BehaviorType, Uuid, Uuid, String), data: &mut RegionInstance, custom_scope: usize) -> bool {
 
-    /*
     if let Some(ast) = data.ast.get(&id) {
         if let Some(custom_scope) = data.game_player_scopes.get_mut(&custom_scope) {
 
@@ -216,125 +211,19 @@ pub fn eval_dynamic_script_instance_for_game_player_scope(_instance_index: usize
         }
     } else {
         if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0) {
-            let script = value.4;
-            if let Some(ast) = data.engine.compile_with_scope(data.game_player_scopes.get_mut(&custom_scope).unwrap(), script.as_str()).ok() {
-                let r = data.engine.eval_ast_with_scope::<Dynamic>(data.game_player_scopes.get_mut(&custom_scope).unwrap(), &ast);
-                if r.is_ok() {
-                    data.ast.insert(id.clone(), ast);
-                    return true
-                } else {
-                    println!("{:?}", r);
+            if let Some(script) = value.to_string() {
+                if let Some(ast) = data.engine.compile_with_scope(data.game_player_scopes.get_mut(&custom_scope).unwrap(), script.as_str()).ok() {
+                    let r = data.engine.eval_ast_with_scope::<Dynamic>(data.game_player_scopes.get_mut(&custom_scope).unwrap(), &ast);
+                    if r.is_ok() {
+                        data.ast.insert(id.clone(), ast);
+                        return true
+                    } else {
+                        println!("{:?}", r);
+                    }
                 }
             }
         }
-    }*/
+    }
 
-    false
-}
-
-/// Evaluates a dynamic script in the given instance.
-/// We have to send the editor the variables which have been updated for visual display.
-pub fn eval_dynamic_expression_instance_editor(instance_index: usize, id: (BehaviorType, usize, usize, String), data: &mut RegionInstance) -> bool {
-    /*
-    add_target_to_scope(instance_index, data);
-
-    let original = data.scopes[instance_index].clone();
-
-    if let Some(ast) = data.ast.get(&id) {
-        let r = data.engine.eval_ast_with_scope::<Dynamic>(&mut  data.scopes[instance_index], ast);
-        if r.is_ok() {
-            apply_scope_to_target(instance_index, data);
-
-            let mut key_to_change: Option<String> = None;
-            let mut new_value : Option<f64> = None;
-
-            if let Some(behavior) = data.behaviors.get_mut(&data.instances[instance_index].behavior_id) {
-                for (_index, node) in &behavior.nodes {
-                    if node.behavior_type == BehaviorNodeType::VariableNumber {
-
-                        let o = original.get_value::<f64>(node.name.as_str());
-                        let n = data.scopes[instance_index].get_value::<f64>(node.name.as_str());
-
-                        if n.is_some() && o.is_some() && Some(o) != Some(n) {
-                            key_to_change = Some(node.name.clone());
-                            new_value = Some(n.unwrap());
-                        }
-                    }
-                }
-            }
-
-            if let Some(key) = key_to_change {
-                if let Some(value) = new_value {
-                    if let Some(behavior) = data.behaviors.get_mut(&id.1) {
-
-                        // Insert the node id of the changed variable to the list
-                        // Note: Only need todo when run in editor
-                        for (_index, node) in &behavior.nodes {
-                            if node.name == key && node.behavior_type == BehaviorNodeType::VariableNumber {
-                                data.changed_variables.push((instance_index, behavior.id, node.id, value));
-                                //println!("{:?}", (instance_index, behavior.data.id, node.id));
-                            }
-                        }
-                    }
-                }
-            }
-
-            return true
-        } else {
-            println!("{:?}", r);
-        }
-    } else {
-        if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0) {
-            let script = replace_target_variables(value.4);
-            if let Some(ast) = data.engine.compile_with_scope(&mut data.scopes[instance_index], script.as_str()).ok() {
-                let r = data.engine.eval_ast_with_scope::<Dynamic>(&mut data.scopes[instance_index], &ast);
-                if r.is_ok() {
-
-                    data.ast.insert(id.clone(), ast);
-                    apply_scope_to_target(instance_index, data);
-
-                    let mut key_to_change: Option<String> = None;
-                    let mut new_value : Option<f64> = None;
-
-                    if let Some(behavior) = data.behaviors.get_mut(&data.instances[instance_index].behavior_id) {
-                        for (_index, node) in &behavior.nodes {
-                            if node.behavior_type == BehaviorNodeType::VariableNumber {
-
-                                let o = original.get_value::<f64>(node.name.as_str());
-                                let n = data.scopes[instance_index].get_value::<f64>(node.name.as_str());
-
-                                if n.is_some() && o.is_some() && Some(o) != Some(n) {
-                                    key_to_change = Some(node.name.clone());
-                                    new_value = Some(n.unwrap());
-                                }
-                            }
-                        }
-                    }
-
-                    if let Some(key) = key_to_change {
-                        if let Some(value) = new_value {
-                            if let Some(behavior) = data.behaviors.get_mut(&id.1) {
-
-                                // Insert the node id of the changed variable to the list
-                                // Note: Only need todo when run in editor
-                                for (_index, node) in &behavior.nodes {
-                                    if node.name == key && node.behavior_type == BehaviorNodeType::VariableNumber {
-                                        data.changed_variables.push((instance_index, behavior.id, node.id, value));
-                                        //println!("{:?}", (instance_index, behavior.data.id, node.id));
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    return true
-                } else {
-                    println!("{:?}", r);
-                }
-            } else {
-                println!("failed to compile {}", script);
-            }
-        }
-    }*/
     false
 }

@@ -24,7 +24,7 @@ pub struct RegionInstance<'a> {
     /// The script engine
     pub engine                      : Engine,
     /// Script ast's, id is (BehaviorType, BehaviorId, BehaviorNodeID, AtomParameterID)
-    pub ast                         : HashMap<(BehaviorType, usize, usize, String), AST>,
+    pub ast                         : HashMap<(BehaviorType, Uuid, Uuid, String), AST>,
 
     // Character instances
     pub instances                   : Vec<BehaviorInstance>,
@@ -67,7 +67,6 @@ pub struct RegionInstance<'a> {
 
     pub messages                    : Vec<(String, MessageType)>,
     pub executed_connections        : Vec<(BehaviorType, Uuid, BehaviorNodeConnector)>,
-    pub changed_variables           : Vec<(usize, usize, usize, f64)>, // A variable has been changed: instance index, behavior id, node id, new value
 }
 
 impl RegionInstance<'_> {
@@ -101,7 +100,9 @@ impl RegionInstance<'_> {
 
         /*
         nodes.insert(BehaviorNodeType::Expression, expression);
+        */
         nodes.insert(BehaviorNodeType::Script, script);
+        /*
         nodes.insert(BehaviorNodeType::Message, message);
         nodes.insert(BehaviorNodeType::Pathfinder, pathfinder);
         nodes.insert(BehaviorNodeType::Lookout, lookout);
@@ -167,7 +168,6 @@ impl RegionInstance<'_> {
 
             messages                : vec![],
             executed_connections    : vec![],
-            changed_variables       : vec![],
         }
     }
 
@@ -759,7 +759,7 @@ impl RegionInstance<'_> {
                 if let Some(value )= node.values.get(&"value".to_string()) {
                     scope.push(node.name.clone(), value.to_float());
                 } else {
-                    scope.push(node.name.clone(), 0.0_f64);
+                    scope.push(node.name.clone(), 0.0_f32);
                 }
             }
         }
@@ -880,6 +880,7 @@ impl RegionInstance<'_> {
                     name        : Some(behavior.name.clone()),
                     alignment   : default_alignment
                 };
+                //println!("{:?}", main);
                 to_create.push(main)
             }
             // Add the instances of main
