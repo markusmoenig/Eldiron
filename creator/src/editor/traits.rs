@@ -244,7 +244,7 @@ pub trait EditorContent {
     fn get_preview_widget(&mut self) -> Option<&mut NodePreviewWidget> { None }
 
     /// A game debug update
-    fn debug_update(&mut self, update: GameUpdate) {}
+    fn debug_update(&mut self, update: GameUpdate, context: &mut ScreenContext) {}
 
     /// Debugging stopped
     fn debugging_stopped(&mut self) {}

@@ -1,31 +1,7 @@
-
 // This module contains script support structs. These are passed to the Rhai scripting engine to provide
 // data structures which can be accessed from both Rust and scripts.
 
 use crate::prelude::*;
-
-//use crate::gamedata::MessageType;
-
-// --- Sending Messages
-/*
-#[derive(Debug, Clone)]
-pub struct ScriptMessages {
-    messages: Vec<(String, MessageType)>
-}
-
-impl ScriptMessages {
-    pub fn new() -> Self {
-        Self { messages: vec![] }
-    }
-
-    pub fn debug(&mut self, message: &str) {
-        self.messages.push((message.to_owned(), MessageType::Debug));
-    }
-
-    pub fn clear(&mut self) {
-        self.messages.clear();
-    }
-}*/
 
 // --- Tilemaps
 
@@ -220,34 +196,6 @@ impl ScriptDraw {
 
     pub fn clear(&mut self) {
         self.commands.clear();
-    }
-}
-
-// --- ScriptMessage
-
-#[derive(PartialEq, Clone, Debug)]
-pub enum ScriptMessage {
-    Status(String),
-}
-
-#[derive(PartialEq, Debug, Clone)]
-pub struct ScriptMessageCmd {
-    pub messages            : Vec<ScriptMessage>
-}
-
-impl ScriptMessageCmd {
-    pub fn new() -> Self {
-        Self {
-            messages        : vec![],
-        }
-    }
-
-    pub fn status(&mut self, message: &str) {
-        self.messages.push(ScriptMessage::Status(message.to_owned()));
-    }
-
-    pub fn clear(&mut self) {
-        self.messages.clear();
     }
 }
 

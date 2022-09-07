@@ -39,6 +39,8 @@ pub struct NodeGraph  {
 
     behavior_debug_data         : Option<BehaviorDebugData>,
 
+    corner_index                : Option<usize>,
+
     pub sub_type                : NodeSubType,
     pub active_indices          : Vec<usize>,
 }
@@ -82,6 +84,8 @@ impl EditorContent for NodeGraph  {
 
             sub_type                    : NodeSubType::None,
             active_indices              : vec![],
+
+            corner_index                : None,
         }
     }
 
@@ -95,9 +99,12 @@ impl EditorContent for NodeGraph  {
     }
 
     fn set_mode(&mut self, mode: GraphMode, context: &ScreenContext) {
+
+        // Create previews
         if mode == GraphMode::Detail && (self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Systems || self.graph_type == BehaviorType::GameLogic) && self.preview.is_none() {
             self.preview = Some(NodePreviewWidget::new(context, self.graph_type));
         }
+
         self.graph_mode = mode;
     }
 
@@ -210,6 +217,7 @@ impl EditorContent for NodeGraph  {
                     // Check for corner node
                     if self.nodes[index].is_corner_node {
                         corner_index = Some(index);
+                        self.corner_index = Some(index);
                         continue;
                     }
 
@@ -246,6 +254,7 @@ impl EditorContent for NodeGraph  {
                     context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[corner_index].buffer[..], &rect, safe_rect.2, &safe_rect);
                 }
 
+                /*
                 for index in 0..variables.len() {
                     let vindex = variables[index];
                     if self.nodes[vindex].dirty {
@@ -256,7 +265,7 @@ impl EditorContent for NodeGraph  {
                     self.nodes[vindex].graph_offset = (rect.0, rect.1);
                     self.nodes[vindex].graph_offset = (rect.0, rect.1);
                     context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[vindex].buffer[..], &rect, safe_rect.2, &safe_rect);
-                }
+                }*/
 
                 // --
                 let mut mask : Vec<u8> = vec![0; safe_rect.2 * safe_rect.3];
@@ -1282,7 +1291,7 @@ impl EditorContent for NodeGraph  {
 
         // menu button factory
         let mut create_menu_atom = |id: String, text: Vec<String>, def: Value| -> AtomWidget {
-            let mut atom = AtomWidget::new(text, AtomWidgetType::NodeMenuButton, AtomData::new_as_int(id.to_lowercase(), 0));
+            let mut atom = AtomWidget::new(text, AtomWidgetType::NodeMenuButton, AtomData::new(id.to_lowercase().as_str(), Value::Empty()));
             atom.atom_data.text = id.clone();
             let id = (behavior_data_id, node_id, id.to_lowercase());
             atom.behavior_id = Some(id.clone());
@@ -1304,7 +1313,7 @@ impl EditorContent for NodeGraph  {
 
                 // Position
                 let mut position_atom = AtomWidget::new(vec![], AtomWidgetType::NodePositionButton,
-                AtomData::new_as_int("position".to_string(), 0));
+                AtomData::new("position", Value::Empty()));
                 position_atom.atom_data.text = "position".to_string();
                 let id = (behavior_data_id, node_id, "position".to_string());
                 position_atom.behavior_id = Some(id.clone());
@@ -1314,19 +1323,28 @@ impl EditorContent for NodeGraph  {
 
                 // Default Character Tile
                 let mut tile_atom = AtomWidget::new(vec![], AtomWidgetType::NodeCharTileButton,
-                    AtomData::new_as_int("tile".to_string(), 0));
+                    AtomData::new("tile", Value::Empty()));
                 tile_atom.atom_data.text = "tile".to_string();
                 let id = (behavior_data_id, node_id, "tile".to_string());
                 tile_atom.behavior_id = Some(id.clone());
                 tile_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
                 node_widget.widgets.push(tile_atom);
+
+                // Chunks
+                let mut chunk_atom = AtomWidget::new(vec![], AtomWidgetType::NodePropertyLog,
+                    AtomData::new("chunks", Value::Empty()));
+                chunk_atom.atom_data.text = "chunks".to_string();
+                let id = (behavior_data_id, node_id, "chunks".to_string());
+                chunk_atom.behavior_id = Some(id.clone());
+                chunk_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+                node_widget.widgets.push(chunk_atom);
             } else
             if self.graph_type == BehaviorType::GameLogic {
                 node_widget.is_corner_node = true;
 
                 // Name of the startup tree
                 let mut startup_atom = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-                AtomData::new_as_int("startup".to_string(), 0));
+                AtomData::new("startup", Value::Empty()));
                 startup_atom.atom_data.text = "startup".to_string();
                 let id = (behavior_data_id, node_id, "startup".to_string());
                 startup_atom.behavior_id = Some(id.clone());
@@ -1346,7 +1364,7 @@ impl EditorContent for NodeGraph  {
         menu_text.push( "Delete".to_string());
 
         let mut node_menu_atom = AtomWidget::new(menu_text, AtomWidgetType::NodeMenu,
-        AtomData::new_as_int("menu".to_string(), 0));
+        AtomData::new("menu", Value::Empty()));
         node_menu_atom.atom_data.text = "menu".to_string();
         let id = (behavior_data_id, node_id, "menu".to_string());
         node_menu_atom.behavior_id = Some(id.clone());
@@ -1382,7 +1400,7 @@ impl EditorContent for NodeGraph  {
         if node_behavior_type == BehaviorNodeType::VariableNumber {
 
             let mut atom1 = AtomWidget::new(vec!["Value".to_string()], AtomWidgetType::NodeNumberButton,
-            AtomData::new_as_int("value".to_string(), 0));
+            AtomData::new("value", Value::Empty()));
             atom1.atom_data.text = "Value".to_string();
             let id = (behavior_data_id, node_id, "value".to_string());
             atom1.behavior_id = Some(id.clone());
@@ -1394,7 +1412,7 @@ impl EditorContent for NodeGraph  {
         } else
         if node_behavior_type == BehaviorNodeType::Script {
             let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScriptButton,
-            AtomData::new_as_int("script".to_string(), 0));
+            AtomData::new("script", Value::Empty()));
             atom1.atom_data.text = "Script".to_string();
             let id = (behavior_data_id, node_id, "script".to_string());
             atom1.behavior_id = Some(id.clone());
@@ -1408,7 +1426,7 @@ impl EditorContent for NodeGraph  {
         } else
         if node_behavior_type == BehaviorNodeType::Screen {
             let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScreenButton,
-            AtomData::new_as_int("script".to_string(), 0));
+            AtomData::new("script", Value::Empty()));
             atom1.atom_data.text = "Script".to_string();
             let id = (behavior_data_id, node_id, "script".to_string());
             atom1.behavior_id = Some(id.clone());
@@ -2119,7 +2137,15 @@ impl EditorContent for NodeGraph  {
     }
 
     /// A game debug update
-    fn debug_update(&mut self, update: GameUpdate) {
+    fn debug_update(&mut self, update: GameUpdate, context: &mut ScreenContext) {
+
+        context.debug_log_messages.append(&mut update.messages.clone());
+
+        if let Some(corner_index) = self.corner_index {
+            self.nodes[corner_index].widgets[3].dirty = true;
+            self.nodes[corner_index].dirty = true;
+            self.dirty = true;
+        }
 
         // Update the variables
         for index in 0..self.nodes.len() {
@@ -2135,8 +2161,9 @@ impl EditorContent for NodeGraph  {
 
         // Update the preview
         if let Some(preview) = &mut self.preview {
-            preview.debug_update(update);
+            preview.debug_update(update, context);
         }
+
     }
 
     /// Debugging stopped

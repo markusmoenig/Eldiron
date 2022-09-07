@@ -47,11 +47,11 @@ impl DialogWidget {
         let mut widgets : Vec<AtomWidget> = vec![];
 
         let cancel_button = AtomWidget::new(vec!["Cancel".to_string()], AtomWidgetType::ToolBarButton,
-        AtomData::new_as_int("Cancel".to_string(), 0));
+        AtomData::new("Cancel", Value::Empty()));
         widgets.push(cancel_button);
 
         let ok_button = AtomWidget::new(vec!["Accept".to_string()], AtomWidgetType::ToolBarButton,
-        AtomData::new_as_int("Accept".to_string(), 0));
+        AtomData::new("Accept", Value::Empty()));
         widgets.push(ok_button);
 
         let tile_selector_widget = TileSelectorWidget::new(vec!(), (0,0,0,0), asset, &context);

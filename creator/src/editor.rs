@@ -519,7 +519,7 @@ impl Editor<'_> {
                             self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context, Some(debug));
                         },
                         Message::PlayerUpdate(_uuid, update) => {
-                            self.content[self.state as usize].1.as_mut().unwrap().debug_update(update);
+                            self.content[self.state as usize].1.as_mut().unwrap().debug_update(update, &mut self.context);
                         },
                         _ => {}
                     }
@@ -1457,7 +1457,7 @@ impl Editor<'_> {
                                     }
 
                                     let mut size_atom = AtomWidget::new(vec!["Grid Size".to_string()], AtomWidgetType::NodeGridSizeButton,
-                                    AtomData::new_as_int("grid_size".to_string(), 0));
+                                    AtomData::new("grid_size", Value::Empty()));
                                     size_atom.atom_data.text = "Grid Size".to_string();
                                     size_atom.atom_data.value = Value::String(size_text);
                                     size_atom.behavior_id = Some(self.context.create_property_id("grid_size"));
@@ -1840,7 +1840,7 @@ impl Editor<'_> {
             }
 
             let mut size_atom = AtomWidget::new(vec!["Grid Size".to_string()], AtomWidgetType::NodeGridSizeButton,
-            AtomData::new_as_int("grid_size".to_string(), 0));
+            AtomData::new("grid_size", Value::Empty()));
             size_atom.atom_data.text = "Grid Size".to_string();
             size_atom.atom_data.value = Value::String(size_text);
             size_atom.behavior_id = Some(self.context.create_property_id("grid_size"));
@@ -1886,7 +1886,7 @@ impl Editor<'_> {
             let p = get_pos(index, width - left_width);
             let mut node = NodeWidget::new(t.to_string(), NodeUserData { position: p});
 
-            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
+            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new("menu", Value::Empty()));
             node.menu = Some(node_menu_atom);
 
             region_nodes.push(node);
@@ -1910,7 +1910,7 @@ impl Editor<'_> {
             let mut node = NodeWidget::new(behavior_name.to_string(),
              NodeUserData { position: p });
 
-            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
+            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new("menu", Value::Empty()));
             node.menu = Some(node_menu_atom);
 
             behavior_nodes.push(node);
@@ -1936,7 +1936,7 @@ impl Editor<'_> {
             let mut node = NodeWidget::new(system_name.to_string(),
              NodeUserData { position: p });
 
-            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
+            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new("menu", Value::Empty()));
             node.menu = Some(node_menu_atom);
 
             systems_nodes.push(node);

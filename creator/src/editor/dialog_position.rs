@@ -26,15 +26,15 @@ impl DialogPositionWidget {
         let mut widgets : Vec<AtomWidget> = vec![];
 
         let region_menu = AtomWidget::new(context.data.regions_names.clone(), AtomWidgetType::ToolBarMenuButton,
-        AtomData::new_as_int("Regions".to_string(), 0));
+        AtomData::new("Regions", Value::Empty()));
         widgets.push(region_menu);
 
         let areas_button = AtomWidget::new(vec!["Areas".to_string()], AtomWidgetType::ToolBarCheckButton,
-        AtomData::new_as_int("Areas".to_string(), 0));
+        AtomData::new("Areas", Value::Empty()));
         widgets.push(areas_button);
 
         let ok_button = AtomWidget::new(vec!["Accept".to_string()], AtomWidgetType::ToolBarButton,
-        AtomData::new_as_int("Accept".to_string(), 0));
+        AtomData::new("Accept", Value::Empty()));
         widgets.push(ok_button);
 
         Self {

@@ -92,9 +92,11 @@ impl RegionInstance<'_> {
             Ok(None)
         });
 
+        script_register_message_api(&mut engine);
+
         // Display f64 as ints
         use pathfinding::num_traits::ToPrimitive;
-        engine.register_fn("to_string", |x: f64| format!("{}", x.to_isize().unwrap()));
+        engine.register_fn("to_string", |x: f32| format!("{}", x.to_isize().unwrap()));
 
         let mut nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
 
@@ -259,6 +261,40 @@ impl RegionInstance<'_> {
 
                         self.instances[inst_index].action = None;
                     }
+                }
+
+                // Check for messages
+                if let Some(mut message) = self.scopes[inst_index].get_value::<ScriptMessageCmd>("message") {
+
+                    let my_name = self.instances[inst_index].name.clone();
+                    for m in &message.messages {
+                        match m {
+                            ScriptMessage::Status(value) => {
+                                self.instances[inst_index].messages.push( MessageData {
+                                    message_type        : MessageType::Status,
+                                    message             : value.clone(),
+                                    from                : my_name.clone(),
+                                })
+                            },
+                            ScriptMessage::Debug(value) => {
+                                self.instances[inst_index].messages.push( MessageData {
+                                    message_type        : MessageType::Debug,
+                                    message             : value.clone(),
+                                    from                : my_name.clone(),
+                                })
+                            },
+                            ScriptMessage::Error(value) => {
+                                self.instances[inst_index].messages.push( MessageData {
+                                    message_type        : MessageType::Error,
+                                    message             : value.clone(),
+                                    from                : my_name.clone(),
+                                })
+                            }
+                        }
+                    }
+
+                    message.clear();
+                    self.scopes[inst_index].set_value("message", message);
                 }
 
                 // If we are debugging this instance, send the debug data
@@ -913,7 +949,10 @@ impl RegionInstance<'_> {
                 // Set the default values into the scope
                 let mut scope = default_scope.clone();
                 scope.set_value("name", behavior.name.clone());
-                scope.set_value("alignment", inst.alignment as i64);
+                scope.set_value("alignment", inst.alignment as i32);
+
+                scope.set_value("message", ScriptMessageCmd::new());
+
                 self.scopes.push(scope);
             }
         }

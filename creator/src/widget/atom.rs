@@ -21,25 +21,14 @@ pub struct AtomData {
 
 impl AtomData {
 
-    pub fn new_as_int(id: String, value: isize) -> Self {
-
+    pub fn new(id: &str, value: Value) -> Self {
         Self {
             text                : "".to_string(),
-            id                  : id,
-            data                : (value as f64,0.0,0.0,0.0, "".to_string()),
-            value               : Value::Empty(),
+            id                  : id.to_string(),
+            data                : (0.0,0.0,0.0,0.0, "".to_string()),
+            value               : value,
         }
     }
-
-    /*
-    pub fn _new_as_int_range(id: String, value: isize, min: isize, max: isize, step: isize) -> Self {
-
-        Self {
-            text                : "".to_string(),
-            id                  : id,
-            data                : (value as f64, min as f64, max as f64, step as f64, "".to_string()),
-        }
-    }*/
 }
 
 #[derive(PartialEq, Debug)]
@@ -49,6 +38,7 @@ pub enum AtomWidgetType {
     ToolBarMenuButton,
     ToolBarSwitchButton,
     ToolBarCheckButton,
+
     NodeSliderButton,
     NodeMenuButton,
     NodeIntSlider,
@@ -64,6 +54,8 @@ pub enum AtomWidgetType {
     NodeEnvTileButton,
     NodeGridSizeButton,
     NodeScreenButton,
+    NodePropertyLog,
+
     LargeButton,
     CheckButton,
     Button,
@@ -196,8 +188,6 @@ impl AtomWidget {
 
         let rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
         let buffer_frame = &mut self.buffer[..];
-
-        //println!("here atom 000000 {:?}", self.atom_widget_type);
 
         if self.dirty {
 
@@ -495,6 +485,47 @@ impl AtomWidget {
                 if let Some(id) = self.atom_data.value.to_tile_id() {
                     if let Some(map) = asset.get_map_of_id(id.tilemap) {
                         context.draw2d.draw_animated_tile(buffer_frame, &(rect.2 / 2 - 9, 2), map, rect.2, &(id.x_off as usize, id.y_off as usize), 0, 18);
+                    }
+                }
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodePropertyLog {
+
+                let b = &context.color_black;
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, b);
+
+                if let Some(icon) = context.icons.get(&"logo".to_string()) {
+                    let size = 128;
+                    context.draw2d.scale_chunk(buffer_frame, &((rect.2 - size) / 2, (rect.3 - 128) / 2, size, size), rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), 0.1);
+                }
+
+                if context.is_debugging {
+                    self.content_rect = (self.rect.0, self.rect.1, self.rect.2, self.rect.3);
+                    let r = rect;
+
+                    let text_size = 11_usize;
+                    let max_lines = (self.content_rect.3 - 10 ) / (text_size as usize);
+
+                    let available_messages = context.debug_log_messages.len();
+
+                    let font = &asset.get_editor_font("OpenSans");
+
+                    let w = &context.color_light_gray;
+
+                    for l in 0..max_lines {
+
+                        if l >= available_messages {
+                            break;
+                        }
+
+                        let mut color = w;
+
+                        match &context.debug_log_messages[available_messages - 1 - l].message_type {
+                            MessageType::Debug => color = &context.color_light_green,
+                            MessageType::Error => color = &context.color_light_orange,
+                            _ => {},
+                        }
+
+                        context.draw2d.draw_text_rect(buffer_frame, &(r.0, r.3 - 10 - (l+1) * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, context.debug_log_messages[available_messages - 1 - l].message.as_str(), color, b, crate::draw2d::TextAlignment::Left);
                     }
                 }
             }
@@ -1238,6 +1269,9 @@ impl AtomWidget {
     pub fn get_height(&self, context: &ScreenContext) -> usize {
         if self.atom_widget_type == AtomWidgetType::NodePositionButton {
             return context.node_button_height * 2;
+        } else
+        if self.atom_widget_type == AtomWidgetType::NodePropertyLog {
+            return context.node_button_height * 8;
         }
         context.node_button_height
     }

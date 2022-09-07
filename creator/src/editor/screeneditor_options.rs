@@ -21,7 +21,7 @@ impl EditorOptions for ScreenEditorOptions {
         let mut widgets : Vec<AtomWidget> = vec![];
 
         let mut mode_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
-    AtomData::new_as_int("Mode".to_string(), 0));
+    AtomData::new("Mode", Value::Empty()));
         mode_list.drag_enabled = true;
         mode_list.centered_text = true;
 

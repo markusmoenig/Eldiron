@@ -23,14 +23,14 @@ impl Widget for ControlBar {
         let mut widgets : Vec<AtomWidget> = vec![];
 
         let mut undo_button = AtomWidget::new(vec!["Undo".to_string()], AtomWidgetType::ToolBarButton,
-            AtomData::new_as_int("Undo".to_string(), 0));
+            AtomData::new("Undo", Value::Empty()));
         undo_button.no_border = true;
         undo_button.state = WidgetState::Disabled;
         undo_button.set_rect((rect.0 + 10, rect.1, 80, rect.3), asset, context);
         widgets.push(undo_button);
 
         let mut redo_button = AtomWidget::new(vec!["Redo".to_string()], AtomWidgetType::ToolBarButton,
-            AtomData::new_as_int("Redo".to_string(), 0));
+            AtomData::new("Redo", Value::Empty()));
         redo_button.no_border = true;
         redo_button.state = WidgetState::Disabled;
         redo_button.set_rect((rect.0 + 100, rect.1, 80, rect.3), asset, context);
@@ -38,26 +38,26 @@ impl Widget for ControlBar {
 
 
         let mut projects_button = AtomWidget::new(context.get_project_list(), AtomWidgetType::ToolBarSliderButton,
-            AtomData::new_as_int("Projects".to_string(), 0));
+            AtomData::new("Projects", Value::Empty()));
         projects_button.no_border = true;
         projects_button.state = WidgetState::Disabled;
         projects_button.set_rect((rect.0 + 220, rect.1, 300, rect.3), asset, context);
         widgets.push(projects_button);
 
         let mut help_button = AtomWidget::new(vec!["Help".to_string()], AtomWidgetType::ToolBarButton,
-            AtomData::new_as_int("Help".to_string(), 0));
+            AtomData::new("Help", Value::Empty()));
         help_button.no_border = true;
         help_button.set_rect((rect.2 - 100 - 200, rect.1, 80, rect.3), asset, context);
         widgets.push(help_button);
 
         let mut play_button = AtomWidget::new(vec!["Play".to_string()], AtomWidgetType::ToolBarButton,
-            AtomData::new_as_int("Play".to_string(), 0));
+            AtomData::new("Play", Value::Empty()));
         play_button.no_border = true;
         play_button.set_rect((rect.2 - 100 - 100, rect.1, 80, rect.3), asset, context);
         widgets.push(play_button);
 
         let mut debug_button = AtomWidget::new(vec!["Debug".to_string()], AtomWidgetType::ToolBarButton,
-            AtomData::new_as_int("Debug".to_string(), 0));
+            AtomData::new("Debug", Value::Empty()));
         debug_button.no_border = true;
         debug_button.set_rect((rect.2 - 110, rect.1, 100, rect.3), asset, context);
         widgets.push(debug_button);
@@ -99,6 +99,8 @@ impl Widget for ControlBar {
 
                         context.is_running = true;
                         context.is_debugging = true;
+                        context.debug_log_messages = vec![];
+
                         atom_widget.text[0] = "Stop".to_string();
 
                         // Start server

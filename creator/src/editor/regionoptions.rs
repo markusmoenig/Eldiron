@@ -33,29 +33,29 @@ impl EditorOptions for RegionOptions {
         tilemap_names.insert(0, "All".to_string());
 
         let mut tilemaps_button = AtomWidget::new(tilemap_names, AtomWidgetType::SliderButton,
-        AtomData::new_as_int("Tilemaps".to_string(), 0));
+        AtomData::new("Tilemaps", Value::Empty()));
         tilemaps_button.atom_data.text = "Tilemaps".to_string();
         tilemaps_button.set_rect((rect.0 + 10, rect.1 + 10, rect.2 - 20, 40), asset, context);
         tile_widgets.push(tilemaps_button);
 
         let mut tags_button = AtomWidget::new(vec!["".to_string()], AtomWidgetType::TagsButton,
-            AtomData::new_as_int("Tags".to_string(), 0));
+            AtomData::new("Tags", Value::Empty()));
         tags_button.set_rect((rect.0 + 10, rect.1 + 45, rect.2 - 20, 40), asset, context);
         tile_widgets.push(tags_button);
 
         let mut usage_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
-    AtomData::new_as_int("UsageList".to_string(), 0));
+    AtomData::new("UsageList", Value::Empty()));
         usage_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Environment".to_string(), "Road".to_string(), "Blocking".to_string(), "Water".to_string(), "UI Element".to_string()]);
 
         usage_list.set_rect((rect.0 + 10, rect.1 + 90, rect.2 - 20, 200), asset, context);
         tile_widgets.push(usage_list);
 
-        let mut layer_button = AtomWidget::new(vec!["1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()], AtomWidgetType::NumberRow, AtomData::new_as_int("Layer".to_string(), 0));
+        let mut layer_button = AtomWidget::new(vec!["1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()], AtomWidgetType::NumberRow, AtomData::new("Layer", Value::Empty()));
         layer_button.set_rect((rect.0 + 10, rect.1 + 270, rect.2 - 20, 30), asset, context);
         tile_widgets.push(layer_button);
 
         let mut remap_button = AtomWidget::new(vec!["Remap".to_string()], AtomWidgetType::Button,
-        AtomData::new_as_int("remap".to_string(), 0));
+        AtomData::new("remap", Value::Empty()));
         remap_button.set_rect((rect.0 + 10, rect.1 + 310, rect.2 - 20, 40), asset, context);
         tile_widgets.push(remap_button);
 
@@ -64,7 +64,7 @@ impl EditorOptions for RegionOptions {
         let mut area_widgets : Vec<AtomWidget> = vec![];
 
         let mut node_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
-    AtomData::new_as_int("NodeList".to_string(), 0));
+    AtomData::new("NodeList", Value::Empty()));
         node_list.drag_enabled = true;
 
         node_list.add_group_list(context.color_green, context.color_light_green, vec!["Always".to_string(), "Enter Area".to_string(), "Leave Area".to_string(), "Inside Area".to_string()]);

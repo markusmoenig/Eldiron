@@ -10,6 +10,7 @@ pub mod undo;
 pub mod scope_buffer;
 pub mod value;
 pub mod structs;
+pub mod script;
 
 pub mod prelude {
     pub use crate::asset::*;
@@ -27,6 +28,7 @@ pub mod prelude {
     pub use crate::undo::*;
     pub use crate::scope_buffer::*;
     pub use crate::structs::*;
+    pub use crate::script::*;
 
     pub use crate::value::Value;
     pub use rustc_hash::FxHashMap;

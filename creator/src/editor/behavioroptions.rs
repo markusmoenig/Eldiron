@@ -14,7 +14,7 @@ impl EditorOptions for BehaviorOptions {
         let mut widgets : Vec<AtomWidget> = vec![];
 
         let mut node_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
-    AtomData::new_as_int("NodeList".to_string(), 0));
+    AtomData::new("NodeList", Value::Empty()));
         node_list.drag_enabled = true;
 
         node_list.add_group_list(context.color_green, context.color_light_green, vec!["Behavior Tree".to_string(), "Expression".to_string(), "Script".to_string(), "Linear".to_string(), "Sequence".to_string()]);

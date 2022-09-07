@@ -12,7 +12,7 @@ impl EditorOptions for TileMapOptions {
         let mut widgets : Vec<AtomWidget> = vec![];
 
         let mut group_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
-    AtomData::new_as_int("GroupedList".to_string(), 0));
+    AtomData::new("GroupedList", Value::Empty()));
 
         group_list.state = WidgetState::Disabled;
 
@@ -21,25 +21,25 @@ impl EditorOptions for TileMapOptions {
         widgets.push(group_list);
 
         let mut tags_button = AtomWidget::new(vec!["".to_string()], AtomWidgetType::TagsButton,
-            AtomData::new_as_int("Tags".to_string(), 0));
+            AtomData::new("Tags", Value::Empty()));
         tags_button.state = WidgetState::Disabled;
         tags_button.set_rect((rect.0 + 10, rect.1 + 310 + 30, rect.2 - 20, 40), asset, context);
         widgets.push(tags_button);
 
         let mut set_anim_button = AtomWidget::new(vec!["Set Anim".to_string()], AtomWidgetType::Button,
-            AtomData::new_as_int("Set Anim".to_string(), 0));
+            AtomData::new("Set Anim", Value::Empty()));
         set_anim_button.state = WidgetState::Disabled;
         set_anim_button.set_rect((rect.0 + 10, rect.1 + 305 + 80, rect.2 - 20, 40), asset, context);
         widgets.push(set_anim_button);
 
         let mut clear_anim_button = AtomWidget::new(vec!["Clear Anim".to_string()], AtomWidgetType::Button,
-        AtomData::new_as_int("Clear Anim".to_string(), 0));
+        AtomData::new("Clear Anim", Value::Empty()));
         clear_anim_button.state = WidgetState::Disabled;
         clear_anim_button.set_rect((rect.0 + 10, rect.1 + 340 + 80, rect.2 - 20, 40), asset, context);
         widgets.push(clear_anim_button);
 
         let mut set_default_button = AtomWidget::new(vec!["Set Default".to_string()], AtomWidgetType::Button,
-        AtomData::new_as_int("Set Default".to_string(), 0));
+        AtomData::new("Set Default", Value::Empty()));
         set_default_button.state = WidgetState::Disabled;
         set_default_button.set_rect((rect.0 + 10, rect.1 + 15 + 370 + 80, rect.2 - 20, 40), asset, context);
         widgets.push(set_default_button);

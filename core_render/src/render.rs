@@ -833,6 +833,12 @@ impl GameRender<'_> {
                 match cmd {
                     ScriptMessage::Status(message) => {
                         self.messages.push(MessageData { message_type: core_shared::message::MessageType::Status, message: message.clone(), from: "System".to_string() });
+                    },
+                    ScriptMessage::Debug(message) => {
+                        self.messages.push(MessageData { message_type: core_shared::message::MessageType::Debug, message: message.clone(), from: "System".to_string() });
+                    },
+                    ScriptMessage::Error(message) => {
+                        self.messages.push(MessageData { message_type: core_shared::message::MessageType::Error, message: message.clone(), from: "System".to_string() });
                     }
                 }
             }

@@ -1,6 +1,8 @@
 use crate::prelude::*;
+
 use zeno::{Mask, Stroke};
 use directories::{ UserDirs };
+use std::fs::File;
 
 #[derive(PartialEq)]
 pub struct ScreenDragContext {
@@ -139,12 +141,43 @@ pub struct ScreenContext<'a> {
     pub hover_help_text                 : Option<String>,
 
     // Debug renderer
-    pub debug_render                    : Option<GameRender<'a>>
+    pub debug_render                    : Option<GameRender<'a>>,
+
+    // Debug log
+
+    pub debug_log_messages              : Vec<MessageData>,
+
+    // Icons
+
+    pub icons                           : FxHashMap<String, (Vec<u8>, u32, u32)>
 }
 
 impl ScreenContext<'_> {
 
     pub fn new(width: usize, height: usize) -> Self {
+
+        fn load_icon(file_name: &PathBuf) -> Option<(Vec<u8>, u32, u32)> {
+
+            let decoder = png::Decoder::new(File::open(file_name).unwrap());
+            if let Ok(mut reader) = decoder.read_info() {
+                let mut buf = vec![0; reader.output_buffer_size()];
+                let info = reader.next_frame(&mut buf).unwrap();
+                let bytes = &buf[..info.buffer_size()];
+
+                return Some((bytes.to_vec(), info.width, info.height));
+            }
+            None
+        }
+
+
+        // Load Icons
+
+        let mut icons : FxHashMap<String, (Vec<u8>, u32, u32)> = FxHashMap::default();
+        let icon_path = std::path::Path::new("resources").join("icons");
+
+        if let Some(icon) = load_icon(&icon_path.join("logo.png")) {
+            icons.insert("logo".to_string(), icon);
+        }
 
         let mut left_arrow_mask = [0u8; 12 * 18];
         Mask::new("M 12,0 0,9 12,18")
@@ -338,6 +371,9 @@ impl ScreenContext<'_> {
             hover_help_text             : None,
 
             debug_render                : None,
+            debug_log_messages          : vec![],
+
+            icons
         }
     }
 

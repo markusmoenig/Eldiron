@@ -187,6 +187,11 @@ pub fn eval_dynamic_script_instance(instance_index: usize, id: (BehaviorType, Uu
                         return true
                     } else {
                         println!("{:?}", r);
+                        data.instances[instance_index].messages.push(MessageData {
+                            message_type        : MessageType::Error,
+                            message             : r.err().unwrap().to_string(),
+                            from                : "Script".to_string()
+                        });
                     }
                 }
             }

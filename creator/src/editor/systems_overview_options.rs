@@ -14,7 +14,7 @@ impl EditorOptions for SystemsOverviewOptions {
         let mut widgets : Vec<AtomWidget> = vec![];
 
         let mut node_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
-    AtomData::new_as_int("NodeList".to_string(), 0));
+    AtomData::new("NodeList", Value::Empty()));
         node_list.drag_enabled = true;
 
         node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["System".to_string()]);
