@@ -667,7 +667,12 @@ impl Editor<'_> {
             // Do we need to update the node from the code editor ?
             if self.context.code_editor_update_node {
 
-                let index = self.state as usize;
+                let mut index = self.state as usize;
+
+                if self.state == EditorState::ScreenDetail {
+                    index -= 1;
+                }
+
                 let mut options : Option<Box<dyn EditorOptions>> = None;
                 let mut content : Option<Box<dyn EditorContent>> = None;
 
@@ -685,6 +690,7 @@ impl Editor<'_> {
                     }
                 }
                 self.content.insert(index, (options, content));
+
                 /* TODO
                 // Region settings ?
                 if self.state == EditorState::RegionDetail && self.context.code_editor_node_behavior_id.0 == 130000 {

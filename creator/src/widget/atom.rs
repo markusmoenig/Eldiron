@@ -64,6 +64,7 @@ pub enum AtomWidgetType {
     TagsButton,
     SliderButton,
     SmallMenuButton,
+    IconButton,
     NumberRow,
 }
 
@@ -260,7 +261,7 @@ impl AtomWidget {
                     border_color = custom_color;
                 }
 
-                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                //context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
 
                 let div = self.content_rect.2 - 35;
                 let mut left_rect = rect.clone();
@@ -334,11 +335,11 @@ impl AtomWidget {
                     let fill_color = if self.atom_widget_type == AtomWidgetType::SmallMenuButton { context.color_black } else { context.color_node_light_gray };
                     let border_color = if self.atom_widget_type == AtomWidgetType::SmallMenuButton { context.color_light_gray } else { context.color_node_light_gray };
 
-                    context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &border_color, 1.5);
+                    //context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                    context.draw2d.draw_rounded_rect_with_border_2(buffer_frame, &rect, rect.2, &fill_color, &context.node_button_rounding, &border_color, 1.5);
 
                     if self.text.len() > 0 {
-                        context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &self.text[self.curr_index], &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
+                        context.draw2d.draw_text_rect(buffer_frame, &(rect.0, rect.1, rect.2, rect.3 - 3), rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &self.text[self.curr_index], &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
                     }
 
                     // Triangle
@@ -348,7 +349,7 @@ impl AtomWidget {
                         color = if self.state == WidgetState::Hover && self.text.len() > 1 { &context.color_light_white } else { &context.color_node_picker };
                     }
 
-                    context.draw2d.blend_mask(buffer_frame, &(rect.2 - 25, 10, rect.2, rect.3), rect.2, &context.menu_triangle_mask[..], &(10, 10), &color);
+                    context.draw2d.blend_mask(buffer_frame, &(rect.2 - 25, 9, rect.2, rect.3), rect.2, &context.menu_triangle_mask[..], &(10, 10), &color);
                 }
             }  else
             if self.atom_widget_type == AtomWidgetType::NodeIntSlider {
@@ -455,7 +456,7 @@ impl AtomWidget {
 
                 let border_color = if context.active_position_id == self.behavior_id { context.color_red } else { context.color_node_light_gray };
 
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &context.color_black, &context.node_button_rounding, &border_color, 1.5);
+                context.draw2d.draw_rounded_rect_with_border_2(buffer_frame, &rect, rect.2, &context.color_black, &context.node_button_rounding, &border_color, 1.5);
 
                 match &self.atom_data.value {
                     Value::Position(pos) => {
@@ -478,7 +479,7 @@ impl AtomWidget {
                 let fill_color = if self.state == WidgetState::Clicked { context.color_node_dark_gray } else { context.color_black };
                 let border_color = if self.state == WidgetState::Clicked { context.color_node_dark_gray } else { context.color_node_light_gray };
 
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &border_color, 1.5);
+                context.draw2d.draw_rounded_rect_with_border_2(buffer_frame, &rect, rect.2, &fill_color, &context.node_button_rounding, &border_color, 1.5);
 
                 //context.draw2d.draw_text(buffer_frame, &(25, 1), rect.2, &asset.open_sans, context.node_button_text_size, &"Default Tile:".to_string(), &context.color_white, &fill_color);
 
@@ -493,39 +494,70 @@ impl AtomWidget {
                 let b = &context.color_black;
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, b);
 
-                if let Some(icon) = context.icons.get(&"logo".to_string()) {
-                    let size = 128;
-                    context.draw2d.scale_chunk(buffer_frame, &((rect.2 - size) / 2, (rect.3 - 128) / 2, size, size), rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), 0.1);
+                if let Some(icon) = context.icons.get(&"attrs".to_string()) {
+                    context.draw2d.scale_chunk(buffer_frame, &(rect.0, rect.1, 18, 18), rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), if self.curr_index == 0 { 0.8 } else { 0.5 });
                 }
 
+                if let Some(icon) = context.icons.get(&"helmet".to_string()) {
+                    context.draw2d.scale_chunk(buffer_frame, &(rect.0 + 24, rect.1, 18, 18), rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), if self.curr_index == 1 { 0.8 } else { 0.5 });
+                }
+
+                if let Some(icon) = context.icons.get(&"bag".to_string()) {
+                    context.draw2d.scale_chunk(buffer_frame, &(rect.0 + 24 * 2, rect.1, 18, 18), rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), if self.curr_index == 2 { 0.8 } else { 0.5 });
+                }
+
+                if let Some(icon) = context.icons.get(&"log".to_string()) {
+                    context.draw2d.scale_chunk(buffer_frame, &(rect.0 + 24 * 3, rect.1, 18, 18), rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), if self.curr_index == 3 { 0.8 } else { 0.5 });
+                }
+
+                if let Some(icon) = context.icons.get(&"logo".to_string()) {
+                    let size = 128;
+                    context.draw2d.scale_chunk(buffer_frame, &((rect.2 - size) / 2, (rect.3 - 128) / 2 + 10, size, size), rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), 0.1);
+                }
+
+                //context.draw2d.draw_rect(buffer_frame, &(rect.0, rect.1 + 20, rect.2, 1), rect.2, &context.color_gray);
+
                 if context.is_debugging {
+
                     self.content_rect = (self.rect.0, self.rect.1, self.rect.2, self.rect.3);
                     let r = rect;
 
-                    let text_size = 11_usize;
-                    let max_lines = (self.content_rect.3 - 10 ) / (text_size as usize);
-
-                    let available_messages = context.debug_log_messages.len();
+                    let text_size = 12_usize;
+                    let max_lines = (self.content_rect.3 - 3 * text_size) / (text_size as usize);
 
                     let font = &asset.get_editor_font("OpenSans");
+                    let w = &context.color_light_white;
+                    let mut color = w;
 
-                    let w = &context.color_light_gray;
+                    let y_start = r.1 + 2 * text_size;
 
-                    for l in 0..max_lines {
+                    if self.curr_index == 0 {
+                        for (index, _v) in context.debug_log_variables.iter().enumerate() {
+                            if index >= max_lines { break; }
 
-                        if l >= available_messages {
-                            break;
+                            context.draw2d.draw_text_rect(buffer_frame, &(r.0, y_start + index * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, context.debug_log_variables[index].0.as_str(), color, b, crate::draw2d::TextAlignment::Left);
+
+                            let str = context.debug_log_variables[index].1.to_string_value();
+
+                            context.draw2d.draw_text_rect(buffer_frame, &(r.0, y_start + index * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, str.as_str(), color, b, crate::draw2d::TextAlignment::Right);
                         }
+                    } else
+                    if self.curr_index == 3 {
+                        let available_messages = context.debug_log_messages.len();
 
-                        let mut color = w;
+                        for l in 0..max_lines {
+                            if l >= available_messages {
+                                break;
+                            }
 
-                        match &context.debug_log_messages[available_messages - 1 - l].message_type {
-                            MessageType::Debug => color = &context.color_light_green,
-                            MessageType::Error => color = &context.color_light_orange,
-                            _ => {},
+                            match &context.debug_log_messages[available_messages - 1 - l].message_type {
+                                MessageType::Debug => color = &context.color_light_green,
+                                MessageType::Error => color = &context.color_light_orange,
+                                _ => {},
+                            }
+
+                            context.draw2d.draw_text_rect(buffer_frame, &(r.0, r.3 - 10 - (l+1) * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, context.debug_log_messages[available_messages - 1 - l].message.as_str(), color, b, crate::draw2d::TextAlignment::Left);
                         }
-
-                        context.draw2d.draw_text_rect(buffer_frame, &(r.0, r.3 - 10 - (l+1) * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, context.debug_log_messages[available_messages - 1 - l].message.as_str(), color, b, crate::draw2d::TextAlignment::Left);
                     }
                 }
             }
@@ -955,6 +987,26 @@ impl AtomWidget {
                     }
                 }*/
                 return true;
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodePropertyLog {
+                let x = pos.0 - self.rect.0;
+                let y = pos.1 - self.rect.1;
+                if y <= 20 {
+                    self.dirty = true;
+                    if x < 24 {
+                        self.curr_index = 0;
+                    } else
+                    if x < 24 * 2 {
+                        self.curr_index = 1;
+                    } else
+                    if x < 24 * 3 {
+                        self.curr_index = 2;
+                    } else
+                    if x < 24 * 4 {
+                        self.curr_index = 3;
+                    }
+                    return true;
+                }
             }
         }
         false
@@ -1016,12 +1068,14 @@ impl AtomWidget {
                 context.code_editor_mode = CodeEditorMode::Rhai;
                 if let Some(id) = &self.behavior_id {
                     context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
-                }            } else
+                }
+            } else
             if self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton {
                 context.code_editor_mode = CodeEditorMode::Rhai;
                 if let Some(id) = &self.behavior_id {
                     context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
-                }            } else
+                }
+            } else
             if self.atom_widget_type == AtomWidgetType::NodeScriptButton {
                 context.code_editor_mode = CodeEditorMode::Rhai;
                 if let Some(id) = &self.behavior_id {
@@ -1031,7 +1085,8 @@ impl AtomWidget {
                 context.code_editor_mode = CodeEditorMode::Text;
                 if let Some(id) = &self.behavior_id {
                     context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
-                }            } else
+                }
+            } else
             if self.atom_widget_type == AtomWidgetType::NodeGridSizeButton {
                 context.dialog_entry = DialogEntry::NodeGridSize;
                 context.open_dialog(self.behavior_id.clone().unwrap(), self.atom_data.value.clone());

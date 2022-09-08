@@ -6,27 +6,33 @@ use rhai::Scope;
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct ScopeBuffer {
 
-    pub floats                      : HashMap<String, f32>,
+    pub values                      : FxHashMap<String, Value>,
 }
 
 impl ScopeBuffer {
     pub fn new() -> Self {
-        let floats = HashMap::new();
+        let values = FxHashMap::default();
 
         Self {
-            floats,
+            values,
         }
     }
 
     pub fn read_from_scope(&mut self, scope: &rhai::Scope) {
 
-        self.floats = HashMap::new();
+        self.values = FxHashMap::default();
 
         let iter = scope.iter();
 
         for val in iter {
-            if let Some(f) = val.2.as_float().ok() {
-                self.floats.insert(val.0.to_string(), f);
+            if let Some(value) = val.2.as_float().ok() {
+                self.values.insert(val.0.to_string(), Value::Float(value));
+            } else
+            if let Some(value) = val.2.as_int().ok() {
+                self.values.insert(val.0.to_string(), Value::Integer(value));
+            } else
+            if let Some(value) = val.2.into_string().ok() {
+                self.values.insert(val.0.to_string(), Value::String(value));
             }
         }
     }

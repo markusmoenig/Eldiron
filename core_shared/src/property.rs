@@ -77,7 +77,9 @@ impl Property {
         match &self.value {
             PropertyValue::Int(_value) => None,
             PropertyValue::Float(_value) => None,
-            PropertyValue::String(value) => Some(value.clone().replace("\"", "")),
+            PropertyValue::String(value) => {
+                Some(value.clone())
+            }
             PropertyValue::Bool(_value) => None,
             PropertyValue::Color(_value) => None,
         }

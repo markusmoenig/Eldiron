@@ -32,7 +32,7 @@ impl EditorContent for RegionWidget {
 
     fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _behavior_type: BehaviorType, asset: &Asset, context: &ScreenContext) -> Self {
 
-        let toolbar_size = 30;
+        let toolbar_size = 33;
         let bottom_size = 250;
 
         let mut widgets = vec![];

@@ -235,12 +235,13 @@ impl GameRender<'_> {
                             &ast,
                             false,
                             false,
-                            "draw",
+                            "draw_screen",
                             None,
                             []
                         );
 
             if result.is_err() {
+                println!("{:?}", result);
                 if let Some(err) = result.err() {
                     let mut string = err.to_string();
                     let mut parts = string.split("(");

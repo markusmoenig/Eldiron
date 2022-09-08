@@ -483,7 +483,7 @@ impl EditorContent for NodeGraph  {
 
         if self.nodes[node_index].is_corner_node {
             x = -7;
-            y = -7;
+            y = -14;
         }
 
         if self.nodes[node_index].is_variable_node {
@@ -1140,12 +1140,6 @@ impl EditorContent for NodeGraph  {
         self.curr_behavior_tree_index = None;
 
         self.behavior_id = id;
-
-        // For characters check if we have all character attributes as variables.
-        if self.graph_type == BehaviorType::Behaviors {
-            context.data.check_behavior_for_attributes(id);
-        }
-
         let mut nodes = vec![];
 
         if let Some(behavior) = context.data.get_behavior(id, self.graph_type) {
@@ -1358,9 +1352,7 @@ impl EditorContent for NodeGraph  {
         // Node menu
 
         let mut menu_text : Vec<String> = vec!["Rename".to_string()];
-        if node_behavior_type != BehaviorNodeType::VariableNumber {
-            menu_text.push( "Disconnect".to_string());
-        }
+        menu_text.push( "Disconnect".to_string());
         menu_text.push( "Delete".to_string());
 
         let mut node_menu_atom = AtomWidget::new(menu_text, AtomWidgetType::NodeMenu,
@@ -1396,19 +1388,6 @@ impl EditorContent for NodeGraph  {
             if self.curr_behavior_tree_index == None {
                 self.curr_behavior_tree_index = Some(self.nodes.len());
             }
-        } else
-        if node_behavior_type == BehaviorNodeType::VariableNumber {
-
-            let mut atom1 = AtomWidget::new(vec!["Value".to_string()], AtomWidgetType::NodeNumberButton,
-            AtomData::new("value", Value::Empty()));
-            atom1.atom_data.text = "Value".to_string();
-            let id = (behavior_data_id, node_id, "value".to_string());
-            atom1.behavior_id = Some(id.clone());
-            //atom1.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
-            node_widget.widgets.push(atom1);
-
-            node_widget.color = context.color_orange.clone();
-            node_widget.is_variable_node = true;
         } else
         if node_behavior_type == BehaviorNodeType::Script {
             let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScriptButton,
@@ -2140,6 +2119,12 @@ impl EditorContent for NodeGraph  {
     fn debug_update(&mut self, update: GameUpdate, context: &mut ScreenContext) {
 
         context.debug_log_messages.append(&mut update.messages.clone());
+        context.debug_log_variables.clear();
+
+        for key in update.scope_buffer.values.keys().sorted() {
+            let v = &update.scope_buffer.values[key];
+           context.debug_log_variables.push((key.to_string(), v.clone()));
+        }
 
         if let Some(corner_index) = self.corner_index {
             self.nodes[corner_index].widgets[3].dirty = true;
@@ -2147,6 +2132,7 @@ impl EditorContent for NodeGraph  {
             self.dirty = true;
         }
 
+        /*
         // Update the variables
         for index in 0..self.nodes.len() {
             if self.nodes[index].is_variable_node {
@@ -2157,7 +2143,7 @@ impl EditorContent for NodeGraph  {
                     self.dirty = true;
                 }
             }
-        }
+        }*/
 
         // Update the preview
         if let Some(preview) = &mut self.preview {

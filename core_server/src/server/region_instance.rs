@@ -781,7 +781,7 @@ impl RegionInstance<'_> {
         let mut to_execute : Vec<Uuid> = vec![];
         let mut startup_name : Option<String> = None;
         let mut locked_tree  : Option<Uuid> = None;
-        let mut scope = rhai::Scope::new();
+        let scope = rhai::Scope::new();
         let behavior = &mut self.game_data;
 
         // Collect name of the startup tree and the variables
@@ -789,13 +789,6 @@ impl RegionInstance<'_> {
             if node.behavior_type == BehaviorNodeType::BehaviorType {
                 if let Some(value )= node.values.get(&"startup".to_string()) {
                     startup_name = Some(value.to_string_value());
-                }
-            } else
-            if node.behavior_type == BehaviorNodeType::VariableNumber {
-                if let Some(value )= node.values.get(&"value".to_string()) {
-                    scope.push(node.name.clone(), value.to_float());
-                } else {
-                    scope.push(node.name.clone(), 0.0_f32);
                 }
             }
         }
@@ -860,6 +853,8 @@ impl RegionInstance<'_> {
 
         let mut index = 0;
 
+        let mut startup_trees               : Vec<Uuid> = vec![];
+
         // Instances to create for this behavior
         if let Some(behavior) = self.behaviors.get_mut(&id) {
 
@@ -878,10 +873,27 @@ impl RegionInstance<'_> {
 
             for (id, node) in &behavior.nodes {
                 if node.behavior_type == BehaviorNodeType::BehaviorTree {
-
-                    for c in &behavior.connections {
-                        if c.0 == *id {
-                            to_execute.push(c.0);
+                    for (value_name, value) in &node.values {
+                        if *value_name == "execute".to_string() {
+                            if let Some(v) = value.to_integer() {
+                                if v == 1 {
+                                    // Startup only tree
+                                    for c in &behavior.connections {
+                                        if c.0 == *id {
+                                            startup_trees.push(c.0);
+                                        }
+                                    }
+                                    break;
+                                } else
+                                if v == 0 {
+                                    // Always
+                                    for c in &behavior.connections {
+                                        if c.0 == *id {
+                                            to_execute.push(c.0);
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 } else
@@ -948,12 +960,17 @@ impl RegionInstance<'_> {
 
                 // Set the default values into the scope
                 let mut scope = default_scope.clone();
-                scope.set_value("name", behavior.name.clone());
-                scope.set_value("alignment", inst.alignment as i32);
-
+                //scope.set_value("NAME", behavior.name.clone());
+                scope.set_value("ALIGNMENT", inst.alignment as f32);
                 scope.set_value("message", ScriptMessageCmd::new());
 
                 self.scopes.push(scope);
+            }
+        }
+        if index < self.instances.len() {
+            // Execute the startup only trees
+            for startup_id in &startup_trees {
+                self.execute_node(index, startup_id.clone());
             }
         }
         index

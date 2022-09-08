@@ -145,6 +145,7 @@ pub struct ScreenContext<'a> {
 
     // Debug log
 
+    pub debug_log_variables             : Vec<(String, Value)>,
     pub debug_log_messages              : Vec<MessageData>,
 
     // Icons
@@ -169,15 +170,21 @@ impl ScreenContext<'_> {
             None
         }
 
-
-        // Load Icons
+        // Icons
 
         let mut icons : FxHashMap<String, (Vec<u8>, u32, u32)> = FxHashMap::default();
         let icon_path = std::path::Path::new("resources").join("icons");
-
-        if let Some(icon) = load_icon(&icon_path.join("logo.png")) {
-            icons.insert("logo".to_string(), icon);
+        let paths: Vec<_> = fs::read_dir(icon_path.clone()).unwrap()
+                                                .map(|r| r.unwrap())
+                                                .collect();
+        for path in paths {
+            let path = &path.path();
+            if let Some(icon) = load_icon(&path) {
+                icons.insert(path::Path::new(&path).file_stem().unwrap().to_str().unwrap().to_string(), icon);
+            }
         }
+
+        // Masks
 
         let mut left_arrow_mask = [0u8; 12 * 18];
         Mask::new("M 12,0 0,9 12,18")
@@ -371,6 +378,7 @@ impl ScreenContext<'_> {
             hover_help_text             : None,
 
             debug_render                : None,
+            debug_log_variables         : vec![],
             debug_log_messages          : vec![],
 
             icons
@@ -519,6 +527,7 @@ impl ScreenContext<'_> {
                 self.target_fps = 60;
             }
         }
+        self.code_editor_value = value.to_string_value();
         self.code_editor_node_behavior_id = id;
         self.code_editor_node_behavior_value = value;
         self.code_editor_is_active = true;
