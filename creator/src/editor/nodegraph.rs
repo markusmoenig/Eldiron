@@ -235,12 +235,6 @@ impl EditorContent for NodeGraph  {
                         continue;
                     }
 
-                    // Check for variable node
-                    if self.nodes[index].is_variable_node {
-                        variables.push(index);
-                        continue;
-                    }
-
                     // We only draw nodes which are marked visible, i.e. connected to the current behavior tree or unconnected nodes
                     if self.visible_node_ids.contains(&self.widget_index_to_node_id(index)) {
 
@@ -498,21 +492,6 @@ impl EditorContent for NodeGraph  {
         if self.nodes[node_index].is_corner_node {
             x = -7;
             y = -14;
-        }
-
-        if self.nodes[node_index].is_variable_node {
-            x = -7;
-            y = 130;
-
-            for i in 0..self.nodes.len() {
-                if i < node_index {
-                    if self.nodes[i].is_variable_node {
-                        y += 36;
-                    }
-                } else {
-                    break;
-                }
-            }
         }
 
         if relative == false {
@@ -2167,19 +2146,6 @@ impl EditorContent for NodeGraph  {
             self.nodes[corner_index].dirty = true;
             self.dirty = true;
         }
-
-        /*
-        // Update the variables
-        for index in 0..self.nodes.len() {
-            if self.nodes[index].is_variable_node {
-                if let Some(v) = update.scope_buffer.floats.get(&self.nodes[index].name) {
-                    self.nodes[index].widgets[0].debug_value = Some(*v);
-                    self.nodes[index].widgets[0].dirty = true;
-                    self.nodes[index].dirty = true;
-                    self.dirty = true;
-                }
-            }
-        }*/
 
         // Update the preview
         if let Some(preview) = &mut self.preview {
