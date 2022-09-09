@@ -884,7 +884,7 @@ impl EditorContent for NodeGraph  {
                         context.dialog_height = 0;
                         context.target_fps = 60;
                         context.dialog_entry = DialogEntry::NodeName;
-                        //TODO context.dialog_node_behavior_id = (self.nodes[index].id, 0, "".to_string());
+                        context.dialog_node_behavior_id = (self.nodes[index].id, Uuid::new_v4(), "".to_string());
                         context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].name.clone());
                     } else
                     if "Delete".to_string() == menu_activated {
@@ -943,7 +943,7 @@ impl EditorContent for NodeGraph  {
                         context.dialog_height = 0;
                         context.target_fps = 60;
                         context.dialog_entry = DialogEntry::NodeName;
-                        // TODO context.dialog_node_behavior_id = (self.nodes[index].id, 0, "".to_string());
+                        context.dialog_node_behavior_id = (self.nodes[index].id, Uuid::new_v4(), "".to_string());
                         context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].name.clone());
                     } else
                     if "Disconnect".to_string() == menu_activated {
@@ -1430,6 +1430,20 @@ impl EditorContent for NodeGraph  {
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::Move {
+            let mut atom1 = AtomWidget::new(vec!["Speed".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("speed", Value::Integer(0)));
+            atom1.atom_data.text = "Speed".to_string();
+            let id = (behavior_data_id, node_id, "speed".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Integer(8), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_gray.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         }
     }
 

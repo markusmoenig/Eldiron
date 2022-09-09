@@ -4,7 +4,6 @@ pub mod game;
 
 use core_shared::prelude::*;
 
-use std::collections::HashMap;
 use std::fs::metadata;
 
 pub mod prelude {
@@ -31,19 +30,19 @@ pub struct GameData {
 
     pub path                    : PathBuf,
 
-    pub regions                 : HashMap<Uuid, GameRegion>,
+    pub regions                 : FxHashMap<Uuid, GameRegion>,
     pub regions_names           : Vec<String>,
     pub regions_ids             : Vec<Uuid>,
 
-    pub behaviors               : HashMap<Uuid, GameBehavior>,
+    pub behaviors               : FxHashMap<Uuid, GameBehavior>,
     pub behaviors_names         : Vec<String>,
     pub behaviors_ids           : Vec<Uuid>,
 
-    pub systems                 : HashMap<Uuid, GameBehavior>,
+    pub systems                 : FxHashMap<Uuid, GameBehavior>,
     pub systems_names           : Vec<String>,
     pub systems_ids             : Vec<Uuid>,
 
-    pub items                   : HashMap<Uuid, GameBehavior>,
+    pub items                   : FxHashMap<Uuid, GameBehavior>,
     pub items_names             : Vec<String>,
     pub items_ids               : Vec<Uuid>,
 
@@ -56,7 +55,7 @@ impl GameData {
     pub fn load_from_path(path: path::PathBuf) -> Self {
 
         // Create the tile regions
-        let mut regions: HashMap<Uuid, GameRegion> = HashMap::new();
+        let mut regions: FxHashMap<Uuid, GameRegion> = FxHashMap::default();
         let mut regions_names = vec![];
         let mut regions_ids = vec![];
 
@@ -111,7 +110,7 @@ impl GameData {
 
         // Behaviors
 
-        let mut behaviors: HashMap<Uuid, GameBehavior> = HashMap::new();
+        let mut behaviors: FxHashMap<Uuid, GameBehavior> = FxHashMap::default();
         let mut behaviors_names = vec![];
         let mut behaviors_ids = vec![];
 
@@ -175,7 +174,7 @@ impl GameData {
 
         // Systems
 
-        let mut systems: HashMap<Uuid, GameBehavior> = HashMap::new();
+        let mut systems: FxHashMap<Uuid, GameBehavior> = FxHashMap::default();
         let mut systems_names = vec![];
         let mut systems_ids = vec![];
 
@@ -224,7 +223,7 @@ impl GameData {
 
         // Items
 
-        let mut items: HashMap<Uuid, GameBehavior> = HashMap::new();
+        let mut items: FxHashMap<Uuid, GameBehavior> = FxHashMap::default();
         let mut items_names = vec![];
         let mut items_ids = vec![];
 
@@ -303,25 +302,25 @@ impl GameData {
     // Create an empty structure
     pub fn new() -> Self {
 
-        let regions: HashMap<Uuid, GameRegion> = HashMap::new();
+        let regions: FxHashMap<Uuid, GameRegion> = FxHashMap::default();
         let regions_names = vec![];
         let regions_ids = vec![];
 
         // Behaviors
 
-        let behaviors: HashMap<Uuid, GameBehavior> = HashMap::new();
+        let behaviors: FxHashMap<Uuid, GameBehavior> = FxHashMap::default();
         let behaviors_names = vec![];
         let behaviors_ids = vec![];
 
         // Systems
 
-        let systems: HashMap<Uuid, GameBehavior> = HashMap::new();
+        let systems: FxHashMap<Uuid, GameBehavior> = FxHashMap::default();
         let systems_names = vec![];
         let systems_ids = vec![];
 
         // Items
 
-        let items: HashMap<Uuid, GameBehavior> = HashMap::new();
+        let items: FxHashMap<Uuid, GameBehavior> = FxHashMap::default();
         let items_names = vec![];
         let items_ids = vec![];
 

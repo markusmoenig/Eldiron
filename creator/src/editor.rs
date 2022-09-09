@@ -825,6 +825,37 @@ impl Editor<'_> {
                     }
                 }
             } else
+            if self.state == EditorState::BehaviorOverview {
+                if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
+                    //println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
+                    self.context.data.create_behavior(self.context.dialog_new_name.clone(), 0);
+
+                    let mut node = NodeWidget::new(self.context.dialog_new_name.clone(),
+                    NodeUserData { position: (100, 50 + 150 * self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().len() as isize) });
+
+                    let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new("menu", Value::Integer(0)));
+                    node.menu = Some(node_menu_atom);
+
+                    self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
+                    self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().set_dirty();
+                    self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
+                    self.toolbar.widgets[0].dirty = true;
+                } else {
+                    if self.context.dialog_entry == DialogEntry::NodeName {
+                        if self.context.dialog_accepted == true {
+                            if let Some(behavior) = self.context.data.behaviors.get_mut(&self.context.data.behaviors_ids[self.context.curr_behavior_index]) {
+                                self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_behavior_index].name = self.context.dialog_node_behavior_value.4.clone();
+                                self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_behavior_index].dirty = true;
+                                self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().set_dirty();
+                                behavior.rename(self.context.dialog_node_behavior_value.4.clone());
+                                self.context.data.behaviors_names[self.context.curr_behavior_index] = self.context.dialog_node_behavior_value.4.clone();
+                                self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
+                                self.toolbar.widgets[0].dirty = true;
+                            }
+                        }
+                    }
+                }
+            } else
             if self.state == EditorState::SystemsOverview {
                 if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
                     self.context.data.create_system(self.context.dialog_new_name.clone(), 0);

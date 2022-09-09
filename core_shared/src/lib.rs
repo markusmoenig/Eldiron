@@ -11,6 +11,7 @@ pub mod scope_buffer;
 pub mod value;
 pub mod structs;
 pub mod script;
+pub mod items;
 
 pub mod prelude {
     pub use crate::asset::*;

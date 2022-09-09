@@ -128,9 +128,8 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::MessageArea, message_area);
         nodes.insert(BehaviorNodeType::AudioArea, audio_area);
         nodes.insert(BehaviorNodeType::LightArea, light_area);
-
+*/
         nodes.insert(BehaviorNodeType::Move, player_move);
-        */
         nodes.insert(BehaviorNodeType::Screen, screen);
 
         Self {
@@ -955,8 +954,8 @@ impl RegionInstance<'_> {
                 // Set the default values into the scope
                 let mut scope = default_scope.clone();
                 //scope.set_value("NAME", behavior.name.clone());
-                scope.set_value("ALIGNMENT", inst.alignment as f32);
-                scope.set_value("message", ScriptMessageCmd::new());
+                scope.set_value("ALIGNMENT", inst.alignment as i32);
+                scope.set_value("messages", ScriptMessageCmd::new());
 
                 self.scopes.push(scope);
             }

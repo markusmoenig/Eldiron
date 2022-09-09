@@ -1,27 +1,27 @@
 use crate::prelude::*;
 use pathfinding::prelude::bfs;
-/*
+
 /// Retrieves a number instance value
-pub fn get_number_variable(instance_index: usize, variable: String, data: &mut RegionInstance) -> Option<f64> {
-    if let Some(value) = data.scopes[instance_index].get_value::<f64>(&variable) {
+pub fn get_number_variable(instance_index: usize, variable: String, data: &mut RegionInstance) -> Option<f32> {
+    if let Some(value) = data.scopes[instance_index].get_value::<f32>(&variable) {
         return Some(value.clone());
     }
     None
 }
 
 /// Retrieves a number instance value or 0
-pub fn get_number_variable_or_zero(instance_index: usize, variable: String, data: &RegionInstance) -> f64 {
-    if let Some(value) = data.scopes[instance_index].get_value::<f64>(&variable) {
+pub fn get_number_variable_or_zero(instance_index: usize, variable: String, data: &RegionInstance) -> f32 {
+    if let Some(value) = data.scopes[instance_index].get_value::<f32>(&variable) {
         return value.clone();
     }
     0.0
 }
 
 /// Sets a number instance value
-pub fn set_number_variable(instance_index: usize, variable: String, value: f64, data: &mut RegionInstance) {
+pub fn set_number_variable(instance_index: usize, variable: String, value: f32, data: &mut RegionInstance) {
     data.scopes[instance_index].set_value(&variable, value);
 }
-*/
+
 /// Retrieves a node value
 pub fn get_node_value(id: (Uuid, Uuid, &str), data: &mut RegionInstance, behavior_type: BehaviorType) -> Option<Value> {
     if behavior_type == BehaviorType::Regions {
@@ -69,41 +69,41 @@ pub fn get_node_value(id: (Uuid, Uuid, &str), data: &mut RegionInstance, behavio
     }
     None
 }
-/*
+
 /// Computes the distance between two locations
-pub fn compute_distance(p0: &(usize, isize, isize), p1: &(usize, isize, isize)) -> f64 {
-    let dx = p0.1 - p1.1;
-    let dy = p0.2 - p1.2;
+pub fn compute_distance(p0: &Position, p1: &Position) -> f64 {
+    let dx = p0.x - p1.x;
+    let dy = p0.y - p1.y;
     ((dx * dx + dy * dy) as f64).sqrt()
 }
 
 /// Returns the current position of the instance_index, takes into account an ongoing animation
-pub fn get_instance_position(inst_index: usize, instances: &Vec<BehaviorInstance>) -> Option<(usize, isize, isize)> {
-    if let Some(old_position) = instances[inst_index].old_position {
-        return Some(old_position);
+pub fn get_instance_position(inst_index: usize, instances: &Vec<BehaviorInstance>) -> Option<Position> {
+    if let Some(old_position) = &instances[inst_index].old_position {
+        return Some(old_position.clone());
     }
-    instances[inst_index].position
+    instances[inst_index].position.clone()
 }
 
-pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp: Option<(usize, isize, isize)>, exclude_dp: bool, data: &mut RegionInstance) -> BehaviorNodeConnector {
+pub fn walk_towards(instance_index: usize, p: Option<Position>, dp: Option<Position>, exclude_dp: bool, data: &mut RegionInstance) -> BehaviorNodeConnector {
 
     // Cache the character positions
-    let mut char_positions : Vec<(usize, isize, isize)> = vec![];
+    let mut char_positions : Vec<Position> = vec![];
 
-    if let Some(p) = p {
+    if let Some(p) = &p {
         for inst_index in 0..data.instances.len() {
             if inst_index != instance_index {
                 // Only track if the state is normal
                 if data.instances[inst_index].state == BehaviorInstanceState::Normal {
-                    if let Some(pos) = data.instances[inst_index].position {
-                        if p.0 == pos.0 {
+                    if let Some(pos) = &data.instances[inst_index].position {
+                        if p.region == pos.region {
                             if exclude_dp == false {
-                                char_positions.push(pos);
+                                char_positions.push(pos.clone());
                             } else {
                                 // Exclude dp, otherwise the Close In tracking function does not find a route
-                                if let Some(dp) = dp {
-                                    if dp != pos {
-                                        char_positions.push(pos);
+                                if let Some(dp) = &dp {
+                                    if *dp != *pos {
+                                        char_positions.push(pos.clone());
                                     }
                                 }
                             }
@@ -114,7 +114,7 @@ pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp:
         }
     }
 
-    if let Some(p) = p {
+    if let Some(p) = &p {
 
         let can_go = |x: isize, y: isize| -> bool {
 
@@ -129,7 +129,7 @@ pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp:
 
             // Check characters
             for char_p in &char_positions {
-                if char_p.1 == x && char_p.2 == y {
+                if char_p.x == x && char_p.y == y {
                     return false;
                 }
             }
@@ -139,7 +139,7 @@ pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp:
 
         if let Some(dp) = dp {
 
-            let result = bfs(&(p.1, p.2),
+            let result = bfs(&(p.x, p.y),
                                 |&(x, y)| {
                                 let mut v : Vec<(isize, isize)> = vec![];
                                 if can_go(x + 1, y) { v.push((x + 1, y))};
@@ -148,15 +148,15 @@ pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp:
                                 if can_go(x, y - 1) { v.push((x, y - 1))};
                                 v
                                 },
-                                |&p| p.0 == dp.1 && p.1 == dp.2);
+                                |&p| p.0 == dp.x && p.1 == dp.y);
 
             if let Some(result) = result {
                 if result.len() > 1 {
                     data.instances[instance_index].old_position = data.instances[instance_index].position.clone();
-                    data.instances[instance_index].position = Some((p.0, result[1].0, result[1].1));
+                    data.instances[instance_index].position = Some(Position::new(p.region, result[1].0, result[1].1));
                     return BehaviorNodeConnector::Right;
                 } else
-                if result.len() == 1 && dp.1 == result[0].0 && dp.2 == result[0].1 {
+                if result.len() == 1 && dp.x == result[0].0 && dp.y == result[0].1 {
                     return BehaviorNodeConnector::Success;
                 }
             }
@@ -164,4 +164,4 @@ pub fn walk_towards(instance_index: usize, p: Option<(usize, isize, isize)>, dp:
     }
 
     BehaviorNodeConnector::Fail
-}*/
+}
