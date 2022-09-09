@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use crate::prelude::*;
 use rhai::{Engine, AST, Scope};
 
@@ -263,38 +265,39 @@ impl RegionInstance<'_> {
                     }
                 }
 
-                // Check for messages
-                if let Some(mut message) = self.scopes[inst_index].get_value::<ScriptMessageCmd>("message") {
-
-                    let my_name = self.instances[inst_index].name.clone();
-                    for m in &message.messages {
-                        match m {
-                            ScriptMessage::Status(value) => {
-                                self.instances[inst_index].messages.push( MessageData {
-                                    message_type        : MessageType::Status,
-                                    message             : value.clone(),
-                                    from                : my_name.clone(),
-                                })
-                            },
-                            ScriptMessage::Debug(value) => {
-                                self.instances[inst_index].messages.push( MessageData {
-                                    message_type        : MessageType::Debug,
-                                    message             : value.clone(),
-                                    from                : my_name.clone(),
-                                })
-                            },
-                            ScriptMessage::Error(value) => {
-                                self.instances[inst_index].messages.push( MessageData {
-                                    message_type        : MessageType::Error,
-                                    message             : value.clone(),
-                                    from                : my_name.clone(),
-                                })
+                // Extract the script messages for this instance
+                if let Some(mess) = self.scopes[inst_index].get_mut("message") {
+                    if let Some(mut message) = mess.write_lock::<ScriptMessageCmd>() {
+                        if message.messages.is_empty() == false {
+                            let my_name = self.instances[inst_index].name.clone();
+                            for m in &message.messages {
+                                match m {
+                                    ScriptMessage::Status(value) => {
+                                        self.instances[inst_index].messages.push( MessageData {
+                                            message_type        : MessageType::Status,
+                                            message             : value.clone(),
+                                            from                : my_name.clone(),
+                                        })
+                                    },
+                                    ScriptMessage::Debug(value) => {
+                                        self.instances[inst_index].messages.push( MessageData {
+                                            message_type        : MessageType::Debug,
+                                            message             : value.clone(),
+                                            from                : my_name.clone(),
+                                        })
+                                    },
+                                    ScriptMessage::Error(value) => {
+                                        self.instances[inst_index].messages.push( MessageData {
+                                            message_type        : MessageType::Error,
+                                            message             : value.clone(),
+                                            from                : my_name.clone(),
+                                        })
+                                    }
+                                }
                             }
                         }
+                        message.clear();
                     }
-
-                    message.clear();
-                    self.scopes[inst_index].set_value("message", message);
                 }
 
                 // If we are debugging this instance, send the debug data
@@ -908,15 +911,6 @@ impl RegionInstance<'_> {
                         if let Some(alignment) = value.to_integer() {
                             default_alignment = 2 - alignment- 1;
                         }
-                    }
-                } else
-                if node.behavior_type == BehaviorNodeType::VariableNumber {
-                    if let Some(value )= node.values.get(&"value".to_string()) {
-                        if let Some(v) = value.to_float() {
-                            default_scope.push(node.name.clone(), v);
-                        }
-                    } else {
-                        default_scope.push(node.name.clone(), 0.0_f32);
                     }
                 }
             }

@@ -38,6 +38,7 @@ pub fn add_target_to_scope(instance_index: usize, data: &mut RegionInstance) {
         let original_target = data.scopes[target_index].clone();
         let mut target = InstanceVariables::new();
 
+        /* TODO
         if let Some(behavior) = data.get_mut_behavior(data.instances[target_index].behavior_id, BehaviorType::Behaviors) {
             for (_index, node) in &behavior.nodes {
                 if node.behavior_type == BehaviorNodeType::VariableNumber {
@@ -47,7 +48,7 @@ pub fn add_target_to_scope(instance_index: usize, data: &mut RegionInstance) {
                     }
                 }
             }
-        }
+        }*/
 
         data.scopes[instance_index].set_value("target", target);
     }
@@ -55,6 +56,7 @@ pub fn add_target_to_scope(instance_index: usize, data: &mut RegionInstance) {
 
 /// Read out the target variables and if changed apply them
 pub fn apply_scope_to_target(instance_index: usize, data: &mut RegionInstance) {
+    /*
     if let Some(target_index) = data.instances[instance_index].target_instance_index {
         if let Some(target) = data.scopes[instance_index].get_value::<InstanceVariables>("target") {
             if let Some(behavior) = data.behaviors.get_mut(&data.instances[target_index].behavior_id) {
@@ -72,7 +74,7 @@ pub fn apply_scope_to_target(instance_index: usize, data: &mut RegionInstance) {
                 }
             }
         }
-    }
+    }*/
 }
 
 /// Replace the target strings, only called once before compilation for each script

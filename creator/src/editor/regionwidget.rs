@@ -831,6 +831,9 @@ impl EditorContent for RegionWidget {
 
     /// Update based on changes
     fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
+
+        println!("{:?}", id);
+
         if id.2 == "region_settings" {
             let mut sink = PropertySink::new();
             if sink.load_from_string(context.code_editor_value.clone()) {

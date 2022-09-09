@@ -175,7 +175,7 @@ impl Draw2D {
     }
 
     /// Draws a rounded rect
-    pub fn draw_rounded_rect_2(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, color: &[u8; 4], rounding: &(f64, f64, f64, f64)) {
+    pub fn _draw_rounded_rect_2(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, color: &[u8; 4], rounding: &(f64, f64, f64, f64)) {
         let center = ((rect.0 as f64 + rect.2 as f64 / 2.0).round(), (rect.1 as f64 + rect.3 as f64 / 2.0).round());
         for y in rect.1..rect.1+rect.3 {
             for x in rect.0..rect.0+rect.2 {

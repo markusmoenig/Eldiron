@@ -32,8 +32,6 @@ pub enum BehaviorNodeType {
     BehaviorType,
     BehaviorTree,
     Expression,
-    VariableNumber,
-    VariablePosition,
     Script,
     Pathfinder,
     Message,

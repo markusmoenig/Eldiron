@@ -238,13 +238,13 @@ impl GameData {
                 if md.is_file() {
                     if let Some(name) = path::Path::new(&path).extension() {
                         if name == "json" || name == "JSON" {
-                            let item = GameBehavior::load_from_path(path, &item_path);
+                            let mut item = GameBehavior::load_from_path(path, &item_path);
                             items_names.push(item.name.clone());
 
                             if item.data.nodes.len() == 0 {
-                                // behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
-                                // behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
-                                // behavior.save_data();
+                                item.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                                item.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                                item.save_data();
                             }
                             items_ids.push(item.data.id);
                             items.insert(item.data.id, item);
@@ -428,6 +428,25 @@ impl GameData {
     }
 
     #[cfg(feature = "data_editing")]
+    /// Create a new system
+    pub fn create_item(&mut self, name: String, _behavior_type: usize) {
+
+        let path = self.path.join("game").join("items").join(name.clone() + ".json");
+
+        let mut item = GameBehavior::load_from_path(&path, &self.path.join("game").join("items"));
+        item.data.name = name.clone();
+
+        self.items_names.push(item.name.clone());
+        self.items_ids.push(item.data.id);
+
+        item.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+        item.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+        item.save_data();
+
+        self.items.insert(item.data.id, item);
+    }
+
+    #[cfg(feature = "data_editing")]
     /// Sets the value for the given behavior id
     pub fn set_behavior_id_value(&mut self, id: (Uuid, Uuid, String), value: Value, behavior_type: BehaviorType) {
         if let Some(behavior) = self.get_mut_behavior(id.0, behavior_type) {
@@ -480,7 +499,7 @@ impl GameData {
         None
     }
 
-    /// Gets the default position for the given behavior
+    /// Gets the default tile for the given behavior
     pub fn get_behavior_default_tile(&self, id: Uuid) -> Option<TileData> {
         if let Some(behavior) = self.behaviors.get(&id) {
             for (_index, node) in &behavior.data.nodes {
@@ -509,6 +528,20 @@ impl GameData {
             }
         }
         0
+    }
+
+    /// Gets the default tile for the given item
+    pub fn get_item_default_tile(&self, id: Uuid) -> Option<TileData> {
+        if let Some(item) = self.items.get(&id) {
+            for (_index, node) in &item.data.nodes {
+                if node.behavior_type == BehaviorNodeType::BehaviorType {
+                    if let Some(value) = node.values.get(&"tile".to_string()) {
+                        return value.to_tile_data();
+                    }
+                }
+            }
+        }
+        None
     }
 
     /// Save data and return it
@@ -553,6 +586,7 @@ impl GameData {
 
     /// Delete the system of the given id
     pub fn delete_system(&mut self, index: &usize) {
+        println!("asda");
         let id = self.systems_ids[*index].clone();
 
         if let Some(system) = self.systems.get(&id) {
@@ -562,6 +596,19 @@ impl GameData {
         self.systems_names.remove(*index);
         self.systems_ids.remove(*index);
         self.systems.remove(&id);
+    }
+
+    /// Delete the item of the given id
+    pub fn delete_item(&mut self, index: &usize) {
+        let id = self.items_ids[*index].clone();
+
+        if let Some(item) = self.items.get(&id) {
+            let _ = std::fs::remove_file(item.path.clone());
+        }
+
+        self.items_names.remove(*index);
+        self.items_ids.remove(*index);
+        self.items.remove(&id);
     }
 
     /// Gets the behavior for the given behavior type
@@ -636,7 +683,7 @@ impl GameData {
     }
 
     /// Check the given behavior contains all character attributes defined in the game settings
-    pub fn check_behavior_for_attributes(&mut self, behavior_id: Uuid) {
+    pub fn check_behavior_for_attributes(&mut self, _behavior_id: Uuid) {
         // Check to see if we added all variables from the game settings.
         let settings = self.get_game_settings();
         if let Some(attr) = settings.get("character_attributes") {
@@ -647,6 +694,7 @@ impl GameData {
                     *a = a.trim();
                 }
 
+                /*
                 if let Some(behavior) = self.behaviors.get_mut(&behavior_id) {
                     for (_id, node) in &behavior.data.nodes {
                         if node.behavior_type == BehaviorNodeType::VariableNumber {
@@ -663,7 +711,7 @@ impl GameData {
                             node.values.insert("value".to_string(), Value::Float(10.0));
                         }
                     }
-                }
+                }*/
             }
         }
     }

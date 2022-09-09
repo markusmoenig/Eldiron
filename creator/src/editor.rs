@@ -395,7 +395,6 @@ impl Editor<'_> {
                     self.context.code_editor_node_behavior_value = Value::String(settings.to_string(core_server::gamedata::prelude::generate_game_sink_descriptions()));
 
                 }
-                // TODO self.context.code_editor_node_behavior_id.0 = 120000;
             }
         }
 
@@ -592,6 +591,9 @@ impl Editor<'_> {
                 self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
             } else
             if state == EditorState::ItemsDetail {
+                self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
+                self.context.curr_graph_type = BehaviorType::Items;
+                self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.items_ids[self.context.curr_items_index] , &mut self.context);
             } else
             if state == EditorState::GameDetail {
                 self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
@@ -669,6 +671,7 @@ impl Editor<'_> {
 
                 let mut index = self.state as usize;
 
+                // When in screendetail switch to GameLogic for the code editor value
                 if self.state == EditorState::ScreenDetail {
                     index -= 1;
                 }
@@ -788,7 +791,103 @@ impl Editor<'_> {
                         self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().set_dirty();
                     }
                 }
+            } else
+            if self.state == EditorState::RegionOverview {
+                if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
+                    //println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
+
+                    if self.context.data.create_region(self.context.dialog_new_name.clone()) {
+                        let mut node = NodeWidget::new(self.context.dialog_new_name.clone(),
+                        NodeUserData { position: (100, 50) });
+
+                        let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new("menu", Value::Integer(0)));
+                        node.menu = Some(node_menu_atom);
+
+                        self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
+                        self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().sort(&mut self.context);
+                        self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().set_dirty();
+                        self.toolbar.widgets[0].text = self.context.data.regions_names.clone();
+                        self.toolbar.widgets[0].dirty = true;
+                    }
+                } else {
+                    if self.context.dialog_entry == DialogEntry::NodeName {
+                        if self.context.dialog_accepted == true {
+                            if let Some(region) = self.context.data.regions.get_mut(&self.context.data.regions_ids[self.context.curr_region_index]) {
+                                self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_region_index].name = self.context.dialog_node_behavior_value.4.clone();
+                                self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_region_index].dirty = true;
+                                self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().set_dirty();
+                                region.rename(self.context.dialog_node_behavior_value.4.clone());
+                                self.context.data.regions_names[self.context.curr_region_index] = self.context.dialog_node_behavior_value.4.clone();
+                                self.toolbar.widgets[0].text = self.context.data.regions_names.clone();
+                                self.toolbar.widgets[0].dirty = true;
+                            }
+                        }
+                    }
+                }
+            } else
+            if self.state == EditorState::SystemsOverview {
+                if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
+                    self.context.data.create_system(self.context.dialog_new_name.clone(), 0);
+
+                    let mut node = NodeWidget::new(self.context.dialog_new_name.clone(),
+                    NodeUserData { position: (100, 50) } );
+
+                    let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new("menu", Value::Integer(0)));
+                    node.menu = Some(node_menu_atom);
+
+                    self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
+                    self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().sort(&mut self.context);
+                    self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().set_dirty();
+                    self.toolbar.widgets[0].text = self.context.data.systems_names.clone();
+                    self.toolbar.widgets[0].dirty = true;
+                } else {
+                    if self.context.dialog_entry == DialogEntry::NodeName {
+                        if self.context.dialog_accepted == true {
+                            if let Some(system) = self.context.data.systems.get_mut(&self.context.data.systems_ids[self.context.curr_systems_index]) {
+                                self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_systems_index].name = self.context.dialog_node_behavior_value.4.clone();
+                                self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_systems_index].dirty = true;
+                                self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().set_dirty();
+                                system.rename(self.context.dialog_node_behavior_value.4.clone());
+                                self.context.data.systems_names[self.context.curr_systems_index] = self.context.dialog_node_behavior_value.4.clone();
+                                self.toolbar.widgets[0].text = self.context.data.systems_names.clone();
+                                self.toolbar.widgets[0].dirty = true;
+                            }
+                        }
+                    }
+                }
+            } else
+            if self.state == EditorState::ItemsOverview {
+                if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
+                    self.context.data.create_item(self.context.dialog_new_name.clone(), 0);
+
+                    let mut node = NodeWidget::new(self.context.dialog_new_name.clone(),
+                    NodeUserData { position: (100, 50) } );
+
+                    let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new("menu", Value::Integer(0)));
+                    node.menu = Some(node_menu_atom);
+
+                    self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
+                    self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().sort(&mut self.context);
+                    self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().set_dirty();
+                    self.toolbar.widgets[0].text = self.context.data.systems_names.clone();
+                    self.toolbar.widgets[0].dirty = true;
+                } else {
+                    if self.context.dialog_entry == DialogEntry::NodeName {
+                        if self.context.dialog_accepted == true {
+                            if let Some(system) = self.context.data.items.get_mut(&self.context.data.items_ids[self.context.curr_items_index]) {
+                                self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_items_index].name = self.context.dialog_node_behavior_value.4.clone();
+                                self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_items_index].dirty = true;
+                                self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().set_dirty();
+                                system.rename(self.context.dialog_node_behavior_value.4.clone());
+                                self.context.data.systems_names[self.context.curr_items_index] = self.context.dialog_node_behavior_value.4.clone();
+                                self.toolbar.widgets[0].text = self.context.data.items_names.clone();
+                                self.toolbar.widgets[0].dirty = true;
+                            }
+                        }
+                    }
+                }
             } else {
+                // Update the content
                 let index = self.state as usize;
                 let mut options : Option<Box<dyn EditorOptions>> = None;
                 let mut content : Option<Box<dyn EditorContent>> = None;
@@ -1212,7 +1311,9 @@ impl Editor<'_> {
                     self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                     self.state = EditorState::BehaviorDetail;
                     self.context.curr_graph_type = BehaviorType::Behaviors;
-                    self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.behaviors_ids[self.context.curr_behavior_index] , &mut self.context);
+                    if self.context.data.behaviors_ids.len() > 0 {
+                        self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.behaviors_ids[self.context.curr_behavior_index] , &mut self.context);
+                    }
                 }
 
                 for i in 1..=6 {
@@ -1238,7 +1339,9 @@ impl Editor<'_> {
                     self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                     self.state = EditorState::SystemsDetail;
                     self.context.curr_graph_type = BehaviorType::Systems;
-                    self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
+                    if self.context.data.systems_ids.len() > 0 {
+                        self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
+                    }
                 }
 
                 for i in 1..=6 {
@@ -1264,14 +1367,20 @@ impl Editor<'_> {
                     self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                     self.state = EditorState::ItemsDetail;
                     self.context.curr_graph_type = BehaviorType::Items;
-                    //self.node_graph_items_details.set_behavior_id(self.context.data.items_ids[self.context.curr_items_index], &mut self.context);
+                    if self.context.data.items_ids.len() > 0 {
+                        //self.node_graph_items_details.set_behavior_id(self.context.data.items_ids[self.context.curr_items_index], &mut self.context);
+                    }
                 }
 
-                for i in 1..6 {
+                for i in 1..4 {
                     self.toolbar.widgets[i].selected = false;
                     self.toolbar.widgets[i].right_selected = false;
                     self.toolbar.widgets[i].dirty = true;
                 }
+
+                self.toolbar.widgets[6].selected = false;
+                self.toolbar.widgets[6].right_selected = false;
+                self.toolbar.widgets[6].dirty = true;
 
                 self.toolbar.widgets[0].text = self.context.data.items_names.clone();
                 self.toolbar.widgets[0].curr_index = self.context.curr_items_index;
@@ -1297,7 +1406,6 @@ impl Editor<'_> {
                         self.context.code_editor_node_behavior_value = Value::String(settings.to_string(core_server::gamedata::prelude::generate_game_sink_descriptions()));
 
                     }
-                    // TODO self.context.code_editor_node_behavior_id.0 = 120000;
                 }
 
                 for i in 1..=5 {
@@ -1599,6 +1707,36 @@ impl Editor<'_> {
                      self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().add_node_of_name(drag_context.text.clone(), position, &mut self.context);
                 }
             } else
+            if self.state == EditorState::ItemsOverview {
+                let rect = self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_rect();
+                let offset = self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_offset();
+                if self.context.contains_pos_for(pos, rect) {
+
+                    let mut position = (pos.0 as isize, pos.1 as isize);
+                    position.0 -= rect.0 as isize + offset.0 + drag_context.offset.0;
+                    position.1 -= rect.1 as isize + offset.1 + drag_context.offset.1;
+
+                    self.context.dialog_state = DialogState::Opening;
+                    self.context.dialog_height = 0;
+                    self.context.target_fps = 60;
+                    self.context.dialog_entry = DialogEntry::NewName;
+                    self.context.dialog_new_name = "New Item".to_string();
+                    self.context.dialog_new_name_type = format!("NewBehavior_{}", drag_context.text);
+                    self.context.dialog_new_node_position = position;
+                }
+            } else
+            if self.state == EditorState::ItemsDetail {
+                let rect = self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().get_rect();
+                let offset = self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().get_offset();
+                if self.context.contains_pos_for(pos, rect) {
+
+                    let mut position = (pos.0 as isize, pos.1 as isize);
+                    position.0 -= rect.0 as isize + offset.0 + drag_context.offset.0;
+                    position.1 -= rect.1 as isize + offset.1 + drag_context.offset.1;
+
+                     self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().add_node_of_name(drag_context.text.clone(), position, &mut self.context);
+                }
+            } else
             if self.state == EditorState::GameDetail {
                 let rect = self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().get_rect();
                 let offset = self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().get_offset();
@@ -1612,10 +1750,8 @@ impl Editor<'_> {
                 }
             }
 
-
             // Cleanup DnD
             self.context.drag_context = None;
-            self.context.target_fps = self.context.default_fps;
             consumed = true;
         }
         consumed
@@ -1962,7 +2098,17 @@ impl Editor<'_> {
 
         let items_overview_options = ItemsOverviewOptions::new(vec!(), (0, self.context.toolbar_height, left_width, height - self.context.toolbar_height), asset, &self.context);
 
-        let items_nodes = vec![];
+        let mut items_nodes = vec![];
+        for (index, item_name) in self.context.data.items_names.iter().enumerate() {
+            let p = get_pos(index, width - left_width);
+            let mut node = NodeWidget::new(item_name.to_string(),
+             NodeUserData { position: p });
+
+            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new("menu", Value::Empty()));
+            node.menu = Some(node_menu_atom);
+
+            items_nodes.push(node);
+        }
 
         let mut node_graph_items = NodeGraph::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Items, asset, &self.context);
         node_graph_items.set_mode_and_nodes(GraphMode::Overview, items_nodes, &self.context);

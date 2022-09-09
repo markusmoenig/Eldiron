@@ -74,12 +74,10 @@ impl DialogWidget {
     }
 
     pub fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
-
         let mut rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
 
         // Animation
         if context.dialog_state == DialogState::Opening {
-
             // Set the size based on the content
 
             self.rect.2 = 600;

@@ -36,6 +36,8 @@ impl ScriptMessageCmd {
     }
 }
 
+//pub type SharedMessage= std::rc::Rc<std::cell::RefCell<ScriptMessageCmd>>;
+
 pub fn script_register_message_api(engine: &mut rhai::Engine) {
     engine.register_type_with_name::<ScriptMessageCmd>("MessageCmd")
         .register_fn("status", ScriptMessageCmd::status)
@@ -43,3 +45,4 @@ pub fn script_register_message_api(engine: &mut rhai::Engine) {
         .register_fn("error", ScriptMessageCmd::error);
 
 }
+
