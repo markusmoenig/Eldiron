@@ -37,7 +37,7 @@ impl ScriptMessageCmd {
 }
 
 pub fn script_register_message_api(engine: &mut rhai::Engine) {
-    engine.register_type_with_name::<ScriptMessageCmd>("MessageCmd")
+    engine.register_type_with_name::<ScriptMessageCmd>("Messages")
         .register_fn("status", ScriptMessageCmd::status)
         .register_fn("debug", ScriptMessageCmd::debug)
         .register_fn("error", ScriptMessageCmd::error);

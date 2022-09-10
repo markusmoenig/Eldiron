@@ -45,6 +45,8 @@ pub struct GameRender<'a> {
 
     pub player_id               : Uuid,
 
+    pub last_update             : GameUpdate,
+
     //#[cfg(target_arch = "wasm32")]
     pub audio_engine            : Option<AudioEngine<Group>>
 }
@@ -124,6 +126,8 @@ impl GameRender<'_> {
             transition_active   : false,
 
             player_id,
+
+            last_update         : GameUpdate::new(),
 
             audio_engine        : None,
         }
@@ -221,11 +225,14 @@ impl GameRender<'_> {
     }
 
     /// Draw the server response
-    pub fn draw(&mut self, anim_counter: usize, update: &GameUpdate) -> Option<(String, Option<usize>)> {
+    pub fn draw(&mut self, anim_counter: usize, update: Option<&GameUpdate>) -> Option<(String, Option<usize>)> {
 
-        let error = self.process_update(update);
-        if error.is_some() {
-            return error;
+        if let Some(update) = update {
+            let error = self.process_update(update);
+            if error.is_some() {
+                return error;
+            }
+            self.last_update = update.clone();
         }
 
         // Call the draw function
@@ -414,7 +421,12 @@ impl GameRender<'_> {
                     ScriptDrawCmd::DrawGame(rect) => {
                         if rect.is_safe(self.width, self.height) {
                             //let frame = &mut self.frame[..];
-                            self.process_game_draw(rect.rect, anim_counter, update, &mut None, self.width);
+                            if let Some(update) = update {
+                                self.process_game_draw(rect.rect, anim_counter, update, &mut None, self.width);
+                            } else {
+                                let update = self.last_update.clone();
+                                self.process_game_draw(rect.rect, anim_counter, &update, &mut None, self.width);
+                            }
                         }
                     },
                     ScriptDrawCmd::DrawRegion(_name, _rect, _size) => {

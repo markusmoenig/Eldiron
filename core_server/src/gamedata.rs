@@ -585,7 +585,6 @@ impl GameData {
 
     /// Delete the system of the given id
     pub fn delete_system(&mut self, index: &usize) {
-        println!("asda");
         let id = self.systems_ids[*index].clone();
 
         if let Some(system) = self.systems.get(&id) {

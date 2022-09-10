@@ -278,7 +278,7 @@ impl NodePreviewWidget {
     }
 
     /// Apply an update when debugging. Previews only show behavior debug output.
-    pub fn debug_update(&mut self, update: GameUpdate, context: &mut ScreenContext) {
+    pub fn debug_update(&mut self, update: GameUpdate, _context: &mut ScreenContext) {
         self.debug_update = Some(update);
     }
 }

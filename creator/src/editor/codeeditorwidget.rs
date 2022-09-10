@@ -118,6 +118,9 @@ impl CodeEditorWidget {
         if context.code_editor_state == CodeEditorWidgetState::Opening {
             if context.code_editor_visible_y < height {
                 context.code_editor_visible_y += 20;
+                if context.code_editor_visible_y  > height {
+                    context.code_editor_visible_y = height;
+                }
                 dest_rect.1 = dest_rect.1 + dest_rect.3 - context.code_editor_visible_y;
                 dest_rect.3 = context.code_editor_visible_y;
 

@@ -89,7 +89,7 @@ impl EditorContent for ScreenEditor<'_> {
                 update.screen = Some(context.code_editor_value.clone());
             }
             update.position = self.player_position.clone();
-            context.code_editor_error = render.draw(anim_counter, &update);
+            context.code_editor_error = render.draw(anim_counter, Some(&update));
 
             let left_offset = 0;
             let top_offset = 0;

@@ -172,7 +172,7 @@ impl Editor<'_> {
     /// A key was pressed
     pub fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset) -> bool {
 
-        if self.context.is_running {
+        if self.context.is_running && self.context.code_editor_is_active == false {
 
             let mut key_string = "";
 
@@ -470,16 +470,22 @@ impl Editor<'_> {
             if let Some(render) = &mut self.game_render {
                 if let Some(server) = &mut self.context.server {
                     let messages = server.check_for_messages();
+                    let mut handled_update = false;
                     for message in messages {
                         match message {
                             // Message::DebugData(debug) => {
                             //     println!("{:?}", debug);
                             // },
                             Message::PlayerUpdate(_uuid, update) => {
-                                render.draw(anim_counter, &update);
+                                render.draw(anim_counter, Some(&update));
+                                handled_update = true;
                             },
                             _ => {}
                         }
+                    }
+
+                    if handled_update == false {
+                        render.draw(anim_counter, None);
                     }
 
                     let mut cx : usize = 0;
@@ -515,7 +521,7 @@ impl Editor<'_> {
                 for message in messages {
                     match message {
                         Message::DebugData(debug) => {
-                            self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context, Some(debug));
+                            self.content[self.state as usize].1.as_mut().unwrap().debug_data(&mut self.context, debug);
                         },
                         Message::PlayerUpdate(_uuid, update) => {
                             self.content[self.state as usize].1.as_mut().unwrap().debug_update(update, &mut self.context);
@@ -529,7 +535,6 @@ impl Editor<'_> {
         // To update the variables
         if self.context.just_stopped_running {
 
-            self.content[self.state as usize].1.as_mut().unwrap().update(&mut self.context, None);
             self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().debugging_stopped();
 
             if let Some(preview) = self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().get_preview_widget() {

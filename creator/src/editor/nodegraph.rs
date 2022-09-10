@@ -89,15 +89,6 @@ impl EditorContent for NodeGraph  {
         }
     }
 
-    /// Update the editor and the preview, this is called during debugging
-    fn update(&mut self, _context: &mut ScreenContext, debug: Option<BehaviorDebugData>) {
-        self.dirty = true;
-        self.behavior_debug_data = debug;
-        if let Some(preview) = &mut self.preview {
-            preview.dirty = true;
-        }
-    }
-
     fn set_mode(&mut self, mode: GraphMode, context: &ScreenContext) {
 
         // Create previews
@@ -223,7 +214,6 @@ impl EditorContent for NodeGraph  {
                 // Detail View
 
                 let mut corner_index : Option<usize> = None;
-                let mut variables : Vec<usize> = vec![];
 
                 // Draw nodes
                 for index in 0..self.nodes.len() {
@@ -1448,7 +1438,7 @@ impl EditorContent for NodeGraph  {
     }
 
     /// Inits the node widget (atom widgets, id)
-    fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {
+    fn init_node_widget(&mut self, _behavior_data: &GameBehaviorData, _node_data: &BehaviorNode, _node_widget: &mut NodeWidget, _context: &ScreenContext) {
 
         /*
         if node_data.behavior_type == BehaviorNodeType::BehaviorType {
@@ -2144,6 +2134,31 @@ impl EditorContent for NodeGraph  {
         None
     }
 
+    /// Executed connections and script errors are passed here
+    fn debug_data(&mut self, _context: &mut ScreenContext, data: BehaviorDebugData) {
+        for (id, _error) in &data.script_errors {
+            if id.0 == self.behavior_id {
+                for n in &mut self.nodes {
+                    if n.id == id.1 {
+                        for w in &mut n.widgets {
+                            if w.atom_data.id == id.2 {
+                                w.debug_value = Some(1.0);
+                                w.dirty = true;
+                                n.dirty = true;
+                                self.dirty = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        self.dirty = true;
+        self.behavior_debug_data = Some(data);
+        if let Some(preview) = &mut self.preview {
+            preview.dirty = true;
+        }
+    }
+
     /// A game debug update
     fn debug_update(&mut self, update: GameUpdate, context: &mut ScreenContext) {
 
@@ -2155,6 +2170,7 @@ impl EditorContent for NodeGraph  {
            context.debug_log_variables.push((key.to_string(), v.clone()));
         }
 
+        // Update property log
         if let Some(corner_index) = self.corner_index {
             self.nodes[corner_index].widgets[3].dirty = true;
             self.nodes[corner_index].dirty = true;
@@ -2170,16 +2186,17 @@ impl EditorContent for NodeGraph  {
 
     /// Debugging stopped
     fn debugging_stopped(&mut self) {
-        // If preview just stopped running, mark all variables as dirty (as they may have changed)
-        for index in 0..self.nodes.len() {
-            if self.nodes[index].widgets.len() == 1 && self.nodes[index].widgets[0].atom_widget_type == AtomWidgetType::NodeNumberButton {
-                self.nodes[index].dirty = true;
-                self.nodes[index].widgets[0].dirty = true;
-                self.nodes[index].widgets[0].debug_value = None;
+        // Clear errors from all nodes
+        for n in &mut self.nodes {
+            for w in &mut n.widgets {
+                w.debug_value = None;
+                w.dirty = true;
+                n.dirty = true;
                 self.dirty = true;
             }
         }
         self.behavior_debug_data = None;
+        self.dirty = true;
     }
 
     /// Get the sub type
@@ -2240,5 +2257,4 @@ impl EditorContent for NodeGraph  {
     fn get_active_indices(&mut self) -> Vec<usize> {
         self.active_indices.clone()
     }
-
 }

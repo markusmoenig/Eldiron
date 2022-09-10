@@ -156,7 +156,7 @@ pub trait EditorContent {
 
     // For NodeGraphs
 
-    fn update(&mut self, context: &mut ScreenContext, executed_connections: Option<BehaviorDebugData>) {}
+    fn debug_data(&mut self, context: &mut ScreenContext, data: BehaviorDebugData) {}
 
     fn set_mode(&mut self, mode: GraphMode, context: &ScreenContext) {}
     fn set_mode_and_rect(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &mut ScreenContext) {}

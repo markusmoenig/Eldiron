@@ -1,5 +1,3 @@
-use std::convert::Infallible;
-
 use crate::prelude::*;
 use rhai::{Engine, AST, Scope};
 
@@ -69,6 +67,7 @@ pub struct RegionInstance<'a> {
 
     pub messages                    : Vec<(String, MessageType)>,
     pub executed_connections        : Vec<(BehaviorType, Uuid, BehaviorNodeConnector)>,
+    pub script_errors               : Vec<((Uuid, Uuid, String), (String, Option<u32>))>,
 }
 
 impl RegionInstance<'_> {
@@ -171,6 +170,7 @@ impl RegionInstance<'_> {
 
             messages                : vec![],
             executed_connections    : vec![],
+            script_errors           : vec![],
         }
     }
 
@@ -190,6 +190,7 @@ impl RegionInstance<'_> {
 
             self.messages = vec![];
             self.executed_connections = vec![];
+            self.script_errors = vec![];
 
             self.instances[inst_index].messages = vec![];
             self.instances[inst_index].audio = vec![];
@@ -265,7 +266,7 @@ impl RegionInstance<'_> {
                 }
 
                 // Extract the script messages for this instance
-                if let Some(mess) = self.scopes[inst_index].get_mut("message") {
+                if let Some(mess) = self.scopes[inst_index].get_mut("messages") {
                     if let Some(mut message) = mess.write_lock::<ScriptMessageCmd>() {
                         if message.messages.is_empty() == false {
                             let my_name = self.instances[inst_index].name.clone();
@@ -302,7 +303,8 @@ impl RegionInstance<'_> {
                 // If we are debugging this instance, send the debug data
                 if Some(self.instances[inst_index].behavior_id) == self.debug_behavior_id {
                     let debug = BehaviorDebugData {
-                        executed_connections    : self.executed_connections.clone()
+                        executed_connections    : self.executed_connections.clone(),
+                        script_errors           : self.script_errors.clone(),
                     };
                     messages.push(Message::DebugData(debug));
                 }

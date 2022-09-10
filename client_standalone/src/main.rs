@@ -53,12 +53,15 @@ fn main() -> Result<(), Error> {
         Pixels::new(width as u32, height as u32, surface_texture)?
     };
 
+    // Run the server multi-threaded ?
+    let mt = true;
+
     // Init server
     let game_data = GameData::load_from_path(PathBuf::new());
 
     let mut server = core_server::server::Server::new();
     server.collect_data(&game_data);
-    _ = server.start(Some(10));
+    _ = server.start(if mt == false { None } else { Some(10) } );
     let player_uuid = server.create_player_instance();
 
     let mut game_rect = (0, 0, 0, 0);
@@ -79,6 +82,8 @@ fn main() -> Result<(), Error> {
 
             let curr_time = get_time();
 
+            let mut messages = vec![];
+
             // Game tick ?
             if curr_time > game_tick_timer + GAME_TICK_IN_MS {
                 // let start = get_time();
@@ -86,20 +91,31 @@ fn main() -> Result<(), Error> {
                 // let stop = get_time();
                 // println!("tick time {:?}", stop - start);
                 //window.request_redraw();
+                if mt == false {
+                    messages = server.tick();
+                }
                 game_tick_timer = curr_time;
                 anim_counter = anim_counter.wrapping_add(1);
             }
 
             // Get server updates
 
-            let messages = server.check_for_messages();
+            if mt == true {
+                messages = server.check_for_messages();
+            }
+            let mut handled_update = false;
             for message in messages {
                 match message {
                     Message::PlayerUpdate(_uuid, update) => {
-                        render.draw(anim_counter, &update);
+                        render.draw(anim_counter, Some(&update));
+                        handled_update = true;
                     },
                     _ => {}
                 }
+            }
+
+            if handled_update == false {
+                render.draw(anim_counter, None);
             }
 
             // Draw the frame

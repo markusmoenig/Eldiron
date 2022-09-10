@@ -197,7 +197,7 @@ pub struct CharacterInstanceData {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GameBehaviorData {
-    pub nodes                   : HashMap<Uuid, BehaviorNode>,
+    pub nodes                   : FxHashMap<Uuid, BehaviorNode>,
     pub connections             : Vec<(Uuid, BehaviorNodeConnector, Uuid, BehaviorNodeConnector)>,
     pub id                      : Uuid,
 
@@ -213,7 +213,7 @@ pub struct GameBehaviorData {
 impl GameBehaviorData {
     pub fn new() -> Self {
         Self {
-            nodes                   : HashMap::new(),
+            nodes                   : FxHashMap::default(),
             connections             : vec![],
             id                      : Uuid::new_v4(),
             name                    : "".to_string(),
@@ -226,8 +226,8 @@ impl GameBehaviorData {
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct BehaviorDebugData {
-    //pub messages                    : Vec<(String, MessageType)>,
     pub executed_connections        : Vec<(BehaviorType, Uuid, BehaviorNodeConnector)>,
+    pub script_errors               : Vec<((Uuid, Uuid, String), (String, Option<u32>))>
 }
 
 pub struct GameBehavior {
@@ -248,7 +248,7 @@ impl GameBehavior {
 
         // Construct the json settings
         let mut data = serde_json::from_str(&contents)
-            .unwrap_or(GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None });
+            .unwrap_or(GameBehaviorData { nodes: HashMap::default(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None });
 
         data.name = name.to_owned();
 
@@ -266,7 +266,7 @@ impl GameBehavior {
         let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
 
         // Construct the json settings
-        let mut data = GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None };
+        let mut data = GameBehaviorData { nodes: HashMap::default(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None };
 
         if let Some(bytes) = Embedded::get(file_name) {
             if let Some(string) = std::str::from_utf8(bytes.data.as_ref()).ok() {
@@ -288,7 +288,7 @@ impl GameBehavior {
             name            : "name".to_string(),
             path            : std::path::Path::new("").to_path_buf(),
             behavior_path   : std::path::Path::new("").to_path_buf(),
-            data            : GameBehaviorData { nodes: HashMap::new(), connections: vec![], id: Uuid::new_v4(), name            : "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None }
+            data            : GameBehaviorData { nodes: HashMap::default(), connections: vec![], id: Uuid::new_v4(), name            : "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None }
         }
     }
 

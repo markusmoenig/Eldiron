@@ -13,7 +13,6 @@ pub fn expression(instance_index: usize, id: (usize, usize), data: &mut RegionIn
 }*/
 
 pub fn script(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-    println!("here");
     _ = eval_dynamic_script_instance(instance_index, (behavior_type, id.0, id.1, "script".to_string()), data);
     BehaviorNodeConnector::Bottom
 }

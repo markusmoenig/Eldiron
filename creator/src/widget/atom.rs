@@ -65,7 +65,7 @@ pub enum AtomWidgetType {
     TagsButton,
     SliderButton,
     SmallMenuButton,
-    IconButton,
+    _IconButton,
     NumberRow,
 }
 
@@ -434,10 +434,14 @@ impl AtomWidget {
 
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height);
 
-                let fill_color = if self.state == WidgetState::Clicked { context.color_node_dark_gray } else { context.color_node_light_gray };
+                let mut fill_color = if self.state == WidgetState::Clicked { &context.color_node_dark_gray } else { &context.color_node_light_gray };
+
+                if self.debug_value.is_some() {
+                    fill_color = &context.color_red;
+                }
 
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &fill_color, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), fill_color, &context.node_button_rounding, fill_color, 1.5);
 
                 context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 5, rect.1, rect.2 - 10, rect.3), rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &self.atom_data.value.to_string_value(), &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
             }  else

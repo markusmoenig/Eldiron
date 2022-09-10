@@ -187,13 +187,16 @@ pub fn eval_dynamic_script_instance(instance_index: usize, id: (BehaviorType, Uu
                         data.ast.insert(id.clone(), ast);
                         apply_scope_to_target(instance_index, data);
                         return true
-                    } else {
-                        println!("{:?}", r);
-                        data.instances[instance_index].messages.push(MessageData {
-                            message_type        : MessageType::Error,
-                            message             : r.err().unwrap().to_string(),
-                            from                : "Script".to_string()
-                        });
+                    } else
+                    if let Some(err) = r.err() {
+                        // data.instances[instance_index].messages.push(MessageData {
+                        //     message_type        : MessageType::Error,
+                        //     message             : err.to_string(),
+                        //     from                : "Script".to_string()
+                        // });
+                        data.script_errors.push(
+                            ((id.1, id.2, id.3), (err.to_string(), None))
+                        );
                     }
                 }
             }
