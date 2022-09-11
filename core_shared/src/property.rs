@@ -1,7 +1,4 @@
-
-
-use std::collections::HashMap;
-
+use crate::prelude::*;
 use colors_transform::{Rgb, Color, AlphaColor};
 use serde::{Deserialize, Serialize};
 
@@ -163,7 +160,7 @@ impl PropertySink {
         }
     }
 
-    /// Returns true if a property by the given name exists in the sink
+    /// Loads the properties of the given source string.
     pub fn load_from_string(&mut self, source: String) -> bool {
         let mut lines = source.lines();
 
@@ -268,7 +265,7 @@ impl PropertySink {
     }
 
     /// Convert the sink to a string
-    pub fn to_string(&self, descriptions: HashMap<String, Vec<String>>) -> String {
+    pub fn to_string(&self, descriptions: FxHashMap<String, Vec<String>>) -> String {
         let mut string = "".to_string();
 
         for p in & self.properties {

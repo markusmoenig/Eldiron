@@ -20,6 +20,7 @@ pub enum Value {
     TileId(TileId),
     //
     TileData(TileData),
+    PropertySink(PropertySink),
 }
 
 impl Value {

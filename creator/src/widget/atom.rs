@@ -56,6 +56,7 @@ pub enum AtomWidgetType {
     NodeGridSizeButton,
     NodeScreenButton,
     NodePropertyLog,
+    NodeItemSettingsButton,
 
     LargeButton,
     CheckButton,
@@ -430,7 +431,7 @@ impl AtomWidget {
 
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &format!("{} x {}", v1, v2), &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
-            if self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton {
+            if self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton || self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton {
 
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height);
 
@@ -862,7 +863,7 @@ impl AtomWidget {
             return false;
         }
         if self.contains_pos(pos) {
-            if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeNumberButton || self.atom_widget_type == AtomWidgetType::NodeSize2DButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton || self.atom_widget_type == AtomWidgetType::NodeIconTileButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeNumberButton || self.atom_widget_type == AtomWidgetType::NodeSize2DButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton || self.atom_widget_type == AtomWidgetType::NodeIconTileButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton || self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
@@ -1124,6 +1125,12 @@ impl AtomWidget {
             } else
             if self.atom_widget_type == AtomWidgetType::NodePositionButton {
                 context.open_position_dialog(self.behavior_id.clone().unwrap(), self.atom_data.value.clone());
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton {
+                context.code_editor_mode = CodeEditorMode::Settings;
+                if let Some(id) = &self.behavior_id {
+                    context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
+                }
             }
 
             if self.state == WidgetState::Clicked {

@@ -31,8 +31,13 @@ pub enum BehaviorType {
 pub enum BehaviorNodeType {
     BehaviorType,
     BehaviorTree,
+    Sequence,
+    Linear,
     Expression,
     Script,
+    Move,
+    Screen,
+    /*
     Pathfinder,
     Message,
     Lookout,
@@ -57,7 +62,7 @@ pub enum BehaviorNodeType {
     MessageArea,
     AudioArea,
     LightArea,
-    Always
+    Always*/
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

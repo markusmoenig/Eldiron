@@ -112,7 +112,7 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::CloseIn, close_in);
         nodes.insert(BehaviorNodeType::CallSystem, call_system);
         */
-        nodes.insert(BehaviorNodeType::CallBehavior, call_behavior);
+        //nodes.insert(BehaviorNodeType::CallBehavior, call_behavior);
         /*
         nodes.insert(BehaviorNodeType::LockTree, lock_tree);
         nodes.insert(BehaviorNodeType::UnlockTree, unlock_tree);
@@ -333,6 +333,7 @@ impl RegionInstance<'_> {
             }
         }
 
+        /* TODO
         // Execute region area behaviors
         let mut to_execute: Vec<(usize, Uuid)> = vec![];
         self.displacements = HashMap::new();
@@ -346,7 +347,7 @@ impl RegionInstance<'_> {
 
         for pairs in to_execute {
             self.execute_area_node(self.region_data.id, pairs.0, pairs.1);
-        }
+        }*/
 
        // Parse the player characters and generate updates
 

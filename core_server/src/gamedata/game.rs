@@ -74,9 +74,9 @@ pub fn update_game_sink(sink: &mut PropertySink) {
     }*/
 }
 
-pub fn generate_game_sink_descriptions() -> HashMap<String, Vec<String>> {
+pub fn generate_game_sink_descriptions() -> FxHashMap<String, Vec<String>> {
 
-    let mut map : HashMap<String, Vec<String>> = HashMap::new();
+    let mut map : FxHashMap<String, Vec<String>> = FxHashMap::default();
 
     map.insert("character_attributes".to_string(), vec!["The attributes of characters. These will be added as variables to each character instance".to_string()]);
     // map.insert("lighting".to_string(), vec!["The lighting mode. Use \"off\" for no lighting.".to_string()]);

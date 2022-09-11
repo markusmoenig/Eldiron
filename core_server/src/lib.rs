@@ -5,6 +5,7 @@ pub mod prelude {
     pub use crate::gamedata::GameData;
     pub use crate::gamedata::behavior::*;
     pub use crate::gamedata::region::*;
+    pub use crate::gamedata::item::*;
 
     pub use crate::server::Server;
     pub use crate::server::region_instance::RegionInstance;

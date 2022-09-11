@@ -252,19 +252,6 @@ impl EditorContent for NodeGraph  {
                     context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[corner_index].buffer[..], &rect, safe_rect.2, &safe_rect);
                 }
 
-                /*
-                for index in 0..variables.len() {
-                    let vindex = variables[index];
-                    if self.nodes[vindex].dirty {
-                        let selected = if Some(self.nodes[index].id) == self.get_curr_node_id(context) { true } else { false };
-                        self.nodes[vindex].draw(frame, anim_counter, asset, context, selected);
-                    }
-                    let rect= self.get_node_rect(vindex, true);
-                    self.nodes[vindex].graph_offset = (rect.0, rect.1);
-                    self.nodes[vindex].graph_offset = (rect.0, rect.1);
-                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[vindex].buffer[..], &rect, safe_rect.2, &safe_rect);
-                }*/
-
                 // --
                 let mut mask : Vec<u8> = vec![0; safe_rect.2 * safe_rect.3];
                 let mut path : String = "".to_string();
@@ -1175,19 +1162,23 @@ impl EditorContent for NodeGraph  {
 
             let node_type = match name.as_str() {
                 "Expression" => BehaviorNodeType::Expression,
+                "Script" => BehaviorNodeType::Script,
+                "Sequence" => BehaviorNodeType::Sequence,
+                "Linear" => BehaviorNodeType::Linear,
+                "Move" => BehaviorNodeType::Move,
+                "Screen" => BehaviorNodeType::Screen,
+
+                /*
                 "Message" if self.graph_type != BehaviorType::Regions => BehaviorNodeType::Message,
                 "Pathfinder" => BehaviorNodeType::Pathfinder,
-                "Script" => BehaviorNodeType::Script,
                 "Lookout" => BehaviorNodeType::Lookout,
                 "Close In" => BehaviorNodeType::CloseIn,
                 "Call System" => BehaviorNodeType::CallSystem,
                 "Call Behavior" => BehaviorNodeType::CallBehavior,
                 "Lock Tree" => BehaviorNodeType::LockTree,
                 "Unlock" => BehaviorNodeType::UnlockTree,
-                "Sequence" => BehaviorNodeType::Sequence,
                 "Set State" => BehaviorNodeType::SetState,
-                "Linear" => BehaviorNodeType::Linear,
-                "Move" => BehaviorNodeType::Move,
+
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
@@ -1196,13 +1187,12 @@ impl EditorContent for NodeGraph  {
                 "Spawn" => BehaviorNodeType::Spawn,
                 "Displace Tiles" => BehaviorNodeType::DisplaceTiles,
 
-                "Screen" => BehaviorNodeType::Screen,
                 "Widget" => BehaviorNodeType::Widget,
 
                 "Teleport" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::TeleportArea,
                 "Message" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::MessageArea,
                 "Audio" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::AudioArea,
-                "Light" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::LightArea,
+                "Light" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::LightArea,*/
 
                 _ => BehaviorNodeType::BehaviorTree
             };
@@ -1337,6 +1327,16 @@ impl EditorContent for NodeGraph  {
                 tile_atom.behavior_id = Some(id.clone());
                 tile_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
                 node_widget.widgets.push(tile_atom);
+
+                let mut item_settings = AtomWidget::new(vec!["Settings".to_string()], AtomWidgetType::NodeItemSettingsButton,
+                AtomData::new("settings", Value::Empty()));
+                item_settings.atom_data.text = "Settings".to_string();
+                let id = (behavior_data_id, node_id, "settings".to_string());
+                item_settings.behavior_id = Some(id.clone());
+                let mut sink = PropertySink::new();
+                update_item_sink(&mut sink);
+                item_settings.atom_data.value = context.data.get_behavior_id_value(id, Value::PropertySink(sink), self.graph_type);
+                node_widget.widgets.push(item_settings);
             } else
             if self.graph_type == BehaviorType::GameLogic {
                 node_widget.is_corner_node = true;
@@ -1947,6 +1947,9 @@ impl EditorContent for NodeGraph  {
         for index in 0..self.nodes.len() {
             if self.nodes[index].id == id {
                 self.nodes.remove(index);
+                if let Some(rem_index) = self.behavior_tree_indices.iter().position(|&x| x == index) {
+                    self.behavior_tree_indices.remove(rem_index);
+                }
                 break
             }
         }
@@ -1956,11 +1959,6 @@ impl EditorContent for NodeGraph  {
             behavior.data.nodes.remove(&id);
             behavior.save_data();
         }
-
-        // If this is an BehaviorTree remove it from the current indices
-        // TODO if let Some(index) = self.behavior_tree_indices.iter().position(|&x| x == id) {
-        //     self.behavior_tree_indices.remove(index);
-        // }
     }
 
     /// Sets the widget and behavior data for the given atom id
@@ -2032,6 +2030,11 @@ impl EditorContent for NodeGraph  {
                         self.visible_node_ids.push(self.nodes[index].id);
                     }
                 }
+            }
+        } else {
+            // If there is no behavior tree mark all nodes as visible
+            for index in 0..self.nodes.len() {
+                self.visible_node_ids.push(self.widget_index_to_node_id(index));
             }
         }
     }

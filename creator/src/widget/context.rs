@@ -527,12 +527,20 @@ impl ScreenContext<'_> {
                 self.target_fps = 60;
             }
         }
-        self.code_editor_value = value.to_string_value();
+        let string;
+        match &value {
+            Value::PropertySink(sink) => {
+                string = sink.to_string(generate_item_sink_descriptions());
+            },
+            _ => string = value.to_string_value()
+        }
+        self.code_editor_value = string.clone();
         self.code_editor_node_behavior_id = id;
         self.code_editor_node_behavior_value = value;
         self.code_editor_is_active = true;
         self.code_editor_just_opened = true;
     }
+
 
     /// Creates a property id
     pub fn create_property_id(&mut self, property: &str) -> (Uuid, Uuid, String) {

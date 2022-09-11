@@ -296,6 +296,11 @@ impl Editor<'_> {
                     self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().changed_selection(self.context.curr_systems_index, self.toolbar.widgets[0].curr_index);
                     self.context.curr_systems_index = self.toolbar.widgets[0].curr_index;
                     self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
+                } else
+                if self.state == EditorState::ItemsOverview || self.state == EditorState::ItemsDetail {
+                    self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().changed_selection(self.context.curr_items_index, self.toolbar.widgets[0].curr_index);
+                    self.context.curr_items_index = self.toolbar.widgets[0].curr_index;
+                    self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.items_ids[self.context.curr_items_index] , &mut self.context);
                 }
                 return true;
             } else
@@ -1404,7 +1409,7 @@ impl Editor<'_> {
                     self.state = EditorState::ItemsDetail;
                     self.context.curr_graph_type = BehaviorType::Items;
                     if self.context.data.items_ids.len() > 0 {
-                        //self.node_graph_items_details.set_behavior_id(self.context.data.items_ids[self.context.curr_items_index], &mut self.context);
+                        self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.items_ids[self.context.curr_items_index] , &mut self.context);
                     }
                 }
 
@@ -1542,6 +1547,11 @@ impl Editor<'_> {
                     self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().changed_selection(self.context.curr_systems_index, self.toolbar.widgets[0].curr_index);
                     self.context.curr_systems_index = self.toolbar.widgets[0].curr_index;
                     self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.systems_ids[self.context.curr_systems_index] , &mut self.context);
+                } else
+                if self.state == EditorState::ItemsOverview || self.state == EditorState::ItemsDetail {
+                    self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().changed_selection(self.context.curr_items_index, self.toolbar.widgets[0].curr_index);
+                    self.context.curr_items_index = self.toolbar.widgets[0].curr_index;
+                    self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.items_ids[self.context.curr_items_index] , &mut self.context);
                 }
                 self.toolbar.widgets[0].new_selection = None;
             }

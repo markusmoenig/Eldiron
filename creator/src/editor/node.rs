@@ -127,7 +127,7 @@ impl NodeWidget {
                 height += context.node_button_header_text_size as usize;
                 height += 16;
             } else {
-                height += 6;
+                height += 8;
             }
         }
 

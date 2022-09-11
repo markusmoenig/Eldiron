@@ -27,10 +27,10 @@ impl GameRegion {
 
         let mut data = serde_json::from_str(&contents)
                 .unwrap_or(GameRegionData {
-                    layer1      : HashMap::new(),
-                    layer2      : HashMap::new(),
-                    layer3      : HashMap::new(),
-                    layer4      : HashMap::new(),
+                    layer1      : FxHashMap::default(),
+                    layer2      : FxHashMap::default(),
+                    layer3      : FxHashMap::default(),
+                    layer4      : FxHashMap::default(),
                     id          : Uuid::new_v4(),
                     curr_pos    : (0,0),
                     min_pos     : (10000,10000),
@@ -69,10 +69,10 @@ impl GameRegion {
     pub fn new_from_embedded(file_name: &str) -> Self {
 
         let mut data = GameRegionData {
-            layer1      : HashMap::new(),
-            layer2      : HashMap::new(),
-            layer3      : HashMap::new(),
-            layer4      : HashMap::new(),
+            layer1      : FxHashMap::default(),
+            layer2      : FxHashMap::default(),
+            layer3      : FxHashMap::default(),
+            layer4      : FxHashMap::default(),
             id          : Uuid::new_v4(),
             curr_pos    : (0,0),
             min_pos     : (10000,10000),
@@ -279,7 +279,7 @@ impl GameRegion {
 
     /// Remaps the TileUsage field of the tiles
     pub fn remap(&mut self, asset: &mut Asset) {
-        let mut tiles : HashMap<(isize, isize), TileData> = HashMap::new();
+        let mut tiles : FxHashMap<(isize, isize), TileData> = HashMap::default();
         let ids: Vec<&(isize, isize)> = self.data.layer1.keys().collect();
         for id in &ids {
             let value = &self.data.layer1[id];
@@ -402,8 +402,8 @@ pub fn update_region_sink(sink: &mut PropertySink) {
     }
 }
 
-pub fn generate_region_sink_descriptions() -> HashMap<String, Vec<String>> {
-    let mut map : HashMap<String, Vec<String>> = HashMap::new();
+pub fn generate_region_sink_descriptions() -> FxHashMap<String, Vec<String>> {
+    let mut map : FxHashMap<String, Vec<String>> = HashMap::default();
 
     map.insert("background".to_string(), vec!["The background color of the region".to_string()]);
     map.insert("lighting".to_string(), vec!["The lighting mode. Use \"off\" for no lighting.".to_string()]);
