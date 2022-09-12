@@ -11,7 +11,7 @@ pub mod scope_buffer;
 pub mod value;
 pub mod structs;
 pub mod script;
-pub mod items;
+pub mod inventory;
 
 pub mod prelude {
     pub use crate::asset::*;
@@ -30,6 +30,7 @@ pub mod prelude {
     pub use crate::scope_buffer::*;
     pub use crate::structs::*;
     pub use crate::script::*;
+    pub use crate::inventory::*;
 
     pub use crate::value::Value;
     pub use rustc_hash::FxHashMap;

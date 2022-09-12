@@ -2166,6 +2166,7 @@ impl EditorContent for NodeGraph  {
     fn debug_update(&mut self, update: GameUpdate, context: &mut ScreenContext) {
 
         context.debug_log_messages.append(&mut update.messages.clone());
+        context.debug_log_inventory = update.inventory.clone();
         context.debug_log_variables.clear();
 
         for key in update.scope_buffer.values.keys().sorted() {

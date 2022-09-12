@@ -8,9 +8,9 @@ pub struct RegionInstance<'a> {
     pub region_data                 : GameRegionData,
     pub region_behavior             : Vec<GameBehaviorData>,
 
-    pub behaviors                   : HashMap<Uuid, GameBehaviorData>,
-    pub systems                     : HashMap<Uuid, GameBehaviorData>,
-    pub items                       : HashMap<Uuid, GameBehaviorData>,
+    pub behaviors                   : FxHashMap<Uuid, GameBehaviorData>,
+    pub systems                     : FxHashMap<Uuid, GameBehaviorData>,
+    pub items                       : FxHashMap<Uuid, GameBehaviorData>,
     pub game_data                   : GameBehaviorData,
 
     // For faster lookup
@@ -19,7 +19,7 @@ pub struct RegionInstance<'a> {
     pub area_ids                    : Vec<Uuid>,
 
     // All nodes
-    nodes                           : HashMap<BehaviorNodeType, NodeCall>,
+    nodes                           : FxHashMap<BehaviorNodeType, NodeCall>,
 
     /// The script engine
     pub engine                      : Engine,
@@ -94,12 +94,13 @@ impl RegionInstance<'_> {
         });
 
         script_register_message_api(&mut engine);
+        script_register_item_api(&mut engine);
 
         // Display f64 as ints
         use pathfinding::num_traits::ToPrimitive;
         engine.register_fn("to_string", |x: f32| format!("{}", x.to_isize().unwrap()));
 
-        let mut nodes : HashMap<BehaviorNodeType, NodeCall> = HashMap::new();
+        let mut nodes : FxHashMap<BehaviorNodeType, NodeCall> = FxHashMap::default();
 
         /*
         nodes.insert(BehaviorNodeType::Expression, expression);
@@ -135,9 +136,9 @@ impl RegionInstance<'_> {
             region_data             : GameRegionData::new(),
             region_behavior         : vec![],
 
-            behaviors               : HashMap::new(),
-            systems                 : HashMap::new(),
-            items                   : HashMap::new(),
+            behaviors               : FxHashMap::default(),
+            systems                 : FxHashMap::default(),
+            items                   : FxHashMap::default(),
             game_data               : GameBehaviorData::new(),
 
             system_names            : vec![],
@@ -184,6 +185,7 @@ impl RegionInstance<'_> {
         self.area_characters = HashMap::new();
 
         let mut messages = vec![];
+        let mut inventory = Inventory::new();
 
         // Execute behaviors
         for inst_index in 0..self.instances.len() {
@@ -300,6 +302,25 @@ impl RegionInstance<'_> {
                     }
                 }
 
+                // Extract the script messages for this instance
+                if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
+                    if let Some(mut inv) = mess.write_lock::<Inventory>() {
+                        if inv.items_to_add.is_empty() == false {
+                            let items_to_add = inv.items_to_add.clone();
+                            for name in &items_to_add {
+                                for (_id, value) in &mut self.items {
+                                    if value.name == *name {
+                                        let item = create_inventory_item(value);
+                                        inv.add_item(item);
+                                    }
+                                }
+                            }
+                            inv.items_to_add = vec![];
+                        }
+                        inventory = inv.clone();
+                    }
+                }
+
                 // If we are debugging this instance, send the debug data
                 if Some(self.instances[inst_index].behavior_id) == self.debug_behavior_id {
                     let debug = BehaviorDebugData {
@@ -401,7 +422,7 @@ impl RegionInstance<'_> {
                 let mut characters    : Vec<CharacterData> = vec![];
                 let mut displacements : HashMap<(isize, isize), TileData> = HashMap::new();
                 let mut lights        : Vec<Light> = vec![];
-                let mut scope_buffer  = ScopeBuffer::new();
+                let mut scope_buffer = ScopeBuffer::new();
 
                 let mut needs_transfer_to: Option<Uuid> = None;
                 if let Some(position) = self.instances[inst_index].position.clone() {
@@ -445,6 +466,7 @@ impl RegionInstance<'_> {
                     messages                : self.instances[inst_index].messages.clone(),
                     audio                   : self.instances[inst_index].audio.clone(),
                     scope_buffer            : scope_buffer,
+                    inventory               : inventory.clone()
                  };
 
                 //self.instances[inst_index].update = serde_json::to_string(&update).ok();
@@ -959,6 +981,7 @@ impl RegionInstance<'_> {
                 //scope.set_value("NAME", behavior.name.clone());
                 scope.set_value("ALIGNMENT", inst.alignment as i32);
                 scope.set_value("messages", ScriptMessageCmd::new());
+                scope.set_value("inventory", Inventory::new());
 
                 self.scopes.push(scope);
             }
@@ -969,6 +992,7 @@ impl RegionInstance<'_> {
                 self.execute_node(index, startup_id.clone());
             }
         }
+
         index
     }
 

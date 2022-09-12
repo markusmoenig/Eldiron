@@ -1,4 +1,18 @@
 use crate::prelude::*;
+use core_shared::prelude::*;
+
+//
+
+pub fn create_inventory_item(behavior : &mut GameBehaviorData) -> InventoryItem {
+
+    let item = InventoryItem {
+        id          : behavior.id,
+        name        : behavior.name.clone(),
+        item_type   : "Gear".to_string()
+    };
+
+    item
+}
 
 // Generate item sink
 

@@ -538,6 +538,7 @@ impl AtomWidget {
                     let y_start = r.1 + 2 * text_size;
 
                     if self.curr_index == 0 {
+                        // Variables
                         for (index, _v) in context.debug_log_variables.iter().enumerate() {
                             if index >= max_lines { break; }
 
@@ -548,7 +549,16 @@ impl AtomWidget {
                             context.draw2d.draw_text_rect(buffer_frame, &(r.0, y_start + index * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, str.as_str(), color, b, crate::draw2d::TextAlignment::Right);
                         }
                     } else
+                    if self.curr_index == 2 {
+                        // Inventory
+                        for (index, item) in context.debug_log_inventory.items.iter().enumerate() {
+                            if index >= max_lines { break; }
+
+                            context.draw2d.draw_text_rect(buffer_frame, &(r.0, y_start + index * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, item.name.as_str(), color, b, crate::draw2d::TextAlignment::Left);
+                        }
+                    } else
                     if self.curr_index == 3 {
+                        // Messages
                         let available_messages = context.debug_log_messages.len();
 
                         for l in 0..max_lines {

@@ -39,6 +39,9 @@ pub struct GameUpdate {
 
     /// Scope
     pub scope_buffer            : ScopeBuffer,
+
+    /// Inventory
+    pub inventory               : Inventory,
 }
 
 impl GameUpdate {
@@ -60,6 +63,7 @@ impl GameUpdate {
             messages            : vec![],
             audio               : vec![],
             scope_buffer        : ScopeBuffer::new(),
+            inventory           : Inventory::new(),
         }
     }
 }

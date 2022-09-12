@@ -147,6 +147,7 @@ pub struct ScreenContext<'a> {
 
     pub debug_log_variables             : Vec<(String, Value)>,
     pub debug_log_messages              : Vec<MessageData>,
+    pub debug_log_inventory             : Inventory,
 
     // Icons
 
@@ -380,6 +381,7 @@ impl ScreenContext<'_> {
             debug_render                : None,
             debug_log_variables         : vec![],
             debug_log_messages          : vec![],
+            debug_log_inventory         : Inventory::new(),
 
             icons
         }
