@@ -191,7 +191,7 @@ impl GameData {
                     if md.is_file() {
                         if let Some(name) = path::Path::new(&path).extension() {
                             if name == "json" || name == "JSON" {
-                                let mut system = GameBehavior::load_from_path(path, &systems_path);
+                                let system = GameBehavior::load_from_path(path, &systems_path);
                                 systems_names.push(system.name.clone());
 
                                 if system.data.nodes.len() == 0 {

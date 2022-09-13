@@ -28,15 +28,15 @@ impl InstanceVariables {
 
 /// Adds the given target variables to the scope
 pub fn add_target_to_scope(instance_index: usize, data: &mut RegionInstance) {
-    if let Some(target_index) = data.instances[instance_index].target_instance_index {
+    if let Some(_target_index) = data.instances[instance_index].target_instance_index {
         data.engine.register_type::<InstanceVariables>()
             .register_fn("new_instance", InstanceVariables::new)
             .register_indexer_get(InstanceVariables::get_number)
             .register_indexer_set(InstanceVariables::set_number);
 
 
-        let original_target = data.scopes[target_index].clone();
-        let mut target = InstanceVariables::new();
+        //let original_target = data.scopes[target_index].clone();
+        let target = InstanceVariables::new();
 
         /* TODO
         if let Some(behavior) = data.get_mut_behavior(data.instances[target_index].behavior_id, BehaviorType::Behaviors) {
@@ -55,7 +55,7 @@ pub fn add_target_to_scope(instance_index: usize, data: &mut RegionInstance) {
 }
 
 /// Read out the target variables and if changed apply them
-pub fn apply_scope_to_target(instance_index: usize, data: &mut RegionInstance) {
+pub fn apply_scope_to_target(_instance_index: usize, _data: &mut RegionInstance) {
     /*
     if let Some(target_index) = data.instances[instance_index].target_instance_index {
         if let Some(target) = data.scopes[instance_index].get_value::<InstanceVariables>("target") {

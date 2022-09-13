@@ -37,10 +37,19 @@ impl EditorContent for RegionWidget {
 
         let mut widgets = vec![];
 
+        /*
         let mut mode_button = AtomWidget::new(vec!["Draw Tiles".to_string(), "Edit Areas".to_string(), "Characters".to_string(), "Settings".to_string()], AtomWidgetType::SliderButton,
         AtomData::new("Mode", Value::Empty()));
         mode_button.atom_data.text = "Mode".to_string();
         mode_button.set_rect((rect.0 + 10, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 200, 40), asset, context);
+        mode_button.custom_color = Some([217, 64, 51, 255]);
+        mode_button.hover_help_title = Some("Region Mode".to_string());
+        mode_button.hover_help_text = Some("Select \"Draw Tiles\" (hotkey 'D') for drawing the tiles in the region. \"Edit Area\" ('E') to create and edit named areas and their behavior. \"Characters\" ('A') to place character instances and \"Settings\" ('S') to edit the settings of the region.".to_string());*/
+
+        let mut mode_button = AtomWidget::new(vec!["tiles".to_string(), "area".to_string(), "character".to_string(), "settings".to_string()], AtomWidgetType::IconRow,
+        AtomData::new("Mode", Value::Empty()));
+        mode_button.atom_data.text = "Mode".to_string();
+        mode_button.set_rect((rect.0 + 10, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 150, 33), asset, context);
         mode_button.custom_color = Some([217, 64, 51, 255]);
         mode_button.hover_help_title = Some("Region Mode".to_string());
         mode_button.hover_help_text = Some("Select \"Draw Tiles\" (hotkey 'D') for drawing the tiles in the region. \"Edit Area\" ('E') to create and edit named areas and their behavior. \"Characters\" ('A') to place character instances and \"Settings\" ('S') to edit the settings of the region.".to_string());
@@ -64,14 +73,14 @@ impl EditorContent for RegionWidget {
         let mut regions_button = AtomWidget::new(vec![], AtomWidgetType::SliderButton,
         AtomData::new("Area", Value::Empty()));
         regions_button.atom_data.text = "Area".to_string();
-        regions_button.set_rect((rect.0 + 230, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 180, 40), asset, context);
+        regions_button.set_rect((rect.0 + 180, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 180, 40), asset, context);
         regions_button.hover_help_title = Some("Cycles Areas".to_string());
         regions_button.hover_help_text = Some("Cycles through the current areas.".to_string());
         area_widgets.push(regions_button);
 
         let mut add_area_button = AtomWidget::new(vec!["Add Area".to_string()], AtomWidgetType::Button,
             AtomData::new("Add Area", Value::Empty()));
-        add_area_button.set_rect((rect.0 + 230 + 200, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
+        add_area_button.set_rect((rect.0 + 180 + 200, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
         add_area_button.hover_help_title = Some("Add Area".to_string());
         add_area_button.hover_help_text = Some("Adds a new, empty area.".to_string());
         area_widgets.push(add_area_button);
@@ -79,7 +88,7 @@ impl EditorContent for RegionWidget {
         let mut del_area_button = AtomWidget::new(vec!["Delete".to_string()], AtomWidgetType::Button,
             AtomData::new("Delete", Value::Empty()));
         del_area_button.state = WidgetState::Disabled;
-        del_area_button.set_rect((rect.0 + 230 + 200 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
+        del_area_button.set_rect((rect.0 + 180 + 200 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
         del_area_button.hover_help_title = Some("Delete Area".to_string());
         del_area_button.hover_help_text = Some("Deletes the current area.".to_string());
         area_widgets.push(del_area_button);
@@ -87,7 +96,7 @@ impl EditorContent for RegionWidget {
         let mut rename_area_button = AtomWidget::new(vec!["Rename".to_string()], AtomWidgetType::Button,
             AtomData::new("Rename", Value::Empty()));
         rename_area_button.state = WidgetState::Disabled;
-        rename_area_button.set_rect((rect.0 + 230 + 200 + 150 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
+        rename_area_button.set_rect((rect.0 + 180 + 200 + 150 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
         rename_area_button.hover_help_title = Some("Rename Area".to_string());
         rename_area_button.hover_help_text = Some("Renames the current area.".to_string());
         area_widgets.push(rename_area_button);
@@ -95,7 +104,7 @@ impl EditorContent for RegionWidget {
         let mut area_editing_mode = AtomWidget::new(vec!["Add Tile".to_string(), "Remove".to_string(), "Pick".to_string()], AtomWidgetType::SliderButton,
         AtomData::new("Area", Value::Empty()));
         area_editing_mode.atom_data.text = "Area".to_string();
-        area_editing_mode.set_rect((rect.0 +  230 + 200 + 150 + 150 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 160, 40), asset, context);
+        area_editing_mode.set_rect((rect.0 + 180 + 200 + 150 + 150 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 160, 40), asset, context);
         area_editing_mode.hover_help_title = Some("Area Editing Mode".to_string());
         area_editing_mode.hover_help_text = Some("Adds, removes the clicked tile to / from the area or selects the clicked area.".to_string());
         area_widgets.push(area_editing_mode);
@@ -106,7 +115,7 @@ impl EditorContent for RegionWidget {
         let mut char_editing_mode = AtomWidget::new(vec!["Add Instance".to_string(), "Remove".to_string()], AtomWidgetType::SliderButton,
         AtomData::new("Area", Value::Empty()));
         char_editing_mode.atom_data.text = "Area".to_string();
-        char_editing_mode.set_rect((rect.0 + 230, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 190, 40), asset, context);
+        char_editing_mode.set_rect((rect.0 + 180, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 190, 40), asset, context);
         character_widgets.push(char_editing_mode);
 
         // Editing Widgets
@@ -114,7 +123,7 @@ impl EditorContent for RegionWidget {
 
         let mut clear_button = AtomWidget::new(vec!["Clear".to_string()], AtomWidgetType::CheckButton,
             AtomData::new("Clear", Value::Empty()));
-        clear_button.set_rect((rect.0 + 230, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
+        clear_button.set_rect((rect.0 + 180, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
         clear_button.hover_help_title = Some("Drawing Mode".to_string());
         clear_button.hover_help_text = Some("Toggles between drawing and clearing modes.\nHotkey: 'C'.".to_string());
         editing_widgets.push(clear_button);
@@ -122,7 +131,7 @@ impl EditorContent for RegionWidget {
         let mut mode_button = AtomWidget::new(vec!["Pick".to_string()], AtomWidgetType::CheckButton,
         AtomData::new("Pick", Value::Empty()));
         mode_button.atom_data.text = "Pick".to_string();
-        mode_button.set_rect((rect.0 + 230 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 150, 40), asset, context);
+        mode_button.set_rect((rect.0 + 180 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 150, 40), asset, context);
         mode_button.hover_help_title = Some("Pick".to_string());
         mode_button.hover_help_text = Some("Picks the next selected tile.\nHotkey: 'P'.".to_string());
         editing_widgets.push(mode_button);
@@ -158,18 +167,18 @@ impl EditorContent for RegionWidget {
         self.rect.2 = width;
         self.rect.3 = height;
 
-        self.widgets[0].set_rect2((self.rect.0 + 10, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 200, 40));
+        self.widgets[0].set_rect2((self.rect.0 + 10, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 2, 150, 33));
 
-        self.area_widgets[0].set_rect2((self.rect.0 + 230, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 180, 40));
-        self.area_widgets[1].set_rect2((self.rect.0 + 230 + 200, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
-        self.area_widgets[2].set_rect2((self.rect.0 + 230 + 200 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
-        self.area_widgets[3].set_rect2((self.rect.0 + 230 + 200 + 150 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
-        self.area_widgets[4].set_rect2((self.rect.0 +  230 + 200 + 150 + 150 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 160, 40));
+        self.area_widgets[0].set_rect2((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 180, 40));
+        self.area_widgets[1].set_rect2((self.rect.0 + 180 + 200, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
+        self.area_widgets[2].set_rect2((self.rect.0 + 180 + 200 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
+        self.area_widgets[3].set_rect2((self.rect.0 + 180 + 200 + 150 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
+        self.area_widgets[4].set_rect2((self.rect.0 +  180 + 200 + 150 + 150 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 160, 40));
 
-        self.character_widgets[0].set_rect2((self.rect.0 + 230, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 190, 40));
+        self.character_widgets[0].set_rect2((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 190, 40));
 
-        self.editing_widgets[0].set_rect2((self.rect.0 + 230, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
-        self.editing_widgets[1].set_rect2((self.rect.0 + 230 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 150, 40));
+        self.editing_widgets[0].set_rect2((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
+        self.editing_widgets[1].set_rect2((self.rect.0 + 180 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 150, 40));
 
         self.behavior_graph.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.bottom_size, width, self.bottom_size);
         self.behavior_graph.set_mode_and_rect(GraphMode::Detail, self.behavior_graph.rect, context);
@@ -784,6 +793,7 @@ impl EditorContent for RegionWidget {
             }
         }
 
+        self.update_area_ui(context);
     }
 
     /// Get the tile id
@@ -832,7 +842,7 @@ impl EditorContent for RegionWidget {
     /// Update based on changes
     fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
 
-        println!("{:?}", id);
+        println!("{:?} {:?}", id, value);
 
         if id.2 == "region_settings" {
             let mut sink = PropertySink::new();

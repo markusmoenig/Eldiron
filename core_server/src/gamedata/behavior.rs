@@ -37,6 +37,14 @@ pub enum BehaviorNodeType {
     Script,
     Move,
     Screen,
+    InsideArea,
+    EnterArea,
+    LeaveArea,
+    Always,
+    TeleportArea,                                           // Teleport characters when inside an area
+    MessageArea,                                            // Send a message to a character when in an area
+    AudioArea,                                              // Play audio when in an area
+    LightArea,                                              // Light when in an area
     /*
     Pathfinder,
     Message,

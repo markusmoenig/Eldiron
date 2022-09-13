@@ -66,8 +66,8 @@ pub enum AtomWidgetType {
     TagsButton,
     SliderButton,
     SmallMenuButton,
-    _IconButton,
     NumberRow,
+    IconRow,
 }
 
 pub struct AtomWidget {
@@ -735,6 +735,29 @@ impl AtomWidget {
                 let right_color = if self.right_has_hover && self.text.len() > 1 { &context.color_light_gray } else { &context.color_gray };
                 context.draw2d.blend_mask(buffer_frame, &(rect.2 + 14, arrow_y, 12, 14), rect.2, &context.left_arrow_mask_small[..], &(8, 12), &left_color);
                 context.draw2d.blend_mask(buffer_frame, &(rect.2 - 22, arrow_y, 12, 14), rect.2, &context.right_arrow_mask_small[..], &(8, 12), &right_color);
+            } else
+            if self.atom_widget_type == AtomWidgetType::IconRow {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.button_height) / 2, self.rect.2 - 2, context.button_height);
+
+                let cell_size = rect.3;
+                let mut spacing = rect.2 - self.text.len() * cell_size;
+                if self.text.len() > 1 {
+                    spacing /= self.text.len() - 1;
+                } else {
+                    spacing = 0;
+                }
+
+                let mut x = rect.0;
+                for index in 0..self.text.len() {
+
+                    let r = (x, rect.1, cell_size, cell_size);
+
+                    if let Some(icon) = context.icons.get(&self.text[index]) {
+                        context.draw2d.scale_chunk(buffer_frame, &r, rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), if self.curr_index == index { 0.9 } else { 0.3 });
+                    }
+
+                    x += cell_size + spacing;
+                }
             }
         }
         self.dirty = false;
@@ -895,7 +918,7 @@ impl AtomWidget {
                     return true;
                 }
             } else
-            if self.atom_widget_type == AtomWidgetType::NumberRow {
+            if self.atom_widget_type == AtomWidgetType::NumberRow || self.atom_widget_type == AtomWidgetType::IconRow {
                 let rect = self.rect;
 
                 let cell_size = rect.3;

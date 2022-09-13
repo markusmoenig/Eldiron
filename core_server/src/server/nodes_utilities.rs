@@ -26,19 +26,14 @@ pub fn set_number_variable(instance_index: usize, variable: String, value: f32, 
 pub fn get_node_value(id: (Uuid, Uuid, &str), data: &mut RegionInstance, behavior_type: BehaviorType) -> Option<Value> {
     if behavior_type == BehaviorType::Regions {
 
-        /* TODO
-        let behavior = &mut data.region_behavior[id.0];
-        if let Some(node) = behavior.nodes.get_mut(&id.1) {
-            if let Some(value) = node.values.get_mut(id.2) {
-                return Some(value.clone());
-            }
-        } else*/
-        if let Some(behavior) = data.behaviors.get_mut(&id.0) {
-            if let Some(node) = behavior.nodes.get_mut(&id.1) {
-                if let Some(value) = node.values.get_mut(id.2) {
-                    return Some(value.clone());
+        for behavior in &data.region_behavior {
+            //if behavior.id == id.0 {
+                if let Some(node) = behavior.nodes.get(&id.1) {
+                    if let Some(value) = node.values.get(id.2) {
+                        return Some(value.clone());
+                    }
                 }
-            }
+            //}
         }
     } else
     if behavior_type == BehaviorType::Behaviors {

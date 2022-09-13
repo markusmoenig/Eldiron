@@ -1168,6 +1168,15 @@ impl EditorContent for NodeGraph  {
                 "Move" => BehaviorNodeType::Move,
                 "Screen" => BehaviorNodeType::Screen,
 
+                "Always" => BehaviorNodeType::Always,
+                "Enter Area" => BehaviorNodeType::EnterArea,
+                "Leave Area" => BehaviorNodeType::LeaveArea,
+                "Inside Area" => BehaviorNodeType::InsideArea,
+                "Teleport" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::TeleportArea,
+                "Message" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::MessageArea,
+                "Audio" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::AudioArea,
+                "Light" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::LightArea,
+
                 /*
                 "Message" if self.graph_type != BehaviorType::Regions => BehaviorNodeType::Message,
                 "Pathfinder" => BehaviorNodeType::Pathfinder,
@@ -1434,6 +1443,59 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+
+        // Area
+        if node_behavior_type == BehaviorNodeType::InsideArea {
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::Always {
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::EnterArea {
+            let menu = create_menu_atom("Character".to_string(), vec!["Everyone".to_string(), "First Only".to_string()], Value::Integer(0));
+            node_widget.widgets.push(menu);
+
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::LeaveArea {
+            let menu = create_menu_atom("Character".to_string(), vec!["Everyone".to_string(), "Last Only".to_string()], Value::Integer(0));
+            node_widget.widgets.push(menu);
+
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+        } else
+       if node_behavior_type == BehaviorNodeType::TeleportArea {
+            // Position
+            let mut position_atom = AtomWidget::new(vec![], AtomWidgetType::NodePositionButton,
+            AtomData::new("position", Value::Empty()));
+            position_atom.atom_data.text = "Position".to_string();
+            let id = (behavior_data_id, node_id, "position".to_string());
+            position_atom.behavior_id = Some(id.clone());
+            position_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(position_atom);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::AudioArea {
+            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+            AtomData::new("audio", Value::Empty()));
+            atom1.atom_data.text = "Audio".to_string();
+            let id = (behavior_data_id, node_id, "audio".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::LightArea {
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
         }
     }
 

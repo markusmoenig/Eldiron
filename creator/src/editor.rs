@@ -927,6 +927,22 @@ impl Editor<'_> {
                         }
                     }
                 }
+            } else
+            if self.state == EditorState::RegionDetail && self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
+                let index = EditorState::RegionDetail as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
+
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
+
+                    if let Some(mut el_content) = content {
+                        el_content.set_area_name(self.context.dialog_new_name.clone(), &mut self.context);
+                        content = Some(el_content);
+                    }
+                }
+                self.content.insert(index, (options, content));
             } else {
                 // Update the content
                 let index = self.state as usize;

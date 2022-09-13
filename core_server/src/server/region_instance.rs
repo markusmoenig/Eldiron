@@ -132,6 +132,15 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::Move, player_move);
         nodes.insert(BehaviorNodeType::Screen, screen);
 
+        nodes.insert(BehaviorNodeType::Always, always);
+        nodes.insert(BehaviorNodeType::InsideArea, inside_area);
+        nodes.insert(BehaviorNodeType::EnterArea, enter_area);
+        nodes.insert(BehaviorNodeType::LeaveArea, leave_area);
+        nodes.insert(BehaviorNodeType::TeleportArea, teleport_area);
+        nodes.insert(BehaviorNodeType::MessageArea, message_area);
+        nodes.insert(BehaviorNodeType::AudioArea, audio_area);
+        nodes.insert(BehaviorNodeType::LightArea, light_area);
+
         Self {
             region_data             : GameRegionData::new(),
             region_behavior         : vec![],
@@ -354,7 +363,6 @@ impl RegionInstance<'_> {
             }
         }
 
-        /* TODO
         // Execute region area behaviors
         let mut to_execute: Vec<(usize, Uuid)> = vec![];
         self.displacements = HashMap::new();
@@ -368,7 +376,7 @@ impl RegionInstance<'_> {
 
         for pairs in to_execute {
             self.execute_area_node(self.region_data.id, pairs.0, pairs.1);
-        }*/
+        }
 
        // Parse the player characters and generate updates
 
@@ -650,14 +658,13 @@ impl RegionInstance<'_> {
         // Call the node and get the resulting BehaviorNodeConnector
         if let Some(node) = self.region_behavior[area_index].nodes.get_mut(&node_id) {
 
-            /* TODO
             if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
-                let connector = node_call(region_id, (area_index, node_id), self, BehaviorType::Regions);
+                let connector = node_call(area_index, (region_id, node_id), self, BehaviorType::Regions);
                 rc = Some(connector);
                 connectors.push(connector);
             } else {
                 connectors.push(BehaviorNodeConnector::Bottom);
-            }*/
+            }
         }
 
         // Search the connections to check if we can find an ongoing node connection
@@ -896,7 +903,7 @@ impl RegionInstance<'_> {
             let mut default_position        : Option<Position> = None;
             let mut default_tile            : Option<TileId> = None;
             let mut default_alignment       : i32 = 1;
-            let mut default_scope    = rhai::Scope::new();
+            let default_scope        = rhai::Scope::new();
 
             for (id, node) in &behavior.nodes {
                 if node.behavior_type == BehaviorNodeType::BehaviorTree {
