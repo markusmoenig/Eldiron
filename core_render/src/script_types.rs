@@ -122,6 +122,10 @@ impl ScriptRGB {
             value       : [r, g, b, a],
         }
     }
+
+    pub fn to_normalized(&self) -> [f32; 4] {
+        [(self.value[0] as f32) / 255.0, (self.value[1] as f32) / 255.0, (self.value[2] as f32) / 255.0, (self.value[3] as f32) / 255.0]
+    }
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -136,67 +140,7 @@ pub enum ScriptDrawCmd {
     DrawRegion(String, ScriptRect, i32),
     DrawText(ScriptPosition, String, String, f32, ScriptRGB),
     DrawMessages(ScriptRect, String, f32, ScriptRGB),
-}
-
-// --- ScriptDraw
-
-#[derive(PartialEq, Debug, Clone)]
-pub struct ScriptDraw {
-
-    pub commands         : Vec<ScriptDrawCmd>,
-
-}
-
-impl ScriptDraw {
-    pub fn new() -> Self {
-        Self {
-            commands    : vec![],
-        }
-    }
-
-    pub fn rect(&mut self, rect: ScriptRect, rgb: ScriptRGB) {
-        self.commands.push(ScriptDrawCmd::DrawRect(rect, rgb));
-    }
-
-    pub fn tile(&mut self, pos: ScriptPosition, tile: ScriptTile) {
-        self.commands.push(ScriptDrawCmd::DrawTile(pos, tile));
-    }
-
-    pub fn tile_sat(&mut self, pos: ScriptPosition, tile: ScriptTile, rgb: ScriptRGB) {
-        self.commands.push(ScriptDrawCmd::DrawTileSat(pos, tile, rgb));
-    }
-
-    pub fn tile_sized(&mut self, pos: ScriptPosition, tile: ScriptTile, size: i32) {
-        self.commands.push(ScriptDrawCmd::DrawTileSized(pos, tile, size));
-    }
-
-    pub fn frame(&mut self, rect: ScriptRect, tile: ScriptTile) {
-        self.commands.push(ScriptDrawCmd::DrawFrame(rect, tile));
-    }
-
-    pub fn frame_sat(&mut self, rect: ScriptRect, rgb: ScriptRGB, tile: ScriptTile) {
-        self.commands.push(ScriptDrawCmd::DrawFrameSat(rect, rgb, tile));
-    }
-
-    pub fn text(&mut self, pos: ScriptPosition, text: &str, font_name: &str, size: f32, rgb: ScriptRGB) {
-        self.commands.push(ScriptDrawCmd::DrawText(pos, text.to_owned(), font_name.to_owned(), size as f32, rgb));
-    }
-
-    pub fn messages(&mut self, rect: ScriptRect, font_name: &str, size: f32, rgb: ScriptRGB) {
-        self.commands.push(ScriptDrawCmd::DrawMessages(rect, font_name.to_owned(), size as f32, rgb));
-    }
-
-    pub fn game(&mut self, rect: ScriptRect) {
-        self.commands.push(ScriptDrawCmd::DrawGame(rect));
-    }
-
-    pub fn region(&mut self, name: &str, rect: ScriptRect, size: i32) {
-        self.commands.push(ScriptDrawCmd::DrawRegion(name.to_owned(), rect, size));
-    }
-
-    pub fn clear(&mut self) {
-        self.commands.clear();
-    }
+    DrawShape(ScriptShape),
 }
 
 // --- ScriptCommand
@@ -208,21 +152,80 @@ pub enum ScriptServerCmd {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScriptCmd {
-    pub commands            : Vec<ScriptServerCmd>
+    pub draw_commands           : Vec<ScriptDrawCmd>,
+    pub action_commands         : Vec<ScriptServerCmd>
 }
 
 impl ScriptCmd {
     pub fn new() -> Self {
         Self {
-            commands        : vec![],
+            draw_commands       : vec![],
+            action_commands     : vec![],
         }
     }
 
-    pub fn cmd_move(&mut self, direction: &str) {
-        self.commands.push(ScriptServerCmd::Move(direction.to_owned().to_lowercase()));
+    // Actions
+
+    pub fn action_move(&mut self, direction: &str) {
+        self.action_commands.push(ScriptServerCmd::Move(direction.to_owned().to_lowercase()));
     }
 
-    pub fn clear(&mut self) {
-        self.commands.clear();
+    // Draw
+
+    pub fn draw_shape(&mut self, shape: ScriptShape) {
+        self.draw_commands.push(ScriptDrawCmd::DrawShape(shape));
+    }
+
+    pub fn draw_rect(&mut self, rect: ScriptRect, rgb: ScriptRGB) {
+        self.draw_commands.push(ScriptDrawCmd::DrawRect(rect, rgb));
+    }
+
+    pub fn draw_tile(&mut self, pos: ScriptPosition, tile: ScriptTile) {
+        self.draw_commands.push(ScriptDrawCmd::DrawTile(pos, tile));
+    }
+
+    pub fn draw_tile_sat(&mut self, pos: ScriptPosition, tile: ScriptTile, rgb: ScriptRGB) {
+        self.draw_commands.push(ScriptDrawCmd::DrawTileSat(pos, tile, rgb));
+    }
+
+    pub fn draw_tile_sized(&mut self, pos: ScriptPosition, tile: ScriptTile, size: i32) {
+        self.draw_commands.push(ScriptDrawCmd::DrawTileSized(pos, tile, size));
+    }
+
+    pub fn draw_frame(&mut self, rect: ScriptRect, tile: ScriptTile) {
+        self.draw_commands.push(ScriptDrawCmd::DrawFrame(rect, tile));
+    }
+
+    pub fn draw_frame_sat(&mut self, rect: ScriptRect, rgb: ScriptRGB, tile: ScriptTile) {
+        self.draw_commands.push(ScriptDrawCmd::DrawFrameSat(rect, rgb, tile));
+    }
+
+    pub fn draw_text(&mut self, pos: ScriptPosition, text: &str, font_name: &str, size: f32, rgb: ScriptRGB) {
+        self.draw_commands.push(ScriptDrawCmd::DrawText(pos, text.to_owned(), font_name.to_owned(), size as f32, rgb));
+    }
+
+    pub fn draw_messages(&mut self, rect: ScriptRect, font_name: &str, size: f32, rgb: ScriptRGB) {
+        self.draw_commands.push(ScriptDrawCmd::DrawMessages(rect, font_name.to_owned(), size as f32, rgb));
+    }
+
+    pub fn draw_game(&mut self, rect: ScriptRect) {
+        self.draw_commands.push(ScriptDrawCmd::DrawGame(rect));
+    }
+
+    pub fn draw_region(&mut self, name: &str, rect: ScriptRect, size: i32) {
+        self.draw_commands.push(ScriptDrawCmd::DrawRegion(name.to_owned(), rect, size));
+    }
+
+    pub fn clear_draw(&mut self) {
+        self.draw_commands.clear();
+    }
+
+    pub fn clear_action(&mut self) {
+        self.action_commands.clear();
+    }
+
+    pub fn clear_all(&mut self) {
+        self.draw_commands.clear();
+        self.action_commands.clear();
     }
 }

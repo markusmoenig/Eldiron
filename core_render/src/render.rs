@@ -2,11 +2,8 @@
 use std::{path::PathBuf, collections::{HashMap, HashSet}};
 
 use crate::prelude::*;
-use core_shared::{asset::{Asset}, update::GameUpdate, regiondata::{GameRegionData}, message::MessageData, light::Light};
-use crate::{draw2d::Draw2D, script_types::*};
-use rhai::{ Engine, Scope, AST, Dynamic };
-
-use core_shared::actions::*;
+use crate::draw2d::Draw2D;
+use rhai::{ Engine, Scope, AST, Dynamic, Map };
 
 use audio_engine::{AudioEngine, WavDecoder};
 
@@ -48,7 +45,9 @@ pub struct GameRender<'a> {
     pub last_update             : GameUpdate,
 
     //#[cfg(target_arch = "wasm32")]
-    pub audio_engine            : Option<AudioEngine<Group>>
+    pub audio_engine            : Option<AudioEngine<Group>>,
+
+    pub this_map                : Dynamic,
 }
 
 impl GameRender<'_> {
@@ -72,23 +71,24 @@ impl GameRender<'_> {
 
         engine.register_type_with_name::<ScriptTile>("Tile");
 
-        engine.register_type_with_name::<ScriptDraw>("Draw")
-            .register_fn("rect", ScriptDraw::rect)
-            .register_fn("tile", ScriptDraw::tile)
-            .register_fn("tile_sat", ScriptDraw::tile_sat)
-            .register_fn("tile_sized", ScriptDraw::tile_sized)
-            .register_fn("frame", ScriptDraw::frame)
-            .register_fn("frame_sat", ScriptDraw::frame_sat)
-            .register_fn("game", ScriptDraw::game)
-            .register_fn("region", ScriptDraw::region)
-            .register_fn("messages", ScriptDraw::messages)
-            .register_fn("text", ScriptDraw::text);
-
         engine.register_type_with_name::<ScriptCmd>("Cmd")
-            .register_fn("move", ScriptCmd::cmd_move);
 
-        engine.register_type_with_name::<ScriptMessageCmd>("MessageCmd")
-            .register_fn("status", ScriptMessageCmd::status);
+            .register_fn("action_move", ScriptCmd::action_move)
+
+            .register_fn("draw_rect", ScriptCmd::draw_rect)
+            .register_fn("draw_tile", ScriptCmd::draw_tile)
+            .register_fn("draw_tile_sat", ScriptCmd::draw_tile_sat)
+            .register_fn("draw_tile_sized", ScriptCmd::draw_tile_sized)
+            .register_fn("draw_frame", ScriptCmd::draw_frame)
+            .register_fn("draw_frame_sat", ScriptCmd::draw_frame_sat)
+            .register_fn("draw_game", ScriptCmd::draw_game)
+            .register_fn("draw_region", ScriptCmd::draw_region)
+            .register_fn("draw_messages", ScriptCmd::draw_messages)
+            .register_fn("draw_shape", ScriptCmd::draw_shape)
+            .register_fn("draw_text", ScriptCmd::draw_text);
+
+        //engine.register_type_with_name::<ScriptMessageCmd>("MessageCmd")
+        //    .register_fn("status", ScriptMessageCmd::status);
 
         engine.register_type_with_name::<ScriptRect>("Rect")
             .register_fn("rect", ScriptRect::new);
@@ -100,7 +100,18 @@ impl GameRender<'_> {
             .register_fn("rgb", ScriptRGB::new)
             .register_fn("rgba", ScriptRGB::new_with_alpha);
 
+
+        engine.register_type_with_name::<ScriptShape>("Shape")
+            .register_fn("shape", ScriptShape::shape)
+            .register_set("color", ScriptShape::set_color)
+            .register_set("border_color", ScriptShape::set_border_color)
+            .register_set("border_size", ScriptShape::set_border_size)
+            .register_fn("add_rect", ScriptShape::add_rect)
+            .register_fn("add_rounded_rect", ScriptShape::add_rounded_rect);
+
         engine.on_print(|x| println!("{}", x));
+
+        let this_map = Map::new();
 
         Self {
 
@@ -130,6 +141,8 @@ impl GameRender<'_> {
             last_update         : GameUpdate::new(),
 
             audio_engine        : None,
+
+            this_map            : this_map.into(),
         }
     }
 
@@ -147,19 +160,25 @@ impl GameRender<'_> {
                     self.last_position = None;
                     self.transition_active = false;
 
+                    let mut this_map = Map::new();
+
                     self.scope = Scope::new();
-                    self.scope.set_value("width", 1024 as i64);
-                    self.scope.set_value("height", 608 as i64);
-                    self.scope.set_value("tile_size", 32 as i64);
-                    self.scope.set_value("draw", ScriptDraw::new());
-                    self.scope.set_value("cmd", ScriptCmd::new());
-                    self.scope.set_value("message", ScriptMessageCmd::new());
+
+                    let cmd = ScriptCmd::new();
+                    this_map.insert("width".into(), (1024 as i32).into() );
+                    this_map.insert("height".into(), (608 as i32).into() );
+                    this_map.insert("tile_size".into(), (32 as i32).into() );
+
+                    this_map.insert("cmd".into(), Dynamic::from(cmd) );
+                    //this_map.insert("message_cmd", ScriptMessageCmd::new());
 
                     let mut tilemaps = ScriptTilemaps::new();
                     for index in 0..self.asset.tileset.maps_names.len() {
                         tilemaps.maps.insert(self.asset.tileset.maps_names[index].clone(), self.asset.tileset.maps_ids[index]);
                     }
-                    self.scope.set_value("tilemaps", tilemaps);
+                    this_map.insert("tilemaps".into(), Dynamic::from(tilemaps) );
+
+                    self.this_map = this_map.into();
 
                     let result = self.engine.eval_ast_with_scope::<Dynamic>(&mut self.scope, &ast);
                     if result.is_err() {
@@ -170,6 +189,34 @@ impl GameRender<'_> {
                                 string = first.to_owned();
                             }
                             return Some((string, err.position().line()));
+                        }
+                    }
+
+                    let _result = self.engine.call_fn_raw(
+                                    &mut self.scope,
+                                    &ast,
+                                    false,
+                                    true,
+                                    "init",
+                                    Some(&mut self.this_map),
+                                    []
+                                );
+
+                    if let Some(map) = self.this_map.read_lock::<Map>() {
+                        if let Some(w) = map.get("width") {
+                            if let Some(width) = w.as_int().ok() {
+                                self.width = width as usize;
+                            }
+                        }
+                        if let Some(h) = map.get("height") {
+                            if let Some(height) = h.as_int().ok() {
+                                self.height = height as usize;
+                            }
+                        }
+                        if let Some(ts) = map.get("tile_size") {
+                            if let Some(tile_size) = ts.as_int().ok() {
+                                self.tile_size = tile_size as usize;
+                            }
                         }
                     }
 
@@ -241,14 +288,13 @@ impl GameRender<'_> {
                             &mut self.scope,
                             &ast,
                             false,
-                            false,
-                            "draw_screen",
-                            None,
+                            true,
+                            "draw",
+                            Some(&mut self.this_map),
                             []
                         );
 
             if result.is_err() {
-                println!("{:?}", result);
                 if let Some(err) = result.err() {
                     let mut string = err.to_string();
                     let mut parts = string.split("(");
@@ -260,192 +306,200 @@ impl GameRender<'_> {
             }
         }
 
-        if let Some(mut draw) = self.scope.get_value::<ScriptDraw>("draw") {
+        // Draw
+        let mut to_draw = vec![];
 
-            //let game_frame = &mut self.frame[..];
+        if let Some(mut map) = self.this_map.write_lock::<Map>() {
+            if let Some(d) = map.get_mut("cmd") {
+                if let Some(mut draw) = d.write_lock::<ScriptCmd>() {
+
+                    to_draw = draw.draw_commands.clone();
+                    draw.clear_draw();
+                }
+            }
+        }
+
+        for cmd in to_draw {
+
             let stride = self.width;
 
-            for cmd in &draw.commands {
-
-                match cmd {
-                    ScriptDrawCmd::DrawRect(rect, rgb) => {
-                        if rect.is_safe(self.width, self.height) {
-                            self.draw2d.draw_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
-                        }
-                    },
-                    ScriptDrawCmd::DrawTile(pos, tile) => {
-                        //if rect.is_safe(self.width, self.height) {
-                            if let Some(map) = self.asset.get_map_of_id(tile.id.tilemap) {
-                                self.draw2d.draw_animated_tile( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, self.tile_size);
-                            }
-                        //}
-                    },
-                    ScriptDrawCmd::DrawTileSat(pos, tile, rgb) => {
-                        //if rect.is_safe(self.width, self.height) {
-                            if let Some(map) = self.asset.get_map_of_id(tile.id.tilemap) {
-                                self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, self.tile_size, rgb.value);
-                            }
-                        //}
-                    },
-                    ScriptDrawCmd::DrawTileSized(pos, tile, size) => {
-                        //if rect.is_safe(self.width, self.height) {
-                            if let Some(map) = self.asset.get_map_of_id(tile.id.tilemap) {
-                                self.draw2d.draw_animated_tile( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, *size as usize);
-                            }
-                        //}
-                    },
-                    ScriptDrawCmd::DrawFrame(rect, tile) => {
-                        if rect.is_safe(self.width, self.height) {
-                            if rect.rect.2 >= 3 * self.tile_size && rect.rect.3 >= 3 * self.tile_size {
-                                let tiles_x = rect.rect.2 / self.tile_size;
-                                let tiles_y = rect.rect.3 / self.tile_size;
-                                let mut x = rect.rect.0;
-
-                                let top_y = rect.rect.1;
-                                let bottom_y = rect.rect.1 + rect.rect.3 - self.tile_size;
-
-                                for i in 0..tiles_x {
-                                    let mut t;
-                                    if i == 0 { t = tile.id.clone(); }
-                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.x_off += 2; }
-                                    else { t = tile.id.clone(); t.x_off += 1; }
-
-                                    if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
-                                        self.draw2d.draw_animated_tile( &mut self.frame[..], &(x, top_y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size);
-                                    }
-
-                                    let mut t;
-                                    if i == 0 { t = tile.id.clone(); t.y_off += 2; }
-                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.x_off += 2; t.y_off += 2; }
-                                    else { t = tile.id.clone(); t.x_off += 1; t.y_off += 2; }
-
-                                    if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
-                                        self.draw2d.draw_animated_tile( &mut self.frame[..], &(x, bottom_y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size);
-                                    }
-
-                                    x += self.tile_size;
-                                }
-
-                                let right_x = rect.rect.0 + rect.rect.2 - self.tile_size;
-
-                                let mut y = rect.rect.1 + self.tile_size;
-                                for _i in 0..tiles_y - 2 {
-                                    let mut t = tile.id.clone(); t.y_off += 1;
-
-                                    if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
-                                        self.draw2d.draw_animated_tile( &mut self.frame[..], &(rect.rect.0, y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size);
-                                    }
-
-                                    let mut t = tile.id.clone(); t.x_off += 2; t.y_off += 1;
-
-                                    if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
-                                        self.draw2d.draw_animated_tile( &mut self.frame[..], &(right_x, y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size);
-                                    }
-
-                                    y += self.tile_size;
-                                }
-                            }
-                        }
-                    },
-                    ScriptDrawCmd::DrawFrameSat(rect, rgb, tile) => {
-                        if rect.is_safe(self.width, self.height) {
-                            if rect.rect.2 >= 3 * self.tile_size && rect.rect.3 >= 3 * self.tile_size {
-                                let tiles_x = rect.rect.2 / self.tile_size;
-                                let tiles_y = rect.rect.3 / self.tile_size;
-                                let mut x = rect.rect.0;
-
-                                let top_y = rect.rect.1;
-                                let bottom_y = rect.rect.1 + rect.rect.3 - self.tile_size;
-
-                                for i in 0..tiles_x {
-                                    let mut t;
-                                    if i == 0 { t = tile.id.clone(); }
-                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.x_off += 2; }
-                                    else { t = tile.id.clone(); t.x_off += 1; }
-
-                                    if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
-                                        self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(x, top_y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size, rgb.value);
-                                    }
-
-                                    let mut t;
-                                    if i == 0 { t = tile.id.clone(); t.y_off += 2; }
-                                    else if i == tiles_x - 1 { t = tile.id.clone(); t.x_off += 2; t.y_off += 2; }
-                                    else { t = tile.id.clone(); t.x_off += 1; t.y_off += 2; }
-
-                                    if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
-                                        self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(x, bottom_y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size, rgb.value);
-                                    }
-
-                                    x += self.tile_size;
-                                }
-
-                                let right_x = rect.rect.0 + rect.rect.2 - self.tile_size;
-
-                                let mut y = rect.rect.1 + self.tile_size;
-                                for _i in 0..tiles_y - 2 {
-                                    let mut t = tile.id.clone(); t.y_off += 1;
-
-                                    if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
-                                        self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(rect.rect.0, y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size, rgb.value);
-                                    }
-
-                                    let mut t = tile.id.clone(); t.x_off += 2; t.y_off += 1;
-
-                                    if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
-                                        self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(right_x, y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size, rgb.value);
-                                    }
-
-                                    y += self.tile_size;
-                                }
-                            }
-                        }
-                    },
-                    ScriptDrawCmd::DrawText(pos, text, font_name, size, rgb) => {
-                        if let Some(font) = self.asset.game_fonts.get(font_name) {
-                            self.draw2d.blend_text( &mut self.frame[..], &pos.pos, stride, font, *size, text, &rgb.value);
-                        }
-                    },
-                    ScriptDrawCmd::DrawMessages(rect, font_name, size, rgb) => {
-                        if let Some(font) = self.asset.game_fonts.get(font_name) {
-                            let max_lines = (rect.rect.3) / (*size as usize);
-                            let available_messages = self.messages.len();
-
-                            for l in 0..max_lines {
-                                if l >= available_messages {
-                                    break;
-                                }
-                                self.draw2d.blend_text_rect(&mut self.frame[..], &(rect.rect.0, rect.rect.1 + rect.rect.3 - (l+1) * (*size as usize), rect.rect.2, *size as usize), stride, &font, *size, self.messages[available_messages - 1 - l].message.as_str(), &rgb.value, crate::draw2d::TextAlignment::Left);
-                            }
-                        }
-                    },
-                    ScriptDrawCmd::DrawGame(rect) => {
-                        if rect.is_safe(self.width, self.height) {
-                            //let frame = &mut self.frame[..];
-                            if let Some(update) = update {
-                                self.process_game_draw(rect.rect, anim_counter, update, &mut None, self.width);
-                            } else {
-                                let update = self.last_update.clone();
-                                self.process_game_draw(rect.rect, anim_counter, &update, &mut None, self.width);
-                            }
-                        }
-                    },
-                    ScriptDrawCmd::DrawRegion(_name, _rect, _size) => {
-
-                        /*
-                        for (index, n) in self.regions_names.iter().enumerate() {
-                            if n == name {
-                                if let Some(region) = self.regions.get(&self.regions_ids[index]) {
-
-                                    _ = self.draw2d.as_ref().unwrap().draw_region_content(game_frame, region, &rect.rect, stride, *size as usize, self.game_anim_counter, &self.asset.as_ref().unwrap());
-                                }
-                            }
-                        }*/
+            match cmd {
+                ScriptDrawCmd::DrawRect(rect, rgb) => {
+                    if rect.is_safe(self.width, self.height) {
+                        self.draw2d.draw_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
                     }
+                },
+                ScriptDrawCmd::DrawShape(shape) => {
+                    shape.draw(&mut self.frame[..], (self.width, self.height));
+                },
+                ScriptDrawCmd::DrawTile(pos, tile) => {
+                    //if rect.is_safe(self.width, self.height) {
+                        if let Some(map) = self.asset.get_map_of_id(tile.id.tilemap) {
+                            self.draw2d.draw_animated_tile( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, self.tile_size);
+                        }
+                    //}
+                },
+                ScriptDrawCmd::DrawTileSat(pos, tile, rgb) => {
+                    //if rect.is_safe(self.width, self.height) {
+                        if let Some(map) = self.asset.get_map_of_id(tile.id.tilemap) {
+                            self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, self.tile_size, rgb.value);
+                        }
+                    //}
+                },
+                ScriptDrawCmd::DrawTileSized(pos, tile, size) => {
+                    //if rect.is_safe(self.width, self.height) {
+                        if let Some(map) = self.asset.get_map_of_id(tile.id.tilemap) {
+                            self.draw2d.draw_animated_tile( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, size as usize);
+                        }
+                    //}
+                },
+                ScriptDrawCmd::DrawFrame(rect, tile) => {
+                    if rect.is_safe(self.width, self.height) {
+                        if rect.rect.2 >= 3 * self.tile_size && rect.rect.3 >= 3 * self.tile_size {
+                            let tiles_x = rect.rect.2 / self.tile_size;
+                            let tiles_y = rect.rect.3 / self.tile_size;
+                            let mut x = rect.rect.0;
+
+                            let top_y = rect.rect.1;
+                            let bottom_y = rect.rect.1 + rect.rect.3 - self.tile_size;
+
+                            for i in 0..tiles_x {
+                                let mut t;
+                                if i == 0 { t = tile.id.clone(); }
+                                else if i == tiles_x - 1 { t = tile.id.clone(); t.x_off += 2; }
+                                else { t = tile.id.clone(); t.x_off += 1; }
+
+                                if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
+                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(x, top_y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size);
+                                }
+
+                                let mut t;
+                                if i == 0 { t = tile.id.clone(); t.y_off += 2; }
+                                else if i == tiles_x - 1 { t = tile.id.clone(); t.x_off += 2; t.y_off += 2; }
+                                else { t = tile.id.clone(); t.x_off += 1; t.y_off += 2; }
+
+                                if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
+                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(x, bottom_y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size);
+                                }
+
+                                x += self.tile_size;
+                            }
+
+                            let right_x = rect.rect.0 + rect.rect.2 - self.tile_size;
+
+                            let mut y = rect.rect.1 + self.tile_size;
+                            for _i in 0..tiles_y - 2 {
+                                let mut t = tile.id.clone(); t.y_off += 1;
+
+                                if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
+                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(rect.rect.0, y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size);
+                                }
+
+                                let mut t = tile.id.clone(); t.x_off += 2; t.y_off += 1;
+
+                                if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
+                                    self.draw2d.draw_animated_tile( &mut self.frame[..], &(right_x, y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size);
+                                }
+
+                                y += self.tile_size;
+                            }
+                        }
+                    }
+                },
+                ScriptDrawCmd::DrawFrameSat(rect, rgb, tile) => {
+                    if rect.is_safe(self.width, self.height) {
+                        if rect.rect.2 >= 3 * self.tile_size && rect.rect.3 >= 3 * self.tile_size {
+                            let tiles_x = rect.rect.2 / self.tile_size;
+                            let tiles_y = rect.rect.3 / self.tile_size;
+                            let mut x = rect.rect.0;
+
+                            let top_y = rect.rect.1;
+                            let bottom_y = rect.rect.1 + rect.rect.3 - self.tile_size;
+
+                            for i in 0..tiles_x {
+                                let mut t;
+                                if i == 0 { t = tile.id.clone(); }
+                                else if i == tiles_x - 1 { t = tile.id.clone(); t.x_off += 2; }
+                                else { t = tile.id.clone(); t.x_off += 1; }
+
+                                if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
+                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(x, top_y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size, rgb.value);
+                                }
+
+                                let mut t;
+                                if i == 0 { t = tile.id.clone(); t.y_off += 2; }
+                                else if i == tiles_x - 1 { t = tile.id.clone(); t.x_off += 2; t.y_off += 2; }
+                                else { t = tile.id.clone(); t.x_off += 1; t.y_off += 2; }
+
+                                if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
+                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(x, bottom_y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size, rgb.value);
+                                }
+
+                                x += self.tile_size;
+                            }
+
+                            let right_x = rect.rect.0 + rect.rect.2 - self.tile_size;
+
+                            let mut y = rect.rect.1 + self.tile_size;
+                            for _i in 0..tiles_y - 2 {
+                                let mut t = tile.id.clone(); t.y_off += 1;
+
+                                if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
+                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(rect.rect.0, y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size, rgb.value);
+                                }
+
+                                let mut t = tile.id.clone(); t.x_off += 2; t.y_off += 1;
+
+                                if let Some(map) = self.asset.get_map_of_id(t.tilemap) {
+                                    self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(right_x, y), &map, stride, &(t.x_off as usize, t.y_off as usize), anim_counter, self.tile_size, rgb.value);
+                                }
+
+                                y += self.tile_size;
+                            }
+                        }
+                    }
+                },
+                ScriptDrawCmd::DrawText(pos, text, font_name, size, rgb) => {
+                    if let Some(font) = self.asset.game_fonts.get(&font_name) {
+                        self.draw2d.blend_text( &mut self.frame[..], &pos.pos, stride, font, size, text.as_str(), &rgb.value);
+                    }
+                },
+                ScriptDrawCmd::DrawMessages(rect, font_name, size, rgb) => {
+                    if let Some(font) = self.asset.game_fonts.get(&font_name) {
+                        let max_lines = (rect.rect.3) / (size as usize);
+                        let available_messages = self.messages.len();
+
+                        for l in 0..max_lines {
+                            if l >= available_messages {
+                                break;
+                            }
+                            self.draw2d.blend_text_rect(&mut self.frame[..], &(rect.rect.0, rect.rect.1 + rect.rect.3 - (l+1) * (size as usize), rect.rect.2, size as usize), stride, &font, size, self.messages[available_messages - 1 - l].message.as_str(), &rgb.value, crate::draw2d::TextAlignment::Left);
+                        }
+                    }
+                },
+                ScriptDrawCmd::DrawGame(rect) => {
+                    if rect.is_safe(self.width, self.height) {
+                    if let Some(update) = update {
+                        self.process_game_draw(rect.rect, anim_counter, update, &mut None, self.width);
+                    } else {
+                        let update = self.last_update.clone();
+                        self.process_game_draw(rect.rect, anim_counter, &update, &mut None, self.width);
+                    }                    }
+                },
+                ScriptDrawCmd::DrawRegion(_name, _rect, _size) => {
+
+                    /*
+                    for (index, n) in self.regions_names.iter().enumerate() {
+                        if n == name {
+                            if let Some(region) = self.regions.get(&self.regions_ids[index]) {
+
+                                _ = self.draw2d.as_ref().unwrap().draw_region_content(game_frame, region, &rect.rect, stride, *size as usize, self.game_anim_counter, &self.asset.as_ref().unwrap());
+                            }
+                        }
+                    }*/
                 }
             }
 
-            draw.clear();
-            self.scope.set_value("draw", draw);
         }
 
         None
@@ -747,9 +801,9 @@ impl GameRender<'_> {
                             &mut self.scope,
                             &ast,
                             false,
-                            false,
+                            true,
                             "key_down",
-                            None,
+                            Some(&mut self.this_map),
                             [key.into()]
                         );
 
@@ -780,7 +834,7 @@ impl GameRender<'_> {
                             false,
                             false,
                             "touch_down",
-                            None,
+                            Some(&mut self.this_map),
                             [(pos.0 as i32).into(), (pos.1 as i32).into()]
                         );
 
@@ -805,41 +859,45 @@ impl GameRender<'_> {
     fn process_cmds(&mut self, player_id: Uuid) -> Vec<String> {
         let mut commands = vec![];
 
-        if let Some(mut cmd) = self.scope.get_value::<ScriptCmd>("cmd") {
+        if let Some(mut map) = self.this_map.write_lock::<Map>() {
+            if let Some(c) = map.get_mut("cmd") {
+                if let Some(mut cmd) = c.write_lock::<ScriptCmd>() {
 
-            for cmd in &cmd.commands {
+                    for cmd in &cmd.action_commands {
 
-                match cmd {
-                    ScriptServerCmd::Move(direction) => {
-                        let mut dir : Option<PlayerDirection> = None;
+                        match cmd {
+                            ScriptServerCmd::Move(direction) => {
+                                let mut dir : Option<PlayerDirection> = None;
 
-                        if direction == "west" {
-                            dir = Some(PlayerDirection::West);
-                        } else
-                        if direction == "north" {
-                            dir = Some(PlayerDirection::North);
-                        } else
-                        if direction == "east" {
-                            dir = Some(PlayerDirection::East);
-                        } else
-                        if direction == "south" {
-                            dir = Some(PlayerDirection::South);
-                        }
+                                if direction == "west" {
+                                    dir = Some(PlayerDirection::West);
+                                } else
+                                if direction == "north" {
+                                    dir = Some(PlayerDirection::North);
+                                } else
+                                if direction == "east" {
+                                    dir = Some(PlayerDirection::East);
+                                } else
+                                if direction == "south" {
+                                    dir = Some(PlayerDirection::South);
+                                }
 
-                        if let Some(dir) = dir {
-                            if let Some(action) = pack_action(player_id, "onMove".to_string(), dir, "".to_string()) {
-                                commands.push(action);
+                                if let Some(dir) = dir {
+                                    if let Some(action) = pack_action(player_id, "onMove".to_string(), dir, "".to_string()) {
+                                        commands.push(action);
+                                    }
+                                }
                             }
                         }
                     }
+
+                    cmd.clear_action();
                 }
             }
-
-            cmd.clear();
-            self.scope.set_value("cmd", cmd);
         }
 
-        if let Some(mut cmd) = self.scope.get_value::<ScriptMessageCmd>("message") {
+        /*
+        if let Some(mut cmd) = self.scope.get_value::<ScriptMessageCmd>("message_cmd") {
 
             for cmd in &cmd.messages {
 
@@ -857,8 +915,8 @@ impl GameRender<'_> {
             }
 
             cmd.clear();
-            self.scope.set_value("message", cmd);
-        }
+            self.scope.set_value("message_cmd", cmd);
+        }*/
 
         commands
     }

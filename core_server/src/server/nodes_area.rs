@@ -60,7 +60,6 @@ pub fn enter_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance
     }
 
     if found_character {
-        println!("yo");
         return BehaviorNodeConnector::Right;
     }
 
