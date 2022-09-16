@@ -15,4 +15,5 @@ pub struct MessageData {
     pub message_type        : MessageType,
     pub message             : String,
     pub from                : String,
+    pub buffer              : Option<(usize, usize, Vec<u8>)>
 }

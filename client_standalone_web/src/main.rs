@@ -144,7 +144,7 @@ async fn run() {
             for message in &messages {
                 match message {
                     Message::PlayerUpdate(_uuid, update) => {
-                        render.draw(anim_counter, &update);
+                        render.draw(anim_counter, Some(update));
                     },
                     _ => {}
                 }

@@ -288,6 +288,7 @@ impl RegionInstance<'_> {
                                             message_type        : MessageType::Status,
                                             message             : value.clone(),
                                             from                : my_name.clone(),
+                                            buffer              : None,
                                         })
                                     },
                                     ScriptMessage::Debug(value) => {
@@ -295,6 +296,7 @@ impl RegionInstance<'_> {
                                             message_type        : MessageType::Debug,
                                             message             : value.clone(),
                                             from                : my_name.clone(),
+                                            buffer              : None,
                                         })
                                     },
                                     ScriptMessage::Error(value) => {
@@ -302,6 +304,7 @@ impl RegionInstance<'_> {
                                             message_type        : MessageType::Error,
                                             message             : value.clone(),
                                             from                : my_name.clone(),
+                                            buffer              : None,
                                         })
                                     }
                                 }

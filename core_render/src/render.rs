@@ -87,8 +87,8 @@ impl GameRender<'_> {
             .register_fn("draw_shape", ScriptCmd::draw_shape)
             .register_fn("draw_text", ScriptCmd::draw_text);
 
-        //engine.register_type_with_name::<ScriptMessageCmd>("MessageCmd")
-        //    .register_fn("status", ScriptMessageCmd::status);
+        engine.register_type_with_name::<ScriptMessageCmd>("MessageCmd")
+           .register_fn("status", ScriptMessageCmd::status);
 
         engine.register_type_with_name::<ScriptRect>("Rect")
             .register_fn("rect", ScriptRect::new);
@@ -170,7 +170,7 @@ impl GameRender<'_> {
                     this_map.insert("tile_size".into(), (32 as i32).into() );
 
                     this_map.insert("cmd".into(), Dynamic::from(cmd) );
-                    //this_map.insert("message_cmd", ScriptMessageCmd::new());
+                    this_map.insert("message".into(), Dynamic::from(ScriptMessageCmd::new()));
 
                     let mut tilemaps = ScriptTilemaps::new();
                     for index in 0..self.asset.tileset.maps_names.len() {
@@ -461,19 +461,29 @@ impl GameRender<'_> {
                 },
                 ScriptDrawCmd::DrawText(pos, text, font_name, size, rgb) => {
                     if let Some(font) = self.asset.game_fonts.get(&font_name) {
-                        self.draw2d.blend_text( &mut self.frame[..], &pos.pos, stride, font, size, text.as_str(), &rgb.value);
+                        self.draw2d.blend_text_safe( &mut self.frame[..], &pos.pos, stride, font, size, text.as_str(), &rgb.value, (0, 0, self.width, self.height));
                     }
                 },
-                ScriptDrawCmd::DrawMessages(rect, font_name, size, rgb) => {
-                    if let Some(font) = self.asset.game_fonts.get(&font_name) {
-                        let max_lines = (rect.rect.3) / (size as usize);
-                        let available_messages = self.messages.len();
+                ScriptDrawCmd::DrawMessages(rect, font_name, font_size, rgb) => {
 
-                        for l in 0..max_lines {
-                            if l >= available_messages {
-                                break;
+                    if let Some(font) = self.asset.game_fonts.get(&font_name) {
+                        for index in 0..self.messages.len() {
+                            if self.messages[index].buffer.is_none() {
+                                self.messages[index].buffer = Some(self.draw2d.create_buffer_for_message(rect.rect.2 - 10, font, font_size, &self.messages[index], &rgb.value));
                             }
-                            self.draw2d.blend_text_rect(&mut self.frame[..], &(rect.rect.0, rect.rect.1 + rect.rect.3 - (l+1) * (size as usize), rect.rect.2, size as usize), stride, &font, size, self.messages[available_messages - 1 - l].message.as_str(), &rgb.value, crate::draw2d::TextAlignment::Left);
+                        }
+
+                        let mut message_index = (self.messages.len() - 1) as i32;
+                        let mut y = rect.rect.1 + rect.rect.3 - 5;
+
+                        while message_index >= 0 {
+                            if let Some(buffer) = &self.messages[message_index as usize].buffer {
+
+                                y -= buffer.1;
+
+                                self.draw2d.blend_slice_safe(&mut self.frame[..], &buffer.2, &((rect.rect.0 + 5) as isize, y as isize, buffer.0, buffer.1), self.width, &rect.rect);
+                            }
+                            message_index -= 1;
                         }
                     }
                 },
@@ -487,19 +497,8 @@ impl GameRender<'_> {
                     }                    }
                 },
                 ScriptDrawCmd::DrawRegion(_name, _rect, _size) => {
-
-                    /*
-                    for (index, n) in self.regions_names.iter().enumerate() {
-                        if n == name {
-                            if let Some(region) = self.regions.get(&self.regions_ids[index]) {
-
-                                _ = self.draw2d.as_ref().unwrap().draw_region_content(game_frame, region, &rect.rect, stride, *size as usize, self.game_anim_counter, &self.asset.as_ref().unwrap());
-                            }
-                        }
-                    }*/
                 }
             }
-
         }
 
         None
@@ -896,27 +895,32 @@ impl GameRender<'_> {
             }
         }
 
-        /*
-        if let Some(mut cmd) = self.scope.get_value::<ScriptMessageCmd>("message_cmd") {
+        let mut messages = vec![];
 
-            for cmd in &cmd.messages {
+        if let Some(mut map) = self.this_map.write_lock::<Map>() {
+            if let Some(c) = map.get_mut("message") {
+                if let Some(mut cmd) = c.write_lock::<ScriptMessageCmd>() {
 
-                match cmd {
-                    ScriptMessage::Status(message) => {
-                        self.messages.push(MessageData { message_type: core_shared::message::MessageType::Status, message: message.clone(), from: "System".to_string() });
-                    },
-                    ScriptMessage::Debug(message) => {
-                        self.messages.push(MessageData { message_type: core_shared::message::MessageType::Debug, message: message.clone(), from: "System".to_string() });
-                    },
-                    ScriptMessage::Error(message) => {
-                        self.messages.push(MessageData { message_type: core_shared::message::MessageType::Error, message: message.clone(), from: "System".to_string() });
-                    }
+                    messages = cmd.messages.clone();
+                    cmd.clear();
                 }
             }
+        }
 
-            cmd.clear();
-            self.scope.set_value("message_cmd", cmd);
-        }*/
+        for cmd in &messages {
+
+            match cmd {
+                ScriptMessage::Status(message) => {
+                    self.messages.push(MessageData { message_type: core_shared::message::MessageType::Status, message: message.clone(), from: "System".to_string(), buffer: None });
+                },
+                ScriptMessage::Debug(message) => {
+                    self.messages.push(MessageData { message_type: core_shared::message::MessageType::Debug, message: message.clone(), from: "System".to_string(), buffer: None });
+                },
+                ScriptMessage::Error(message) => {
+                    self.messages.push(MessageData { message_type: core_shared::message::MessageType::Error, message: message.clone(), from: "System".to_string(), buffer: None });
+                }
+            }
+        }
 
         commands
     }

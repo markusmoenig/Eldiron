@@ -266,7 +266,7 @@ pub fn message_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
     // Somebody is in the area ?
     if let Some(area_list) = data.area_characters.get(&area_index) {
 
-        let message_data = MessageData { message_type, message: text.clone(), from: "System".to_string() };
+        let message_data = MessageData { message_type, message: text.clone(), from: "System".to_string(), buffer: None };
         for index in area_list {
             data.instances[*index].messages.push(message_data.clone());
         }

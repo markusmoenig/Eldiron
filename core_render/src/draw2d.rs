@@ -365,6 +365,44 @@ impl Draw2D {
         }
     }
 
+    /// Draws the given text
+    pub fn blend_text_safe(&self,  frame: &mut [u8], pos: &(usize, usize), stride: usize, font: &Font, size: f32, text: &str, color: &[u8; 4], safe_rect: (usize, usize, usize, usize)) {
+        if text.is_empty() { return; }
+
+        let fonts = &[font];
+
+        let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
+        layout.reset(&LayoutSettings {
+            ..LayoutSettings::default()
+        });
+        layout.append(fonts, &TextStyle::new(text, size, 0));
+
+        for glyph in layout.glyphs() {
+            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+            //println!("Metrics: {:?}", glyph);
+
+            for y in 0..metrics.height {
+
+                if y < safe_rect.1 && y >= safe_rect.1 + safe_rect.3 {
+                    continue;
+                }
+
+                for x in 0..metrics.width {
+
+                    if x < safe_rect.0 && x >= safe_rect.0 + safe_rect.2 {
+                        continue;
+                    }
+
+                    let i = (x+pos.0+glyph.x as usize) * 4 + (y + pos.1 + glyph.y as usize) * stride * 4;
+                    let m = alphamap[x + y * metrics.width];
+
+                    let background = &[frame[i], frame[i+1], frame[i+2], frame[i+3]];
+                    frame[i..i + 4].copy_from_slice(&self.mix_color(&background, &color, m as f64 / 255.0));
+                }
+            }
+        }
+    }
+
     /// Returns the size of the given text
     pub fn get_text_size(&self, font: &Font, size: f32, text: &str) -> (usize, usize) {
         let fonts = &[font];
@@ -638,6 +676,42 @@ impl Draw2D {
         }
 
         true
+    }
+
+    /// Draw hover help
+    pub fn create_buffer_for_message(&self, max_width: usize, font: &Font, font_size: f32, message: &MessageData, color: &[u8; 4]) -> (usize, usize, Vec<u8>) {
+
+        let fonts = &[font];
+
+        let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
+        layout.reset(&LayoutSettings {
+            max_width : Some(max_width as f32),
+            max_height : None,
+            horizontal_align : HorizontalAlign::Left,
+            vertical_align : VerticalAlign::Middle,
+            ..LayoutSettings::default()
+        });
+        layout.append(fonts, &TextStyle::new(message.message.as_str(), font_size, 0));
+
+        let width = max_width;
+        let height = layout.height().ceil() as usize;
+        let mut buffer : Vec<u8> = vec![0; width * height * 4];
+
+        let frame = &mut buffer[..];
+
+        for glyph in layout.glyphs() {
+            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+
+            for y in 0..metrics.height {
+                for x in 0..metrics.width {
+                    let i = (x+glyph.x as usize) * 4 + (y + glyph.y as usize) * max_width * 4;
+                    let m = alphamap[x + y * metrics.width];
+
+                    frame[i..i + 4].copy_from_slice(&[color[0], color[1], color[2], m]);
+                }
+            }
+        }
+        (width, height, buffer)
     }
 
 }
