@@ -988,8 +988,8 @@ impl RegionInstance<'_> {
 
                 // Set the default values into the scope
                 let mut scope = default_scope.clone();
-                //scope.set_value("NAME", behavior.name.clone());
-                scope.set_value("ALIGNMENT", inst.alignment as i32);
+                scope.set_value("name", behavior.name.clone());
+                scope.set_value("alignment", inst.alignment as i32);
                 scope.set_value("messages", ScriptMessageCmd::new());
                 scope.set_value("inventory", Inventory::new());
 

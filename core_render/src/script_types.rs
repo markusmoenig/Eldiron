@@ -101,6 +101,23 @@ impl ScriptRect {
         }
         return true;
     }
+
+    pub fn x(&mut self) -> i32 {
+        self.rect.0 as i32
+    }
+
+    pub fn y(&mut self) -> i32 {
+        self.rect.1 as i32
+    }
+
+    pub fn pos(&mut self) -> ScriptPosition {
+        ScriptPosition { pos: (self.rect.0, self.rect.1) }
+    }
+
+    pub fn is_inside(&mut self, pos: ScriptPosition) -> bool {
+        pos.pos.0 >= self.rect.0 && pos.pos.1 >= self.rect.1 && pos.pos.0 < self.rect.0 + self.rect.2 && pos.pos.1 < self.rect.1 + self.rect.3
+    }
+
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -147,7 +164,7 @@ pub enum ScriptDrawCmd {
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum ScriptServerCmd {
-    Move(String),
+    Action(String, String),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -166,8 +183,8 @@ impl ScriptCmd {
 
     // Actions
 
-    pub fn action_move(&mut self, direction: &str) {
-        self.action_commands.push(ScriptServerCmd::Move(direction.to_owned().to_lowercase()));
+    pub fn action(&mut self, action: &str, direction: &str) {
+        self.action_commands.push(ScriptServerCmd::Action(action.to_owned(), direction.to_owned().to_lowercase()));
     }
 
     // Draw

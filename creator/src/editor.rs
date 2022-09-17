@@ -172,7 +172,7 @@ impl Editor<'_> {
     /// A key was pressed
     pub fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset) -> bool {
 
-        if self.context.is_running && self.context.code_editor_is_active == false {
+        if self.context.is_running && (self.context.code_editor_is_active == false || self.context.is_debugging == false) {
 
             let mut key_string = "";
 

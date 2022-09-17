@@ -33,6 +33,7 @@ impl CodeEditorWidget {
         let mut editor = CodeEditor::new();
 
         editor.set_font("resources/Source_Code_Pro/static/SourceCodePro-Regular.ttf");
+        //editor.theme.background[3] = 10;
 
         Self {
             rect,

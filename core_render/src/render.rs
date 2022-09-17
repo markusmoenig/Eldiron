@@ -73,7 +73,7 @@ impl GameRender<'_> {
 
         engine.register_type_with_name::<ScriptCmd>("Cmd")
 
-            .register_fn("action_move", ScriptCmd::action_move)
+            .register_fn("action", ScriptCmd::action)
 
             .register_fn("draw_rect", ScriptCmd::draw_rect)
             .register_fn("draw_tile", ScriptCmd::draw_tile)
@@ -91,7 +91,11 @@ impl GameRender<'_> {
            .register_fn("status", ScriptMessageCmd::status);
 
         engine.register_type_with_name::<ScriptRect>("Rect")
-            .register_fn("rect", ScriptRect::new);
+            .register_fn("rect", ScriptRect::new)
+            .register_fn("is_inside", ScriptRect::is_inside)
+            .register_get("x", ScriptRect::x)
+            .register_get("y", ScriptRect::y)
+            .register_get("pos", ScriptRect::pos);
 
         engine.register_type_with_name::<ScriptPosition>("Position")
             .register_fn("pos", ScriptPosition::new);
@@ -99,7 +103,6 @@ impl GameRender<'_> {
         engine.register_type_with_name::<ScriptRGB>("RGB")
             .register_fn("rgb", ScriptRGB::new)
             .register_fn("rgba", ScriptRGB::new_with_alpha);
-
 
         engine.register_type_with_name::<ScriptShape>("Shape")
             .register_fn("shape", ScriptShape::shape)
@@ -865,7 +868,7 @@ impl GameRender<'_> {
                     for cmd in &cmd.action_commands {
 
                         match cmd {
-                            ScriptServerCmd::Move(direction) => {
+                            ScriptServerCmd::Action(action, direction) => {
                                 let mut dir : Option<PlayerDirection> = None;
 
                                 if direction == "west" {
@@ -882,7 +885,7 @@ impl GameRender<'_> {
                                 }
 
                                 if let Some(dir) = dir {
-                                    if let Some(action) = pack_action(player_id, "onMove".to_string(), dir, "".to_string()) {
+                                    if let Some(action) = pack_action(player_id, action.clone(), dir, "".to_string()) {
                                         commands.push(action);
                                     }
                                 }
