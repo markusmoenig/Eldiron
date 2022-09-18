@@ -78,6 +78,7 @@ impl GameRender<'_> {
             .register_fn("draw_rect", ScriptCmd::draw_rect)
             .register_fn("draw_tile", ScriptCmd::draw_tile)
             .register_fn("draw_tile_sat", ScriptCmd::draw_tile_sat)
+            .register_fn("draw_tile_mult", ScriptCmd::draw_tile_mult)
             .register_fn("draw_tile_sized", ScriptCmd::draw_tile_sized)
             .register_fn("draw_frame", ScriptCmd::draw_frame)
             .register_fn("draw_frame_sat", ScriptCmd::draw_frame_sat)
@@ -85,7 +86,8 @@ impl GameRender<'_> {
             .register_fn("draw_region", ScriptCmd::draw_region)
             .register_fn("draw_messages", ScriptCmd::draw_messages)
             .register_fn("draw_shape", ScriptCmd::draw_shape)
-            .register_fn("draw_text", ScriptCmd::draw_text);
+            .register_fn("draw_text", ScriptCmd::draw_text)
+            .register_fn("draw_text_rect", ScriptCmd::draw_text_rect);
 
         engine.register_type_with_name::<ScriptMessageCmd>("MessageCmd")
            .register_fn("status", ScriptMessageCmd::status);
@@ -113,6 +115,8 @@ impl GameRender<'_> {
             .register_fn("add_rounded_rect", ScriptShape::add_rounded_rect);
 
         engine.on_print(|x| println!("{}", x));
+
+        engine.register_fn("to_string", |x: f32| format!("{}", x.round() as i32));
 
         let this_map = Map::new();
 
@@ -180,6 +184,7 @@ impl GameRender<'_> {
                         tilemaps.maps.insert(self.asset.tileset.maps_names[index].clone(), self.asset.tileset.maps_ids[index]);
                     }
                     this_map.insert("tilemaps".into(), Dynamic::from(tilemaps) );
+                    this_map.insert("player".into(), Dynamic::from(rhai::Map::new()));
 
                     self.this_map = this_map.into();
 
@@ -271,6 +276,29 @@ impl GameRender<'_> {
             self.lights.insert(position.region, update.lights.clone());
         }
 
+        // Insert the scope into the player map
+
+        if let Some(mut map) = self.this_map.write_lock::<Map>() {
+            if let Some(c) = map.get_mut("player") {
+                if let Some(mut player_map) = c.write_lock::<rhai::Map>() {
+                    for (n, v) in &update.scope_buffer.values {
+                        match v {
+                            Value::Integer(value) => {
+                                player_map.insert(n.into(), Dynamic::from(value.clone()));
+                            },
+                            Value::Float(value) => {
+                                player_map.insert(n.into(), Dynamic::from(value.clone()));
+                            },
+                            Value::String(value) => {
+                                player_map.insert(n.into(), Dynamic::from(value.clone()));
+                            },
+                            _ => {},
+                        }
+                    }
+                }
+            }
+        }
+
         None
     }
 
@@ -346,6 +374,13 @@ impl GameRender<'_> {
                     //if rect.is_safe(self.width, self.height) {
                         if let Some(map) = self.asset.get_map_of_id(tile.id.tilemap) {
                             self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, self.tile_size, rgb.value);
+                        }
+                    //}
+                },
+                ScriptDrawCmd::DrawTileMult(pos, tile, rgb) => {
+                    //if rect.is_safe(self.width, self.height) {
+                        if let Some(map) = self.asset.get_map_of_id(tile.id.tilemap) {
+                            self.draw2d.draw_animated_tile_mult( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, self.tile_size, rgb.value);
                         }
                     //}
                 },
@@ -465,6 +500,23 @@ impl GameRender<'_> {
                 ScriptDrawCmd::DrawText(pos, text, font_name, size, rgb) => {
                     if let Some(font) = self.asset.game_fonts.get(&font_name) {
                         self.draw2d.blend_text_safe( &mut self.frame[..], &pos.pos, stride, font, size, text.as_str(), &rgb.value, (0, 0, self.width, self.height));
+                    }
+                },
+                ScriptDrawCmd::DrawTextRect(rect, text, font_name, size, rgb, align) => {
+                    if rect.is_safe(self.width, self.height) {
+                        if let Some(font) = self.asset.game_fonts.get(&font_name) {
+
+                            let al = align.to_lowercase();
+
+                            if al == "right" {
+                                self.draw2d.blend_text_rect( &mut self.frame[..], &rect.rect, stride, font, size, text.as_str(), &rgb.value, crate::draw2d::TextAlignment::Right);
+                            } else
+                            if al == "center" {
+                                self.draw2d.blend_text_rect( &mut self.frame[..], &rect.rect, stride, font, size, text.as_str(), &rgb.value, crate::draw2d::TextAlignment::Center);
+                            } else {
+                                self.draw2d.blend_text_rect( &mut self.frame[..], &rect.rect, stride, font, size, text.as_str(), &rgb.value, crate::draw2d::TextAlignment::Left);
+                            }
+                        }
                     }
                 },
                 ScriptDrawCmd::DrawMessages(rect, font_name, font_size, rgb) => {

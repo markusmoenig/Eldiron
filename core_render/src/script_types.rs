@@ -150,12 +150,14 @@ pub enum ScriptDrawCmd {
     DrawRect(ScriptRect, ScriptRGB),
     DrawTile(ScriptPosition, ScriptTile),
     DrawTileSat(ScriptPosition, ScriptTile, ScriptRGB),
+    DrawTileMult(ScriptPosition, ScriptTile, ScriptRGB),
     DrawTileSized(ScriptPosition, ScriptTile, i32),
     DrawFrame(ScriptRect, ScriptTile),
     DrawFrameSat(ScriptRect, ScriptRGB, ScriptTile),
     DrawGame(ScriptRect),
     DrawRegion(String, ScriptRect, i32),
     DrawText(ScriptPosition, String, String, f32, ScriptRGB),
+    DrawTextRect(ScriptRect, String, String, f32, ScriptRGB, String),
     DrawMessages(ScriptRect, String, f32, ScriptRGB),
     DrawShape(ScriptShape),
 }
@@ -205,6 +207,10 @@ impl ScriptCmd {
         self.draw_commands.push(ScriptDrawCmd::DrawTileSat(pos, tile, rgb));
     }
 
+    pub fn draw_tile_mult(&mut self, pos: ScriptPosition, tile: ScriptTile, rgb: ScriptRGB) {
+        self.draw_commands.push(ScriptDrawCmd::DrawTileMult(pos, tile, rgb));
+    }
+
     pub fn draw_tile_sized(&mut self, pos: ScriptPosition, tile: ScriptTile, size: i32) {
         self.draw_commands.push(ScriptDrawCmd::DrawTileSized(pos, tile, size));
     }
@@ -219,6 +225,10 @@ impl ScriptCmd {
 
     pub fn draw_text(&mut self, pos: ScriptPosition, text: &str, font_name: &str, size: f32, rgb: ScriptRGB) {
         self.draw_commands.push(ScriptDrawCmd::DrawText(pos, text.to_owned(), font_name.to_owned(), size as f32, rgb));
+    }
+
+    pub fn draw_text_rect(&mut self, rect: ScriptRect, text: &str, font_name: &str, size: f32, rgb: ScriptRGB, align: String) {
+        self.draw_commands.push(ScriptDrawCmd::DrawTextRect(rect, text.to_owned(), font_name.to_owned(), size as f32, rgb, align));
     }
 
     pub fn draw_messages(&mut self, rect: ScriptRect, font_name: &str, size: f32, rgb: ScriptRGB) {

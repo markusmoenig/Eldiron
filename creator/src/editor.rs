@@ -175,6 +175,7 @@ impl Editor<'_> {
         if self.context.is_running && (self.context.code_editor_is_active == false || self.context.is_debugging == false) {
 
             let mut key_string = "";
+            let str_c;
 
             if self.context.is_debugging {
                 if key == Some(WidgetKey::Escape) {
@@ -195,6 +196,11 @@ impl Editor<'_> {
             } else
             if key == Some(WidgetKey::Left) {
                 key_string = "left";
+            }
+
+            if let Some(c) = &char {
+                str_c = c.to_string();
+                key_string = str_c.as_str();
             }
 
             // Execute game key command

@@ -229,6 +229,9 @@ impl Draw2D {
             text_to_use.pop();
             text_size = self.get_text_size(font, size, (text_to_use.clone() + "...").as_str());
             add_trail = true;
+            if text_to_use.len() == 0 {
+                return;
+            }
         }
 
         if add_trail {
@@ -276,6 +279,9 @@ impl Draw2D {
             text_to_use.pop();
             text_size = self.get_text_size(font, size, (text_to_use.clone() + "...").as_str());
             add_trail = true;
+            if text_to_use.len() == 0 {
+                return;
+            }
         }
 
         if add_trail {
@@ -288,7 +294,7 @@ impl Draw2D {
         layout.reset(&LayoutSettings {
             max_width : Some(rect.2 as f32),
             max_height : Some(rect.3 as f32),
-            horizontal_align : if align ==  TextAlignment::Left { HorizontalAlign::Left } else { HorizontalAlign::Center },
+            horizontal_align : if align ==  TextAlignment::Left { HorizontalAlign::Left } else { if align == TextAlignment::Right {HorizontalAlign::Right} else { HorizontalAlign::Center } },
             vertical_align : VerticalAlign::Middle,
             ..LayoutSettings::default()
         });
@@ -659,6 +665,55 @@ impl Draw2D {
 
                 //let p = [pixels[s] * mult_color[0], pixels[s+1] * mult_color[1], pixels[s+2] * mult_color[2], pixels[s+3]];
                 let p = [rgb.0, rgb.1, rgb.2, pixels[s+3]];
+
+                let c = self.mix_color(&background, &p, pixels[s+3] as f64 / 255.0);
+
+                frame[d..d + 4].copy_from_slice(&c);
+            }
+        }
+    }
+
+    /// Draws the given animated tile
+    pub fn draw_animated_tile_mult(&self,  frame: &mut [u8], pos: &(usize, usize), map: &TileMap, stride: usize, grid_pos: &(usize, usize), anim_counter: usize, target_size: usize, mult_color: [u8; 4]) {
+        let pixels = &map.pixels;
+        let scale = target_size as f32 / map.settings.grid_size as f32;
+
+        let new_size = ((map.settings.grid_size as f32 * scale) as usize, (map.settings.grid_size as f32 * scale) as usize);
+
+        let mut cg_pos = grid_pos;
+
+        if let Some(tile) = map.get_tile(grid_pos) {
+
+            if tile.anim_tiles.len() > 0 {
+                let index = anim_counter % tile.anim_tiles.len();
+                cg_pos = &tile.anim_tiles[index];
+            }
+        }
+
+        let g_pos = (cg_pos.0 * map.settings.grid_size, cg_pos.1 * map.settings.grid_size);
+
+        fn to_float(b: u8) -> f32 {
+            b as f32 / 255.0
+        }
+
+        fn to_u8(b: f32) -> u8 {
+            (b * 255.0) as u8
+        }
+
+        for sy in 0..new_size.0 {
+            let y = (sy as f32 / scale) as usize;
+            for sx in 0..new_size.1 {
+
+                let x = (sx as f32 / scale) as usize;
+
+                let d = pos.0 * 4 + sx * 4 + (sy + pos.1) * stride * 4;
+                let s = (x + g_pos.0) * 4 + (y + g_pos.1) * map.width * 4;
+
+                let background = &[frame[d], frame[d+1], frame[d+2], frame[d+3]];
+
+                //let hsl: HslColor = RgbColor(pixels[s], pixels[s+1], pixels[s+2]).into();
+
+                let p = [to_u8(to_float(pixels[s]) * to_float(mult_color[0])), to_u8(to_float(pixels[s+1]) * to_float(mult_color[1])), to_u8(to_float(pixels[s+2]) * to_float(mult_color[2])), pixels[s+3]];
 
                 let c = self.mix_color(&background, &p, pixels[s+3] as f64 / 255.0);
 

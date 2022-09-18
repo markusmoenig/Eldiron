@@ -77,6 +77,7 @@ fn main() -> Result<(), Error> {
         use winit::event::{ElementState, VirtualKeyCode};
 
         let mut key_string = "";
+        let str_c;
 
         if let Event::RedrawRequested(_) = event {
 
@@ -160,9 +161,8 @@ fn main() -> Result<(), Error> {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::ReceivedCharacter(char ) => match char {
                     _ => {
-                        //if curr_screen.key_down(Some(*char), None, &mut asset) {
-                        //    window.request_redraw();
-                        //}
+                        str_c = char.to_string();
+                        key_string = str_c.as_str();
                     }
                 },
 
