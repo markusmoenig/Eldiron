@@ -449,6 +449,7 @@ pub fn set_state(instance_index: usize, id: (usize, usize), data: &mut RegionIns
     BehaviorNodeConnector::Bottom
 }*/
 
+/// Player moves
 pub fn player_move(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
     let mut speed : f32 = 8.0;
     if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
@@ -491,4 +492,42 @@ pub fn player_move(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
     }
     // println!("rc {:?}", rc);
     rc
+}
+
+/// Player invokes an action
+pub fn player_action(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut dp:Option<Position> = None;
+    if let Some(p) = &data.instances[instance_index].position {
+        if let Some(action) = &data.instances[instance_index].action {
+            if action.direction == PlayerDirection::North {
+                dp = Some(Position::new(p.region, p.x, p.y - 1));
+                data.action_dir_text = "North".to_string();
+            } else
+            if action.direction == PlayerDirection::South {
+                dp = Some(Position::new(p.region, p.x, p.y + 1));
+                data.action_dir_text = "South".to_string();
+            } else
+            if action.direction == PlayerDirection::East {
+                dp = Some(Position::new(p.region, p.x + 1, p.y));
+                data.action_dir_text = "East".to_string();
+            } else
+            if action.direction == PlayerDirection::West {
+                dp = Some(Position::new(p.region, p.x - 1, p.y));
+                data.action_dir_text = "West".to_string();
+            }
+        }
+    }
+
+    let mut action_name = "".to_string();
+
+    if let Some(value) = get_node_value((id.0, id.1, "action"), data, behavior_type) {
+        if let Some(name) = value.to_string() {
+            action_name = name;
+        }
+    }
+
+    data.instances[instance_index].action = None;
+
+    execute_region_action(instance_index, action_name, dp, data)
 }

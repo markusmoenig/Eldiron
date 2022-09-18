@@ -46,6 +46,8 @@ pub enum BehaviorNodeType {
     AudioArea,                                              // Play audio when in an area
     LightArea,                                              // Light when in an area
     Message,
+    Action,                                                 // Player Action
+    ActionArea,                                             // Define Action for an Area
 
     /*
     Pathfinder,

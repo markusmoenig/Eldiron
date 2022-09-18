@@ -5,6 +5,11 @@ pub fn always(_region_id: usize, _id: (Uuid, Uuid), _data: &mut RegionInstance, 
     BehaviorNodeConnector::Right
 }
 
+/// Action
+pub fn action(_region_id: usize, _id: (Uuid, Uuid), _data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    BehaviorNodeConnector::Right
+}
+
 /// Enter Area
 pub fn enter_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
@@ -263,9 +268,12 @@ pub fn message_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
         }
     }*/
 
+    if let Some(action_index) = data.curr_action_inst_index {
+        let message_data = MessageData { message_type, message: text.clone(), from: "System".to_string(), buffer: None };
+        data.instances[action_index].messages.push(message_data.clone());
+    } else
     // Somebody is in the area ?
     if let Some(area_list) = data.area_characters.get(&area_index) {
-
         let message_data = MessageData { message_type, message: text.clone(), from: "System".to_string(), buffer: None };
         for index in area_list {
             data.instances[*index].messages.push(message_data.clone());

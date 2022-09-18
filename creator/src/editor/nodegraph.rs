@@ -1168,6 +1168,7 @@ impl EditorContent for NodeGraph  {
                 "Move" => BehaviorNodeType::Move,
                 "Screen" => BehaviorNodeType::Screen,
                 "Message" if self.graph_type != BehaviorType::Regions => BehaviorNodeType::Message,
+                "Action" if self.graph_type != BehaviorType::Regions => BehaviorNodeType::Action,
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
@@ -1177,6 +1178,7 @@ impl EditorContent for NodeGraph  {
                 "Message" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::MessageArea,
                 "Audio" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::AudioArea,
                 "Light" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::LightArea,
+                "Action" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::ActionArea,
 
                 /*
                 "Message" if self.graph_type != BehaviorType::Regions => BehaviorNodeType::Message,
@@ -1456,6 +1458,27 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::Action || node_behavior_type == BehaviorNodeType::ActionArea {
+
+            let mut atom2 = AtomWidget::new(vec!["Action".to_string()], AtomWidgetType::NodeTextButton,
+            AtomData::new("action", Value::String("".to_string())));
+            atom2.atom_data.text = "Action".to_string();
+            let id = (behavior_data_id, node_id, "action".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("Action".to_string()), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.color = context.color_blue.clone();
+            if  node_behavior_type == BehaviorNodeType::Action {
+                node_widget.color = context.color_gray.clone();
+                node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+                node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+                node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+            } else {
+                node_widget.color = context.color_green.clone();
+                node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+            }
         } else
 
         // Area

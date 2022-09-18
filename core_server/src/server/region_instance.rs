@@ -30,6 +30,9 @@ pub struct RegionInstance<'a> {
     pub instances                   : Vec<BehaviorInstance>,
     pub scopes                      : Vec<rhai::Scope<'a>>,
 
+    /// During action execution for regions this indicates the calling behavior index
+    pub curr_action_inst_index      : Option<usize>,
+
     /// The current instance index of the current "Player" when executing the Game behavior per player
     pub curr_player_inst_index      : usize,
 
@@ -40,7 +43,7 @@ pub struct RegionInstance<'a> {
     game_instance_index             : Option<usize>,
 
     /// Player uuid => player instance index
-    pub player_uuid_indices         : HashMap<Uuid, usize>,
+    pub player_uuid_indices         : FxHashMap<Uuid, usize>,
 
     /// The displacements for this region
     pub displacements               : HashMap<(isize, isize), TileData>,
@@ -135,6 +138,7 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::Move, player_move);
         nodes.insert(BehaviorNodeType::Screen, screen);
         nodes.insert(BehaviorNodeType::Message, message);
+        nodes.insert(BehaviorNodeType::Action, player_action);
 
         nodes.insert(BehaviorNodeType::Always, always);
         nodes.insert(BehaviorNodeType::InsideArea, inside_area);
@@ -144,6 +148,7 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::MessageArea, message_area);
         nodes.insert(BehaviorNodeType::AudioArea, audio_area);
         nodes.insert(BehaviorNodeType::LightArea, light_area);
+        nodes.insert(BehaviorNodeType::ActionArea, action);
 
         Self {
             region_data             : GameRegionData::new(),
@@ -165,12 +170,14 @@ impl RegionInstance<'_> {
             instances               : vec![],
             scopes                  : vec![],
 
+            curr_action_inst_index  : None,
+
             curr_player_inst_index  : 0,
             game_player_scopes      : HashMap::new(),
 
             game_instance_index     : None,
 
-            player_uuid_indices     : HashMap::new(),
+            player_uuid_indices     : FxHashMap::default(),
 
             displacements           : HashMap::new(),
 
@@ -657,7 +664,7 @@ impl RegionInstance<'_> {
     }
 
     /// Executes the given node and follows the connection chain
-    fn execute_area_node(&mut self, region_id: Uuid, area_index: usize, node_id: Uuid) -> Option<BehaviorNodeConnector> {
+    pub fn execute_area_node(&mut self, region_id: Uuid, area_index: usize, node_id: Uuid) -> Option<BehaviorNodeConnector> {
 
         let mut connectors : Vec<BehaviorNodeConnector> = vec![];
         let mut connected_node_ids : Vec<Uuid> = vec![];

@@ -67,7 +67,7 @@ impl EditorOptions for RegionOptions {
     AtomData::new("NodeList", Value::Empty()));
         node_list.drag_enabled = true;
 
-        node_list.add_group_list(context.color_green, context.color_light_green, vec!["Always".to_string(), "Enter Area".to_string(), "Leave Area".to_string(), "Inside Area".to_string()]);
+        node_list.add_group_list(context.color_green, context.color_light_green, vec!["Action".to_string(), "Always".to_string(), "Enter Area".to_string(), "Leave Area".to_string(), "Inside Area".to_string()]);
 
         node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio".to_string(), "Displace Tiles".to_string(), "Light".to_string(), "Message".to_string(), "Spawn".to_string(), "Teleport".to_string()]);
 

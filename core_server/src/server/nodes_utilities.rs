@@ -160,3 +160,42 @@ pub fn walk_towards(instance_index: usize, p: Option<Position>, dp: Option<Posit
 
     BehaviorNodeConnector::Fail
 }
+
+pub fn execute_region_action(instance_index: usize, action_name: String, dp: Option<Position>, data: &mut RegionInstance) -> BehaviorNodeConnector {
+
+    // Find areas which contains the destination position and check if it has a fitting action node
+
+    if let Some(dp) = &dp {
+
+        let mut ids = vec![];
+
+        for (index, area) in data.region_data.areas.iter().enumerate() {
+            for p in &area.area {
+                if p.0 == dp.x && p.1 == dp.y {
+                    if let Some(behavior) = data.region_behavior.get(index) {
+                        for (id, node) in &behavior.nodes {
+                            if node.behavior_type == BehaviorNodeType::ActionArea {
+                                ids.push((area.behavior, index, *id));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for id in ids {
+            if let Some(value) = get_node_value((id.0, id.2, "action"), data, BehaviorType::Regions) {
+                if let Some(name) = value.to_string() {
+                    if name == action_name {
+                        data.curr_action_inst_index = Some(instance_index);
+                        data.execute_area_node(id.0, id.1, id.2);
+                        data.curr_action_inst_index = None;
+                        return BehaviorNodeConnector::Success;
+                    }
+                }
+            }
+        }
+    }
+
+    BehaviorNodeConnector::Fail
+}
