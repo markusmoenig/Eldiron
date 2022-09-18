@@ -1167,6 +1167,7 @@ impl EditorContent for NodeGraph  {
                 "Linear" => BehaviorNodeType::Linear,
                 "Move" => BehaviorNodeType::Move,
                 "Screen" => BehaviorNodeType::Screen,
+                "Message" if self.graph_type != BehaviorType::Regions => BehaviorNodeType::Message,
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
@@ -1379,13 +1380,6 @@ impl EditorContent for NodeGraph  {
         if node_behavior_type == BehaviorNodeType::BehaviorTree {
             let tree_menu = create_menu_atom("Execute".to_string(), vec!["Always".to_string(), "On Startup".to_string(), "On Target".to_string()], Value::Integer(0));
 
-            /*
-            let mut atom1 = AtomWidget::new(vec!["Always".to_string(), "On Startup".to_string(), "On Target".to_string()], AtomWidgetType::NodeMenuButton,
-            AtomData::new_as_int("execute".to_string(), 0));
-            atom1.atom_data.text = "Execute".to_string();
-            let id = (behavior_data_id, node_id, "execute".to_string());
-            atom1.behavior_id = Some(id.clone());
-            atom1.curr_index = context.data.get_behavior_id_value(id, Value::Integer(0), self.graph_type).to_integer().unwrap() as usize;*/
             node_widget.widgets.push(tree_menu);
             node_widget.color = context.color_green.clone();
 
@@ -1443,6 +1437,25 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::Message || node_behavior_type == BehaviorNodeType::MessageArea {
+
+            let type_menu = create_menu_atom("Type".to_string(), vec!["Status".to_string(), "Say".to_string(), "Yell".to_string(), "Private".to_string(), "Debug".to_string()], Value::Integer(0));
+
+            node_widget.widgets.push(type_menu);
+
+            let mut atom2 = AtomWidget::new(vec!["Text".to_string()], AtomWidgetType::NodeTextButton,
+            AtomData::new("text", Value::String("".to_string())));
+            atom2.atom_data.text = "Text".to_string();
+            let id = (behavior_data_id, node_id, "text".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("Message".to_string()), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
 
         // Area

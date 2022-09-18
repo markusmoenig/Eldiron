@@ -57,6 +57,9 @@ pub struct RegionInstance<'a> {
     // Lights for this region
     pub lights                      : HashMap<Uuid, Vec<Light>>,
 
+    // The current move direction of the player
+    pub action_dir_text             : String,
+
     // These are fields which provide debug feedback while running and are only used in the editors debug mode
 
     // The behavior id to debug, this is send from the server
@@ -131,6 +134,7 @@ impl RegionInstance<'_> {
 */
         nodes.insert(BehaviorNodeType::Move, player_move);
         nodes.insert(BehaviorNodeType::Screen, screen);
+        nodes.insert(BehaviorNodeType::Message, message);
 
         nodes.insert(BehaviorNodeType::Always, always);
         nodes.insert(BehaviorNodeType::InsideArea, inside_area);
@@ -174,6 +178,8 @@ impl RegionInstance<'_> {
             area_characters         : HashMap::new(),
             prev_area_characters    : HashMap::new(),
             lights                  : HashMap::new(),
+
+            action_dir_text         : "".to_string(),
 
             debug_behavior_id       : None,
             is_debugging            : false,

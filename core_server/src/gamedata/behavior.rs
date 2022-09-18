@@ -45,6 +45,8 @@ pub enum BehaviorNodeType {
     MessageArea,                                            // Send a message to a character when in an area
     AudioArea,                                              // Play audio when in an area
     LightArea,                                              // Light when in an area
+    Message,
+
     /*
     Pathfinder,
     Message,

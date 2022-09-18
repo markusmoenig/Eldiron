@@ -17,29 +17,33 @@ pub fn script(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance
     BehaviorNodeConnector::Bottom
 }
 
-/*
-
 /// message
-pub fn message(instance_index: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn message(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let mut message_type : MessageType = MessageType::Status;
     let mut text;
 
     // Message Type
     if let Some(value) = get_node_value((id.0, id.1, "type"), data, behavior_type) {
-        message_type = match value.0 as usize {
-            1 => MessageType::Say,
-            2 => MessageType::Yell,
-            3 => MessageType::Private,
-            4 => MessageType::Debug,
-            _ => MessageType::Status
+        if let Some(m_type) = value.to_integer() {
+            message_type = match m_type {
+                1 => MessageType::Say,
+                2 => MessageType::Yell,
+                3 => MessageType::Private,
+                4 => MessageType::Debug,
+                _ => MessageType::Status
+            }
         }
     }
 
     if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type) {
-        text = value.4;
+        text = value.to_string_value();
     } else {
-        text = "Hello".to_string();
+        text = "Message".to_string();
+    }
+
+    if text.contains("${DIR}") {
+        text = text.replace("${DIR}", &data.action_dir_text);
     }
 
     // Do I need to evaluate the script for variables ?
@@ -60,7 +64,12 @@ pub fn message(instance_index: usize, id: (usize, usize), data: &mut RegionInsta
         _ => text
     };
 
-    let message_data = MessageData { message_type, message: text.clone(), from: data.instances[instance_index].name.clone() };
+    let message_data = MessageData {
+        message_type,
+        message         : text.clone(),
+        from            : data.instances[instance_index].name.clone(),
+        buffer          : None
+    };
 
      data.instances[instance_index].messages.push(message_data.clone());
     if let Some(target_index) = data.instances[instance_index].target_instance_index {
@@ -72,6 +81,7 @@ pub fn message(instance_index: usize, id: (usize, usize), data: &mut RegionInsta
     BehaviorNodeConnector::Bottom
 }
 
+/*
 /// Pathfinder
 pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
@@ -454,15 +464,19 @@ pub fn player_move(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
         if let Some(action) = &data.instances[instance_index].action {
             if action.direction == PlayerDirection::North {
                 dp = Some(Position::new(p.region, p.x, p.y - 1));
+                data.action_dir_text = "North".to_string();
             } else
             if action.direction == PlayerDirection::South {
                 dp = Some(Position::new(p.region, p.x, p.y + 1));
+                data.action_dir_text = "South".to_string();
             } else
             if action.direction == PlayerDirection::East {
                 dp = Some(Position::new(p.region, p.x + 1, p.y));
+                data.action_dir_text = "East".to_string();
             } else
             if action.direction == PlayerDirection::West {
                 dp = Some(Position::new(p.region, p.x - 1, p.y));
+                data.action_dir_text = "West".to_string();
             }
         }
     }
