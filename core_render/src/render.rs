@@ -350,6 +350,16 @@ impl GameRender<'_> {
             }
         }
 
+        fn is_safe(rect: (usize, usize, usize, usize), width: usize, height: usize) -> bool {
+            if rect.0 + rect.2 > width {
+                return false;
+            }
+            if rect.1 + rect.3 > height {
+                return false;
+            }
+            return true;
+        }
+
         for cmd in to_draw {
 
             let stride = self.width;
@@ -364,32 +374,32 @@ impl GameRender<'_> {
                     shape.draw(&mut self.frame[..], (self.width, self.height));
                 },
                 ScriptDrawCmd::DrawTile(pos, tile) => {
-                    //if rect.is_safe(self.width, self.height) {
+                    if is_safe((pos.pos.0, pos.pos.1, self.tile_size, self.tile_size), self.width, self.height) {
                         if let Some(map) = self.asset.get_map_of_id(tile.id.tilemap) {
                             self.draw2d.draw_animated_tile( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, self.tile_size);
                         }
-                    //}
+                    }
                 },
                 ScriptDrawCmd::DrawTileSat(pos, tile, rgb) => {
-                    //if rect.is_safe(self.width, self.height) {
+                    if is_safe((pos.pos.0, pos.pos.1, self.tile_size, self.tile_size), self.width, self.height) {
                         if let Some(map) = self.asset.get_map_of_id(tile.id.tilemap) {
                             self.draw2d.draw_animated_tile_sat( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, self.tile_size, rgb.value);
                         }
-                    //}
+                    }
                 },
                 ScriptDrawCmd::DrawTileMult(pos, tile, rgb) => {
-                    //if rect.is_safe(self.width, self.height) {
+                    if is_safe((pos.pos.0, pos.pos.1, self.tile_size, self.tile_size), self.width, self.height) {
                         if let Some(map) = self.asset.get_map_of_id(tile.id.tilemap) {
                             self.draw2d.draw_animated_tile_mult( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, self.tile_size, rgb.value);
                         }
-                    //}
+                    }
                 },
                 ScriptDrawCmd::DrawTileSized(pos, tile, size) => {
-                    //if rect.is_safe(self.width, self.height) {
+                    if is_safe((pos.pos.0, pos.pos.1, size as usize, size as usize), self.width, self.height) {
                         if let Some(map) = self.asset.get_map_of_id(tile.id.tilemap) {
                             self.draw2d.draw_animated_tile( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, size as usize);
                         }
-                    //}
+                    }
                 },
                 ScriptDrawCmd::DrawFrame(rect, tile) => {
                     if rect.is_safe(self.width, self.height) {
@@ -520,25 +530,28 @@ impl GameRender<'_> {
                     }
                 },
                 ScriptDrawCmd::DrawMessages(rect, font_name, font_size, rgb) => {
-
-                    if let Some(font) = self.asset.game_fonts.get(&font_name) {
-                        for index in 0..self.messages.len() {
-                            if self.messages[index].buffer.is_none() {
-                                self.messages[index].buffer = Some(self.draw2d.create_buffer_for_message(rect.rect.2 - 10, font, font_size, &self.messages[index], &rgb.value));
+                    if rect.is_safe(self.width, self.height) {
+                        if let Some(font) = self.asset.game_fonts.get(&font_name) {
+                            for index in 0..self.messages.len() {
+                                if self.messages[index].buffer.is_none() {
+                                    self.messages[index].buffer = Some(self.draw2d.create_buffer_for_message(rect.rect.2, font, font_size, &self.messages[index], &rgb.value));
+                                }
                             }
-                        }
 
-                        let mut message_index = (self.messages.len() - 1) as i32;
-                        let mut y = rect.rect.1 + rect.rect.3 - 5;
+                            let mut message_index = (self.messages.len() - 1) as i32;
+                            let mut y = rect.rect.1 + rect.rect.3 - 5;
 
-                        while message_index >= 0 {
-                            if let Some(buffer) = &self.messages[message_index as usize].buffer {
+                            while message_index >= 0 {
+                                if let Some(buffer) = &self.messages[message_index as usize].buffer {
 
-                                y -= buffer.1;
+                                    y -= buffer.1;
 
-                                self.draw2d.blend_slice_safe(&mut self.frame[..], &buffer.2, &((rect.rect.0 + 5) as isize, y as isize, buffer.0, buffer.1), self.width, &rect.rect);
+                                    self.draw2d.blend_slice_safe(&mut self.frame[..], &buffer.2, &((rect.rect.0) as isize, y as isize, buffer.0, buffer.1), self.width, &rect.rect);
+
+                                    y -= 5;
+                                }
+                                message_index -= 1;
                             }
-                            message_index -= 1;
                         }
                     }
                 },

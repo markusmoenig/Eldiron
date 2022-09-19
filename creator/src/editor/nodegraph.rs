@@ -2283,7 +2283,6 @@ impl EditorContent for NodeGraph  {
         if let Some(preview) = &mut self.preview {
             preview.debug_update(update, context);
         }
-
     }
 
     /// Debugging stopped

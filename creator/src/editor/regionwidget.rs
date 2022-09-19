@@ -26,6 +26,8 @@ pub struct RegionWidget {
 
     bottom_size             : usize,
     toolbar_size            : usize,
+
+    debug_update            : Option<GameUpdate>,
 }
 
 impl EditorContent for RegionWidget {
@@ -160,6 +162,8 @@ impl EditorContent for RegionWidget {
 
             bottom_size,
             toolbar_size,
+
+            debug_update            : None,
         }
     }
 
@@ -206,35 +210,26 @@ impl EditorContent for RegionWidget {
 
             if let Some(region) = context.data.regions.get(&self.region_id) {
 
-                //if context.is_running == false {
+                if context.is_running == false {
 
                     if editor_mode != RegionEditorMode::Characters {
                         context.draw2d.draw_region(frame, region, &rect, &(-self.offset.0, -self.offset.1), context.width, grid_size, anim_counter, asset);
                     } else {
 
                         context.draw2d.draw_region_with_behavior(frame, region, &rect, &(-self.offset.0, -self.offset.1), context.width, grid_size, anim_counter, asset, context);
-
-                        /*
-                        let x_tiles = (rect.2 / grid_size) as isize;
-                        let y_tiles = (rect.3 / grid_size) as isize;
-
-                        for y in 0..y_tiles {
-                            for x in 0..x_tiles {
-                                let values = region.get_value((x - self.offset.0, y - self.offset.1));
-
-                                if values.is_empty() == false {
-                                    let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
-                                    for value in values {
-                                        let map = asset.get_map_of_id(value.0);
-                                        context.draw2d.draw_animated_tile(frame, &pos, map,context.width,&(value.1, value.2), anim_counter, grid_size);
-                                    }
-                                }
-                            }
-                        }*/
                     }
-                //} else {
-                    //context.draw2d.draw_region_with_instances(frame, region, &rect, &(-self.offset.0, -self.offset.1), context.width, grid_size, anim_counter, asset, context);
-                //}
+                } else {
+                    if context.debug_render.is_none() {
+                        context.debug_render = Some(GameRender::new(context.curr_project_path.clone(), context.player_id ));
+                    }
+
+                    if let Some(update) = &self.debug_update {
+                        if let Some(render) = &mut context.debug_render {
+                            render.process_update(update);
+                            render.process_game_draw(rect, anim_counter, update, &mut Some(frame), context.width);
+                        }
+                    }
+                }
             }
 
             context.draw2d.draw_rect(frame, &(rect.0, rect.1 + rect.3, rect.2, self.toolbar_size), context.width, &context.color_black);
@@ -255,6 +250,7 @@ impl EditorContent for RegionWidget {
                     w.draw(frame, context.width, anim_counter, asset, context);
                 }
 
+                if context.is_running == false {
                 if let Some(region) = context.data.regions.get(&self.region_id) {
 
                     let x_tiles = (rect.2 / grid_size) as isize;
@@ -289,6 +285,7 @@ impl EditorContent for RegionWidget {
                         }
                     }
                 }
+                }
                 self.behavior_graph.draw(frame, anim_counter, asset, context, &mut None);
             } else
             if editor_mode == RegionEditorMode::Characters {
@@ -299,7 +296,7 @@ impl EditorContent for RegionWidget {
             }
 
             // Draw a white border around the tile under the mouse cursor
-            if self.mouse_hover_pos != (0,0) {
+            if self.mouse_hover_pos != (0,0) && context.is_running == false {
                 if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
                     let pos = (rect.0 + left_offset + ((id.0 + self.offset.0) as usize) * grid_size, rect.1 + top_offset + ((id.1 + self.offset.1) as usize) * grid_size);
                     if  pos.0 + grid_size < rect.0 + rect.2 && pos.1 + grid_size < rect.1 + rect.3 {
@@ -309,6 +306,14 @@ impl EditorContent for RegionWidget {
                 }
             }
         }
+    }
+
+    fn debug_data(&mut self, context: &mut ScreenContext, data: BehaviorDebugData) {
+        self.behavior_graph.debug_data(context, data);
+    }
+
+    fn debug_update(&mut self, update: GameUpdate, _context: &mut ScreenContext) {
+        self.debug_update = Some(update);
     }
 
     fn get_layer_mask(&mut self, context: &mut ScreenContext) -> Option<Vec<bool>> {
