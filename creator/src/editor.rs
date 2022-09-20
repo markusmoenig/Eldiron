@@ -795,7 +795,7 @@ impl Editor<'_> {
             if self.state == EditorState::TilesOverview && self.context.dialog_entry == DialogEntry::NodeGridSize && self.context.dialog_accepted == true {
                 // Grid size for tilemaps
                 if let Some(value) = self.context.dialog_value.to_string_value().parse::<usize>().ok() {
-                    let index = self.context.dialog_node_behavior_value.0 as usize;
+                    let index = self.context.curr_tileset_index;
                     if let Some(tilemap) = asset.tileset.maps.get_mut(&asset.tileset.maps_ids[index]) {
                         tilemap.settings.grid_size = value;
                         tilemap.save_settings();
