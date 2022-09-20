@@ -103,13 +103,38 @@ impl EditorContent for RegionWidget {
         rename_area_button.hover_help_text = Some("Renames the current area.".to_string());
         area_widgets.push(rename_area_button);
 
+        let mut pick_area_button = AtomWidget::new(vec!["pick".to_string()], AtomWidgetType::EnabledIcon,
+        AtomData::new("Pick", Value::Empty()));
+        pick_area_button.atom_data.text = "Pick".to_string();
+        pick_area_button.set_rect((rect.0 + 180 + 200 + 150 + 150 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 40, 38), asset, context);
+        pick_area_button.hover_help_title = Some("Pick Area".to_string());
+        pick_area_button.hover_help_text = Some("Selects the clicked area.".to_string());
+        area_widgets.push(pick_area_button);
+
+        let mut area_add_tile_button = AtomWidget::new(vec!["add".to_string()], AtomWidgetType::EnabledIcon,
+        AtomData::new("Add", Value::Empty()));
+        area_add_tile_button.atom_data.text = "Add".to_string();
+        area_add_tile_button.checked = true;
+        area_add_tile_button.set_rect((rect.0 + 180 + 200 + 150 + 150 + 150 + 50, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 40, 38), asset, context);
+        area_add_tile_button.hover_help_title = Some("Add Tile".to_string());
+        area_add_tile_button.hover_help_text = Some("Adds the clicked tile to the current area.".to_string());
+        area_widgets.push(area_add_tile_button);
+
+        let mut area_remove_tile_button = AtomWidget::new(vec!["remove".to_string()], AtomWidgetType::EnabledIcon,
+        AtomData::new("Remove", Value::Empty()));
+        area_remove_tile_button.atom_data.text = "Remove".to_string();
+        area_remove_tile_button.set_rect((rect.0 + 180 + 200 + 150 + 150 + 150 + 50 + 40, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 40, 38), asset, context);
+        area_remove_tile_button.hover_help_title = Some("Remove Tile".to_string());
+        area_remove_tile_button.hover_help_text = Some("Removes the clicked tile from the current area.".to_string());
+        area_widgets.push(area_remove_tile_button);
+        /*
         let mut area_editing_mode = AtomWidget::new(vec!["Add Tile".to_string(), "Remove".to_string(), "Pick".to_string()], AtomWidgetType::SliderButton,
         AtomData::new("Area", Value::Empty()));
         area_editing_mode.atom_data.text = "Area".to_string();
         area_editing_mode.set_rect((rect.0 + 180 + 200 + 150 + 150 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 160, 40), asset, context);
         area_editing_mode.hover_help_title = Some("Area Editing Mode".to_string());
         area_editing_mode.hover_help_text = Some("Adds, removes the clicked tile to / from the area or selects the clicked area.".to_string());
-        area_widgets.push(area_editing_mode);
+        area_widgets.push(area_editing_mode);*/
 
         // Character Widgets
         let mut character_widgets : Vec<AtomWidget> = vec![];
@@ -177,7 +202,9 @@ impl EditorContent for RegionWidget {
         self.area_widgets[1].set_rect2((self.rect.0 + 180 + 200, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
         self.area_widgets[2].set_rect2((self.rect.0 + 180 + 200 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
         self.area_widgets[3].set_rect2((self.rect.0 + 180 + 200 + 150 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
-        self.area_widgets[4].set_rect2((self.rect.0 +  180 + 200 + 150 + 150 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 160, 40));
+        self.area_widgets[4].set_rect2((self.rect.0 + 180 + 200 + 150 + 150 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 40, 38));
+        self.area_widgets[5].set_rect2((self.rect.0 + 180 + 200 + 150 + 150 + 150 + 50, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 40, 38));
+        self.area_widgets[6].set_rect2((self.rect.0 + 180 + 200 + 150 + 150 + 150 + 50 + 40, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 40, 38));
 
         self.character_widgets[0].set_rect2((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 190, 40));
 
@@ -364,6 +391,24 @@ impl EditorContent for RegionWidget {
                 } else {
                     for atom in &mut self.area_widgets {
                         if atom.mouse_down(pos, asset, context) {
+                            if atom.atom_data.id == "Pick" {
+                                self.area_widgets[5].checked = false;
+                                self.area_widgets[5].dirty = true;
+                                self.area_widgets[6].checked = false;
+                                self.area_widgets[6].dirty = true;
+                            } else
+                            if atom.atom_data.id == "Add" {
+                                self.area_widgets[4].checked = false;
+                                self.area_widgets[4].dirty = true;
+                                self.area_widgets[6].checked = false;
+                                self.area_widgets[6].dirty = true;
+                            } else
+                            if atom.atom_data.id == "Remove" {
+                                self.area_widgets[4].checked = false;
+                                self.area_widgets[4].dirty = true;
+                                self.area_widgets[5].checked = false;
+                                self.area_widgets[5].dirty = true;
+                            }
                             return true;
                         }
                     }
@@ -421,7 +466,14 @@ impl EditorContent for RegionWidget {
 
                                 //
 
-                                let mode = self.area_widgets[4].curr_index;
+                                let mut mode = 0;
+
+                                if self.area_widgets[4].checked {
+                                    mode = 2;
+                                } else
+                                if self.area_widgets[6].checked {
+                                    mode = 1;
+                                }
 
                                 if mode == 0 {
                                     // Add

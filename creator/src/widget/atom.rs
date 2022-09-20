@@ -68,6 +68,8 @@ pub enum AtomWidgetType {
     SmallMenuButton,
     NumberRow,
     IconRow,
+    CheckedIcon,
+    EnabledIcon,
 }
 
 pub struct AtomWidget {
@@ -752,11 +754,43 @@ impl AtomWidget {
 
                     let r = (x, rect.1, cell_size, cell_size);
 
-                    if let Some(icon) = context.icons.get(&self.text[index]) {
-                        context.draw2d.scale_chunk(buffer_frame, &r, rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), if self.curr_index == index { 0.9 } else { 0.3 });
+                    if self.curr_index == index {
+                        if let Some(icon) = context.icons.get(&self.text[index]) {
+                            context.draw2d.scale_chunk(buffer_frame, &r, rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), 1.0);
+                        }
+                    } else {
+                        if let Some(icon) = context.icons.get(&(self.text[index].clone() + "_inactive")) {
+                            context.draw2d.scale_chunk(buffer_frame, &r, rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), 1.0);
+                        } else {
+                            if let Some(icon) = context.icons.get(&self.text[index]) {
+                                context.draw2d.scale_chunk(buffer_frame, &r, rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), 0.3);
+                            }
+                        }
                     }
 
                     x += cell_size + spacing;
+                }
+            } else
+            if self.atom_widget_type == AtomWidgetType::CheckedIcon || self.atom_widget_type == AtomWidgetType::EnabledIcon {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.button_height) / 2, self.rect.2 - 2, context.button_height);
+
+                let cell_size = rect.3;
+
+                let x = rect.0;
+                let r = (x, rect.1, cell_size, cell_size);
+
+                if self.checked {
+                    if let Some(icon) = context.icons.get(&self.text[0]) {
+                        context.draw2d.scale_chunk(buffer_frame, &r, rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), 0.9);
+                    }
+                } else {
+                    if let Some(icon) = context.icons.get(&(self.text[0].clone() + "_inactive")) {
+                        context.draw2d.scale_chunk(buffer_frame, &r, rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), 1.0);
+                    } else {
+                        if let Some(icon) = context.icons.get(&self.text[0]) {
+                            context.draw2d.scale_chunk(buffer_frame, &r, rect.2, &icon.0[..], &(icon.1 as usize, icon.2 as usize), 0.3);
+                        }
+                    }
                 }
             }
         }
@@ -902,11 +936,18 @@ impl AtomWidget {
                 self.dirty = true;
                 return true;
             } else
-            if self.atom_widget_type == AtomWidgetType::ToolBarCheckButton || self.atom_widget_type == AtomWidgetType::CheckButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarCheckButton || self.atom_widget_type == AtomWidgetType::CheckButton || self.atom_widget_type == AtomWidgetType::CheckedIcon {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
                 self.checked = !self.checked;
+                return true;
+            } else
+            if self.atom_widget_type == AtomWidgetType::EnabledIcon {
+                self.clicked = true;
+                self.state = WidgetState::Clicked;
+                self.dirty = true;
+                self.checked = true;
                 return true;
             } else
             if self.atom_widget_type == AtomWidgetType::ToolBarMenuButton || self.atom_widget_type == AtomWidgetType::NodeMenuButton || self.atom_widget_type == AtomWidgetType::SmallMenuButton || self.atom_widget_type == AtomWidgetType::MenuButton || self.atom_widget_type == AtomWidgetType::NodeMenu {
