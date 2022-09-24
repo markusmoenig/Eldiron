@@ -446,7 +446,11 @@ impl AtomWidget {
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), fill_color, &context.node_button_rounding, fill_color, 1.5);
 
-                context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 5, rect.1, rect.2 - 10, rect.3), rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &self.atom_data.value.to_string_value(), &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
+                let t = self.atom_data.value.to_string_value();
+                let chars = t.chars();
+                let text : String = chars.into_iter().take(20).collect();
+
+                context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 5, rect.1, rect.2 - 10, rect.3), rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &text, &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
             if self.atom_widget_type == AtomWidgetType::NodeMenu {
                 self.content_rect = self.rect.clone();
