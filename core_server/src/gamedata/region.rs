@@ -251,7 +251,14 @@ impl GameRegion {
         let mut min_pos = (10000, 10000);
         let mut max_pos = (-10000, -10000);
 
+        let mut to_clear = vec![];
         for (pos, _tile)  in &self.data.layer1 {
+
+            // Temp cleaning due to an old, fixed bug
+            if pos.0 > 100000 || pos.1 > 100000 {
+                to_clear.push(pos.clone());
+            }
+
             if min_pos.0 > pos.0 {
                 min_pos.0 = pos.0;
             }
@@ -264,6 +271,12 @@ impl GameRegion {
             if max_pos.1 < pos.1 {
                 max_pos.1 = pos.1;
             }
+        }
+
+        for p in to_clear {
+            self.clear_value(1, p);
+            println!("cleared {:?}", p);
+            self.save_data();
         }
 
         self.data.min_pos = min_pos;
