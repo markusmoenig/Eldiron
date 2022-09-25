@@ -8,6 +8,9 @@ pub struct GameUpdate {
 
     pub id                      : Uuid,
 
+    pub screen_size             : (i32, i32),
+    pub def_square_tile_size    : i32,
+
     pub position                : Option<Position>,
     pub old_position            : Option<Position>,
     pub max_transition_time     : usize,
@@ -50,6 +53,8 @@ impl GameUpdate {
 
         Self {
             id                  : Uuid::new_v4(),
+            screen_size         : (1024, 608),
+            def_square_tile_size: 32,
             position            : None,
             old_position        : None,
             max_transition_time : 0,

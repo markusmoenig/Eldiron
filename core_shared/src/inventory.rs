@@ -7,6 +7,8 @@ pub struct InventoryItem {
     pub id                  : Uuid,
     pub name                : String,
     pub item_type           : String,
+    pub tile                : Option<TileId>,
+    pub amount              : u16,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]

@@ -65,8 +65,11 @@ impl Game {
 pub fn update_game_sink(sink: &mut PropertySink) {
 
     //
-    if sink.contains("character_attributes") == false {
-        sink.properties.insert(0,Property::new_string("character_attributes".to_string(), "\"HP, STR\"".to_string()));
+    if sink.contains("screen_size") == false {
+        sink.properties.insert(0,Property::new_intx("screen_size".to_string(), vec![1024, 608]));
+    }
+    if sink.contains("square_tile_size") == false {
+        sink.properties.insert(1,Property::new_int("square_tile_size".to_string(), 32));
     }
     /*
     if sink.contains("lighting") == false {
@@ -78,7 +81,9 @@ pub fn generate_game_sink_descriptions() -> FxHashMap<String, Vec<String>> {
 
     let mut map : FxHashMap<String, Vec<String>> = FxHashMap::default();
 
-    map.insert("character_attributes".to_string(), vec!["The attributes of characters. These will be added as variables to each character instance".to_string()]);
+    map.insert("screen_size".to_string(), vec!["The size of the game screen.".to_string()]);
+    map.insert("square_tile_size".to_string(), vec!["The default drawing size of square tiles.".to_string()]);
+
     // map.insert("lighting".to_string(), vec!["The lighting mode. Use \"off\" for no lighting.".to_string()]);
 
     map

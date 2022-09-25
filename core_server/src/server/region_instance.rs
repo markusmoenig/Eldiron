@@ -74,6 +74,11 @@ pub struct RegionInstance<'a> {
     pub messages                    : Vec<(String, MessageType)>,
     pub executed_connections        : Vec<(BehaviorType, Uuid, BehaviorNodeConnector)>,
     pub script_errors               : Vec<((Uuid, Uuid, String), (String, Option<u32>))>,
+
+    // Game settings
+
+    screen_size                     : (i32, i32),
+    def_square_tile_size            : i32,
 }
 
 impl RegionInstance<'_> {
@@ -194,6 +199,9 @@ impl RegionInstance<'_> {
             messages                : vec![],
             executed_connections    : vec![],
             script_errors           : vec![],
+
+            screen_size             : (1024, 608),
+            def_square_tile_size    : 32,
         }
     }
 
@@ -327,7 +335,7 @@ impl RegionInstance<'_> {
                     }
                 }
 
-                // Extract the script messages for this instance
+                // Check if we have to add items to the inventory and clone it for sending to the client
                 if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
                     if let Some(mut inv) = mess.write_lock::<Inventory>() {
                         if inv.items_to_add.is_empty() == false {
@@ -477,6 +485,8 @@ impl RegionInstance<'_> {
 
                 let update = GameUpdate{
                     id                      : self.instances[inst_index].id,
+                    screen_size             : self.screen_size,
+                    def_square_tile_size    : self.def_square_tile_size,
                     position                : self.instances[inst_index].position.clone(),
                     old_position            : self.instances[inst_index].old_position.clone(),
                     max_transition_time     : self.instances[inst_index].max_transition_time,
@@ -819,6 +829,27 @@ impl RegionInstance<'_> {
         }
         if let Some(game_data) = serde_json::from_str(&game).ok() {
             self.game_data = game_data;
+
+            // Read global game settings
+
+            if let Some(settings) = &self.game_data.settings {
+                if let Some(screen_size) = settings.get("screen_size") {
+                    match screen_size.value {
+                        PropertyValue::IntX(v) => {
+                            self.screen_size = (v[0], v[1]);
+                        },
+                        _ => {}
+                    }
+                }
+                if let Some(def_square_tile_size) = settings.get("def_square_tile_size") {
+                    match def_square_tile_size.value {
+                        PropertyValue::Int(v) => {
+                            self.def_square_tile_size = v;
+                        },
+                        _ => {}
+                    }
+                }
+            }
         }
 
         // Create all behavior instances of characters inside this region

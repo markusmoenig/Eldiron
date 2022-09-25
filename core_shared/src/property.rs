@@ -11,15 +11,20 @@ pub struct Property {
 impl Property {
 
     pub fn new_int(name: String, value: i32) -> Self {
-
         Self {
             name,
             value               : PropertyValue::Int(value),
         }
     }
 
-    pub fn new_float(name: String, value: f32) -> Self {
+    pub fn new_intx(name: String, value: Vec<i32>) -> Self {
+        Self {
+            name,
+            value               : PropertyValue::IntX(value),
+        }
+    }
 
+    pub fn new_float(name: String, value: f32) -> Self {
         Self {
             name,
             value               : PropertyValue::Float(value),
@@ -27,7 +32,6 @@ impl Property {
     }
 
     pub fn new_string(name: String, value: String) -> Self {
-
         Self {
             name,
             value               : PropertyValue::String(value.clone()),
@@ -35,7 +39,6 @@ impl Property {
     }
 
     pub fn new_bool(name: String, value: bool) -> Self {
-
         Self {
             name,
             value               : PropertyValue::Bool(value),
@@ -43,7 +46,6 @@ impl Property {
     }
 
     pub fn new_color(name: String, value: String) -> Self {
-
         Self {
             name,
             value               : PropertyValue::Color(value.clone()),
@@ -53,6 +55,7 @@ impl Property {
     pub fn as_int(&self) -> Option<i32> {
         match &self.value {
             PropertyValue::Int(value) => Some(*value),
+            PropertyValue::IntX(_value) => None,
             PropertyValue::Float(_value) => None,
             PropertyValue::String(_value) => None,
             PropertyValue::Bool(_value) => None,
@@ -63,6 +66,7 @@ impl Property {
     pub fn as_float(&self) -> Option<f32> {
         match &self.value {
             PropertyValue::Int(_value) => None,
+            PropertyValue::IntX(_value) => None,
             PropertyValue::Float(value) => Some(*value),
             PropertyValue::String(_value) => None,
             PropertyValue::Bool(_value) => None,
@@ -73,6 +77,7 @@ impl Property {
     pub fn as_string(&self) -> Option<String> {
         match &self.value {
             PropertyValue::Int(_value) => None,
+            PropertyValue::IntX(_value) => None,
             PropertyValue::Float(_value) => None,
             PropertyValue::String(value) => {
                 Some(value.clone())
@@ -85,6 +90,7 @@ impl Property {
     pub fn as_bool(&self) -> Option<bool> {
         match &self.value {
             PropertyValue::Int(_value) => None,
+            PropertyValue::IntX(_value) => None,
             PropertyValue::Float(_value) => None,
             PropertyValue::String(_value) => None,
             PropertyValue::Bool(value) => Some(*value),
@@ -95,6 +101,7 @@ impl Property {
     pub fn as_color(&self) -> Option<String> {
         match &self.value {
             PropertyValue::Int(_value) => None,
+            PropertyValue::IntX(_value) => None,
             PropertyValue::Float(_value) => None,
             PropertyValue::String(_value) => None,
             PropertyValue::Bool(_value) => None,
@@ -105,6 +112,7 @@ impl Property {
     pub fn to_rgb(&self) -> Option<[u8; 4]> {
         match &self.value {
             PropertyValue::Int(_value) => None,
+            PropertyValue::IntX(_value) => None,
             PropertyValue::Float(_value) => None,
             PropertyValue::String(_value) => None,
             PropertyValue::Bool(_value) => None,
@@ -123,6 +131,16 @@ impl Property {
 
         let value_string = match &self.value {
             PropertyValue::Int(value) => value.to_string(),
+            PropertyValue::IntX(value) => {
+                let mut string = "".to_string();
+                for i in 0..value.len() {
+                    string += value[i].to_string().as_str();
+                    if i < value.len() - 1  {
+                        string += ", ";
+                    }
+                }
+                string
+            }
             PropertyValue::Float(value) =>  value.to_string(),
             PropertyValue::String(value) => "\"".to_string() + (value.clone() + "\"").as_str(),
             PropertyValue::Bool(value) => value.to_string(),
@@ -137,6 +155,7 @@ impl Property {
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum PropertyValue {
     Int(i32),
+    IntX(Vec<i32>),
     Float(f32),
     String(String),
     Bool(bool),
@@ -204,6 +223,10 @@ impl PropertySink {
                                 if right.starts_with("#") && Rgb::from_hex_str(right).is_ok() {
                                     self.properties.push(Property::new_color(left.to_string(), right.to_string()));
                                 } else
+                                // Int2 ?
+                                if let Some(value) = self.string_to_int2(right.to_string()) {
+                                    self.properties.push(Property::new_intx(left.to_string(), value));
+                                } else
                                 // Int ?
                                 if let Some(value) = right.parse::<i32>().ok() {
                                     self.properties.push(Property::new_int(left.to_string(), value));
@@ -233,7 +256,7 @@ impl PropertySink {
             line_counter += 1;
         }
 
-        println!("{:?}", self.properties);
+        //println!("{:?}", self.properties);
         true
     }
 
@@ -280,6 +303,29 @@ impl PropertySink {
         }
 
         string
+    }
+
+    /// Splits integer numbers separated by "," into an array
+    pub fn string_to_int2(&self, string: String) -> Option<Vec<i32>> {
+        if string.matches(",").count() >= 1 {
+            let split = string.split(",");
+            let vec: Vec<&str> = split.collect();
+
+            if vec.len() >= 1 {
+                let mut array = vec![];
+
+                for i in 0..vec.len() {
+
+                    if let Some(v) = vec[i].trim().parse::<i32>().ok() {
+                        array.push(v);
+                    } else {
+                        return None;
+                    }
+                }
+                return Some(array);
+            }
+        }
+        None
     }
 
 }

@@ -482,6 +482,7 @@ impl EditorContent for NodeGraph  {
     /// Updates a node value from the dialog
     fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
         //println!("graph {:?} {:?}", id, value);
+
         if context.dialog_entry == DialogEntry::NodeName {
             // Node based
             for node_index in 0..self.nodes.len() {
@@ -497,7 +498,7 @@ impl EditorContent for NodeGraph  {
             return
         }
 
-        // Atom base
+        // Atom based
         for node_index in 0..self.nodes.len() {
             for atom_index in 0..self.nodes[node_index].widgets.len() {
                 if let Some(node_id) = &self.nodes[node_index].widgets[atom_index].behavior_id {

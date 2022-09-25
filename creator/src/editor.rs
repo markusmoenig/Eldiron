@@ -710,6 +710,30 @@ impl Editor<'_> {
                 }
                 self.content.insert(index, (options, content));
 
+                // Handle Game and Region Settings
+                if self.state == EditorState::RegionDetail && self.context.code_editor_mode == CodeEditorMode::Settings {
+                    let mut sink = PropertySink::new();
+                    if sink.load_from_string(self.context.code_editor_value.clone()) {
+                        self.context.code_editor_error = None;
+                        let id = self.content[self.state as usize].1.as_mut().unwrap().get_region_id();
+                        if let Some(region) = self.context.data.regions.get_mut(&id) {
+                            region.data.settings = sink;
+                            region.save_data();
+                        }
+                    } else {
+                        self.context.code_editor_error = Some((sink.error.clone().unwrap().1, Some(sink.error.unwrap().0)));
+                    }
+                } else
+                if self.state == EditorState::GameDetail && self.context.code_editor_mode == CodeEditorMode::Settings {
+                    let mut sink = PropertySink::new();
+                    if sink.load_from_string(self.context.code_editor_value.clone()) {
+                        self.context.code_editor_error = None;
+                        self.context.data.game.behavior.data.settings = Some(sink);
+                        self.context.data.game.save_data();
+                    } else {
+                        self.context.code_editor_error = Some((sink.error.clone().unwrap().1, Some(sink.error.unwrap().0)));
+                    }
+                }
                 /* TODO
                 // Region settings ?
                 if self.state == EditorState::RegionDetail && self.context.code_editor_node_behavior_id.0 == 130000 {

@@ -172,9 +172,9 @@ impl GameRender<'_> {
                     self.scope = Scope::new();
 
                     let cmd = ScriptCmd::new();
-                    this_map.insert("width".into(), (1024 as i32).into() );
-                    this_map.insert("height".into(), (608 as i32).into() );
-                    this_map.insert("tile_size".into(), (32 as i32).into() );
+                    this_map.insert("width".into(), (update.screen_size.0).into() );
+                    this_map.insert("height".into(), (update.screen_size.1).into() );
+                    this_map.insert("tile_size".into(), (update.def_square_tile_size).into() );
 
                     this_map.insert("cmd".into(), Dynamic::from(cmd) );
                     this_map.insert("message".into(), Dynamic::from(ScriptMessageCmd::new()));
