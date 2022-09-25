@@ -7,14 +7,14 @@ pub struct InventoryItem {
     pub id                  : Uuid,
     pub name                : String,
     pub item_type           : String,
-    pub tile                : Option<TileId>,
-    pub amount              : u16,
+    pub tile                : Option<TileData>,
+    pub amount              : u32,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Inventory {
     pub items               : Vec<InventoryItem>,
-    pub items_to_add        : Vec<String>
+    pub items_to_add        : Vec<(String, u32)>
 }
 
 impl Inventory {
@@ -26,8 +26,8 @@ impl Inventory {
     }
 
     /// Queues an item name to be added to the inventory.
-    pub fn add(&mut self, name: &str) {
-        self.items_to_add.push(name.to_string());
+    pub fn add(&mut self, name: &str, amount: i32) {
+        self.items_to_add.push((name.to_string(), amount as u32));
     }
 
     /// Add an item to the inventory.

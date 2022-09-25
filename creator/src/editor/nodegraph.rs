@@ -2275,9 +2275,11 @@ impl EditorContent for NodeGraph  {
 
         // Update property log
         if let Some(corner_index) = self.corner_index {
-            self.nodes[corner_index].widgets[3].dirty = true;
-            self.nodes[corner_index].dirty = true;
-            self.dirty = true;
+            if corner_index < self.nodes.len() && self.nodes[corner_index].is_corner_node {
+                self.nodes[corner_index].widgets[3].dirty = true;
+                self.nodes[corner_index].dirty = true;
+                self.dirty = true;
+            }
         }
 
         // Update the preview

@@ -561,6 +561,10 @@ impl AtomWidget {
                             if index >= max_lines { break; }
 
                             context.draw2d.draw_text_rect(buffer_frame, &(r.0, y_start + index * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, item.name.as_str(), color, b, crate::draw2d::TextAlignment::Left);
+
+                            let str = item.amount.to_string();
+
+                            context.draw2d.draw_text_rect(buffer_frame, &(r.0, y_start + index * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, str.as_str(), color, b, crate::draw2d::TextAlignment::Right);
                         }
                     } else
                     if self.curr_index == 3 {

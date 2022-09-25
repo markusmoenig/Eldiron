@@ -338,18 +338,55 @@ impl RegionInstance<'_> {
                 // Check if we have to add items to the inventory and clone it for sending to the client
                 if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
                     if let Some(mut inv) = mess.write_lock::<Inventory>() {
+
+                        // Add items
                         if inv.items_to_add.is_empty() == false {
                             let items_to_add = inv.items_to_add.clone();
-                            for name in &items_to_add {
-                                for (_id, value) in &mut self.items {
-                                    if value.name == *name {
-                                        let item = create_inventory_item(value);
-                                        inv.add_item(item);
+                            for data in &items_to_add {
+                                for (_id, behavior) in &mut self.items {
+
+                                    let mut added = false;
+
+                                    for item in &mut inv.items {
+                                        if item.name == *data.0 {
+                                            item.amount += data.1;
+                                            added = true;
+                                            break;
+                                        }
+                                    }
+
+                                    if added == false {
+                                        let mut tile_data : Option<TileData> = None;
+
+                                        // Get the default tile for the item
+                                        for (_index, node) in &behavior.nodes {
+                                            if node.behavior_type == BehaviorNodeType::BehaviorType {
+                                                if let Some(value) = node.values.get(&"tile".to_string()) {
+                                                    //return value.to_tile_data();
+                                                    tile_data = value.to_tile_data();
+                                                }
+                                            }
+                                        }
+
+                                        if behavior.name == *data.0 {
+                                            let item = InventoryItem {
+                                                id          : behavior.id,
+                                                name        : behavior.name.clone(),
+                                                item_type   : "Gear".to_string(),
+                                                tile        : tile_data,
+                                                amount      : data.1,
+                                            };
+                                            inv.add_item(item);
+                                            break;
+                                        }
+                                    } else {
+                                        break;
                                     }
                                 }
                             }
                             inv.items_to_add = vec![];
                         }
+                        // TODO Remove Items
                         inventory = inv.clone();
                     }
                 }
