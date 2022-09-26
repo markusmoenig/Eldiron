@@ -105,7 +105,7 @@ impl RegionInstance<'_> {
         });
 
         script_register_message_api(&mut engine);
-        script_register_item_api(&mut engine);
+        script_register_inventory_api(&mut engine);
 
         // Display f64 as ints
         use pathfinding::num_traits::ToPrimitive;

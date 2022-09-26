@@ -118,6 +118,8 @@ impl GameRender<'_> {
 
         engine.register_fn("to_string", |x: f32| format!("{}", x.round() as i32));
 
+        script_register_inventory_api(&mut engine);
+
         let this_map = Map::new();
 
         Self {
@@ -276,9 +278,10 @@ impl GameRender<'_> {
             self.lights.insert(position.region, update.lights.clone());
         }
 
-        // Insert the scope into the player map
-
         if let Some(mut map) = self.this_map.write_lock::<Map>() {
+
+            // Insert the scope into the player map
+
             if let Some(c) = map.get_mut("player") {
                 if let Some(mut player_map) = c.write_lock::<rhai::Map>() {
                     for (n, v) in &update.scope_buffer.values {
@@ -297,6 +300,9 @@ impl GameRender<'_> {
                     }
                 }
             }
+
+            // Set the inventory
+            map.insert("inventory".into(), Dynamic::from(update.inventory.clone()));
         }
 
         None

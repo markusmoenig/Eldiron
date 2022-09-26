@@ -34,12 +34,35 @@ impl Inventory {
     pub fn add_item(&mut self, item: InventoryItem) {
         self.items.push(item);
     }
+
+    /// Length of the item array
+    pub fn len(&mut self) -> i32 {
+        self.items.len() as i32
+    }
+
+    /// Returns the item name at the given index.
+    pub fn item_name_at(&mut self, index: i32) -> String {
+        if index >= 0 && index < self.items.len() as i32 {
+            return self.items[index as usize].name.clone();
+        }
+        "".to_string()
+    }
+
+    /// Returns the item amount at the given index.
+    pub fn item_amount_at(&mut self, index: i32) -> i32 {
+        if index >= 0 && index < self.items.len() as i32 {
+            return self.items[index as usize].amount as i32;
+        }
+        0
+    }
 }
 
-pub fn script_register_item_api(engine: &mut rhai::Engine) {
+pub fn script_register_inventory_api(engine: &mut rhai::Engine) {
     engine.register_type_with_name::<Inventory>("Inventory")
+        .register_fn("len", Inventory::len)
+        .register_fn("item_name_at", Inventory::item_name_at)
+        .register_fn("item_amount_at", Inventory::item_amount_at)
         .register_fn("add", Inventory::add);
-        //.register_fn("debug", InventoryItem::debug)
-        //.register_fn("error", InventoryItem::error);
+
 }
 
