@@ -21,7 +21,7 @@ impl EditorOptions for BehaviorOptions {
 
         node_list.add_group_list(context.color_blue, context.color_light_blue, vec![ "Close In".to_string(), "Lookout".to_string(), "Pathfinder".to_string(), "Call Behavior".to_string(), "Call System".to_string(), "Lock Tree".to_string(), "Unlock".to_string(), "Set State".to_string(), "Message".to_string() ]);
 
-        node_list.add_group_list(context.color_gray, context.color_light_gray, vec![ "Action".to_string(), "Move".to_string()]);
+        node_list.add_group_list(context.color_gray, context.color_light_gray, vec![ "Action".to_string(), "Move".to_string(), "Take".to_string()]);
 
         node_list.set_rect(rect, asset, context);
         widgets.push(node_list);

@@ -147,6 +147,8 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::Screen, screen);
         nodes.insert(BehaviorNodeType::Message, message);
         nodes.insert(BehaviorNodeType::Action, player_action);
+        nodes.insert(BehaviorNodeType::Take, player_take);
+        nodes.insert(BehaviorNodeType::Drop, player_drop);
 
         nodes.insert(BehaviorNodeType::Always, always);
         nodes.insert(BehaviorNodeType::InsideArea, inside_area);

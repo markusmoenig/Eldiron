@@ -48,6 +48,8 @@ pub enum BehaviorNodeType {
     Message,
     Action,                                                 // Player Action
     ActionArea,                                             // Define Action for an Area
+    Take,                                                   // Take loot
+    Drop,                                                   // Drop gear or item
 
     /*
     Pathfinder,

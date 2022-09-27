@@ -531,3 +531,89 @@ pub fn player_action(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionI
 
     execute_region_action(instance_index, action_name, dp, data)
 }
+
+/// Player wants to take something
+pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut dp:Option<Position> = None;
+    if let Some(p) = &data.instances[instance_index].position {
+        if let Some(action) = &data.instances[instance_index].action {
+            if action.direction == PlayerDirection::North {
+                dp = Some(Position::new(p.region, p.x, p.y - 1));
+                data.action_dir_text = "North".to_string();
+            } else
+            if action.direction == PlayerDirection::South {
+                dp = Some(Position::new(p.region, p.x, p.y + 1));
+                data.action_dir_text = "South".to_string();
+            } else
+            if action.direction == PlayerDirection::East {
+                dp = Some(Position::new(p.region, p.x + 1, p.y));
+                data.action_dir_text = "East".to_string();
+            } else
+            if action.direction == PlayerDirection::West {
+                dp = Some(Position::new(p.region, p.x - 1, p.y));
+                data.action_dir_text = "West".to_string();
+            }
+        }
+    }
+
+    let mut rc = BehaviorNodeConnector::Fail;
+
+    if let Some(dp) = dp {
+        if let Some(loot) = data.loot.get_mut(&(dp.x, dp.y)) {
+
+            if loot.len() > 0 {
+                let element = loot.remove(0);
+                if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
+                    if let Some(mut inv) = mess.write_lock::<Inventory>() {
+                        if let Some(name) = element.name {
+                            inv.add(name.as_str(), element.amount);
+                        }
+                    }
+                }
+                rc = BehaviorNodeConnector::Success;
+            }
+        }
+    }
+
+    data.instances[instance_index].action = None;
+    rc
+}
+
+/// Player wants to drop something
+pub fn player_drop(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut dp:Option<Position> = None;
+    if let Some(p) = &data.instances[instance_index].position {
+        if let Some(action) = &data.instances[instance_index].action {
+            if action.direction == PlayerDirection::North {
+                dp = Some(Position::new(p.region, p.x, p.y - 1));
+                data.action_dir_text = "North".to_string();
+            } else
+            if action.direction == PlayerDirection::South {
+                dp = Some(Position::new(p.region, p.x, p.y + 1));
+                data.action_dir_text = "South".to_string();
+            } else
+            if action.direction == PlayerDirection::East {
+                dp = Some(Position::new(p.region, p.x + 1, p.y));
+                data.action_dir_text = "East".to_string();
+            } else
+            if action.direction == PlayerDirection::West {
+                dp = Some(Position::new(p.region, p.x - 1, p.y));
+                data.action_dir_text = "West".to_string();
+            }
+        }
+    }
+
+    let mut action_name = "".to_string();
+
+    if let Some(value) = get_node_value((id.0, id.1, "action"), data, behavior_type) {
+        if let Some(name) = value.to_string() {
+            action_name = name;
+        }
+    }
+
+    data.instances[instance_index].action = None;
+
+    execute_region_action(instance_index, action_name, dp, data)
+}

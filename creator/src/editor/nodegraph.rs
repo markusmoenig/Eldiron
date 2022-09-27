@@ -1170,6 +1170,8 @@ impl EditorContent for NodeGraph  {
                 "Screen" => BehaviorNodeType::Screen,
                 "Message" if self.graph_type != BehaviorType::Regions => BehaviorNodeType::Message,
                 "Action" if self.graph_type != BehaviorType::Regions => BehaviorNodeType::Action,
+                "Take" => BehaviorNodeType::Take,
+                "Drop" => BehaviorNodeType::Drop,
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
@@ -1480,6 +1482,12 @@ impl EditorContent for NodeGraph  {
                 node_widget.color = context.color_green.clone();
                 node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
             }
+        } else
+        if node_behavior_type == BehaviorNodeType::Take || node_behavior_type == BehaviorNodeType::Drop {
+            node_widget.color = context.color_gray.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
 
         // Area

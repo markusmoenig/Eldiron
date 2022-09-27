@@ -37,7 +37,7 @@ impl EditorContent for ScreenEditor<'_> {
 
         // Tile Selector
         let mut tile_selector = TileSelectorWidget::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context);
-        tile_selector.set_tile_type(vec![TileUsage::UIElement], None, None, &asset);
+        tile_selector.set_tile_type(vec![TileUsage::UIElement, TileUsage::Icon], None, None, &asset);
 
         Self {
             rect,
@@ -279,6 +279,7 @@ impl EditorContent for ScreenEditor<'_> {
             }
             update.position = self.player_position.clone();
             context.code_editor_error = render.process_update(&update);
+            self.grid_size = render.tile_size;
         }
     }
 

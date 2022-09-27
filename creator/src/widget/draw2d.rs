@@ -960,11 +960,11 @@ impl Draw2D {
         rect.3 = layout.height().ceil() as usize + vert_size;
 
         if rect.0 + rect.2 > safe_rect.2 {
-            rect.0 -= rect.0 + rect.2 - safe_rect.2 - 10;
+            rect.0 -= rect.0 + rect.2 - safe_rect.2 + 10;
         }
 
         if rect.1 + rect.3 > safe_rect.3 {
-            rect.1 -= rect.1 + rect.3 - safe_rect.3 - 10;
+            rect.1 -= rect.1 + rect.3 - safe_rect.3 + 10;
         }
 
         self.draw_rect(frame, &rect, stride, &background);
