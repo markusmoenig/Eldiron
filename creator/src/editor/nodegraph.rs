@@ -92,7 +92,7 @@ impl EditorContent for NodeGraph  {
     fn set_mode(&mut self, mode: GraphMode, context: &ScreenContext) {
 
         // Create previews
-        if mode == GraphMode::Detail && (self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Systems || self.graph_type == BehaviorType::GameLogic) && self.preview.is_none() {
+        if mode == GraphMode::Detail && (self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Systems || self.graph_type == BehaviorType::Items || self.graph_type == BehaviorType::GameLogic) && self.preview.is_none() {
             self.preview = Some(NodePreviewWidget::new(context, self.graph_type));
         }
 
@@ -2282,11 +2282,13 @@ impl EditorContent for NodeGraph  {
         }
 
         // Update property log
-        if let Some(corner_index) = self.corner_index {
-            if corner_index < self.nodes.len() && self.nodes[corner_index].is_corner_node {
-                self.nodes[corner_index].widgets[3].dirty = true;
-                self.nodes[corner_index].dirty = true;
-                self.dirty = true;
+        if self.graph_type == BehaviorType::Behaviors {
+            if let Some(corner_index) = self.corner_index {
+                if corner_index < self.nodes.len() && self.nodes[corner_index].is_corner_node {
+                    self.nodes[corner_index].widgets[3].dirty = true;
+                    self.nodes[corner_index].dirty = true;
+                    self.dirty = true;
+                }
             }
         }
 

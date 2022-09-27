@@ -953,7 +953,7 @@ impl GameRender<'_> {
 
                         match cmd {
                             ScriptServerCmd::Action(action, direction) => {
-                                let mut dir : Option<PlayerDirection> = None;
+                                let dir : Option<PlayerDirection>;
 
                                 if direction == "west" {
                                     dir = Some(PlayerDirection::West);
@@ -966,6 +966,8 @@ impl GameRender<'_> {
                                 } else
                                 if direction == "south" {
                                     dir = Some(PlayerDirection::South);
+                                } else {
+                                    dir = Some(PlayerDirection::None);
                                 }
 
                                 if let Some(dir) = dir {

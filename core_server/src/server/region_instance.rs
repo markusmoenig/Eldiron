@@ -1,8 +1,6 @@
 use crate::prelude::*;
 use rhai::{Engine, AST, Scope};
 
-type NodeCall = fn(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector;
-
 pub struct RegionInstance<'a> {
     // Game data
     pub region_data                 : GameRegionData,
@@ -64,7 +62,10 @@ pub struct RegionInstance<'a> {
     pub lights                      : HashMap<Uuid, Vec<Light>>,
 
     // The current move direction of the player
-    pub action_dir_text             : String,
+    pub action_direction_text       : String,
+
+    // The current subject (inventory item etc.) of the player
+    pub action_subject_text         : String,
 
     // These are fields which provide debug feedback while running and are only used in the editors debug mode
 
@@ -198,7 +199,8 @@ impl RegionInstance<'_> {
             prev_area_characters    : HashMap::new(),
             lights                  : HashMap::new(),
 
-            action_dir_text         : "".to_string(),
+            action_direction_text   : "".to_string(),
+            action_subject_text     : "".to_string(),
 
             debug_behavior_id       : None,
             is_debugging            : false,
@@ -667,7 +669,8 @@ impl RegionInstance<'_> {
                     connectors.push(BehaviorNodeConnector::Bottom2);
                     connectors.push(BehaviorNodeConnector::Bottom);
                     connectors.push(BehaviorNodeConnector::Bottom3);
-                    connectors.push(BehaviorNodeConnector::Bottom4);                    is_sequence = true;
+                    connectors.push(BehaviorNodeConnector::Bottom4);
+                    is_sequence = true;
                 } else {
                     if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
                         let systems_id = self.instances[instance_index].systems_id.clone();
@@ -712,6 +715,84 @@ impl RegionInstance<'_> {
                     if connector == BehaviorNodeConnector::Fail || connector == BehaviorNodeConnector::Right {
                         break;
                     }
+                }
+            }
+        }
+        rc
+    }
+
+    /// Executes the given item node and follows the connection chain
+    pub fn execute_item_node(&mut self, instance_index: usize, item_id: Uuid, node_id: Uuid) -> Option<BehaviorNodeConnector> {
+
+        let mut connectors : Vec<BehaviorNodeConnector> = vec![];
+        let mut connected_node_ids : Vec<Uuid> = vec![];
+        let mut possibly_executed_connections : Vec<(BehaviorType, Uuid, BehaviorNodeConnector)> = vec![];
+
+        let mut is_sequence = false;
+        let mut rc : Option<BehaviorNodeConnector> = None;
+
+        // Call the node and get the resulting BehaviorNodeConnector
+        if let Some(item) = self.items.get_mut(&item_id) {
+            if let Some(node) = item.nodes.get_mut(&node_id) {
+
+                // Handle special nodes
+                if node.behavior_type == BehaviorNodeType::BehaviorTree || node.behavior_type == BehaviorNodeType::Linear {
+                    connectors.push(BehaviorNodeConnector::Bottom1);
+                    connectors.push(BehaviorNodeConnector::Bottom2);
+                    connectors.push(BehaviorNodeConnector::Bottom);
+                } else
+                if node.behavior_type == BehaviorNodeType::Sequence {
+                    connectors.push(BehaviorNodeConnector::Bottom1);
+                    connectors.push(BehaviorNodeConnector::Bottom2);
+                    connectors.push(BehaviorNodeConnector::Bottom);
+                    connectors.push(BehaviorNodeConnector::Bottom3);
+                    connectors.push(BehaviorNodeConnector::Bottom4);
+                    is_sequence = true;
+                } else {
+                    if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
+                        let item_id = item_id;
+                        let connector = node_call(instance_index, (item_id, node_id), self, BehaviorType::Items);
+                        rc = Some(connector);
+                        connectors.push(connector);
+                    } else {
+                        connectors.push(BehaviorNodeConnector::Bottom);
+                    }
+                }
+            }
+        }
+
+        // Search the connections to check if we can find an ongoing node connection
+        for connector in connectors {
+            if let Some(item) = self.items.get_mut(&item_id) {
+
+                for c in &item.connections {
+                    if c.0 == node_id && c.1 == connector {
+                        connected_node_ids.push(c.2);
+                        if is_sequence == false {
+                            self.executed_connections.push((BehaviorType::Items, c.0, c.1));
+                        } else {
+                            possibly_executed_connections.push((BehaviorType::Items, c.0, c.1));
+                        }
+                    }
+                }
+            }
+        }
+
+        // And if yes execute it
+        for (index, connected_node_id) in connected_node_ids.iter().enumerate() {
+
+            // If this is a sequence, mark this connection as executed
+            if is_sequence {
+                self.executed_connections.push(possibly_executed_connections[index]);
+            }
+
+            if let Some(connector) = self.execute_item_node(instance_index, item_id, *connected_node_id) {
+                if is_sequence {
+                    // Inside a sequence break out if the connector is not Success
+                    if connector == BehaviorNodeConnector::Fail || connector == BehaviorNodeConnector::Right {
+                        break;
+                    }
+
                 }
             }
         }

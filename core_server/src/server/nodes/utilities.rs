@@ -54,6 +54,15 @@ pub fn get_node_value(id: (Uuid, Uuid, &str), data: &mut RegionInstance, behavio
             }
         }
     } else
+    if behavior_type == BehaviorType::Items {
+        if let Some(item) = data.items.get_mut(&id.0) {
+            if let Some(node) = item.nodes.get_mut(&id.1) {
+                if let Some(value) = node.values.get_mut(id.2) {
+                    return Some(value.clone());
+                }
+            }
+        }
+    } else
     if behavior_type == BehaviorType::GameLogic {
         let game = &mut data.game_data;
         if let Some(node) = game.nodes.get_mut(&id.1) {
@@ -193,6 +202,34 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
                         return BehaviorNodeConnector::Success;
                     }
                 }
+            }
+        }
+
+        // Check loot items
+
+        if let Some(loot) = data.loot.get(&(dp.x, dp.y)) {
+            for index in 0..loot.len() {
+                if let Some(behavior) = data.get_behavior(loot[index].id, BehaviorType::Items) {
+                    for (id, node) in &behavior.nodes {
+                        if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                            if node.name == action_name {
+                                data.execute_item_node(instance_index, behavior.id, *id);
+                                return BehaviorNodeConnector::Success;
+                            }
+                        }
+                    }
+                }
+                /*
+                let element = loot.remove(0);
+                if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
+                    if let Some(mut inv) = mess.write_lock::<Inventory>() {
+                        if let Some(name) = element.name {
+                            inv.add(name.as_str(), element.amount);
+                            data.action_subject_text = name;
+                        }
+                    }
+                }*/
+                //rc = BehaviorNodeConnector::Success;
             }
         }
     }
