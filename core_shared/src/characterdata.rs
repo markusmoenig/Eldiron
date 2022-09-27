@@ -14,3 +14,12 @@ pub struct CharacterData {
 
     pub tile                    : TileId,
 }
+
+/// Represents a placed loot instance in the region
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct LootData {
+    pub id                      : Uuid,
+    pub name                    : Option<String>,
+    pub tile                    : Option<TileData>,
+    pub amount                  : i32,
+}

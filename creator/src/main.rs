@@ -21,6 +21,7 @@ mod prelude {
     pub use crate::tilemapwidget::*;
     pub use crate::tileselector::*;
     pub use crate::characterselector::*;
+    pub use crate::lootselector::*;
 
     pub use crate::editor::dialog::*;
     pub use crate::editor::codeeditorwidget::*;

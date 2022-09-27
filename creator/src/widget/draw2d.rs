@@ -698,7 +698,7 @@ impl Draw2D {
             }
         }
 
-        let mut draw_character = |id: Uuid, position: &Position| {
+        let mut draw_tile = |id: Uuid, position: &Position, item: bool| {
             // In the same region ?
             if position.region == region.data.id {
 
@@ -707,7 +707,15 @@ impl Draw2D {
                     // Column check
                     if position.y >= offset.1 && position.y < offset.1 + y_tiles {
                         // Visible
-                        if let Some(tile) = context.data.get_behavior_default_tile(id) {
+                        let tile : Option<TileData>;
+
+                        if item == false {
+                            tile = context.data.get_behavior_default_tile(id);
+                        } else {
+                            tile = context.data.get_item_default_tile(id);
+                        }
+
+                        if let Some(tile) = tile {
 
                             let pos = (rect.0 + left_offset + ((position.x - offset.0) as usize) * tile_size, rect.1 + top_offset + ((position.y - offset.1) as usize) * tile_size);
 
@@ -721,14 +729,22 @@ impl Draw2D {
         };
 
         // Draw Behaviors
-
         for (id, behavior) in &context.data.behaviors {
             if let Some(position) = context.data.get_behavior_default_position(*id) {
-                draw_character(*id, &position);
+                draw_tile(*id, &position, false);
             }
             if let Some(instances) = &behavior.data.instances {
                 for position in instances {
-                    draw_character(*id, &position.position);
+                    draw_tile(*id, &position.position, false);
+                }
+            }
+        }
+
+        // Draw Items
+        for (id, behavior) in &context.data.items {
+            if let Some(loot) = &behavior.data.loot {
+                for position in loot {
+                    draw_tile(*id, &position.position, true);
                 }
             }
         }

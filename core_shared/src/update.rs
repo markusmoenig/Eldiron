@@ -34,6 +34,9 @@ pub struct GameUpdate {
     /// Character information
     pub characters              : Vec<CharacterData>,
 
+    /// Loot information
+    pub loot                    : FxHashMap<(isize, isize), Vec<LootData>>,
+
     /// Messages
     pub messages                : Vec<MessageData>,
 
@@ -65,6 +68,7 @@ impl GameUpdate {
             lights              : vec![],
             displacements       : HashMap::new(),
             characters          : vec![],
+            loot                : FxHashMap::default(),
             messages            : vec![],
             audio               : vec![],
             scope_buffer        : ScopeBuffer::new(),

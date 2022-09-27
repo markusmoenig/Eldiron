@@ -7,6 +7,7 @@ pub mod draw2d;
 pub mod atom;
 pub mod tileselector;
 pub mod characterselector;
+pub mod lootselector;
 
 /// The widget state
 

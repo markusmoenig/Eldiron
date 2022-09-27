@@ -167,6 +167,8 @@ pub enum ScriptDrawCmd {
 #[derive(PartialEq, Clone, Debug)]
 pub enum ScriptServerCmd {
     Action(String, String),
+    ActionInv(String, i32),
+    ActionGear(String, i32),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -183,10 +185,22 @@ impl ScriptCmd {
         }
     }
 
-    // Actions
+    // Action
 
     pub fn action(&mut self, action: &str, direction: &str) {
         self.action_commands.push(ScriptServerCmd::Action(action.to_owned(), direction.to_owned().to_lowercase()));
+    }
+
+    // Gear Action
+
+    pub fn action_gear(&mut self, action: &str, gear_index: i32 ) {
+        self.action_commands.push(ScriptServerCmd::ActionGear(action.to_owned(), gear_index));
+    }
+
+    // Inventory Action
+
+    pub fn action_inv(&mut self, action: &str, inventory_index: i32 ) {
+        self.action_commands.push(ScriptServerCmd::ActionInv(action.to_owned(), inventory_index));
     }
 
     // Draw

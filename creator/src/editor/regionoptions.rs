@@ -5,6 +5,7 @@ pub enum RegionEditorMode {
     Tiles,
     Areas,
     Characters,
+    Loot,
     Settings
 }
 

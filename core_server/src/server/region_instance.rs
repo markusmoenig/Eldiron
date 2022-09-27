@@ -30,6 +30,9 @@ pub struct RegionInstance<'a> {
     pub instances                   : Vec<BehaviorInstance>,
     pub scopes                      : Vec<rhai::Scope<'a>>,
 
+    /// The loot in the region
+    pub loot                        : FxHashMap<(isize, isize), Vec<LootData>>,
+
     /// During action execution for regions this indicates the calling behavior index
     pub curr_action_inst_index      : Option<usize>,
 
@@ -174,6 +177,8 @@ impl RegionInstance<'_> {
 
             instances               : vec![],
             scopes                  : vec![],
+
+            loot                    : FxHashMap::default(),
 
             curr_action_inst_index  : None,
 
@@ -534,6 +539,7 @@ impl RegionInstance<'_> {
                     lights,
                     displacements,
                     characters,
+                    loot                    : self.loot.clone(),
                     messages                : self.instances[inst_index].messages.clone(),
                     audio                   : self.instances[inst_index].audio.clone(),
                     scope_buffer            : scope_buffer,
@@ -861,6 +867,30 @@ impl RegionInstance<'_> {
         }
         for i in items {
             if let Some(behavior_data) = serde_json::from_str::<GameBehaviorData>(&i).ok() {
+                if let Some(instances) = &behavior_data.loot {
+                    for instance in instances {
+                        let mut loot = LootData {
+                            id          : behavior_data.id.clone(),
+                            name        : Some(behavior_data.name.clone()),
+                            tile        : None,
+                            amount      : instance.amount,
+                        };
+
+                        for (_index, node) in &behavior_data.nodes {
+                            if node.behavior_type == BehaviorNodeType::BehaviorType {
+                                if let Some(value) = node.values.get(&"tile".to_string()) {
+                                    loot.tile = value.to_tile_data();
+                                }
+                            }
+                        }
+
+                        if let Some(v) = self.loot.get_mut(&(instance.position.x, instance.position.y)) {
+                            v.push(loot);
+                        } else {
+                            self.loot.insert((instance.position.x, instance.position.y), vec![loot]);
+                        }
+                    }
+                }
                 self.items.insert(behavior_data.id, behavior_data);
             }
         }

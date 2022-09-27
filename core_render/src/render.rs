@@ -74,6 +74,7 @@ impl GameRender<'_> {
         engine.register_type_with_name::<ScriptCmd>("Cmd")
 
             .register_fn("action", ScriptCmd::action)
+            .register_fn("action_inv", ScriptCmd::action_inv)
 
             .register_fn("draw_rect", ScriptCmd::draw_rect)
             .register_fn("draw_tile", ScriptCmd::draw_tile)
@@ -736,7 +737,19 @@ impl GameRender<'_> {
             for y in from_y..y_tiles {
                 for x in from_x..x_tiles {
 
-                    let values = self.get_region_value(region, (x + offset.0 as isize, y + offset.1), update);
+                    let pos_x = x + offset.0;
+                    let pos_y = y + offset.1;
+
+                    let mut values = self.get_region_value(region, (pos_x, pos_y), update);
+
+                    if let Some(loots) = update.loot.get(&(pos_x, pos_y)) {
+                        for loot in loots {
+                            if let Some(tile) = loot.tile.clone() {
+                                values.push(tile);
+                            }
+                        }
+                    }
+
                     for value in values {
                         let pos = (rect.0 + left_offset + (x * tile_size as isize - gr.0) as usize, rect.1 + top_offset + (y * tile_size as isize - gr.1) as usize);
 
@@ -956,9 +969,19 @@ impl GameRender<'_> {
                                 }
 
                                 if let Some(dir) = dir {
-                                    if let Some(action) = pack_action(player_id, action.clone(), dir, "".to_string()) {
+                                    if let Some(action) = pack_action(player_id, action.clone(), dir) {
                                         commands.push(action);
                                     }
+                                }
+                            },
+                            ScriptServerCmd::ActionGear(action, gear_index) => {
+                                if let Some(action) = pack_gear_action(player_id, action.clone(), *gear_index as u16) {
+                                    commands.push(action);
+                                }
+                            },
+                            ScriptServerCmd::ActionInv(action, inv_index) => {
+                                if let Some(action) = pack_inv_action(player_id, action.clone(), *inv_index as u16) {
+                                    commands.push(action);
                                 }
                             }
                         }

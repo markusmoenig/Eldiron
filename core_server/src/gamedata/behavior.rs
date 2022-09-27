@@ -203,13 +203,22 @@ pub struct BehaviorInstance {
     pub game_locked_tree        : Option<Uuid>,
 }
 
-// An instance of a game behavior data
+/// Represents a character behavior instance
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CharacterInstanceData {
     pub position                : Position,
     pub name                    : Option<String>,
     pub tile                    : Option<TileId>,
     pub alignment               : i32,
+}
+
+/// Represents loot instance
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct LootInstanceData {
+    pub position                : Position,
+    pub name                    : Option<String>,
+    pub tile                    : Option<TileId>,
+    pub amount                  : i32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -223,6 +232,7 @@ pub struct GameBehaviorData {
     pub curr_node_id            : Option<Uuid>,
 
     pub instances               : Option<Vec<CharacterInstanceData>>,
+    pub loot                    : Option<Vec<LootInstanceData>>,
 
     pub settings                : Option<PropertySink>
 }
@@ -236,6 +246,7 @@ impl GameBehaviorData {
             name                    : "".to_string(),
             curr_node_id            : None,
             instances               : Some(vec![]),
+            loot                    : Some(vec![]),
             settings                : None,
         }
     }
@@ -265,7 +276,7 @@ impl GameBehavior {
 
         // Construct the json settings
         let mut data = serde_json::from_str(&contents)
-            .unwrap_or(GameBehaviorData { nodes: HashMap::default(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None });
+            .unwrap_or(GameBehaviorData { nodes: HashMap::default(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), loot: Some(vec![]), settings: None });
 
         data.name = name.to_owned();
 
@@ -283,7 +294,7 @@ impl GameBehavior {
         let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
 
         // Construct the json settings
-        let mut data = GameBehaviorData { nodes: HashMap::default(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None };
+        let mut data = GameBehaviorData { nodes: HashMap::default(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), loot: Some(vec![]), settings: None };
 
         if let Some(bytes) = Embedded::get(file_name) {
             if let Some(string) = std::str::from_utf8(bytes.data.as_ref()).ok() {
@@ -305,7 +316,7 @@ impl GameBehavior {
             name            : "name".to_string(),
             path            : std::path::Path::new("").to_path_buf(),
             behavior_path   : std::path::Path::new("").to_path_buf(),
-            data            : GameBehaviorData { nodes: HashMap::default(), connections: vec![], id: Uuid::new_v4(), name            : "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), settings: None }
+            data            : GameBehaviorData { nodes: HashMap::default(), connections: vec![], id: Uuid::new_v4(), name            : "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), loot: Some(vec![]), settings: None }
         }
     }
 
