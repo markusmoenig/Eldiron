@@ -1,7 +1,7 @@
 use crate::prelude::*;
-/*
+
 /// expression
-pub fn expression(instance_index: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn expression(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let rc = eval_bool_expression_instance(instance_index, (behavior_type, id.0, id.1, "expression".to_string()), data);
     if let Some(rc) = rc {
@@ -10,7 +10,7 @@ pub fn expression(instance_index: usize, id: (usize, usize), data: &mut RegionIn
         }
     }
     BehaviorNodeConnector::Fail
-}*/
+}
 
 pub fn script(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
     _ = eval_dynamic_script_instance(instance_index, (behavior_type, id.0, id.1, "script".to_string()), data);

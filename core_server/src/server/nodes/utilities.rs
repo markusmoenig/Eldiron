@@ -219,17 +219,6 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
                         }
                     }
                 }
-                /*
-                let element = loot.remove(0);
-                if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
-                    if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                        if let Some(name) = element.name {
-                            inv.add(name.as_str(), element.amount);
-                            data.action_subject_text = name;
-                        }
-                    }
-                }*/
-                //rc = BehaviorNodeConnector::Success;
             }
         }
     }

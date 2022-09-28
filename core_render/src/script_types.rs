@@ -167,7 +167,7 @@ pub enum ScriptDrawCmd {
 #[derive(PartialEq, Clone, Debug)]
 pub enum ScriptServerCmd {
     Action(String, String),
-    ActionInv(String, i32),
+    ActionInventory(String, i32),
     ActionGear(String, i32),
 }
 
@@ -199,8 +199,8 @@ impl ScriptCmd {
 
     // Inventory Action
 
-    pub fn action_inv(&mut self, action: &str, inventory_index: i32 ) {
-        self.action_commands.push(ScriptServerCmd::ActionInv(action.to_owned(), inventory_index));
+    pub fn action_inventory(&mut self, action: &str, inventory_index: i32 ) {
+        self.action_commands.push(ScriptServerCmd::ActionInventory(action.to_owned(), inventory_index));
     }
 
     // Draw

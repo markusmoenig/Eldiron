@@ -28,7 +28,7 @@ pub fn pack_action(player_id: Uuid, action: String, direction: PlayerDirection) 
 }
 
 /// Packs an action on the given inventory index into JSON
-pub fn pack_inv_action(player_id: Uuid, action: String, inv_index: u16) -> Option<String> {
+pub fn pack_inventory_action(player_id: Uuid, action: String, inv_index: u16) -> Option<String> {
     let action = PlayerAction{ action, player_id, direction: PlayerDirection::None, gear_index: None, inventory_index: Some(inv_index) };
     return serde_json::to_string(&action).ok()
 }

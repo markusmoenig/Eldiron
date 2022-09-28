@@ -31,6 +31,9 @@ impl ScopeBuffer {
             if let Some(value) = val.2.as_int().ok() {
                 self.values.insert(val.0.to_string(), Value::Integer(value));
             } else
+            if let Some(value) = val.2.as_bool().ok() {
+                self.values.insert(val.0.to_string(), Value::Bool(value));
+            } else
             if let Some(value) = val.2.into_string().ok() {
                 self.values.insert(val.0.to_string(), Value::String(value));
             }
@@ -38,7 +41,20 @@ impl ScopeBuffer {
     }
 
     /// Write the contents of this buffer to the scope
-    pub fn write_to_scope(&self, _scope: &mut Scope) {
-
+    pub fn write_to_scope(&self, scope: &mut Scope) {
+        for (name, value) in &self.values {
+            match value {
+                Value::Bool(v) => {
+                    scope.set_value(name, v.clone());
+                },
+                Value::Integer(v) => {
+                    scope.set_value(name, v.clone());
+                },
+                Value::Float(v) => {
+                    scope.set_value(name, v.clone());
+                },
+                _ => {},
+            }
+        }
     }
 }

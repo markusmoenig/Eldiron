@@ -8,6 +8,7 @@ pub struct InventoryItem {
     pub name                : String,
     pub item_type           : String,
     pub tile                : Option<TileData>,
+    pub state               : Option<ScopeBuffer>,
     pub amount              : u32,
 }
 

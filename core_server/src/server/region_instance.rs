@@ -117,9 +117,7 @@ impl RegionInstance<'_> {
 
         let mut nodes : FxHashMap<BehaviorNodeType, NodeCall> = FxHashMap::default();
 
-        /*
         nodes.insert(BehaviorNodeType::Expression, expression);
-        */
         nodes.insert(BehaviorNodeType::Script, script);
         /*
         nodes.insert(BehaviorNodeType::Message, message);
@@ -281,25 +279,88 @@ impl RegionInstance<'_> {
                         }
                     }
                 } else {
-                    // Execute the tree which matches the current action, i.e. "onXXX", like "onMove"
+                    // Execute the tree which matches the current action
 
                     let mut tree_id: Option<Uuid> = None;
                     if let Some(action) = &self.instances[inst_index].action {
-                        for id in &self.instances[inst_index].tree_ids {
-                            if let Some(behavior) = self.get_behavior(self.instances[inst_index].behavior_id, BehaviorType::Behaviors) {
-                                if let Some(node) = behavior.nodes.get(&id) {
-                                    if node.name == action.action {
-                                        tree_id = Some(*id);
-                                        break;
+
+                        if action.direction != PlayerDirection::None {
+
+                            // A directed action ( Move / Look - North etc)
+
+                            for id in &self.instances[inst_index].tree_ids {
+                                if let Some(behavior) = self.get_behavior(self.instances[inst_index].behavior_id, BehaviorType::Behaviors) {
+                                    if let Some(node) = behavior.nodes.get(&id) {
+                                        if node.name == action.action {
+                                            tree_id = Some(*id);
+                                            break;
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        if let Some(tree_id) = tree_id {
-                            self.execute_node(inst_index, tree_id);
-                        } else {
-                            println!("Cannot find valid tree for action {}", action.action);
+                            if let Some(tree_id) = tree_id {
+                                self.execute_node(inst_index, tree_id);
+                            } else {
+                                println!("Cannot find valid tree for directed action {}", action.action);
+                            }
+                        } else
+                        if let Some(inventory_index) = &action.inventory_index {
+
+                            // An action on an inventory item index
+
+                            let index = (inventory_index - 1) as usize;
+                            let mut item_id = None;
+                            let mut scope_buffer : Option<ScopeBuffer> = None;
+                            if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
+                                if let Some(inv) = mess.read_lock::<Inventory>() {
+
+                                    if index < inv.items.len() {
+                                        item_id = Some(inv.items[index].id);
+                                        if inv.items[index].state.is_some() {
+                                            scope_buffer = inv.items[index].state.clone();
+                                        }
+                                    }
+                                }
+                            }
+
+                            let mut to_execute = vec![];
+
+                            if let Some(item_id) = item_id {
+                                if let Some(item_behavior) = self.get_behavior(item_id, BehaviorType::Items) {
+                                    for (id, node) in &item_behavior.nodes {
+                                        if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                                            if node.name == action.action {
+                                                to_execute.push((item_behavior.id, *id));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Execute the item actions
+                            for (behavior_id, node_id) in to_execute {
+                                if let Some(scope_buffer) = &scope_buffer {
+                                    // Move the item scope in / out
+                                    let curr_scope = self.scopes[inst_index].clone();
+                                    let mut scope = Scope::new();
+                                    scope_buffer.write_to_scope(&mut scope);
+                                    self.scopes[inst_index] = scope;
+                                    self.execute_item_node(inst_index, behavior_id, node_id);
+
+                                    let mut new_buffer = ScopeBuffer::new();
+                                    new_buffer.read_from_scope(&self.scopes[inst_index]);
+
+                                    self.scopes[inst_index] = curr_scope;
+                                    if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
+                                        if let Some(mut inv) = mess.write_lock::<Inventory>() {
+                                            inv.items[index].state = Some(new_buffer);
+                                        }
+                                    }
+                                } else {
+                                    self.execute_item_node(inst_index, behavior_id, node_id);
+                                }
+                            }
                         }
 
                         self.instances[inst_index].action = None;
@@ -344,6 +405,10 @@ impl RegionInstance<'_> {
                     }
                 }
 
+                // Inventory Actions
+
+                let mut to_add = vec![];
+
                 // Check if we have to add items to the inventory and clone it for sending to the client
                 if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
                     if let Some(mut inv) = mess.write_lock::<Inventory>() {
@@ -366,26 +431,65 @@ impl RegionInstance<'_> {
 
                                     if added == false {
                                         let mut tile_data : Option<TileData> = None;
+                                        let mut sink : Option<PropertySink> = None;
 
                                         // Get the default tile for the item
                                         for (_index, node) in &behavior.nodes {
                                             if node.behavior_type == BehaviorNodeType::BehaviorType {
                                                 if let Some(value) = node.values.get(&"tile".to_string()) {
-                                                    //return value.to_tile_data();
                                                     tile_data = value.to_tile_data();
+                                                }
+                                                if let Some(value) = node.values.get(&"settings".to_string()) {
+
+                                                    if let Some(str) = value.to_string() {
+                                                        let mut s = PropertySink::new();
+                                                        s.load_from_string(str.clone());
+                                                        sink = Some(s);
+                                                    }
                                                 }
                                             }
                                         }
 
                                         if behavior.name == *data.0 {
-                                            let item = InventoryItem {
+                                            let mut item = InventoryItem {
                                                 id          : behavior.id,
                                                 name        : behavior.name.clone(),
                                                 item_type   : "Gear".to_string(),
                                                 tile        : tile_data,
+                                                state       : None,
                                                 amount      : data.1,
                                             };
-                                            inv.add_item(item);
+
+                                            // Add state ?
+
+                                            let mut states_to_execute = vec![];
+
+                                            if let Some(sink) = sink {
+                                                if let Some(state) = sink.get("state") {
+                                                    if let Some(value) = state.as_bool() {
+                                                        if value == true {
+                                                            item.state = Some(ScopeBuffer::new());
+                                                            for (node_id, node) in &behavior.nodes {
+                                                                if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                                                                    for (value_name, value) in &node.values {
+                                                                        if *value_name == "execute".to_string() {
+                                                                            if let Some(v) = value.to_integer() {
+                                                                                if v == 1 {
+                                                                                    // Startup only tree
+                                                                                    states_to_execute.push((behavior.id, *node_id));
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            //inv.add_item(item);
+                                            to_add.push((item, states_to_execute));
                                             break;
                                         }
                                     } else {
@@ -397,6 +501,25 @@ impl RegionInstance<'_> {
                         }
                         // TODO Remove Items
                         inventory = inv.clone();
+                    }
+                }
+
+                // Add new items
+                for (mut item, states_to_execute) in to_add {
+                    for (item_id, node_id) in states_to_execute {
+                        let curr_scope = self.scopes[inst_index].clone();
+                        self.scopes[inst_index] = Scope::new();
+                        self.execute_item_node(inst_index, item_id, node_id);
+                        let scope = self.scopes[inst_index].clone();
+                        self.scopes[inst_index] = curr_scope;
+                        let mut buffer = ScopeBuffer::new();
+                        buffer.read_from_scope(&scope);
+                        item.state = Some(buffer);
+                    }
+                    if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
+                        if let Some(mut inv) = mess.write_lock::<Inventory>() {
+                            inv.add_item(item);
+                        }
                     }
                 }
 

@@ -1211,6 +1211,14 @@ impl AtomWidget {
             if self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton {
                 context.code_editor_mode = CodeEditorMode::Settings;
                 if let Some(id) = &self.behavior_id {
+
+                    let mut sink = PropertySink::new();
+                    sink.load_from_string(id.2.clone());
+                    update_item_sink(&mut sink);
+                    let str = sink.to_string(generate_item_sink_descriptions());
+
+                    self.atom_data.value = Value::String(str);
+
                     context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
                 }
             }

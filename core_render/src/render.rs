@@ -74,7 +74,7 @@ impl GameRender<'_> {
         engine.register_type_with_name::<ScriptCmd>("Cmd")
 
             .register_fn("action", ScriptCmd::action)
-            .register_fn("action_inv", ScriptCmd::action_inv)
+            .register_fn("action_inventory", ScriptCmd::action_inventory)
 
             .register_fn("draw_rect", ScriptCmd::draw_rect)
             .register_fn("draw_tile", ScriptCmd::draw_tile)
@@ -981,8 +981,8 @@ impl GameRender<'_> {
                                     commands.push(action);
                                 }
                             },
-                            ScriptServerCmd::ActionInv(action, inv_index) => {
-                                if let Some(action) = pack_inv_action(player_id, action.clone(), *inv_index as u16) {
+                            ScriptServerCmd::ActionInventory(action, inv_index) => {
+                                if let Some(action) = pack_inventory_action(player_id, action.clone(), *inv_index as u16) {
                                     commands.push(action);
                                 }
                             }

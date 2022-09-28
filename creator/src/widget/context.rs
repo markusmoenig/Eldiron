@@ -543,7 +543,6 @@ impl ScreenContext<'_> {
         self.code_editor_just_opened = true;
     }
 
-
     /// Creates a property id
     pub fn create_property_id(&mut self, property: &str) -> (Uuid, Uuid, String) {
         (Uuid::new_v4(), Uuid::new_v4(), property.to_string())
