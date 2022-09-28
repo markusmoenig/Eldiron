@@ -117,7 +117,19 @@ pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
                 if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
                     if let Some(mut inv) = mess.write_lock::<Inventory>() {
                         if let Some(name) = element.name {
-                            inv.add(name.as_str(), element.amount);
+                            if element.state.is_none() {
+                                inv.add(name.as_str(), element.amount);
+                            } else {
+                                let item = InventoryItem {
+                                    id          : element.id,
+                                    name        : name.clone(),
+                                    item_type   : "Gear".to_string(),
+                                    tile        : element.tile,
+                                    state       : element.state,
+                                    amount      : element.amount as u32,
+                                };
+                                inv.add_item(item);
+                            }
                             data.action_subject_text = name;
                         }
                     }
@@ -132,39 +144,44 @@ pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
 }
 
 /// Player wants to drop something
-pub fn player_drop(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn player_drop(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    let mut dp:Option<Position> = None;
-    if let Some(p) = &data.instances[instance_index].position {
-        if let Some(action) = &data.instances[instance_index].action {
-            if action.direction == PlayerDirection::North {
-                dp = Some(Position::new(p.region, p.x, p.y - 1));
-                data.action_direction_text = "North".to_string();
-            } else
-            if action.direction == PlayerDirection::South {
-                dp = Some(Position::new(p.region, p.x, p.y + 1));
-                data.action_direction_text = "South".to_string();
-            } else
-            if action.direction == PlayerDirection::East {
-                dp = Some(Position::new(p.region, p.x + 1, p.y));
-                data.action_direction_text = "East".to_string();
-            } else
-            if action.direction == PlayerDirection::West {
-                dp = Some(Position::new(p.region, p.x - 1, p.y));
-                data.action_direction_text = "West".to_string();
+    let mut index: Option<usize> = None;
+    if let Some(action) = &data.instances[instance_index].action {
+        if let Some(inventory_index) = action.inventory_index {
+            index = Some(inventory_index as usize);
+        }
+    }
+
+    if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
+        if let Some(mut inv) = mess.write_lock::<Inventory>() {
+
+            if let Some(index) = index {
+                if index < inv.items.len() {
+                    let item = inv.items[index].clone();
+                    inv.items.remove(index);
+
+                    if let Some(p) = &data.instances[instance_index].position {
+                        let loot = LootData {
+                            id      : item.id,
+                            name    : Some(item.name),
+                            tile    : item.tile,
+                            state   : item.state,
+                            amount  : item.amount as i32,
+                        };
+
+                        if let Some(existing_loot) = data.loot.get_mut(&(p.x, p.y)) {
+                            existing_loot.push(loot);
+                        } else {
+                            data.loot.insert((p.x, p.y), vec![loot]);
+                        }
+
+                        return BehaviorNodeConnector::Success;
+                    }
+                }
             }
         }
     }
 
-    let mut action_name = "".to_string();
-
-    if let Some(value) = get_node_value((id.0, id.1, "action"), data, behavior_type) {
-        if let Some(name) = value.to_string() {
-            action_name = name;
-        }
-    }
-
-    data.instances[instance_index].action = None;
-
-    execute_region_action(instance_index, action_name, dp, data)
+    BehaviorNodeConnector::Fail
 }

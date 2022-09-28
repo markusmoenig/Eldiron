@@ -309,7 +309,7 @@ impl RegionInstance<'_> {
 
                             // An action on an inventory item index
 
-                            let index = (inventory_index - 1) as usize;
+                            let index = *inventory_index as usize;
                             let mut item_id = None;
                             let mut scope_buffer : Option<ScopeBuffer> = None;
                             if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
@@ -338,27 +338,47 @@ impl RegionInstance<'_> {
                                 }
                             }
 
-                            // Execute the item actions
-                            for (behavior_id, node_id) in to_execute {
-                                if let Some(scope_buffer) = &scope_buffer {
-                                    // Move the item scope in / out
-                                    let curr_scope = self.scopes[inst_index].clone();
-                                    let mut scope = Scope::new();
-                                    scope_buffer.write_to_scope(&mut scope);
-                                    self.scopes[inst_index] = scope;
-                                    self.execute_item_node(inst_index, behavior_id, node_id);
+                            if to_execute.is_empty() == false {
+                                // Execute the item actions
+                                for (behavior_id, node_id) in to_execute {
+                                    if let Some(scope_buffer) = &scope_buffer {
+                                        // Move the item scope in / out
+                                        let curr_scope = self.scopes[inst_index].clone();
+                                        let mut scope = Scope::new();
+                                        scope_buffer.write_to_scope(&mut scope);
+                                        self.scopes[inst_index] = scope;
+                                        self.execute_item_node(inst_index, behavior_id, node_id);
 
-                                    let mut new_buffer = ScopeBuffer::new();
-                                    new_buffer.read_from_scope(&self.scopes[inst_index]);
+                                        let mut new_buffer = ScopeBuffer::new();
+                                        new_buffer.read_from_scope(&self.scopes[inst_index]);
 
-                                    self.scopes[inst_index] = curr_scope;
-                                    if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
-                                        if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                                            inv.items[index].state = Some(new_buffer);
+                                        self.scopes[inst_index] = curr_scope;
+                                        if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
+                                            if let Some(mut inv) = mess.write_lock::<Inventory>() {
+                                                inv.items[index].state = Some(new_buffer);
+                                            }
+                                        }
+                                    } else {
+                                        self.execute_item_node(inst_index, behavior_id, node_id);
+                                    }
+                                }
+                            } else {
+                                // If we cannot find the tree on the item, look for it on the player
+                                for id in &self.instances[inst_index].tree_ids {
+                                    if let Some(behavior) = self.get_behavior(self.instances[inst_index].behavior_id, BehaviorType::Behaviors) {
+                                        if let Some(node) = behavior.nodes.get(&id) {
+                                            if node.name == action.action {
+                                                tree_id = Some(*id);
+                                                break;
+                                            }
                                         }
                                     }
+                                }
+
+                                if let Some(tree_id) = tree_id {
+                                    self.execute_node(inst_index, tree_id);
                                 } else {
-                                    self.execute_item_node(inst_index, behavior_id, node_id);
+                                    println!("Cannot find valid tree for directed action {}", action.action);
                                 }
                             }
                         }
@@ -440,7 +460,6 @@ impl RegionInstance<'_> {
                                                     tile_data = value.to_tile_data();
                                                 }
                                                 if let Some(value) = node.values.get(&"settings".to_string()) {
-
                                                     if let Some(str) = value.to_string() {
                                                         let mut s = PropertySink::new();
                                                         s.load_from_string(str.clone());
@@ -1079,6 +1098,7 @@ impl RegionInstance<'_> {
                             id          : behavior_data.id.clone(),
                             name        : Some(behavior_data.name.clone()),
                             tile        : None,
+                            state       : None,
                             amount      : instance.amount,
                         };
 

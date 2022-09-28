@@ -53,6 +53,9 @@ impl ScopeBuffer {
                 Value::Float(v) => {
                     scope.set_value(name, v.clone());
                 },
+                Value::String(v) => {
+                    scope.set_value(name, v.clone());
+                },
                 _ => {},
             }
         }
