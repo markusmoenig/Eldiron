@@ -174,6 +174,8 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
 
     // Find areas which contains the destination position and check if it has a fitting action node
 
+    let mut rc = BehaviorNodeConnector::Fail;
+
     if let Some(dp) = &dp {
 
         let mut ids = vec![];
@@ -212,7 +214,7 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
             loot = l.clone();
         }
 
-        for index in 0..loot.len() {
+        for index in 0..data.loot.len() {
             if loot[index].state.is_none() {
                 // Check if we have to create the item state
                 loot[index].state = check_and_create_item_state(instance_index, loot[index].id, data);
@@ -240,12 +242,15 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
                         state.write_to_scope(&mut item_scope);
                     }
                     data.scopes[instance_index] = item_scope;
+                    data.curr_loot_item = Some((dp.x, dp.y, index));
                     data.execute_item_node(instance_index, behavior_id, node_id);
+                    data.curr_loot_item = None;
                     let scope = data.scopes[instance_index].clone();
                     data.scopes[instance_index] = user_scope;
                     let mut new_buffer = ScopeBuffer::new();
                     new_buffer.read_from_scope(&scope);
                     loot[index].state = Some(new_buffer);
+                    rc = BehaviorNodeConnector::Success;
                 } else {
                     data.execute_item_node(instance_index, behavior_id, node_id);
                     return BehaviorNodeConnector::Success;
@@ -253,12 +258,15 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
             }
         }
 
-        if loot.is_empty() == false {
-            data.loot.insert((dp.x, dp.y), loot);
+        // Copy the state back
+        if let Some(l) = data.loot.get_mut(&(dp.x, dp.y)) {
+            for index in 0..l.len() {
+                l[index].state = loot[index].state.clone();
+            }
         }
     }
 
-    BehaviorNodeConnector::Fail
+    rc
 }
 
 /// Check if we have to create the state for the given item

@@ -1172,6 +1172,7 @@ impl EditorContent for NodeGraph  {
                 "Action" if self.graph_type != BehaviorType::Regions => BehaviorNodeType::Action,
                 "Take" => BehaviorNodeType::Take,
                 "Drop" => BehaviorNodeType::Drop,
+                "Light" if self.graph_type == BehaviorType::Items => BehaviorNodeType::LightItem,
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
@@ -1574,6 +1575,14 @@ impl EditorContent for NodeGraph  {
         if node_behavior_type == BehaviorNodeType::LightArea {
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::LightItem {
+            let menu = create_menu_atom("State".to_string(), vec!["Off".to_string(), "On".to_string()], Value::Integer(0));
+            node_widget.widgets.push(menu);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         }
     }
 

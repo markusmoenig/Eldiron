@@ -94,14 +94,14 @@ impl Editor<'_> {
         let dialog_position = DialogPositionWidget::new(asset, &context);
 
         let log = LogWidget::new(&context);
-        let mut status_bar = StatusBar::new();
+        let status_bar = StatusBar::new();
 
         let code_editor =  CodeEditorWidget::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context);
 
         // Set current project
 
-        let mut project_to_load: Option<std::path::PathBuf> = None;
         /*
+        let mut project_to_load: Option<std::path::PathBuf> = None;
         let project_list = context.get_project_list();
 
         if project_list.is_empty() {
@@ -117,7 +117,7 @@ impl Editor<'_> {
 
             status_bar.add_message(format!("Loaded Documents >> Eldiron >> {}", project_list[0]));
         }*/
-        project_to_load = Some(std::path::PathBuf::new()); // Load the local project for development
+        let project_to_load = Some(std::path::PathBuf::new()); // Load the local project for development
 
         Self {
             rect                    : (0, 0, width, height),

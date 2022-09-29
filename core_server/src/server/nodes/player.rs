@@ -126,6 +126,7 @@ pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
                                     item_type   : "Gear".to_string(),
                                     tile        : element.tile,
                                     state       : element.state,
+                                    light       : element.light,
                                     amount      : element.amount as u32,
                                 };
                                 inv.add_item(item);
@@ -167,6 +168,7 @@ pub fn player_drop(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
                             name    : Some(item.name),
                             tile    : item.tile,
                             state   : item.state,
+                            light   : item.light,
                             amount  : item.amount as i32,
                         };
 

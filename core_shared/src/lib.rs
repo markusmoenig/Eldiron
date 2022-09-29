@@ -5,7 +5,7 @@ pub mod characterdata;
 pub mod update;
 pub mod message;
 pub mod property;
-pub mod light;
+pub mod lightdata;
 pub mod undo;
 pub mod scope_buffer;
 pub mod value;
@@ -25,7 +25,7 @@ pub mod prelude {
     pub use crate::update::*;
     pub use crate::message::*;
     pub use crate::property::*;
-    pub use crate::light::*;
+    pub use crate::lightdata::*;
     pub use crate::undo::*;
     pub use crate::scope_buffer::*;
     pub use crate::structs::*;

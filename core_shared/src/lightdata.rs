@@ -6,13 +6,13 @@ pub enum LightType {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-pub struct Light {
+pub struct LightData {
     pub light_type              : LightType,
     pub position                : (isize, isize),
     pub intensity               : u8,
 }
 
-impl Light {
+impl LightData {
 
     pub fn new(light_type: LightType, position: (isize, isize), intensity: u8) -> Self {
 

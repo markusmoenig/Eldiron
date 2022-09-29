@@ -301,18 +301,11 @@ pub fn audio_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance
 }
 
 /// Light Area
-pub fn light_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
-
+pub fn light_area(area_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
     let region = &mut data.region_data;
     for pos in &region.areas[area_index].area {
-        //data.lights.insert
-        let light = Light::new(core_shared::light::LightType::PointLight, (pos.0, pos.1), 1);
-        if let Some(list) = data.lights.get_mut(&id.0) {
-            list.push(light);
-        } else {
-            data.lights.insert(id.0, vec![light]);
-        }
+        let light = LightData::new(core_shared::lightdata::LightType::PointLight, (pos.0, pos.1), 1);
+        data.lights.push(light);
     }
-
     BehaviorNodeConnector::Fail
 }

@@ -50,6 +50,7 @@ pub enum BehaviorNodeType {
     ActionArea,                                             // Define Action for an Area
     Take,                                                   // Take loot
     Drop,                                                   // Drop gear or item
+    LightItem,                                              // Creates a light source for an inventory item
 
     /*
     Pathfinder,

@@ -31,7 +31,7 @@ pub struct GameRender<'a> {
     pub tile_size               : usize,
 
     pub regions                 : HashMap<Uuid, GameRegionData>,
-    pub lights                  : HashMap<Uuid, Vec<Light>>,
+    pub lights                  : HashMap<Uuid, Vec<LightData>>,
 
     pub messages                : Vec<MessageData>,
 

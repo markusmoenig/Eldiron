@@ -22,5 +22,6 @@ pub struct LootData {
     pub name                    : Option<String>,
     pub tile                    : Option<TileData>,
     pub state                   : Option<ScopeBuffer>,
+    pub light                   : Option<LightData>,
     pub amount                  : i32,
 }

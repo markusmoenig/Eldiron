@@ -25,7 +25,7 @@ pub struct GameUpdate {
     pub region                  : Option<GameRegionData>,
 
     /// Current lights in the region
-    pub lights                  : Vec<Light>,
+    pub lights                  : Vec<LightData>,
 
     /// Tile displacements for the region
     #[serde(with = "vectorize")]

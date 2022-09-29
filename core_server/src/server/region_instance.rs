@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, server::nodes::item::light_item};
 use rhai::{Engine, AST, Scope};
 
 pub struct RegionInstance<'a> {
@@ -59,13 +59,16 @@ pub struct RegionInstance<'a> {
     pub prev_area_characters        : HashMap<usize, Vec<usize>>,
 
     // Lights for this region
-    pub lights                      : HashMap<Uuid, Vec<Light>>,
+    pub lights                      : Vec<LightData>,
 
     // The current move direction of the player
     pub action_direction_text       : String,
 
     // The current subject (inventory item etc.) of the player
     pub action_subject_text         : String,
+
+    // Identifie the currently executing loot item
+    pub curr_loot_item              : Option<(isize, isize, usize)>,
 
     // These are fields which provide debug feedback while running and are only used in the editors debug mode
 
@@ -148,6 +151,7 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::Action, player_action);
         nodes.insert(BehaviorNodeType::Take, player_take);
         nodes.insert(BehaviorNodeType::Drop, player_drop);
+        nodes.insert(BehaviorNodeType::LightItem, light_item);
 
         nodes.insert(BehaviorNodeType::Always, always);
         nodes.insert(BehaviorNodeType::InsideArea, inside_area);
@@ -195,10 +199,12 @@ impl RegionInstance<'_> {
             characters              : HashMap::new(),
             area_characters         : HashMap::new(),
             prev_area_characters    : HashMap::new(),
-            lights                  : HashMap::new(),
+            lights                  : vec![],
 
             action_direction_text   : "".to_string(),
             action_subject_text     : "".to_string(),
+
+            curr_loot_item          : None,
 
             debug_behavior_id       : None,
             is_debugging            : false,
@@ -217,7 +223,7 @@ impl RegionInstance<'_> {
 
         self.messages = vec![];
         self.characters = HashMap::new();
-        self.lights = HashMap::new();
+        self.lights = vec![];
         self.prev_area_characters = self.area_characters.clone();
         self.area_characters = HashMap::new();
 
@@ -476,6 +482,7 @@ impl RegionInstance<'_> {
                                                 item_type   : "Gear".to_string(),
                                                 tile        : tile_data,
                                                 state       : None,
+                                                light       : None,
                                                 amount      : data.1,
                                             };
 
@@ -575,6 +582,16 @@ impl RegionInstance<'_> {
             }
         }
 
+        // Parse the loot and add the lights
+        //println!("{:?}", self.loot);
+        for (_position, loot) in &self.loot {
+            for item in loot {
+                if let Some(light) = &item.light {
+                    self.lights.push(light.clone());
+                }
+            }
+        }
+
         // Execute region area behaviors
         let mut to_execute: Vec<(usize, Uuid)> = vec![];
         self.displacements = HashMap::new();
@@ -590,7 +607,7 @@ impl RegionInstance<'_> {
             self.execute_area_node(self.region_data.id, pairs.0, pairs.1);
         }
 
-       // Parse the player characters and generate updates
+        // Parse the player characters and generate updates
 
         for inst_index in 0..self.instances.len() {
 
@@ -641,7 +658,6 @@ impl RegionInstance<'_> {
                 let mut region        : Option<GameRegionData> = None;
                 let mut characters    : Vec<CharacterData> = vec![];
                 let mut displacements : HashMap<(isize, isize), TileData> = HashMap::new();
-                let mut lights        : Vec<Light> = vec![];
                 let mut scope_buffer = ScopeBuffer::new();
 
                 let mut needs_transfer_to: Option<Uuid> = None;
@@ -664,10 +680,6 @@ impl RegionInstance<'_> {
                         characters = chars.clone();
                     }
 
-                    if self.lights.contains_key(&position.region) {
-                        lights = self.lights[&position.region].clone();
-                    }
-
                     scope_buffer.read_from_scope(&self.scopes[inst_index]);
                 }
 
@@ -682,7 +694,7 @@ impl RegionInstance<'_> {
                     tile                    : self.instances[inst_index].tile.clone(),
                     screen                  : screen,
                     region,
-                    lights,
+                    lights                  : self.lights.clone(),
                     displacements,
                     characters,
                     loot                    : self.loot.clone(),
@@ -1099,6 +1111,7 @@ impl RegionInstance<'_> {
                             name        : Some(behavior_data.name.clone()),
                             tile        : None,
                             state       : None,
+                            light       : None,
                             amount      : instance.amount,
                         };
 
