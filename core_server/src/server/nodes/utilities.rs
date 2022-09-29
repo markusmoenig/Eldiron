@@ -207,14 +207,100 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
 
         // Check loot items
 
-        if let Some(loot) = data.loot.get(&(dp.x, dp.y)) {
-            for index in 0..loot.len() {
-                if let Some(behavior) = data.get_behavior(loot[index].id, BehaviorType::Items) {
-                    for (id, node) in &behavior.nodes {
-                        if node.behavior_type == BehaviorNodeType::BehaviorTree {
-                            if node.name == action_name {
-                                data.execute_item_node(instance_index, behavior.id, *id);
-                                return BehaviorNodeConnector::Success;
+        let mut loot = vec![];
+        if let Some(l) = data.loot.get(&(dp.x, dp.y)) {
+            loot = l.clone();
+        }
+
+        for index in 0..loot.len() {
+            if loot[index].state.is_none() {
+                // Check if we have to create the item state
+                loot[index].state = check_and_create_item_state(instance_index, loot[index].id, data);
+            }
+
+            let mut to_execute = vec![];
+
+            if let Some(behavior) = data.get_behavior(loot[index].id, BehaviorType::Items) {
+                for (id, node) in &behavior.nodes {
+                    if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                        if node.name == action_name {
+                            to_execute.push((behavior.id, *id));
+                        }
+                    }
+                }
+            }
+
+            for (behavior_id, node_id) in to_execute {
+
+                let has_state = loot[index].state.is_some();
+                if has_state {
+                    let user_scope = data.scopes[instance_index].clone();
+                    let mut item_scope = rhai::Scope::new();
+                    if let Some(state) = &loot[index].state {
+                        state.write_to_scope(&mut item_scope);
+                    }
+                    data.scopes[instance_index] = item_scope;
+                    data.execute_item_node(instance_index, behavior_id, node_id);
+                    let scope = data.scopes[instance_index].clone();
+                    data.scopes[instance_index] = user_scope;
+                    let mut new_buffer = ScopeBuffer::new();
+                    new_buffer.read_from_scope(&scope);
+                    loot[index].state = Some(new_buffer);
+                } else {
+                    data.execute_item_node(instance_index, behavior_id, node_id);
+                    return BehaviorNodeConnector::Success;
+                }
+            }
+        }
+
+        if loot.is_empty() == false {
+            data.loot.insert((dp.x, dp.y), loot);
+        }
+    }
+
+    BehaviorNodeConnector::Fail
+}
+
+/// Check if we have to create the state for the given item
+pub fn check_and_create_item_state(instance_index: usize, item_behavior_id: Uuid, data: &mut RegionInstance) -> Option<ScopeBuffer> {
+
+    let mut states_to_execute = vec![];
+
+    if let Some(behavior) = data.get_behavior(item_behavior_id, BehaviorType::Items) {
+
+        let mut sink : Option<PropertySink> = None;
+
+        // Get the default tile for the item
+        for (_index, node) in &behavior.nodes {
+            if node.behavior_type == BehaviorNodeType::BehaviorType {
+                if let Some(value) = node.values.get(&"settings".to_string()) {
+                    if let Some(str) = value.to_string() {
+                        let mut s = PropertySink::new();
+                        s.load_from_string(str.clone());
+                        sink = Some(s);
+                    }
+                }
+            }
+        }
+
+        // Add state ?
+
+        if let Some(sink) = sink {
+            if let Some(state) = sink.get("state") {
+                if let Some(value) = state.as_bool() {
+                    if value == true {
+                        for (node_id, node) in &behavior.nodes {
+                            if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                                for (value_name, value) in &node.values {
+                                    if *value_name == "execute".to_string() {
+                                        if let Some(v) = value.to_integer() {
+                                            if v == 1 {
+                                                // Startup only tree
+                                                states_to_execute.push((behavior.id, *node_id));
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -223,5 +309,17 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
         }
     }
 
-    BehaviorNodeConnector::Fail
+    // Add new items
+    for (item_id, node_id) in states_to_execute {
+        let curr_scope = data.scopes[instance_index].clone();
+        data.scopes[instance_index] = rhai::Scope::new();
+        data.execute_item_node(instance_index, item_id, node_id);
+        let scope = data.scopes[instance_index].clone();
+        data.scopes[instance_index] = curr_scope;
+        let mut buffer = ScopeBuffer::new();
+        buffer.read_from_scope(&scope);
+        return Some(buffer);
+    }
+
+    None
 }
