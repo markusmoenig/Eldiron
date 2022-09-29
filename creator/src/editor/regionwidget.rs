@@ -225,7 +225,7 @@ impl EditorContent for RegionWidget {
         self.rect.2 = width;
         self.rect.3 = height;
 
-        self.widgets[0].set_rect2((self.rect.0 + 10, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 2, 150, 33));
+        self.widgets[0].set_rect2((self.rect.0 + 10, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 2, 165, 33));
 
         self.area_widgets[0].set_rect2((self.rect.0 + 190, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 180, 40));
         self.area_widgets[1].set_rect2((self.rect.0 + 190 + 200, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
