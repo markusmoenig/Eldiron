@@ -580,10 +580,24 @@ impl RegionInstance<'_> {
                      }
                 }
             }
+
+            // Check the inventory for lights
+            if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
+                if let Some(inv) = mess.read_lock::<Inventory>() {
+                    for item in &inv.items {
+                        if let Some(light) = &item.light {
+                            let mut l = light.clone();
+                            if let Some(position) = &self.instances[inst_index].position {
+                                l.position = (position.x, position.y);
+                            }
+                            self.lights.push(l);
+                        }
+                    }
+                }
+            }
         }
 
         // Parse the loot and add the lights
-        //println!("{:?}", self.loot);
         for (_position, loot) in &self.loot {
             for item in loot {
                 if let Some(light) = &item.light {

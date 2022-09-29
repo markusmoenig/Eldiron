@@ -159,10 +159,16 @@ pub fn player_drop(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
 
             if let Some(index) = index {
                 if index < inv.items.len() {
-                    let item = inv.items[index].clone();
+                    let mut item = inv.items[index].clone();
                     inv.items.remove(index);
 
                     if let Some(p) = &data.instances[instance_index].position {
+
+                        if let Some(mut light) = item.light.clone() {
+                            light.position = (p.x, p.y);
+                            item.light = Some(light);
+                        }
+
                         let loot = LootData {
                             id      : item.id,
                             name    : Some(item.name),

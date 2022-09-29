@@ -214,7 +214,7 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
             loot = l.clone();
         }
 
-        for index in 0..data.loot.len() {
+        for index in 0..loot.len() {
             if loot[index].state.is_none() {
                 // Check if we have to create the item state
                 loot[index].state = check_and_create_item_state(instance_index, loot[index].id, data);
