@@ -19,7 +19,7 @@ impl EditorOptions for ItemsOptions {
 
         node_list.add_group_list(context.color_green, context.color_light_green, vec!["Behavior Tree".to_string(), "Expression".to_string(), "Script".to_string(), "Linear".to_string(), "Sequence".to_string()]);
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Light".to_string(), "Message".to_string()]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Light".to_string(), "Message".to_string(), "Set Tile".to_string()]);
 
         node_list.set_rect(rect, asset, context);
         widgets.push(node_list);

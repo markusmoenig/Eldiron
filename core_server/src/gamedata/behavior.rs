@@ -51,6 +51,7 @@ pub enum BehaviorNodeType {
     Take,                                                   // Take loot
     Drop,                                                   // Drop gear or item
     LightItem,                                              // Creates a light source for an inventory item
+    SetItemTile,                                            // Sets the tile of the character or item
 
     /*
     Pathfinder,

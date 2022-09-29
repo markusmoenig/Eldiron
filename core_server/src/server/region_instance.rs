@@ -1,4 +1,4 @@
-use crate::{prelude::*, server::nodes::item::light_item};
+use crate::{prelude::*, server::nodes::item::{light_item, set_item_tile}};
 use rhai::{Engine, AST, Scope};
 
 pub struct RegionInstance<'a> {
@@ -158,6 +158,7 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::Take, player_take);
         nodes.insert(BehaviorNodeType::Drop, player_drop);
         nodes.insert(BehaviorNodeType::LightItem, light_item);
+        nodes.insert(BehaviorNodeType::SetItemTile, set_item_tile);
 
         nodes.insert(BehaviorNodeType::Always, always);
         nodes.insert(BehaviorNodeType::InsideArea, inside_area);
