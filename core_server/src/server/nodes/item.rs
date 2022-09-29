@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 /// Light
-pub fn light_item(_instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn light_item(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
     let mut state = 0;
     if let Some(value) = get_node_value((id.0, id.1, "state"), data, behavior_type) {
         if let Some(index) = value.to_integer() {
@@ -21,6 +21,24 @@ pub fn light_item(_instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
                 loot[curr_loot_item.2].light = None;
             }
         }
+    } else
+    if let Some(inventory_index) = &data.curr_inventory_index {
+        if let Some(position) = &data.instances[instance_index].position {
+            if let Some(mess) = data.curr_player_scope.get_mut("inventory") {
+                if let Some(mut inv) = mess.write_lock::<Inventory>() {
+                    if state == 1 {
+                        inv.items[*inventory_index].light = Some(LightData {
+                            light_type              : LightType::PointLight,
+                            position                : (position.x, position.y),
+                            intensity               : 1,
+                        });
+                    } else {
+                        inv.items[*inventory_index].light = None;
+                    }
+                }
+            }
+        }
     }
+
     BehaviorNodeConnector::Bottom
 }

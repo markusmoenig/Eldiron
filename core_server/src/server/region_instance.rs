@@ -70,6 +70,12 @@ pub struct RegionInstance<'a> {
     // Identifie the currently executing loot item
     pub curr_loot_item              : Option<(isize, isize, usize)>,
 
+    // Identify the currently executing inventory item index
+    pub curr_inventory_index        : Option<usize>,
+
+    // The current player scope (if swapped out during item execution)
+    pub curr_player_scope           : Scope<'a>,
+
     // These are fields which provide debug feedback while running and are only used in the editors debug mode
 
     // The behavior id to debug, this is send from the server
@@ -205,6 +211,8 @@ impl RegionInstance<'_> {
             action_subject_text     : "".to_string(),
 
             curr_loot_item          : None,
+            curr_inventory_index    : None,
+            curr_player_scope       : Scope::new(),
 
             debug_behavior_id       : None,
             is_debugging            : false,
@@ -349,16 +357,19 @@ impl RegionInstance<'_> {
                                 for (behavior_id, node_id) in to_execute {
                                     if let Some(scope_buffer) = &scope_buffer {
                                         // Move the item scope in / out
-                                        let curr_scope = self.scopes[inst_index].clone();
+                                        self.curr_player_scope = self.scopes[inst_index].clone();
                                         let mut scope = Scope::new();
                                         scope_buffer.write_to_scope(&mut scope);
                                         self.scopes[inst_index] = scope;
+
+                                        self.curr_inventory_index = Some(index);
                                         self.execute_item_node(inst_index, behavior_id, node_id);
+                                        self.curr_inventory_index = None;
 
                                         let mut new_buffer = ScopeBuffer::new();
                                         new_buffer.read_from_scope(&self.scopes[inst_index]);
 
-                                        self.scopes[inst_index] = curr_scope;
+                                        self.scopes[inst_index] = self.curr_player_scope.clone();
                                         if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
                                             if let Some(mut inv) = mess.write_lock::<Inventory>() {
                                                 inv.items[index].state = Some(new_buffer);
