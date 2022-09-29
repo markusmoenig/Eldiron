@@ -101,6 +101,7 @@ impl Editor<'_> {
         // Set current project
 
         let mut project_to_load: Option<std::path::PathBuf> = None;
+        /*
         let project_list = context.get_project_list();
 
         if project_list.is_empty() {
@@ -111,11 +112,12 @@ impl Editor<'_> {
             context.dialog_entry = DialogEntry::NewProjectName;
             context.dialog_new_name = "New Game".to_string();
         } else {
-            // project_to_load = context.get_project_path(project_list[0].clone());
+            project_to_load = context.get_project_path(project_list[0].clone());
             project_to_load = Some(std::path::PathBuf::new()); // Load the local project for development
 
             status_bar.add_message(format!("Loaded Documents >> Eldiron >> {}", project_list[0]));
-        }
+        }*/
+        project_to_load = Some(std::path::PathBuf::new()); // Load the local project for development
 
         Self {
             rect                    : (0, 0, width, height),
