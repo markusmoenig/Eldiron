@@ -1213,7 +1213,7 @@ impl AtomWidget {
                 if let Some(id) = &self.behavior_id {
 
                     let mut sink = PropertySink::new();
-                    sink.load_from_string(id.2.clone());
+                    sink.load_from_string(self.atom_data.value.to_string_value());
                     update_item_sink(&mut sink);
                     let str = sink.to_string(generate_item_sink_descriptions());
 
