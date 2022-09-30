@@ -12,5 +12,5 @@ pub mod prelude {
 
     pub use uuid::Uuid;
     pub use core_shared::prelude::*;
-    pub use rustc_hash::FxHashMap;
+    pub use rustc_hash::{FxHashMap, FxHashSet};
 }

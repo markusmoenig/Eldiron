@@ -13,7 +13,6 @@ pub fn compute_lighting(_region: &GameRegionData, lights: &Vec<LightData>) -> Fx
 
     let mut rng = thread_rng();
 
-    println!("{:?}", lights);
     for l in lights {
         map.insert(l.position.clone(), 1.0);
 

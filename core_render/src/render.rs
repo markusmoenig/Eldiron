@@ -1,5 +1,5 @@
 
-use std::{path::PathBuf, collections::{HashMap, HashSet}};
+use std::{path::PathBuf};
 
 use crate::prelude::*;
 use crate::draw2d::Draw2D;
@@ -30,8 +30,8 @@ pub struct GameRender<'a> {
     pub height                  : usize,
     pub tile_size               : usize,
 
-    pub regions                 : HashMap<Uuid, GameRegionData>,
-    pub lights                  : HashMap<Uuid, Vec<LightData>>,
+    pub regions                 : FxHashMap<Uuid, GameRegionData>,
+    pub lights                  : FxHashMap<Uuid, Vec<LightData>>,
 
     pub messages                : Vec<MessageData>,
 
@@ -136,8 +136,8 @@ impl GameRender<'_> {
             height              : 608,
             tile_size           : 32,
 
-            regions             : HashMap::new(),
-            lights              : HashMap::new(),
+            regions             : FxHashMap::default(),
+            lights              : FxHashMap::default(),
 
             messages            : vec![],
 
@@ -598,7 +598,7 @@ impl GameRender<'_> {
 
                 let mut r = rect.clone();
 
-                let mut set: HashSet<(isize, isize)> = HashSet::new();
+                let mut set: FxHashSet<(isize, isize)> = FxHashSet::default();
 
                 let x_tiles = rect.2 / self.tile_size;
 
@@ -628,7 +628,7 @@ impl GameRender<'_> {
     }
 
     /// Draws the game in the given rect
-    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), cposition: Position, anim_counter: usize, update: &GameUpdate, set: Option<HashSet<(isize, isize)>>, external_frame: &mut Option<&mut [u8]>, stride: usize) {
+    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), cposition: Position, anim_counter: usize, update: &GameUpdate, set: Option<FxHashSet<(isize, isize)>>, external_frame: &mut Option<&mut [u8]>, stride: usize) {
 
         self.draw2d.scissor = Some(rect);
 
