@@ -1241,6 +1241,30 @@ impl RegionInstance<'_> {
             }
         }
         self.game_instance_index = Some(index);
+
+        // We iterate over all loot and initialize state if necessary
+
+        let mut loot_map = self.loot.clone();
+
+        for (pos, loot) in &mut loot_map {
+            for index in 0..loot.len() {
+                let mut item_behavior_id : Option<Uuid> = None;
+                if let Some(behavior) = self.get_behavior(loot[index].id, BehaviorType::Items) {
+                    item_behavior_id = Some(behavior.id);
+                }
+
+                if let Some(item_behavior_id) = item_behavior_id {
+                    self.curr_loot_item = Some((pos.0, pos.1, index));
+                    loot[index].state = check_and_create_item_state(0, item_behavior_id, self);
+                    if let Some(l) = self.loot.get(&pos) {
+                        // Copy light state back
+                        loot[index].light = l[index].light.clone();
+                    }
+                    self.curr_loot_item = None;
+                }
+            }
+        }
+        self.loot = loot_map;
     }
 
     /// Creates a new player instance
