@@ -16,6 +16,10 @@ pub fn update_item_sink(sink: &mut PropertySink) {
     if sink.contains("stackable") == false {
         sink.properties.insert(2,Property::new_color("stackable".to_string(), "1".to_string()));
     }
+
+    if sink.contains("static") == false {
+        sink.properties.insert(3,Property::new_color("static".to_string(), "false".to_string()));
+    }
 }
 
 pub fn generate_item_sink_descriptions() -> FxHashMap<String, Vec<String>> {
@@ -24,6 +28,7 @@ pub fn generate_item_sink_descriptions() -> FxHashMap<String, Vec<String>> {
     map.insert("item_type".to_string(), vec!["Type of the item, either \"Weapon\", \"Gear\" or \"Tool\"".to_string()]);
     map.insert("state".to_string(), vec!["true if the item should have it's own state (variables).".to_string()]);
     map.insert("stackable".to_string(), vec!["Value greater than 1 if item should be stackable. Only for items without state.".to_string()]);
+    map.insert("static".to_string(), vec!["True if the item is static, i.e. cannot be picked up (campfire etc.).".to_string()]);
 
     map
 }

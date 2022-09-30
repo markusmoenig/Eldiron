@@ -10,7 +10,9 @@ pub struct InventoryItem {
     pub tile                : Option<TileData>,
     pub state               : Option<ScopeBuffer>,
     pub light               : Option<LightData>,
-    pub amount              : u32,
+    pub amount              : i32,
+    pub stackable           : i32,
+    pub static_item         : bool,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]

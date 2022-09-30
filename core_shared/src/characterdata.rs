@@ -24,4 +24,6 @@ pub struct LootData {
     pub state                   : Option<ScopeBuffer>,
     pub light                   : Option<LightData>,
     pub amount                  : i32,
+    pub stackable               : i32,
+    pub static_item             : bool,
 }

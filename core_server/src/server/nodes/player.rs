@@ -112,8 +112,9 @@ pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
 
     if let Some(dp) = dp {
         if let Some(loot) = data.loot.get_mut(&(dp.x, dp.y)) {
-            if loot.len() > 0 {
-                let element = loot.remove(0);
+            for index in 0..loot.len() {
+                if loot[index].static_item { continue; }
+                let element = loot.remove(index);
                 if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
                     if let Some(mut inv) = mess.write_lock::<Inventory>() {
                         if let Some(name) = element.name {
@@ -127,7 +128,9 @@ pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
                                     tile        : element.tile,
                                     state       : element.state,
                                     light       : element.light,
-                                    amount      : element.amount as u32,
+                                    amount      : element.amount,
+                                    stackable   : element.stackable,
+                                    static_item : element.static_item,
                                 };
                                 inv.add_item(item);
                             }
@@ -136,6 +139,7 @@ pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
                     }
                 }
                 rc = BehaviorNodeConnector::Success;
+                break;
             }
         }
     }
@@ -170,12 +174,14 @@ pub fn player_drop(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
                         }
 
                         let loot = LootData {
-                            id      : item.id,
-                            name    : Some(item.name),
-                            tile    : item.tile,
-                            state   : item.state,
-                            light   : item.light,
-                            amount  : item.amount as i32,
+                            id          : item.id,
+                            name        : Some(item.name),
+                            tile        : item.tile,
+                            state       : item.state,
+                            light       : item.light,
+                            amount      : item.amount as i32,
+                            stackable   : item.stackable as i32,
+                            static_item : item.static_item,
                         };
 
                         if let Some(existing_loot) = data.loot.get_mut(&(p.x, p.y)) {

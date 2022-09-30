@@ -461,7 +461,7 @@ impl RegionInstance<'_> {
 
                                     for item in &mut inv.items {
                                         if item.name == *data.0 {
-                                            item.amount += data.1;
+                                            item.amount += data.1 as i32;
                                             added = true;
                                             break;
                                         }
@@ -495,7 +495,9 @@ impl RegionInstance<'_> {
                                                 tile        : tile_data,
                                                 state       : None,
                                                 light       : None,
-                                                amount      : data.1,
+                                                amount      : data.1 as i32,
+                                                stackable   : 1,
+                                                static_item : false,
                                             };
 
                                             // Add state ?
@@ -521,6 +523,18 @@ impl RegionInstance<'_> {
                                                                     }
                                                                 }
                                                             }
+                                                        }
+                                                    }
+                                                }
+                                                if let Some(static_item) = sink.get("static") {
+                                                    if let Some(st) = static_item.as_bool() {
+                                                        item.static_item = st;
+                                                    }
+                                                }
+                                                if let Some(static_item) = sink.get("stackable") {
+                                                    if let Some(st) = static_item.as_int() {
+                                                        if st >= 0 {
+                                                            item.stackable = st;
                                                         }
                                                     }
                                                 }
@@ -1139,12 +1153,32 @@ impl RegionInstance<'_> {
                             state       : None,
                             light       : None,
                             amount      : instance.amount,
+                            stackable   : 1,
+                            static_item : false,
                         };
 
                         for (_index, node) in &behavior_data.nodes {
                             if node.behavior_type == BehaviorNodeType::BehaviorType {
                                 if let Some(value) = node.values.get(&"tile".to_string()) {
                                     loot.tile = value.to_tile_data();
+                                }
+                                if let Some(value) = node.values.get(&"settings".to_string()) {
+                                    if let Some(str) = value.to_string() {
+                                        let mut s = PropertySink::new();
+                                        s.load_from_string(str.clone());
+                                        if let Some(static_item) = s.get("static") {
+                                            if let Some(st) = static_item.as_bool() {
+                                                loot.static_item = st;
+                                            }
+                                        }
+                                        if let Some(static_item) = s.get("stackable") {
+                                            if let Some(st) = static_item.as_int() {
+                                                if st >= 0 {
+                                                    loot.stackable = st;
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
