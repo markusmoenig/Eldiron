@@ -653,7 +653,7 @@ impl GameRender<'_> {
             }
 
             // Compute the light_map
-            let mut light_map : HashMap<(isize, isize), f64> = HashMap::new();
+            let mut light_map : FxHashMap<(isize, isize), f64> = FxHashMap::default();
             if let Some(lights) = self.lights.get(&region.id) {
                 light_map = compute_lighting(&region, lights);
             }

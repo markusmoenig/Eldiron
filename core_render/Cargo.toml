@@ -23,6 +23,7 @@ rhai = { version = "*", default-features = false, features = ["only_i32", "f32_f
 regex = "1.5"
 colori = "0.1.1"
 audio-engine = "0.4.0" #{ git = "https://github.com/Rodrigodd/audio-engine" }
+rustc-hash = "1.1.0"
 
 [features]
 default = []

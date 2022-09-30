@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use core_shared::{regiondata::GameRegionData, lightdata::LightData};
+use core_shared::prelude::*;
 use rand::{thread_rng, Rng};
 
 /*
@@ -9,15 +8,12 @@ pub struct TileLighting {
     pub dynamic                 : f32,
 }*/
 
-pub fn compute_lighting(_region: &GameRegionData, lights: &Vec<LightData>) -> HashMap<(isize, isize), f64> {
-    let mut map : HashMap<(isize, isize), f64> = HashMap::new();
-
-    //for (index, area) in region.areas.iter().enumerate() {
-        //for n in region.
-    //}
+pub fn compute_lighting(_region: &GameRegionData, lights: &Vec<LightData>) -> FxHashMap<(isize, isize), f64> {
+    let mut map : FxHashMap<(isize, isize), f64> = HashMap::default();
 
     let mut rng = thread_rng();
 
+    println!("{:?}", lights);
     for l in lights {
         map.insert(l.position.clone(), 1.0);
 
@@ -35,13 +31,31 @@ pub fn compute_lighting(_region: &GameRegionData, lights: &Vec<LightData>) -> Ha
 
                 let i = 1.0 / (d*2) as f64 + random / d as f64;
                 for x in tl.0..tl.0 + length {
-                    map.insert((x, tl.1), i);
-                    map.insert((x, tl.1 + length - 1), i);
+                    if let Some(value) = map.get_mut(&(x, tl.1)) {
+                        *value += i;
+                    } else {
+                        map.insert((x, tl.1), i);
+                    }
+
+                    if let Some(value) = map.get_mut(&(x, tl.1 + length - 1)) {
+                        *value += i;
+                    } else {
+                        map.insert((x, tl.1 + length - 1), i);
+                    }
                 }
 
                 for y in tl.1+1..tl.1 + length - 1 {
-                    map.insert((tl.0, y), i);
-                    map.insert((tl.0 + length - 1, y), i);
+                    if let Some(value) = map.get_mut(&(tl.0, y)) {
+                        *value += i;
+                    } else {
+                        map.insert((tl.0, y), i);
+                    }
+
+                    if let Some(value) = map.get_mut(&(tl.0 + length - 1, y)) {
+                        *value += i;
+                    } else {
+                        map.insert((tl.0 + length - 1, y), i);
+                    }
                 }
 
                 d += 1;

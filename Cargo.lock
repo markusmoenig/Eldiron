@@ -592,6 +592,7 @@ dependencies = [
  "rand",
  "regex",
  "rhai",
+ "rustc-hash",
  "serde",
  "serde_json",
  "uuid",
