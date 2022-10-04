@@ -68,37 +68,39 @@ impl TileSet {
 
         let mut images : HashMap<Uuid, Image> = HashMap::new();
 
-        let images_path = base_path.join("assets").join("images");
-        let mut paths: Vec<_> = fs::read_dir(images_path.clone()).unwrap()
-                                                .map(|r| r.unwrap())
-                                                .collect();
-        paths.sort_by_key(|dir| dir.path());
-
         let mut images_names  : Vec<String> = vec![];
         let mut images_ids    : Vec<Uuid> = vec![];
 
-        for path in paths {
+        let images_path = base_path.join("assets").join("images");
+        if let Some(p) = fs::read_dir(images_path.clone()).ok() {
 
-            // Generate the tile map for this dir element
-            let path = &path.path();
-            let md = metadata(path).unwrap();
+            let mut paths : Vec<_> = p.map(|r| r.unwrap())
+                            .collect();
+            paths.sort_by_key(|dir| dir.path());
 
-            if md.is_file() {
-                if let Some(name) = path::Path::new(&path).extension() {
-                    if name == "png" || name == "PNG" {
+            for path in paths {
 
-                        let image = Image::new(&path, &base_path);
-                        if image.width != 0 {
-                            images_names.push(image.get_name());
-                            images_ids.push(image.settings.id);
+                // Generate the tile map for this dir element
+                let path = &path.path();
+                let md = metadata(path).unwrap();
 
-                            // If the tilemap has no tiles we assume it's new and we save the settings
-                            if image.settings.tiles.len() == 0 {
-                                image.save_settings();
+                if md.is_file() {
+                    if let Some(name) = path::Path::new(&path).extension() {
+                        if name == "png" || name == "PNG" {
+
+                            let image = Image::new(&path, &base_path);
+                            if image.width != 0 {
+                                images_names.push(image.get_name());
+                                images_ids.push(image.settings.id);
+
+                                // If the tilemap has no tiles we assume it's new and we save the settings
+                                if image.settings.tiles.len() == 0 {
+                                    image.save_settings();
+                                }
+
+                                // Insert the tilemap
+                                images.insert(image.settings.id, image);
                             }
-
-                            // Insert the tilemap
-                            images.insert(image.settings.id, image);
                         }
                     }
                 }
