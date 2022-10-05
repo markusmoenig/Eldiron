@@ -156,7 +156,9 @@ pub fn walk_towards(instance_index: usize, p: Option<Position>, dp: Option<Posit
 
             if let Some(result) = result {
                 if result.len() > 1 {
-                    data.instances[instance_index].old_position = data.instances[instance_index].position.clone();
+                    if data.pixel_based_movement == true {
+                        data.instances[instance_index].old_position = data.instances[instance_index].position.clone();
+                    }
                     data.instances[instance_index].position = Some(Position::new(p.region, result[1].0, result[1].1));
                     return BehaviorNodeConnector::Right;
                 } else

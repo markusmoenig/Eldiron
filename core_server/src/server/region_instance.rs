@@ -88,6 +88,10 @@ pub struct RegionInstance<'a> {
     pub executed_connections        : Vec<(BehaviorType, Uuid, BehaviorNodeConnector)>,
     pub script_errors               : Vec<((Uuid, Uuid, String), (String, Option<u32>))>,
 
+    // Region settings
+
+    pub pixel_based_movement        : bool,
+
     // Game settings
 
     screen_size                     : (i32, i32),
@@ -222,6 +226,8 @@ impl RegionInstance<'_> {
             executed_connections    : vec![],
             script_errors           : vec![],
 
+            pixel_based_movement    : true,
+
             screen_size             : (1024, 608),
             def_square_tile_size    : 32,
         }
@@ -249,12 +255,14 @@ impl RegionInstance<'_> {
             self.instances[inst_index].messages = vec![];
             self.instances[inst_index].audio = vec![];
 
-            if  self.instances[inst_index].old_position.is_some() {
-                self.instances[inst_index].curr_transition_time += 1;
+            if self.pixel_based_movement == true {
+                if  self.instances[inst_index].old_position.is_some() {
+                    self.instances[inst_index].curr_transition_time += 1;
 
-                if self.instances[inst_index].curr_transition_time > self.instances[inst_index].max_transition_time {
-                    self.instances[inst_index].old_position = None;
-                    self.instances[inst_index].curr_transition_time = 0;
+                    if self.instances[inst_index].curr_transition_time > self.instances[inst_index].max_transition_time {
+                        self.instances[inst_index].old_position = None;
+                        self.instances[inst_index].curr_transition_time = 0;
+                    }
                 }
             }
 
@@ -1121,7 +1129,17 @@ impl RegionInstance<'_> {
     pub fn setup(&mut self, region: String, region_behavior: HashMap<Uuid, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, game: String) {
         // Decode all JSON
         if let Some(region_data) = serde_json::from_str(&region).ok() {
+
             self.region_data = region_data;
+
+            if let Some(property) = self.region_data.settings.get("movement") {
+                if let Some(value) = property.as_string() {
+                    if value.to_lowercase() == "tile" {
+                        self.pixel_based_movement = false;
+                    }
+                }
+            }
+
             if let Some(areas) = region_behavior.get(&self.region_data.id) {
                 for a in areas {
                     if let Some(ab) = serde_json::from_str::<GameBehaviorData>(&a).ok() {
