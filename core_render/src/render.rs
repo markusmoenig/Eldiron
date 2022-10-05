@@ -313,6 +313,10 @@ impl GameRender<'_> {
     pub fn draw(&mut self, anim_counter: usize, update: Option<&GameUpdate>) -> Option<(String, Option<usize>)> {
 
         if let Some(update) = update {
+
+            println!("{}, {}", update.curr_transition_time, update.max_transition_time);
+
+
             let error = self.process_update(update);
             if error.is_some() {
                 return error;

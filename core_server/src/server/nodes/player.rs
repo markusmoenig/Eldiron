@@ -37,7 +37,7 @@ pub fn player_move(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
 
     let mut rc = walk_towards(instance_index, data.instances[instance_index].position.clone(), dp, false, data);
     if rc == BehaviorNodeConnector::Right {
-        data.instances[instance_index].max_transition_time = delay as usize + 1;
+        data.instances[instance_index].max_transition_time = delay as usize;
         data.instances[instance_index].curr_transition_time = 1;
         rc = BehaviorNodeConnector::Success;
     }
