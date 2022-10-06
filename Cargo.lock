@@ -407,9 +407,9 @@ dependencies = [
 
 [[package]]
 name = "code_editor"
-version = "0.2.2"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "027862d23f511270a96d9c4c1d85a8d91423bd01e273681a9e2af1f873dc99c7"
+checksum = "88d4a47c28dd7693fbdee7423d654b33ae2df81340e4b3339c9d0778b508fca5"
 dependencies = [
  "copypasta",
  "fontdue",
