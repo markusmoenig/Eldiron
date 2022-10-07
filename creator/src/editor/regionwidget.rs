@@ -1057,6 +1057,9 @@ impl EditorContent for RegionWidget {
                 self.area_widgets[3].state = WidgetState::Disabled;
             } else {
                 self.area_widgets[0].text = region.get_area_names();
+                if self.area_widgets[0].curr_index >= self.area_widgets[0].text.len() {
+                    self.area_widgets[0].curr_index = 0;
+                }
                 self.area_widgets[0].state = WidgetState::Normal;
                 self.area_widgets[1].state = WidgetState::Normal;
                 self.area_widgets[2].state = WidgetState::Normal;

@@ -334,7 +334,6 @@ impl GameRegion {
     pub fn delete_area(&mut self, index: usize) {
 
         let behavior_id = self.data.areas[index].behavior;
-
         let mut behavior_index : Option<usize> = None;
 
         for (index, b) in self.behaviors.iter().enumerate() {
