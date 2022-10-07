@@ -266,6 +266,39 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
                 l[index].state = loot[index].state.clone();
             }
         }
+
+        // Check for characters at the dp
+
+        for inst_index in 0..data.instances.len() {
+            if inst_index != instance_index {
+                // Only track if the state is normal
+                if data.instances[inst_index].state == BehaviorInstanceState::Normal {
+                    if let Some(pos) = &data.instances[inst_index].position {
+                        if *dp == *pos {
+
+                            let mut to_execute = vec![];
+
+                            if let Some(behavior) = data.get_behavior(data.instances[inst_index].behavior_id, BehaviorType::Behaviors) {
+                                for (id, node) in &behavior.nodes {
+                                    if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                                        if node.name == action_name.clone() + " (P)" {
+                                            to_execute.push((inst_index, *id));
+                                        }
+                                    }
+                                }
+                            }
+
+                            for (inst_index, node_id) in to_execute {
+                                data.execute_node(inst_index, node_id, Some(instance_index));
+                                return BehaviorNodeConnector::Success;
+                            }
+
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     rc

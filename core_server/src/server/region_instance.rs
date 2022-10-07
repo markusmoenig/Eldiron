@@ -284,7 +284,7 @@ impl RegionInstance<'_> {
 
                     // Has a locked tree ?
                     if let Some(locked_tree) = self.instances[inst_index].locked_tree {
-                            self.execute_node(inst_index, locked_tree);
+                            self.execute_node(inst_index, locked_tree, None);
                     } else {
                         // Unlocked, execute all valid trees
                         let trees = self.instances[inst_index].tree_ids.clone();
@@ -298,7 +298,7 @@ impl RegionInstance<'_> {
                                     }
                                 }
                             }
-                            self.execute_node(inst_index, node_id.clone());
+                            self.execute_node(inst_index, node_id.clone(), None);
                         }
                     }
                 } else {
@@ -323,7 +323,7 @@ impl RegionInstance<'_> {
                             }
 
                             if let Some(tree_id) = tree_id {
-                                self.execute_node(inst_index, tree_id);
+                                self.execute_node(inst_index, tree_id, None);
                             } else {
                                 println!("Cannot find valid tree for directed action {}", action.action);
                             }
@@ -402,7 +402,7 @@ impl RegionInstance<'_> {
                                 }
 
                                 if let Some(tree_id) = tree_id {
-                                    self.execute_node(inst_index, tree_id);
+                                    self.execute_node(inst_index, tree_id, None);
                                 } else {
                                     println!("Cannot find valid tree for directed action {}", action.action);
                                 }
@@ -768,7 +768,7 @@ impl RegionInstance<'_> {
     }
 
     /// Executes the given node and follows the connection chain
-    pub fn execute_node(&mut self, instance_index: usize, node_id: Uuid) -> Option<BehaviorNodeConnector> {
+    pub fn execute_node(&mut self, instance_index: usize, node_id: Uuid, redirection: Option<usize>) -> Option<BehaviorNodeConnector> {
 
         let mut connectors : Vec<BehaviorNodeConnector> = vec![];
         let mut connected_node_ids : Vec<Uuid> = vec![];
@@ -799,7 +799,8 @@ impl RegionInstance<'_> {
                 } else {
                     if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
                         let behavior_id = self.instances[instance_index].behavior_id.clone();
-                        let connector = node_call(instance_index, (behavior_id, node_id), self, BehaviorType::Behaviors);
+                        let idx = if redirection.is_some() { redirection.unwrap() } else { instance_index};
+                        let connector = node_call(idx, (behavior_id, node_id), self, BehaviorType::Behaviors);
                         rc = Some(connector);
                         connectors.push(connector);
                     } else {
@@ -834,7 +835,7 @@ impl RegionInstance<'_> {
                 self.executed_connections.push(possibly_executed_connections[index]);
             }
 
-            if let Some(connector) = self.execute_node(instance_index, *connected_node_id) {
+            if let Some(connector) = self.execute_node(instance_index, *connected_node_id, redirection) {
                 if is_sequence {
                     // Inside a sequence break out if the connector is not Success
                     if connector == BehaviorNodeConnector::Fail || connector == BehaviorNodeConnector::Right {
@@ -1451,7 +1452,7 @@ impl RegionInstance<'_> {
         if index < self.instances.len() {
             // Execute the startup only trees
             for startup_id in &startup_trees {
-                self.execute_node(index, startup_id.clone());
+                self.execute_node(index, startup_id.clone(), None);
             }
         }
 

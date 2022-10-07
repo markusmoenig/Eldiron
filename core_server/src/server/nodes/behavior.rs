@@ -321,7 +321,7 @@ pub fn call_behavior(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionI
 
     if let Some(behavior_instance) = behavior_instance {
         if let Some(behavior_tree_id) = behavior_tree_id {
-            data.execute_node(behavior_instance, behavior_tree_id);
+            data.execute_node(behavior_instance, behavior_tree_id, None);
             return BehaviorNodeConnector::Success;
         }
     }
