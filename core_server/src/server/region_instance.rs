@@ -412,120 +412,120 @@ impl RegionInstance<'_> {
                         self.instances[inst_index].action = None;
                     }
                 }
+            }
 
-                // Extract the script messages for this instance
-                if let Some(mess) = self.scopes[inst_index].get_mut("messages") {
-                    if let Some(mut message) = mess.write_lock::<ScriptMessageCmd>() {
-                        if message.messages.is_empty() == false {
-                            let my_name = self.instances[inst_index].name.clone();
-                            for m in &message.messages {
-                                match m {
-                                    ScriptMessage::Status(value) => {
-                                        self.instances[inst_index].messages.push( MessageData {
-                                            message_type        : MessageType::Status,
-                                            message             : value.clone(),
-                                            from                : my_name.clone(),
-                                            buffer              : None,
-                                        })
-                                    },
-                                    ScriptMessage::Debug(value) => {
-                                        self.instances[inst_index].messages.push( MessageData {
-                                            message_type        : MessageType::Debug,
-                                            message             : value.clone(),
-                                            from                : my_name.clone(),
-                                            buffer              : None,
-                                        })
-                                    },
-                                    ScriptMessage::Error(value) => {
-                                        self.instances[inst_index].messages.push( MessageData {
-                                            message_type        : MessageType::Error,
-                                            message             : value.clone(),
-                                            from                : my_name.clone(),
-                                            buffer              : None,
-                                        })
-                                    }
+            // Extract the script messages for this instance
+            if let Some(mess) = self.scopes[inst_index].get_mut("messages") {
+                if let Some(mut message) = mess.write_lock::<ScriptMessageCmd>() {
+                    if message.messages.is_empty() == false {
+                        let my_name = self.instances[inst_index].name.clone();
+                        for m in &message.messages {
+                            match m {
+                                ScriptMessage::Status(value) => {
+                                    self.instances[inst_index].messages.push( MessageData {
+                                        message_type        : MessageType::Status,
+                                        message             : value.clone(),
+                                        from                : my_name.clone(),
+                                        buffer              : None,
+                                    })
+                                },
+                                ScriptMessage::Debug(value) => {
+                                    self.instances[inst_index].messages.push( MessageData {
+                                        message_type        : MessageType::Debug,
+                                        message             : value.clone(),
+                                        from                : my_name.clone(),
+                                        buffer              : None,
+                                    })
+                                },
+                                ScriptMessage::Error(value) => {
+                                    self.instances[inst_index].messages.push( MessageData {
+                                        message_type        : MessageType::Error,
+                                        message             : value.clone(),
+                                        from                : my_name.clone(),
+                                        buffer              : None,
+                                    })
                                 }
                             }
                         }
-                        message.clear();
                     }
+                    message.clear();
                 }
+            }
 
-                // Inventory Actions
+            // Inventory Actions
 
-                let mut to_add = vec![];
+            let mut to_add = vec![];
 
-                // Check if we have to add items to the inventory and clone it for sending to the client
-                if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
-                    if let Some(mut inv) = mess.write_lock::<Inventory>() {
+            // Check if we have to add items to the inventory and clone it for sending to the client
+            if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
+                if let Some(mut inv) = mess.write_lock::<Inventory>() {
 
-                        // Add items
-                        if inv.items_to_add.is_empty() == false {
-                            let items_to_add = inv.items_to_add.clone();
-                            for data in &items_to_add {
-                                for (_id, behavior) in &mut self.items {
+                    // Add items
+                    if inv.items_to_add.is_empty() == false {
+                        let items_to_add = inv.items_to_add.clone();
+                        for data in &items_to_add {
+                            for (_id, behavior) in &mut self.items {
 
-                                    let mut added = false;
+                                let mut added = false;
 
-                                    for item in &mut inv.items {
-                                        if item.name == *data.0 {
-                                            item.amount += data.1 as i32;
-                                            added = true;
-                                            break;
-                                        }
+                                for item in &mut inv.items {
+                                    if item.name == *data.0 {
+                                        item.amount += data.1 as i32;
+                                        added = true;
+                                        break;
                                     }
+                                }
 
-                                    if added == false {
-                                        let mut tile_data : Option<TileData> = None;
-                                        let mut sink : Option<PropertySink> = None;
+                                if added == false {
+                                    let mut tile_data : Option<TileData> = None;
+                                    let mut sink : Option<PropertySink> = None;
 
-                                        // Get the default tile for the item
-                                        for (_index, node) in &behavior.nodes {
-                                            if node.behavior_type == BehaviorNodeType::BehaviorType {
-                                                if let Some(value) = node.values.get(&"tile".to_string()) {
-                                                    tile_data = value.to_tile_data();
-                                                }
-                                                if let Some(value) = node.values.get(&"settings".to_string()) {
-                                                    if let Some(str) = value.to_string() {
-                                                        let mut s = PropertySink::new();
-                                                        s.load_from_string(str.clone());
-                                                        sink = Some(s);
-                                                    }
+                                    // Get the default tile for the item
+                                    for (_index, node) in &behavior.nodes {
+                                        if node.behavior_type == BehaviorNodeType::BehaviorType {
+                                            if let Some(value) = node.values.get(&"tile".to_string()) {
+                                                tile_data = value.to_tile_data();
+                                            }
+                                            if let Some(value) = node.values.get(&"settings".to_string()) {
+                                                if let Some(str) = value.to_string() {
+                                                    let mut s = PropertySink::new();
+                                                    s.load_from_string(str.clone());
+                                                    sink = Some(s);
                                                 }
                                             }
                                         }
+                                    }
 
-                                        if behavior.name == *data.0 {
-                                            let mut item = InventoryItem {
-                                                id          : behavior.id,
-                                                name        : behavior.name.clone(),
-                                                item_type   : "Gear".to_string(),
-                                                tile        : tile_data,
-                                                state       : None,
-                                                light       : None,
-                                                amount      : data.1 as i32,
-                                                stackable   : 1,
-                                                static_item : false,
-                                            };
+                                    if behavior.name == *data.0 {
+                                        let mut item = InventoryItem {
+                                            id          : behavior.id,
+                                            name        : behavior.name.clone(),
+                                            item_type   : "Gear".to_string(),
+                                            tile        : tile_data,
+                                            state       : None,
+                                            light       : None,
+                                            amount      : data.1 as i32,
+                                            stackable   : 1,
+                                            static_item : false,
+                                        };
 
-                                            // Add state ?
+                                        // Add state ?
 
-                                            let mut states_to_execute = vec![];
+                                        let mut states_to_execute = vec![];
 
-                                            if let Some(sink) = sink {
-                                                if let Some(state) = sink.get("state") {
-                                                    if let Some(value) = state.as_bool() {
-                                                        if value == true {
-                                                            item.state = Some(ScopeBuffer::new());
-                                                            for (node_id, node) in &behavior.nodes {
-                                                                if node.behavior_type == BehaviorNodeType::BehaviorTree {
-                                                                    for (value_name, value) in &node.values {
-                                                                        if *value_name == "execute".to_string() {
-                                                                            if let Some(v) = value.to_integer() {
-                                                                                if v == 1 {
-                                                                                    // Startup only tree
-                                                                                    states_to_execute.push((behavior.id, *node_id));
-                                                                                }
+                                        if let Some(sink) = sink {
+                                            if let Some(state) = sink.get("state") {
+                                                if let Some(value) = state.as_bool() {
+                                                    if value == true {
+                                                        item.state = Some(ScopeBuffer::new());
+                                                        for (node_id, node) in &behavior.nodes {
+                                                            if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                                                                for (value_name, value) in &node.values {
+                                                                    if *value_name == "execute".to_string() {
+                                                                        if let Some(v) = value.to_integer() {
+                                                                            if v == 1 {
+                                                                                // Startup only tree
+                                                                                states_to_execute.push((behavior.id, *node_id));
                                                                             }
                                                                         }
                                                                     }
@@ -534,63 +534,63 @@ impl RegionInstance<'_> {
                                                         }
                                                     }
                                                 }
-                                                if let Some(static_item) = sink.get("static") {
-                                                    if let Some(st) = static_item.as_bool() {
-                                                        item.static_item = st;
-                                                    }
+                                            }
+                                            if let Some(static_item) = sink.get("static") {
+                                                if let Some(st) = static_item.as_bool() {
+                                                    item.static_item = st;
                                                 }
-                                                if let Some(static_item) = sink.get("stackable") {
-                                                    if let Some(st) = static_item.as_int() {
-                                                        if st >= 0 {
-                                                            item.stackable = st;
-                                                        }
+                                            }
+                                            if let Some(static_item) = sink.get("stackable") {
+                                                if let Some(st) = static_item.as_int() {
+                                                    if st >= 0 {
+                                                        item.stackable = st;
                                                     }
                                                 }
                                             }
-
-                                            //inv.add_item(item);
-                                            to_add.push((item, states_to_execute));
-                                            break;
                                         }
-                                    } else {
+
+                                        //inv.add_item(item);
+                                        to_add.push((item, states_to_execute));
                                         break;
                                     }
+                                } else {
+                                    break;
                                 }
                             }
-                            inv.items_to_add = vec![];
                         }
-                        // TODO Remove Items
-                        inventory = inv.clone();
+                        inv.items_to_add = vec![];
                     }
+                    // TODO Remove Items
+                    inventory = inv.clone();
                 }
+            }
 
-                // Add new items
-                for (mut item, states_to_execute) in to_add {
-                    for (item_id, node_id) in states_to_execute {
-                        let curr_scope = self.scopes[inst_index].clone();
-                        self.scopes[inst_index] = Scope::new();
-                        self.execute_item_node(inst_index, item_id, node_id);
-                        let scope = self.scopes[inst_index].clone();
-                        self.scopes[inst_index] = curr_scope;
-                        let mut buffer = ScopeBuffer::new();
-                        buffer.read_from_scope(&scope);
-                        item.state = Some(buffer);
-                    }
-                    if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
-                        if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                            inv.add_item(item);
-                        }
+            // Add new items
+            for (mut item, states_to_execute) in to_add {
+                for (item_id, node_id) in states_to_execute {
+                    let curr_scope = self.scopes[inst_index].clone();
+                    self.scopes[inst_index] = Scope::new();
+                    self.execute_item_node(inst_index, item_id, node_id);
+                    let scope = self.scopes[inst_index].clone();
+                    self.scopes[inst_index] = curr_scope;
+                    let mut buffer = ScopeBuffer::new();
+                    buffer.read_from_scope(&scope);
+                    item.state = Some(buffer);
+                }
+                if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
+                    if let Some(mut inv) = mess.write_lock::<Inventory>() {
+                        inv.add_item(item);
                     }
                 }
+            }
 
-                // If we are debugging this instance, send the debug data
-                if Some(self.instances[inst_index].behavior_id) == self.debug_behavior_id {
-                    let debug = BehaviorDebugData {
-                        executed_connections    : self.executed_connections.clone(),
-                        script_errors           : self.script_errors.clone(),
-                    };
-                    messages.push(Message::DebugData(debug));
-                }
+            // If we are debugging this instance, send the debug data
+            if Some(self.instances[inst_index].behavior_id) == self.debug_behavior_id {
+                let debug = BehaviorDebugData {
+                    executed_connections    : self.executed_connections.clone(),
+                    script_errors           : self.script_errors.clone(),
+                };
+                messages.push(Message::DebugData(debug));
             }
 
             // Add to the characters
