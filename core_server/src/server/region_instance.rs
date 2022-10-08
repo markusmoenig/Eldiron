@@ -132,29 +132,19 @@ impl RegionInstance<'_> {
 
         nodes.insert(BehaviorNodeType::Expression, expression);
         nodes.insert(BehaviorNodeType::Script, script);
-        /*
-        nodes.insert(BehaviorNodeType::Message, message);
         nodes.insert(BehaviorNodeType::Pathfinder, pathfinder);
         nodes.insert(BehaviorNodeType::Lookout, lookout);
         nodes.insert(BehaviorNodeType::CloseIn, close_in);
-        nodes.insert(BehaviorNodeType::CallSystem, call_system);
-        */
-        //nodes.insert(BehaviorNodeType::CallBehavior, call_behavior);
         /*
+        nodes.insert(BehaviorNodeType::CallSystem, call_system);
+        nodes.insert(BehaviorNodeType::CallBehavior, call_behavior);
+
         nodes.insert(BehaviorNodeType::LockTree, lock_tree);
         nodes.insert(BehaviorNodeType::UnlockTree, unlock_tree);
         nodes.insert(BehaviorNodeType::SetState, set_state);
 
-        nodes.insert(BehaviorNodeType::Always, always);
-        nodes.insert(BehaviorNodeType::InsideArea, inside_area);
-        nodes.insert(BehaviorNodeType::EnterArea, enter_area);
-        nodes.insert(BehaviorNodeType::LeaveArea, leave_area);
         nodes.insert(BehaviorNodeType::DisplaceTiles, displace_tiles);
-        nodes.insert(BehaviorNodeType::TeleportArea, teleport_area);
-        nodes.insert(BehaviorNodeType::MessageArea, message_area);
-        nodes.insert(BehaviorNodeType::AudioArea, audio_area);
-        nodes.insert(BehaviorNodeType::LightArea, light_area);
-*/
+        */
         nodes.insert(BehaviorNodeType::Move, player_move);
         nodes.insert(BehaviorNodeType::Screen, screen);
         nodes.insert(BehaviorNodeType::Message, message);
@@ -163,6 +153,7 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::Drop, player_drop);
         nodes.insert(BehaviorNodeType::LightItem, light_item);
         nodes.insert(BehaviorNodeType::SetItemTile, set_item_tile);
+        nodes.insert(BehaviorNodeType::RandomWalk, random_walk);
 
         nodes.insert(BehaviorNodeType::Always, always);
         nodes.insert(BehaviorNodeType::InsideArea, inside_area);

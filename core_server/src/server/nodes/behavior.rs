@@ -84,31 +84,89 @@ pub fn message(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
     BehaviorNodeConnector::Bottom
 }
 
-/*
-/// Pathfinder
-pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn random_walk(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    let mut p : Option<Position> = None;
+    let mut dp : Option<Position> = None;
 
-    let mut p : Option<(usize, isize, isize)> = None;
-    let mut dp : Option<(usize, isize, isize)> = None;
-
-    let mut distance = 100000_f64;
+    let mut distance = f32::MAX;
 
     if let Some(v) = &mut data.instances[instance_index].position {
-        p = Some(*v);
+        p = Some(v.clone());
     }
 
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
         if let Some(node) = behavior.nodes.get_mut(&id.1) {
             if let Some(value) = node.values.get("destination") {
-                dp = Some((value.0 as usize, value.1 as isize, value.2 as isize));
-                if let Some(p) = p {
-                    distance = compute_distance(&p, &dp.unwrap()).round();
+                dp = match value {
+                    Value::Position(v) => {
+                        Some(v.clone())
+                    },
+                    _ => None
+                };
+
+                if let Some(dp) = &dp {
+                    if let Some(p) = &p {
+                        distance = compute_distance(p, dp).round();
+                    }
                 }
             }
         }
     }
 
-    let mut speed : f64 = 8.0;
+    let mut speed : f32 = 8.0;
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
+        speed = rc;
+    }
+
+    // Apply the speed delay
+    let delay = 10.0 - speed.clamp(0.0, 10.0);
+    data.instances[instance_index].sleep_cycles = delay as usize;
+
+    // Success if we reached the to_distance already
+    if distance == 0.0 {
+        return BehaviorNodeConnector::Success;
+    }
+
+    let rc  = walk_towards(instance_index, p, dp,false, data);
+    if  rc == BehaviorNodeConnector::Right {
+        data.instances[instance_index].max_transition_time = delay as usize + 1;
+        data.instances[instance_index].curr_transition_time = 1;
+    }
+
+    rc
+}
+
+/// Pathfinder
+pub fn pathfinder(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    let mut p : Option<Position> = None;
+    let mut dp : Option<Position> = None;
+
+    let mut distance = f32::MAX;
+
+    if let Some(v) = &mut data.instances[instance_index].position {
+        p = Some(v.clone());
+    }
+
+    if let Some(behavior) = data.behaviors.get_mut(&id.0) {
+        if let Some(node) = behavior.nodes.get_mut(&id.1) {
+            if let Some(value) = node.values.get("destination") {
+                dp = match value {
+                    Value::Position(v) => {
+                        Some(v.clone())
+                    },
+                    _ => None
+                };
+
+                if let Some(dp) = &dp {
+                    if let Some(p) = &p {
+                        distance = compute_distance(p, dp).round();
+                    }
+                }
+            }
+        }
+    }
+
+    let mut speed : f32 = 8.0;
     if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
         speed = rc;
     }
@@ -132,9 +190,9 @@ pub fn pathfinder(instance_index: usize, id: (usize, usize), data: &mut RegionIn
 }
 
 /// Lookout
-pub fn lookout(instance_index: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn lookout(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    let mut max_distance : f64 = 7.0;
+    let mut max_distance : f32 = 7.0;
     if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "max_distance".to_string()), data) {
         max_distance = rc;
     }
@@ -143,15 +201,15 @@ pub fn lookout(instance_index: usize, id: (usize, usize), data: &mut RegionInsta
 
     let mut chars : Vec<usize> = vec![];
 
-    if let Some(position) = data.instances[instance_index].position {
+    if let Some(position) = &data.instances[instance_index].position {
         for inst_index in 0..data.instances.len() {
             if inst_index != instance_index {
                 if data.instances[inst_index].state == BehaviorInstanceState::Normal {
-                    if let Some(pos) = data.instances[inst_index].position {
-                        if pos.0 == position.0 {
-                            let dx = position.1 - pos.1;
-                            let dy = position.2 - pos.2;
-                            let d = ((dx * dx + dy * dy) as f64).sqrt();
+                    if let Some(pos) = &data.instances[inst_index].position {
+                        if pos.region == position.region {
+                            let dx = position.x - pos.x;
+                            let dy = position.y - pos.y;
+                            let d = ((dx * dx + dy * dy) as f32).sqrt();
                             if d <= max_distance {
                                 chars.push(inst_index);
                                 //println!("distance {}", d);
@@ -178,34 +236,34 @@ pub fn lookout(instance_index: usize, id: (usize, usize), data: &mut RegionInsta
 }
 
 /// CloseIn
-pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn close_in(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    let mut p : Option<(usize, isize, isize)> = None;
-    let mut dp : Option<(usize, isize, isize)> = None;
+    let mut p : Option<Position> = None;
+    let mut dp : Option<Position> = None;
 
-    let mut distance = 100000_f64;
-    let mut to_distance = 1_f64;
+    let mut distance = f32::MAX;
+    let mut to_distance = 1_f32;
 
     if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "to_distance".to_string()), data) {
         to_distance = rc;
     }
 
     if let Some(v) = &mut data.instances[instance_index].position {
-        p = Some(*v);
+        p = Some(v.clone());
     }
 
     let target_index = data.instances[instance_index].target_instance_index;
 
     if let Some(target_index) = target_index {
         if let Some(v) = &mut data.instances[target_index].position {
-            dp = Some(*v);
-            if let Some(p) = p {
-                distance = compute_distance(&p, v);
+            dp = Some(v.clone());
+            if let Some(p) = &p {
+                distance = compute_distance(p, v);
             }
         }
     }
 
-    let mut speed : f64 = 8.0;
+    let mut speed : f32 = 8.0;
     if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
         speed = rc;
     }
@@ -226,7 +284,7 @@ pub fn close_in(instance_index: usize, id: (usize, usize), data: &mut RegionInst
     }
     rc
 }
-
+/*
 /// Systems Call
 pub fn call_system(instance_index: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 

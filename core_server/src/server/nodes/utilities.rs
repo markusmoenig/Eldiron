@@ -75,10 +75,10 @@ pub fn get_node_value(id: (Uuid, Uuid, &str), data: &mut RegionInstance, behavio
 }
 
 /// Computes the distance between two locations
-pub fn compute_distance(p0: &Position, p1: &Position) -> f64 {
+pub fn compute_distance(p0: &Position, p1: &Position) -> f32 {
     let dx = p0.x - p1.x;
     let dy = p0.y - p1.y;
-    ((dx * dx + dy * dy) as f64).sqrt()
+    ((dx * dx + dy * dy) as f32).sqrt()
 }
 
 /// Returns the current position of the instance_index, takes into account an ongoing animation

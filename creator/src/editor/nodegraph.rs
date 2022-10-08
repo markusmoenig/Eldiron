@@ -1174,6 +1174,10 @@ impl EditorContent for NodeGraph  {
                 "Drop" => BehaviorNodeType::Drop,
                 "Light" if self.graph_type == BehaviorType::Items => BehaviorNodeType::LightItem,
                 "Set Tile" if self.graph_type == BehaviorType::Items => BehaviorNodeType::SetItemTile,
+                "Random Walk" => BehaviorNodeType::RandomWalk,
+                "Pathfinder" => BehaviorNodeType::Pathfinder,
+                "Lookout" => BehaviorNodeType::Lookout,
+                "Close In" => BehaviorNodeType::CloseIn,
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
@@ -1186,30 +1190,16 @@ impl EditorContent for NodeGraph  {
                 "Action" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::ActionArea,
 
                 /*
-                "Message" if self.graph_type != BehaviorType::Regions => BehaviorNodeType::Message,
-                "Pathfinder" => BehaviorNodeType::Pathfinder,
-                "Lookout" => BehaviorNodeType::Lookout,
-                "Close In" => BehaviorNodeType::CloseIn,
                 "Call System" => BehaviorNodeType::CallSystem,
                 "Call Behavior" => BehaviorNodeType::CallBehavior,
                 "Lock Tree" => BehaviorNodeType::LockTree,
                 "Unlock" => BehaviorNodeType::UnlockTree,
                 "Set State" => BehaviorNodeType::SetState,
 
-
-                "Always" => BehaviorNodeType::Always,
-                "Enter Area" => BehaviorNodeType::EnterArea,
-                "Leave Area" => BehaviorNodeType::LeaveArea,
-                "Inside Area" => BehaviorNodeType::InsideArea,
-                "Spawn" => BehaviorNodeType::Spawn,
                 "Displace Tiles" => BehaviorNodeType::DisplaceTiles,
 
                 "Widget" => BehaviorNodeType::Widget,
-
-                "Teleport" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::TeleportArea,
-                "Message" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::MessageArea,
-                "Audio" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::AudioArea,
-                "Light" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::LightArea,*/
+                */
 
                 _ => BehaviorNodeType::BehaviorTree
             };
@@ -1521,6 +1511,104 @@ impl EditorContent for NodeGraph  {
         if node_behavior_type == BehaviorNodeType::Take || node_behavior_type == BehaviorNodeType::Drop {
             node_widget.color = context.color_gray.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+       if node_behavior_type == BehaviorNodeType::RandomWalk {
+            // Position
+            let mut position_atom = AtomWidget::new(vec![], AtomWidgetType::NodePositionButton,
+            AtomData::new("position", Value::Empty()));
+            position_atom.atom_data.text = "Position".to_string();
+            let id = (behavior_data_id, node_id, "position".to_string());
+            position_atom.behavior_id = Some(id.clone());
+            position_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(position_atom);
+
+            let mut max_distance = AtomWidget::new(vec!["Max Distance".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("maxdistance", Value::Integer(0)));
+            max_distance.atom_data.text = "Max Distance".to_string();
+            let id = (behavior_data_id, node_id, "maxdistance".to_string());
+            max_distance.behavior_id = Some(id.clone());
+            max_distance.atom_data.value = context.data.get_behavior_id_value(id, Value::String("0".to_string()), self.graph_type);
+            node_widget.widgets.push(max_distance);
+
+            let mut speed = AtomWidget::new(vec!["Speed".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("speed", Value::Empty()));
+            speed.atom_data.text = "Speed".to_string();
+            let id = (behavior_data_id, node_id, "speed".to_string());
+            speed.behavior_id = Some(id.clone());
+            speed.atom_data.value = context.data.get_behavior_id_value(id, Value::String("8".to_string()), self.graph_type);
+            node_widget.widgets.push(speed);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::Pathfinder {
+            let mut atom1 = AtomWidget::new(vec!["Destination".to_string()], AtomWidgetType::NodePositionButton,
+            AtomData::new("destination", Value::Empty()));
+            atom1.atom_data.text = "Destination".to_string();
+            let id = (behavior_data_id, node_id, "destination".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            let mut atom2 = AtomWidget::new(vec!["Speed".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("speed", Value::Empty()));
+            atom2.atom_data.text = "Speed".to_string();
+            let id = (behavior_data_id, node_id, "speed".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("8".to_string()), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::Lookout {
+            let mut atom1 = AtomWidget::new(vec!["Expression".to_string()], AtomWidgetType::NodeExpressionButton,
+            AtomData::new("expression", Value::Empty()));
+            atom1.atom_data.text = "Expression".to_string();
+            let id = (behavior_data_id, node_id, "expression".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            let mut atom2 = AtomWidget::new(vec!["Max Distance".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("max_distance", Value::Empty()));
+            atom2.atom_data.text = "Max Distance".to_string();
+            let id = (behavior_data_id, node_id, "max_distance".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("7".to_string()), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::CloseIn {
+            let mut atom1 = AtomWidget::new(vec!["To Distance".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("to_distance", Value::Empty()));
+            atom1.atom_data.text = "To Distance".to_string();
+            let id = (behavior_data_id, node_id, "to_distance".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("1".to_string()), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            let mut atom2 = AtomWidget::new(vec!["Speed".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("speed", Value::Empty()));
+            atom2.atom_data.text = "Speed".to_string();
+            let id = (behavior_data_id, node_id, "speed".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
