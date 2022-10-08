@@ -114,9 +114,13 @@ pub fn random_walk(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
                     if let Some(p) = &p {
                         distance = compute_distance(p, dp).round();
                     }
+                }
 
-                    // If we are within the max distance, do a random walk, otherwise just go back towards the position
-                    if distance <= max_distance {
+                // If we are within the max distance, do a random walk, otherwise just go back towards the position
+                if distance <= max_distance {
+                    dp = p.clone();
+                    if let Some(dp) = &mut dp {
+
                         let mut rng = thread_rng();
                         let random = rng.gen_range(0..4);
 
