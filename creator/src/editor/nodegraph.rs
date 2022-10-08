@@ -30,9 +30,9 @@ pub struct NodeGraph  {
     mouse_pos                   : (usize, usize),
     mouse_hover_pos             : (usize, usize),
 
-    behavior_tree_indices       : Vec<usize>,
+    behavior_tree_ids           : Vec<Uuid>,
     behavior_tree_rects         : Vec<(usize, usize, usize, usize)>,
-    curr_behavior_tree_index    : Option<usize>,
+    curr_behavior_tree_id       : Option<Uuid>,
 
     visible_node_ids            : Vec<Uuid>,
     behavior_id                 : Uuid,
@@ -72,9 +72,9 @@ impl EditorContent for NodeGraph  {
             mouse_pos                   : (0,0),
             mouse_hover_pos             : (0, 0),
 
-            behavior_tree_indices       : vec![],
+            behavior_tree_ids           : vec![],
             behavior_tree_rects         : vec![],
-            curr_behavior_tree_index    : None,
+            curr_behavior_tree_id       : None,
 
             visible_node_ids            : vec![],
 
@@ -407,11 +407,11 @@ impl EditorContent for NodeGraph  {
                     total_width -= preview.size.0;
                 }
                 let mut bt_rect = (left_start, 3, 170, 25);
-                for bt_index in &self.behavior_tree_indices {
+                for bt_id in &self.behavior_tree_ids {
 
                     let mut selected = false;
-                    if let Some(curr_index) = self.curr_behavior_tree_index {
-                        if curr_index == *bt_index {
+                    if let Some(curr_index) = self.curr_behavior_tree_id {
+                        if curr_index == *bt_id {
                             selected = true;
                         }
                     }
@@ -421,7 +421,8 @@ impl EditorContent for NodeGraph  {
 
                     self.behavior_tree_rects.push(bt_rect.clone());
 
-                    context.draw2d.draw_text_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &asset.get_editor_font("OpenSans"), 16.0, &self.nodes[*bt_index].name, &context.color_white, &color, crate::draw2d::TextAlignment::Center);
+                    let idx = self.node_id_to_widget_index(*bt_id);
+                    context.draw2d.draw_text_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &asset.get_editor_font("OpenSans"), 16.0, &self.nodes[idx].name, &context.color_white, &color, crate::draw2d::TextAlignment::Center);
 
                     bt_rect.0 += 171;
                     if (bt_rect.0 + bt_rect.2) - left_start > total_width {
@@ -634,7 +635,7 @@ impl EditorContent for NodeGraph  {
             // Check the behavior tree selector at the top
             for index in 0..self.behavior_tree_rects.len() {
                 if context.contains_pos_for((pos.0 - self.rect.0, pos.1 - self.rect.1), self.behavior_tree_rects[index]) {
-                    self.curr_behavior_tree_index = Some(self.behavior_tree_indices[index]);
+                    self.curr_behavior_tree_id = Some(self.behavior_tree_ids[index]);
                     self.check_node_visibility(context);
                     self.dirty = true;
                     return true;
@@ -1119,18 +1120,23 @@ impl EditorContent for NodeGraph  {
     fn set_behavior_id(&mut self, id: Uuid, context: &mut ScreenContext) {
 
         self.nodes = vec![];
-        self.behavior_tree_indices = vec![];
-        self.curr_behavior_tree_index = None;
+        self.behavior_tree_ids = vec![];
+        self.curr_behavior_tree_id = None;
 
         self.behavior_id = id;
         let mut nodes = vec![];
 
         if let Some(behavior) = context.data.get_behavior(id, self.graph_type) {
-            let sorted_keys = behavior.data.nodes.keys().sorted();
+            let mut ids = vec![];
 
-            // Create the nodes
-            for i in sorted_keys {
-                let node_widget = NodeWidget::new_from_behavior_data(&behavior.data,  &behavior.data.nodes[i]);
+            for (id, node) in &behavior.data.nodes {
+                ids.push((id, node.name.clone()));
+            }
+
+            ids.sort_by(|x, y| x.1.cmp(&y.1));
+
+            for (id, _name) in ids {
+                let node_widget = NodeWidget::new_from_behavior_data(&behavior.data,  &behavior.data.nodes[id]);
                 nodes.push(node_widget);
             }
         }
@@ -1389,9 +1395,9 @@ impl EditorContent for NodeGraph  {
             }
 
             // Add the node to the behavior tree ids
-            self.behavior_tree_indices.push(self.nodes.len());
-            if self.curr_behavior_tree_index == None {
-                self.curr_behavior_tree_index = Some(self.nodes.len());
+            self.behavior_tree_ids.push(node_widget.id);
+            if self.curr_behavior_tree_id == None {
+                self.curr_behavior_tree_id = Some(node_widget.id);
             }
         } else
         if node_behavior_type == BehaviorNodeType::Linear {
@@ -2214,8 +2220,8 @@ impl EditorContent for NodeGraph  {
         for index in 0..self.nodes.len() {
             if self.nodes[index].id == id {
                 self.nodes.remove(index);
-                if let Some(rem_index) = self.behavior_tree_indices.iter().position(|&x| x == index) {
-                    self.behavior_tree_indices.remove(rem_index);
+                if let Some(rem_index) = self.behavior_tree_ids.iter().position(|&x| x == id) {
+                    self.behavior_tree_ids.remove(rem_index);
                 }
                 break
             }
@@ -2261,9 +2267,8 @@ impl EditorContent for NodeGraph  {
             return;
         }
 
-        if let Some(tree_index) = self.curr_behavior_tree_index {
+        if let Some(tree_id) = self.curr_behavior_tree_id {
 
-            let tree_id = self.widget_index_to_node_id(tree_index);
             self.visible_node_ids.push(tree_id);
             self.mark_connections_visible(tree_id, context);
 
