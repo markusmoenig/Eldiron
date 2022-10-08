@@ -94,9 +94,15 @@ pub fn random_walk(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
         p = Some(v.clone());
     }
 
+    let mut max_distance : f32 = 0.0;
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "max_distance".to_string()), data) {
+        max_distance = rc;
+    }
+
     if let Some(behavior) = data.behaviors.get_mut(&id.0) {
         if let Some(node) = behavior.nodes.get_mut(&id.1) {
-            if let Some(value) = node.values.get("destination") {
+
+            if let Some(value) = node.values.get("position") {
                 dp = match value {
                     Value::Position(v) => {
                         Some(v.clone())
@@ -104,9 +110,28 @@ pub fn random_walk(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
                     _ => None
                 };
 
-                if let Some(dp) = &dp {
+                if let Some(dp) = &mut dp {
                     if let Some(p) = &p {
                         distance = compute_distance(p, dp).round();
+                    }
+
+                    // If we are within the max distance, do a random walk, otherwise just go back towards the position
+                    if distance <= max_distance {
+                        let mut rng = thread_rng();
+                        let random = rng.gen_range(0..4);
+
+                        if random == 0 {
+                            dp.y -= 1;
+                        } else
+                        if random == 1 {
+                            dp.x += 1;
+                        } else
+                        if random == 2 {
+                            dp.y += 1;
+                        } else
+                        if random == 3 {
+                            dp.x -= 1;
+                        }
                     }
                 }
             }
@@ -118,14 +143,14 @@ pub fn random_walk(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
         speed = rc;
     }
 
+    let mut delay_between_movement : f32 = 10.0;
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "delay".to_string()), data) {
+        delay_between_movement = rc;
+    }
+
     // Apply the speed delay
     let delay = 10.0 - speed.clamp(0.0, 10.0);
-    data.instances[instance_index].sleep_cycles = delay as usize;
-
-    // Success if we reached the to_distance already
-    if distance == 0.0 {
-        return BehaviorNodeConnector::Success;
-    }
+    data.instances[instance_index].sleep_cycles = (delay + delay_between_movement) as usize;
 
     let rc  = walk_towards(instance_index, p, dp,false, data);
     if  rc == BehaviorNodeConnector::Right {
@@ -212,7 +237,6 @@ pub fn lookout(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
                             let d = ((dx * dx + dy * dy) as f32).sqrt();
                             if d <= max_distance {
                                 chars.push(inst_index);
-                                //println!("distance {}", d);
                             }
                         }
                     }

@@ -1525,11 +1525,11 @@ impl EditorContent for NodeGraph  {
             node_widget.widgets.push(position_atom);
 
             let mut max_distance = AtomWidget::new(vec!["Max Distance".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("maxdistance", Value::Integer(0)));
+            AtomData::new("max_distance", Value::Integer(0)));
             max_distance.atom_data.text = "Max Distance".to_string();
-            let id = (behavior_data_id, node_id, "maxdistance".to_string());
+            let id = (behavior_data_id, node_id, "max_distance".to_string());
             max_distance.behavior_id = Some(id.clone());
-            max_distance.atom_data.value = context.data.get_behavior_id_value(id, Value::String("0".to_string()), self.graph_type);
+            max_distance.atom_data.value = context.data.get_behavior_id_value(id, Value::String("4".to_string()), self.graph_type);
             node_widget.widgets.push(max_distance);
 
             let mut speed = AtomWidget::new(vec!["Speed".to_string()], AtomWidgetType::NodeExpressionValueButton,
@@ -1538,6 +1538,18 @@ impl EditorContent for NodeGraph  {
             let id = (behavior_data_id, node_id, "speed".to_string());
             speed.behavior_id = Some(id.clone());
             speed.atom_data.value = context.data.get_behavior_id_value(id, Value::String("8".to_string()), self.graph_type);
+            node_widget.widgets.push(speed);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+
+            let mut speed = AtomWidget::new(vec!["Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("delay", Value::Empty()));
+            speed.atom_data.text = "Delay".to_string();
+            let id = (behavior_data_id, node_id, "delay".to_string());
+            speed.behavior_id = Some(id.clone());
+            speed.atom_data.value = context.data.get_behavior_id_value(id, Value::String("10".to_string()), self.graph_type);
             node_widget.widgets.push(speed);
 
             node_widget.color = context.color_blue.clone();
