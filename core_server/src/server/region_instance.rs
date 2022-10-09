@@ -37,6 +37,9 @@ pub struct RegionInstance<'a> {
     /// The current instance index of the current "Player" when executing the Game behavior per player
     pub curr_player_inst_index      : usize,
 
+    /// If the execute_node call has indirection, this is set to the original index
+    pub curr_redirected_inst_index  : Option<usize>,
+
     /// Player game scopes
     pub game_player_scopes          : HashMap<usize, Scope<'a>>,
 
@@ -139,10 +142,6 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::CallSystem, call_system);
         nodes.insert(BehaviorNodeType::CallBehavior, call_behavior);
 
-        nodes.insert(BehaviorNodeType::LockTree, lock_tree);
-        nodes.insert(BehaviorNodeType::UnlockTree, unlock_tree);
-        nodes.insert(BehaviorNodeType::SetState, set_state);
-
         nodes.insert(BehaviorNodeType::DisplaceTiles, displace_tiles);
         */
         nodes.insert(BehaviorNodeType::Move, player_move);
@@ -154,6 +153,10 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::LightItem, light_item);
         nodes.insert(BehaviorNodeType::SetItemTile, set_item_tile);
         nodes.insert(BehaviorNodeType::RandomWalk, random_walk);
+        nodes.insert(BehaviorNodeType::MultiChoice, multi_choice);
+        nodes.insert(BehaviorNodeType::LockTree, lock_tree);
+        nodes.insert(BehaviorNodeType::UnlockTree, unlock_tree);
+        nodes.insert(BehaviorNodeType::SetState, set_state);
 
         nodes.insert(BehaviorNodeType::Always, always);
         nodes.insert(BehaviorNodeType::InsideArea, inside_area);
@@ -166,61 +169,64 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::ActionArea, action);
 
         Self {
-            region_data             : GameRegionData::new(),
-            region_behavior         : vec![],
+            region_data                     : GameRegionData::new(),
+            region_behavior                 : vec![],
 
-            behaviors               : FxHashMap::default(),
-            systems                 : FxHashMap::default(),
-            items                   : FxHashMap::default(),
-            game_data               : GameBehaviorData::new(),
+            behaviors                       : FxHashMap::default(),
+            systems                         : FxHashMap::default(),
+            items                           : FxHashMap::default(),
+            game_data                       : GameBehaviorData::new(),
 
-            system_names            : vec![],
-            system_ids              : vec![],
-            area_ids                : vec![],
+            system_names                    : vec![],
+            system_ids                      : vec![],
+            area_ids                        : vec![],
 
             engine,
-            ast                     : HashMap::new(),
+            ast                             : HashMap::new(),
             nodes,
 
-            instances               : vec![],
-            scopes                  : vec![],
+            instances                       : vec![],
+            scopes                          : vec![],
 
-            loot                    : FxHashMap::default(),
+            loot                            : FxHashMap::default(),
 
-            curr_action_inst_index  : None,
+            curr_action_inst_index          : None,
 
-            curr_player_inst_index  : 0,
-            game_player_scopes      : HashMap::new(),
+            curr_player_inst_index          : 0,
 
-            game_instance_index     : None,
+            curr_redirected_inst_index      : None,
 
-            player_uuid_indices     : FxHashMap::default(),
+            game_player_scopes              : HashMap::new(),
 
-            displacements           : HashMap::new(),
+            game_instance_index             : None,
 
-            characters              : HashMap::new(),
-            area_characters         : HashMap::new(),
-            prev_area_characters    : HashMap::new(),
-            lights                  : vec![],
+            player_uuid_indices             : FxHashMap::default(),
 
-            action_direction_text   : "".to_string(),
-            action_subject_text     : "".to_string(),
+            displacements                   : HashMap::new(),
 
-            curr_loot_item          : None,
-            curr_inventory_index    : None,
-            curr_player_scope       : Scope::new(),
+            characters                      : HashMap::new(),
+            area_characters                 : HashMap::new(),
+            prev_area_characters            : HashMap::new(),
+            lights                          : vec![],
 
-            debug_behavior_id       : None,
-            is_debugging            : false,
+            action_direction_text           : "".to_string(),
+            action_subject_text             : "".to_string(),
 
-            messages                : vec![],
-            executed_connections    : vec![],
-            script_errors           : vec![],
+            curr_loot_item                  : None,
+            curr_inventory_index            : None,
+            curr_player_scope               : Scope::new(),
 
-            pixel_based_movement    : true,
+            debug_behavior_id               : None,
+            is_debugging                    : false,
 
-            screen_size             : (1024, 608),
-            def_square_tile_size    : 32,
+            messages                        : vec![],
+            executed_connections            : vec![],
+            script_errors                   : vec![],
+
+            pixel_based_movement            : true,
+
+            screen_size                     : (1024, 608),
+            def_square_tile_size            : 32,
         }
     }
 
@@ -245,6 +251,7 @@ impl RegionInstance<'_> {
 
             self.instances[inst_index].messages = vec![];
             self.instances[inst_index].audio = vec![];
+            self.instances[inst_index].multi_choice_data = vec![];
 
             if self.pixel_based_movement == true {
                 if  self.instances[inst_index].old_position.is_some() {
@@ -740,7 +747,8 @@ impl RegionInstance<'_> {
                     messages                : self.instances[inst_index].messages.clone(),
                     audio                   : self.instances[inst_index].audio.clone(),
                     scope_buffer            : scope_buffer,
-                    inventory               : inventory.clone()
+                    inventory               : inventory.clone(),
+                    multiple_choice_data    : self.instances[inst_index].multi_choice_data.clone(),
                  };
 
                 //self.instances[inst_index].update = serde_json::to_string(&update).ok();
@@ -1269,7 +1277,7 @@ impl RegionInstance<'_> {
 
         let index = self.instances.len();
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1 };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![] };
 
         self.instances.push(instance);
         self.scopes.push(scope);
@@ -1425,7 +1433,7 @@ impl RegionInstance<'_> {
 
                 //println!("Creating instance {}", inst.name.unwrap());
 
-                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment };
+                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![] };
 
                 index = self.instances.len();
                 self.instances.push(instance);

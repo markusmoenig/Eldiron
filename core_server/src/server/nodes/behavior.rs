@@ -312,6 +312,47 @@ pub fn close_in(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
     }
     rc
 }
+
+// Multi choice
+pub fn multi_choice(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    println!("multi choice");
+
+    let mut header = "".to_string();
+    let mut text = "".to_string();
+    let mut answer = "".to_string();
+
+    if let Some(value) = get_node_value((id.0, id.1, "header"), data, behavior_type) {
+        if let Some(h) = value.to_string() {
+            header = h;
+        }
+    }
+
+    if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type) {
+        if let Some(t) = value.to_string() {
+            text = t;
+        }
+    }
+
+    if let Some(value) = get_node_value((id.0, id.1, "answer"), data, behavior_type) {
+        if let Some(a) = value.to_string() {
+            answer = a;
+        }
+    }
+
+    let mcd = MultiChoiceData {
+        id      : id.1,
+        header,
+        text,
+        answer
+    };
+
+    let index = get_local_instance_index(instance_index, data);
+    data.instances[index].multi_choice_data.push(mcd);
+
+    BehaviorNodeConnector::Right
+}
+
 /*
 /// Systems Call
 pub fn call_system(instance_index: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
@@ -413,49 +454,52 @@ pub fn call_behavior(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionI
     }
     BehaviorNodeConnector::Fail
 }
-/*
+
 /// Lock Tree
-pub fn lock_tree(instance_index: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn lock_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let mut behavior_instance : Option<usize> = None;
-    let mut behavior_tree_id : Option<usize> = None;
+    let mut behavior_tree_id : Option<Uuid> = None;
     let mut is_target = false;
 
     // We cannot precompute this as the values for the target may change
 
     // The id's were not yet computed search the system trees, get the ids and store them.
-    if let Some(value) = get_node_value((id.0, id.1, "execute_for"), data, behavior_type) {
-        if value.0 == 0.0 {
-            // Run the behavior on myself
-            behavior_instance = Some(instance_index);
-        } else {
-            // Run the behavior on the target
-            if let Some(target_index) = data.instances[instance_index].target_instance_index {
-                behavior_instance = Some(target_index);
-                is_target = true;
+    if let Some(v) = get_node_value((id.0, id.1, "for"), data, behavior_type) {
+        if let Some(value) = v.to_integer() {
+            if value == 0 {
+                // Run the behavior on myself
+                behavior_instance = Some(get_local_instance_index(instance_index, data));
+            } else {
+                // Run the behavior on the target
+                if let Some(target_index) = data.instances[instance_index].target_instance_index {
+                    behavior_instance = Some(target_index);
+                    is_target = true;
+                }
             }
         }
     }
 
-    if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
-        if let Some(behavior_instance) = behavior_instance {
-            if let Some(behavior) = data.behaviors.get(&data.instances[behavior_instance].behavior_id) {
-                for (node_id, node) in &behavior.nodes {
-                    if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == value.4 {
-                        behavior_tree_id = Some(*node_id);
-                        break;
+    if let Some(v) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
+        if let Some(value) = v.to_string() {
+            if let Some(behavior_instance) = behavior_instance {
+                if let Some(behavior) = data.behaviors.get(&data.instances[behavior_instance].behavior_id) {
+                    for (node_id, node) in &behavior.nodes {
+                        if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == value {
+                            behavior_tree_id = Some(*node_id);
+                            break;
+                        }
                     }
                 }
             }
         }
     }
 
-    //println!("behavior instance {:?}", behavior_instance);
-    //println!("behavior_tree_id id {:?}", behavior_tree_id);
+    // println!("behavior instance {:?}", behavior_instance);
+    // println!("behavior_tree_id id {:?}", behavior_tree_id);
 
     if let Some(behavior_instance) = behavior_instance {
         if let Some(behavior_tree_id) = behavior_tree_id {
-
             // Lock the tree
             data.instances[behavior_instance].locked_tree = Some(behavior_tree_id);
             if is_target {
@@ -469,19 +513,20 @@ pub fn lock_tree(instance_index: usize, id: (usize, usize), data: &mut RegionIns
 }
 
 /// Unlock Tree
-pub fn unlock_tree(instance_index: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn unlock_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let mut behavior_instance : Option<usize> = None;
 
-    // The id's were not yet computed search the system trees, get the ids and store them.
-    if let Some(value) = get_node_value((id.0, id.1, "execute_for"), data, behavior_type) {
-        if value.0 == 0.0 {
-            // Run the behavior on myself
-            behavior_instance = Some(instance_index);
-        } else {
-            // Run the behavior on the target
-            if let Some(target_index) = data.instances[instance_index].target_instance_index {
-                behavior_instance = Some(target_index);
+    if let Some(v) = get_node_value((id.0, id.1, "for"), data, behavior_type) {
+        if let Some(value) = v.to_integer() {
+            if value == 0 {
+                // Run the behavior on myself
+                behavior_instance = Some(get_local_instance_index(instance_index, data));
+            } else {
+                // Run the behavior on the target
+                if let Some(target_index) = data.instances[instance_index].target_instance_index {
+                    behavior_instance = Some(target_index);
+                }
             }
         }
     }
@@ -495,19 +540,21 @@ pub fn unlock_tree(instance_index: usize, id: (usize, usize), data: &mut RegionI
 }
 
 /// Set State
-pub fn set_state(instance_index: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn set_state(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let mut behavior_instance : Option<usize> = None;
 
     // The id's were not yet computed search the system trees, get the ids and store them.
-    if let Some(value) = get_node_value((id.0, id.1, "for"), data, behavior_type) {
-        if value.0 == 0.0 {
-            // Run set state on myself
-            behavior_instance = Some(instance_index);
-        } else {
-            // Run the behavior on the target
-            if let Some(target_index) = data.instances[instance_index].target_instance_index {
-                behavior_instance = Some(target_index);
+    if let Some(v) = get_node_value((id.0, id.1, "for"), data, behavior_type) {
+        if let Some(value) = v.to_integer() {
+            if value == 0 {
+                // Run the behavior on myself
+                behavior_instance = Some(get_local_instance_index(instance_index, data));
+            } else {
+                // Run the behavior on the target
+                if let Some(target_index) = data.instances[instance_index].target_instance_index {
+                    behavior_instance = Some(target_index);
+                }
             }
         }
     }
@@ -515,13 +562,15 @@ pub fn set_state(instance_index: usize, id: (usize, usize), data: &mut RegionIns
     if let Some(value) = get_node_value((id.0, id.1, "state"), data, behavior_type) {
         if let Some(behavior_instance) = behavior_instance {
             //println!("behavior instance {:?}", behavior_instance);
-            data.instances[behavior_instance].state = match value.0 as isize {
-                1 => BehaviorInstanceState::Hidden,
-                2 => BehaviorInstanceState::Killed,
-                3 => BehaviorInstanceState::Purged,
+            if let Some(v) = value.to_integer() {
+                data.instances[behavior_instance].state = match v {
+                    1 => BehaviorInstanceState::Hidden,
+                    2 => BehaviorInstanceState::Killed,
+                    3 => BehaviorInstanceState::Purged,
 
-                _ => BehaviorInstanceState::Normal,
-            };
+                    _ => BehaviorInstanceState::Normal,
+                };
+            }
 
             // If != normal, clean this instance from all targets
             if data.instances[behavior_instance].state != BehaviorInstanceState::Normal {
@@ -536,4 +585,4 @@ pub fn set_state(instance_index: usize, id: (usize, usize), data: &mut RegionIns
     }
 
     BehaviorNodeConnector::Bottom
-}*/
+}

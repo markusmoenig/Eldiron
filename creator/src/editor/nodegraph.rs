@@ -1184,6 +1184,10 @@ impl EditorContent for NodeGraph  {
                 "Pathfinder" => BehaviorNodeType::Pathfinder,
                 "Lookout" => BehaviorNodeType::Lookout,
                 "Close In" => BehaviorNodeType::CloseIn,
+                "Multi Choice" => BehaviorNodeType::MultiChoice,
+                "Lock Tree" => BehaviorNodeType::LockTree,
+                "Unlock" => BehaviorNodeType::UnlockTree,
+                "Set State" => BehaviorNodeType::SetState,
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
@@ -1198,9 +1202,6 @@ impl EditorContent for NodeGraph  {
                 /*
                 "Call System" => BehaviorNodeType::CallSystem,
                 "Call Behavior" => BehaviorNodeType::CallBehavior,
-                "Lock Tree" => BehaviorNodeType::LockTree,
-                "Unlock" => BehaviorNodeType::UnlockTree,
-                "Set State" => BehaviorNodeType::SetState,
 
                 "Displace Tiles" => BehaviorNodeType::DisplaceTiles,
 
@@ -1381,7 +1382,7 @@ impl EditorContent for NodeGraph  {
         node_widget.menu = Some(node_menu_atom);
 
         if node_behavior_type == BehaviorNodeType::BehaviorTree {
-            let tree_menu = create_menu_atom("Execute".to_string(), vec!["Always".to_string(), "On Startup".to_string(), "On Target".to_string()], Value::Integer(0));
+            let tree_menu = create_menu_atom("Execute".to_string(), vec!["Always".to_string(), "On Startup".to_string(), "On Demand".to_string()], Value::Integer(0));
 
             node_widget.widgets.push(tree_menu);
             node_widget.color = context.color_green.clone();
@@ -1629,6 +1630,75 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::MultiChoice {
+            let mut header = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+            AtomData::new("header", Value::Empty()));
+            header.atom_data.text = "Header".to_string();
+            let id = (behavior_data_id, node_id, "header".to_string());
+            header.behavior_id = Some(id.clone());
+            header.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(header);
+
+            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+            AtomData::new("text", Value::Empty()));
+            atom1.atom_data.text = "Text".to_string();
+            let id = (behavior_data_id, node_id, "text".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+            AtomData::new("answer", Value::Empty()));
+            atom2.atom_data.text = "Answer".to_string();
+            let id = (behavior_data_id, node_id, "answer".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::LockTree {
+            let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
+            node_widget.widgets.push(target_menu);
+
+            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+            AtomData::new("tree", Value::Empty()));
+            atom2.atom_data.text = "Tree Name".to_string();
+            let id = (behavior_data_id, node_id, "tree".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::UnlockTree {
+            let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
+            node_widget.widgets.push(target_menu);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::SetState {
+            let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
+            node_widget.widgets.push(target_menu);
+
+            let state_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Hidden".to_string(), "Killed".to_string(), "Purged".to_string()], Value::Integer(0));
+            node_widget.widgets.push(state_menu);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
 
         // Area

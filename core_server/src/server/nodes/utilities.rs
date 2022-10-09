@@ -289,7 +289,9 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
                             }
 
                             for (inst_index, node_id) in to_execute {
+                                data.curr_redirected_inst_index = Some(inst_index);
                                 data.execute_node(inst_index, node_id, Some(instance_index));
+                                data.curr_redirected_inst_index = None;
                                 return BehaviorNodeConnector::Success;
                             }
 
@@ -302,6 +304,15 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
     }
 
     rc
+}
+
+/// Get the current local instance
+pub fn get_local_instance_index(instance_index: usize, data: &mut RegionInstance) -> usize {
+    if let Some(redirected) = data.curr_redirected_inst_index {
+        redirected
+    } else {
+        instance_index
+    }
 }
 
 /// Check if we have to create the state for the given item

@@ -56,6 +56,10 @@ pub enum BehaviorNodeType {
     Pathfinder,                                             // Go somewhere
     CloseIn,                                                // Close In on another character
     Lookout,                                                // Look out for another character
+    MultiChoice,                                            // Multi Choice
+    LockTree,
+    UnlockTree,
+    SetState,
 
     /*
     Pathfinder,
@@ -209,6 +213,9 @@ pub struct BehaviorInstance {
 
     /// The locked tree for the game behavior for this player
     pub game_locked_tree        : Option<Uuid>,
+
+    /// Multi choice data for the character
+    pub multi_choice_data       : Vec<MultiChoiceData>
 }
 
 /// Represents a character behavior instance

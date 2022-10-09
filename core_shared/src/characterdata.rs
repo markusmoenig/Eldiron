@@ -27,3 +27,12 @@ pub struct LootData {
     pub stackable               : i32,
     pub static_item             : bool,
 }
+
+/// Represents a multi choice item
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct MultiChoiceData {
+    pub id                      : Uuid,
+    pub header                  : String,
+    pub text                    : String,
+    pub answer                  : String,
+}
