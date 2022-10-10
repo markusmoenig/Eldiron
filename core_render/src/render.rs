@@ -34,6 +34,7 @@ pub struct GameRender<'a> {
     pub lights                  : FxHashMap<Uuid, Vec<LightData>>,
 
     pub messages                : Vec<MessageData>,
+    pub multi_choice_data       : Vec<MultiChoiceData>,
 
     pub last_position           : Option<Position>,
     pub transition_steps        : isize,
@@ -140,6 +141,7 @@ impl GameRender<'_> {
             lights              : FxHashMap::default(),
 
             messages            : vec![],
+            multi_choice_data   : vec![],
 
             last_position       : None,
             transition_steps    : 5,
@@ -167,6 +169,7 @@ impl GameRender<'_> {
                 if let Some(ast) = result.ok() {
 
                     self.messages = vec![];
+                    self.multi_choice_data = vec![];
                     self.last_position = None;
                     self.transition_active = false;
 
@@ -264,6 +267,13 @@ impl GameRender<'_> {
         if update.messages.is_empty() == false {
             for m in &update.messages {
                 self.messages.push(m.clone());
+            }
+        }
+
+        // Get new multi_choice_data
+        if update.multi_choice_data.is_empty() == false {
+            for mcd in &update.multi_choice_data {
+                self.multi_choice_data.push(mcd.clone());
             }
         }
 
@@ -539,25 +549,70 @@ impl GameRender<'_> {
                 ScriptDrawCmd::DrawMessages(rect, font_name, font_size, rgb) => {
                     if rect.is_safe(self.width, self.height) {
                         if let Some(font) = self.asset.game_fonts.get(&font_name) {
-                            for index in 0..self.messages.len() {
-                                if self.messages[index].buffer.is_none() {
-                                    self.messages[index].buffer = Some(self.draw2d.create_buffer_for_message(rect.rect.2, font, font_size, &self.messages[index], &rgb.value));
+
+                            if self.multi_choice_data.is_empty() == true {
+
+                                // Draw Messages
+
+                                for index in 0..self.messages.len() {
+                                    if self.messages[index].buffer.is_none() {
+                                        self.messages[index].buffer = Some(self.draw2d.create_buffer_for_message(rect.rect.2, font, font_size, &self.messages[index], &rgb.value));
+                                    }
                                 }
-                            }
 
-                            let mut message_index = (self.messages.len() - 1) as i32;
-                            let mut y = rect.rect.1 + rect.rect.3 - 5;
+                                let mut message_index = (self.messages.len() - 1) as i32;
+                                let mut y = rect.rect.1 + rect.rect.3 - 5;
 
-                            while message_index >= 0 {
-                                if let Some(buffer) = &self.messages[message_index as usize].buffer {
+                                while message_index >= 0 {
+                                    if let Some(buffer) = &self.messages[message_index as usize].buffer {
 
-                                    y -= buffer.1;
+                                        y -= buffer.1;
 
-                                    self.draw2d.blend_slice_safe(&mut self.frame[..], &buffer.2, &((rect.rect.0) as isize, y as isize, buffer.0, buffer.1), self.width, &rect.rect);
+                                        self.draw2d.blend_slice_safe(&mut self.frame[..], &buffer.2, &((rect.rect.0) as isize, y as isize, buffer.0, buffer.1), self.width, &rect.rect);
 
-                                    y -= 5;
+                                        y -= 5;
+                                    }
+                                    message_index -= 1;
                                 }
-                                message_index -= 1;
+
+                            } else {
+
+                                // Draw Multi Choice Data
+
+                                let mut y = rect.rect.1;
+
+                                for index in 0..self.multi_choice_data.len() {
+
+                                    if self.multi_choice_data[index].buffer.is_none() {
+                                        self.multi_choice_data[index].buffer = Some(self.draw2d.create_buffer_for_multi_choice(rect.rect.2, font, font_size, &self.multi_choice_data[index], &rgb.value));
+                                    }
+
+                                    if let Some(buffer) = &self.multi_choice_data[index].buffer {
+                                        self.draw2d.blend_slice_safe(&mut self.frame[..], &buffer.2, &((rect.rect.0) as isize, y as isize, buffer.0, buffer.1), self.width, &rect.rect);
+                                    }
+                                }
+
+                                /*
+                                for index in 0..self.messages.len() {
+                                    if self.messages[index].buffer.is_none() {
+                                        self.messages[index].buffer = Some(self.draw2d.create_buffer_for_message(rect.rect.2, font, font_size, &self.messages[index], &rgb.value));
+                                    }
+                                }
+
+                                let mut message_index = (self.messages.len() - 1) as i32;
+                                let mut y = rect.rect.1 + rect.rect.3 - 5;
+
+                                while message_index >= 0 {
+                                    if let Some(buffer) = &self.messages[message_index as usize].buffer {
+
+                                        y -= buffer.1;
+
+                                        self.draw2d.blend_slice_safe(&mut self.frame[..], &buffer.2, &((rect.rect.0) as isize, y as isize, buffer.0, buffer.1), self.width, &rect.rect);
+
+                                        y -= 5;
+                                    }
+                                    message_index -= 1;
+                                }*/
                             }
                         }
                     }

@@ -769,4 +769,46 @@ impl Draw2D {
         (width, height, buffer)
     }
 
+    /// Draw hover help
+    pub fn create_buffer_for_multi_choice(&self, max_width: usize, font: &Font, font_size: f32, mcd: &MultiChoiceData, color: &[u8; 4]) -> (usize, usize, Vec<u8>) {
+
+        let fonts = &[font];
+
+        let mut text = mcd.header.clone();
+        text += "\n";
+        text += mcd.answer.as_str();
+        text += ". ";
+        text += mcd.text.as_str();
+
+        let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
+        layout.reset(&LayoutSettings {
+            max_width : Some(max_width as f32),
+            max_height : None,
+            horizontal_align : HorizontalAlign::Left,
+            vertical_align : VerticalAlign::Middle,
+            ..LayoutSettings::default()
+        });
+        layout.append(fonts, &TextStyle::new(text.as_str(), font_size, 0));
+
+        let width = max_width;
+        let height = layout.height().ceil() as usize;
+        let mut buffer : Vec<u8> = vec![0; width * height * 4];
+
+        let frame = &mut buffer[..];
+
+        for glyph in layout.glyphs() {
+            if glyph.char_data.rasterize() == false { continue; }
+            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+
+            for y in 0..metrics.height {
+                for x in 0..metrics.width {
+                    let i = (x+glyph.x as usize) * 4 + (y + glyph.y as usize) * max_width * 4;
+                    let m = alphamap[x + y * metrics.width];
+
+                    frame[i..i + 4].copy_from_slice(&[color[0], color[1], color[2], m]);
+                }
+            }
+        }
+        (width, height, buffer)
+    }
 }

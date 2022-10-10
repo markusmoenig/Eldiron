@@ -50,7 +50,7 @@ pub struct GameUpdate {
     pub inventory               : Inventory,
 
     /// Multiple Choice Data
-    pub multiple_choice_data    : Vec<MultiChoiceData>,
+    pub multi_choice_data       : Vec<MultiChoiceData>,
 }
 
 impl GameUpdate {
@@ -76,7 +76,7 @@ impl GameUpdate {
             audio               : vec![],
             scope_buffer        : ScopeBuffer::new(),
             inventory           : Inventory::new(),
-            multiple_choice_data: vec![],
+            multi_choice_data   : vec![],
         }
     }
 }

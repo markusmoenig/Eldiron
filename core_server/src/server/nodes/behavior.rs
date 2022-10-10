@@ -316,8 +316,6 @@ pub fn close_in(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
 // Multi choice
 pub fn multi_choice(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    println!("multi choice");
-
     let mut header = "".to_string();
     let mut text = "".to_string();
     let mut answer = "".to_string();
@@ -341,14 +339,15 @@ pub fn multi_choice(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIn
     }
 
     let mcd = MultiChoiceData {
-        id      : id.1,
+        id              : id.1,
         header,
         text,
-        answer
+        answer,
+        pos             : None,
+        buffer          : None,
     };
 
-    let index = get_local_instance_index(instance_index, data);
-    data.instances[index].multi_choice_data.push(mcd);
+    data.instances[instance_index].multi_choice_data.push(mcd);
 
     BehaviorNodeConnector::Right
 }
