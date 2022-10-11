@@ -316,40 +316,74 @@ pub fn close_in(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
 // Multi choice
 pub fn multi_choice(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    let mut header = "".to_string();
-    let mut text = "".to_string();
-    let mut answer = "".to_string();
-
-    if let Some(value) = get_node_value((id.0, id.1, "header"), data, behavior_type) {
-        if let Some(h) = value.to_string() {
-            header = h;
+    if data.instances[instance_index].multi_choice_answer.is_some() {
+        if Some(id.1) == data.instances[instance_index].multi_choice_answer {
+            BehaviorNodeConnector::Bottom
         }
-    }
-
-    if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type) {
-        if let Some(t) = value.to_string() {
-            text = t;
+        else {
+            BehaviorNodeConnector::Right
         }
-    }
+    } else {
+        let mut header = "".to_string();
+        let mut text = "".to_string();
+        let mut answer = "".to_string();
 
-    if let Some(value) = get_node_value((id.0, id.1, "answer"), data, behavior_type) {
-        if let Some(a) = value.to_string() {
-            answer = a;
+        if let Some(value) = get_node_value((id.0, id.1, "header"), data, behavior_type) {
+            if let Some(h) = value.to_string() {
+                header = h;
+            }
         }
+
+        if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type) {
+            if let Some(t) = value.to_string() {
+                text = t;
+            }
+        }
+
+        if let Some(value) = get_node_value((id.0, id.1, "answer"), data, behavior_type) {
+            if let Some(a) = value.to_string() {
+                answer = a;
+            }
+        }
+
+        let mcd = MultiChoiceData {
+            id              : id.1,
+            header,
+            text,
+            answer,
+            pos             : None,
+            buffer          : None,
+        };
+
+        let player_index = instance_index;
+        let npc_index = get_local_instance_index(instance_index, data);
+
+        data.instances[player_index].multi_choice_data.push(mcd);
+
+        let t = data.get_time();
+
+        let com = PlayerCommunication {
+            player_index,
+            npc_index,
+            npc_behavior_tree       : data.curr_executing_tree,
+            player_answer           : None,
+            start_time              : t,
+            end_time                : t + 1000 * 20, // 20 Secs
+        };
+
+        //println!("{}, {}", data.instances[player_index].name, data.instances[npc_index].name);
+
+        // TODO: Add one Communication structure per player
+        if data.instances[npc_index].communication.is_empty() {
+            data.instances[npc_index].communication.push(com.clone());
+        }
+
+        if data.instances[player_index].communication.is_empty() {
+            data.instances[player_index].communication.push(com);
+        }
+
+        BehaviorNodeConnector::Right
     }
-
-    let mcd = MultiChoiceData {
-        id              : id.1,
-        header,
-        text,
-        answer,
-        pos             : None,
-        buffer          : None,
-    };
-
-    data.instances[instance_index].multi_choice_data.push(mcd);
-
-    BehaviorNodeConnector::Right
 }
 
 /*

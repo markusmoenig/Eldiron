@@ -277,6 +277,11 @@ impl GameRender<'_> {
             }
         }
 
+        // Clear the multi choice data if we have no ongoing communication
+        if update.communication.is_empty() {
+            self.multi_choice_data.clear();
+        }
+
         // Play audio
         if update.audio.is_empty() == false {
             for m in &update.audio {
@@ -589,30 +594,10 @@ impl GameRender<'_> {
 
                                     if let Some(buffer) = &self.multi_choice_data[index].buffer {
                                         self.draw2d.blend_slice_safe(&mut self.frame[..], &buffer.2, &((rect.rect.0) as isize, y as isize, buffer.0, buffer.1), self.width, &rect.rect);
+
+                                        y += buffer.1 - 18;
                                     }
                                 }
-
-                                /*
-                                for index in 0..self.messages.len() {
-                                    if self.messages[index].buffer.is_none() {
-                                        self.messages[index].buffer = Some(self.draw2d.create_buffer_for_message(rect.rect.2, font, font_size, &self.messages[index], &rgb.value));
-                                    }
-                                }
-
-                                let mut message_index = (self.messages.len() - 1) as i32;
-                                let mut y = rect.rect.1 + rect.rect.3 - 5;
-
-                                while message_index >= 0 {
-                                    if let Some(buffer) = &self.messages[message_index as usize].buffer {
-
-                                        y -= buffer.1;
-
-                                        self.draw2d.blend_slice_safe(&mut self.frame[..], &buffer.2, &((rect.rect.0) as isize, y as isize, buffer.0, buffer.1), self.width, &rect.rect);
-
-                                        y -= 5;
-                                    }
-                                    message_index -= 1;
-                                }*/
                             }
                         }
                     }
@@ -936,7 +921,21 @@ impl GameRender<'_> {
     }
 
     pub fn key_down(&mut self, key: String, player_id: Uuid) -> (Vec<String>, Option<(String, Option<usize>)>) {
-        // Call the draw function
+
+        // Check if we have an active multiple choice communication
+        if self.multi_choice_data.is_empty() == false {
+
+            for mcd in &self.multi_choice_data {
+                if mcd.answer == key.clone() {
+                    if let Some(action) = pack_multi_choice_answer_action(player_id, "Answer".to_string(), mcd.id) {
+                        return (vec![action], None);
+                    }
+                }
+            }
+            return (vec![], None)
+        }
+
+        // Call the key_down function
         if let Some(ast) = &self.ast {
             let result = self.engine.call_fn_raw(
                             &mut self.scope,
@@ -966,7 +965,8 @@ impl GameRender<'_> {
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), player_id: Uuid) -> (Vec<String>, Option<(String, Option<usize>)>) {
-        // Call the draw function
+
+        // Call the touch_down function
 
         if let Some(ast) = &self.ast {
             let result = self.engine.call_fn_raw(

@@ -217,20 +217,11 @@ pub struct BehaviorInstance {
     /// Multi choice data for the player character
     pub multi_choice_data       : Vec<MultiChoiceData>,
 
+    /// Answer
+    pub multi_choice_answer     : Option<Uuid>,
+
     /// This character has an ongoing communication
     pub communication           : Vec<PlayerCommunication>,
-}
-
-/// Represents communication between a player and an npc
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct PlayerCommunication {
-    pub player_index            : usize,
-    pub npc_index               : usize,
-    pub npc_behavior_tree       : usize,
-    pub player_answer           : Option<String>,
-
-    pub start_time              : u128,
-    pub end_time                : u128,
 }
 
 /// Represents a character behavior instance

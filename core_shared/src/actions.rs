@@ -19,23 +19,29 @@ pub struct PlayerAction {
     pub player_id               : Uuid,
     pub gear_index              : Option<u16>,
     pub inventory_index         : Option<u16>,
+    pub multi_choice_uuid       : Option<Uuid>,
 }
 
 /// Packs the given action into JSON
 pub fn pack_action(player_id: Uuid, action: String, direction: PlayerDirection) -> Option<String> {
-    let action = PlayerAction{ action, player_id, direction, gear_index: None, inventory_index: None };
+    let action = PlayerAction{ action, player_id, direction, gear_index: None, inventory_index: None, multi_choice_uuid: None };
     return serde_json::to_string(&action).ok()
 }
 
 /// Packs an action on the given inventory index into JSON
 pub fn pack_inventory_action(player_id: Uuid, action: String, inv_index: u16) -> Option<String> {
-    let action = PlayerAction{ action, player_id, direction: PlayerDirection::None, gear_index: None, inventory_index: Some(inv_index) };
+    let action = PlayerAction{ action, player_id, direction: PlayerDirection::None, gear_index: None, inventory_index: Some(inv_index), multi_choice_uuid: None };
     return serde_json::to_string(&action).ok()
 }
 
-
 /// Packs an action on the given inventory index into JSON
 pub fn pack_gear_action(player_id: Uuid, action: String, gear_index: u16) -> Option<String> {
-    let action = PlayerAction{ action, player_id, direction: PlayerDirection::None, gear_index: Some(gear_index), inventory_index: None };
+    let action = PlayerAction{ action, player_id, direction: PlayerDirection::None, gear_index: Some(gear_index), inventory_index: None, multi_choice_uuid: None };
+    return serde_json::to_string(&action).ok()
+}
+
+/// Packs an action for the given answer
+pub fn pack_multi_choice_answer_action(player_id: Uuid, action: String, multi_choice_uuid: Uuid) -> Option<String> {
+    let action = PlayerAction{ action, player_id, direction: PlayerDirection::None, gear_index: None, inventory_index: None, multi_choice_uuid: Some(multi_choice_uuid) };
     return serde_json::to_string(&action).ok()
 }

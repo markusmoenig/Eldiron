@@ -79,6 +79,9 @@ pub struct RegionInstance<'a> {
     // The current player scope (if swapped out during item execution)
     pub curr_player_scope           : Scope<'a>,
 
+    // The currently executing behavior tree id
+    pub curr_executing_tree         : Uuid,
+
     // These are fields which provide debug feedback while running and are only used in the editors debug mode
 
     // The behavior id to debug, this is send from the server
@@ -216,6 +219,8 @@ impl RegionInstance<'_> {
             curr_inventory_index            : None,
             curr_player_scope               : Scope::new(),
 
+            curr_executing_tree             : Uuid::new_v4(),
+
             debug_behavior_id               : None,
             is_debugging                    : false,
 
@@ -241,6 +246,8 @@ impl RegionInstance<'_> {
 
         let mut messages = vec![];
         let mut inventory = Inventory::new();
+
+        let tick_time = self.get_time();
 
         // Execute behaviors
         for inst_index in 0..self.instances.len() {
@@ -278,25 +285,58 @@ impl RegionInstance<'_> {
                 self.is_debugging = Some(self.instances[inst_index].behavior_id) == self.debug_behavior_id;
 
                 if self.instances[inst_index].instance_type == BehaviorInstanceType::NonPlayerCharacter {
-                    // Execute trees of an NPC
 
-                    // Has a locked tree ?
-                    if let Some(locked_tree) = self.instances[inst_index].locked_tree {
-                            self.execute_node(inst_index, locked_tree, None);
-                    } else {
-                        // Unlocked, execute all valid trees
-                        let trees = self.instances[inst_index].tree_ids.clone();
-                        for node_id in &trees {
+                    let mut execute_trees = true;
 
-                            // Only execute trees here with an "Always" execute setting (0)
-                            if let Some(value)= get_node_value((self.instances[inst_index].behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors) {
-                                if let Some(value) = value.to_integer() {
-                                    if value != 0 {
-                                        continue;
+                    // Check if this NPC has active communication
+                    if self.instances[inst_index].communication.is_empty() == false {
+                        let mut com_to_drop : Option<usize> = None;
+
+                        for c_index in 0..self.instances[inst_index].communication.len() {
+                            if self.instances[inst_index].communication[c_index].end_time < tick_time {
+
+                                // Drop this communication for the NPC
+                                com_to_drop = Some(c_index);
+
+                                // Remove the communication for the Player
+                                let player_index = self.instances[inst_index].communication[c_index].player_index;
+                                self.instances[player_index].communication = vec![];
+                                self.instances[player_index].multi_choice_data = vec![];
+
+                                break;
+                            }
+                        }
+
+                        if let Some(index) = com_to_drop {
+                            self.instances[inst_index].communication.remove(index);
+                        }
+
+                        if self.instances[inst_index].communication.is_empty() == false {
+                            execute_trees = false;
+                        }
+                    }
+
+                    if execute_trees {
+                        // Execute trees of an NPC
+
+                        // Has a locked tree ?
+                        if let Some(locked_tree) = self.instances[inst_index].locked_tree {
+                                self.execute_node(inst_index, locked_tree, None);
+                        } else {
+                            // Unlocked, execute all valid trees
+                            let trees = self.instances[inst_index].tree_ids.clone();
+                            for node_id in &trees {
+
+                                // Only execute trees here with an "Always" execute setting (0)
+                                if let Some(value)= get_node_value((self.instances[inst_index].behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors) {
+                                    if let Some(value) = value.to_integer() {
+                                        if value != 0 {
+                                            continue;
+                                        }
                                     }
                                 }
+                                self.execute_node(inst_index, node_id.clone(), None);
                             }
-                            self.execute_node(inst_index, node_id.clone(), None);
                         }
                     }
                 } else {
@@ -403,6 +443,35 @@ impl RegionInstance<'_> {
                                     self.execute_node(inst_index, tree_id, None);
                                 } else {
                                     println!("Cannot find valid tree for directed action {}", action.action);
+                                }
+                            }
+                        } else
+                        if let Some(uuid) = &action.multi_choice_uuid {
+                            // Multi Choice Answer
+                            if self.instances[inst_index].communication.is_empty() == false {
+
+                                let npc_index = self.instances[inst_index].communication[0].npc_index;
+                                let behavior_id = self.instances[inst_index].communication[0].npc_behavior_tree;
+
+                                self.instances[inst_index].multi_choice_answer = Some(*uuid);
+                                self.execute_node(npc_index, behavior_id, Some(inst_index));
+                                self.instances[inst_index].multi_choice_answer = None;
+
+                                self.instances[inst_index].communication = vec![];
+
+                                // Drop comm for the NPC
+
+                                let mut com_to_drop : Option<usize> = None;
+                                for c_index in 0..self.instances[npc_index].communication.len() {
+                                    if self.instances[npc_index].communication[c_index].player_index == inst_index {
+                                        // Drop this communication for the NPC
+                                        com_to_drop = Some(c_index);
+                                        break;
+                                    }
+                                }
+
+                                if let Some(index) = com_to_drop {
+                                    self.instances[npc_index].communication.remove(index);
                                 }
                             }
                         }
@@ -749,6 +818,7 @@ impl RegionInstance<'_> {
                     scope_buffer            : scope_buffer,
                     inventory               : inventory.clone(),
                     multi_choice_data       : self.instances[inst_index].multi_choice_data.clone(),
+                    communication           : self.instances[inst_index].communication.clone(),
                  };
 
                 //self.instances[inst_index].update = serde_json::to_string(&update).ok();
@@ -782,6 +852,11 @@ impl RegionInstance<'_> {
 
                 // Handle special nodes
                 if node.behavior_type == BehaviorNodeType::BehaviorTree || node.behavior_type == BehaviorNodeType::Linear {
+
+                    if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                        self.curr_executing_tree = node.id;
+                    }
+
                     connectors.push(BehaviorNodeConnector::Bottom1);
                     connectors.push(BehaviorNodeConnector::Bottom2);
                     connectors.push(BehaviorNodeConnector::Bottom);
@@ -1277,7 +1352,7 @@ impl RegionInstance<'_> {
 
         let index = self.instances.len();
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![] };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None };
 
         self.instances.push(instance);
         self.scopes.push(scope);
@@ -1433,7 +1508,7 @@ impl RegionInstance<'_> {
 
                 //println!("Creating instance {}", inst.name.unwrap());
 
-                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![] };
+                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None };
 
                 index = self.instances.len();
                 self.instances.push(instance);
@@ -1580,4 +1655,11 @@ impl RegionInstance<'_> {
         self.debug_behavior_id = Some(behavior_id);
     }
 
+    /// Gets the current time in milliseconds
+    pub fn get_time(&self) -> u128 {
+        let stop = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("Time went backwards");
+            stop.as_millis()
+    }
 }

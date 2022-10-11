@@ -30,3 +30,15 @@ pub struct MultiChoiceData {
     pub pos                     : Option<(usize, usize)>,
     pub buffer                  : Option<(usize, usize, Vec<u8>)>
 }
+
+/// Represents communication between a player and an npc
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct PlayerCommunication {
+    pub player_index            : usize,
+    pub npc_index               : usize,
+    pub npc_behavior_tree       : Uuid,
+    pub player_answer           : Option<String>,
+
+    pub start_time              : u128,
+    pub end_time                : u128,
+}

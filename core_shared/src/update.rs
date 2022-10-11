@@ -51,6 +51,9 @@ pub struct GameUpdate {
 
     /// Multiple Choice Data
     pub multi_choice_data       : Vec<MultiChoiceData>,
+
+    /// Ongoing communications
+    pub communication           : Vec<PlayerCommunication>
 }
 
 impl GameUpdate {
@@ -77,6 +80,8 @@ impl GameUpdate {
             scope_buffer        : ScopeBuffer::new(),
             inventory           : Inventory::new(),
             multi_choice_data   : vec![],
+            communication       : vec![],
+
         }
     }
 }
