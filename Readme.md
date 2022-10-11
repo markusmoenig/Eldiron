@@ -55,3 +55,15 @@ The source and all assets I commissioned for Eldiron are licensed under the MIT.
 
 * [Aleksandr Makarov](https://twitter.com/iknowkingrabbit) created the tilemaps which are currently shipped with Eldiron, you can see his work on [Twitch](https://iknowkingrabbit.itch.io).
 
+## Build Tips
+
+First, create the directory `embedded` in the `core_embed_binaries` diretory:
+
+```sh
+$ mkdir core_embed_binaries/embedded
+```
+
+Linux:
+
+* on Linux Mint at least (probably all Ubuntu), you'll need to install these
+  dependencies before building: `libasound2-dev` `libatk1.0-dev` `libgtk-3-dev`
