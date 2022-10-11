@@ -47,17 +47,9 @@ You can support the Eldiron project by becoming a [Patreon](https://patreon.com/
 
 I am working nearly full-time on Eldiron. A donation helps covering some costs, also for servers and databases.
 
-## License
+## Building Eldiron Locally
 
-The source and all assets I commissioned for Eldiron are licensed under the MIT. You can use the source and assets freely.
-
-## Acknowledgements
-
-* [Aleksandr Makarov](https://twitter.com/iknowkingrabbit) created the tilemaps which are currently shipped with Eldiron, you can see his work on [Twitch](https://iknowkingrabbit.itch.io).
-
-## Build Tips
-
-First, create the directory `embedded` in the `core_embed_binaries` diretory:
+First, create the directory `embedded` in the `core_embed_binaries` directory:
 
 ```sh
 $ mkdir core_embed_binaries/embedded
@@ -65,5 +57,12 @@ $ mkdir core_embed_binaries/embedded
 
 Linux:
 
-* on Linux Mint at least (probably all Ubuntu), you'll need to install these
-  dependencies before building: `libasound2-dev` `libatk1.0-dev` `libgtk-3-dev`
+ Make sure these dependencies are installed: `libasound2-dev` `libatk1.0-dev` `libgtk-3-dev`
+
+## License
+
+The source and all assets I commissioned for Eldiron are licensed under the MIT. You can use the source and assets freely.
+
+  ## Acknowledgements
+
+* [Aleksandr Makarov](https://twitter.com/iknowkingrabbit) created the tilemaps which are currently shipped with Eldiron, you can see his work on [Twitch](https://iknowkingrabbit.itch.io).
