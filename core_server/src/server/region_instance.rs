@@ -574,6 +574,7 @@ impl RegionInstance<'_> {
                                             amount      : data.1 as i32,
                                             stackable   : 1,
                                             static_item : false,
+                                            price       : 0.0,
                                         };
 
                                         // Add state ?
@@ -611,6 +612,13 @@ impl RegionInstance<'_> {
                                                 if let Some(st) = static_item.as_int() {
                                                     if st >= 0 {
                                                         item.stackable = st;
+                                                    }
+                                                }
+                                            }
+                                            if let Some(static_item) = sink.get("price") {
+                                                if let Some(price) = static_item.as_float() {
+                                                    if price >= 0.0 {
+                                                        item.price = price;
                                                     }
                                                 }
                                             }
@@ -1248,6 +1256,7 @@ impl RegionInstance<'_> {
                             amount      : instance.amount,
                             stackable   : 1,
                             static_item : false,
+                            price       : 0.0,
                         };
 
                         for (_index, node) in &behavior_data.nodes {
@@ -1268,6 +1277,13 @@ impl RegionInstance<'_> {
                                             if let Some(st) = static_item.as_int() {
                                                 if st >= 0 {
                                                     loot.stackable = st;
+                                                }
+                                            }
+                                        }
+                                        if let Some(static_item) = s.get("price") {
+                                            if let Some(price) = static_item.as_float() {
+                                                if price >= 0.0 {
+                                                    loot.price = price;
                                                 }
                                             }
                                         }

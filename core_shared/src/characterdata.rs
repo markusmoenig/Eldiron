@@ -26,4 +26,5 @@ pub struct LootData {
     pub amount                  : i32,
     pub stackable               : i32,
     pub static_item             : bool,
+    pub price                   : f32,
 }

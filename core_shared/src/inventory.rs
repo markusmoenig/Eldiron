@@ -13,6 +13,7 @@ pub struct InventoryItem {
     pub amount              : i32,
     pub stackable           : i32,
     pub static_item         : bool,
+    pub price               : f32,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
@@ -69,4 +70,3 @@ pub fn script_register_inventory_api(engine: &mut rhai::Engine) {
         .register_fn("add", Inventory::add);
 
 }
-

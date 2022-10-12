@@ -71,10 +71,15 @@ pub fn update_game_sink(sink: &mut PropertySink) {
     if sink.contains("square_tile_size") == false {
         sink.properties.insert(1,Property::new_int("square_tile_size".to_string(), 32));
     }
-    /*
-    if sink.contains("lighting") == false {
-        sink.push(Property::new_string("lighting".to_string(), "off".to_string()));
-    }*/
+    if sink.contains("primary_currency") == false {
+        sink.push(Property::new_string("primary_currency".to_string(), "gold".to_string()));
+    }
+    // if sink.contains("secondary_currency") == false {
+    //     sink.push(Property::new_string("secondary_currency".to_string(), "silver".to_string()));
+    // }
+    // if sink.contains("secondary_to_primary") == false {
+    //     sink.push(Property::new_int("secondary_to_primary".to_string(), 100));
+    // }
 }
 
 pub fn generate_game_sink_descriptions() -> FxHashMap<String, Vec<String>> {
@@ -83,8 +88,9 @@ pub fn generate_game_sink_descriptions() -> FxHashMap<String, Vec<String>> {
 
     map.insert("screen_size".to_string(), vec!["The size of the game screen.".to_string()]);
     map.insert("square_tile_size".to_string(), vec!["The default drawing size of square tiles.".to_string()]);
-
-    // map.insert("lighting".to_string(), vec!["The lighting mode. Use \"off\" for no lighting.".to_string()]);
+    map.insert("primary_currency".to_string(), vec!["The variable name of your primary currency. \"gold\" by default.".to_string()]);
+    // map.insert("secondary_currency".to_string(), vec!["The variable name of your (optional) secondary currency. \"silver\" by default.".to_string()]);
+    // map.insert("secondary_to_primary".to_string(), vec!["How much secondary currency makes up one primary. 100 by default.".to_string()]);
 
     map
 }

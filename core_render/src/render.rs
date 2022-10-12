@@ -158,6 +158,10 @@ impl GameRender<'_> {
         }
     }
 
+    pub fn process_game_settings(&mut self, _properties: &PropertySink) {
+
+    }
+
     pub fn process_update(&mut self, update: &GameUpdate) -> Option<(String, Option<usize>)> {
 
         // New screen script ?

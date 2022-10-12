@@ -28,11 +28,39 @@ fn get_time() -> u128 {
 
 fn main() -> Result<(), Error> {
 
-    let width     : usize = 1024;
-    let height    : usize = 608;
+    let mut width     : usize = 1024;
+    let mut height    : usize = 608;
 
     env_logger::init();
 
+    // Run the server multi-threaded ?
+    let mt = true;
+
+    // Init server
+    let mut game_data = GameData::load_from_path(PathBuf::new());
+
+    let mut server = core_server::server::Server::new();
+    server.collect_data(&game_data);
+    _ = server.start(if mt == false { None } else { Some(10) } );
+    let player_uuid = server.create_player_instance();
+
+    let mut game_rect = (0, 0, 0, 0);
+
+    // Init renderer
+    let mut render = GameRender::new(PathBuf::new(), player_uuid);
+    let settings = game_data.get_game_settings();
+    if let Some(screen_size) = settings.get("screen_size") {
+        match screen_size.value {
+            PropertyValue::IntX(value) => {
+                width = value[0] as usize;
+                height = value[1] as usize;
+            },
+            _ => {}
+        }
+    }
+    render.process_game_settings(settings);
+
+    // Open the Window
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
     let window = {
@@ -52,22 +80,6 @@ fn main() -> Result<(), Error> {
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         Pixels::new(width as u32, height as u32, surface_texture)?
     };
-
-    // Run the server multi-threaded ?
-    let mt = true;
-
-    // Init server
-    let game_data = GameData::load_from_path(PathBuf::new());
-
-    let mut server = core_server::server::Server::new();
-    server.collect_data(&game_data);
-    _ = server.start(if mt == false { None } else { Some(10) } );
-    let player_uuid = server.create_player_instance();
-
-    let mut game_rect = (0, 0, 0, 0);
-
-    // Init renderer
-    let mut render = GameRender::new(PathBuf::new(), player_uuid);
 
     let mut anim_counter : usize = 0;
     let mut timer : u128 = 0;

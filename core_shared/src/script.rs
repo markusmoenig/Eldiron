@@ -41,6 +41,5 @@ pub fn script_register_message_api(engine: &mut rhai::Engine) {
         .register_fn("status", ScriptMessageCmd::status)
         .register_fn("debug", ScriptMessageCmd::debug)
         .register_fn("error", ScriptMessageCmd::error);
-
 }
 
