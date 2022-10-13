@@ -400,8 +400,7 @@ pub fn sell(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, 
     if data.instances[instance_index].multi_choice_answer.is_some() {
         if let Some(id) = data.instances[instance_index].multi_choice_answer {
 
-            println!("{:?}", data.instances[instance_index].multi_choice_answer);
-
+            //let curr = character_currency(instance_index, data);
             let npc_index = get_local_instance_index(instance_index, data);
 
             let mut traded_item : Option<InventoryItem> = None;
@@ -409,30 +408,41 @@ pub fn sell(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, 
             // Remove the item
             if let Some(mess) = data.scopes[npc_index].get_mut("inventory") {
                 if let Some(mut inv) = mess.write_lock::<Inventory>() {
-
-                    /*
-                    for item in &inv.items {
-                        if item.id == id {
-                            println!("{}", item.name);
-                        }
-                    }*/
                     if let Some(item) = inv.remove_item(id, 1) {
                         traded_item = Some(item);
                     }
                 }
             }
 
-            // Add the item
+            let mut rc = BehaviorNodeConnector::Success;
+
+            // Add the item to the player
             if let Some(item) = traded_item {
-                if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
-                    if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                        inv.add_item(item);
+                let price = item.price;
+                if remove_from_character_currency(instance_index, item.price, data) {
+                    if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
+                        if let Some(mut inv) = mess.write_lock::<Inventory>() {
+                            inv.add_item(item);
+                        }
                     }
+                    add_to_character_currency(npc_index, price, data);
+                } else {
+                    // Not enough money, add item back to NPC
+
+                    if let Some(mess) = data.scopes[npc_index].get_mut("inventory") {
+                        if let Some(mut inv) = mess.write_lock::<Inventory>() {
+                            inv.add_item(item);
+                        }
+                    }
+                    rc = BehaviorNodeConnector::Fail;
                 }
+            } else {
+                // If the item was no longer available, just quit
+                rc = BehaviorNodeConnector::Bottom;
             }
 
             drop_communication(instance_index, npc_index, data);
-            BehaviorNodeConnector::Bottom
+            rc
         }
         else {
            BehaviorNodeConnector::Right

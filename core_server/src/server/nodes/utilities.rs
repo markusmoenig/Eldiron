@@ -4,7 +4,7 @@ use pathfinding::prelude::bfs;
 /// Retrieves a number instance value
 pub fn get_number_variable(instance_index: usize, variable: String, data: &mut RegionInstance) -> Option<f32> {
     if let Some(value) = data.scopes[instance_index].get_value::<f32>(&variable) {
-        return Some(value.clone());
+        return Some(value);
     }
     None
 }
@@ -12,9 +12,31 @@ pub fn get_number_variable(instance_index: usize, variable: String, data: &mut R
 /// Retrieves a number instance value or 0
 pub fn get_number_variable_or_zero(instance_index: usize, variable: String, data: &RegionInstance) -> f32 {
     if let Some(value) = data.scopes[instance_index].get_value::<f32>(&variable) {
-        return value.clone();
+        return value;
     }
     0.0
+}
+
+/// Retrieves an i32 variable
+pub fn get_i32_variable(instance_index: usize, variable: String, data: &mut RegionInstance) -> Option<i32> {
+    if let Some(value) = data.scopes[instance_index].get_value::<i32>(&variable) {
+        return Some(value);
+    }
+    if let Some(value) = data.scopes[instance_index].get_value::<f32>(&variable) {
+        return Some(value as i32);
+    }
+    None
+}
+
+/// Retrieves an i32 variable
+pub fn get_f32_variable(instance_index: usize, variable: String, data: &mut RegionInstance) -> Option<f32> {
+    if let Some(value) = data.scopes[instance_index].get_value::<f32>(&variable) {
+        return Some(value);
+    }
+    if let Some(value) = data.scopes[instance_index].get_value::<i32>(&variable) {
+        return Some(value as f32);
+    }
+    None
 }
 
 /// Sets a number instance value
@@ -402,4 +424,50 @@ pub fn check_and_create_item_state(instance_index: usize, item_behavior_id: Uuid
     }
 
     None
+}
+
+/// Returns the character currency
+pub fn character_currency(inst_index: usize, data: &mut RegionInstance) -> Option<i32> {
+    if let Some(value) = data.scopes[inst_index].get_value::<i32>(&data.primary_currency) {
+        return Some(value);
+    }
+    if let Some(value) = data.scopes[inst_index].get_value::<f32>(&data.primary_currency) {
+        return Some(value as i32);
+    }
+    None
+}
+
+/// Removes the given amount from the character currency
+pub fn add_to_character_currency(inst_index: usize, amount: f32, data: &mut RegionInstance) {
+    if let Some(value) = data.scopes[inst_index].get_value::<i32>(&data.primary_currency) {
+        let mut v = value as f32;
+        v += amount;
+        data.scopes[inst_index].set_value(&data.primary_currency, v);
+    } else
+    if let Some(value) = data.scopes[inst_index].get_value::<f32>(&data.primary_currency) {
+        let mut v = value;
+        v += amount;
+        data.scopes[inst_index].set_value(&data.primary_currency, v);
+    }
+}
+
+/// Adds the given amount to the character currency
+pub fn remove_from_character_currency(inst_index: usize, amount: f32, data: &mut RegionInstance) -> bool {
+    if let Some(value) = data.scopes[inst_index].get_value::<i32>(&data.primary_currency) {
+        let mut v = value as f32;
+        if v >= amount {
+            v -= amount;
+            data.scopes[inst_index].set_value(&data.primary_currency, v);
+            return true;
+        }
+    } else
+    if let Some(value) = data.scopes[inst_index].get_value::<f32>(&data.primary_currency) {
+        let mut v = value;
+        if v >= amount {
+            v -= amount;
+            data.scopes[inst_index].set_value(&data.primary_currency, v);
+            return true;
+        }
+    }
+    false
 }

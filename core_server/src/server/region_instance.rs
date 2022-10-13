@@ -102,6 +102,7 @@ pub struct RegionInstance<'a> {
 
     screen_size                     : (i32, i32),
     def_square_tile_size            : i32,
+    pub primary_currency            : String,
 }
 
 impl RegionInstance<'_> {
@@ -232,6 +233,7 @@ impl RegionInstance<'_> {
 
             screen_size                     : (1024, 608),
             def_square_tile_size            : 32,
+            primary_currency                : "".to_string()
         }
     }
 
@@ -1322,6 +1324,11 @@ impl RegionInstance<'_> {
                             self.def_square_tile_size = v;
                         },
                         _ => {}
+                    }
+                }
+                if let Some(property) = settings.get("primary_currency") {
+                    if let Some(name) = property.as_string() {
+                        self.primary_currency = name;
                     }
                 }
             }
