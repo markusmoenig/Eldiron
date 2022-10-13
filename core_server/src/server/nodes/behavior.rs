@@ -318,6 +318,10 @@ pub fn multi_choice(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIn
 
     if data.instances[instance_index].multi_choice_answer.is_some() {
         if Some(id.1) == data.instances[instance_index].multi_choice_answer {
+
+            let npc_index = get_local_instance_index(instance_index, data);
+            drop_communication(instance_index, npc_index, data);
+
             BehaviorNodeConnector::Bottom
         }
         else {
@@ -353,6 +357,10 @@ pub fn multi_choice(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIn
             answer,
             pos             : None,
             buffer          : None,
+
+            item_amount     : None,
+            item_behavior_id: None,
+            item_price      : None,
         };
 
         let player_index = instance_index;
@@ -386,36 +394,154 @@ pub fn multi_choice(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIn
     }
 }
 
-/*
-/// Systems Call
-pub fn call_system(instance_index: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+// Multi choice
+pub fn sell(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    let mut systems_id : Option<usize> = None;
-    let mut systems_tree_id : Option<usize> = None;
+    if data.instances[instance_index].multi_choice_answer.is_some() {
+        if let Some(id) = data.instances[instance_index].multi_choice_answer {
 
-    // Try to get from node_values
-    if let Some(node_value) = data.instances[instance_index].node_values.get(&(behavior_type, id.1)) {
-        systems_id = Some(node_value.0 as usize);
-        systems_tree_id = Some(node_value.1 as usize);
+            println!("{:?}", data.instances[instance_index].multi_choice_answer);
+
+            let npc_index = get_local_instance_index(instance_index, data);
+
+            let mut traded_item : Option<InventoryItem> = None;
+
+            // Remove the item
+            if let Some(mess) = data.scopes[npc_index].get_mut("inventory") {
+                if let Some(mut inv) = mess.write_lock::<Inventory>() {
+
+                    /*
+                    for item in &inv.items {
+                        if item.id == id {
+                            println!("{}", item.name);
+                        }
+                    }*/
+                    if let Some(item) = inv.remove_item(id, 1) {
+                        traded_item = Some(item);
+                    }
+                }
+            }
+
+            // Add the item
+            if let Some(item) = traded_item {
+                if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
+                    if let Some(mut inv) = mess.write_lock::<Inventory>() {
+                        inv.add_item(item);
+                    }
+                }
+            }
+
+            drop_communication(instance_index, npc_index, data);
+            BehaviorNodeConnector::Bottom
+        }
+        else {
+           BehaviorNodeConnector::Right
+        }
     } else {
 
-        // The id's were not yet computed search the system trees, get the ids and store them.
-        if let Some(value) = get_node_value((id.0, id.1, "system"), data, behavior_type) {
-            for (index, name) in data.system_names.iter().enumerate() {
-                if *name == value.4 {
+        let mut header = "".to_string();
+
+        if let Some(value) = get_node_value((id.0, id.1, "header"), data, behavior_type) {
+            if let Some(h) = value.to_string() {
+                header = h;
+            }
+        }
+
+        let player_index = instance_index;
+        let npc_index = get_local_instance_index(instance_index, data);
+
+        data.instances[player_index].multi_choice_data = vec![];
+
+        if let Some(mess) = data.scopes[npc_index].get_mut("inventory") {
+            if let Some(inv) = mess.read_lock::<Inventory>() {
+
+                let mut index = 1;
+                let mut added_items = vec![];
+
+                for item in &inv.items {
+
+                    if item.price != 0.0 && added_items.contains(&item.id) == false {
+
+                        let amount = 1;
+
+                        let mcd = MultiChoiceData {
+                            id                  : item.id,
+                            header              : if index == 1 { header.clone() } else { "".to_string() },
+                            text                : item.name.clone(),
+                            answer              : index.to_string(),
+                            pos                 : None,
+                            buffer              : None,
+
+                            item_behavior_id    : Some(item.id),
+                            item_price          : Some(item.price),
+                            item_amount         : Some(amount),
+                        };
+
+                        added_items.push(item.id);
+                        data.instances[player_index].multi_choice_data.push(mcd);
+                        index += 1;
+                    }
+                }
+            }
+        }
+
+        if data.instances[player_index].multi_choice_data.is_empty() == false {
+            let t = data.get_time();
+
+            let com = PlayerCommunication {
+                player_index,
+                npc_index,
+                npc_behavior_tree       : data.curr_executing_tree,
+                player_answer           : None,
+                start_time              : t,
+                end_time                : t + 1000 * 20, // 20 Secs
+            };
+
+            if data.instances[npc_index].communication.is_empty() {
+                data.instances[npc_index].communication.push(com.clone());
+            }
+
+            if data.instances[player_index].communication.is_empty() {
+                data.instances[player_index].communication.push(com);
+            }
+        }
+
+        BehaviorNodeConnector::Right
+    }
+}
+
+/// Systems Call
+pub fn call_system(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut systems_id : Option<Uuid> = None;
+    let mut systems_tree_id : Option<Uuid> = None;
+
+    // // Try to get from node_values
+    // if let Some(node_value) = data.instances[instance_index].node_values.get(&(behavior_type, id.1)) {
+    //     systems_id = Some(node_value.0 as usize);
+    //     systems_tree_id = Some(node_value.1 as usize);
+    // } else {
+
+    // The id's were not yet computed search the system trees, get the ids and store them.
+    if let Some(value) = get_node_value((id.0, id.1, "system"), data, behavior_type) {
+        for (index, name) in data.system_names.iter().enumerate() {
+            if let Some(str) = value.to_string() {
+                if *name == str {
                     systems_id = Some(data.system_ids[index]);
                     break
                 }
             }
         }
+    }
 
-        if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
-            if let Some(systems_id) = systems_id {
-                if let Some(system) = data.systems.get(&systems_id) {
-                    for (node_id, node) in &system.nodes {
-                        if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == value.4 {
+    if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
+        if let Some(systems_id) = systems_id {
+            if let Some(system) = data.systems.get(&systems_id) {
+                for (node_id, node) in &system.nodes {
+                    if let Some(str) = value.to_string() {
+                        if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == str {
                             systems_tree_id = Some(*node_id);
-                             data.instances[instance_index].node_values.insert((behavior_type, id.1), (systems_id as f64, *node_id as f64, 0.0, 0.0, "".to_string()));
+                                //data.instances[instance_index].node_values.insert((behavior_type, id.1), (systems_id as f64, *node_id as f64, 0.0, 0.0, "".to_string()));
                             break;
                         }
                     }
@@ -423,6 +549,7 @@ pub fn call_system(instance_index: usize, id: (usize, usize), data: &mut RegionI
             }
         }
     }
+
 
     //println!("systems id {:?}", systems_id);
     //println!("systems_tree_id id {:?}", systems_tree_id);
@@ -437,11 +564,11 @@ pub fn call_system(instance_index: usize, id: (usize, usize), data: &mut RegionI
 
     BehaviorNodeConnector::Fail
 }
-*/
+
 /// Behavior Call
 pub fn call_behavior(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    let behavior_instance : Option<usize> = Some(instance_index);
+    let behavior_instance : Option<usize> = Some(get_local_instance_index(instance_index, data));
     let mut behavior_tree_id : Option<Uuid> = None;
 
     // TODO: Precompute this
@@ -476,12 +603,12 @@ pub fn call_behavior(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionI
         }
     }
 
-    println!("behavior instance {:?}", behavior_instance);
-    println!("behavior_tree_id id {:?}", behavior_tree_id);
+    // println!("behavior instance {:?}", behavior_instance);
+    // println!("behavior_tree_id id {:?}", behavior_tree_id);
 
     if let Some(behavior_instance) = behavior_instance {
         if let Some(behavior_tree_id) = behavior_tree_id {
-            data.execute_node(behavior_instance, behavior_tree_id, None);
+            data.execute_node(behavior_instance, behavior_tree_id, Some(instance_index));
             return BehaviorNodeConnector::Success;
         }
     }

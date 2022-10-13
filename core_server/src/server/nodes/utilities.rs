@@ -89,6 +89,7 @@ pub fn get_instance_position(inst_index: usize, instances: &Vec<BehaviorInstance
     instances[inst_index].position.clone()
 }
 
+/// Walk towards a destination position
 pub fn walk_towards(instance_index: usize, p: Option<Position>, dp: Option<Position>, exclude_dp: bool, data: &mut RegionInstance) -> BehaviorNodeConnector {
 
     // Cache the character positions
@@ -172,6 +173,7 @@ pub fn walk_towards(instance_index: usize, p: Option<Position>, dp: Option<Posit
     BehaviorNodeConnector::Fail
 }
 
+/// Executes the given action in the given direction, checking for areas, loot items and NPCs
 pub fn execute_region_action(instance_index: usize, action_name: String, dp: Option<Position>, data: &mut RegionInstance) -> BehaviorNodeConnector {
 
     // Find areas which contains the destination position and check if it has a fitting action node
@@ -312,6 +314,30 @@ pub fn get_local_instance_index(instance_index: usize, data: &mut RegionInstance
         redirected
     } else {
         instance_index
+    }
+}
+
+/// Drops the communication between a player and an NPC
+pub fn drop_communication(instance_index: usize, npc_index: usize, data: &mut RegionInstance) {
+    // Drop Communication for the player
+
+    data.instances[instance_index].multi_choice_answer = None;
+    data.instances[instance_index].communication = vec![];
+    data.instances[instance_index].multi_choice_data = vec![];
+
+    // Drop comm for the NPC
+
+    let mut com_to_drop : Option<usize> = None;
+    for c_index in 0..data.instances[npc_index].communication.len() {
+        if data.instances[npc_index].communication[c_index].player_index == instance_index {
+            // Drop this communication for the NPC
+            com_to_drop = Some(c_index);
+            break;
+        }
+    }
+
+    if let Some(index) = com_to_drop {
+        data.instances[npc_index].communication.remove(index);
     }
 }
 

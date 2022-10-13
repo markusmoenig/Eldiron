@@ -60,6 +60,25 @@ impl Inventory {
         }
         0
     }
+
+    // Removes the given amount of items from the inventory and returns it
+    pub fn remove_item(&mut self, id: Uuid, _amount: i32) -> Option<InventoryItem> {
+
+        let mut to_remove : Option<usize> = None;
+        for index in 0..self.items.len() {
+            if self.items[index].id == id {
+                to_remove = Some(index);
+            }
+        }
+
+        if let Some(item_index) = to_remove {
+            let item = self.items.remove(item_index);
+            return Some(item);
+        }
+
+        None
+    }
+
 }
 
 pub fn script_register_inventory_api(engine: &mut rhai::Engine) {

@@ -774,11 +774,20 @@ impl Draw2D {
 
         let fonts = &[font];
 
-        let mut text = mcd.header.clone();
-        text += "\n";
+        let mut text = "".to_string();
+        if mcd.header.len() > 0 {
+            text = mcd.header.clone();
+            text += "\n";
+        }
         text += mcd.answer.as_str();
         text += ". ";
         text += mcd.text.as_str();
+        if let Some(amount) = &mcd.item_amount {
+            text += format!(" ({})", amount).as_str();
+        }
+        if let Some(price) = &mcd.item_price {
+            text += format!(" : {}G", price).as_str();
+        }
 
         let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
         layout.reset(&LayoutSettings {

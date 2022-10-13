@@ -276,6 +276,7 @@ impl GameRender<'_> {
 
         // Get new multi_choice_data
         if update.multi_choice_data.is_empty() == false {
+            self.multi_choice_data.clear();
             for mcd in &update.multi_choice_data {
                 self.multi_choice_data.push(mcd.clone());
             }
@@ -559,21 +560,19 @@ impl GameRender<'_> {
                     if rect.is_safe(self.width, self.height) {
                         if let Some(font) = self.asset.game_fonts.get(&font_name) {
 
-                            if self.multi_choice_data.is_empty() == true {
+                            let mut y = rect.rect.1 + rect.rect.3 - 5;
 
-                                // Draw Messages
+                            if self.multi_choice_data.is_empty() == false {
 
-                                for index in 0..self.messages.len() {
-                                    if self.messages[index].buffer.is_none() {
-                                        self.messages[index].buffer = Some(self.draw2d.create_buffer_for_message(rect.rect.2, font, font_size, &self.messages[index], &rgb.value));
+                                // Draw Multi Choice Data
+
+                                for index in (0..self.multi_choice_data.len()).rev() {
+
+                                    if self.multi_choice_data[index].buffer.is_none() {
+                                        self.multi_choice_data[index].buffer = Some(self.draw2d.create_buffer_for_multi_choice(rect.rect.2, font, font_size, &self.multi_choice_data[index], &rgb.value));
                                     }
-                                }
 
-                                let mut message_index = (self.messages.len() - 1) as i32;
-                                let mut y = rect.rect.1 + rect.rect.3 - 5;
-
-                                while message_index >= 0 {
-                                    if let Some(buffer) = &self.messages[message_index as usize].buffer {
+                                    if let Some(buffer) = &self.multi_choice_data[index].buffer {
 
                                         y -= buffer.1;
 
@@ -581,27 +580,29 @@ impl GameRender<'_> {
 
                                         y -= 5;
                                     }
-                                    message_index -= 1;
                                 }
+                            }
 
-                            } else {
+                            // Draw Messages
 
-                                // Draw Multi Choice Data
-
-                                let mut y = rect.rect.1;
-
-                                for index in 0..self.multi_choice_data.len() {
-
-                                    if self.multi_choice_data[index].buffer.is_none() {
-                                        self.multi_choice_data[index].buffer = Some(self.draw2d.create_buffer_for_multi_choice(rect.rect.2, font, font_size, &self.multi_choice_data[index], &rgb.value));
-                                    }
-
-                                    if let Some(buffer) = &self.multi_choice_data[index].buffer {
-                                        self.draw2d.blend_slice_safe(&mut self.frame[..], &buffer.2, &((rect.rect.0) as isize, y as isize, buffer.0, buffer.1), self.width, &rect.rect);
-
-                                        y += buffer.1 - 18;
-                                    }
+                            for index in 0..self.messages.len() {
+                                if self.messages[index].buffer.is_none() {
+                                    self.messages[index].buffer = Some(self.draw2d.create_buffer_for_message(rect.rect.2, font, font_size, &self.messages[index], &rgb.value));
                                 }
+                            }
+
+                            let mut message_index = (self.messages.len() - 1) as i32;
+
+                            while message_index >= 0 {
+                                if let Some(buffer) = &self.messages[message_index as usize].buffer {
+
+                                    y -= buffer.1;
+
+                                    self.draw2d.blend_slice_safe(&mut self.frame[..], &buffer.2, &((rect.rect.0) as isize, y as isize, buffer.0, buffer.1), self.width, &rect.rect);
+
+                                    y -= 5;
+                                }
+                                message_index -= 1;
                             }
                         }
                     }

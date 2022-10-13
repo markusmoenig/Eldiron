@@ -19,7 +19,7 @@ impl EditorOptions for BehaviorOptions {
 
         node_list.add_group_list(context.color_green, context.color_light_green, vec!["Behavior Tree".to_string(), "Expression".to_string(), "Script".to_string(), /*"Linear".to_string(), "Sequence".to_string()*/]);
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec![ "Close In".to_string(), "Lookout".to_string(), "Pathfinder".to_string(), "Random Walk".to_string(), "Call System".to_string(), "Lock Tree".to_string(), "Unlock".to_string(), "Set State".to_string(), "Message".to_string(), "Multi Choice".to_string() ]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec![ "Close In".to_string(), "Lookout".to_string(), "Pathfinder".to_string(), "Random Walk".to_string(), "Call System".to_string(), "Call Behavior".to_string(), "Lock Tree".to_string(), "Unlock".to_string(), "Set State".to_string(), "Message".to_string(), "Multi Choice".to_string(), "Sell".to_string() ]);
 
         node_list.add_group_list(context.color_gray, context.color_light_gray, vec![ "Action".to_string(), "Drop".to_string(), "Move".to_string(), "Take".to_string()]);
 

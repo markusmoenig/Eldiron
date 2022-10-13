@@ -60,33 +60,9 @@ pub enum BehaviorNodeType {
     LockTree,
     UnlockTree,
     SetState,
-
-    /*
-    Pathfinder,
-    Message,
-    Lookout,
-    CloseIn,
+    Sell,
     CallSystem,
     CallBehavior,
-    Sequence,
-    LockTree,
-    UnlockTree,
-    SetState,
-    Linear,
-    InsideArea,
-    EnterArea,
-    LeaveArea,
-    Spawn,
-    DisplaceTiles,
-    Move,
-    Screen,
-    Widget,
-    Settings,
-    TeleportArea,                                           // Teleport Characters inside an area
-    MessageArea,
-    AudioArea,
-    LightArea,
-    Always*/
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

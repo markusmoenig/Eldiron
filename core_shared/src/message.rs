@@ -28,7 +28,11 @@ pub struct MultiChoiceData {
     pub text                    : String,
     pub answer                  : String,
     pub pos                     : Option<(usize, usize)>,
-    pub buffer                  : Option<(usize, usize, Vec<u8>)>
+    pub buffer                  : Option<(usize, usize, Vec<u8>)>,
+    // For inventory items
+    pub item_behavior_id        : Option<Uuid>,
+    pub item_amount             : Option<usize>,
+    pub item_price              : Option<f32>,
 }
 
 /// Represents communication between a player and an npc

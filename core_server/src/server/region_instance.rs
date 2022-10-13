@@ -141,10 +141,9 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::Pathfinder, pathfinder);
         nodes.insert(BehaviorNodeType::Lookout, lookout);
         nodes.insert(BehaviorNodeType::CloseIn, close_in);
-        /*
         nodes.insert(BehaviorNodeType::CallSystem, call_system);
         nodes.insert(BehaviorNodeType::CallBehavior, call_behavior);
-
+        /*
         nodes.insert(BehaviorNodeType::DisplaceTiles, displace_tiles);
         */
         nodes.insert(BehaviorNodeType::Move, player_move);
@@ -157,6 +156,7 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::SetItemTile, set_item_tile);
         nodes.insert(BehaviorNodeType::RandomWalk, random_walk);
         nodes.insert(BehaviorNodeType::MultiChoice, multi_choice);
+        nodes.insert(BehaviorNodeType::Sell, sell);
         nodes.insert(BehaviorNodeType::LockTree, lock_tree);
         nodes.insert(BehaviorNodeType::UnlockTree, unlock_tree);
         nodes.insert(BehaviorNodeType::SetState, set_state);
@@ -454,13 +454,15 @@ impl RegionInstance<'_> {
                                 let behavior_id = self.instances[inst_index].communication[0].npc_behavior_tree;
 
                                 self.instances[inst_index].multi_choice_answer = Some(*uuid);
+                                self.curr_redirected_inst_index = Some(npc_index);
                                 self.execute_node(npc_index, behavior_id, Some(inst_index));
                                 self.instances[inst_index].multi_choice_answer = None;
+                                self.curr_redirected_inst_index = None;
 
-                                self.instances[inst_index].communication = vec![];
+                                //self.instances[inst_index].communication = vec![];
 
                                 // Drop comm for the NPC
-
+                                /*
                                 let mut com_to_drop : Option<usize> = None;
                                 for c_index in 0..self.instances[npc_index].communication.len() {
                                     if self.instances[npc_index].communication[c_index].player_index == inst_index {
@@ -472,7 +474,7 @@ impl RegionInstance<'_> {
 
                                 if let Some(index) = com_to_drop {
                                     self.instances[npc_index].communication.remove(index);
-                                }
+                                }*/
                             }
                         }
 
@@ -616,10 +618,9 @@ impl RegionInstance<'_> {
                                                 }
                                             }
                                             if let Some(static_item) = sink.get("price") {
-                                                if let Some(price) = static_item.as_float() {
-                                                    if price >= 0.0 {
-                                                        item.price = price;
-                                                    }
+                                                let price = static_item.to_float();
+                                                if price >= 0.0 {
+                                                    item.price = price;
                                                 }
                                             }
                                         }
@@ -1281,10 +1282,9 @@ impl RegionInstance<'_> {
                                             }
                                         }
                                         if let Some(static_item) = s.get("price") {
-                                            if let Some(price) = static_item.as_float() {
-                                                if price >= 0.0 {
-                                                    loot.price = price;
-                                                }
+                                            let price = static_item.to_float();
+                                            if price >= 0.0 {
+                                                loot.price = price;
                                             }
                                         }
                                     }
