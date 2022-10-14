@@ -497,6 +497,8 @@ impl RegionInstance<'_> {
                                         message_type        : MessageType::Status,
                                         message             : value.clone(),
                                         from                : my_name.clone(),
+                                        right               : None,
+                                        center              : None,
                                         buffer              : None,
                                     })
                                 },
@@ -505,6 +507,8 @@ impl RegionInstance<'_> {
                                         message_type        : MessageType::Debug,
                                         message             : value.clone(),
                                         from                : my_name.clone(),
+                                        right               : None,
+                                        center              : None,
                                         buffer              : None,
                                     })
                                 },
@@ -513,6 +517,8 @@ impl RegionInstance<'_> {
                                         message_type        : MessageType::Error,
                                         message             : value.clone(),
                                         from                : my_name.clone(),
+                                        right               : None,
+                                        center              : None,
                                         buffer              : None,
                                     })
                                 }

@@ -766,6 +766,33 @@ impl Draw2D {
                 }
             }
         }
+
+        if let Some(right) = &message.right {
+            let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
+            layout.reset(&LayoutSettings {
+                max_width : Some(max_width as f32),
+                max_height : None,
+                horizontal_align : HorizontalAlign::Right,
+                vertical_align : VerticalAlign::Middle,
+                ..LayoutSettings::default()
+            });
+            layout.append(fonts, &TextStyle::new(right.as_str(), font_size, 0));
+
+            let frame = &mut buffer[..];
+            for glyph in layout.glyphs() {
+                let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+
+                for y in 0..metrics.height {
+                    for x in 0..metrics.width {
+                        let i = (x+glyph.x as usize) * 4 + (y + glyph.y as usize) * max_width * 4;
+                        let m = alphamap[x + y * metrics.width];
+
+                        frame[i..i + 4].copy_from_slice(&[color[0], color[1], color[2], m]);
+                    }
+                }
+            }
+        }
+
         (width, height, buffer)
     }
 

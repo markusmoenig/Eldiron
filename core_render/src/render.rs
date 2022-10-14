@@ -279,6 +279,39 @@ impl GameRender<'_> {
             self.multi_choice_data.clear();
             for mcd in &update.multi_choice_data {
                 self.multi_choice_data.push(mcd.clone());
+
+                if mcd.header.is_empty() == false {
+                    let message = MessageData {
+                        message_type        : MessageType::Vendor,
+                        message             : mcd.header.clone(),
+                        from                : "".to_string(),
+                        right               : None,
+                        center              : None,
+                        buffer              : None,
+                    };
+                    self.messages.push(message);
+                }
+
+                let mut text = format!("{}. {}", mcd.answer, mcd.text);
+                let mut right : Option<String> = None;
+                if let Some(amount) = mcd.item_amount {
+                    if amount > 1 {
+                        text += format!(" ({})", amount).as_str();
+                    }
+                }
+                if let Some(price) = mcd.item_price {
+                    right = Some(format!("{}G", price));
+                }
+                let message = MessageData {
+                    message_type        : MessageType::Vendor,
+                    message             : text,
+                    from                : "".to_string(),
+                    center              : None,
+                    right,
+                    buffer              : None,
+                };
+                self.messages.push(message);
+
             }
         }
 
@@ -562,6 +595,7 @@ impl GameRender<'_> {
 
                             let mut y = rect.rect.1 + rect.rect.3 - 5;
 
+                            /*
                             if self.multi_choice_data.is_empty() == false {
 
                                 // Draw Multi Choice Data
@@ -581,7 +615,7 @@ impl GameRender<'_> {
                                         y -= 5;
                                     }
                                 }
-                            }
+                            }*/
 
                             // Draw Messages
 
@@ -1070,13 +1104,13 @@ impl GameRender<'_> {
 
             match cmd {
                 ScriptMessage::Status(message) => {
-                    self.messages.push(MessageData { message_type: core_shared::message::MessageType::Status, message: message.clone(), from: "System".to_string(), buffer: None });
+                    self.messages.push(MessageData { message_type: core_shared::message::MessageType::Status, message: message.clone(), from: "System".to_string(), buffer: None, right: None, center: None });
                 },
                 ScriptMessage::Debug(message) => {
-                    self.messages.push(MessageData { message_type: core_shared::message::MessageType::Debug, message: message.clone(), from: "System".to_string(), buffer: None });
+                    self.messages.push(MessageData { message_type: core_shared::message::MessageType::Debug, message: message.clone(), from: "System".to_string(), buffer: None, right: None, center: None });
                 },
                 ScriptMessage::Error(message) => {
-                    self.messages.push(MessageData { message_type: core_shared::message::MessageType::Error, message: message.clone(), from: "System".to_string(), buffer: None });
+                    self.messages.push(MessageData { message_type: core_shared::message::MessageType::Error, message: message.clone(), from: "System".to_string(), buffer: None, right: None, center: None });
                 }
             }
         }

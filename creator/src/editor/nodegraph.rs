@@ -1671,6 +1671,14 @@ impl EditorContent for NodeGraph  {
             header.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(header);
 
+            let mut exit = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+            AtomData::new("exit", Value::Empty()));
+            exit.atom_data.text = "Exit Text".to_string();
+            let id = (behavior_data_id, node_id, "exit".to_string());
+            exit.behavior_id = Some(id.clone());
+            exit.atom_data.value = context.data.get_behavior_id_value(id, Value::String("Exit".to_string()), self.graph_type);
+            node_widget.widgets.push(exit);
+
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );

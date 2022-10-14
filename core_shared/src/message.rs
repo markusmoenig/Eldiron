@@ -10,6 +10,7 @@ pub enum MessageType {
     Private,
     Debug,
     Error,
+    Vendor,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -17,6 +18,8 @@ pub struct MessageData {
     pub message_type        : MessageType,
     pub message             : String,
     pub from                : String,
+    pub right               : Option<String>,
+    pub center              : Option<String>,
     pub buffer              : Option<(usize, usize, Vec<u8>)>
 }
 

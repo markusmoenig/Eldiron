@@ -71,6 +71,8 @@ pub fn message(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
         message_type,
         message         : text.clone(),
         from            : data.instances[instance_index].name.clone(),
+        right           : None,
+        center          : None,
         buffer          : None
     };
 
@@ -450,10 +452,17 @@ pub fn sell(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, 
     } else {
 
         let mut header = "".to_string();
+        let mut exit = "Exit".to_string();
 
         if let Some(value) = get_node_value((id.0, id.1, "header"), data, behavior_type) {
             if let Some(h) = value.to_string() {
                 header = h;
+            }
+        }
+
+        if let Some(value) = get_node_value((id.0, id.1, "exit"), data, behavior_type) {
+            if let Some(h) = value.to_string() {
+                exit = h;
             }
         }
 
@@ -496,6 +505,25 @@ pub fn sell(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, 
         }
 
         if data.instances[player_index].multi_choice_data.is_empty() == false {
+
+            // Exit Text
+
+            let mcd = MultiChoiceData {
+                id                  : Uuid::new_v4(),
+                header              : "".to_string(),
+                text                : exit,
+                answer              : "0".to_string(),
+                pos                 : None,
+                buffer              : None,
+
+                item_behavior_id    : None,
+                item_price          : None,
+                item_amount         : None,
+            };
+            data.instances[player_index].multi_choice_data.push(mcd);
+
+            //
+
             let t = data.get_time();
 
             let com = PlayerCommunication {
