@@ -49,6 +49,8 @@ pub struct GameRender<'a> {
     pub audio_engine            : Option<AudioEngine<Group>>,
 
     pub this_map                : Dynamic,
+
+    pub vendor_rects            : Vec<(usize, usize, usize, usize, Uuid)>
 }
 
 impl GameRender<'_> {
@@ -155,6 +157,8 @@ impl GameRender<'_> {
             audio_engine        : None,
 
             this_map            : this_map.into(),
+
+            vendor_rects        : vec![],
         }
     }
 
@@ -305,7 +309,7 @@ impl GameRender<'_> {
                 let message = MessageData {
                     message_type        : MessageType::Vendor,
                     message             : text,
-                    from                : "".to_string(),
+                    from                : mcd.id.to_string(),
                     center              : None,
                     right,
                     buffer              : None,
@@ -595,28 +599,6 @@ impl GameRender<'_> {
 
                             let mut y = rect.rect.1 + rect.rect.3 - 5;
 
-                            /*
-                            if self.multi_choice_data.is_empty() == false {
-
-                                // Draw Multi Choice Data
-
-                                for index in (0..self.multi_choice_data.len()).rev() {
-
-                                    if self.multi_choice_data[index].buffer.is_none() {
-                                        self.multi_choice_data[index].buffer = Some(self.draw2d.create_buffer_for_multi_choice(rect.rect.2, font, font_size, &self.multi_choice_data[index], &rgb.value));
-                                    }
-
-                                    if let Some(buffer) = &self.multi_choice_data[index].buffer {
-
-                                        y -= buffer.1;
-
-                                        self.draw2d.blend_slice_safe(&mut self.frame[..], &buffer.2, &((rect.rect.0) as isize, y as isize, buffer.0, buffer.1), self.width, &rect.rect);
-
-                                        y -= 5;
-                                    }
-                                }
-                            }*/
-
                             // Draw Messages
 
                             for index in 0..self.messages.len() {
@@ -626,11 +608,18 @@ impl GameRender<'_> {
                             }
 
                             let mut message_index = (self.messages.len() - 1) as i32;
+                            self.vendor_rects = vec![];
 
                             while message_index >= 0 {
                                 if let Some(buffer) = &self.messages[message_index as usize].buffer {
 
                                     y -= buffer.1;
+
+                                    if self.messages[message_index as usize].message_type == MessageType::Vendor {
+                                        if let Some(id) = Uuid::parse_str(self.messages[message_index as usize].from.as_str()).ok() {
+                                            self.vendor_rects.push((rect.rect.0, y, buffer.0, buffer.1, id));
+                                        }
+                                    }
 
                                     self.draw2d.blend_slice_safe(&mut self.frame[..], &buffer.2, &((rect.rect.0) as isize, y as isize, buffer.0, buffer.1), self.width, &rect.rect);
 
@@ -1004,6 +993,19 @@ impl GameRender<'_> {
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), player_id: Uuid) -> (Vec<String>, Option<(String, Option<usize>)>) {
+
+        // Check if we have an active multiple choice communication
+        if self.multi_choice_data.is_empty() == false {
+
+            for r in &self.vendor_rects {
+                if pos.0 >= r.0 && pos.1 >= r.1 && pos.0 < r.0 + r.2 && pos.1 < r.1 + r.3 {
+                    if let Some(action) = pack_multi_choice_answer_action(player_id, "Answer".to_string(), r.4) {
+                        return (vec![action], None);
+                    }
+                }
+            }
+            return (vec![], None)
+        }
 
         // Call the touch_down function
 
