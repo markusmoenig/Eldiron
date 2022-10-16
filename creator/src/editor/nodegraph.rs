@@ -2626,6 +2626,9 @@ impl EditorContent for NodeGraph  {
 
     /// Sort the items
     fn sort(&mut self, context: &mut ScreenContext) {
+
+        if self.graph_mode == GraphMode::Detail { return; }
+
         let item_width = (280 + 20) as isize;
         let item_height = (120 + 20) as isize;
         let per_row = self.rect.2 as isize / item_width;
