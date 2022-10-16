@@ -2670,4 +2670,31 @@ impl EditorContent for NodeGraph  {
     fn get_active_indices(&mut self) -> Vec<usize> {
         self.active_indices.clone()
     }
+
+    fn key_down(&mut self, _char: Option<char>, key: Option<WidgetKey>, _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+        if let Some(key) = key {
+            if key == WidgetKey::Left {
+                self.offset.0 -= 20;
+                self.dirty = true;
+                return true;
+            } else
+            if key == WidgetKey::Right {
+                self.offset.0 += 20;
+                self.dirty = true;
+                return true;
+            } else
+            if key == WidgetKey::Up {
+                self.offset.1 -= 20;
+                self.dirty = true;
+                return true;
+            } else
+            if key == WidgetKey::Down {
+                self.offset.1 += 20;
+                self.dirty = true;
+                return true;
+            }
+        }
+        return false;
+    }
+
 }

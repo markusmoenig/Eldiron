@@ -883,7 +883,26 @@ impl EditorContent for RegionWidget {
     }
 
     /// Key down
-    fn key_down(&mut self, char: Option<char>, _key: Option<WidgetKey>, _asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, _asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+
+        if let Some(key) = key {
+            if key == WidgetKey::Left {
+                self.offset.0 -= 1;
+                return true;
+            } else
+            if key == WidgetKey::Right {
+                self.offset.0 += 1;
+                return true;
+            } else
+            if key == WidgetKey::Up {
+                self.offset.1 -= 1;
+                return true;
+            } else
+            if key == WidgetKey::Down {
+                self.offset.1 += 1;
+                return true;
+            }
+        }
 
         if let Some(options) = options {
             if let Some(char) = char {
