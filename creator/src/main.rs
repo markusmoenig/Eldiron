@@ -207,7 +207,15 @@ fn main() -> Result<(), Error> {
                 // }
                 DeviceEvent::MouseWheel { delta } => match delta {
                     winit::event::MouseScrollDelta::LineDelta(x, y) => {
-                        println!("mouse wheel Line Delta: ({},{})", x, y);
+                        //println!("mouse wheel Line Delta: ({},{})", x, y);
+                        if editor.mouse_wheel(((*x * 100.0) as isize,(*y * 100.0) as isize), &mut asset) {
+                            window.request_redraw();
+                            mouse_wheel_ongoing = true;
+                        }
+
+                        if *x == 0.0 && *y == 0.0 {
+                            mouse_wheel_ongoing = false;
+                        }
                     }
                     winit::event::MouseScrollDelta::PixelDelta(p) => {
                         //println!("mouse wheel Pixel Delta: ({},{})", p.x, p.y);
@@ -225,15 +233,6 @@ fn main() -> Result<(), Error> {
             },
             _ => (),
         }
-
-        /*
-        let text = input.text();
-
-        if text.is_empty() == false {
-            for t in text {
-                println!("{:?}", t);
-            }
-        }*/
 
         // Handle input events
         if input.update(&event) {
