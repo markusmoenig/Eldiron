@@ -500,6 +500,24 @@ impl Draw2D {
         }
     }
 
+    /// Blends rect from the source frame into the dest frame with a vertical source offset (used by scrolling containers)
+    pub fn blend_slice_offset(&self, dest: &mut [u8], source: &[u8], rect: &(usize, usize, usize, usize), offset: usize, dest_stride: usize) {
+        for y in 0..rect.3 {
+            let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
+            let s = (y + offset) * rect.2 * 4;
+
+            for x in 0..rect.2 {
+
+                let dd = d + x * 4;
+                let ss = s + x * 4;
+
+                let background = &[dest[dd], dest[dd+1], dest[dd+2], dest[dd+3]];
+                let color = &[source[ss], source[ss+1], source[ss+2], source[ss+3]];
+                dest[dd..dd + 4].copy_from_slice(&self.mix_color(&background, &color, (color[3] as f64) / 255.0));
+            }
+        }
+    }
+
     /// Blends rect from the source frame into the dest frame and honors the safe rect
     pub fn blend_slice_safe(&self, dest: &mut [u8], source: &[u8], rect: &(isize, isize, usize, usize), dest_stride: usize, safe_rect: &(usize, usize, usize, usize)) {
         let dest_stride_isize = dest_stride as isize;

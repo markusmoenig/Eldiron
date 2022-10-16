@@ -1971,10 +1971,12 @@ impl Editor<'_> {
                 options = element.0;
                 content = element.1;
 
-                if consumed == false {
-                    if let Some(mut el_option) = options {
-                        consumed = el_option.mouse_wheel(delta, asset, &mut self.context, &mut content);
-                        options = Some(el_option);
+                if self.mouse_hover_pos.0 < self.left_width {
+                    if consumed == false {
+                        if let Some(mut el_option) = options {
+                            consumed = el_option.mouse_wheel(delta, asset, &mut self.context, &mut content);
+                            options = Some(el_option);
+                        }
                     }
                 }
 

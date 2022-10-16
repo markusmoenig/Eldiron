@@ -81,6 +81,7 @@ pub struct AtomWidget {
     pub state                   : WidgetState,
     pub clicked                 : bool,
     pub dirty                   : bool,
+    pub dirty_scroll            : bool,
     buffer                      : Vec<u8>,
 
     pub selected                : bool,
@@ -123,6 +124,10 @@ pub struct AtomWidget {
     pub button_mask             : Option<Vec<bool>>,
 
     pub debug_value             : Option<f32>,
+
+    grouped_list_height         : isize,
+    scroll_offset               : isize,
+    scroll_distance             : isize,
 }
 
 impl AtomWidget {
@@ -138,6 +143,7 @@ impl AtomWidget {
             state               : WidgetState::Normal,
             clicked             : false,
             dirty               : true,
+            dirty_scroll        : false,
             buffer              : vec![],
 
             selected            : false,
@@ -172,20 +178,44 @@ impl AtomWidget {
             button_mask         : None,
 
             debug_value         : None,
+
+            scroll_offset       : 0,
+            grouped_list_height : 0,
+            scroll_distance     : 0,
         }
     }
 
     pub fn set_rect(&mut self, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext) {
         self.rect = rect;
-        if self.buffer.len() != rect.2 * rect.3 * 4 {
-            self.buffer = vec![0;rect.2 * rect.3 * 4];
+        let mut height = rect.3;
+        if self.atom_widget_type == AtomWidgetType::GroupedList {
+            self.scroll_distance = 0;
+            let h = self.grouped_list_height();
+            if h > height {
+                self.scroll_distance = h as isize - height as isize;
+            }
+            height = height.max(h);
+            self.grouped_list_height = height as isize;
+        }
+        if self.buffer.len() != rect.2 * height * 4 {
+            self.buffer = vec![0;rect.2 * height * 4];
         }
     }
 
     pub fn set_rect2(&mut self, rect: (usize, usize, usize, usize)) {
         self.rect = rect;
+        let mut height = rect.3;
+        if self.atom_widget_type == AtomWidgetType::GroupedList {
+            self.scroll_distance = 0;
+            let h = self.grouped_list_height();
+            if h > height {
+                self.scroll_distance = h as isize - height as isize;
+            }
+            height = height.max(h);
+            self.grouped_list_height = height as isize;
+        }
         if self.buffer.len() != rect.2 * rect.3 * 4 {
-            self.buffer = vec![0;rect.2 * rect.3 * 4];
+            self.buffer = vec![0;rect.2 * height * 4];
         }
     }
 
@@ -194,7 +224,7 @@ impl AtomWidget {
         let rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
         let buffer_frame = &mut self.buffer[..];
 
-        if self.dirty {
+        if self.dirty && self.dirty_scroll == false {
 
             // Toolbar
 
@@ -682,7 +712,7 @@ impl AtomWidget {
 
                         let bottom = r.1 + r.3;
                         //println!("{} {}", bottom, context.height);
-                        if bottom < context.height - 100 {
+                        if bottom < context.height {
                             context.draw2d.draw_rounded_rect(buffer_frame, &r, rect.2, &(self.rect.2 as f64, 32.0), &color, &rounding);
                             if self.centered_text == false {
                                 context.draw2d.draw_text(buffer_frame, &(r.0 + 15, r.1 + 4), rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.groups[g_index].items[i_index].text, &text_color, &color);
@@ -807,7 +837,12 @@ impl AtomWidget {
             }
         }
         self.dirty = false;
-        context.draw2d.blend_slice(frame, buffer_frame, &self.rect, stride);
+        self.dirty_scroll = false;
+        if self.atom_widget_type != AtomWidgetType::GroupedList {
+            context.draw2d.blend_slice(frame, buffer_frame, &self.rect, stride);
+        } else {
+            context.draw2d.blend_slice_offset(frame, buffer_frame, &self.rect, self.scroll_offset as usize, stride);
+        }
     }
 
     // Draw overlay widgets which gets rendered on the whole screen, like open menus etc
@@ -1042,15 +1077,17 @@ impl AtomWidget {
                 return true;
             } else
             if self.atom_widget_type == AtomWidgetType::GroupedList {
+                let mut p = pos.clone();
+                p.1 += self.scroll_offset as usize;
                 for g_index in 0..self.groups.len() {
                     for i_index in 0..self.groups[g_index].items.len() {
-                        if self.contains_pos_for(pos, self.groups[g_index].items[i_index].rect) {
+                        if self.contains_pos_for(p, self.groups[g_index].items[i_index].rect) {
                             self.curr_group_index = g_index;
                             self.curr_item_index = i_index;
                             self.dirty = true;
                             self.clicked = true;
 
-                            let mouse_offset = (pos.0 - self.groups[g_index].items[i_index].rect.0, pos.1 - self.groups[g_index].items[i_index].rect.1);
+                            let mouse_offset = (pos.0 - self.groups[g_index].items[i_index].rect.0, p.1 - self.groups[g_index].items[i_index].rect.1);
 
                             if self.drag_enabled {
                                 self.drag_context = Some(ScreenDragContext{
@@ -1403,6 +1440,13 @@ impl AtomWidget {
         false
     }
 
+    pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        self.scroll_offset -= delta.1;
+        self.scroll_offset = self.scroll_offset.clamp(0, self.scroll_distance);
+        self.dirty_scroll = true;
+        true
+    }
+
     pub fn add_group_list(&mut self, color: [u8;4], selected_color: [u8;4], items: Vec<String>) {
         let mut g_items : Vec<GroupItem> = vec![];
         for t in &items {
@@ -1440,6 +1484,17 @@ impl AtomWidget {
             return context.node_button_height * 8;
         }
         context.node_button_height
+    }
+
+    /// Height of a grouped list
+    fn grouped_list_height(&self) -> usize {
+        let mut height = 2;
+        for g_index in 0..self.groups.len() {
+            for _i_index in 0..self.groups[g_index].items.len() {
+                height += 33
+            }
+        }
+        height
     }
 
     /// Set the state of a switch button
