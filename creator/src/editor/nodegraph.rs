@@ -1191,6 +1191,10 @@ impl EditorContent for NodeGraph  {
                 "Set State" => BehaviorNodeType::SetState,
                 "Call System" => BehaviorNodeType::CallSystem,
                 "Call Behavior" => BehaviorNodeType::CallBehavior,
+                "Has Target ?" => BehaviorNodeType::HasTarget,
+                "Untarget" => BehaviorNodeType::Untarget,
+                "Deal Damage" => BehaviorNodeType::DealDamage,
+                "Reduce Damage" => BehaviorNodeType::TakeDamage,
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
@@ -1227,33 +1231,6 @@ impl EditorContent for NodeGraph  {
             self.nodes.push(node);
         }
 
-        /*
-        // Add the atom widgets
-        if let Some(mut node) = node_widget {
-            if self.graph_type == BehaviorType::Regions {
-                let region = context.data.regions.get(&context.data.regions_ids[context.curr_region_index]).unwrap();
-                self.init_node_widget(&region.behaviors[context.curr_region_area_index].data, &region.behaviors[context.curr_region_area_index].data.nodes.get(&id).unwrap(), &mut node, context);
-            } else
-            if self.graph_type == BehaviorType::Behaviors {
-                let behavior = context.data.behaviors.get(&context.data.behaviors_ids[context.curr_behavior_index]).unwrap();
-                self.init_node_widget(&behavior.data, &behavior.data.nodes.get(&id).unwrap(), &mut node, context);
-            } else
-            if self.graph_type == BehaviorType::Systems {
-                let behavior = context.data.systems.get(&context.data.systems_ids[context.curr_systems_index]).unwrap();
-                self.init_node_widget(&behavior.data, &behavior.data.nodes.get(&id).unwrap(), &mut node, context);
-            } else
-            if self.graph_type == BehaviorType::Items {
-                let behavior = context.data.items.get(&context.data.items_ids[context.curr_items_index]).unwrap();
-                self.init_node_widget(&behavior.data, &behavior.data.nodes.get(&id).unwrap(), &mut node, context);
-            } else
-            if self.graph_type == BehaviorType::GameLogic {
-                if let Some(behavior) = context.data.get_behavior(0, self.graph_type) {
-                    self.init_node_widget(&behavior.data, &behavior.data.nodes.get(&id).unwrap(), &mut node, context);
-                }
-            }
-            self.nodes.push(node);
-        }
-        */
         self.check_node_visibility(context);
         self.dirty = true;
     }
@@ -1759,6 +1736,58 @@ impl EditorContent for NodeGraph  {
             node_widget.widgets.push(atom1);
 
             node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::HasTarget {
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::Untarget {
+            let mut atom2 = AtomWidget::new(vec!["If Distance Is".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("distance", Value::Empty()));
+            atom2.atom_data.text = "If Distance Is".to_string();
+            let id = (behavior_data_id, node_id, "distance".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("3".to_string()), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::DealDamage {
+            let mut atom2 = AtomWidget::new(vec!["Damage".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("damage", Value::Empty()));
+            atom2.atom_data.text = "Damage".to_string();
+            let id = (behavior_data_id, node_id, "damage".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("0".to_string()), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::TakeDamage {
+            let mut atom2 = AtomWidget::new(vec!["Reduce By".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("reduce by", Value::Empty()));
+            atom2.atom_data.text = "Reduce By".to_string();
+            let id = (behavior_data_id, node_id, "reduce by".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("0".to_string()), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
@@ -2674,7 +2703,8 @@ impl EditorContent for NodeGraph  {
         self.active_indices.clone()
     }
 
-    fn key_down(&mut self, _char: Option<char>, key: Option<WidgetKey>, _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn key_down(&mut self, _char: Option<char>, key: Option<WidgetKey>, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+        if context.is_running { return false; }
         if let Some(key) = key {
             if key == WidgetKey::Left {
                 self.offset.0 -= 20;

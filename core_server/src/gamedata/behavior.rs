@@ -63,6 +63,10 @@ pub enum BehaviorNodeType {
     Sell,
     CallSystem,
     CallBehavior,
+    HasTarget,
+    Untarget,
+    DealDamage,
+    TakeDamage,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -198,6 +202,9 @@ pub struct BehaviorInstance {
 
     /// This character has an ongoing communication
     pub communication           : Vec<PlayerCommunication>,
+
+    /// Damage to be dealt to this character
+    pub damage_to_be_dealt      : Option<i32>,
 }
 
 /// Represents a character behavior instance

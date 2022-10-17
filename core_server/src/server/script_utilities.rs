@@ -93,10 +93,10 @@ pub fn replace_target_variables(input: String) -> String {
 
 /// Evaluates a boolean expression in the given instance.
 pub fn eval_bool_expression_instance(instance_index: usize, id: (BehaviorType, Uuid, Uuid, String), data: &mut RegionInstance) -> Option<bool> {
-    add_target_to_scope(instance_index, data);
+    //add_target_to_scope(instance_index, data);
 
     if let Some(ast) = data.ast.get(&id) {
-        let r = data.engine.eval_ast_with_scope(&mut  data.scopes[instance_index], ast);
+        let r = data.engine.eval_ast_with_scope(&mut data.scopes[instance_index], ast);
         if r.is_ok() {
             return Some(r.unwrap());
         } else {
@@ -105,8 +105,8 @@ pub fn eval_bool_expression_instance(instance_index: usize, id: (BehaviorType, U
     } else {
         if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0) {
             if let Some(code) = value.to_string() {
-                let script = replace_target_variables(code);
-                if let Some(ast) = data.engine.compile_expression_with_scope(&mut  data.scopes[instance_index], script.as_str()).ok() {
+                //let script = replace_target_variables(code);
+                if let Some(ast) = data.engine.compile_expression_with_scope(&mut  data.scopes[instance_index], code.as_str()).ok() {
                     let r = data.engine.eval_ast_with_scope(&mut  data.scopes[instance_index], &ast);
                     if r.is_ok() {
                         data.ast.insert(id.clone(), ast);

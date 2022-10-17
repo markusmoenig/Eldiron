@@ -164,7 +164,7 @@ pub fn random_walk(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
         data.instances[instance_index].curr_transition_time = 1;
     }
 
-    rc
+    BehaviorNodeConnector::Bottom
 }
 
 /// Pathfinder
@@ -784,3 +784,46 @@ pub fn set_state(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
 
     BehaviorNodeConnector::Bottom
 }
+
+/// Has Target ?
+pub fn has_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    if data.instances[instance_index].target_instance_index.is_some() {
+        BehaviorNodeConnector::Success
+    } else {
+        BehaviorNodeConnector::Fail
+    }
+}
+
+/// Untarget
+pub fn untarget(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    if data.instances[instance_index].target_instance_index.is_some() {
+
+        let mut distance : f32 = 0.0;
+        if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "distance".to_string()), data) {
+            distance = rc;
+        }
+
+        if let Some(p1) = get_instance_position(instance_index, &data.instances) {
+            if let Some(p2) = get_instance_position(data.instances[instance_index].target_instance_index.unwrap(), &data.instances) {
+                let d = compute_distance(&p1, &p2);
+                println!("{} {}", distance, d);
+                if d > distance {
+                    data.instances[instance_index].target_instance_index = None;
+                    return BehaviorNodeConnector::Success;
+                }
+            }
+        }
+    }
+    BehaviorNodeConnector::Fail
+}
+
+/// Deal damage :)
+pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    BehaviorNodeConnector::Bottom
+}
+
+/// Take damage :(
+pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    BehaviorNodeConnector::Bottom
+}
+
