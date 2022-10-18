@@ -8,7 +8,7 @@ pub fn player_move(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
     }
 
     // Apply the speed delay
-    let delay = 10.0 - speed.clamp(0.0, 10.0);
+    let delay = speed.clamp(0.0, f32::MAX);
     data.instances[instance_index].sleep_cycles = delay as usize;
 
     let mut dp:Option<Position> = None;

@@ -155,7 +155,7 @@ pub fn random_walk(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
     }
 
     // Apply the speed delay
-    let delay = 10.0 - speed.clamp(0.0, 10.0);
+    let delay = speed.clamp(0.0, f32::MAX);
     data.instances[instance_index].sleep_cycles = (delay + delay_between_movement) as usize;
 
     let rc  = walk_towards(instance_index, p, dp,false, data);
@@ -203,7 +203,7 @@ pub fn pathfinder(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInst
     }
 
     // Apply the speed delay
-    let delay = 10.0 - speed.clamp(0.0, 10.0);
+    let delay = speed.clamp(0.0, f32::MAX);
     data.instances[instance_index].sleep_cycles = delay as usize;
 
     // Success if we reached the to_distance already
@@ -299,7 +299,7 @@ pub fn close_in(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
     }
 
     // Apply the speed delay
-    let delay = 10.0 - speed.clamp(0.0, 10.0);
+    let delay = speed.clamp(0.0, f32::MAX);
     data.instances[instance_index].sleep_cycles = delay as usize;
 
     // Success if we reached the to_distance already
@@ -794,7 +794,7 @@ pub fn has_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIns
     }
 }
 
-/// Untarget
+/// Untarget (based on distance)
 pub fn untarget(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
     if data.instances[instance_index].target_instance_index.is_some() {
 
@@ -806,7 +806,6 @@ pub fn untarget(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
         if let Some(p1) = get_instance_position(instance_index, &data.instances) {
             if let Some(p2) = get_instance_position(data.instances[instance_index].target_instance_index.unwrap(), &data.instances) {
                 let d = compute_distance(&p1, &p2);
-                println!("{} {}", distance, d);
                 if d > distance {
                     data.instances[instance_index].target_instance_index = None;
                     return BehaviorNodeConnector::Success;
@@ -819,11 +818,79 @@ pub fn untarget(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
 
 /// Deal damage :)
 pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-    BehaviorNodeConnector::Bottom
+
+    let mut damage : i32 = 0;
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "damage".to_string()), data) {
+        damage = rc as i32;
+    }
+
+    let mut speed : f32 = 8.0;
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
+        speed = rc;
+    }
+
+    // Apply the speed delay
+    let delay = speed.clamp(0.0, f32::MAX);
+
+    if data.instances[instance_index].target_instance_index.is_some() {
+        let target_index = data.instances[instance_index].target_instance_index.unwrap();
+        data.instances[target_index].damage_to_be_dealt = Some(damage);
+
+        let mut behavior_tree_id : Option<Uuid> = None;
+
+        let tree_name = "Got Hit";
+        if let Some(behavior) = data.behaviors.get(&data.instances[target_index].behavior_id) {
+            for (node_id, node) in &behavior.nodes {
+                if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name {
+                    behavior_tree_id = Some(*node_id);
+                    break;
+                }
+            }
+        }
+
+        data.instances[instance_index].sleep_cycles = delay as usize;
+
+        if let Some(behavior_tree_id) = behavior_tree_id {
+            let _rc = data.execute_node(target_index, behavior_tree_id, None);
+            return BehaviorNodeConnector::Success;
+        }
+    }
+
+    BehaviorNodeConnector::Fail
 }
 
 /// Take damage :(
 pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-    BehaviorNodeConnector::Bottom
+
+    let mut reduce_by : i32 = 0;
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "reduce by".to_string()), data) {
+        reduce_by = rc as i32;
+    }
+
+    let mut rc = BehaviorNodeConnector::Success;
+
+    if let Some(mut damage) = data.instances[instance_index].damage_to_be_dealt {
+        damage -= reduce_by;
+
+        if let Some(mut value) = data.scopes[instance_index].get_value::<i32>(&data.hitpoints) {
+            value -= damage;
+            value = value.max(0);
+            data.scopes[instance_index].set_value(&data.hitpoints, value);
+            if value <= 0 {
+                rc = BehaviorNodeConnector::Fail;
+            }
+        } else
+        if let Some(v) = data.scopes[instance_index].get_value::<f32>(&data.hitpoints) {
+            let mut value = v as i32;
+            value -= damage;
+            value = value.max(0);
+            data.scopes[instance_index].set_value(&data.hitpoints, value);
+            if value <= 0 {
+                rc = BehaviorNodeConnector::Fail;
+            }
+        }
+    }
+
+    rc
 }
 

@@ -80,6 +80,9 @@ pub fn update_game_sink(sink: &mut PropertySink) {
     if sink.contains("secondary_to_primary") == false {
         sink.push(Property::new_int("secondary_to_primary".to_string(), 100));
     }
+    if sink.contains("hitpoints") == false {
+        sink.push(Property::new_string("hitpoints".to_string(), "HP".to_string()));
+    }
 }
 
 pub fn generate_game_sink_descriptions() -> FxHashMap<String, Vec<String>> {
@@ -91,6 +94,7 @@ pub fn generate_game_sink_descriptions() -> FxHashMap<String, Vec<String>> {
     map.insert("primary_currency".to_string(), vec!["The variable name of your primary currency. \"gold\" by default.".to_string()]);
     map.insert("secondary_currency".to_string(), vec!["The variable name of your (optional) secondary currency. \"silver\" by default.".to_string()]);
     map.insert("secondary_to_primary".to_string(), vec!["How much secondary currency makes up one primary. 100 by default.".to_string()]);
+    map.insert("hitpoints".to_string(), vec!["The name of the character hitpoints variable. Used by the node system to calculate damage.".to_string()]);
 
     map
 }

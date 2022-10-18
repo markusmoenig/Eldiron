@@ -1194,7 +1194,7 @@ impl EditorContent for NodeGraph  {
                 "Has Target ?" => BehaviorNodeType::HasTarget,
                 "Untarget" => BehaviorNodeType::Untarget,
                 "Deal Damage" => BehaviorNodeType::DealDamage,
-                "Reduce Damage" => BehaviorNodeType::TakeDamage,
+                "Take Damage" => BehaviorNodeType::TakeDamage,
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
@@ -1439,9 +1439,9 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::Move {
-            let mut atom1 = AtomWidget::new(vec!["Speed".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            let mut atom1 = AtomWidget::new(vec!["Speed Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
             AtomData::new("speed", Value::Integer(0)));
-            atom1.atom_data.text = "Speed".to_string();
+            atom1.atom_data.text = "Speed Delay".to_string();
             let id = (behavior_data_id, node_id, "speed".to_string());
             atom1.behavior_id = Some(id.clone());
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Integer(8), self.graph_type);
@@ -1516,9 +1516,9 @@ impl EditorContent for NodeGraph  {
             max_distance.atom_data.value = context.data.get_behavior_id_value(id, Value::String("4".to_string()), self.graph_type);
             node_widget.widgets.push(max_distance);
 
-            let mut speed = AtomWidget::new(vec!["Speed".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            let mut speed = AtomWidget::new(vec!["Speed Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
             AtomData::new("speed", Value::Empty()));
-            speed.atom_data.text = "Speed".to_string();
+            speed.atom_data.text = "Speed Delay".to_string();
             let id = (behavior_data_id, node_id, "speed".to_string());
             speed.behavior_id = Some(id.clone());
             speed.atom_data.value = context.data.get_behavior_id_value(id, Value::String("8".to_string()), self.graph_type);
@@ -1549,9 +1549,9 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            let mut atom2 = AtomWidget::new(vec!["Speed".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            let mut atom2 = AtomWidget::new(vec!["Speed Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
             AtomData::new("speed", Value::Empty()));
-            atom2.atom_data.text = "Speed".to_string();
+            atom2.atom_data.text = "Speed Delay".to_string();
             let id = (behavior_data_id, node_id, "speed".to_string());
             atom2.behavior_id = Some(id.clone());
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("8".to_string()), self.graph_type);
@@ -1594,9 +1594,9 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("1".to_string()), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            let mut atom2 = AtomWidget::new(vec!["Speed".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            let mut atom2 = AtomWidget::new(vec!["Speed Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
             AtomData::new("speed", Value::Empty()));
-            atom2.atom_data.text = "Speed".to_string();
+            atom2.atom_data.text = "Speed Delay".to_string();
             let id = (behavior_data_id, node_id, "speed".to_string());
             atom2.behavior_id = Some(id.clone());
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
@@ -1749,9 +1749,9 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::Untarget {
-            let mut atom2 = AtomWidget::new(vec!["If Distance Is".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            let mut atom2 = AtomWidget::new(vec!["If Distance Is Greater".to_string()], AtomWidgetType::NodeExpressionValueButton,
             AtomData::new("distance", Value::Empty()));
-            atom2.atom_data.text = "If Distance Is".to_string();
+            atom2.atom_data.text = "If Distance Is Greater".to_string();
             let id = (behavior_data_id, node_id, "distance".to_string());
             atom2.behavior_id = Some(id.clone());
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("3".to_string()), self.graph_type);
@@ -1771,6 +1771,14 @@ impl EditorContent for NodeGraph  {
             atom2.behavior_id = Some(id.clone());
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("0".to_string()), self.graph_type);
             node_widget.widgets.push(atom2);
+
+            let mut atom1 = AtomWidget::new(vec!["Speed Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("speed", Value::Empty()));
+            atom1.atom_data.text = "Speed Delay".to_string();
+            let id = (behavior_data_id, node_id, "speed".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String(7.to_string()), self.graph_type);
+            node_widget.widgets.push(atom1);
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
