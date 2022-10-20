@@ -1195,6 +1195,8 @@ impl EditorContent for NodeGraph  {
                 "Untarget" => BehaviorNodeType::Untarget,
                 "Deal Damage" => BehaviorNodeType::DealDamage,
                 "Take Damage" => BehaviorNodeType::TakeDamage,
+                "Drop Inv." => BehaviorNodeType::DropInventory,
+                "Target" => BehaviorNodeType::Target,
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
@@ -1447,6 +1449,12 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Integer(8), self.graph_type);
             node_widget.widgets.push(atom1);
 
+            node_widget.color = context.color_gray.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::Target {
             node_widget.color = context.color_gray.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
@@ -1800,6 +1808,16 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::DropInventory {
+            let type_menu = create_menu_atom("Drop".to_string(), vec!["Everything".to_string(), "Random Item".to_string()], Value::Integer(0));
+
+            node_widget.widgets.push(type_menu);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
 
         // Area

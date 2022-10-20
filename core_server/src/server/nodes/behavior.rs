@@ -894,3 +894,105 @@ pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
     rc
 }
 
+/// Drop Inventory :(
+pub fn drop_inventory(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut drop_type = 0;
+
+    if let Some(value) = get_node_value((id.0, id.1, "drop"), data, behavior_type) {
+        if let Some(d_type) = value.to_integer() {
+            drop_type = d_type;
+        }
+    }
+
+    if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
+        if let Some(mut inv) = mess.write_lock::<Inventory>() {
+
+            let total = inv.items.len();
+
+            let mut drop = |index: usize| {
+                if index < inv.items.len() {
+                    let mut item = inv.items[index].clone();
+                    inv.items.remove(index);
+
+                    if let Some(p) = &data.instances[instance_index].position {
+
+                        if let Some(mut light) = item.light.clone() {
+                            light.position = (p.x, p.y);
+                            item.light = Some(light);
+                        }
+
+                        let loot = LootData {
+                            id          : item.id,
+                            name        : Some(item.name),
+                            tile        : item.tile,
+                            state       : item.state,
+                            light       : item.light,
+                            amount      : item.amount as i32,
+                            stackable   : item.stackable as i32,
+                            static_item : item.static_item,
+                            price       : item.price
+                        };
+
+                        if let Some(existing_loot) = data.loot.get_mut(&(p.x, p.y)) {
+                            existing_loot.push(loot);
+                        } else {
+                            data.loot.insert((p.x, p.y), vec![loot]);
+                        }
+                    }
+                }
+            };
+
+            if drop_type == 0 {
+                // Drop items
+                for _ in 0..total {
+                    drop(0);
+                }
+            } else {
+                let mut rng = thread_rng();
+                let random = rng.gen_range(0..total);
+                drop(random);
+            }
+
+            drop(0);
+        }
+    }
+
+    // Drop gold
+    if let Some(gold) = character_currency(instance_index, data) {
+
+        for (id, behavior) in &data.items {
+            if behavior.name.to_lowercase() == data.primary_currency {
+                let mut loot = LootData {
+                    id          : *id,
+                    name        : Some(behavior.name.clone()),
+                    tile        : None,
+                    state       : None,
+                    light       : None,
+                    amount      : gold,
+                    stackable   : i32::MAX,
+                    static_item : false,
+                    price       : 0.0
+                };
+
+                for (_index, node) in &behavior.nodes {
+                    if node.behavior_type == BehaviorNodeType::BehaviorType {
+                        if let Some(value) = node.values.get(&"tile".to_string()) {
+                            loot.tile = value.to_tile_data();
+                        }
+                    }
+                }
+
+                if let Some(p) = &data.instances[instance_index].position {
+                    if let Some(existing_loot) = data.loot.get_mut(&(p.x, p.y)) {
+                        existing_loot.push(loot);
+                    } else {
+                        data.loot.insert((p.x, p.y), vec![loot]);
+                    }
+                }
+            }
+        }
+    }
+
+    BehaviorNodeConnector::Bottom
+}

@@ -67,6 +67,8 @@ pub enum BehaviorNodeType {
     Untarget,
     DealDamage,
     TakeDamage,
+    DropInventory,
+    Target,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

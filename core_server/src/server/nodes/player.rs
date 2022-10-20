@@ -115,6 +115,11 @@ pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
             for index in 0..loot.len() {
                 if loot[index].static_item { continue; }
                 let element = loot.remove(index);
+
+                if element.name.is_some() && element.name.clone().unwrap().to_lowercase() == data.primary_currency {
+                    add_to_character_currency(instance_index, element.amount as f32, data);
+                    data.action_subject_text = element.name.clone().unwrap();
+                } else
                 if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
                     if let Some(mut inv) = mess.write_lock::<Inventory>() {
                         if let Some(name) = element.name {
@@ -200,4 +205,50 @@ pub fn player_drop(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
     }
 
     BehaviorNodeConnector::Fail
+}
+
+/// Player wants to drop something
+pub fn player_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut dp:Option<Position> = None;
+    if let Some(p) = &data.instances[instance_index].position {
+        if let Some(action) = &data.instances[instance_index].action {
+            if action.direction == PlayerDirection::North {
+                dp = Some(Position::new(p.region, p.x, p.y - 1));
+                data.action_direction_text = "North".to_string();
+            } else
+            if action.direction == PlayerDirection::South {
+                dp = Some(Position::new(p.region, p.x, p.y + 1));
+                data.action_direction_text = "South".to_string();
+            } else
+            if action.direction == PlayerDirection::East {
+                dp = Some(Position::new(p.region, p.x + 1, p.y));
+                data.action_direction_text = "East".to_string();
+            } else
+            if action.direction == PlayerDirection::West {
+                dp = Some(Position::new(p.region, p.x - 1, p.y));
+                data.action_direction_text = "West".to_string();
+            }
+        }
+    }
+
+    let mut rc = BehaviorNodeConnector::Fail;
+
+    if let Some(dp) = &dp {
+        for inst_index in 0..data.instances.len() {
+            if inst_index != instance_index {
+                // Only track if the state is normal
+                if data.instances[inst_index].state == BehaviorInstanceState::Normal {
+                    if let Some(pos) = &data.instances[inst_index].position {
+                        if *dp == *pos {
+                            data.instances[instance_index].target_instance_index = Some(inst_index);
+                            rc = BehaviorNodeConnector::Success;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    rc
 }
