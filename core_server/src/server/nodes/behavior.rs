@@ -44,17 +44,44 @@ pub fn message(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
 
     if text.contains("${DIRECTION}") {
         text = text.replace("${DIRECTION}", &data.action_direction_text);
-    } else
-    if text.contains("${SUBJECT}") {
-        text = text.replace("${SUBJECT}", &data.action_subject_text);
+    }
+    if text.contains("${CONTEXT}") {
+        text = text.replace("${CONTEXT}", &data.action_subject_text);
+    }
+    if text.contains("${DEF_CONTEXT}") {
+        let string = "the ".to_string() + data.action_subject_text.to_lowercase().as_str();
+        text = text.replace("${DEF_CONTEXT}", &string);
+    }
+    if text.contains("${TARGET}") {
+        let mut target_text = "".to_string();
+        if let Some(target_index) = data.instances[instance_index].target_instance_index {
+            target_text = data.instances[target_index].name.clone();
+        }
+        text = text.replace("${TARGET}", &target_text);
+    }
+    if text.contains("${DEF_TARGET}") {
+        let mut target_text = "".to_string();
+        if let Some(target_index) = data.instances[instance_index].target_instance_index {
+            target_text = "the ".to_string() + data.instances[target_index].name.to_lowercase().as_str();
+        }
+        text = text.replace("${DEF_TARGET}", &target_text);
+    }
+    if text.contains("${DAMAGE}") {
+        let mut damage_text = "".to_string();
+        if let Some(target_index) = data.instances[instance_index].target_instance_index {
+            if let Some(damage) = data.instances[target_index].damage_to_be_dealt {
+                damage_text = damage.to_string();
+            }
+        }
+        text = text.replace("${DAMAGE}", &damage_text);
     }
 
     // Do I need to evaluate the script for variables ?
     if text.contains("${") {
-        data.scopes[instance_index].push("Self", data.instances[instance_index].name.clone());
-        if let Some(target_index) = data.instances[instance_index].target_instance_index {
-            data.scopes[instance_index].push("Target", data.instances[target_index].name.clone());
-        }
+        // data.scopes[instance_index].push("Self", data.instances[instance_index].name.clone());
+        // if let Some(target_index) = data.instances[instance_index].target_instance_index {
+        //     data.scopes[instance_index].push("Target", data.instances[target_index].name.clone());
+        // }
         let r = data.engine.eval_with_scope::<String>(&mut data.scopes[instance_index], format!("`{}`", text).as_str());
         if let Some(rc) = r.ok() {
             text = rc;
@@ -82,7 +109,7 @@ pub fn message(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
     }
 
     // Output it
-    data.messages.push((text,  message_type));
+    data.messages.push((text, message_type));
     BehaviorNodeConnector::Bottom
 }
 
@@ -774,7 +801,7 @@ pub fn set_state(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
             if data.instances[behavior_instance].state != BehaviorInstanceState::Normal {
                 for i in 0..data.instances.len() {
                     if data.instances[i].target_instance_index == Some(behavior_instance) {
-                        data.instances[i].target_instance_index = None;
+                        // We do this in tick() data.instances[i].target_instance_index = None;
                         data.instances[i].locked_tree = None;
                     }
                 }
@@ -832,6 +859,8 @@ pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
     // Apply the speed delay
     let delay = speed.clamp(0.0, f32::MAX);
 
+    let mut rc = BehaviorNodeConnector::Fail;
+
     if data.instances[instance_index].target_instance_index.is_some() {
         let target_index = data.instances[instance_index].target_instance_index.unwrap();
         data.instances[target_index].damage_to_be_dealt = Some(damage);
@@ -852,11 +881,14 @@ pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
 
         if let Some(behavior_tree_id) = behavior_tree_id {
             let _rc = data.execute_node(target_index, behavior_tree_id, None);
-            return BehaviorNodeConnector::Success;
+            if data.instances[target_index].state == BehaviorInstanceState::Normal {
+                rc = BehaviorNodeConnector::Right;
+            } else {
+                rc = BehaviorNodeConnector::Success;
+            }
         }
     }
-
-    BehaviorNodeConnector::Fail
+    rc
 }
 
 /// Take damage :(
@@ -890,7 +922,6 @@ pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
             }
         }
     }
-
     rc
 }
 

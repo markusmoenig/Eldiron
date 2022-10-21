@@ -752,6 +752,13 @@ impl RegionInstance<'_> {
 
         for inst_index in 0..self.instances.len() {
 
+            // Purge invalid target indices
+            if let Some(target_index) = self.instances[inst_index].target_instance_index {
+                if self.instances[target_index].state != BehaviorInstanceState::Normal {
+                    self.instances[inst_index].target_instance_index = None;
+                }
+            }
+
             let mut send_update = false;
 
             // Send update if this is a player and no editor debugging
@@ -859,6 +866,9 @@ impl RegionInstance<'_> {
                 messages.push(Message::PlayerUpdate(update.id, update));
             }
         }
+
+        //println!("tick time {}", self.get_time() - tick_time);
+
         messages
     }
 
