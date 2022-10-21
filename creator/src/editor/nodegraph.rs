@@ -932,6 +932,11 @@ impl EditorContent for NodeGraph  {
                     if "Delete".to_string() == menu_activated {
                         // Delete node
                         self.delete_node(self.nodes[index].id, context);
+                    } else
+                    if "Help".to_string() == menu_activated {
+                        if let Some(help_link) = &self.nodes[index].help_link {
+                            _  = open::that(help_link);
+                        }
                     }
                 }
 
@@ -1352,6 +1357,7 @@ impl EditorContent for NodeGraph  {
         let mut menu_text : Vec<String> = vec!["Rename".to_string()];
         menu_text.push( "Disconnect".to_string());
         menu_text.push( "Delete".to_string());
+        menu_text.push( "Help".to_string());
 
         let mut node_menu_atom = AtomWidget::new(menu_text, AtomWidgetType::NodeMenu,
         AtomData::new("menu", Value::Empty()));
@@ -1473,6 +1479,8 @@ impl EditorContent for NodeGraph  {
             atom2.behavior_id = Some(id.clone());
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("Message".to_string()), self.graph_type);
             node_widget.widgets.push(atom2);
+
+            node_widget.help_link = Some("https://book.eldiron.com/nodes/message.html".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );

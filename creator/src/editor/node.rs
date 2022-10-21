@@ -45,6 +45,8 @@ pub struct NodeWidget {
     pub color                   : [u8;4],
 
     pub sub_type                : NodeSubType,
+
+    pub help_link               : Option<String>,
 }
 
 impl NodeWidget {
@@ -79,6 +81,8 @@ impl NodeWidget {
             color               : [0, 0, 0, 255],
 
             sub_type            : NodeSubType::None,
+
+            help_link           : None,
         }
     }
 
@@ -113,6 +117,8 @@ impl NodeWidget {
             color               : [0, 0, 0, 255],
 
             sub_type            : NodeSubType::None,
+
+            help_link           : None,
         }
     }
 
