@@ -30,6 +30,9 @@ pub struct RegionWidget {
     toolbar_size            : usize,
 
     debug_update            : Option<GameUpdate>,
+
+    selected_range          : Option<(isize, isize, isize, isize)>,
+    clipboard               : Option<GameRegionData>
 }
 
 impl EditorContent for RegionWidget {
@@ -182,10 +185,35 @@ impl EditorContent for RegionWidget {
         hover_help_vector.push(("Draw Mode".to_string(), "Draw tiles (Hotkey 'D').".to_string()));
         hover_help_vector.push(("Clear Mode".to_string(), "Clear / Erase tiles (Hotkey 'C').".to_string()));
         hover_help_vector.push(("Pick Mode".to_string(), "Pick the  (Hotkey 'P').".to_string()));
-        hover_help_vector.push(("Select Mode".to_string(), "Select multiple tiles (Hotkey 'M').".to_string()));
+        hover_help_vector.push(("Select Mode".to_string(), "Select multiple tiles (Hotkey 'R').".to_string()));
         draw_mode_button.hover_help_vector = Some(hover_help_vector);
 
         editing_widgets.push(draw_mode_button);
+
+        let mut cut_button = AtomWidget::new(vec!["draw".to_string()], AtomWidgetType::CheckedIcon,
+        AtomData::new("Cut", Value::Empty()));
+        cut_button.atom_data.text = "Cut".to_string();
+        cut_button.set_rect((rect.0 + 350, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 40, 33), asset, context);
+        cut_button.hover_help_title = Some("Cut Selection".to_string());
+        cut_button.hover_help_text = Some("Copies the current selection to the clipboard and clears the selected area.".to_string());
+
+        let mut copy_button = AtomWidget::new(vec!["draw".to_string()], AtomWidgetType::CheckedIcon,
+        AtomData::new("Copy", Value::Empty()));
+        copy_button.atom_data.text = "Copy".to_string();
+        copy_button.set_rect((rect.0 + 350 + 35, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 40, 33), asset, context);
+        copy_button.hover_help_title = Some("Copy Selection".to_string());
+        copy_button.hover_help_text = Some("Copies the current selection to the clipboard and clears the selected area.".to_string());
+
+        let mut paste_button = AtomWidget::new(vec!["draw".to_string()], AtomWidgetType::CheckedIcon,
+        AtomData::new("Paste", Value::Empty()));
+        paste_button.atom_data.text = "Paste".to_string();
+        paste_button.set_rect((rect.0 + 350 + 35 + 35, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 40, 33), asset, context);
+        paste_button.hover_help_title = Some("Paste Selection".to_string());
+        paste_button.hover_help_text = Some("Copies the contemt of the clipboard into the region on the next mouse click.".to_string());
+
+        editing_widgets.push(cut_button);
+        editing_widgets.push(copy_button);
+        editing_widgets.push(paste_button);
 
         Self {
             rect,
@@ -215,6 +243,9 @@ impl EditorContent for RegionWidget {
             toolbar_size,
 
             debug_update            : None,
+
+            selected_range          : None,
+            clipboard               : None,
         }
     }
 
@@ -301,6 +332,82 @@ impl EditorContent for RegionWidget {
                 for w in &mut self.editing_widgets {
                     w.draw(frame, context.width, anim_counter, asset, context);
                 }
+
+                // Draw selection if any
+                if context.is_running == false && self.selected_range.is_some() && self.editing_widgets[0].curr_index == 3 {
+
+                    let x_tiles = (rect.2 / grid_size) as isize;
+                    let y_tiles = (rect.3 / grid_size) as isize;
+
+                    let mut c = context.color_white.clone();
+                    c[3] = 100;
+
+                    for y in 0..y_tiles {
+                        for x in 0..x_tiles {
+
+                            let rx = x - self.offset.0;
+                            let ry = y - self.offset.1;
+
+                            if let Some(range) = self.selected_range {
+                                if rx >= range.0 && ry >= range.1 && rx < range.0 + range.2 && ry < range.1 + range.3 {
+                                    let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
+
+                                    context.draw2d.blend_rect(frame, &(pos.0, pos.1, grid_size, grid_size), context.width, &c);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Draw Paste preview is paste button is enabled and clipboard non-empty
+                if context.is_running == false && self.editing_widgets[3].checked == true {
+                    if let Some(clipboard) = &self.clipboard {
+                        if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
+
+                            let x_tiles = (rect.2 / grid_size) as isize;
+                            let y_tiles = (rect.3 / grid_size) as isize;
+
+                            let mut c = context.color_white.clone();
+                            c[3] = 100;
+
+                            for y in 0..y_tiles {
+                                for x in 0..x_tiles {
+
+                                    let rx = x - self.offset.0;
+                                    let ry = y - self.offset.1;
+
+                                    let ix = rx - id.0;
+                                    let iy = ry - id.1;
+
+                                    if ix >= 0 && iy >= 0 {
+                                        let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
+
+                                        if let Some(tile) = clipboard.layer1.get(&(ix, iy)) {
+                                            if let Some(map) = asset.get_map_of_id(tile.tilemap) {
+                                                context.draw2d.draw_animated_tile(frame, &pos, &map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, self.grid_size);
+                                            }
+                                        }
+                                        if let Some(tile) = clipboard.layer2.get(&(ix, iy)) {
+                                            if let Some(map) = asset.get_map_of_id(tile.tilemap) {
+                                                context.draw2d.draw_animated_tile(frame, &pos, &map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, self.grid_size);
+                                            }
+                                        }
+                                        if let Some(tile) = clipboard.layer3.get(&(ix, iy)) {
+                                            if let Some(map) = asset.get_map_of_id(tile.tilemap) {
+                                                context.draw2d.draw_animated_tile(frame, &pos, &map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, self.grid_size);
+                                            }
+                                        }
+                                        if let Some(tile) = clipboard.layer4.get(&(ix, iy)) {
+                                            if let Some(map) = asset.get_map_of_id(tile.tilemap) {
+                                                context.draw2d.draw_animated_tile(frame, &pos, &map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, self.grid_size);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             } else
             if editor_mode == RegionEditorMode::Areas {
 
@@ -309,40 +416,36 @@ impl EditorContent for RegionWidget {
                 }
 
                 if context.is_running == false {
-                if let Some(region) = context.data.regions.get(&self.region_id) {
+                    if let Some(region) = context.data.regions.get(&self.region_id) {
 
-                    let x_tiles = (rect.2 / grid_size) as isize;
-                    let y_tiles = (rect.3 / grid_size) as isize;
+                        let x_tiles = (rect.2 / grid_size) as isize;
+                        let y_tiles = (rect.3 / grid_size) as isize;
 
-                    let curr_area_index = context.curr_region_area_index;
+                        let curr_area_index = context.curr_region_area_index;
 
-                    for y in 0..y_tiles {
-                        for x in 0..x_tiles {
+                        for y in 0..y_tiles {
+                            for x in 0..x_tiles {
 
-                            let rx = x - self.offset.0;
-                            let ry = y - self.offset.1;
+                                let rx = x - self.offset.0;
+                                let ry = y - self.offset.1;
 
-                            for area_index in 0..region.data.areas.len() {
+                                for area_index in 0..region.data.areas.len() {
+                                    if region.data.areas[area_index].area.contains(&(rx, ry)) {
+                                        let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
 
-                                if region.data.areas[area_index].area.contains(&(rx, ry)) {
-                                    let pos = (rect.0 + left_offset + (x as usize) * grid_size, rect.1 + top_offset + (y as usize) * grid_size);
-
-                                    let mut c = context.color_white.clone();
-                                    if curr_area_index == area_index {
-                                        c = context.color_red.clone();
-                                        c[3] = 100;
-                                    } else {
-                                        //if editor_mode == RegionEditorMode::Areas {
-                                        //    continue;
-                                        //}
-                                        c[3] = 100;
+                                        let mut c = context.color_white.clone();
+                                        if curr_area_index == area_index {
+                                            c = context.color_red.clone();
+                                            c[3] = 100;
+                                        } else {
+                                            c[3] = 100;
+                                        }
+                                        context.draw2d.blend_rect(frame, &(pos.0, pos.1, grid_size, grid_size), context.width, &c);
                                     }
-                                    context.draw2d.blend_rect(frame, &(pos.0, pos.1, grid_size, grid_size), context.width, &c);
                                 }
                             }
                         }
                     }
-                }
                 }
                 self.behavior_graph.draw(frame, anim_counter, asset, context, &mut None);
             } else
@@ -417,6 +520,47 @@ impl EditorContent for RegionWidget {
                 }
                 for atom in &mut self.editing_widgets {
                     if atom.mouse_down(pos, asset, context) {
+
+                        if atom.atom_data.id == "Cut" || atom.atom_data.id == "Copy" {
+                            if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+
+                                if let Some(range) = self.selected_range {
+                                    let mut clipboard = GameRegionData::new();
+
+                                    for y in 0..range.3 {
+                                        for x in 0..range.2 {
+                                            if let Some(l1) = region.data.layer1.get(&(x + range.0, y + range.1)) {
+                                                clipboard.layer1.insert((x, y), l1.clone());
+                                            }
+                                            if let Some(l2) = region.data.layer2.get(&(x + range.0, y + range.1)) {
+                                                clipboard.layer2.insert((x, y), l2.clone());
+                                            }
+                                            if let Some(l3) = region.data.layer3.get(&(x + range.0, y + range.1)) {
+                                                clipboard.layer3.insert((x, y), l3.clone());
+                                            }
+                                            if let Some(l4) = region.data.layer4.get(&(x + range.0, y + range.1)) {
+                                                clipboard.layer4.insert((x, y), l4.clone());
+                                            }
+                                        }
+                                    }
+
+                                    clipboard.max_pos = (range.2, range.3);
+
+                                    self.selected_range = None;
+                                    self.clipboard = Some(clipboard);
+
+                                    if atom.atom_data.id == "Cut" {
+                                        for y in 0..range.3 {
+                                            for x in 0..range.2 {
+                                                region.clear_value_no_undo((x + range.0, y + range.1));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            atom.checked = false;
+                        }
+
                         return true;
                     }
                 }
@@ -500,6 +644,35 @@ impl EditorContent for RegionWidget {
                     let editor_mode = options.get_editor_mode();
 
                     if editor_mode == RegionEditorMode::Tiles {
+                        // Copy from Clipboard
+                        if self.clipboard.is_some() && self.editing_widgets[3].checked == true {
+                            if let Some(clipboard) = &self.clipboard {
+                                if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                                    for y in 0..clipboard.max_pos.1 {
+                                        for x in 0..clipboard.max_pos.0 {
+
+                                            let ix = id.0 + x;
+                                            let iy = id.1 + y;
+
+                                            region.clear_value_no_undo((ix, iy));
+
+                                            if let Some(tile) = clipboard.layer1.get(&(x, y)) {
+                                                region.data.layer1.insert((ix, iy), tile.clone());
+                                            }
+                                            if let Some(tile) = clipboard.layer2.get(&(x, y)) {
+                                                region.data.layer2.insert((ix, iy), tile.clone());
+                                            }
+                                            if let Some(tile) = clipboard.layer3.get(&(x, y)) {
+                                                region.data.layer3.insert((ix, iy), tile.clone());
+                                            }
+                                            if let Some(tile) = clipboard.layer4.get(&(x, y)) {
+                                                region.data.layer4.insert((ix, iy), tile.clone());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else
                         if self.editing_widgets[0].curr_index == 0 {
                             // Draw selected tile
                             if let Some(selected) = &self.tile_selector.selected {
@@ -512,7 +685,8 @@ impl EditorContent for RegionWidget {
                         if self.editing_widgets[0].curr_index == 1 {
                             // Clear
                             if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                                region.clear_value(options.get_layer(), id);
+                                //region.clear_value(options.get_layer(), id);
+                                region.clear_value(id);
                                 region.save_data();
                             }
                         } else
@@ -527,6 +701,7 @@ impl EditorContent for RegionWidget {
                         } else
                         if self.editing_widgets[0].curr_index == 3 {
                             // Select range
+                            self.selected_range = Some((id.0, id.1, 1, 1));
                         }
                     } else
                     if editor_mode == RegionEditorMode::Areas {
@@ -835,7 +1010,7 @@ impl EditorContent for RegionWidget {
                             if self.editing_widgets[0].curr_index == 1 {
                                 // Clear
                                 if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                                    region.clear_value(options.get_layer(), id);
+                                    region.clear_value(id);
                                     region.save_data();
                                 }
                             } else
@@ -850,11 +1025,15 @@ impl EditorContent for RegionWidget {
                             } else
                             if self.editing_widgets[0].curr_index == 3 {
                                 // Select range
+                                if let Some(mut range) = self.selected_range {
+                                    range.2 = (id.0 - range.0 + 1).max(1);
+                                    range.3 = (id.1 - range.1 + 1).max(1);
+                                    self.selected_range = Some(range);
+                                }
                             }
                         }
                     }
                 }
-
 
                 consumed = true;
             }
@@ -977,6 +1156,11 @@ impl EditorContent for RegionWidget {
                 } else
                 if char == 'p' {
                     self.editing_widgets[0].curr_index = 2;
+                    self.editing_widgets[0].dirty = true;
+                    return true;
+                } else
+                if char == 'r' {
+                    self.editing_widgets[0].curr_index = 3;
                     self.editing_widgets[0].dirty = true;
                     return true;
                 }
