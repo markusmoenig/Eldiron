@@ -41,22 +41,19 @@ impl EditorContent for RegionWidget {
 
         let mut widgets = vec![];
 
-        /*
-        let mut mode_button = AtomWidget::new(vec!["Draw Tiles".to_string(), "Edit Areas".to_string(), "Characters".to_string(), "Settings".to_string()], AtomWidgetType::SliderButton,
-        AtomData::new("Mode", Value::Empty()));
-        mode_button.atom_data.text = "Mode".to_string();
-        mode_button.set_rect((rect.0 + 10, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 200, 40), asset, context);
-        mode_button.custom_color = Some([217, 64, 51, 255]);
-        mode_button.hover_help_title = Some("Region Mode".to_string());
-        mode_button.hover_help_text = Some("Select \"Draw Tiles\" (hotkey 'D') for drawing the tiles in the region. \"Edit Area\" ('E') to create and edit named areas and their behavior. \"Characters\" ('A') to place character instances and \"Settings\" ('S') to edit the settings of the region.".to_string());*/
-
         let mut mode_button = AtomWidget::new(vec!["tiles".to_string(), "area".to_string(), "character".to_string(), "loot".to_string(), "settings".to_string()], AtomWidgetType::IconRow,
         AtomData::new("Mode", Value::Empty()));
         mode_button.atom_data.text = "Mode".to_string();
         mode_button.set_rect((rect.0 + 10, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 165, 33), asset, context);
         mode_button.custom_color = Some([217, 64, 51, 255]);
-        mode_button.hover_help_title = Some("Region Mode".to_string());
-        mode_button.hover_help_text = Some("Select the tile icon (hotkey 'D') for drawing tiles in the region. The area icon ('E') to create and edit named areas and their behavior. The character icon ('A') to place character instances. The bag icon ('L') to place loot and \"Settings\" ('S') to edit the settings of the region.".to_string());
+
+        let mut hover_help_vector : Vec<(String, String)> = vec![];
+        hover_help_vector.push(("Draw Mode".to_string(), "Draw tiles (Hotkey 'D').".to_string()));
+        hover_help_vector.push(("Area Mode".to_string(), "Edit named areas and their behavior (Hotkey 'E').".to_string()));
+        hover_help_vector.push(("Character Mode".to_string(), "Place character instances (Hotkey 'A').".to_string()));
+        hover_help_vector.push(("Item Mode".to_string(), "Place item instances as loot (Hotkey 'L').".to_string()));
+        hover_help_vector.push(("Settings".to_string(), "Edit the settings of the region (Hotkey 'S').".to_string()));
+        mode_button.hover_help_vector = Some(hover_help_vector);
 
         widgets.push(mode_button);
 
@@ -175,20 +172,20 @@ impl EditorContent for RegionWidget {
         // Editing Widgets
         let mut editing_widgets : Vec<AtomWidget> = vec![];
 
-        let mut clear_button = AtomWidget::new(vec!["Clear".to_string()], AtomWidgetType::CheckButton,
-            AtomData::new("Clear", Value::Empty()));
-        clear_button.set_rect((rect.0 + 190, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
-        clear_button.hover_help_title = Some("Drawing Mode".to_string());
-        clear_button.hover_help_text = Some("Toggles between drawing and clearing modes.\nHotkey: 'C'.".to_string());
-        editing_widgets.push(clear_button);
+        let mut draw_mode_button = AtomWidget::new(vec!["draw".to_string(), "erase".to_string(), "pick".to_string(), "select".to_string()], AtomWidgetType::IconRow,
+        AtomData::new("Mode", Value::Empty()));
+        draw_mode_button.atom_data.text = "Draw Mode".to_string();
+        draw_mode_button.set_rect((rect.0 + 190, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 140, 33), asset, context);
+        draw_mode_button.custom_color = Some([217, 64, 51, 255]);
 
-        let mut mode_button = AtomWidget::new(vec!["Pick".to_string()], AtomWidgetType::CheckButton,
-        AtomData::new("Pick", Value::Empty()));
-        mode_button.atom_data.text = "Pick".to_string();
-        mode_button.set_rect((rect.0 + 190 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 150, 40), asset, context);
-        mode_button.hover_help_title = Some("Pick".to_string());
-        mode_button.hover_help_text = Some("Picks the next selected tile.\nHotkey: 'P'.".to_string());
-        editing_widgets.push(mode_button);
+        let mut hover_help_vector : Vec<(String, String)> = vec![];
+        hover_help_vector.push(("Draw Mode".to_string(), "Draw tiles (Hotkey 'D').".to_string()));
+        hover_help_vector.push(("Clear Mode".to_string(), "Clear / Erase tiles (Hotkey 'C').".to_string()));
+        hover_help_vector.push(("Pick Mode".to_string(), "Pick the  (Hotkey 'P').".to_string()));
+        hover_help_vector.push(("Select Mode".to_string(), "Select multiple tiles (Hotkey 'M').".to_string()));
+        draw_mode_button.hover_help_vector = Some(hover_help_vector);
+
+        editing_widgets.push(draw_mode_button);
 
         Self {
             rect,
@@ -241,8 +238,7 @@ impl EditorContent for RegionWidget {
         self.loot_widgets[0].set_rect2((self.rect.0 + 190, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 40, 38));
         self.loot_widgets[1].set_rect2((self.rect.0 + 190 + 40, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 40, 38));
 
-        self.editing_widgets[0].set_rect2((self.rect.0 + 190, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
-        self.editing_widgets[1].set_rect2((self.rect.0 + 190 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 150, 40));
+        self.editing_widgets[0].set_rect2((self.rect.0 + 190, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 2, 140, 33));
 
         self.behavior_graph.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.bottom_size, width, self.bottom_size);
         self.behavior_graph.set_mode_and_rect(GraphMode::Detail, self.behavior_graph.rect, context);
@@ -504,31 +500,33 @@ impl EditorContent for RegionWidget {
                     let editor_mode = options.get_editor_mode();
 
                     if editor_mode == RegionEditorMode::Tiles {
-                        if self.editing_widgets[0].checked == false {
-                            if self.editing_widgets[1].checked == false {
-                                if let Some(selected) = &self.tile_selector.selected {
-                                    if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                                        region.set_value(options.get_layer(), id, selected.clone());
-                                        region.save_data();
-                                    }
-                                }
-                            } else {
+                        if self.editing_widgets[0].curr_index == 0 {
+                            // Draw selected tile
+                            if let Some(selected) = &self.tile_selector.selected {
                                 if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                                    let s = region.get_value(id);
-                                    if s.len() > 0 {
-                                        self.tile_selector.selected = Some(s[0].clone());
-                                        self.editing_widgets[1].checked = false;
-                                        self.editing_widgets[1].dirty = true;
-                                    }
-                                }
-                            }
-                        } else {
-                            if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                                if self.editing_widgets[0].checked == true {
-                                    region.clear_value(options.get_layer(), id);
+                                    region.set_value(options.get_layer(), id, selected.clone());
                                     region.save_data();
                                 }
                             }
+                        } else
+                        if self.editing_widgets[0].curr_index == 1 {
+                            // Clear
+                            if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                                region.clear_value(options.get_layer(), id);
+                                region.save_data();
+                            }
+                        } else
+                        if self.editing_widgets[0].curr_index == 2 {
+                            // Pick selected tile
+                            if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                                let s = region.get_value(id);
+                                if s.len() > 0 {
+                                    self.tile_selector.selected = Some(s[0].clone());
+                                }
+                            }
+                        } else
+                        if self.editing_widgets[0].curr_index == 3 {
+                            // Select range
                         }
                     } else
                     if editor_mode == RegionEditorMode::Areas {
@@ -825,15 +823,38 @@ impl EditorContent for RegionWidget {
                         let editor_mode = options.get_editor_mode();
 
                         if editor_mode == RegionEditorMode::Tiles {
-                            if let Some(selected) = &self.tile_selector.selected {
+                            if self.editing_widgets[0].curr_index == 0 {
+                                // Draw selected tile
+                                if let Some(selected) = &self.tile_selector.selected {
+                                    if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                                        region.set_value(options.get_layer(), id, selected.clone());
+                                        region.save_data();
+                                    }
+                                }
+                            } else
+                            if self.editing_widgets[0].curr_index == 1 {
+                                // Clear
                                 if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                                    region.set_value(options.get_layer(), id, selected.clone());
+                                    region.clear_value(options.get_layer(), id);
                                     region.save_data();
                                 }
+                            } else
+                            if self.editing_widgets[0].curr_index == 2 {
+                                // Pick selected tile
+                                if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                                    let s = region.get_value(id);
+                                    if s.len() > 0 {
+                                        self.tile_selector.selected = Some(s[0].clone());
+                                    }
+                                }
+                            } else
+                            if self.editing_widgets[0].curr_index == 3 {
+                                // Select range
                             }
                         }
                     }
                 }
+
 
                 consumed = true;
             }
@@ -910,6 +931,8 @@ impl EditorContent for RegionWidget {
                     self.widgets[0].curr_index = 0;
                     self.widgets[0].dirty = true;
                     options.set_editor_mode(RegionEditorMode::Tiles);
+                    self.editing_widgets[0].curr_index = 0;
+                    self.editing_widgets[0].dirty = true;
                     return true;
                 } else
                 if char == 'e' {
@@ -948,13 +971,25 @@ impl EditorContent for RegionWidget {
                     return true;
                 } else
                 if char == 'c' {
-                    self.editing_widgets[0].checked = !self.editing_widgets[0].checked;
+                    self.editing_widgets[0].curr_index = 1;
                     self.editing_widgets[0].dirty = true;
                     return true;
                 } else
                 if char == 'p' {
-                    self.editing_widgets[1].checked = !self.editing_widgets[0].checked;
-                    self.editing_widgets[1].dirty = true;
+                    self.editing_widgets[0].curr_index = 2;
+                    self.editing_widgets[0].dirty = true;
+                    return true;
+                }
+                if char == 'o' {
+                    if self.grid_size > 0 {
+                        self.grid_size -= 2;
+                    }
+                    return true;
+                } else
+                if char == 'i' {
+                    if self.grid_size < 100 {
+                        self.grid_size += 2;
+                    }
                     return true;
                 }
             }

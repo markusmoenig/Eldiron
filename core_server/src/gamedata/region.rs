@@ -228,9 +228,15 @@ impl GameRegion {
     }
 
     /// Sets a value at the given position
-    pub fn clear_value(&mut self, layer: usize, pos: (isize, isize)) {
+    pub fn clear_value(&mut self, _layer: usize, pos: (isize, isize)) {
         let undo = self.get_data();
 
+        self.data.layer1.remove(&pos);
+        self.data.layer2.remove(&pos);
+        self.data.layer3.remove(&pos);
+        self.data.layer4.remove(&pos);
+
+        /*
         if layer == 1 {
             self.data.layer1.remove(&pos);
         } else
@@ -242,7 +248,7 @@ impl GameRegion {
         } else
         if layer == 4 {
             self.data.layer4.remove(&pos);
-        }
+        }*/
         self.undo.add(undo, self.get_data());
     }
 

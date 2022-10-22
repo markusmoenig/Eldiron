@@ -121,6 +121,8 @@ pub struct AtomWidget {
     pub hover_help_title        : Option<String>,
     pub hover_help_text         : Option<String>,
 
+    pub hover_help_vector       : Option<Vec<(String, String)>>,
+
     pub button_mask             : Option<Vec<bool>>,
 
     pub debug_value             : Option<f32>,
@@ -174,6 +176,8 @@ impl AtomWidget {
 
             hover_help_title    : None,
             hover_help_text     : None,
+
+            hover_help_vector   : None,
 
             button_mask         : None,
 
@@ -1339,8 +1343,32 @@ impl AtomWidget {
     pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
         if context.contains_pos_for(pos, self.rect) {
-            context.hover_help_title = self.hover_help_title.clone();
-            context.hover_help_text = self.hover_help_text.clone();
+            if let Some(hover_help_vector) = &self.hover_help_vector {
+
+                let mut help_index = 0;
+
+                let rect = self.rect;
+
+                let cell_size = rect.3;
+                let mut spacing = rect.2 - self.text.len() * cell_size;
+                spacing /= self.text.len() - 1;
+
+                let mut x = rect.0;
+                for index in 0..self.text.len() {
+                    let r = (x, rect.1, cell_size, rect.3);
+
+                    if context.contains_pos_for(pos, r) {
+                        help_index = index;
+                    }
+                    x += cell_size + spacing;
+                }
+
+                context.hover_help_title = Some(hover_help_vector[help_index].0.clone());
+                context.hover_help_text = Some(hover_help_vector[help_index].1.clone());
+            } else {
+                context.hover_help_title = self.hover_help_title.clone();
+                context.hover_help_text = self.hover_help_text.clone();
+            }
         }
 
         if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::ToolBarCheckButton || self.atom_widget_type == AtomWidgetType::CheckButton|| self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::ToolBarMenuButton {
