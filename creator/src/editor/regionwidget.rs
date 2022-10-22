@@ -276,6 +276,9 @@ impl EditorContent for RegionWidget {
         self.loot_widgets[1].set_rect2((self.rect.0 + 190 + 40, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 40, 38));
 
         self.editing_widgets[0].set_rect2((self.rect.0 + 190, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 2, 140, 33));
+        self.editing_widgets[1].set_rect2((self.rect.0 + 350, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 2, 40, 33));
+        self.editing_widgets[2].set_rect2((self.rect.0 + 350 + 35, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 2, 40, 33));
+        self.editing_widgets[3].set_rect2((self.rect.0 + 350 + 35 + 35, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 2, 40, 33));
 
         self.behavior_graph.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.bottom_size, width, self.bottom_size);
         self.behavior_graph.set_mode_and_rect(GraphMode::Detail, self.behavior_graph.rect, context);
