@@ -12,7 +12,7 @@ pub struct GameRegion {
     pub behaviors       : Vec<GameBehavior>,
     pub displacements   : HashMap<(isize, isize), TileData>,
 
-    undo                : UndoStack,
+    pub undo            : UndoStack,
 }
 
 impl GameRegion {
@@ -197,8 +197,6 @@ impl GameRegion {
 
     /// Sets a value at the given position
     pub fn set_value(&mut self, layer: usize, pos: (isize, isize), value: TileData) {
-        let undo = self.get_data();
-
         if layer == 1 {
             self.data.layer1.insert(pos, value);
         } else
@@ -224,23 +222,10 @@ impl GameRegion {
         if self.data.max_pos.1 < pos.1 {
             self.data.max_pos.1 = pos.1;
         }
-        self.undo.add(undo, self.get_data());
     }
 
     /// Clears the value at the given position
     pub fn clear_value(&mut self, pos: (isize, isize)) {
-        let undo = self.get_data();
-
-        self.data.layer1.remove(&pos);
-        self.data.layer2.remove(&pos);
-        self.data.layer3.remove(&pos);
-        self.data.layer4.remove(&pos);
-
-        self.undo.add(undo, self.get_data());
-    }
-
-    /// Clears the value at the given position
-    pub fn clear_value_no_undo(&mut self, pos: (isize, isize)) {
         self.data.layer1.remove(&pos);
         self.data.layer2.remove(&pos);
         self.data.layer3.remove(&pos);
@@ -249,8 +234,6 @@ impl GameRegion {
 
     /// Clears the value at the given position for the given layer
     pub fn clear_layer_value(&mut self, layer: usize, pos: (isize, isize)) {
-        let undo = self.get_data();
-
         if layer == 1 {
             self.data.layer1.remove(&pos);
         } else
@@ -263,7 +246,6 @@ impl GameRegion {
         if layer == 4 {
             self.data.layer4.remove(&pos);
         }
-        self.undo.add(undo, self.get_data());
     }
 
     /// Calculates the min / max positions
@@ -294,7 +276,7 @@ impl GameRegion {
         }
 
         for p in to_clear {
-            self.clear_value_no_undo(p);
+            self.clear_value(p);
             println!("cleared {:?}", p);
             self.save_data();
         }
@@ -412,7 +394,7 @@ impl GameRegion {
     }
 
     /// Get the region data as string
-    fn get_data(&self) -> String {
+    pub fn get_data(&self) -> String {
         if let Some(json) = serde_json::to_string(&self.data).ok() {
             json
         } else {

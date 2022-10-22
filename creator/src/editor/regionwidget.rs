@@ -32,7 +32,10 @@ pub struct RegionWidget {
     debug_update            : Option<GameUpdate>,
 
     selected_range          : Option<(isize, isize, isize, isize)>,
-    clipboard               : Option<GameRegionData>
+    clipboard               : Option<GameRegionData>,
+
+    undo                    : Option<String>,
+    has_changed             : bool,
 }
 
 impl EditorContent for RegionWidget {
@@ -209,7 +212,7 @@ impl EditorContent for RegionWidget {
         paste_button.atom_data.text = "Paste".to_string();
         paste_button.set_rect((rect.0 + 350 + 35 + 35, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 40, 33), asset, context);
         paste_button.hover_help_title = Some("Paste Selection".to_string());
-        paste_button.hover_help_text = Some("Copies the contemt of the clipboard into the region on the next mouse click.".to_string());
+        paste_button.hover_help_text = Some("Copies the content of the clipboard into the region at the location of the next mouse click.".to_string());
 
         editing_widgets.push(cut_button);
         editing_widgets.push(copy_button);
@@ -246,6 +249,9 @@ impl EditorContent for RegionWidget {
 
             selected_range          : None,
             clipboard               : None,
+
+            undo                    : None,
+            has_changed             : false,
         }
     }
 
@@ -552,9 +558,10 @@ impl EditorContent for RegionWidget {
                                     if atom.atom_data.id == "Cut" {
                                         for y in 0..range.3 {
                                             for x in 0..range.2 {
-                                                region.clear_value_no_undo((x + range.0, y + range.1));
+                                                region.clear_value((x + range.0, y + range.1));
                                             }
                                         }
+                                        self.has_changed = true;
                                     }
                                 }
                             }
@@ -644,6 +651,11 @@ impl EditorContent for RegionWidget {
                     let editor_mode = options.get_editor_mode();
 
                     if editor_mode == RegionEditorMode::Tiles {
+
+                        if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                            self.undo = Some(region.get_data());
+                        }
+
                         // Copy from Clipboard
                         if self.clipboard.is_some() && self.editing_widgets[3].checked == true {
                             if let Some(clipboard) = &self.clipboard {
@@ -654,7 +666,7 @@ impl EditorContent for RegionWidget {
                                             let ix = id.0 + x;
                                             let iy = id.1 + y;
 
-                                            region.clear_value_no_undo((ix, iy));
+                                            region.clear_value((ix, iy));
 
                                             if let Some(tile) = clipboard.layer1.get(&(x, y)) {
                                                 region.data.layer1.insert((ix, iy), tile.clone());
@@ -668,6 +680,7 @@ impl EditorContent for RegionWidget {
                                             if let Some(tile) = clipboard.layer4.get(&(x, y)) {
                                                 region.data.layer4.insert((ix, iy), tile.clone());
                                             }
+                                            self.has_changed = true;
                                         }
                                     }
                                 }
@@ -678,7 +691,7 @@ impl EditorContent for RegionWidget {
                             if let Some(selected) = &self.tile_selector.selected {
                                 if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                                     region.set_value(options.get_layer(), id, selected.clone());
-                                    region.save_data();
+                                    self.has_changed = true;
                                 }
                             }
                         } else
@@ -687,7 +700,7 @@ impl EditorContent for RegionWidget {
                             if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                                 //region.clear_value(options.get_layer(), id);
                                 region.clear_value(id);
-                                region.save_data();
+                                self.has_changed = true;
                             }
                         } else
                         if self.editing_widgets[0].curr_index == 2 {
@@ -937,6 +950,21 @@ impl EditorContent for RegionWidget {
                 }
             }
         }
+
+        // Set undo point
+
+        if self.has_changed {
+            if let Some(undo) = &self.undo {
+                if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
+                    region.undo.add(undo.clone(), region.get_data());
+                    region.save_data();
+                }
+            }
+        }
+
+        self.has_changed = false;
+        self.undo = None;
+
         consumed
     }
 
@@ -998,12 +1026,43 @@ impl EditorContent for RegionWidget {
                         let editor_mode = options.get_editor_mode();
 
                         if editor_mode == RegionEditorMode::Tiles {
+
+                            // Copy from Clipboard
+                            if self.clipboard.is_some() && self.editing_widgets[3].checked == true {
+                                if let Some(clipboard) = &self.clipboard {
+                                    if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                                        for y in 0..clipboard.max_pos.1 {
+                                            for x in 0..clipboard.max_pos.0 {
+
+                                                let ix = id.0 + x;
+                                                let iy = id.1 + y;
+
+                                                region.clear_value((ix, iy));
+
+                                                if let Some(tile) = clipboard.layer1.get(&(x, y)) {
+                                                    region.data.layer1.insert((ix, iy), tile.clone());
+                                                }
+                                                if let Some(tile) = clipboard.layer2.get(&(x, y)) {
+                                                    region.data.layer2.insert((ix, iy), tile.clone());
+                                                }
+                                                if let Some(tile) = clipboard.layer3.get(&(x, y)) {
+                                                    region.data.layer3.insert((ix, iy), tile.clone());
+                                                }
+                                                if let Some(tile) = clipboard.layer4.get(&(x, y)) {
+                                                    region.data.layer4.insert((ix, iy), tile.clone());
+                                                }
+                                                self.has_changed = true;
+                                            }
+                                        }
+                                    }
+                                }
+                            } else
                             if self.editing_widgets[0].curr_index == 0 {
                                 // Draw selected tile
                                 if let Some(selected) = &self.tile_selector.selected {
                                     if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                                         region.set_value(options.get_layer(), id, selected.clone());
-                                        region.save_data();
+                                        self.has_changed = true;
                                     }
                                 }
                             } else
@@ -1011,7 +1070,7 @@ impl EditorContent for RegionWidget {
                                 // Clear
                                 if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                                     region.clear_value(id);
-                                    region.save_data();
+                                    self.has_changed = true;
                                 }
                             } else
                             if self.editing_widgets[0].curr_index == 2 {
