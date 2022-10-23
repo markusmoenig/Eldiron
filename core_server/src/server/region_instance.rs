@@ -168,6 +168,7 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::LockTree, lock_tree);
         nodes.insert(BehaviorNodeType::UnlockTree, unlock_tree);
         nodes.insert(BehaviorNodeType::SetState, set_state);
+        nodes.insert(BehaviorNodeType::Teleport, teleport);
 
         nodes.insert(BehaviorNodeType::Always, always);
         nodes.insert(BehaviorNodeType::InsideArea, inside_area);

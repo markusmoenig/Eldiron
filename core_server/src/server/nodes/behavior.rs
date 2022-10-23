@@ -1040,3 +1040,22 @@ pub fn drop_inventory(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
 
     BehaviorNodeConnector::Bottom
 }
+
+/// Teleport
+pub fn teleport(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let value = get_node_value((id.0, id.1, "position"), data, behavior_type);
+
+    if let Some(value) = value {
+        match &value {
+            Value::Position(position) => {
+                data.instances[instance_index].position = Some(position.clone());
+            }
+            _ => {},
+        }
+        data.instances[instance_index].old_position = None;
+        data.instances[instance_index].max_transition_time = 0;
+        data.instances[instance_index].curr_transition_time = 0;
+    }
+    BehaviorNodeConnector::Bottom
+}
