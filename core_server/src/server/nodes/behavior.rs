@@ -877,7 +877,7 @@ pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
 
         let mut behavior_tree_id : Option<Uuid> = None;
 
-        let tree_name = "Got Hit";
+        let tree_name = "onHit";
         if let Some(behavior) = data.behaviors.get(&data.instances[target_index].behavior_id) {
             for (node_id, node) in &behavior.nodes {
                 if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name {
