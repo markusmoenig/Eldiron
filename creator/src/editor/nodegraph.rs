@@ -1678,8 +1678,8 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::LockTree {
-            let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
-            node_widget.widgets.push(target_menu);
+            // let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
+            // node_widget.widgets.push(target_menu);
 
             let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
             AtomData::new("tree", Value::Empty()));
@@ -1696,8 +1696,8 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::UnlockTree {
-            let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
-            node_widget.widgets.push(target_menu);
+            // let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
+            // node_widget.widgets.push(target_menu);
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1705,8 +1705,8 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::SetState {
-            let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
-            node_widget.widgets.push(target_menu);
+            // let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
+            // node_widget.widgets.push(target_menu);
 
             let state_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Hidden".to_string(), "Killed".to_string(), "Purged".to_string()], Value::Integer(0));
             node_widget.widgets.push(state_menu);

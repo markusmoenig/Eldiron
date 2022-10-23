@@ -49,7 +49,8 @@ pub fn message(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
         text = text.replace("${CONTEXT}", &data.action_subject_text);
     }
     if text.contains("${DEF_CONTEXT}") {
-        let string = "the ".to_string() + data.action_subject_text.to_lowercase().as_str();
+        let def = if text.starts_with("${DEF_CONTEXT}") { "The ".to_string() } else { "the ".to_string() };
+        let string = def + data.action_subject_text.to_lowercase().as_str();
         text = text.replace("${DEF_CONTEXT}", &string);
     }
     if text.contains("${TARGET}") {
@@ -62,7 +63,8 @@ pub fn message(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
     if text.contains("${DEF_TARGET}") {
         let mut target_text = "".to_string();
         if let Some(target_index) = data.instances[instance_index].target_instance_index {
-            target_text = "the ".to_string() + data.instances[target_index].name.to_lowercase().as_str();
+            let def = if text.starts_with("${DEF_TARGET}") { "The ".to_string() } else { "the ".to_string() };
+            target_text = def + data.instances[target_index].name.to_lowercase().as_str();
         }
         text = text.replace("${DEF_TARGET}", &target_text);
     }
@@ -72,7 +74,11 @@ pub fn message(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
             if let Some(damage) = data.instances[target_index].damage_to_be_dealt {
                 damage_text = damage.to_string();
             }
+        } else
+        if let Some(damage) = data.instances[instance_index].damage_to_be_dealt {
+            damage_text = damage.to_string();
         }
+
         text = text.replace("${DAMAGE}", &damage_text);
     }
 
@@ -103,7 +109,8 @@ pub fn message(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
         buffer          : None
     };
 
-     data.instances[instance_index].messages.push(message_data.clone());
+    data.instances[instance_index].messages.push(message_data.clone());
+
     if let Some(target_index) = data.instances[instance_index].target_instance_index {
         data.instances[target_index].messages.push(message_data);
     }
@@ -408,8 +415,6 @@ pub fn multi_choice(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIn
             end_time                : t + 1000 * 20, // 20 Secs
         };
 
-        //println!("{}, {}", data.instances[player_index].name, data.instances[npc_index].name);
-
         // TODO: Add one Communication structure per player
         if data.instances[npc_index].communication.is_empty() {
             data.instances[npc_index].communication.push(com.clone());
@@ -683,12 +688,13 @@ pub fn call_behavior(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionI
 /// Lock Tree
 pub fn lock_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    let mut behavior_instance : Option<usize> = None;
+    let behavior_instance : Option<usize> = Some(get_local_instance_index(instance_index, data));
     let mut behavior_tree_id : Option<Uuid> = None;
-    let mut is_target = false;
+    let is_target = false;
 
     // We cannot precompute this as the values for the target may change
 
+    /*
     // The id's were not yet computed search the system trees, get the ids and store them.
     if let Some(v) = get_node_value((id.0, id.1, "for"), data, behavior_type) {
         if let Some(value) = v.to_integer() {
@@ -704,6 +710,7 @@ pub fn lock_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
             }
         }
     }
+    */
 
     if let Some(v) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
         if let Some(value) = v.to_string() {
@@ -738,10 +745,11 @@ pub fn lock_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
 }
 
 /// Unlock Tree
-pub fn unlock_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn unlock_tree(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    let mut behavior_instance : Option<usize> = None;
+    let behavior_instance : Option<usize> = Some(get_local_instance_index(instance_index, data));
 
+    /*
     if let Some(v) = get_node_value((id.0, id.1, "for"), data, behavior_type) {
         if let Some(value) = v.to_integer() {
             if value == 0 {
@@ -755,6 +763,7 @@ pub fn unlock_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
             }
         }
     }
+    */
 
     if let Some(behavior_instance) = behavior_instance {
         // Unlock the tree
@@ -767,8 +776,9 @@ pub fn unlock_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
 /// Set State
 pub fn set_state(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    let mut behavior_instance : Option<usize> = None;
+    let behavior_instance : Option<usize> =  Some(get_local_instance_index(instance_index, data));
 
+    /*
     // The id's were not yet computed search the system trees, get the ids and store them.
     if let Some(v) = get_node_value((id.0, id.1, "for"), data, behavior_type) {
         if let Some(value) = v.to_integer() {
@@ -782,7 +792,7 @@ pub fn set_state(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
                 }
             }
         }
-    }
+    }*/
 
     if let Some(value) = get_node_value((id.0, id.1, "state"), data, behavior_type) {
         if let Some(behavior_instance) = behavior_instance {
@@ -880,6 +890,7 @@ pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
         data.instances[instance_index].sleep_cycles = delay as usize;
 
         if let Some(behavior_tree_id) = behavior_tree_id {
+            data.action_subject_text = data.instances[instance_index].name.clone();
             let _rc = data.execute_node(target_index, behavior_tree_id, None);
             if data.instances[target_index].state == BehaviorInstanceState::Normal {
                 rc = BehaviorNodeConnector::Right;
@@ -906,6 +917,7 @@ pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
 
         if let Some(mut value) = data.scopes[instance_index].get_value::<i32>(&data.hitpoints) {
             value -= damage;
+            data.instances[instance_index].damage_to_be_dealt = Some(damage);
             value = value.max(0);
             data.scopes[instance_index].set_value(&data.hitpoints, value);
             if value <= 0 {
@@ -915,6 +927,7 @@ pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
         if let Some(v) = data.scopes[instance_index].get_value::<f32>(&data.hitpoints) {
             let mut value = v as i32;
             value -= damage;
+            data.instances[instance_index].damage_to_be_dealt = Some(damage);
             value = value.max(0);
             data.scopes[instance_index].set_value(&data.hitpoints, value);
             if value <= 0 {

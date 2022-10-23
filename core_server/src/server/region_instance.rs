@@ -122,7 +122,6 @@ impl RegionInstance<'_> {
                 if let Some(n) = s.parse::<i32>().ok() {
                     let mut rng = thread_rng();
                     let random = rng.gen_range(1..=n) as f32;
-                    //println!{"d{} {}",n, random};
                     return Ok(Some(random.into()));
                 }
             }
@@ -267,7 +266,6 @@ impl RegionInstance<'_> {
             self.executed_connections = vec![];
             self.script_errors = vec![];
 
-            self.instances[inst_index].messages = vec![];
             self.instances[inst_index].audio = vec![];
             self.instances[inst_index].multi_choice_data = vec![];
 
@@ -491,6 +489,8 @@ impl RegionInstance<'_> {
 
                         self.instances[inst_index].action = None;
                     }
+                    // Characters do not lock on targets
+                    self.instances[inst_index].target_instance_index = None;
                 }
             }
 
@@ -853,6 +853,8 @@ impl RegionInstance<'_> {
                     multi_choice_data       : self.instances[inst_index].multi_choice_data.clone(),
                     communication           : self.instances[inst_index].communication.clone(),
                  };
+
+                self.instances[inst_index].messages = vec![];
 
                 //self.instances[inst_index].update = serde_json::to_string(&update).ok();
                 if let Some(transfer_to) = needs_transfer_to {
@@ -1536,7 +1538,6 @@ impl RegionInstance<'_> {
                     name        : Some(behavior.name.clone()),
                     alignment   : default_alignment
                 };
-                //println!("{:?}", main);
                 to_create.push(main)
             }
             // Add the instances of main

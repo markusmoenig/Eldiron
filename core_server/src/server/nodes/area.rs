@@ -214,7 +214,6 @@ pub fn teleport_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
         if let Some(value) = value {
             for index in area_list {
                 //data.instances[*index].position = Some((value.0 as usize, value.1 as isize, value.2 as isize));
-                println!("{:?}", value);
                 match &value {
                     Value::Position(position) => {
                         data.instances[*index].position = Some(position.clone());
