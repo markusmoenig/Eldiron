@@ -766,7 +766,28 @@ impl GameRender<'_> {
                 gr.0 = 0;
             } else {
                 let left = x_tiles / 2;
-                offset.0 -= left;
+
+                let distance_to_right = region.max_pos.0 - position.x;
+                let distance_to_left = position.x - region.min_pos.0;
+
+                if distance_to_left < left + 1 {
+                    offset.0 = region.min_pos.0;
+                    if distance_to_left == left && gr.0 > 0 {
+                        // At the transition point going left do not clear
+                    } else {
+                        gr.0 = 0;
+                    }
+                } else
+                if distance_to_right < left + 1 {
+                    offset.0 = region.max_pos.0 - x_tiles + 1;
+                    if distance_to_right == left && gr.0 < 0 {
+                        // At the transition point going right do not clear
+                    } else {
+                        gr.0 = 0;
+                    }
+                } else {
+                    offset.0 -= left;
+                }
             }
 
             if region_height * tile_size as isize  <= rect.3 as isize {
@@ -774,7 +795,28 @@ impl GameRender<'_> {
                 offset.1 = region.min_pos.1;
             } else {
                 let top = y_tiles / 2;
-                offset.1 -= top;
+
+                let distance_to_bottom = region.max_pos.1 - position.y;
+                let distance_to_top = position.y - region.min_pos.1;
+
+                if distance_to_top < top + 1 {
+                    offset.1 = region.min_pos.1;
+                    if distance_to_top == top && gr.1 > 0 {
+                        // At the transition point going downward do not clear
+                    } else {
+                        gr.1 = 0;
+                    }
+                } else
+                if distance_to_bottom < top + 1 {
+                    offset.1 = region.max_pos.1 - y_tiles + 1;
+                    if distance_to_bottom == top && gr.1 < 0 {
+                        // At the transition point going upward do not clear
+                    } else {
+                        gr.1 = 0;
+                    }
+                } else {
+                    offset.1 -= top;
+                }
             }
 
             // Expand the drawn area if scrolling is in progress
