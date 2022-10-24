@@ -857,12 +857,9 @@ impl RegionInstance<'_> {
 
                 self.instances[inst_index].messages = vec![];
 
-                //self.instances[inst_index].update = serde_json::to_string(&update).ok();
                 if let Some(transfer_to) = needs_transfer_to {
-                    let mut scope_buffer = ScopeBuffer::new();
-                    scope_buffer.read_from_scope(&self.scopes[inst_index]);
-
-                    self.instances[inst_index].scope_buffer = Some(scope_buffer);
+                    // Serialize character
+                    self.serialize_character_instance(inst_index);
                     messages.push(Message::TransferCharacter(transfer_to, self.instances[inst_index].clone()));
                     self.purge_instance(inst_index);
                 }
@@ -1408,7 +1405,7 @@ impl RegionInstance<'_> {
 
         let index = self.instances.len();
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None };
 
         self.instances.push(instance);
         self.scopes.push(scope);
@@ -1563,7 +1560,7 @@ impl RegionInstance<'_> {
 
                 //println!("Creating instance {}", inst.name.unwrap());
 
-                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None };
+                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None };
 
                 index = self.instances.len();
                 self.instances.push(instance);
@@ -1694,13 +1691,13 @@ impl RegionInstance<'_> {
     }
 
     /// Transfers a character instance into this region
-    pub fn transfer_character_into(&mut self, instance: BehaviorInstance) {
+    pub fn transfer_character_into(&mut self, mut instance: BehaviorInstance) {
         // TODO, fill in purged
         self.player_uuid_indices.insert(instance.id, self.instances.len());
+
         let mut scope = rhai::Scope::new();
-        if let Some(buffer) = &instance.scope_buffer {
-            buffer.write_to_scope(&mut scope);
-        }
+        self.deserialize_character_instance(&mut instance, &mut scope);
+
         self.instances.push(instance);
         self.scopes.push(scope);
     }
@@ -1708,6 +1705,41 @@ impl RegionInstance<'_> {
     /// Sets the debugging behavior id.
     pub fn set_debug_behavior_id(&mut self, behavior_id: Uuid) {
         self.debug_behavior_id = Some(behavior_id);
+    }
+
+    /// Serializes the given instance index
+    fn serialize_character_instance(&mut self, inst_index: usize) {
+        // Serialize character
+        let mut scope_buffer = ScopeBuffer::new();
+        scope_buffer.read_from_scope(&self.scopes[inst_index]);
+
+        if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
+            if let Some(inv) = mess.write_lock::<Inventory>() {
+
+                let i = inv.clone();
+                if let Some(json) = serde_json::to_string(&i).ok() {
+                        self.instances[inst_index].inventory_buffer = Some(json);
+                }
+            }
+        }
+
+        self.instances[inst_index].scope_buffer = Some(scope_buffer);
+    }
+
+    /// Deserializes the given instance
+    fn deserialize_character_instance(&self, instance: &mut BehaviorInstance, mut scope: &mut Scope) {
+        if let Some(buffer) = &instance.scope_buffer {
+            buffer.write_to_scope(&mut scope);
+        }
+        scope.set_value("messages", ScriptMessageCmd::new());
+        if let Some(inventory_buffer) = &instance.inventory_buffer {
+            let inventory : Inventory = serde_json::from_str(&inventory_buffer)
+                .unwrap_or(Inventory::new());
+            scope.set_value("inventory", inventory);
+        } else {
+            // Should not happen
+            scope.set_value("inventory", Inventory::new());
+        }
     }
 
     /// Gets the current time in milliseconds
