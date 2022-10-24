@@ -1275,6 +1275,7 @@ impl RegionInstance<'_> {
             if let Some(behavior_data) = serde_json::from_str::<GameBehaviorData>(&i).ok() {
                 if let Some(instances) = &behavior_data.loot {
                     for instance in instances {
+                        if instance.position.region != self.region_data.id { continue; }
                         let mut loot = LootData {
                             id          : behavior_data.id.clone(),
                             name        : Some(behavior_data.name.clone()),
