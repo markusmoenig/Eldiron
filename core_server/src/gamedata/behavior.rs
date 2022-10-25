@@ -70,6 +70,8 @@ pub enum BehaviorNodeType {
     DropInventory,
     Target,
     Teleport,
+    Effect,
+    Audio
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -212,6 +214,9 @@ pub struct BehaviorInstance {
 
     /// Damage to be dealt to this character
     pub damage_to_be_dealt      : Option<i32>,
+
+    /// Effects to be played in this tick
+    pub effects                 : Vec<TileId>,
 }
 
 /// Represents a character behavior instance

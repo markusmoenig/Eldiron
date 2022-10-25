@@ -50,7 +50,9 @@ pub struct GameRender<'a> {
 
     pub this_map                : Dynamic,
 
-    pub vendor_rects            : Vec<(usize, usize, usize, usize, Uuid)>
+    pub vendor_rects            : Vec<(usize, usize, usize, usize, Uuid)>,
+
+    pub character_effects       : FxHashMap<Uuid, (TileId, usize)>
 }
 
 impl GameRender<'_> {
@@ -159,6 +161,8 @@ impl GameRender<'_> {
             this_map            : this_map.into(),
 
             vendor_rects        : vec![],
+
+            character_effects   : FxHashMap::default(),
         }
     }
 
@@ -956,6 +960,29 @@ impl GameRender<'_> {
 
                         if let Some(map) = self.asset.get_map_of_id(tile.tilemap) {
                             self.draw2d.draw_animated_tile_with_blended_color(frame, &pos, map, stride, &(tile.x_off as usize, tile.y_off as usize), anim_counter, tile_size, &background, light);
+                        }
+
+                        // Insert effects into queue (right now only one is handled)
+                        if character.effects.is_empty() == false {
+                            for e in &character.effects {
+                                self.character_effects.insert(character.id, (e.clone(), anim_counter));
+                            }
+                        }
+
+                        // Play current effect
+                        if let Some(fx) = self.character_effects.get(&character.id) {
+                            let anim_c = anim_counter - fx.1;
+
+                            if let Some(map) = self.asset.get_map_of_id(fx.0.tilemap) {
+                                let grid_pos = (fx.0.x_off as usize, fx.0.y_off as usize);
+                                self.draw2d.draw_animated_tile_with_blended_color(frame, &pos, map, stride, &grid_pos, anim_c, tile_size, &background, 1.0);
+
+                                if let Some(tile) = map.get_tile(&grid_pos) {
+                                    if tile.anim_tiles.len() < anim_c {
+                                        self.character_effects.remove(&character.id);
+                                    }
+                                }
+                            }
                         }
                     }
                 }

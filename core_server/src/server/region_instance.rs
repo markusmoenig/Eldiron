@@ -149,6 +149,8 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::DealDamage, deal_damage);
         nodes.insert(BehaviorNodeType::TakeDamage, take_damage);
         nodes.insert(BehaviorNodeType::DropInventory, drop_inventory);
+        nodes.insert(BehaviorNodeType::Effect, effect);
+        nodes.insert(BehaviorNodeType::Audio, audio);
 
         /*
         nodes.insert(BehaviorNodeType::DisplaceTiles, displace_tiles);
@@ -700,6 +702,7 @@ impl RegionInstance<'_> {
                         name                    : self.instances[inst_index].name.clone(),
                         id                      : self.instances[inst_index].id,
                         index                   : inst_index,
+                        effects                 : self.instances[inst_index].effects.clone(),
                      };
                      if let Some(list) = self.characters.get_mut(&position.region) {
                          list.push(character);
@@ -707,6 +710,7 @@ impl RegionInstance<'_> {
                          self.characters.insert(position.region, vec![character]);
                      }
                 }
+                self.instances[inst_index].effects = vec![];
             }
 
             // Check the inventory for lights
@@ -1406,7 +1410,7 @@ impl RegionInstance<'_> {
 
         let index = self.instances.len();
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, effects: vec![] };
 
         self.instances.push(instance);
         self.scopes.push(scope);
@@ -1561,7 +1565,7 @@ impl RegionInstance<'_> {
 
                 //println!("Creating instance {}", inst.name.unwrap());
 
-                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None };
+                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, effects: vec![] };
 
                 index = self.instances.len();
                 self.instances.push(instance);

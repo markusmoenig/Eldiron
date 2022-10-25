@@ -1204,13 +1204,15 @@ impl EditorContent for NodeGraph  {
                 "Target" => BehaviorNodeType::Target,
                 "Teleport" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::TeleportArea,
                 "Teleport" => BehaviorNodeType::Teleport,
+                "Audio" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::AudioArea,
+                "Audio" => BehaviorNodeType::Audio,
+                "Effect" => BehaviorNodeType::Effect,
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
                 "Leave Area" => BehaviorNodeType::LeaveArea,
                 "Inside Area" => BehaviorNodeType::InsideArea,
                 "Message" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::MessageArea,
-                "Audio" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::AudioArea,
                 "Light" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::LightArea,
                 "Action" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::ActionArea,
 
@@ -1844,6 +1846,33 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
+       if node_behavior_type == BehaviorNodeType::Effect {
+            let mut effect_atom = AtomWidget::new(vec![], AtomWidgetType::NodeEffectTileButton,
+            AtomData::new("effect", Value::Empty()));
+            effect_atom.atom_data.text = "Effect".to_string();
+            let id = (behavior_data_id, node_id, "effect".to_string());
+            effect_atom.behavior_id = Some(id.clone());
+            effect_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(effect_atom);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::Audio {
+            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+            AtomData::new("audio", Value::Empty()));
+            atom1.atom_data.text = "Audio".to_string();
+            let id = (behavior_data_id, node_id, "audio".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+        } else
+
 
         // Area
         if node_behavior_type == BehaviorNodeType::InsideArea {

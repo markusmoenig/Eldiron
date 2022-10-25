@@ -13,6 +13,7 @@ pub struct CharacterData {
     pub curr_transition_time    : usize,
 
     pub tile                    : TileId,
+    pub effects                 : Vec<TileId>
 }
 
 /// Represents a placed loot instance in the region

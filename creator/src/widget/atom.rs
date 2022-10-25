@@ -53,6 +53,7 @@ pub enum AtomWidgetType {
     NodeCharTileButton,
     NodeIconTileButton,
     NodeEnvTileButton,
+    NodeEffectTileButton,
     NodeGridSizeButton,
     NodeScreenButton,
     NodePropertyLog,
@@ -518,7 +519,7 @@ impl AtomWidget {
                 }
 
             } else
-            if self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton || self.atom_widget_type == AtomWidgetType::NodeIconTileButton {
+            if self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton || self.atom_widget_type == AtomWidgetType::NodeIconTileButton || self.atom_widget_type == AtomWidgetType::NodeEffectTileButton {
 
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height);
 
@@ -977,7 +978,7 @@ impl AtomWidget {
             return false;
         }
         if self.contains_pos(pos) {
-            if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeNumberButton || self.atom_widget_type == AtomWidgetType::NodeSize2DButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton || self.atom_widget_type == AtomWidgetType::NodeIconTileButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton || self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeNumberButton || self.atom_widget_type == AtomWidgetType::NodeSize2DButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton || self.atom_widget_type == AtomWidgetType::NodeIconTileButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton || self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton || self.atom_widget_type == AtomWidgetType::NodeEffectTileButton {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
@@ -1228,6 +1229,11 @@ impl AtomWidget {
             if self.atom_widget_type == AtomWidgetType::NodeIconTileButton {
                 context.dialog_entry = DialogEntry::NodeTile;
                 context.dialog_tile_usage = vec![TileUsage::Icon];
+                context.open_dialog(self.behavior_id.clone().unwrap(), self.atom_data.value.clone());
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodeEffectTileButton {
+                context.dialog_entry = DialogEntry::NodeTile;
+                context.dialog_tile_usage = vec![TileUsage::Effect];
                 context.open_dialog(self.behavior_id.clone().unwrap(), self.atom_data.value.clone());
             } else
             if self.atom_widget_type == AtomWidgetType::NodeEnvTileButton {

@@ -1059,3 +1059,25 @@ pub fn teleport(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
     }
     BehaviorNodeConnector::Bottom
 }
+
+/// Play effect for the character
+pub fn effect(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    let value = get_node_value((id.0, id.1, "effect"), data, behavior_type);
+
+    if let Some(value) = value {
+        if let Some(tile) = value.to_tile_id() {
+            data.instances[instance_index].effects.push(tile);
+        }
+    }
+    BehaviorNodeConnector::Bottom
+}
+
+/// Play audio
+pub fn audio(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    if let Some(value) = get_node_value((id.0, id.1, "audio"), data, behavior_type) {
+        if let Some(audio_file) = value.to_string() {
+            data.instances[instance_index].audio.push(audio_file.clone());
+        }
+    }
+    BehaviorNodeConnector::Bottom
+}
