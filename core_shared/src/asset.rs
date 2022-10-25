@@ -80,9 +80,9 @@ impl Asset  {
             // Generate the tile map for this dir element
             let path = &path.unwrap().path();
 
-            if path.is_file() && path.extension().map(|s| s == "wav").unwrap_or(false) {
+            if path.is_file() && path.extension().map(|s| s == "wav" || s == "ogg").unwrap_or(false) {
                 let mut name = std::path::Path::new(&path).file_stem().unwrap().to_str().unwrap().to_string();
-                name = format!("{}.{}", name, std::path::Path::new(&path).extension().unwrap().to_str().unwrap());
+                name = format!("{}.{}", name, std::path::Path::new(&path).extension().unwrap().to_str().unwrap().to_lowercase());
                 self.audio_names.push(name.to_string());
                 self.audio_paths.push(path.clone());
             }

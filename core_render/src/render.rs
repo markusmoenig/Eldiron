@@ -5,7 +5,7 @@ use crate::prelude::*;
 use crate::draw2d::Draw2D;
 use rhai::{ Engine, Scope, AST, Dynamic, Map };
 
-use audio_engine::{AudioEngine, WavDecoder};
+use audio_engine::{AudioEngine, WavDecoder, OggDecoder};
 
 #[derive(Eq, Hash, PartialEq)]
 pub enum Group {
@@ -1206,10 +1206,20 @@ impl GameRender<'_> {
 
                             let buffered = std::io::BufReader::new(file);
 
-                            if let Some(wav) = WavDecoder::new(buffered).ok() {
-                                if let Some(mut sound) = audio_engine.new_sound_with_group(Group::Effect, wav).ok() {
-                                    sound.play();
-                                    //audio_engine.set_group_volume(Group::Effect, 0.1);
+                            if name.ends_with("wav") {
+                                if let Some(wav) = WavDecoder::new(buffered).ok() {
+                                    if let Some(mut sound) = audio_engine.new_sound_with_group(Group::Effect, wav).ok() {
+                                        sound.play();
+                                        //audio_engine.set_group_volume(Group::Effect, 0.1);
+                                    }
+                                }
+                            } else
+                            if name.ends_with("ogg") {
+                                if let Some(ogg) = OggDecoder::new(buffered).ok() {
+                                    if let Some(mut sound) = audio_engine.new_sound_with_group(Group::Effect, ogg).ok() {
+                                        sound.play();
+                                        //audio_engine.set_group_volume(Group::Effect, 0.1);
+                                    }
                                 }
                             }
                         }
@@ -1231,11 +1241,22 @@ impl GameRender<'_> {
 
                             let buffered = std::io::BufReader::new(std::io::Cursor::new(bytes.data));
 
-                            if let Some(wav) = WavDecoder::new(buffered).ok() {
+                            if name.ends_with("wav") {
+                                if let Some(wav) = WavDecoder::new(buffered).ok() {
 
-                                if let Some(mut sound) = audio_engine.new_sound_with_group(Group::Effect, wav).ok() {
-                                    sound.play();
-                                    audio_engine.set_group_volume(Group::Effect, 0.1);
+                                    if let Some(mut sound) = audio_engine.new_sound_with_group(Group::Effect, wav).ok() {
+                                        sound.play();
+                                        audio_engine.set_group_volume(Group::Effect, 0.1);
+                                    }
+                                }
+                            } else
+                            if name.ends_with("ogg") {
+                                if let Some(ogg) = OggDecoder::new(buffered).ok() {
+
+                                    if let Some(mut sound) = audio_engine.new_sound_with_group(Group::Effect, ogg).ok() {
+                                        sound.play();
+                                        audio_engine.set_group_volume(Group::Effect, 0.1);
+                                    }
                                 }
                             }
                         }

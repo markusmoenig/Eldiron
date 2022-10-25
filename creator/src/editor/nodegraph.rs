@@ -1870,7 +1870,9 @@ impl EditorContent for NodeGraph  {
             node_widget.widgets.push(atom1);
 
             node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
 
 
