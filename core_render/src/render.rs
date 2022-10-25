@@ -975,7 +975,7 @@ impl GameRender<'_> {
 
                             if let Some(map) = self.asset.get_map_of_id(fx.0.tilemap) {
                                 let grid_pos = (fx.0.x_off as usize, fx.0.y_off as usize);
-                                self.draw2d.draw_animated_tile_with_blended_color(frame, &pos, map, stride, &grid_pos, anim_c, tile_size, &background, 1.0);
+                                self.draw2d.draw_animated_tile_with_blended_color(frame, &pos, map, stride, &grid_pos, anim_c, tile_size, &background, light);
 
                                 if let Some(tile) = map.get_tile(&grid_pos) {
                                     if tile.anim_tiles.len() < anim_c {
