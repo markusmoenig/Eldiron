@@ -1635,7 +1635,7 @@ impl Editor<'_> {
         }
 
         // Node Drag ?
-        if let Some(drag_context) = &self.context.drag_context {
+        if let Some(drag_context) = &self.context.drag_context.clone() {
 
             if self.state == EditorState::TilesOverview {
                 if drag_context.text == "Tilemaps" {
@@ -1680,6 +1680,36 @@ impl Editor<'_> {
                         }
                     }
                 } else
+                if drag_context.text == "Audio" {
+                    let res = rfd::FileDialog::new()
+                        .add_filter("Audio", &["wav", "ogg"])
+                        .set_title("Choose Audio")
+                        .pick_files();
+
+                    // Add Image
+                    if let Some(paths) = res {
+                        for p in paths {
+
+                            let dest_path = asset.tileset.path.join("assets").join("audio").join(p.file_name().unwrap()).clone();
+                            let rc = fs_extra::file::copy(p.clone(), dest_path, &fs_extra::file::CopyOptions::new());
+
+                            if rc.is_ok() {
+                                if asset.add_audio(p) {
+
+                                    let index = asset.audio_names.len() - 1;
+                                    let name = asset.audio_names[index].clone();
+                                    let mut node = NodeWidget::new(name.clone(), NodeUserData { position: (0,0) });
+                                    node.sub_type = NodeSubType::Audio;
+
+                                    self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
+
+                                    self.toolbar.widgets[0].text.push(name);
+                                    self.toolbar.widgets[0].dirty = true;
+                                }
+                            }
+                        }
+                    }
+                }
                 if drag_context.text == "Images" {
                     let res = rfd::FileDialog::new()
                         .add_filter("PNG", &["png"])

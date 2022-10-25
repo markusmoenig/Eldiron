@@ -136,4 +136,16 @@ impl Asset  {
         }
         None
     }
+
+    /// Add a tilemap from the given path
+    pub fn add_audio(&mut self, path: PathBuf) -> bool {
+        if path.is_file() && path.extension().map(|s| s == "wav" || s == "ogg").unwrap_or(false) {
+            let mut name = std::path::Path::new(&path).file_stem().unwrap().to_str().unwrap().to_string();
+            name = format!("{}.{}", name, std::path::Path::new(&path).extension().unwrap().to_str().unwrap().to_lowercase());
+            self.audio_names.push(name.to_string());
+            self.audio_paths.push(path.clone());
+            return true;
+        }
+        false
+    }
 }

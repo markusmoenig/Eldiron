@@ -4,7 +4,7 @@ use zeno::{Mask, Stroke};
 use directories::{ UserDirs };
 use std::fs::File;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub struct ScreenDragContext {
     pub text                            : String,
     pub color                           : [u8;4],

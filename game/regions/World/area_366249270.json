@@ -1,1 +1,0 @@
-{"nodes":{"0":{"behavior_type":"Always","name":"Always","values":{},"id":0,"position":[53,65]},"1":{"behavior_type":"LightArea","name":"Light","values":{},"id":1,"position":[316,74]}},"connections":[[0,"Right",1,"Left"]],"id":715045284,"name":"New Behavior","curr_node_id":1}

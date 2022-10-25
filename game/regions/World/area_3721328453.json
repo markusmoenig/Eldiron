@@ -1,1 +1,0 @@
-{"nodes":{"0":{"behavior_type":"InsideArea","name":"Inside Area","values":{},"id":0,"position":[87,23]},"1":{"behavior_type":"TeleportArea","name":"Teleport Area","values":{"position":[0.0,9.0,10.0,0.0,""]},"id":1,"position":[378,31]}},"connections":[[0,"Right",1,"Left"]],"id":2644139855,"name":"New Behavior","curr_node_id":1}
