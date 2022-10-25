@@ -735,6 +735,7 @@ dependencies = [
 name = "creator"
 version = "0.5.5"
 dependencies = [
+ "audio-engine",
  "code_editor",
  "copypasta",
  "core_render",

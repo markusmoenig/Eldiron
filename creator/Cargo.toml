@@ -33,6 +33,7 @@ open = "3.0.1"
 copypasta = "0.8.1"
 code_editor = "0.3.0"
 rfd = "0.10.0"
+audio-engine = "0.4.0"
 
 [dependencies.uuid]
 version = "1.1.2"

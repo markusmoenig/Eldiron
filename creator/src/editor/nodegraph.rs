@@ -607,6 +607,18 @@ impl EditorContent for NodeGraph  {
                         self.drag_indices = vec![];
                         self.nodes[index].dirty = true;
                         self.dirty = true;
+
+                        if self.sub_type == NodeSubType::Audio {
+                            for (audio_index, n) in asset.audio_names.iter().enumerate() {
+                                if *n == self.nodes[index].name {
+
+                                    if let Some(file) = std::fs::File::open(asset.audio_paths[audio_index].clone()).ok() {
+                                        let buffered = std::io::BufReader::new(file);
+                                        context.play_audio((*n).to_string(), buffered);
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     rc = true;

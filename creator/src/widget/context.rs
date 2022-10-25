@@ -2,7 +2,9 @@ use crate::prelude::*;
 
 use zeno::{Mask, Stroke};
 use directories::{ UserDirs };
-use std::fs::File;
+use std::{fs::File, io::BufReader};
+
+use audio_engine::{AudioEngine, WavDecoder, OggDecoder};
 
 #[derive(PartialEq, Clone)]
 pub struct ScreenDragContext {
@@ -151,7 +153,11 @@ pub struct ScreenContext<'a> {
 
     // Icons
 
-    pub icons                           : FxHashMap<String, (Vec<u8>, u32, u32)>
+    pub icons                           : FxHashMap<String, (Vec<u8>, u32, u32)>,
+
+    // Audio
+
+    pub audio_engine                    : Option<AudioEngine<Group>>,
 }
 
 impl ScreenContext<'_> {
@@ -383,7 +389,9 @@ impl ScreenContext<'_> {
             debug_log_messages          : vec![],
             debug_log_inventory         : Inventory::new(),
 
-            icons
+            icons,
+
+            audio_engine                : None,
         }
     }
 
@@ -546,5 +554,31 @@ impl ScreenContext<'_> {
     /// Creates a property id
     pub fn create_property_id(&mut self, property: &str) -> (Uuid, Uuid, String) {
         (Uuid::new_v4(), Uuid::new_v4(), property.to_string())
+    }
+
+    /// Plays the given audio name
+    pub fn play_audio(&mut self, name: String, buffered: BufReader<File>) {
+        if self.audio_engine.is_none() {
+            self.audio_engine = AudioEngine::with_groups::<Group>().ok();
+        }
+
+        if let Some(audio_engine) = &self.audio_engine {
+            if name.ends_with("wav") {
+                if let Some(wav) = WavDecoder::new(buffered).ok() {
+                    if let Some(mut sound) = audio_engine.new_sound_with_group(Group::Effect, wav).ok() {
+                        sound.play();
+                        //audio_engine.set_group_volume(Group::Effect, 0.1);
+                    }
+                }
+            } else
+            if name.ends_with("ogg") {
+                if let Some(ogg) = OggDecoder::new(buffered).ok() {
+                    if let Some(mut sound) = audio_engine.new_sound_with_group(Group::Effect, ogg).ok() {
+                        sound.play();
+                        //audio_engine.set_group_volume(Group::Effect, 0.1);
+                    }
+                }
+            }
+        }
     }
 }
