@@ -724,6 +724,12 @@ impl GameRender<'_> {
                 }
             }
 
+            // Get base lighting
+            let mut base_light = 1.0;
+            if let Some(property) = region.settings.get(&"base_lighting") {
+                base_light = property.to_float() as f64;
+            }
+
             // Compute the light_map
             let mut light_map : FxHashMap<(isize, isize), f64> = FxHashMap::default();
             if let Some(lights) = self.lights.get(&region.id) {
@@ -843,8 +849,6 @@ impl GameRender<'_> {
                     y_tiles += 1;
                 }
             }
-
-            let base_light = 0.5;
 
             // Draw Region
 
