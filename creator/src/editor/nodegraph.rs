@@ -1401,9 +1401,7 @@ impl EditorContent for NodeGraph  {
 
             // Add the node to the behavior tree ids
             self.behavior_tree_ids.push(node_widget.id);
-            if self.curr_behavior_tree_id == None {
-                self.curr_behavior_tree_id = Some(node_widget.id);
-            }
+            self.curr_behavior_tree_id = Some(node_widget.id);
         } else
         if node_behavior_type == BehaviorNodeType::Linear {
             node_widget.help_link = Some("https://book.eldiron.com/nodes/linear.html".to_string());

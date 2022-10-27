@@ -81,6 +81,19 @@ pub fn message(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
 
         text = text.replace("${DAMAGE}", &damage_text);
     }
+    if text.contains("${HEALING}") {
+        let mut healing_text = "".to_string();
+        if let Some(target_index) = data.instances[instance_index].target_instance_index {
+            if let Some(healing) = data.instances[target_index].healing_to_be_dealt {
+                healing_text = healing.to_string();
+            }
+        } else
+        if let Some(healing) = data.instances[instance_index].healing_to_be_dealt {
+            healing_text = healing.to_string();
+        }
+
+        text = text.replace("${HEALING}", &healing_text);
+    }
 
     // Do I need to evaluate the script for variables ?
     if text.contains("${") {
