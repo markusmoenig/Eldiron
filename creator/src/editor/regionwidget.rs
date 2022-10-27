@@ -193,21 +193,21 @@ impl EditorContent for RegionWidget {
 
         editing_widgets.push(draw_mode_button);
 
-        let mut cut_button = AtomWidget::new(vec!["draw".to_string()], AtomWidgetType::CheckedIcon,
+        let mut cut_button = AtomWidget::new(vec!["cut".to_string()], AtomWidgetType::CheckedIcon,
         AtomData::new("Cut", Value::Empty()));
         cut_button.atom_data.text = "Cut".to_string();
         cut_button.set_rect((rect.0 + 350, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 40, 33), asset, context);
         cut_button.hover_help_title = Some("Cut Selection".to_string());
         cut_button.hover_help_text = Some("Copies the current selection to the clipboard and clears the selected area.".to_string());
 
-        let mut copy_button = AtomWidget::new(vec!["draw".to_string()], AtomWidgetType::CheckedIcon,
+        let mut copy_button = AtomWidget::new(vec!["copy".to_string()], AtomWidgetType::CheckedIcon,
         AtomData::new("Copy", Value::Empty()));
         copy_button.atom_data.text = "Copy".to_string();
         copy_button.set_rect((rect.0 + 350 + 35, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 40, 33), asset, context);
         copy_button.hover_help_title = Some("Copy Selection".to_string());
         copy_button.hover_help_text = Some("Copies the current selection to the clipboard and clears the selected area.".to_string());
 
-        let mut paste_button = AtomWidget::new(vec!["draw".to_string()], AtomWidgetType::CheckedIcon,
+        let mut paste_button = AtomWidget::new(vec!["paste".to_string()], AtomWidgetType::CheckedIcon,
         AtomData::new("Paste", Value::Empty()));
         paste_button.atom_data.text = "Paste".to_string();
         paste_button.set_rect((rect.0 + 350 + 35 + 35, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 40, 33), asset, context);
