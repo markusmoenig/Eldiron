@@ -71,7 +71,9 @@ pub enum BehaviorNodeType {
     Target,
     Teleport,
     Effect,
-    Audio
+    Audio,
+    Heal,
+    TakeHeal,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -214,6 +216,9 @@ pub struct BehaviorInstance {
 
     /// Damage to be dealt to this character
     pub damage_to_be_dealt      : Option<i32>,
+
+    /// Healing to be dealt to this character
+    pub healing_to_be_dealt     : Option<i32>,
 
     /// Effects to be played in this tick
     pub effects                 : Vec<TileId>,

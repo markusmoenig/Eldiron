@@ -776,9 +776,8 @@ pub fn unlock_tree(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
 /// Set State
 pub fn set_state(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    let behavior_instance : Option<usize> =  Some(get_local_instance_index(instance_index, data));
+    let mut behavior_instance : Option<usize> = None;
 
-    /*
     // The id's were not yet computed search the system trees, get the ids and store them.
     if let Some(v) = get_node_value((id.0, id.1, "for"), data, behavior_type) {
         if let Some(value) = v.to_integer() {
@@ -792,7 +791,7 @@ pub fn set_state(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
                 }
             }
         }
-    }*/
+    }
 
     if let Some(value) = get_node_value((id.0, id.1, "state"), data, behavior_type) {
         if let Some(behavior_instance) = behavior_instance {
@@ -1080,4 +1079,105 @@ pub fn audio(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance,
         }
     }
     BehaviorNodeConnector::Bottom
+}
+
+/// Heal, opposite of deal damage
+pub fn heal(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut behavior_instance : Option<usize> = None;
+
+    // The id's were not yet computed search the system trees, get the ids and store them.
+    if let Some(v) = get_node_value((id.0, id.1, "for"), data, behavior_type) {
+        if let Some(value) = v.to_integer() {
+            if value == 0 {
+                // Run the behavior on myself
+                behavior_instance = Some(get_local_instance_index(instance_index, data));
+            } else {
+                // Run the behavior on the target
+                if let Some(target_index) = data.instances[instance_index].target_instance_index {
+                    behavior_instance = Some(target_index);
+                }
+            }
+        }
+    }
+
+    let mut amount : i32 = 0;
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "amount".to_string()), data) {
+        amount = rc as i32;
+    }
+
+    let mut speed : f32 = 8.0;
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
+        speed = rc;
+    }
+
+    // Apply the speed delay
+    let delay = speed.clamp(0.0, f32::MAX);
+
+    let mut rc = BehaviorNodeConnector::Fail;
+
+    if let Some(target_index) = behavior_instance {
+        data.instances[target_index].healing_to_be_dealt = Some(amount);
+
+        let mut behavior_tree_id : Option<Uuid> = None;
+
+        let tree_name = "onHeal";
+        if let Some(behavior) = data.behaviors.get(&data.instances[target_index].behavior_id) {
+            for (node_id, node) in &behavior.nodes {
+                if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name {
+                    behavior_tree_id = Some(*node_id);
+                    break;
+                }
+            }
+        }
+
+        data.instances[instance_index].sleep_cycles = delay as usize;
+
+        if let Some(behavior_tree_id) = behavior_tree_id {
+            data.action_subject_text = data.instances[instance_index].name.clone();
+            let _rc = data.execute_node(target_index, behavior_tree_id, None);
+            if data.instances[target_index].state == BehaviorInstanceState::Normal {
+                rc = BehaviorNodeConnector::Right;
+            } else {
+                rc = BehaviorNodeConnector::Success;
+            }
+        }
+    }
+    rc
+}
+
+/// Take Heal :)
+pub fn take_heal(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut increase_by : i32 = 0;
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "increase by".to_string()), data) {
+        increase_by = rc as i32;
+    }
+
+    let mut rc = BehaviorNodeConnector::Success;
+
+    if let Some(mut healing) = data.instances[instance_index].healing_to_be_dealt {
+        healing += increase_by;
+
+        if let Some(mut value) = data.scopes[instance_index].get_value::<i32>(&data.hitpoints) {
+            value += healing;
+            data.instances[instance_index].healing_to_be_dealt = Some(healing);
+            value = value.max(0);
+            data.scopes[instance_index].set_value(&data.hitpoints, value);
+            if value <= 0 {
+                rc = BehaviorNodeConnector::Fail;
+            }
+        } else
+        if let Some(v) = data.scopes[instance_index].get_value::<f32>(&data.hitpoints) {
+            let mut value = v as i32;
+            value += healing;
+            data.instances[instance_index].healing_to_be_dealt = Some(healing);
+            value = value.max(0);
+            data.scopes[instance_index].set_value(&data.hitpoints, value);
+            if value <= 0 {
+                rc = BehaviorNodeConnector::Fail;
+            }
+        }
+    }
+    rc
 }

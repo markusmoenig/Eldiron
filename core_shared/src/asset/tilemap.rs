@@ -77,7 +77,7 @@ impl TileMap {
 
                 return (bytes.to_vec(), info.width, info.height);
             }
-            (vec![], 0 , 0)
+            (vec![], 0, 0)
         }
 
         // Load the atlas pixels
