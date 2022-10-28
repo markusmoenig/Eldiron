@@ -377,7 +377,7 @@ impl AtomWidget {
                     //context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                     context.draw2d.draw_rounded_rect_with_border_2(buffer_frame, &rect, rect.2, &fill_color, &context.node_button_rounding, &border_color, 1.5);
 
-                    if self.text.len() > 0 {
+                    if self.text.len() > 0 && self.curr_index < self.text.len() {
                         context.draw2d.draw_text_rect(buffer_frame, &(rect.0, rect.1, rect.2, rect.3 - 3), rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &self.text[self.curr_index], &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
                     }
 

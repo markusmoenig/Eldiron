@@ -104,7 +104,6 @@ pub struct BehaviorNode {
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
 pub enum BehaviorInstanceState {
     Normal,
-    Hidden,
     Killed,
     Purged,
 }

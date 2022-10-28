@@ -811,9 +811,8 @@ pub fn set_state(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
             //println!("behavior instance {:?}", behavior_instance);
             if let Some(v) = value.to_integer() {
                 data.instances[behavior_instance].state = match v {
-                    1 => BehaviorInstanceState::Hidden,
-                    2 => BehaviorInstanceState::Killed,
-                    3 => BehaviorInstanceState::Purged,
+                    1 => BehaviorInstanceState::Killed,
+                    2 => BehaviorInstanceState::Purged,
 
                     _ => BehaviorInstanceState::Normal,
                 };
