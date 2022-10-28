@@ -1204,7 +1204,7 @@ pub fn respawn(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
     let mut respawn_tick = data.tick_count;
     respawn_tick = respawn_tick.wrapping_add(ticks as usize);
     if let Some(d) = &data.instances[instance_index].instance_creation_data {
-        data.respawn_instance.insert(respawn_tick, (id.0, d.clone()));
+        data.respawn_instance.insert(id.0, (respawn_tick, d.clone()));
     }
 
     BehaviorNodeConnector::Right

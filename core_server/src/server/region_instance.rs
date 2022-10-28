@@ -102,7 +102,7 @@ pub struct RegionInstance<'a> {
     pub tick_count                  : usize,
 
     /// Respawns the given chararacter uuid at the given tick count
-    pub respawn_instance            : FxHashMap<usize, (Uuid, CharacterInstanceData)>,
+    pub respawn_instance            : FxHashMap<Uuid, (usize, CharacterInstanceData)>,
 
     // Game settings
 
@@ -278,10 +278,10 @@ impl RegionInstance<'_> {
         // Check if we need to respawn something
 
         if self.respawn_instance.is_empty() == false {
-            for (tick, data) in &self.respawn_instance.clone() {
+            for (id, (tick, data)) in &self.respawn_instance.clone() {
                 if *tick <= self.tick_count {
-                    self.create_behavior_instance(data.0, false, Some(data.1.clone()));
-                    self.respawn_instance.remove(tick);
+                    self.create_behavior_instance(*id, false, Some(data.clone()));
+                    self.respawn_instance.remove(id);
                 }
             }
         }
