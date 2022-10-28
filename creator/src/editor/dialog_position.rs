@@ -37,6 +37,10 @@ impl DialogPositionWidget {
         AtomData::new("Accept", Value::Empty()));
         widgets.push(ok_button);
 
+        let clear_button = AtomWidget::new(vec!["Clear".to_string()], AtomWidgetType::ToolBarButton,
+        AtomData::new("Clear", Value::Empty()));
+        widgets.push(clear_button);
+
         Self {
             rect                    : (0, 0, 800, 600),
 
@@ -78,14 +82,24 @@ impl DialogPositionWidget {
 
                 self.widgets[1].state = WidgetState::Normal;
                 self.widgets[2].state = WidgetState::Normal;
+                self.widgets[3].state = WidgetState::Normal;
                 self.widgets[1].dirty = true;
                 self.widgets[2].dirty = true;
+                self.widgets[3].dirty = true;
 
-                match context.dialog_value {
+                match &context.dialog_value {
                     Value::Area(region_id, area_id) => {
-                        self.curr_area_id = area_id;
+                        self.curr_area_id = *area_id;
                         for (index, id) in context.data.regions_ids.iter().enumerate() {
-                            if region_id == *id {
+                            if *region_id == *id {
+                                self.widgets[0].curr_index = index;
+                                break;
+                            }
+                        }
+                    },
+                    Value::Position(position) => {
+                        for (index, id) in context.data.regions_ids.iter().enumerate() {
+                            if position.region == *id {
                                 self.widgets[0].curr_index = index;
                                 break;
                             }
@@ -199,9 +213,10 @@ impl DialogPositionWidget {
                 // Draw Cancel / Accept buttons
                 self.widgets[0].emb_offset.0 = self.rect.0 as isize;
                 self.widgets[0].emb_offset.1 = 0;
-                self.widgets[0].set_rect((20, rect.3 - 60, 800 - 320, 40), asset, context);
-                self.widgets[1].set_rect((rect.2 - 280, rect.3 - 60, 120, 40), asset, context);
+                self.widgets[0].set_rect((20, rect.3 - 60, 800 - 320 - 140, 40), asset, context);
+                self.widgets[3].set_rect((rect.2 - 280, rect.3 - 60, 120, 40), asset, context);
                 self.widgets[2].set_rect((rect.2 - 140, rect.3 - 60, 120, 40), asset, context);
+                self.widgets[1].set_rect((rect.2 - 280 - 140, rect.3 - 60, 120, 40), asset, context);
 
                 for atom in &mut self.widgets {
                     atom.draw(buffer_frame, rect.2, anim_counter, asset, context);
@@ -254,6 +269,11 @@ impl DialogPositionWidget {
         for atom in &mut self.widgets {
 
             if atom.mouse_down(local, asset, context) {
+                if atom.atom_data.id == "Clear" {
+                    self.dirty = true;
+                    self.clicked_id = atom.atom_data.id.clone();
+                    return true;
+                } else
                 if atom.atom_data.id == "Regions" {
                     self.dirty = true;
                     self.clicked_id = atom.atom_data.id.clone();
@@ -323,11 +343,12 @@ impl DialogPositionWidget {
                 self.dirty = true;
 
                 if self.clicked_id == "Clear" {
+                    context.dialog_value = Value::Empty();
+
                     context.dialog_position_state = DialogState::Closing;
                     context.target_fps = 60;
-                    context.dialog_accepted = false;
+                    context.dialog_accepted = true;
 
-                    context.dialog_node_behavior_value.1 = 100000.0;
                     context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_value.clone(), context.curr_graph_type);
 
                     self.new_value = true;
