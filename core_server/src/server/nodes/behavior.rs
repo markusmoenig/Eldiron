@@ -1193,3 +1193,19 @@ pub fn take_heal(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
     }
     rc
 }
+
+pub fn respawn(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut ticks : f32 = 0.0;
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "ticks".to_string()), data) {
+        ticks = rc;
+    }
+
+    let mut respawn_tick = data.tick_count;
+    respawn_tick = respawn_tick.wrapping_add(ticks as usize);
+    if let Some(d) = &data.instances[instance_index].instance_creation_data {
+        data.respawn_instance.insert(respawn_tick, (id.0, d.clone()));
+    }
+
+    BehaviorNodeConnector::Right
+}

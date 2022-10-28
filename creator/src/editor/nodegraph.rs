@@ -1221,6 +1221,7 @@ impl EditorContent for NodeGraph  {
                 "Effect" => BehaviorNodeType::Effect,
                 "Heal" => BehaviorNodeType::Heal,
                 "TakeHeal" => BehaviorNodeType::TakeHeal,
+                "Respawn" => BehaviorNodeType::Respawn,
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
@@ -1989,6 +1990,21 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::Respawn {
+            let mut atom2 = AtomWidget::new(vec!["Ticks to Wait".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("ticks", Value::Empty()));
+            atom2.atom_data.text = "Ticks to Wait".to_string();
+            let id = (behavior_data_id, node_id, "ticks".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("10 * 4 // 10 Seconds".to_string()), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.help_link = Some("https://book.eldiron.com/nodes/respawn.html".to_string());
+
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
         } else
 
 

@@ -98,6 +98,12 @@ pub struct RegionInstance<'a> {
 
     pub pixel_based_movement        : bool,
 
+    /// Tick count used for timing
+    pub tick_count                  : usize,
+
+    /// Respawns the given chararacter uuid at the given tick count
+    pub respawn_instance            : FxHashMap<usize, (Uuid, CharacterInstanceData)>,
+
     // Game settings
 
     screen_size                     : (i32, i32),
@@ -153,6 +159,7 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::Audio, audio);
         nodes.insert(BehaviorNodeType::Heal, heal);
         nodes.insert(BehaviorNodeType::TakeHeal, take_heal);
+        nodes.insert(BehaviorNodeType::Respawn, respawn);
 
         /*
         nodes.insert(BehaviorNodeType::DisplaceTiles, displace_tiles);
@@ -243,6 +250,10 @@ impl RegionInstance<'_> {
 
             pixel_based_movement            : true,
 
+            tick_count                      : 0,
+
+            respawn_instance                : FxHashMap::default(),
+
             screen_size                     : (1024, 608),
             def_square_tile_size            : 32,
             primary_currency                : "".to_string(),
@@ -263,6 +274,17 @@ impl RegionInstance<'_> {
         let mut inventory = Inventory::new();
 
         let tick_time = self.get_time();
+
+        // Check if we need to respawn something
+
+        if self.respawn_instance.is_empty() == false {
+            for (tick, data) in &self.respawn_instance.clone() {
+                if *tick <= self.tick_count {
+                    self.create_behavior_instance(data.0, false, Some(data.1.clone()));
+                    self.respawn_instance.remove(tick);
+                }
+            }
+        }
 
         // Execute behaviors
         for inst_index in 0..self.instances.len() {
@@ -880,6 +902,8 @@ impl RegionInstance<'_> {
 
         //println!("tick time {}", self.get_time() - tick_time);
 
+        self.tick_count = self.tick_count.wrapping_add(1);
+
         messages
     }
 
@@ -1379,7 +1403,7 @@ impl RegionInstance<'_> {
         // Create all behavior instances of characters inside this region
         let ids : Vec<Uuid> = self.behaviors.keys().cloned().collect();
         for id in ids {
-            self.create_behavior_instance(id, true);
+            self.create_behavior_instance(id, true, None);
         }
 
         // Create the game instance itself
@@ -1417,7 +1441,7 @@ impl RegionInstance<'_> {
 
         let index = self.instances.len();
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, effects: vec![], healing_to_be_dealt: None };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: None };
 
         self.instances.push(instance);
         self.scopes.push(scope);
@@ -1468,7 +1492,7 @@ impl RegionInstance<'_> {
             }
         }
         if let Some(player_id) = player_id {
-            let index = self.create_behavior_instance(player_id, false);
+            let index = self.create_behavior_instance(player_id, false, None);
             self.instances[index].instance_type = BehaviorInstanceType::Player;
             self.instances[index].id = uuid;
             self.instances[index].position = Some(position);
@@ -1478,7 +1502,7 @@ impl RegionInstance<'_> {
     }
 
     /// Creates an instance of a behavior (character)
-    fn create_behavior_instance(&mut self, id: Uuid, npc_only: bool) -> usize {
+    fn create_behavior_instance(&mut self, id: Uuid, npc_only: bool, data: Option<CharacterInstanceData>) -> usize {
 
         let mut index = 0;
 
@@ -1541,7 +1565,7 @@ impl RegionInstance<'_> {
                 }
             }
             // Add main
-            if default_position.is_some() && default_tile.is_some() {
+            if default_position.is_some() && default_tile.is_some() && data.is_none() {
                 let main = CharacterInstanceData {
                     position    : default_position.unwrap().clone(),
                     tile        : default_tile.clone(),
@@ -1550,18 +1574,23 @@ impl RegionInstance<'_> {
                 };
                 to_create.push(main)
             }
+            if data.is_none() {
             // Add the instances of main
-            if let Some(instances) = &behavior.instances {
-                for i in instances {
-                    let mut inst = (*i).clone();
-                    if inst.name.is_none() {
-                        inst.name = Some(behavior.name.clone());
+                if let Some(instances) = &behavior.instances {
+                    for i in instances {
+                        let mut inst = (*i).clone();
+                        if inst.name.is_none() {
+                            inst.name = Some(behavior.name.clone());
+                        }
+                        if inst.tile.is_none() {
+                            inst.tile = default_tile.clone();
+                        }
+                        to_create.push(inst);
                     }
-                    if inst.tile.is_none() {
-                        inst.tile = default_tile.clone();
-                    }
-                    to_create.push(inst);
                 }
+            } else {
+                // If we get the character instance data, only add this (respawn)
+                to_create.push(data.unwrap());
             }
             // Now we have all instances of the behavior we need to create
             for inst in to_create {
@@ -1573,7 +1602,7 @@ impl RegionInstance<'_> {
 
                 //println!("Creating instance {}", inst.name.unwrap());
 
-                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position), tile: inst.tile, target_instance_index: None, locked_tree: None, party: vec![], node_values: HashMap::new(), state_values: HashMap::new(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, effects: vec![], healing_to_be_dealt: None };
+                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: Some(inst.clone()) };
 
                 index = self.instances.len();
                 self.instances.push(instance);

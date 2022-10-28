@@ -74,6 +74,7 @@ pub enum BehaviorNodeType {
     Audio,
     Heal,
     TakeHeal,
+    Respawn,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -163,12 +164,8 @@ pub struct BehaviorInstance {
     // Instance ids of the entities in our party (including self)
     pub party                   : Vec<Uuid>,
 
-    // Temporary values nodes can use to store instance data, these are NOT saved, i.e. emptied before saving.
     // The key is the behavior type and node id.
-    pub node_values             : HashMap<(BehaviorType, usize), (f64, f64, f64, f64, String)>,
-
-    // State values to optionally store game state related to this instance. This data is saved.
-    pub state_values            : HashMap<String, (f64, f64, f64, f64, String)>,
+    pub node_values             : FxHashMap<(BehaviorType, Uuid), Value>,
 
     // For characters, the 2D position id and the currently displayed tile id.
     pub position                : Option<Position>,
@@ -221,10 +218,13 @@ pub struct BehaviorInstance {
 
     /// Effects to be played in this tick
     pub effects                 : Vec<TileId>,
+
+    /// The instance data at creation time, needed for the respawn node
+    pub instance_creation_data  : Option<CharacterInstanceData>,
 }
 
 /// Represents a character behavior instance
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct CharacterInstanceData {
     pub position                : Position,
     pub name                    : Option<String>,
