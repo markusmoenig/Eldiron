@@ -1560,12 +1560,13 @@ impl RegionInstance<'_> {
                     if inst.tile.is_none() {
                         inst.tile = default_tile.clone();
                     }
+                    to_create.push(inst);
                 }
             }
             // Now we have all instances of the behavior we need to create
             for inst in to_create {
 
-                // Only create when instance ins in this region
+                // Only create when instance is in this region
                 if inst.position.region != self.region_data.id {
                     continue;
                 }
