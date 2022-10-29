@@ -1220,7 +1220,7 @@ impl EditorContent for NodeGraph  {
                 "Audio" => BehaviorNodeType::Audio,
                 "Effect" => BehaviorNodeType::Effect,
                 "Heal" => BehaviorNodeType::Heal,
-                "TakeHeal" => BehaviorNodeType::TakeHeal,
+                "Take Heal" => BehaviorNodeType::TakeHeal,
                 "Respawn" => BehaviorNodeType::Respawn,
 
                 "Always" => BehaviorNodeType::Always,

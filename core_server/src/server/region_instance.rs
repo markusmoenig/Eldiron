@@ -318,7 +318,7 @@ impl RegionInstance<'_> {
                 }
 
                 // Killed: NPC Skip
-                if self.instances[inst_index].state == BehaviorInstanceState::Killed && self.instances[inst_index].instance_type == BehaviorInstanceType::NonPlayerCharacter  {
+                if self.instances[inst_index].state == BehaviorInstanceState::Killed && self.instances[inst_index].instance_type == BehaviorInstanceType::NonPlayerCharacter {
                     continue;
                 }
 

@@ -879,6 +879,7 @@ impl Editor<'_> {
                     node.menu = Some(node_menu_atom);
 
                     self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
+                    self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().sort(&mut self.context);
                     self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().set_dirty();
                     self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
                     self.toolbar.widgets[0].dirty = true;

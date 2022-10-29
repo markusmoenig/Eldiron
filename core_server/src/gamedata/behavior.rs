@@ -344,7 +344,7 @@ impl GameBehavior {
     pub fn save_data(&self) {
         let json = serde_json::to_string(&self.data).unwrap();
         fs::write(self.path.clone(), json)
-            .expect("Unable to write area file");
+            .expect("Unable to write behavior file");
     }
 
     /// Add a new node of the given type and name

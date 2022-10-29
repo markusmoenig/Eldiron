@@ -373,9 +373,9 @@ impl GameData {
     /// Create a new behavior
     pub fn create_behavior(&mut self, name: String, _behavior_type: usize) {
 
-        let path = self.path.join("game").join("behavior").join(name.clone() + ".json");
+        let path = self.path.join("game").join("characters").join(name.clone() + ".json");
 
-        let mut behavior = GameBehavior::load_from_path(&path, &self.path.join("game").join("behavior"));
+        let mut behavior = GameBehavior::load_from_path(&path, &self.path.join("game").join("characters"));
         behavior.data.name = name.clone();
 
         self.behaviors_names.push(behavior.name.clone());

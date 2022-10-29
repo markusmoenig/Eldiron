@@ -282,7 +282,7 @@ pub fn lookout(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
     if let Some(position) = &data.instances[instance_index].position {
         for inst_index in 0..data.instances.len() {
             if inst_index != instance_index {
-                if data.instances[inst_index].state == BehaviorInstanceState::Normal {
+                if data.instances[inst_index].state != BehaviorInstanceState::Purged {
                     if let Some(pos) = &data.instances[inst_index].position {
                         if pos.region == position.region {
                             let dx = position.x - pos.x;
