@@ -66,8 +66,8 @@ use std::time::Duration;
 
 fn main() -> Result<(), Error> {
 
-    let width     : usize = 1240;//60 * 16;
-    let height    : usize = 700;//40 * 16;
+    let width     : usize = 1240;
+    let height    : usize = 700;
 
     env_logger::init();
 

@@ -94,13 +94,12 @@ impl Editor<'_> {
         let dialog_position = DialogPositionWidget::new(asset, &context);
 
         let log = LogWidget::new(&context);
-        let status_bar = StatusBar::new();
+        let mut status_bar = StatusBar::new();
 
         let code_editor =  CodeEditorWidget::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context);
 
         // Set current project
 
-        /*
         let mut project_to_load: Option<std::path::PathBuf> = None;
         let project_list = context.get_project_list();
 
@@ -110,14 +109,13 @@ impl Editor<'_> {
             context.dialog_height = 0;
             context.target_fps = 60;
             context.dialog_entry = DialogEntry::NewProjectName;
-            context.dialog_new_name = "New Game".to_string();
+            context.dialog_value = Value::String("New Game".to_string());
         } else {
             project_to_load = context.get_project_path(project_list[0].clone());
-            project_to_load = Some(std::path::PathBuf::new()); // Load the local project for development
 
             status_bar.add_message(format!("Loaded Documents >> Eldiron >> {}", project_list[0]));
-        }*/
-        let project_to_load = Some(std::path::PathBuf::new()); // Load the local project for development
+        }
+        //let project_to_load = Some(get_resource_dir()); // Load the local project for development
 
         Self {
             rect                    : (0, 0, width, height),
@@ -623,24 +621,26 @@ impl Editor<'_> {
 
         // Undo / Redo states
 
-        let has_undo = self.content[self.state as usize].1.as_mut().unwrap().is_undo_available(&self.context);
-        let has_redo = self.content[self.state as usize].1.as_mut().unwrap().is_redo_available(&self.context);
+        if self.content.is_empty() == false {
+            let has_undo = self.content[self.state as usize].1.as_mut().unwrap().is_undo_available(&self.context);
+            let has_redo = self.content[self.state as usize].1.as_mut().unwrap().is_redo_available(&self.context);
 
-        if self.controlbar.widgets[0].state == WidgetState::Disabled && has_undo == true {
-            self.controlbar.widgets[0].state = WidgetState::Normal;
-            self.controlbar.widgets[0].dirty = true;
-        } else
-        if self.controlbar.widgets[0].state != WidgetState::Disabled && has_undo == false {
-            self.controlbar.widgets[0].state = WidgetState::Disabled;
-            self.controlbar.widgets[0].dirty = true;
-        } else
-        if self.controlbar.widgets[1].state == WidgetState::Disabled && has_redo == true {
-            self.controlbar.widgets[1].state = WidgetState::Normal;
-            self.controlbar.widgets[1].dirty = true;
-        } else
-        if self.controlbar.widgets[1].state != WidgetState::Disabled && has_redo == false {
-            self.controlbar.widgets[1].state = WidgetState::Disabled;
-            self.controlbar.widgets[1].dirty = true;
+            if self.controlbar.widgets[0].state == WidgetState::Disabled && has_undo == true {
+                self.controlbar.widgets[0].state = WidgetState::Normal;
+                self.controlbar.widgets[0].dirty = true;
+            } else
+            if self.controlbar.widgets[0].state != WidgetState::Disabled && has_undo == false {
+                self.controlbar.widgets[0].state = WidgetState::Disabled;
+                self.controlbar.widgets[0].dirty = true;
+            } else
+            if self.controlbar.widgets[1].state == WidgetState::Disabled && has_redo == true {
+                self.controlbar.widgets[1].state = WidgetState::Normal;
+                self.controlbar.widgets[1].dirty = true;
+            } else
+            if self.controlbar.widgets[1].state != WidgetState::Disabled && has_redo == false {
+                self.controlbar.widgets[1].state = WidgetState::Disabled;
+                self.controlbar.widgets[1].dirty = true;
+            }
         }
 
         // --

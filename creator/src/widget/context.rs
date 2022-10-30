@@ -180,7 +180,7 @@ impl ScreenContext<'_> {
         // Icons
 
         let mut icons : FxHashMap<String, (Vec<u8>, u32, u32)> = FxHashMap::default();
-        let icon_path = std::path::Path::new("resources").join("icons");
+        let icon_path = get_resource_dir().join("resources").join("icons");
         let paths: Vec<_> = fs::read_dir(icon_path.clone()).unwrap()
                                                 .map(|r| r.unwrap())
                                                 .collect();
@@ -375,7 +375,7 @@ impl ScreenContext<'_> {
             menu_mask,
             open_mask,
 
-            curr_project_path           : std::path::Path::new("").to_path_buf(),
+            curr_project_path           : get_resource_dir(),
 
             hover_help_pos              : None,
             hover_help_pos_last         : None,
@@ -444,14 +444,14 @@ impl ScreenContext<'_> {
                 }
 
                 // Copy asset directory
-                let asset_path = std::path::Path::new("assets");
+                let asset_path = get_resource_dir().join("assets");
                 let rc = fs_extra::dir::copy(asset_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
                 if rc.is_err() {
                     return Err("Could not copy 'assets' directory".to_string());
                 }
 
                 // Copy game directory
-                let game_path = std::path::Path::new("game");
+                let game_path = get_resource_dir().join("game");
                 let rc = fs_extra::dir::copy(game_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
                 if rc.is_err() {
                     return Err("Could not copy 'game' directory".to_string());

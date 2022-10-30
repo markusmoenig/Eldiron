@@ -350,17 +350,21 @@ impl DialogWidget {
                     return  true;
                 },
                 WidgetKey::Escape => {
-                    context.dialog_state = DialogState::Closing;
-                    context.target_fps = 60;
-                    context.dialog_accepted = false;
-                    return  true;
-                },
-                WidgetKey::Return => {
-                    if self.accept_value(context) {
+                    if context.dialog_entry != DialogEntry::NewProjectName {
                         context.dialog_state = DialogState::Closing;
                         context.target_fps = 60;
-                        context.dialog_accepted = true;
+                        context.dialog_accepted = false;
                         return  true;
+                    }
+                },
+                WidgetKey::Return => {
+                    if context.dialog_entry != DialogEntry::NewProjectName {
+                        if self.accept_value(context) {
+                            context.dialog_state = DialogState::Closing;
+                            context.target_fps = 60;
+                            context.dialog_accepted = true;
+                            return  true;
+                        }
                     }
                 },
                 _ => {}

@@ -1,8 +1,9 @@
 [package]
 name = "creator"
-version = "0.5.5"
+version = "0.6.5"
 edition = "2021"
 authors = ["Markus Moenig"]
+description = "A game creator for classic RPGs."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -44,3 +45,17 @@ features = [
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
     "serde"
 ]
+
+[package.metadata.bundle]
+name = "Eldiron"
+identifier = "com.moenig.eldiron"
+icon = ["../Eldiron.icns"]
+resources = ["../assets", "../game", "../resources"]
+copyright = "Copyright (c) Markus Moenig 2022. All rights reserved."
+category = "Game"
+short_description = "A game creator for classic RPGs."
+long_description = """
+Create classic RPGs with Eldiron.
+"""
+#deb_depends = ["libgl1-mesa-glx", "libsdl2-2.0-0 (>= 2.0.5)"]
+#osx_frameworks = ["SDL2"]
