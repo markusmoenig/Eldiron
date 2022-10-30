@@ -55,7 +55,7 @@ use prelude::*;
 
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
-use winit::dpi::LogicalSize;
+use winit::dpi::{LogicalSize, PhysicalSize};
 use winit::event::{Event, DeviceEvent, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
@@ -74,15 +74,26 @@ fn main() -> Result<(), Error> {
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
     let window = {
-        let size = LogicalSize::new(width as f64, height as f64);
-
-        WindowBuilder::new()
-            .with_title("Eldiron Creator")
+        
+        if cfg!(target_os = "macos") {
+            let size = LogicalSize::new(width as f64, height as f64);
+            WindowBuilder::new()
+            .with_title("Eldiron")
             .with_inner_size(size)
             .with_min_inner_size(size)
 
             .build(&event_loop)
             .unwrap()
+        } else {
+            let size = PhysicalSize::new(width as f64, height as f64);
+            WindowBuilder::new()
+            .with_title("Eldiron")
+            .with_inner_size(size)
+            .with_min_inner_size(size)
+
+            .build(&event_loop)
+            .unwrap()
+        }
     };
 
     let mut pixels = {
