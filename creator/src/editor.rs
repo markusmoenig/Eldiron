@@ -409,23 +409,24 @@ impl Editor<'_> {
             }
         }
 
-        let index = self.state as usize;
-        let mut options : Option<Box<dyn EditorOptions>> = None;
-        let mut content : Option<Box<dyn EditorContent>> = None;
-
         let mut consumed = false;
-        if let Some(element) = self.content.drain(index..index+1).next() {
-            options = element.0;
-            content = element.1;
+        if self.content.is_empty() == false {
+            let index = self.state as usize;
+            let mut options : Option<Box<dyn EditorOptions>> = None;
+            let mut content : Option<Box<dyn EditorContent>> = None;
 
-            if let Some(mut el_content) = content {
-                consumed = el_content.key_down(char, key, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
-                content = Some(el_content);
+            if let Some(element) = self.content.drain(index..index+1).next() {
+                options = element.0;
+                content = element.1;
+
+                if let Some(mut el_content) = content {
+                    consumed = el_content.key_down(char, key, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
+                    content = Some(el_content);
+                }
+
             }
-
+            self.content.insert(index, (options, content));
         }
-        self.content.insert(index, (options, content));
-
         consumed
     }
 
@@ -977,25 +978,28 @@ impl Editor<'_> {
                 }
                 self.content.insert(index, (options, content));
             } else {
-                // Update the content
-                let index = self.state as usize;
-                let mut options : Option<Box<dyn EditorOptions>> = None;
-                let mut content : Option<Box<dyn EditorContent>> = None;
+                if self.content.is_empty() == false {
 
-                if let Some(element) = self.content.drain(index..index+1).next() {
-                    options = element.0;
-                    content = element.1;
-                    if let Some(mut el_content) = content {
-                        el_content.update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context, &mut options);
-                        content = Some(el_content);
-                    }
+                    // Update the content
+                    let index = self.state as usize;
+                    let mut options : Option<Box<dyn EditorOptions>> = None;
+                    let mut content : Option<Box<dyn EditorContent>> = None;
 
-                    if let Some(mut el_options) = options {
-                        el_options.update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context, &mut content);
-                        options = Some(el_options);
+                    if let Some(element) = self.content.drain(index..index+1).next() {
+                        options = element.0;
+                        content = element.1;
+                        if let Some(mut el_content) = content {
+                            el_content.update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context, &mut options);
+                            content = Some(el_content);
+                        }
+
+                        if let Some(mut el_options) = options {
+                            el_options.update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context, &mut content);
+                            options = Some(el_options);
+                        }
                     }
+                    self.content.insert(index, (options, content));
                 }
-                self.content.insert(index, (options, content));
             }
             /*
             if self.context.dialog_entry == DialogEntry::NewProjectName {
@@ -1219,20 +1223,21 @@ impl Editor<'_> {
             self.dialog_position.draw(frame, anim_counter, asset, &mut self.context);
         } else
         if self.dialog_position.new_value {
+            if self.content.is_empty() == false {
+                let index = self.state as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
 
-            let index = self.state as usize;
-            let mut options : Option<Box<dyn EditorOptions>> = None;
-            let mut content : Option<Box<dyn EditorContent>> = None;
-
-            if let Some(element) = self.content.drain(index..index+1).next() {
-                options = element.0;
-                content = element.1;
-                if let Some(mut el_content) = content {
-                    el_content.update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context, &mut options);
-                    content = Some(el_content);
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
+                    if let Some(mut el_content) = content {
+                        el_content.update_from_dialog(self.context.dialog_node_behavior_id.clone(), self.context.dialog_value.clone(), asset, &mut self.context, &mut options);
+                        content = Some(el_content);
+                    }
                 }
+                self.content.insert(index, (options, content));
             }
-            self.content.insert(index, (options, content));
 
             /*
             self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_dirty();
@@ -1514,29 +1519,31 @@ impl Editor<'_> {
         if self.context.code_editor_is_active && self.context.contains_pos_for(pos, self.code_editor.rect) {
             consumed = self.code_editor.mouse_down(pos, asset, &mut self.context);
         } else {
-            let index = self.state as usize;
-            let mut options : Option<Box<dyn EditorOptions>> = None;
-            let mut content : Option<Box<dyn EditorContent>> = None;
+            if self.content.is_empty() == false {
+                let index = self.state as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
 
-            if let Some(element) = self.content.drain(index..index+1).next() {
-                options = element.0;
-                content = element.1;
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
 
-                if consumed == false {
-                    if let Some(mut el_option) = options {
-                        consumed = el_option.mouse_down(pos, asset, &mut self.context, &mut content, &mut Some(&mut self.toolbar));
-                        options = Some(el_option);
+                    if consumed == false {
+                        if let Some(mut el_option) = options {
+                            consumed = el_option.mouse_down(pos, asset, &mut self.context, &mut content, &mut Some(&mut self.toolbar));
+                            options = Some(el_option);
+                        }
+                    }
+
+                    if consumed == false {
+                        if let Some(mut el_content) = content {
+                            consumed = el_content.mouse_down(pos, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
+                            content = Some(el_content);
+                        }
                     }
                 }
-
-                if consumed == false {
-                    if let Some(mut el_content) = content {
-                        consumed = el_content.mouse_down(pos, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
-                        content = Some(el_content);
-                    }
-                }
+                self.content.insert(index, (options, content));
             }
-            self.content.insert(index, (options, content));
         }
 
         consumed
@@ -1610,29 +1617,31 @@ impl Editor<'_> {
         if self.context.code_editor_is_active && self.context.contains_pos_for(pos, self.code_editor.rect) {
             self.code_editor.mouse_up(pos, asset, &mut self.context);
         } else {
-            let index = self.state as usize;
-            let mut options : Option<Box<dyn EditorOptions>> = None;
-            let mut content : Option<Box<dyn EditorContent>> = None;
+            if self.content.is_empty() == false {
+                let index = self.state as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
 
-            if let Some(element) = self.content.drain(index..index+1).next() {
-                options = element.0;
-                content = element.1;
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
 
-                if consumed == false {
-                    if let Some(mut el_option) = options {
-                        consumed = el_option.mouse_up(pos, asset, &mut self.context, &mut content);
-                        options = Some(el_option);
+                    if consumed == false {
+                        if let Some(mut el_option) = options {
+                            consumed = el_option.mouse_up(pos, asset, &mut self.context, &mut content);
+                            options = Some(el_option);
+                        }
+                    }
+
+                    if consumed == false {
+                        if let Some(mut el_content) = content {
+                            consumed = el_content.mouse_up(pos, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
+                            content = Some(el_content);
+                        }
                     }
                 }
-
-                if consumed == false {
-                    if let Some(mut el_content) = content {
-                        consumed = el_content.mouse_up(pos, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
-                        content = Some(el_content);
-                    }
-                }
+                self.content.insert(index, (options, content));
             }
-            self.content.insert(index, (options, content));
         }
 
         // Node Drag ?
@@ -1903,29 +1912,31 @@ impl Editor<'_> {
         if self.context.code_editor_is_active && self.context.contains_pos_for(pos, self.code_editor.rect) {
             consumed = self.code_editor.mouse_dragged(pos, asset, &mut self.context);
         } else {
-            let index = self.state as usize;
-            let mut options : Option<Box<dyn EditorOptions>> = None;
-            let mut content : Option<Box<dyn EditorContent>> = None;
+            if self.content.is_empty() == false {
+                let index = self.state as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
 
-            if let Some(element) = self.content.drain(index..index+1).next() {
-                options = element.0;
-                content = element.1;
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
 
-                if consumed == false {
-                    if let Some(mut el_option) = options {
-                        consumed = el_option.mouse_dragged(pos, asset, &mut self.context, &mut content);
-                        options = Some(el_option);
+                    if consumed == false {
+                        if let Some(mut el_option) = options {
+                            consumed = el_option.mouse_dragged(pos, asset, &mut self.context, &mut content);
+                            options = Some(el_option);
+                        }
+                    }
+
+                    if consumed == false {
+                        if let Some(mut el_content) = content {
+                            consumed = el_content.mouse_dragged(pos, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
+                            content = Some(el_content);
+                        }
                     }
                 }
-
-                if consumed == false {
-                    if let Some(mut el_content) = content {
-                        consumed = el_content.mouse_dragged(pos, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
-                        content = Some(el_content);
-                    }
-                }
+                self.content.insert(index, (options, content));
             }
-            self.content.insert(index, (options, content));
         }
 
         self.mouse_pos = pos.clone();
@@ -1952,29 +1963,31 @@ impl Editor<'_> {
 
             self.mouse_hover_pos = pos.clone();
 
-            let index = self.state as usize;
-            let mut options : Option<Box<dyn EditorOptions>> = None;
-            let mut content : Option<Box<dyn EditorContent>> = None;
+            if self.content.is_empty() == false {
+                let index = self.state as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
 
-            if let Some(element) = self.content.drain(index..index+1).next() {
-                options = element.0;
-                content = element.1;
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
 
-                if consumed == false {
-                    if let Some(mut el_option) = options {
-                        consumed = el_option.mouse_hover(pos, asset, &mut self.context, &mut content);
-                        options = Some(el_option);
+                    if consumed == false {
+                        if let Some(mut el_option) = options {
+                            consumed = el_option.mouse_hover(pos, asset, &mut self.context, &mut content);
+                            options = Some(el_option);
+                        }
+                    }
+
+                    if consumed == false {
+                        if let Some(mut el_content) = content {
+                            consumed = el_content.mouse_hover(pos, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
+                            content = Some(el_content);
+                        }
                     }
                 }
-
-                if consumed == false {
-                    if let Some(mut el_content) = content {
-                        consumed = el_content.mouse_hover(pos, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
-                        content = Some(el_content);
-                    }
-                }
+                self.content.insert(index, (options, content));
             }
-            self.content.insert(index, (options, content));
         }
 
         consumed
@@ -1994,31 +2007,33 @@ impl Editor<'_> {
         if self.context.code_editor_is_active && self.context.contains_pos_for(self.mouse_hover_pos, self.code_editor.rect) {
             return self.code_editor.mouse_wheel(delta, asset, &mut self.context);
         } else {
-            let index = self.state as usize;
-            let mut options : Option<Box<dyn EditorOptions>> = None;
-            let mut content : Option<Box<dyn EditorContent>> = None;
+            if self.content.is_empty() == false {
+                let index = self.state as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
 
-            if let Some(element) = self.content.drain(index..index+1).next() {
-                options = element.0;
-                content = element.1;
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
 
-                if self.mouse_hover_pos.0 < self.left_width {
+                    if self.mouse_hover_pos.0 < self.left_width {
+                        if consumed == false {
+                            if let Some(mut el_option) = options {
+                                consumed = el_option.mouse_wheel(delta, asset, &mut self.context, &mut content);
+                                options = Some(el_option);
+                            }
+                        }
+                    }
+
                     if consumed == false {
-                        if let Some(mut el_option) = options {
-                            consumed = el_option.mouse_wheel(delta, asset, &mut self.context, &mut content);
-                            options = Some(el_option);
+                        if let Some(mut el_content) = content {
+                            consumed = el_content.mouse_wheel(delta, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
+                            content = Some(el_content);
                         }
                     }
                 }
-
-                if consumed == false {
-                    if let Some(mut el_content) = content {
-                        consumed = el_content.mouse_wheel(delta, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
-                        content = Some(el_content);
-                    }
-                }
+                self.content.insert(index, (options, content));
             }
-            self.content.insert(index, (options, content));
         }
 
         consumed

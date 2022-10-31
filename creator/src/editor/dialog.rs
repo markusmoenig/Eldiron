@@ -358,13 +358,11 @@ impl DialogWidget {
                     }
                 },
                 WidgetKey::Return => {
-                    if context.dialog_entry != DialogEntry::NewProjectName {
-                        if self.accept_value(context) {
-                            context.dialog_state = DialogState::Closing;
-                            context.target_fps = 60;
-                            context.dialog_accepted = true;
-                            return  true;
-                        }
+                    if self.accept_value(context) {
+                        context.dialog_state = DialogState::Closing;
+                        context.target_fps = 60;
+                        context.dialog_accepted = true;
+                        return  true;
                     }
                 },
                 _ => {}
