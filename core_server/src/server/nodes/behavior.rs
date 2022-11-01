@@ -270,6 +270,13 @@ pub fn pathfinder(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInst
 /// Lookout
 pub fn lookout(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
+    let mut state = 0;
+    if let Some(value) = get_node_value((id.0, id.1, "state"), data, behavior_type) {
+        if let Some(s) = value.to_integer() {
+            state = s;
+        }
+    }
+
     let mut max_distance : f32 = 7.0;
     if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "max_distance".to_string()), data) {
         max_distance = rc;
@@ -282,7 +289,7 @@ pub fn lookout(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
     if let Some(position) = &data.instances[instance_index].position {
         for inst_index in 0..data.instances.len() {
             if inst_index != instance_index {
-                if data.instances[inst_index].state != BehaviorInstanceState::Purged {
+                if (data.instances[inst_index].state == BehaviorInstanceState::Normal && state == 0) || (data.instances[inst_index].state == BehaviorInstanceState::Killed && state == 1) {
                     if let Some(pos) = &data.instances[inst_index].position {
                         if pos.region == position.region {
                             let dx = position.x - pos.x;

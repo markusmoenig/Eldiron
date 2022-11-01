@@ -567,7 +567,6 @@ impl Editor<'_> {
         if let Some(state) = self.context.switch_editor_state {
 
             if state != self.state {
-
                 self.content_state_is_changing(state, asset, false);
                 self.content_state_is_changing(self.state, asset, true);
             }

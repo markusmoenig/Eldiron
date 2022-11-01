@@ -1498,7 +1498,6 @@ impl EditorContent for NodeGraph  {
         if node_behavior_type == BehaviorNodeType::Message || node_behavior_type == BehaviorNodeType::MessageArea {
 
             let type_menu = create_menu_atom("Type".to_string(), vec!["Status".to_string(), "Say".to_string(), "Yell".to_string(), "Private".to_string(), "Debug".to_string()], Value::Integer(0));
-
             node_widget.widgets.push(type_menu);
 
             let mut atom2 = AtomWidget::new(vec!["Text".to_string()], AtomWidgetType::NodeTextButton,
@@ -1623,6 +1622,9 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::Lookout {
+            let type_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string()], Value::Integer(0));
+            node_widget.widgets.push(type_menu);
+
             let mut atom1 = AtomWidget::new(vec!["Expression".to_string()], AtomWidgetType::NodeExpressionButton,
             AtomData::new("expression", Value::Empty()));
             atom1.atom_data.text = "Expression".to_string();
