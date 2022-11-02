@@ -1,6 +1,6 @@
 [package]
 name = "creator"
-version = "0.6.5"
+version = "0.7.0"
 edition = "2021"
 authors = ["Markus Moenig"]
 description = "A game creator for classic RPGs."
