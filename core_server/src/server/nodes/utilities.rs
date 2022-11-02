@@ -471,3 +471,28 @@ pub fn remove_from_character_currency(inst_index: usize, amount: f32, data: &mut
     }
     false
 }
+
+/// Starts to wait for the given amount of ticks
+pub fn wait_start(instance_index: usize, ticks: usize, id: (Uuid, Uuid), data: &mut RegionInstance ) {
+    data.instances[instance_index].node_values.insert(id, Value::USize(ticks + data.tick_count));
+}
+
+/// Waits for the given ticks to pass before returning true
+pub fn wait_for(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance ) -> bool {
+    let mut rc = true;
+
+    if let Some(value) = data.instances[instance_index].node_values.get(&id) {
+        match value {
+            Value::USize(until) => {
+                if *until >= data.tick_count {
+                    rc = false;
+                } else {
+                    data.instances[instance_index].node_values.clear();
+                }
+            },
+            _ => {
+            }
+        }
+    }
+    rc
+}

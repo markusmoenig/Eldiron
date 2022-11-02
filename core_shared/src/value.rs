@@ -21,7 +21,8 @@ pub enum Value {
     //
     TileData(TileData),
     PropertySink(PropertySink),
-    Bool(bool)
+    Bool(bool),
+    USize(usize)
 }
 
 impl Value {

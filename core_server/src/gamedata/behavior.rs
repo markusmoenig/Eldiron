@@ -164,8 +164,8 @@ pub struct BehaviorInstance {
     // Instance ids of the entities in our party (including self)
     pub party                   : Vec<Uuid>,
 
-    // The key is the behavior type and node id.
-    pub node_values             : FxHashMap<(BehaviorType, Uuid), Value>,
+    // The key is the behavior id and node id.
+    pub node_values             : FxHashMap<(Uuid, Uuid), Value>,
 
     // For characters, the 2D position id and the currently displayed tile id.
     pub position                : Option<Position>,
