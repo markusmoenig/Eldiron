@@ -45,8 +45,6 @@ I am currently working on the [Eldiron Book](https://book.eldiron.com). Please r
 
 You can support the Eldiron project by becoming a [Patreon](https://patreon.com/eldiron) or a [GitHub Sponsor](https://github.com/sponsors/markusmoenig).
 
-I am working nearly full-time on Eldiron. A donation helps covering some costs, also for servers and databases.
-
 ## Building Eldiron Locally
 
 First, create the directory `embedded` in the `core_embed_binaries` directory:
