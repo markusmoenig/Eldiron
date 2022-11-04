@@ -24,7 +24,7 @@ pub struct MessageData {
 }
 
 /// Represents a multi choice item
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct MultiChoiceData {
     pub id                      : Uuid,
     pub header                  : String,
