@@ -22,8 +22,7 @@ pub struct NodePreviewWidget {
     pub drag_size               : Option<(usize, usize)>,
 
     // For showing region
-    pub region_tile_size        : usize,
-    pub region_rect             : (usize, usize, usize, usize),
+    pub preview_rect            : (usize, usize, usize, usize),
     pub region_offset           : (isize, isize),
     pub region_scroll_offset    : (isize, isize),
 
@@ -43,11 +42,6 @@ pub struct NodePreviewWidget {
 impl NodePreviewWidget {
 
     pub fn new(_context: &ScreenContext, graph_type: BehaviorType) -> Self {
-
-        // let mut regions_button = AtomWidget::new(context.data.regions_names.clone(), AtomWidgetType::SmallMenuButton,
-        // AtomData::new_as_int("region".to_string(), 0));
-        // regions_button.atom_data.text = "Region".to_string();
-        // regions_button.curr_index = 0;
 
         Self {
             rect                : (0,0,0,0),
@@ -70,10 +64,9 @@ impl NodePreviewWidget {
 
             drag_size           : None,
 
-            region_tile_size      : 32,
-            region_rect           : (0,0,0,0),
-            region_offset         : (0,0),
-            region_scroll_offset  : (0,0),
+            preview_rect        : (0,0,0,0),
+            region_offset       : (0,0),
+            region_scroll_offset: (0,0),
 
             curr_position       : None,
 
@@ -119,10 +112,10 @@ impl NodePreviewWidget {
             context.draw2d.draw_rect(buffer_frame, &(rect.2-2, 0, 2, rect.3 - 1), stride, &context.color_black);
             context.draw2d.draw_rect(buffer_frame, &(1, 1, 1, 1), stride, &[65, 65, 65, 255]);
 
-            self.region_rect.0 = 0;
-            self.region_rect.1 = 5;
-            self.region_rect.2 = rect.2 - 5;
-            self.region_rect.3 = rect.3 - 30;
+            self.preview_rect.0 = 0;
+            self.preview_rect.1 = 5;
+            self.preview_rect.2 = rect.2 - 5;
+            self.preview_rect.3 = rect.3 - 30;
 
             if self.graph_type == BehaviorType::Behaviors {
                 if context.is_running {
@@ -134,7 +127,7 @@ impl NodePreviewWidget {
                     if let Some(update) = &self.debug_update {
                         if let Some(render) = &mut context.debug_render {
                             render.process_update(update);
-                            render.process_game_draw(self.region_rect, anim_counter, update, &mut Some(buffer_frame), stride);
+                            render.process_game_draw(self.preview_rect, anim_counter, update, &mut Some(buffer_frame), stride);
                         }
                     }
                     // let behavior_id = context.data.behaviors_ids[context.curr_behavior_index];
@@ -161,7 +154,7 @@ impl NodePreviewWidget {
                 } else {
                     if let Some(position) = context.data.get_behavior_default_position(context.data.behaviors_ids[context.curr_behavior_index]) {
                         if let Some(region) = context.data.regions.get(&position.region) {
-                            self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &self.region_rect, &(position.x, position.y), &self.region_scroll_offset, stride, 32, 0, asset, context);
+                            self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &self.preview_rect, &(position.x, position.y), &self.region_scroll_offset, stride, 32, 0, asset, context);
                         }
                     }
                 }
@@ -214,20 +207,9 @@ impl NodePreviewWidget {
         }
 
         // Test region map
-        if context.contains_pos_for(pos, self.region_rect) {
-
-            /*TODO
-            let left_offset = (self.region_rect.2 % self.region_tile_size) / 2;
-            let top_offset = (self.region_rect.3 % self.region_tile_size) / 2;
-
-            let x = self.region_offset.0 + ((pos.0 - self.region_rect.0 - left_offset) / self.region_tile_size) as isize;
-            let y = self.region_offset.1 + ((pos.1 - self.region_rect.1 - top_offset) / self.region_tile_size) as isize;
-            //println!("{} {}", x, y);
-            if let Some(region) = context.data.regions.get(&context.data.regions_ids[self.curr_region_index]) {
-                self.clicked_region_id = Some((region.data.id.clone(), x, y));
-            }*/
-            return true;
-        }
+        // if context.contains_pos_for(pos, self.preview_rect) {
+        //     return true;
+        // }
         false
     }
 

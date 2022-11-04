@@ -26,6 +26,7 @@ pub struct NodeGraph  {
 
     pub preview                 : Option<NodePreviewWidget>,
     preview_drag_start          : (isize, isize),
+    preview_is_visible          : bool,
 
     mouse_pos                   : (usize, usize),
     mouse_hover_pos             : (usize, usize),
@@ -68,6 +69,7 @@ impl EditorContent for NodeGraph  {
 
             preview                     : None,
             preview_drag_start          : (0,0),
+            preview_is_visible          : false,
 
             mouse_pos                   : (0,0),
             mouse_hover_pos             : (0, 0),
@@ -92,7 +94,7 @@ impl EditorContent for NodeGraph  {
     fn set_mode(&mut self, mode: GraphMode, context: &ScreenContext) {
 
         // Create previews
-        if mode == GraphMode::Detail && (self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Systems || self.graph_type == BehaviorType::Items || self.graph_type == BehaviorType::GameLogic) && self.preview.is_none() {
+        if mode == GraphMode::Detail && (self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Systems/*  || self.graph_type == BehaviorType::GameLogic*/) && self.preview.is_none() {
             self.preview = Some(NodePreviewWidget::new(context, self.graph_type));
         }
 
@@ -100,7 +102,7 @@ impl EditorContent for NodeGraph  {
     }
 
     fn set_mode_and_rect(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &mut ScreenContext) {
-        if mode == GraphMode::Detail && (self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Systems || self.graph_type == BehaviorType::GameLogic) && self.preview.is_none() {
+        if mode == GraphMode::Detail && (self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Systems /*|| self.graph_type == BehaviorType::GameLogic*/) && self.preview.is_none() {
             self.preview = Some(NodePreviewWidget::new(context, self.graph_type));
         }
         self.graph_mode = mode;
@@ -389,12 +391,18 @@ impl EditorContent for NodeGraph  {
                     context.draw2d.blend_mask(&mut self.buffer[..], &safe_rect, safe_rect.2, &orange_mask[..], &(safe_rect.2, safe_rect.3), &context.color_orange);
                 }
 
+                let behavior_id = self.get_curr_behavior_id(context);
+                self.preview_is_visible = false;
+
                 // Render the preview widget
                 if let Some(preview) = &mut self.preview {
-                    preview.draw(frame, anim_counter, asset, context);
-                    preview.rect = (self.rect.0 + self.rect.2 - preview.size.0, self.rect.1, preview.size.0, preview.size.1);
-                    preview.graph_offset = (preview.rect.0 as isize, preview.rect.1 as isize);
-                    context.draw2d.blend_slice(&mut self.buffer[..], &mut preview.buffer[..], &(self.rect.2 - preview.size.0, 0, preview.size.0, preview.size.1), safe_rect.2);
+                    if context.data.get_behavior_default_position(behavior_id).is_some() {
+                        preview.draw(frame, anim_counter, asset, context);
+                        preview.rect = (self.rect.0 + self.rect.2 - preview.size.0, self.rect.1, preview.size.0, preview.size.1);
+                        preview.graph_offset = (preview.rect.0 as isize, preview.rect.1 as isize);
+                        context.draw2d.blend_slice(&mut self.buffer[..], &mut preview.buffer[..], &(self.rect.2 - preview.size.0, 0, preview.size.0, preview.size.1), safe_rect.2);
+                        self.preview_is_visible = true;
+                    }
                 }
 
                 // Render the behavior tree buttons
@@ -404,7 +412,9 @@ impl EditorContent for NodeGraph  {
                 let left_start = if self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Items || self.graph_type == BehaviorType::GameLogic { 180 } else { 5 };
                 let mut total_width = safe_rect.2 - left_start - 5;
                 if let Some(preview) = &mut self.preview {
-                    total_width -= preview.size.0;
+                    if self.preview_is_visible {
+                        total_width -= preview.size.0;
+                    }
                 }
                 let mut bt_rect = (left_start, 3, 170, 25);
                 for bt_id in &self.behavior_tree_ids {
@@ -454,10 +464,12 @@ impl EditorContent for NodeGraph  {
 
         // Preview overlay ?
         if let Some(preview) = &mut self.preview {
-            let node_offset = preview.graph_offset.clone();
-            for atom in &mut preview.widgets {
-                atom.emb_offset = node_offset.clone();
-                atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
+            if self.preview_is_visible {
+                let node_offset = preview.graph_offset.clone();
+                for atom in &mut preview.widgets {
+                    atom.emb_offset = node_offset.clone();
+                    atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
+                }
             }
         }
     }
@@ -704,33 +716,24 @@ impl EditorContent for NodeGraph  {
             }
 
             // Check Preview
-            // let mut clicked_region_id : Option<(usize, isize, isize)> = None;
+
+            // Render the preview widget
             if let Some(preview) = &mut self.preview {
-                if context.contains_pos_for(pos, preview.rect) {
-                    if preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context) {
+                if self.preview_is_visible {
+                    if context.contains_pos_for(pos, preview.rect) {
+                        if preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context) {
 
-                        // // Region id clicked ?
-                        // if let Some(region_id) = preview.clicked_region_id {
-                        //     clicked_region_id = Some(region_id);
-                        //     preview.clicked_region_id = None;
-                        // }
-
-                        if preview.clicked {
-                            self.dirty = true;
-                            return true;
-                        } else {
-                            self.preview_drag_start = (pos.0 as isize, pos.1 as isize);
+                            if preview.clicked {
+                                self.dirty = true;
+                                return true;
+                            } else {
+                                self.preview_drag_start = (pos.0 as isize, pos.1 as isize);
+                            }
                         }
                     }
                 }
             }
 
-            // if let Some(clicked_region_id) = clicked_region_id {
-            //     if let Some(active_position_id) = &context.active_position_id {
-            //         self.set_node_atom_data(active_position_id.clone(), (clicked_region_id.0 as f64, clicked_region_id.1 as f64, clicked_region_id.2 as f64, 0.0, "".to_string()), context);
-            //         context.active_position_id = None;
-            //     }
-            // }
 
             // Check the nodes
             for index in 0..self.nodes.len() {
@@ -969,7 +972,7 @@ impl EditorContent for NodeGraph  {
 
         // Preview
         if let Some(preview) = &mut self.preview {
-            if preview.mouse_up(pos, asset, context) {
+            if self.preview_is_visible && preview.mouse_up(pos, asset, context) {
                 self.dirty = true;
                 return  true;
             }
@@ -1011,9 +1014,11 @@ impl EditorContent for NodeGraph  {
 
         // Draw preview overlay
         if let Some(preview) = &mut self.preview {
-            for atom in &mut preview.widgets {
-                if atom.mouse_dragged(pos, asset, context) {
-                    return true;
+            if self.preview_is_visible {
+                for atom in &mut preview.widgets {
+                    if atom.mouse_dragged(pos, asset, context) {
+                        return true;
+                    }
                 }
             }
         }
@@ -1075,17 +1080,19 @@ impl EditorContent for NodeGraph  {
 
         // Preview
         if let Some(preview) = &mut self.preview {
-            let x = pos.0 as isize - preview.rect.0 as isize;
-            let y = pos.1 as isize - preview.rect.1 as isize;
+            if self.preview_is_visible {
+                let x = pos.0 as isize - preview.rect.0 as isize;
+                let y = pos.1 as isize - preview.rect.1 as isize;
 
-            let r_x = self.preview_drag_start.0 - pos.0 as isize;
-            let r_y = pos.1 as isize - self.preview_drag_start.1;
+                let r_x = self.preview_drag_start.0 - pos.0 as isize;
+                let r_y = pos.1 as isize - self.preview_drag_start.1;
 
-            if preview.mouse_dragged((x as usize, y as usize), (r_x, r_y), asset, context) {
-                self.dirty = true;
-                //preview.rect = (self.rect.0 + self.rect.2 - preview.size.0, self.rect.1, preview.size.0, preview.size.1);
+                if preview.mouse_dragged((x as usize, y as usize), (r_x, r_y), asset, context) {
+                    self.dirty = true;
+                    //preview.rect = (self.rect.0 + self.rect.2 - preview.size.0, self.rect.1, preview.size.0, preview.size.1);
 
-                return  true;
+                    return  true;
+                }
             }
         }
 
@@ -1093,11 +1100,14 @@ impl EditorContent for NodeGraph  {
     }
 
     fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+
         if let Some(preview) = &mut self.preview {
-            if context.contains_pos_for(self.mouse_hover_pos, preview.rect) {
-                preview.mouse_wheel(delta, asset, context);
-                self.dirty = true;
-                return true;
+            if self.preview_is_visible {
+                if context.contains_pos_for(self.mouse_hover_pos, preview.rect) {
+                    preview.mouse_wheel(delta, asset, context);
+                    self.dirty = true;
+                    return true;
+                }
             }
         }
         self.offset.0 -= delta.0 / 20;
@@ -1402,7 +1412,9 @@ impl EditorContent for NodeGraph  {
 
             // Add the node to the behavior tree ids
             self.behavior_tree_ids.push(node_widget.id);
-            self.curr_behavior_tree_id = Some(node_widget.id);
+            if self.curr_behavior_tree_id == None {
+                self.curr_behavior_tree_id = Some(node_widget.id);
+            }
         } else
         if node_behavior_type == BehaviorNodeType::Linear {
             node_widget.help_link = Some("https://book.eldiron.com/nodes/linear.html".to_string());
