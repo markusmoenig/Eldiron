@@ -12,6 +12,7 @@ pub struct NodePreviewWidget {
 
     pub dirty                   : bool,
     pub buffer                  : Vec<u8>,
+    pub mask_buffer             : Vec<f32>,
 
     pub disabled                : bool,
 
@@ -55,6 +56,7 @@ impl NodePreviewWidget {
 
             dirty               : true,
             buffer              : vec![],
+            mask_buffer         : vec![],
 
             disabled            : false,
 
@@ -87,9 +89,16 @@ impl NodePreviewWidget {
 
         if self.buffer.len() != self.size.0 * self.size.1 * 4 {
             self.buffer = vec![0;self.size.0 * self.size.1 * 4];
+
             for w in &mut self.widgets {
                 w.dirty = true;
             }
+        }
+
+        if self.mask_buffer.len() != self.size.0 * self.size.1 {
+            self.mask_buffer = vec![0.0; self.size.0 * self.size.1];
+            let r = (1, 0, self.size.0 - 1, self.size.1-1);
+            context.draw2d.create_rounded_rect_mask(&mut self.mask_buffer[..], &r, self.size.0, &(0.0, 0.0, 20.0, 0.0));
         }
 
         let rect = (0, 0, self.size.0, self.size.1);
@@ -104,6 +113,7 @@ impl NodePreviewWidget {
 
         if self.dirty {
             for i in &mut self.buffer[..] { *i = 0 }
+
             let buffer_frame = &mut self.buffer[..];
             let stride = self.size.0;
 
@@ -113,9 +123,9 @@ impl NodePreviewWidget {
             context.draw2d.draw_rect(buffer_frame, &(1, 1, 1, 1), stride, &[65, 65, 65, 255]);
 
             self.preview_rect.0 = 0;
-            self.preview_rect.1 = 5;
-            self.preview_rect.2 = rect.2 - 5;
-            self.preview_rect.3 = rect.3 - 30;
+            self.preview_rect.1 = 0;
+            self.preview_rect.2 = rect.2;
+            self.preview_rect.3 = rect.3;
 
             if self.graph_type == BehaviorType::Behaviors {
                 if context.is_running {
@@ -130,31 +140,13 @@ impl NodePreviewWidget {
                             render.process_game_draw(self.preview_rect, anim_counter, update, &mut Some(buffer_frame), stride);
                         }
                     }
-                    // let behavior_id = context.data.behaviors_ids[context.curr_behavior_index];
-
-                    // if let Some(server) = &context.server {
-                    //     server.set_debug_behavior_id(behavior_id);
-                    // }
-                    /*
-                    // Find the behavior instance for the current behavior id
-                    let mut inst_index = 0_usize;
-                    let behavior_id = context.data.behaviors_ids[context.curr_behavior_index];
-                    for index in 0..context.data.instances.len() {
-                        if context.data.instances[index].behavior_id == behavior_id {
-                            inst_index = index;
-                            break;
-                        }
-                    }*/
-                    /* TODO
-                    if let Some(position) = context.data.instances[inst_index].position {
-                        if let Some(region) = context.data.regions.get(&position.0) {
-                            self.region_offset = context.draw2d.draw_region_centered_with_instances(buffer_frame, region, &self.region_rect, inst_index, stride, 32, anim_counter, asset, context);
-                        }
-                    }*/
                 } else {
                     if let Some(position) = context.data.get_behavior_default_position(context.data.behaviors_ids[context.curr_behavior_index]) {
                         if let Some(region) = context.data.regions.get(&position.region) {
+                            context.draw2d.mask = Some(self.mask_buffer.clone());
+                            context.draw2d.mask_size = self.size.clone();
                             self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &self.preview_rect, &(position.x, position.y), &self.region_scroll_offset, stride, 32, 0, asset, context);
+                            context.draw2d.mask = None;
                         }
                     }
                 }
@@ -252,11 +244,12 @@ impl NodePreviewWidget {
         false
     }
 
-    pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        self.region_scroll_offset.0 -= delta.0 / self.tile_size as isize;
-        self.region_scroll_offset.1 += delta.1 / self.tile_size as isize;
-        self.dirty = true;
-        true
+    pub fn mouse_wheel(&mut self, _delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+        // self.region_scroll_offset.0 -= delta.0 / self.tile_size as isize;
+        // self.region_scroll_offset.1 += delta.1 / self.tile_size as isize;
+        // self.dirty = true;
+        // true
+        false
     }
 
     /// Apply an update when debugging. Previews only show behavior debug output.

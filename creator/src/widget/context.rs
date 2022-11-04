@@ -255,7 +255,7 @@ impl ScreenContext<'_> {
             .render_into(&mut open_mask, None);
 
         Self {
-            draw2d                      : Draw2D {},
+            draw2d                      : Draw2D::new(),
 
             target_fps                  : 4,
             default_fps                 : 4,

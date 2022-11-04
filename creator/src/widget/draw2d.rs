@@ -14,9 +14,20 @@ pub enum TextAlignment {
 }
 
 pub struct Draw2D {
+
+    pub mask                : Option<Vec<f32>>,
+    pub mask_size           : (usize, usize),
+
 }
 
 impl Draw2D {
+
+    pub fn new() -> Self {
+        Self {
+            mask            : None,
+            mask_size       : (0, 0),
+        }
+    }
 
     /// Draws the mask
     pub fn blend_mask(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, mask_frame: &[u8], mask_size: &(usize, usize), color: &[u8; 4]) {
@@ -204,6 +215,37 @@ impl Draw2D {
                     let mut mixed_color = self.mix_color(&background, &color, t * (color[3] as f64 / 255.0));
                     mixed_color[3] = (mixed_color[3] as f64 * (color[3] as f64 / 255.0)) as u8;
                     frame[i..i + 4].copy_from_slice(&mixed_color);
+                }
+            }
+        }
+    }
+
+    /// crate a rounded rect mask
+    pub fn create_rounded_rect_mask(&self, frame: &mut [f32], rect: &(usize, usize, usize, usize), stride: usize, rounding: &(f64, f64, f64, f64)) {
+        let center = ((rect.0 as f64 + rect.2 as f64 / 2.0).round(), (rect.1 as f64 + rect.3 as f64 / 2.0).round());
+        for y in rect.1..rect.1+rect.3 {
+            for x in rect.0..rect.0+rect.2 {
+                let i = x + y * stride;
+
+                let p = (x as f64 - center.0, y as f64 - center.1);
+                let mut r : (f64, f64);
+
+                if p.0 > 0.0 {
+                    r = (rounding.0, rounding.1);
+                } else {
+                    r = (rounding.2, rounding.3);
+                }
+
+                if p.1 <= 0.0 {
+                    r.0 = r.1;
+                }
+
+                let q : (f64, f64) = (p.0.abs() - rect.2 as f64 / 2.0 + r.0, p.1.abs() - rect.3 as f64 / 2.0 + r.0);
+                let d = f64::min(f64::max(q.0, q.1), 0.0) + self.length((f64::max(q.0, 0.0), f64::max(q.1, 0.0))) - r.0;
+
+                if d < 0.0 {
+                    let t = self.fill_mask(d);
+                    frame[i] = t as f32;
                 }
             }
         }
@@ -665,10 +707,31 @@ impl Draw2D {
                 let d = pos.0 * 4 + sx * 4 + (sy + pos.1) * stride * 4;
                 let s = (x + g_pos.0) * 4 + (y + g_pos.1) * map.width * 4;
 
-                let background = &[frame[d], frame[d+1], frame[d+2], frame[d+3]];
-                let c = self.mix_color(&background, &[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]], pixels[s+3] as f64 / 255.0);
+                if let Some(mask) = &self.mask {
 
-                frame[d..d + 4].copy_from_slice(&c);
+                    if sy + pos.1 >= self.mask_size.1 {
+                        return;
+                    }
+
+                    if pos.0 + sx >= self.mask_size.0 {
+                        continue;
+                    }
+
+                    let dmask = pos.0 + sx + (sy + pos.1) * self.mask_size.0;
+
+                    let masked = mask[dmask];
+
+                    if masked > 0.0 {
+                        let background = &[frame[d], frame[d+1], frame[d+2], frame[d+3]];
+                        let c = self.mix_color(&background, &[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]], (pixels[s+3] as f64) * masked as f64 / 255.0);
+                        frame[d..d + 4].copy_from_slice(&c);
+                    }
+                } else {
+                    let background = &[frame[d], frame[d+1], frame[d+2], frame[d+3]];
+                    let c = self.mix_color(&background, &[pixels[s], pixels[s+1], pixels[s+2], pixels[s+3]], pixels[s+3] as f64 / 255.0);
+                    frame[d..d + 4].copy_from_slice(&c);
+                }
+
             }
         }
     }
@@ -770,11 +833,19 @@ impl Draw2D {
 
     /// Draws the given region centered at the given center and returns the top left offset into the region
     pub fn draw_region_centered_with_behavior(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), center: &(isize, isize), scroll_offset: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, context: &ScreenContext) -> (isize, isize) {
-        let left_offset = (rect.2 % tile_size) / 2;
-        let top_offset = (rect.3 % tile_size) / 2;
+        let mut left_offset = 0;
+        let mut top_offset = 0;
 
-        let x_tiles = (rect.2 / tile_size) as isize;
-        let y_tiles = (rect.3 / tile_size) as isize;
+        let mut x_tiles = (rect.2 / tile_size) as isize;
+        let mut y_tiles = (rect.3 / tile_size) as isize;
+
+        if self.mask.is_none() {
+            left_offset = (rect.2 % tile_size) / 2;
+            top_offset = (rect.3 % tile_size) / 2;
+        } else {
+            x_tiles += 1;
+            y_tiles += 1;
+        }
 
         let mut offset = center.clone();
 
@@ -783,6 +854,11 @@ impl Draw2D {
 
         offset.0 -= x_tiles / 2;
         offset.1 -= y_tiles / 2;
+
+        if self.mask.is_some() {
+            offset.0 += 1;
+            offset.1 += 1;
+        }
 
         // Draw Environment
         for y in 0..y_tiles {

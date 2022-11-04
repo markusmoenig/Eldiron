@@ -182,8 +182,17 @@ impl EditorContent for NodeGraph  {
                         if self.graph_type == BehaviorType::Regions {
                             // For regions draw the center of the map
                             if let Some(region)= context.data.regions.get_mut(&context.data.regions_ids[index]) {
+
+                                let mut mask_buffer = vec![0.0; 100 * 100];
+                                context.draw2d.create_rounded_rect_mask(&mut mask_buffer[..], &(0, 0, 100, 100), 100, &(10.0, 10.0, 10.0, 10.0));
+
+                                context.draw2d.mask = Some(mask_buffer.clone());
+                                context.draw2d.mask_size = (100, 100);
+
                                 let offset = region.get_center_offset_for_visible_size((10, 10));
                                 context.draw2d.draw_region(&mut preview_buffer[..], region, &(0, 0, 100, 100), &offset, 100, 10, anim_counter, asset);
+
+                                context.draw2d.mask = None;
                             }
                         } else
                         if self.graph_type == BehaviorType::Behaviors {

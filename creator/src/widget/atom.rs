@@ -508,7 +508,16 @@ impl AtomWidget {
                 match &self.atom_data.value {
                     Value::Position(pos) => {
                         if let Some(region) = context.data.regions.get(&pos.region) {
-                            context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &(4, 1, rect.2 - 8, rect.3 - 2), &(pos.x as isize, pos.y as isize), &(0, 0), rect.2, 14, 0, asset, context);
+
+                            let mut mask_buffer = vec![0.0; rect.2 * rect.3];
+                            context.draw2d.create_rounded_rect_mask(&mut mask_buffer[..], &(1, 1, rect.2 - 3, rect.3 - 3), rect.2, &context.node_button_rounding);
+
+                            context.draw2d.mask = Some(mask_buffer.clone());
+                            context.draw2d.mask_size = (rect.2, rect.3);
+
+                            context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &(0, 0, rect.2, rect.3), &(pos.x as isize, pos.y as isize), &(0, 0), rect.2, 14, 0, asset, context);
+
+                            context.draw2d.mask = None;
                         }
                     },
                     _ => {},

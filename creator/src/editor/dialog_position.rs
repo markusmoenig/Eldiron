@@ -167,7 +167,15 @@ impl DialogPositionWidget {
                             _ => {}
                         }
 
+                        let mut mask_buffer = vec![0.0; rect.2 * rect.3];
+                        context.draw2d.create_rounded_rect_mask(&mut mask_buffer[..], &region_rect, rect.2, &(20.0, 20.0, 20.0, 20.0));
+
+                        context.draw2d.mask = Some(mask_buffer.clone());
+                        context.draw2d.mask_size = (rect.2, rect.3);
+
                         self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &region_rect, &position, &self.region_scroll_offset, rect.2, 32, 0, asset, context);
+
+                        context.draw2d.mask = None;
 
                         // Draw areas
                         if area_mode {
