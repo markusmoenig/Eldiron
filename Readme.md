@@ -1,4 +1,4 @@
-![screenshot](docs/eldiron_logo.png)
+![screenshot](images/eldiron_logo.png)
 
 Classic RPG Creation
 
@@ -10,11 +10,7 @@ Classic RPG Creation
 
 Eldiron is currently under active development and a v1 is planned for the first quarter of 2023. Eldiron is open source and licensed under the MIT.
 
-<table><tr>
-<td> <img src="docs/moody_goes_raiding_3.gif" alt="Screen 1" style="width: 300px;"/> </td>
-<td> <img src="docs/screen_regions_tiles.png" alt="Screen 2" style="width: 300px;"/> </td>
-<td> <img src="docs/screen_tiles.png" alt="Screen 2" style="width: 300px;"/> </td>
-</tr></table>
+![Screenshot](images/behavior_screenshot.png)
 
 ## Features of v1
 
@@ -52,6 +48,9 @@ First, create the directory `embedded` in the `core_embed_binaries` directory:
 ```sh
 $ mkdir core_embed_binaries/embedded
 ```
+
+Than, if you have [Rust installed](https://www.rust-lang.org/tools/install), you can build Eldiron simply via
+```cargo build --release```
 
 Linux:
 
