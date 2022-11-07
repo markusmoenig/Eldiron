@@ -721,6 +721,7 @@ impl EditorContent for RegionWidget {
                         }
                     } else
                     if editor_mode == RegionEditorMode::Areas {
+                        let mut update_graph = false;
                         if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                             if region.data.areas.len() > 0 {
                                 let area = &mut region.data.areas[context.curr_region_area_index];
@@ -756,11 +757,21 @@ impl EditorContent for RegionWidget {
                                             self.area_widgets[0].curr_index = index;
                                             self.area_widgets[0].dirty = true;
                                             context.curr_region_area_index = index;
+                                            update_graph = true;
                                             break;
                                         }
                                     }
                                 }
                                 region.save_data();
+                            }
+                        }
+
+                        // Set a new area graph if the user picked one via the mouse event
+                        if update_graph {
+                            if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
+                                if let Some(graph) = self.get_behavior_graph() {
+                                    graph.set_behavior_id(region.behaviors[context.curr_region_area_index].data.id, context);
+                                }
                             }
                         }
                     } else
