@@ -1186,6 +1186,14 @@ pub fn take_heal(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
             value += healing;
             data.instances[instance_index].healing_to_be_dealt = Some(healing);
             value = value.max(0);
+
+            // Compare to max hitpoints
+            if let Some(max) = data.scopes[instance_index].get_value::<i32>(&data.max_hitpoints) {
+                if value > max {
+                    value = max;
+                }
+            }
+
             data.scopes[instance_index].set_value(&data.hitpoints, value);
             if value <= 0 {
                 rc = BehaviorNodeConnector::Fail;
@@ -1196,6 +1204,14 @@ pub fn take_heal(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
             value += healing;
             data.instances[instance_index].healing_to_be_dealt = Some(healing);
             value = value.max(0);
+
+            // Compare to max hitpoints
+            if let Some(max) = data.scopes[instance_index].get_value::<f32>(&data.max_hitpoints) {
+                if value > max as i32 {
+                    value = max as i32;
+                }
+            }
+
             data.scopes[instance_index].set_value(&data.hitpoints, value);
             if value <= 0 {
                 rc = BehaviorNodeConnector::Fail;

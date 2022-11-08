@@ -108,8 +108,12 @@ pub struct RegionInstance<'a> {
 
     screen_size                     : (i32, i32),
     def_square_tile_size            : i32,
+
+    // Variable names
+
     pub primary_currency            : String,
     pub hitpoints                   : String,
+    pub max_hitpoints               : String,
 }
 
 impl RegionInstance<'_> {
@@ -256,8 +260,11 @@ impl RegionInstance<'_> {
 
             screen_size                     : (1024, 608),
             def_square_tile_size            : 32,
+
+            // Variable names
             primary_currency                : "".to_string(),
-            hitpoints                       : "".to_string()
+            hitpoints                       : "".to_string(),
+            max_hitpoints                   : "".to_string()
         }
     }
 
@@ -1387,15 +1394,29 @@ impl RegionInstance<'_> {
                         _ => {}
                     }
                 }
+
                 if let Some(property) = settings.get("primary_currency") {
                     if let Some(name) = property.as_string() {
                         self.primary_currency = name;
                     }
+                } else {
+                    self.primary_currency = "gold".to_string();
                 }
+
                 if let Some(property) = settings.get("hitpoints") {
                     if let Some(name) = property.as_string() {
                         self.hitpoints = name;
                     }
+                } else {
+                    self.hitpoints = "HP".to_string();
+                }
+
+                if let Some(property) = settings.get("max_hitpoints") {
+                    if let Some(name) = property.as_string() {
+                        self.max_hitpoints = name;
+                    }
+                } else {
+                    self.max_hitpoints = "MAX_HP".to_string();
                 }
             }
         }
