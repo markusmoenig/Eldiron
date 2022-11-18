@@ -99,7 +99,7 @@ impl Editor<'_> {
         let code_editor =  CodeEditorWidget::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), asset, &context);
 
         // Set current project
-
+        /*
         let mut project_to_load: Option<std::path::PathBuf> = None;
         let project_list = context.get_project_list();
 
@@ -114,8 +114,8 @@ impl Editor<'_> {
             project_to_load = context.get_project_path(project_list[0].clone());
 
             status_bar.add_message(format!("Loaded Documents >> Eldiron >> {}", project_list[0]));
-        }
-        //let project_to_load = Some(get_resource_dir()); // Load the local project for development
+        }*/
+        let project_to_load = Some(get_resource_dir()); // Load the local project for development
 
         Self {
             rect                    : (0, 0, width, height),
