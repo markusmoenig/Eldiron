@@ -109,6 +109,9 @@ pub struct RegionInstance<'a> {
     screen_size                     : (i32, i32),
     def_square_tile_size            : i32,
 
+    pub gear_slots                  : Vec<String>,
+    pub weapon_slots                : Vec<String>,
+
     // Variable names
 
     pub primary_currency            : String,
@@ -260,6 +263,9 @@ impl RegionInstance<'_> {
 
             screen_size                     : (1024, 608),
             def_square_tile_size            : 32,
+
+            weapon_slots                    : vec![],
+            gear_slots                      : vec![],
 
             // Variable names
             primary_currency                : "".to_string(),
@@ -1375,6 +1381,11 @@ impl RegionInstance<'_> {
         if let Some(game_data) = serde_json::from_str(&game).ok() {
             self.game_data = game_data;
 
+            // Update the game settings, just in case they don't contain the latest
+            if self.game_data.settings.is_some() {
+                crate::gamedata::game::update_game_sink(&mut self.game_data.settings.as_mut().unwrap());
+            }
+
             // Read global game settings
 
             if let Some(settings) = &self.game_data.settings {
@@ -1417,6 +1428,24 @@ impl RegionInstance<'_> {
                     }
                 } else {
                     self.max_hitpoints = "MAX_HP".to_string();
+                }
+
+                if let Some(property) = settings.get("gear_slots") {
+                    if let Some(name) = property.as_string() {
+                        let ar : Vec<&str> = name.split(",").collect();
+                        for s in ar {
+                            self.gear_slots.push(s.to_lowercase().trim().to_string());
+                        }
+                    }
+                }
+
+                if let Some(property) = settings.get("weapon_slots") {
+                    if let Some(name) = property.as_string() {
+                        let ar : Vec<&str> = name.split(",").collect();
+                        for s in ar {
+                            self.weapon_slots.push(s.to_lowercase().trim().to_string());
+                        }
+                    }
                 }
             }
         }
