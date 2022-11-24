@@ -49,6 +49,12 @@ pub struct GameUpdate {
     /// Inventory
     pub inventory               : Inventory,
 
+    /// Gear
+    pub gear                    : Gear,
+
+    /// Weapons
+    pub weapons                 : Weapons,
+
     /// Multiple Choice Data
     pub multi_choice_data       : Vec<MultiChoiceData>,
 
@@ -79,6 +85,8 @@ impl GameUpdate {
             audio               : vec![],
             scope_buffer        : ScopeBuffer::new(),
             inventory           : Inventory::new(),
+            gear                : Gear::new(),
+            weapons             : Weapons::new(),
             multi_choice_data   : vec![],
             communication       : vec![],
 

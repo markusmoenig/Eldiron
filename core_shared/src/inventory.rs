@@ -14,12 +14,14 @@ pub struct InventoryItem {
     pub stackable           : i32,
     pub static_item         : bool,
     pub price               : f32,
+    pub weight              : f32,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Inventory {
     pub items               : Vec<InventoryItem>,
-    pub items_to_add        : Vec<(String, u32)>
+    pub items_to_add        : Vec<(String, u32)>,
+    pub items_to_equip      : Vec<String>
 }
 
 impl Inventory {
@@ -27,6 +29,7 @@ impl Inventory {
         Self {
             items           : vec![],
             items_to_add    : vec![],
+            items_to_equip  : vec![],
         }
     }
 
@@ -35,7 +38,12 @@ impl Inventory {
         self.items_to_add.push((name.to_string(), amount as u32));
     }
 
-    /// Add an item to the inventory.
+    /// Queues an item name to be equipped.
+    pub fn equip(&mut self, name: &str) {
+        self.items_to_equip.push(name.to_string());
+    }
+
+    /// Add an item to the inventory. TODO stack items
     pub fn add_item(&mut self, item: InventoryItem) {
         self.items.push(item);
     }
@@ -86,6 +94,6 @@ pub fn script_register_inventory_api(engine: &mut rhai::Engine) {
         .register_fn("len", Inventory::len)
         .register_fn("item_name_at", Inventory::item_name_at)
         .register_fn("item_amount_at", Inventory::item_amount_at)
-        .register_fn("add", Inventory::add);
-
+        .register_fn("add", Inventory::add)
+        .register_fn("equip", Inventory::equip);
 }

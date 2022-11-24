@@ -125,6 +125,8 @@ impl GameRender<'_> {
         engine.register_fn("to_string", |x: f32| format!("{}", x.round() as i32));
 
         script_register_inventory_api(&mut engine);
+        script_register_gear_api(&mut engine);
+        script_register_weapons_api(&mut engine);
 
         let this_map = Map::new();
 

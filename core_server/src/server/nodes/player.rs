@@ -137,6 +137,7 @@ pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
                                     stackable   : element.stackable,
                                     static_item : element.static_item,
                                     price       : element.price,
+                                    weight      : element.weight,
                                 };
                                 inv.add_item(item);
                             }
@@ -188,7 +189,8 @@ pub fn player_drop(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
                             amount      : item.amount as i32,
                             stackable   : item.stackable as i32,
                             static_item : item.static_item,
-                            price       : item.price
+                            price       : item.price,
+                            weight      : item.weight
                         };
 
                         if let Some(existing_loot) = data.loot.get_mut(&(p.x, p.y)) {

@@ -997,7 +997,8 @@ pub fn drop_inventory(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
                             amount      : item.amount as i32,
                             stackable   : item.stackable as i32,
                             static_item : item.static_item,
-                            price       : item.price
+                            price       : item.price,
+                            weight      : item.weight
                         };
 
                         if let Some(existing_loot) = data.loot.get_mut(&(p.x, p.y)) {
@@ -1038,7 +1039,8 @@ pub fn drop_inventory(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
                     amount      : gold,
                     stackable   : i32::MAX,
                     static_item : false,
-                    price       : 0.0
+                    price       : 0.0,
+                    weight      : 0.0
                 };
 
                 for (_index, node) in &behavior.nodes {

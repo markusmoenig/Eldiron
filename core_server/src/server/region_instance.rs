@@ -22,7 +22,7 @@ pub struct RegionInstance<'a> {
     /// The script engine
     pub engine                      : Engine,
     /// Script ast's, id is (BehaviorType, BehaviorId, BehaviorNodeID, AtomParameterID)
-    pub ast                         : HashMap<(BehaviorType, Uuid, Uuid, String), AST>,
+    pub ast                         : FxHashMap<(BehaviorType, Uuid, Uuid, String), AST>,
 
     // Character instances
     pub instances                   : Vec<BehaviorInstance>,
@@ -41,7 +41,7 @@ pub struct RegionInstance<'a> {
     pub curr_redirected_inst_index  : Option<usize>,
 
     /// Player game scopes
-    pub game_player_scopes          : HashMap<usize, Scope<'a>>,
+    pub game_player_scopes          : FxHashMap<usize, Scope<'a>>,
 
     /// The index of the game instance
     game_instance_index             : Option<usize>,
@@ -55,11 +55,11 @@ pub struct RegionInstance<'a> {
     // Used by ticks for state memory
 
     /// Current characters per region
-    pub characters                  : HashMap<Uuid, Vec<CharacterData>>,
+    pub characters                  : FxHashMap<Uuid, Vec<CharacterData>>,
     // Characters instance indices in a given area
-    pub area_characters             : HashMap<usize, Vec<usize>>,
+    pub area_characters             : FxHashMap<usize, Vec<usize>>,
     // The character instances from the previous tick, used to figure out onEnter, onLeave etc events
-    pub prev_area_characters        : HashMap<usize, Vec<usize>>,
+    pub prev_area_characters        : FxHashMap<usize, Vec<usize>>,
 
     // Lights for this region
     pub lights                      : Vec<LightData>,
@@ -143,6 +143,8 @@ impl RegionInstance<'_> {
 
         script_register_message_api(&mut engine);
         script_register_inventory_api(&mut engine);
+        script_register_gear_api(&mut engine);
+        script_register_weapons_api(&mut engine);
 
         // Display f64 as ints
         use pathfinding::num_traits::ToPrimitive;
@@ -212,7 +214,7 @@ impl RegionInstance<'_> {
             area_ids                        : vec![],
 
             engine,
-            ast                             : HashMap::new(),
+            ast                             : FxHashMap::default(),
             nodes,
 
             instances                       : vec![],
@@ -226,7 +228,7 @@ impl RegionInstance<'_> {
 
             curr_redirected_inst_index      : None,
 
-            game_player_scopes              : HashMap::new(),
+            game_player_scopes              : FxHashMap::default(),
 
             game_instance_index             : None,
 
@@ -234,9 +236,9 @@ impl RegionInstance<'_> {
 
             displacements                   : HashMap::new(),
 
-            characters                      : HashMap::new(),
-            area_characters                 : HashMap::new(),
-            prev_area_characters            : HashMap::new(),
+            characters                      : FxHashMap::default(),
+            area_characters                 : FxHashMap::default(),
+            prev_area_characters            : FxHashMap::default(),
             lights                          : vec![],
 
             action_direction_text           : "".to_string(),
@@ -278,13 +280,15 @@ impl RegionInstance<'_> {
     pub fn tick(&mut self) -> Vec<Message> {
 
         self.messages = vec![];
-        self.characters = HashMap::new();
+        self.characters = FxHashMap::default();
         self.lights = vec![];
         self.prev_area_characters = self.area_characters.clone();
-        self.area_characters = HashMap::new();
+        self.area_characters = FxHashMap::default();
 
         let mut messages = vec![];
         let mut inventory = Inventory::new();
+        let mut gear = Gear::new();
+        let mut weapons = Weapons::new();
 
         let tick_time = self.get_time();
 
@@ -588,8 +592,8 @@ impl RegionInstance<'_> {
             let mut to_add = vec![];
 
             // Check if we have to add items to the inventory and clone it for sending to the client
-            if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
-                if let Some(mut inv) = mess.write_lock::<Inventory>() {
+            if let Some(i) = self.scopes[inst_index].get_mut("inventory") {
+                if let Some(mut inv) = i.write_lock::<Inventory>() {
 
                     // Add items
                     if inv.items_to_add.is_empty() == false {
@@ -639,6 +643,7 @@ impl RegionInstance<'_> {
                                             stackable   : 1,
                                             static_item : false,
                                             price       : 0.0,
+                                            weight      : 0.0,
                                         };
 
                                         // Add state ?
@@ -672,22 +677,27 @@ impl RegionInstance<'_> {
                                                     item.static_item = st;
                                                 }
                                             }
-                                            if let Some(static_item) = sink.get("stackable") {
-                                                if let Some(st) = static_item.as_int() {
+                                            if let Some(stackable_item) = sink.get("stackable") {
+                                                if let Some(st) = stackable_item.as_int() {
                                                     if st >= 0 {
                                                         item.stackable = st;
                                                     }
                                                 }
                                             }
-                                            if let Some(static_item) = sink.get("price") {
-                                                let price = static_item.to_float();
+                                            if let Some(price_item) = sink.get("price") {
+                                                let price = price_item.to_float();
                                                 if price >= 0.0 {
                                                     item.price = price;
                                                 }
                                             }
+                                            if let Some(weight_item) = sink.get("weight") {
+                                                let weight = weight_item.to_float();
+                                                if weight >= 0.0 {
+                                                    item.weight = weight;
+                                                }
+                                            }
                                         }
 
-                                        //inv.add_item(item);
                                         to_add.push((item, states_to_execute));
                                         break;
                                     }
@@ -719,6 +729,20 @@ impl RegionInstance<'_> {
                     if let Some(mut inv) = mess.write_lock::<Inventory>() {
                         inv.add_item(item);
                     }
+                }
+            }
+
+            // Clone the gear for sending it to the client
+            if let Some(g) = self.scopes[inst_index].get("gear") {
+                if let Some(ge) = g.read_lock::<Gear>() {
+                    gear = ge.clone();
+                }
+            }
+
+            // Clone the weapons for sending it to the client
+            if let Some(w) = self.scopes[inst_index].get("weapons") {
+                if let Some(weap) = w.read_lock::<Weapons>() {
+                    weapons = weap.clone();
                 }
             }
 
@@ -897,6 +921,8 @@ impl RegionInstance<'_> {
                     audio                   : self.instances[inst_index].audio.clone(),
                     scope_buffer            : scope_buffer,
                     inventory               : inventory.clone(),
+                    gear                    : gear.clone(),
+                    weapons                 : weapons.clone(),
                     multi_choice_data       : self.instances[inst_index].multi_choice_data.clone(),
                     communication           : self.instances[inst_index].communication.clone(),
                  };
@@ -1334,6 +1360,7 @@ impl RegionInstance<'_> {
                             stackable   : 1,
                             static_item : false,
                             price       : 0.0,
+                            weight      : 0.0,
                         };
 
                         for (_index, node) in &behavior_data.nodes {
@@ -1350,17 +1377,23 @@ impl RegionInstance<'_> {
                                                 loot.static_item = st;
                                             }
                                         }
-                                        if let Some(static_item) = s.get("stackable") {
-                                            if let Some(st) = static_item.as_int() {
+                                        if let Some(stackable_item) = s.get("stackable") {
+                                            if let Some(st) = stackable_item.as_int() {
                                                 if st >= 0 {
                                                     loot.stackable = st;
                                                 }
                                             }
                                         }
-                                        if let Some(static_item) = s.get("price") {
-                                            let price = static_item.to_float();
+                                        if let Some(price_item) = s.get("price") {
+                                            let price = price_item.to_float();
                                             if price >= 0.0 {
                                                 loot.price = price;
+                                            }
+                                        }
+                                        if let Some(weight_item) = s.get("weight") {
+                                            let weight = weight_item.to_float();
+                                            if weight >= 0.0 {
+                                                loot.weight = weight;
                                             }
                                         }
                                     }
@@ -1663,6 +1696,8 @@ impl RegionInstance<'_> {
                 scope.set_value("alignment", inst.alignment as i32);
                 scope.set_value("messages", ScriptMessageCmd::new());
                 scope.set_value("inventory", Inventory::new());
+                scope.set_value("gear", Gear::new());
+                scope.set_value("weapons", Weapons::new());
 
                 self.scopes.push(scope);
             }

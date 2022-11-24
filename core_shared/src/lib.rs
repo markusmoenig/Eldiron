@@ -12,6 +12,8 @@ pub mod value;
 pub mod structs;
 pub mod script;
 pub mod inventory;
+pub mod gear;
+pub mod weapons;
 pub mod dir;
 
 pub mod prelude {
@@ -32,6 +34,8 @@ pub mod prelude {
     pub use crate::structs::*;
     pub use crate::script::*;
     pub use crate::inventory::*;
+    pub use crate::gear::*;
+    pub use crate::weapons::*;
     pub use crate::dir::get_resource_dir;
 
     pub use crate::value::Value;
