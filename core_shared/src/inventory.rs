@@ -43,8 +43,18 @@ impl Inventory {
         self.items_to_equip.push(name.to_string());
     }
 
-    /// Add an item to the inventory. TODO stack items
+    /// Add an item to the inventory.
     pub fn add_item(&mut self, item: InventoryItem) {
+        if item.stackable > 1 {
+            for it in &mut self.items {
+                if it.name == item.name {
+                    if it.amount < item.stackable {
+                        it.amount += 1;
+                        return;
+                    }
+                }
+            }
+        }
         self.items.push(item);
     }
 
