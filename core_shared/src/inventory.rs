@@ -44,13 +44,18 @@ impl Inventory {
     }
 
     /// Add an item to the inventory.
-    pub fn add_item(&mut self, item: InventoryItem) {
+    pub fn add_item(&mut self, mut item: InventoryItem) {
         if item.stackable > 1 {
             for it in &mut self.items {
-                if it.name == item.name {
+                if it.id == item.id {
                     if it.amount < item.stackable {
-                        it.amount += 1;
-                        return;
+                        it.amount += item.amount;
+                        if it.amount > item.stackable {
+                            item.amount = it.amount - item.stackable;
+                            it.amount = item.stackable;
+                        } else {
+                            return;
+                        }
                     }
                 }
             }
