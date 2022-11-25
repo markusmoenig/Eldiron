@@ -402,7 +402,8 @@ impl RegionInstance<'_> {
 
                     let mut tree_id: Option<Uuid> = None;
                     if let Some(action) = &self.instances[inst_index].action {
-
+                        // DEBUG INCOMING ACTION
+                        // println!("{:?}", self.instances[inst_index].action);
                         if action.direction != PlayerDirection::None {
 
                             // A directed action ( Move / Look - North etc)
@@ -708,7 +709,17 @@ impl RegionInstance<'_> {
                         }
                         inv.items_to_add = vec![];
                     }
-                    // TODO Remove Items
+
+                    // Equip an item ?
+                    if inv.items_to_equip.is_empty() == false {
+                        let name = inv.items_to_equip[0].clone();
+                        let removed_item = inv.remove_item_by_name(name);
+                        if let Some(item) = removed_item {
+                            // TODO: Equip the removed item
+                        }
+                        inv.items_to_equip = vec![];
+                    }
+
                     inventory = inv.clone();
                 }
             }

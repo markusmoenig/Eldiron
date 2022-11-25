@@ -84,6 +84,22 @@ impl Inventory {
         0
     }
 
+    // Removes the item of the given name
+    pub fn remove_item_by_name(&mut self, name: String) -> Option<InventoryItem> {
+        let mut id : Option<Uuid> = None;
+        for index in 0..self.items.len() {
+            if self.items[index].name == name {
+                id = Some(self.items[index].id);
+            }
+        }
+
+        if let Some(id) = id {
+            self.remove_item(id, 1)
+        } else {
+            None
+        }
+    }
+
     // Removes the given amount of items from the inventory and returns it
     pub fn remove_item(&mut self, id: Uuid, _amount: i32) -> Option<InventoryItem> {
 
