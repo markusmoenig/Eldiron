@@ -136,7 +136,7 @@ fn main() -> Result<(), Error> {
             let mut cx : usize = 0;
             let mut cy : usize = 0;
 
-            let frame = pixels.get_frame();
+            let frame = pixels.get_frame_mut();
 
             if render.width < width {
                 cx = (width - render.width) / 2;

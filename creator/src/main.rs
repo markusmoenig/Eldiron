@@ -74,7 +74,7 @@ fn main() -> Result<(), Error> {
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
     let window = {
-        
+
         if cfg!(target_os = "macos") {
             let size = LogicalSize::new(width as f64, height as f64);
             WindowBuilder::new()
@@ -117,7 +117,7 @@ fn main() -> Result<(), Error> {
 
         if let Event::RedrawRequested(_) = event {
             // let start = get_time();
-            editor.draw(pixels.get_frame(), anim_counter, &mut asset);
+            editor.draw(pixels.get_frame_mut(), anim_counter, &mut asset);
             // println!("Time: {}", get_time() - start);
             if pixels
                 .render()
