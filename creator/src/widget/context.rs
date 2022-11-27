@@ -155,6 +155,10 @@ pub struct ScreenContext<'a> {
 
     pub icons                           : FxHashMap<String, (Vec<u8>, u32, u32)>,
 
+    // Icons
+
+    pub scripts                         : FxHashMap<String, String>,
+
     // Audio
 
     pub audio_engine                    : Option<AudioEngine<Group>>,
@@ -188,6 +192,20 @@ impl ScreenContext<'_> {
             let path = &path.path();
             if let Some(icon) = load_icon(&path) {
                 icons.insert(path::Path::new(&path).file_stem().unwrap().to_str().unwrap().to_string(), icon);
+            }
+        }
+
+        // Scripts
+
+        let mut scripts : FxHashMap<String, String> = FxHashMap::default();
+        let scripts_path = get_resource_dir().join("resources").join("scripts");
+        let paths: Vec<_> = fs::read_dir(scripts_path.clone()).unwrap()
+                                                .map(|r| r.unwrap())
+                                                .collect();
+        for path in paths {
+            let path = &path.path();
+            if let Some(script) = fs::read_to_string(path).ok() {
+                scripts.insert(path::Path::new(&path).file_stem().unwrap().to_str().unwrap().to_string(), script);
             }
         }
 
@@ -390,6 +408,7 @@ impl ScreenContext<'_> {
             debug_log_inventory         : Inventory::new(),
 
             icons,
+            scripts,
 
             audio_engine                : None,
         }

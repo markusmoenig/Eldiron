@@ -75,6 +75,7 @@ pub enum BehaviorNodeType {
     Heal,
     TakeHeal,
     Respawn,
+    Widget,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -197,6 +198,7 @@ pub struct BehaviorInstance {
 
     /// Current screen content
     pub curr_player_screen      : String,
+    pub curr_player_widgets     : Vec<String>,
 
     /// The locked tree for the game behavior for this player
     pub game_locked_tree        : Option<Uuid>,

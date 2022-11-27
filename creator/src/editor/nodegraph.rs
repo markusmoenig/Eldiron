@@ -1210,6 +1210,7 @@ impl EditorContent for NodeGraph  {
                 "Linear" => BehaviorNodeType::Linear,
                 "Move" => BehaviorNodeType::Move,
                 "Screen" => BehaviorNodeType::Screen,
+                "Widget" => BehaviorNodeType::Widget,
                 "Message" if self.graph_type != BehaviorType::Regions => BehaviorNodeType::Message,
                 "Action" if self.graph_type != BehaviorType::Regions => BehaviorNodeType::Action,
                 "Take" => BehaviorNodeType::Take,
@@ -1484,10 +1485,33 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.text = "Script".to_string();
             let id = (behavior_data_id, node_id, "script".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("".to_owned()), self.graph_type);
+            let mut def_text = "".to_string();
+            if let Some(txt) = context.scripts.get("screen") {
+                def_text = txt.clone();
+            }
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String(def_text), self.graph_type);
             node_widget.widgets.push(atom1);
 
             node_widget.help_link = Some("https://book.eldiron.com/nodes/screen.html".to_string());
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::Widget {
+            let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScreenButton,
+            AtomData::new("script", Value::Empty()));
+            atom1.atom_data.text = "Script".to_string();
+            let id = (behavior_data_id, node_id, "script".to_string());
+            atom1.behavior_id = Some(id.clone());
+            let mut def_text = "".to_string();
+            if let Some(txt) = context.scripts.get("widget") {
+                def_text = txt.clone();
+            }
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String(def_text), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            node_widget.help_link = Some("https://book.eldiron.com/nodes/widget.html".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );

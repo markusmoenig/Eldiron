@@ -21,6 +21,9 @@ pub struct GameUpdate {
     /// The script for the current screen which handles the drawing
     pub screen                  : Option<String>,
 
+    /// The widget scripts for the current screen
+    pub widgets                 : Vec<String>,
+
     /// A region
     pub region                  : Option<GameRegionData>,
 
@@ -76,6 +79,7 @@ impl GameUpdate {
             curr_transition_time: 0,
             tile                : None,
             screen              : None,
+            widgets             : vec![],
             region              : None,
             lights              : vec![],
             displacements       : HashMap::new(),

@@ -175,6 +175,7 @@ impl RegionInstance<'_> {
         */
         nodes.insert(BehaviorNodeType::Move, player_move);
         nodes.insert(BehaviorNodeType::Screen, screen);
+        nodes.insert(BehaviorNodeType::Widget, widget);
         nodes.insert(BehaviorNodeType::Message, message);
         nodes.insert(BehaviorNodeType::Action, player_action);
         nodes.insert(BehaviorNodeType::Take, player_take);
@@ -863,6 +864,7 @@ impl RegionInstance<'_> {
                 let old_screen_id = self.instances[inst_index].curr_player_screen_id;
 
                 let mut screen : Option<String> = None;
+                let mut widgets : Vec<String> = vec![];
 
                 // Execute the game behavior
                 if let Some(game_inst_index) = self.game_instance_index {
@@ -879,9 +881,11 @@ impl RegionInstance<'_> {
                     if let Some(old_screen_id) = &old_screen_id {
                         if new_screen_id != old_screen_id {
                             screen = Some(self.instances[inst_index].curr_player_screen.clone());
+                            widgets = self.instances[inst_index].curr_player_widgets.clone();
                         }
                     } else {
                         screen = Some(self.instances[inst_index].curr_player_screen.clone());
+                        widgets = self.instances[inst_index].curr_player_widgets.clone();
                     }
                 }
 
@@ -922,7 +926,8 @@ impl RegionInstance<'_> {
                     max_transition_time     : self.instances[inst_index].max_transition_time,
                     curr_transition_time    : self.instances[inst_index].curr_transition_time,
                     tile                    : self.instances[inst_index].tile.clone(),
-                    screen                  : screen,
+                    screen,
+                    widgets,
                     region,
                     lights                  : self.lights.clone(),
                     displacements,
@@ -1535,7 +1540,7 @@ impl RegionInstance<'_> {
 
         let index = self.instances.len();
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: None };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: None };
 
         self.instances.push(instance);
         self.scopes.push(scope);
@@ -1696,7 +1701,7 @@ impl RegionInstance<'_> {
 
                 //println!("Creating instance {}", inst.name.unwrap());
 
-                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: Some(inst.clone()) };
+                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: Some(inst.clone()) };
 
                 index = self.instances.len();
                 self.instances.push(instance);
