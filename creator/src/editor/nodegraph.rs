@@ -1242,6 +1242,7 @@ impl EditorContent for NodeGraph  {
                 "Heal" => BehaviorNodeType::Heal,
                 "Take Heal" => BehaviorNodeType::TakeHeal,
                 "Respawn" => BehaviorNodeType::Respawn,
+                "Equip" => BehaviorNodeType::Equip,
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
@@ -1592,6 +1593,13 @@ impl EditorContent for NodeGraph  {
         } else
         if node_behavior_type == BehaviorNodeType::Drop {
             node_widget.help_link = Some("https://book.eldiron.com/nodes/drop.html".to_string());
+            node_widget.color = context.color_gray.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::Equip {
+            node_widget.help_link = Some("https://book.eldiron.com/nodes/equip.html".to_string());
             node_widget.color = context.color_gray.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );

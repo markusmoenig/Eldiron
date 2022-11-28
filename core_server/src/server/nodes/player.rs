@@ -254,3 +254,25 @@ pub fn player_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut Region
 
     rc
 }
+
+/// Player wants to drop something
+pub fn player_equip(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut index: Option<usize> = None;
+    if let Some(action) = &data.instances[instance_index].action {
+        if let Some(inventory_index) = action.inventory_index {
+            index = Some(inventory_index as usize);
+        }
+    }
+
+    if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
+        if let Some(mut inv) = mess.write_lock::<Inventory>() {
+
+            if let Some(index) = index {
+                println!("equip {}", inv.items[index].item_type);
+            }
+        }
+    }
+
+    BehaviorNodeConnector::Fail
+}
