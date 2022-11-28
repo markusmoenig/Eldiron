@@ -991,6 +991,7 @@ pub fn drop_inventory(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
                         let loot = LootData {
                             id          : item.id,
                             name        : Some(item.name),
+                            item_type   : item.item_type,
                             tile        : item.tile,
                             state       : item.state,
                             light       : item.light,
@@ -1033,6 +1034,7 @@ pub fn drop_inventory(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
                 let mut loot = LootData {
                     id          : *id,
                     name        : Some(behavior.name.clone()),
+                    item_type   : "Tool".to_string(),
                     tile        : None,
                     state       : None,
                     light       : None,

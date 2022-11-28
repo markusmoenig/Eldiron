@@ -129,7 +129,7 @@ pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
                                 let item = InventoryItem {
                                     id          : element.id,
                                     name        : name.clone(),
-                                    item_type   : "Gear".to_string(),
+                                    item_type   : element.item_type,
                                     tile        : element.tile,
                                     state       : element.state,
                                     light       : element.light,
@@ -183,6 +183,7 @@ pub fn player_drop(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
                         let loot = LootData {
                             id          : item.id,
                             name        : Some(item.name),
+                            item_type   : item.item_type,
                             tile        : item.tile,
                             state       : item.state,
                             light       : item.light,

@@ -699,6 +699,9 @@ impl RegionInstance<'_> {
                                                     item.weight = weight;
                                                 }
                                             }
+                                            if let Some(item_type) = sink.get("item_type") {
+                                                item.item_type = item_type.to_string();
+                                            }
                                         }
 
                                         to_add.push((item, states_to_execute));
@@ -1369,6 +1372,7 @@ impl RegionInstance<'_> {
                         if instance.position.region != self.region_data.id { continue; }
                         let mut loot = LootData {
                             id          : behavior_data.id.clone(),
+                            item_type   : "Gear".to_string(),
                             name        : Some(behavior_data.name.clone()),
                             tile        : None,
                             state       : None,
@@ -1412,6 +1416,9 @@ impl RegionInstance<'_> {
                                             if weight >= 0.0 {
                                                 loot.weight = weight;
                                             }
+                                        }
+                                        if let Some(item_type) = s.get("item_type") {
+                                            loot.item_type = item_type.to_string();
                                         }
                                     }
                                 }
