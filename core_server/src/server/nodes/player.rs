@@ -266,14 +266,23 @@ pub fn player_equip(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionI
         }
     }
 
+    let mut rc = BehaviorNodeConnector::Fail;
+
     if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
         if let Some(mut inv) = mess.write_lock::<Inventory>() {
 
             if let Some(index) = index {
-                println!("equip {}", inv.items[index].item_type);
+                let item_type = inv.items[index].item_type.clone().to_lowercase();
+
+                if item_type == "weapon" {
+                    let _item = inv.items.remove(index);
+                } else
+                if item_type == "gear" {
+                    let _item = inv.items.remove(index);
+                }
             }
         }
     }
 
-    BehaviorNodeConnector::Fail
+    rc
 }

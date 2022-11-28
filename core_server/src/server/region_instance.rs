@@ -638,7 +638,7 @@ impl RegionInstance<'_> {
                                         let mut item = InventoryItem {
                                             id          : behavior.id,
                                             name        : behavior.name.clone(),
-                                            item_type   : "Gear".to_string(),
+                                            item_type   : "gear".to_string(),
                                             tile        : tile_data,
                                             state       : None,
                                             light       : None,
@@ -1372,7 +1372,7 @@ impl RegionInstance<'_> {
                         if instance.position.region != self.region_data.id { continue; }
                         let mut loot = LootData {
                             id          : behavior_data.id.clone(),
-                            item_type   : "Gear".to_string(),
+                            item_type   : "gear".to_string(),
                             name        : Some(behavior_data.name.clone()),
                             tile        : None,
                             state       : None,
