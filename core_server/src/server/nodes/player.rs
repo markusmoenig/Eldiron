@@ -133,6 +133,7 @@ pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
                                     tile        : element.tile,
                                     state       : element.state,
                                     light       : element.light,
+                                    slot        : element.slot,
                                     amount      : element.amount,
                                     stackable   : element.stackable,
                                     static_item : element.static_item,
@@ -187,6 +188,7 @@ pub fn player_drop(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
                             tile        : item.tile,
                             state       : item.state,
                             light       : item.light,
+                            slot        : item.slot,
                             amount      : item.amount as i32,
                             stackable   : item.stackable as i32,
                             static_item : item.static_item,
@@ -259,6 +261,7 @@ pub fn player_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut Region
 /// Player wants to drop something
 pub fn player_equip(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
+    // Get the inventory index of the item to equip
     let mut index: Option<usize> = None;
     if let Some(action) = &data.instances[instance_index].action {
         if let Some(inventory_index) = action.inventory_index {
@@ -268,17 +271,56 @@ pub fn player_equip(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionI
 
     let mut rc = BehaviorNodeConnector::Fail;
 
+    let mut to_equip: Option<InventoryItem> = None;
+    let mut to_add_back_to_inventory: Vec<InventoryItem> = vec![];
+
+    // Remove the item to equip from the inventory
     if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
         if let Some(mut inv) = mess.write_lock::<Inventory>() {
-
             if let Some(index) = index {
-                let item_type = inv.items[index].item_type.clone().to_lowercase();
+                to_equip = Some(inv.items.remove(index));
+            }
+        }
+    }
 
-                if item_type == "weapon" {
-                    let _item = inv.items.remove(index);
-                } else
-                if item_type == "gear" {
-                    let _item = inv.items.remove(index);
+    if let Some(to_equip) = to_equip {
+        let item_type = to_equip.item_type.clone().to_lowercase();
+        if let Some(slot) = to_equip.slot.clone() {
+            if item_type == "weapon" {
+                if let Some(mess) = data.scopes[instance_index].get_mut("weapons") {
+                    if let Some(mut weapons) = mess.write_lock::<Weapons>() {
+                        // Remove existing item in the slot
+                        if let Some(w) = weapons.slots.remove(&slot) {
+                            to_add_back_to_inventory.push(w);
+                        }
+                        // Insert the new weapon into the slot
+                        weapons.slots.insert(slot, to_equip);
+                        rc = BehaviorNodeConnector::Success;
+                    }
+                }
+            } else
+            if item_type == "gear" {
+                if let Some(mess) = data.scopes[instance_index].get_mut("gear") {
+                    if let Some(mut gear) = mess.write_lock::<Gear>() {
+                        // Remove existing item in the slot
+                        if let Some(g) = gear.slots.remove(&slot) {
+                            to_add_back_to_inventory.push(g);
+                        }
+                        // Insert the new weapon into the slot
+                        gear.slots.insert(slot, to_equip);
+                        rc = BehaviorNodeConnector::Success;
+                    }
+                }
+            }
+        }
+    }
+
+    // Add removed items in the equipped slot(s) back into the inventory
+    if to_add_back_to_inventory.is_empty() == false {
+        if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
+            if let Some(mut inv) = mess.write_lock::<Inventory>() {
+                for item in to_add_back_to_inventory {
+                    inv.items.push(item);
                 }
             }
         }

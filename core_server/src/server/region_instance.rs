@@ -593,6 +593,7 @@ impl RegionInstance<'_> {
             // Inventory Actions
 
             let mut to_add = vec![];
+            let mut to_equip = vec![];
 
             // Check if we have to add items to the inventory and clone it for sending to the client
             if let Some(i) = self.scopes[inst_index].get_mut("inventory") {
@@ -642,6 +643,7 @@ impl RegionInstance<'_> {
                                             tile        : tile_data,
                                             state       : None,
                                             light       : None,
+                                            slot        : None,
                                             amount      : data.1 as i32,
                                             stackable   : 1,
                                             static_item : false,
@@ -700,7 +702,14 @@ impl RegionInstance<'_> {
                                                 }
                                             }
                                             if let Some(item_type) = sink.get("item_type") {
-                                                item.item_type = item_type.to_string();
+                                                if let Some(i_type) = item_type.as_string() {
+                                                    item.item_type = i_type;
+                                                }
+                                            }
+                                            if let Some(item_slot) = sink.get("slot") {
+                                                if let Some(slot) = item_slot.as_string() {
+                                                    item.slot = Some(slot);
+                                                }
                                             }
                                         }
 
@@ -721,6 +730,7 @@ impl RegionInstance<'_> {
                         let removed_item = inv.remove_item_by_name(name);
                         if let Some(item) = removed_item {
                             // TODO: Equip the removed item
+                            to_equip.push(item);
                         }
                         inv.items_to_equip = vec![];
                     }
@@ -744,6 +754,49 @@ impl RegionInstance<'_> {
                 if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
                     if let Some(mut inv) = mess.write_lock::<Inventory>() {
                         inv.add_item(item);
+                    }
+                }
+            }
+
+            // Equip items
+            let mut to_add_back_to_inventory: Vec<InventoryItem> = vec![];
+            for item in to_equip {
+                let item_type = item.item_type.clone().to_lowercase();
+                if let Some(slot) = item.slot.clone() {
+                    if item_type == "weapon" {
+                        if let Some(mess) = self.scopes[inst_index].get_mut("weapons") {
+                            if let Some(mut weapons) = mess.write_lock::<Weapons>() {
+                                // Remove existing item in the slot
+                                if let Some(w) = weapons.slots.remove(&slot) {
+                                    to_add_back_to_inventory.push(w);
+                                }
+                                // Insert the new weapon into the slot
+                                weapons.slots.insert(slot, item);
+                            }
+                        }
+                    } else
+                    if item_type == "gear" {
+                        if let Some(mess) = self.scopes[inst_index].get_mut("gear") {
+                            if let Some(mut gear) = mess.write_lock::<Gear>() {
+                                // Remove existing item in the slot
+                                if let Some(g) = gear.slots.remove(&slot) {
+                                    to_add_back_to_inventory.push(g);
+                                }
+                                // Insert the new gear into the slot
+                                gear.slots.insert(slot, item);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Add removed items in the equipped slot(s) back into the inventory
+            if to_add_back_to_inventory.is_empty() == false {
+                if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
+                    if let Some(mut inv) = mess.write_lock::<Inventory>() {
+                        for item in to_add_back_to_inventory {
+                            inv.items.push(item);
+                        }
                     }
                 }
             }
@@ -1377,6 +1430,7 @@ impl RegionInstance<'_> {
                             tile        : None,
                             state       : None,
                             light       : None,
+                            slot        : None,
                             amount      : instance.amount,
                             stackable   : 1,
                             static_item : false,
@@ -1418,7 +1472,14 @@ impl RegionInstance<'_> {
                                             }
                                         }
                                         if let Some(item_type) = s.get("item_type") {
-                                            loot.item_type = item_type.to_string();
+                                            if let Some(i_type) = item_type.as_string() {
+                                                loot.item_type = i_type;
+                                            }
+                                        }
+                                        if let Some(item_slot) = s.get("slot") {
+                                            if let Some(slot) = item_slot.as_string() {
+                                                loot.slot = Some(slot);
+                                            }
                                         }
                                     }
                                 }
@@ -1548,7 +1609,7 @@ impl RegionInstance<'_> {
 
         let index = self.instances.len();
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: None };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: None };
 
         self.instances.push(instance);
         self.scopes.push(scope);
@@ -1709,7 +1770,7 @@ impl RegionInstance<'_> {
 
                 //println!("Creating instance {}", inst.name.unwrap());
 
-                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: Some(inst.clone()) };
+                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: Some(inst.clone()) };
 
                 index = self.instances.len();
                 self.instances.push(instance);
@@ -1874,6 +1935,27 @@ impl RegionInstance<'_> {
             }
         }
 
+        if let Some(mess) = self.scopes[inst_index].get_mut("weapons") {
+            if let Some(weap) = mess.write_lock::<Weapons>() {
+
+                let w = weap.clone();
+                if let Some(json) = serde_json::to_string(&w).ok() {
+                        self.instances[inst_index].weapons_buffer = Some(json);
+                }
+            }
+        }
+
+        if let Some(mess) = self.scopes[inst_index].get_mut("gear") {
+            if let Some(ge) = mess.write_lock::<Gear>() {
+
+                let g = ge.clone();
+                if let Some(json) = serde_json::to_string(&g).ok() {
+                        self.instances[inst_index].gear_buffer = Some(json);
+                }
+            }
+        }
+
+
         self.instances[inst_index].scope_buffer = Some(scope_buffer);
     }
 
@@ -1882,7 +1964,9 @@ impl RegionInstance<'_> {
         if let Some(buffer) = &instance.scope_buffer {
             buffer.write_to_scope(&mut scope);
         }
+
         scope.set_value("messages", ScriptMessageCmd::new());
+
         if let Some(inventory_buffer) = &instance.inventory_buffer {
             let inventory : Inventory = serde_json::from_str(&inventory_buffer)
                 .unwrap_or(Inventory::new());
@@ -1891,6 +1975,25 @@ impl RegionInstance<'_> {
             // Should not happen
             scope.set_value("inventory", Inventory::new());
         }
+
+        if let Some(weapons_buffer) = &instance.weapons_buffer {
+            let weapons : Weapons = serde_json::from_str(&weapons_buffer)
+                .unwrap_or(Weapons::new());
+            scope.set_value("weapons", weapons);
+        } else {
+            // Should not happen
+            scope.set_value("weapons", Weapons::new());
+        }
+
+        if let Some(gear_buffer) = &instance.gear_buffer {
+            let gear : Gear = serde_json::from_str(&gear_buffer)
+                .unwrap_or(Gear::new());
+            scope.set_value("gear", gear);
+        } else {
+            // Should not happen
+            scope.set_value("gear", Gear::new());
+        }
+
     }
 
     /// Gets the current time in milliseconds

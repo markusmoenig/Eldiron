@@ -10,6 +10,7 @@ pub struct InventoryItem {
     pub tile                : Option<TileData>,
     pub state               : Option<ScopeBuffer>,
     pub light               : Option<LightData>,
+    pub slot                : Option<String>,
     pub amount              : i32,
     pub stackable           : i32,
     pub static_item         : bool,
