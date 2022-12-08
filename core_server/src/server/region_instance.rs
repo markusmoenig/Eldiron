@@ -1,4 +1,4 @@
-use crate::{prelude::*, server::nodes::item::{light_item, set_item_tile}};
+use crate::{prelude::*};
 use rhai::{Engine, AST, Scope};
 
 pub struct RegionInstance<'a> {
@@ -201,6 +201,9 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::AudioArea, audio_area);
         nodes.insert(BehaviorNodeType::LightArea, light_area);
         nodes.insert(BehaviorNodeType::ActionArea, action);
+
+        nodes.insert(BehaviorNodeType::SkillTree, skill_tree);
+        nodes.insert(BehaviorNodeType::SkillLevel, skill_level);
 
         Self {
             region_data                     : GameRegionData::new(),

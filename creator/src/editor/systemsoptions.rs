@@ -19,6 +19,8 @@ impl EditorOptions for SystemsOptions {
 
         node_list.add_group_list(context.color_green, context.color_light_green, vec!["Behavior Tree".to_string(), "Expression".to_string(), "Script".to_string(), "Linear".to_string(), "Sequence".to_string(), "Has Target ?".to_string()]);
 
+        node_list.add_group_list(context.color_orange, context.color_light_orange, vec!["Skill Tree".to_string(), "Skill Level".to_string()]);
+
         let mut items = vec![ "Call Behavior".to_string(), "Call System".to_string(), "Close In".to_string(), "Lock Tree".to_string(), "Lookout".to_string(), "Message".to_string(), "Pathfinder".to_string(), "Random Walk".to_string(), "Unlock".to_string(), "Set State".to_string(), "Multi Choice".to_string(), "Sell".to_string(), "Untarget".to_string(), "Deal Damage".to_string(), "Take Damage".to_string(), "Drop Inv.".to_string(), "Teleport".to_string(), "Audio".to_string(), "Effect".to_string(), "Respawn".to_string(), "Heal".to_string(), "Take Heal".to_string() ];
         items.sort();
         node_list.add_group_list(context.color_blue, context.color_light_blue, items);
@@ -90,5 +92,10 @@ impl EditorOptions for SystemsOptions {
             self.widgets[0].drag_context = None;
         }
         false
+    }
+
+    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
+        self.widgets[0].mouse_wheel(delta, asset, context);
+        true
     }
 }

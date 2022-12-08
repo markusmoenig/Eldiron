@@ -1243,6 +1243,8 @@ impl EditorContent for NodeGraph  {
                 "Take Heal" => BehaviorNodeType::TakeHeal,
                 "Respawn" => BehaviorNodeType::Respawn,
                 "Equip" => BehaviorNodeType::Equip,
+                "Skill Tree" => BehaviorNodeType::SkillTree,
+                "Skill Level" => BehaviorNodeType::SkillLevel,
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
@@ -2062,7 +2064,6 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
         } else
 
-
         // Area
         if node_behavior_type == BehaviorNodeType::InsideArea {
             node_widget.help_link = Some("https://book.eldiron.com/nodes/inside_area.html".to_string());
@@ -2153,6 +2154,26 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         }
+
+        // System
+
+        if node_behavior_type == BehaviorNodeType::SkillLevel {
+            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+            AtomData::new("skill", Value::Empty()));
+            atom1.atom_data.text = "Skill Name".to_string();
+            let id = (behavior_data_id, node_id, "skill".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            node_widget.help_link = Some("https://book.eldiron.com/nodes/skill_tree.html".to_string());
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        }
+
     }
 
     /// Inits the node widget (atom widgets, id)

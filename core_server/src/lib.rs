@@ -16,6 +16,8 @@ pub mod prelude {
     pub use crate::server::nodes::game::*;
     pub use crate::server::nodes::area::*;
     pub use crate::server::nodes::player::*;
+    pub use crate::server::nodes::item::*;
+    pub use crate::server::nodes::system::*;
     pub use crate::server::nodes::utilities::*;
     pub use crate::server::script_utilities::*;
 
