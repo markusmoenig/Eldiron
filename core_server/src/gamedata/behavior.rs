@@ -152,11 +152,12 @@ pub struct BehaviorInstance {
     // This is for serialization only / deserialization only, not used at runtime
     pub scope_buffer            : Option<ScopeBuffer>,
 
-    // Store the inventory / weapons / gear
-    // This is for serialization only / deserialization only, not used at runtime
+    // Store the inventory / weapons / gear / skills
+    // This is for serialization / deserialization only, not used at runtime
     pub inventory_buffer        : Option<String>,
     pub weapons_buffer          : Option<String>,
     pub gear_buffer             : Option<String>,
+    pub skills_buffer           : Option<String>,
 
     // An instance index of the entity we are currently interacting with
     pub target_instance_index   : Option<usize>,

@@ -58,6 +58,9 @@ pub struct GameUpdate {
     /// Weapons
     pub weapons                 : Weapons,
 
+    /// Skills
+    pub skills                  : Skills,
+
     /// Multiple Choice Data
     pub multi_choice_data       : Vec<MultiChoiceData>,
 
@@ -91,6 +94,7 @@ impl GameUpdate {
             inventory           : Inventory::new(),
             gear                : Gear::new(),
             weapons             : Weapons::new(),
+            skills              : Skills::new(),
             multi_choice_data   : vec![],
             communication       : vec![],
 

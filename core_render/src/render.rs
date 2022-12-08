@@ -369,6 +369,7 @@ impl GameRender<'_> {
             map.insert("inventory".into(), Dynamic::from(update.inventory.clone()));
             map.insert("weapons".into(), Dynamic::from(update.weapons.clone()));
             map.insert("gear".into(), Dynamic::from(update.gear.clone()));
+            map.insert("skills".into(), Dynamic::from(update.skills.clone()));
         }
 
         None

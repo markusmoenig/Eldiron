@@ -2153,11 +2153,11 @@ impl EditorContent for NodeGraph  {
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        }
+        } else
 
         // System
 
-        if node_behavior_type == BehaviorNodeType::SkillLevel {
+        if node_behavior_type == BehaviorNodeType::SkillTree {
             let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
             AtomData::new("skill", Value::Empty()));
             atom1.atom_data.text = "Skill Name".to_string();
@@ -2168,10 +2168,14 @@ impl EditorContent for NodeGraph  {
 
             node_widget.help_link = Some("https://book.eldiron.com/nodes/skill_tree.html".to_string());
 
-            node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.color = context.color_orange.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+
+            // Add the node to the behavior tree ids
+            self.behavior_tree_ids.push(node_widget.id);
+            if self.curr_behavior_tree_id == None {
+                self.curr_behavior_tree_id = Some(node_widget.id);
+            }
         }
 
     }
@@ -2746,7 +2750,7 @@ impl EditorContent for NodeGraph  {
 
                     // Skip behavior tree nodes
                     if let Some(node_data) = behavior.data.nodes.get(&self.widget_index_to_node_id(index)) {
-                        if node_data.behavior_type == BehaviorNodeType::BehaviorTree {
+                        if node_data.behavior_type == BehaviorNodeType::BehaviorTree || node_data.behavior_type == BehaviorNodeType::SkillTree {
                             continue;
                         }
                     }
@@ -2800,7 +2804,7 @@ impl EditorContent for NodeGraph  {
             }
 
             if let Some(node_data) = behavior.data.nodes.get(&id) {
-                if node_data.behavior_type != BehaviorNodeType::BehaviorTree {
+                if node_data.behavior_type != BehaviorNodeType::BehaviorTree && node_data.behavior_type != BehaviorNodeType::SkillTree {
                     return true;
                 }
             }

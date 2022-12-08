@@ -294,6 +294,7 @@ impl RegionInstance<'_> {
         let mut inventory = Inventory::new();
         let mut gear = Gear::new();
         let mut weapons = Weapons::new();
+        let mut skills = Skills::new();
 
         let tick_time = self.get_time();
 
@@ -818,6 +819,13 @@ impl RegionInstance<'_> {
                 }
             }
 
+            // Clone the skills for sending it to the client
+            if let Some(s) = self.scopes[inst_index].get("skills") {
+                if let Some(sk) = s.read_lock::<Skills>() {
+                    skills = sk.clone();
+                }
+            }
+
             // If we are debugging this instance, send the debug data
             if Some(self.instances[inst_index].behavior_id) == self.debug_behavior_id {
                 let debug = BehaviorDebugData {
@@ -999,6 +1007,7 @@ impl RegionInstance<'_> {
                     inventory               : inventory.clone(),
                     gear                    : gear.clone(),
                     weapons                 : weapons.clone(),
+                    skills                  : skills.clone(),
                     multi_choice_data       : self.instances[inst_index].multi_choice_data.clone(),
                     communication           : self.instances[inst_index].communication.clone(),
                  };
@@ -1612,7 +1621,7 @@ impl RegionInstance<'_> {
 
         let index = self.instances.len();
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: None };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, skills_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: None };
 
         self.instances.push(instance);
         self.scopes.push(scope);
@@ -1773,7 +1782,7 @@ impl RegionInstance<'_> {
 
                 //println!("Creating instance {}", inst.name.unwrap());
 
-                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: Some(inst.clone()) };
+                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, skills_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: Some(inst.clone()) };
 
                 index = self.instances.len();
                 self.instances.push(instance);
@@ -1786,6 +1795,7 @@ impl RegionInstance<'_> {
                 scope.set_value("inventory", Inventory::new());
                 scope.set_value("gear", Gear::new());
                 scope.set_value("weapons", Weapons::new());
+                scope.set_value("skills", Skills::new());
 
                 self.scopes.push(scope);
             }
@@ -1959,6 +1969,17 @@ impl RegionInstance<'_> {
         }
 
 
+        if let Some(mess) = self.scopes[inst_index].get_mut("skills") {
+            if let Some(sk) = mess.write_lock::<Skills>() {
+
+                let s = sk.clone();
+                if let Some(json) = serde_json::to_string(&s).ok() {
+                        self.instances[inst_index].skills_buffer = Some(json);
+                }
+            }
+        }
+
+
         self.instances[inst_index].scope_buffer = Some(scope_buffer);
     }
 
@@ -1995,6 +2016,15 @@ impl RegionInstance<'_> {
         } else {
             // Should not happen
             scope.set_value("gear", Gear::new());
+        }
+
+        if let Some(skills_buffer) = &instance.skills_buffer {
+            let skills : Skills = serde_json::from_str(&skills_buffer)
+                .unwrap_or(Skills::new());
+            scope.set_value("skills", skills);
+        } else {
+            // Should not happen
+            scope.set_value("skills", Skills::new());
         }
 
     }
