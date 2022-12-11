@@ -503,7 +503,7 @@ impl EditorContent for NodeGraph  {
 
     /// Updates a node value from the dialog
     fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
-        //println!("graph {:?} {:?}", id, value);
+        // println!("graph {:?} {:?}", id, value);
 
         if context.dialog_entry == DialogEntry::NodeName {
             // Node based
@@ -889,6 +889,7 @@ impl EditorContent for NodeGraph  {
                         context.dialog_entry = DialogEntry::NodeName;
                         context.dialog_node_behavior_id = (self.nodes[index].id, Uuid::new_v4(), "".to_string());
                         context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].name.clone());
+                        context.dialog_value = Value::String(self.nodes[index].name.clone());
                     } else
                     if "Delete".to_string() == menu_activated {
                         if self.graph_type == BehaviorType::Regions {
@@ -947,7 +948,7 @@ impl EditorContent for NodeGraph  {
                         context.target_fps = 60;
                         context.dialog_entry = DialogEntry::NodeName;
                         context.dialog_node_behavior_id = (self.nodes[index].id, Uuid::new_v4(), "".to_string());
-                        context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].name.clone());
+                        context.dialog_value = Value::String(self.nodes[index].name.clone());
                     } else
                     if "Disconnect".to_string() == menu_activated {
                         // Disconnect node
@@ -1243,6 +1244,8 @@ impl EditorContent for NodeGraph  {
                 "Take Heal" => BehaviorNodeType::TakeHeal,
                 "Respawn" => BehaviorNodeType::Respawn,
                 "Equip" => BehaviorNodeType::Equip,
+
+                "Skill Level" if self.graph_type == BehaviorType::Items => BehaviorNodeType::SkillLevelItem,
                 "Skill Tree" => BehaviorNodeType::SkillTree,
                 "Skill Level" => BehaviorNodeType::SkillLevel,
 
@@ -2158,14 +2161,6 @@ impl EditorContent for NodeGraph  {
         // System
 
         if node_behavior_type == BehaviorNodeType::SkillTree {
-            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("skill", Value::Empty()));
-            atom1.atom_data.text = "Skill Name".to_string();
-            let id = (behavior_data_id, node_id, "skill".to_string());
-            atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
-            node_widget.widgets.push(atom1);
-
             node_widget.help_link = Some("https://book.eldiron.com/nodes/skill_tree.html".to_string());
 
             node_widget.color = context.color_orange.clone();
@@ -2176,6 +2171,39 @@ impl EditorContent for NodeGraph  {
             if self.curr_behavior_tree_id == None {
                 self.curr_behavior_tree_id = Some(node_widget.id);
             }
+        } else
+        if node_behavior_type == BehaviorNodeType::SkillLevel {
+            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeNumberButton,
+            AtomData::new("start", Value::Empty()));
+            atom2.atom_data.text = "Starts at".to_string();
+            let id = (behavior_data_id, node_id, "start".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.help_link = Some("https://book.eldiron.com/nodes/skill_level.html".to_string());
+
+            node_widget.color = context.color_orange.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        } else
+
+        // Item
+
+        if node_behavior_type == BehaviorNodeType::SkillLevelItem {
+            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeScriptButton,
+            AtomData::new("script", Value::Empty()));
+            atom2.atom_data.text = "Script".to_string();
+            let id = (behavior_data_id, node_id, "script".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.help_link = Some("https://book.eldiron.com/nodes/skill_level.html".to_string());
+
+            node_widget.color = context.color_orange.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         }
 
     }

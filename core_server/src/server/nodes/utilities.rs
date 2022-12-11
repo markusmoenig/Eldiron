@@ -496,3 +496,20 @@ pub fn wait_for(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
     }
     rc
 }
+
+/// Returns the property script for the currently equipped weapon
+pub fn get_weapon_script(instance_index: usize, slot: String, data: &mut RegionInstance) -> Option<String> {
+    if let Some(v) = data.scopes[instance_index].get("weapons") {
+
+        let mut script : Option<String> = None;
+
+        if let Some(weapons) = v.read_lock::<Weapons>() {
+            if let Some(weapon) = weapons.slots.get(&slot) {
+
+            }
+        }
+
+        return script;
+    }
+    None
+}

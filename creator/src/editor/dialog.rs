@@ -100,7 +100,11 @@ impl DialogWidget {
                 self.widgets[1].state = WidgetState::Normal;
 
                 if context.dialog_entry == DialogEntry::NodeNumber  {
-                    self.text = format!("{}", context.dialog_node_behavior_value.0);
+                    if let Some(v) = context.dialog_value.to_float() {
+                        self.text = format!("{}", v);
+                    } else {
+                        self.text = "".to_string();
+                    }
                 } else
                 if context.dialog_entry == DialogEntry::NodeSize2D {
                     self.text = format!("{}", context.dialog_node_behavior_value.0);
@@ -272,10 +276,12 @@ impl DialogWidget {
     pub fn accept_value(&mut self, context: &mut ScreenContext) -> bool {
 
         if context.dialog_entry == DialogEntry::NodeNumber {
-            let int_value = self.text.parse::<i64>();
+            let int_value = self.text.parse::<i32>();
             if int_value.is_ok() {
-                context.dialog_node_behavior_value.0 = int_value.unwrap() as f64;
-                // TODO context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
+                //context.dialog_node_behavior_value.0 = int_value.unwrap() as f32;
+                let v = int_value.unwrap() as f32;
+                context.dialog_value = Value::Float(v);
+                //context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), Value::Float(v), context.curr_graph_type);
                 return true;
             }
             let float_value = self.text.parse::<f64>();

@@ -278,7 +278,7 @@ impl AtomWidget {
                     context.draw2d.draw_rounded_rect(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding);
                 }
 
-                if self.text.len() > 0 {
+                if self.text.len() > 0 && self.curr_index < self.text.len() {
                     let text_color = if self.state == WidgetState::Disabled { &context.color_gray } else { &context.color_white };
                     context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 30, rect.1, rect.2 - 60, rect.3), rect.2, &asset.get_editor_font("OpenSans"), context.toolbar_button_text_size, &self.text[self.curr_index], text_color, &fill_color, draw2d::TextAlignment::Center);
                 }
@@ -432,23 +432,11 @@ impl AtomWidget {
 
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height);
 
-                let fill_color = if self.state == WidgetState::Clicked { context.color_light_orange } else { context.color_orange };
+                let fill_color = if self.state == WidgetState::Clicked { context.color_node_dark_gray } else { context.color_gray };
 
                 let mut v = 0.0_f32;
                 if let Some(value) = self.atom_data.value.to_float() {
                     v = value;
-                }
-
-                /* TODO chamge this system to the new server layout */
-                if context.is_running && self.debug_value.is_some() {
-                    // if let Some(my_id) = &self.behavior_id {
-                    //     for index in 0..context.data.changed_variables.len() {
-                    //         if context.data.changed_variables[index].1 == my_id.0 && context.data.changed_variables[index].2 == my_id.1 {
-                    //             v = context.data.changed_variables[index].3;
-                    //         }
-                    //     }
-                    // }
-                    v = self.debug_value.unwrap();
                 }
 
                 context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &fill_color, 1.5);
@@ -1193,7 +1181,7 @@ impl AtomWidget {
                 context.target_fps = 60;
                 context.dialog_entry = DialogEntry::NodeNumber;
                 context.dialog_node_behavior_id = self.behavior_id.clone().unwrap();
-                context.dialog_node_behavior_value = self.atom_data.data.clone();
+                context.dialog_value = self.atom_data.value.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeSize2DButton {
                 context.dialog_state = DialogState::Opening;

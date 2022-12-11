@@ -6,7 +6,7 @@ use core_shared::prelude::*;
 pub fn update_item_sink(sink: &mut PropertySink) {
 
     if sink.contains("item_type") == false {
-        sink.properties.insert(0,Property::new_string("item_type".to_string(), "\"tool\"".to_string()));
+        sink.properties.insert(0,Property::new_string("item_type".to_string(), "\"Tool\"".to_string()));
     }
 
     if sink.contains("state") == false {
@@ -37,7 +37,7 @@ pub fn update_item_sink(sink: &mut PropertySink) {
 pub fn generate_item_sink_descriptions() -> FxHashMap<String, Vec<String>> {
     let mut map : FxHashMap<String, Vec<String>> = FxHashMap::default();
 
-    map.insert("item_type".to_string(), vec!["Type of the item, either \"weapon\", \"gear\" or \"tool\"".to_string()]);
+    map.insert("item_type".to_string(), vec!["Type of the item, either \"Weapon\", \"Gear\" or \"Tool\"".to_string()]);
     map.insert("state".to_string(), vec!["true if the item should have it's own state (variables).".to_string()]);
     map.insert("stackable".to_string(), vec!["Value greater than 1 if item should be stackable. Only for items without state.".to_string()]);
     map.insert("static".to_string(), vec!["True if the item is static, i.e. cannot be picked up (campfire etc.).".to_string()]);

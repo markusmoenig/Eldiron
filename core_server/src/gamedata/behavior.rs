@@ -79,6 +79,7 @@ pub enum BehaviorNodeType {
     Equip,
     SkillTree,
     SkillLevel,
+    SkillLevelItem,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
