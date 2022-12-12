@@ -597,7 +597,7 @@ pub fn get_item_skill_tree(data: &RegionInstance, id: Uuid) -> Option<String> {
         if *uuid == id {
             for (_index, node) in &item.nodes {
                 if node.behavior_type == BehaviorNodeType::SkillTree {
-                    return Some(node.name.to_lowercase().clone());
+                    return Some(node.name.clone());
                 }
             }
         }
