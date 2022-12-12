@@ -941,6 +941,11 @@ pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
 
         if let Some(mut value) = data.scopes[instance_index].get_value::<i32>(&data.hitpoints) {
             value -= damage;
+
+            if value > 0 {
+                increase_weapon_skill_value(instance_index, "main hand".to_string(), data);
+            }
+
             data.instances[instance_index].damage_to_be_dealt = Some(damage);
             value = value.max(0);
             data.scopes[instance_index].set_value(&data.hitpoints, value);
@@ -951,6 +956,11 @@ pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
         if let Some(v) = data.scopes[instance_index].get_value::<f32>(&data.hitpoints) {
             let mut value = v as i32;
             value -= damage;
+
+            if value > 0 {
+                increase_weapon_skill_value(instance_index, "main hand".to_string(), data);
+            }
+
             data.instances[instance_index].damage_to_be_dealt = Some(damage);
             value = value.max(0);
             data.scopes[instance_index].set_value(&data.hitpoints, value);

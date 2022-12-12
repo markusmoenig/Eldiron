@@ -1795,14 +1795,7 @@ impl RegionInstance<'_> {
                     if behavior.name.to_lowercase() == "skills" {
                         for (_id, node) in &behavior.nodes {
                             if node.behavior_type == BehaviorNodeType::SkillTree {
-                                for (value_name, value) in &node.values {
-                                    if *value_name == "skill".to_string() {
-                                        if let Some(v) = value.to_string() {
-                                            // println!("{:?}", v);
-                                            skills.add_skill(v);
-                                        }
-                                    }
-                                }
+                                skills.add_skill(node.name.clone());
                             }
                         }
                     }

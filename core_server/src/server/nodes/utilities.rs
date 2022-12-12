@@ -497,19 +497,49 @@ pub fn wait_for(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
     rc
 }
 
+/// Increases the weapon skill value in the given slot
+pub fn increase_weapon_skill_value(instance_index: usize, slot: String, data: &mut RegionInstance) {
+    if let Some(v) = data.scopes[instance_index].get("weapons") {
+
+        // Get the weapon skill
+
+        let mut skill_name : String = "Unarmed".to_string();
+
+        if let Some(weapons) = v.read_lock::<Weapons>() {
+            if let Some(weapon) = weapons.slots.get(&slot) {
+                if let Some(sk) = get_item_skill_tree(data, weapon.id) {
+                    skill_name = sk;
+                }
+            }
+        }
+
+        // Increase the skill value
+
+        if let Some(s) = data.scopes[instance_index].get_mut("skills") {
+            if let Some(mut skills) = s.write_lock::<Skills>() {
+                if let Some(skill) = skills.skills.get_mut(&skill_name) {
+                    skill.value += 1;
+                    // println!("Increased skill {} to {}", skill_name, skill.value);
+                }
+            }
+        }
+    }
+}
+
 /// Returns the property script for the currently equipped weapon
 pub fn get_weapon_script_id(instance_index: usize, slot: String, data: &mut RegionInstance) -> Option<(BehaviorType, Uuid, Uuid, String)> {
     if let Some(v) = data.scopes[instance_index].get("weapons") {
 
         // Get the weapon skill
 
-        let mut skill : String = "fists".to_string();
+        let mut skill_name : String = "Unarmed".to_string();
+        let mut item_name : String = "fists".to_string();
 
         if let Some(weapons) = v.read_lock::<Weapons>() {
             if let Some(weapon) = weapons.slots.get(&slot) {
-
+                item_name = weapon.name.clone();
                 if let Some(sk) = get_item_skill_tree(data, weapon.id) {
-                    skill = sk;
+                    skill_name = sk;
                 }
             }
         }
@@ -518,11 +548,11 @@ pub fn get_weapon_script_id(instance_index: usize, slot: String, data: &mut Regi
 
         let mut skill_level = 0;
 
-        // println!("1 {:?}", skill);
+        // println!("1 {:?}", skill_name);
 
         if let Some(s) = data.scopes[instance_index].get("skills") {
             if let Some(skills) = s.read_lock::<Skills>() {
-                if let Some(skill) = skills.skills.get(&skill) {
+                if let Some(skill) = skills.skills.get(&skill_name) {
                     skill_level = skill.level;
                 }
             }
@@ -532,7 +562,7 @@ pub fn get_weapon_script_id(instance_index: usize, slot: String, data: &mut Regi
 
         // Get the weapon script id for the skill and level
 
-        let skill_script_id = get_skill_script_id(data, skill, skill_level);
+        let skill_script_id = get_skill_script_id(data, item_name, skill_name, skill_level);
 
         // println!("3 {:?}", skill_script_id);
 
@@ -576,16 +606,16 @@ pub fn get_item_skill_tree(data: &RegionInstance, id: Uuid) -> Option<String> {
 }
 
 /// Returns the script id for the given skill name and level
-pub fn get_skill_script_id(data: &RegionInstance, name: String, level: i32) -> Option<(BehaviorType, Uuid, Uuid, String)> {
+pub fn get_skill_script_id(data: &RegionInstance, item_name: String, _skill_name: String, skill_level: i32) -> Option<(BehaviorType, Uuid, Uuid, String)> {
     for (_uuid, behavior) in &data.items {
-        if behavior.name.to_lowercase() == name {
+        if behavior.name.to_lowercase() == item_name {
             for (_index, node) in &behavior.nodes {
                 if node.behavior_type == BehaviorNodeType::SkillTree {
 
                     let mut rc : Option<(BehaviorType, Uuid, Uuid, String)> = None;
                     let mut parent_id = node.id;
 
-                    for _lvl in 0..=level {
+                    for _lvl in 0..=skill_level {
                         for (id1, c1, id2, c2) in &behavior.connections {
                             if *id1 == parent_id && *c1 == BehaviorNodeConnector::Bottom {
                                 for (uuid, node) in &behavior.nodes {
