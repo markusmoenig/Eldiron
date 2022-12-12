@@ -879,8 +879,10 @@ pub fn untarget(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
 pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let mut damage : i32 = 0;
-    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "damage".to_string()), data) {
-        damage = rc as i32;
+    if let Some(id) = get_weapon_script_id(instance_index, "main hand".to_string(), data) {
+        if let Some(rc) = eval_number_expression_instance(instance_index, id, data) {
+            damage = rc as i32;
+        }
     }
 
     let mut speed : f32 = 8.0;

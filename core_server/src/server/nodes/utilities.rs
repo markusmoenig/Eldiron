@@ -498,18 +498,119 @@ pub fn wait_for(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
 }
 
 /// Returns the property script for the currently equipped weapon
-pub fn get_weapon_script(instance_index: usize, slot: String, data: &mut RegionInstance) -> Option<String> {
+pub fn get_weapon_script_id(instance_index: usize, slot: String, data: &mut RegionInstance) -> Option<(BehaviorType, Uuid, Uuid, String)> {
     if let Some(v) = data.scopes[instance_index].get("weapons") {
 
-        let mut script : Option<String> = None;
+        // Get the weapon skill
+
+        let mut skill : String = "fists".to_string();
 
         if let Some(weapons) = v.read_lock::<Weapons>() {
             if let Some(weapon) = weapons.slots.get(&slot) {
 
+                if let Some(sk) = get_item_skill_tree(data, weapon.id) {
+                    skill = sk;
+                }
             }
         }
 
-        return script;
+        // Get the skill level
+
+        let mut skill_level = 0;
+
+        // println!("1 {:?}", skill);
+
+        if let Some(s) = data.scopes[instance_index].get("skills") {
+            if let Some(skills) = s.read_lock::<Skills>() {
+                if let Some(skill) = skills.skills.get(&skill) {
+                    skill_level = skill.level;
+                }
+            }
+        }
+
+        // println!("2 {:?}", skill_level);
+
+        // Get the weapon script id for the skill and level
+
+        let skill_script_id = get_skill_script_id(data, skill, skill_level);
+
+        // println!("3 {:?}", skill_script_id);
+
+        return skill_script_id;
     }
     None
 }
+
+/// Returns the PropertySink for the given item id
+pub fn get_item_sink(data: &RegionInstance, id: Uuid) -> Option<PropertySink> {
+    for (uuid, item) in &data.items {
+        if *uuid == id {
+            for (_index, node) in &item.nodes {
+                if node.behavior_type == BehaviorNodeType::BehaviorType {
+                    if let Some(value) = node.values.get(&"settings".to_string()) {
+                        if let Some(str) = value.to_string() {
+                            let mut s = PropertySink::new();
+                            s.load_from_string(str.clone());
+                            return Some(s);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Returns the skill name (if any) for the given item id
+pub fn get_item_skill_tree(data: &RegionInstance, id: Uuid) -> Option<String> {
+    for (uuid, item) in &data.items {
+        if *uuid == id {
+            for (_index, node) in &item.nodes {
+                if node.behavior_type == BehaviorNodeType::SkillTree {
+                    return Some(node.name.to_lowercase().clone());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Returns the script id for the given skill name and level
+pub fn get_skill_script_id(data: &RegionInstance, name: String, level: i32) -> Option<(BehaviorType, Uuid, Uuid, String)> {
+    for (_uuid, behavior) in &data.items {
+        if behavior.name.to_lowercase() == name {
+            for (_index, node) in &behavior.nodes {
+                if node.behavior_type == BehaviorNodeType::SkillTree {
+
+                    let mut rc : Option<(BehaviorType, Uuid, Uuid, String)> = None;
+                    let mut parent_id = node.id;
+
+                    for _lvl in 0..=level {
+                        for (id1, c1, id2, c2) in &behavior.connections {
+                            if *id1 == parent_id && *c1 == BehaviorNodeConnector::Bottom {
+                                for (uuid, node) in &behavior.nodes {
+                                    if *uuid == *id2 {
+                                        rc = Some((BehaviorType::Items, behavior.id, node.id, "script".to_string()));
+                                        parent_id = node.id;
+                                    }
+                                }
+                            } else
+                            if *id2 == parent_id && *c2 == BehaviorNodeConnector::Bottom {
+                                for (uuid, node) in &behavior.nodes {
+                                    if *uuid == *id1 {
+                                        rc = Some((BehaviorType::Items, behavior.id, node.id, "script".to_string()));
+                                        parent_id = node.id;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    return rc;
+                }
+            }
+        }
+    }
+    None
+}
+

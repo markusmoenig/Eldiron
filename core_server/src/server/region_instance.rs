@@ -1787,6 +1787,8 @@ impl RegionInstance<'_> {
                 index = self.instances.len();
                 self.instances.push(instance);
 
+                // Create skills
+
                 let mut skills = Skills::new();
 
                 for (_id, behavior) in &self.systems {
