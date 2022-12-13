@@ -1902,21 +1902,13 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::DealDamage {
-            let mut atom2 = AtomWidget::new(vec!["Damage".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("damage", Value::Empty()));
-            atom2.atom_data.text = "Damage".to_string();
-            let id = (behavior_data_id, node_id, "damage".to_string());
+            let mut atom2 = AtomWidget::new(vec!["Attack Rating".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("attack_rating", Value::Empty()));
+            atom2.atom_data.text = "Attack Rating".to_string();
+            let id = (behavior_data_id, node_id, "attack_rating".to_string());
             atom2.behavior_id = Some(id.clone());
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("0".to_string()), self.graph_type);
             node_widget.widgets.push(atom2);
-
-            let mut atom1 = AtomWidget::new(vec!["Speed Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("speed", Value::Empty()));
-            atom1.atom_data.text = "Speed Delay".to_string();
-            let id = (behavior_data_id, node_id, "speed".to_string());
-            atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String(7.to_string()), self.graph_type);
-            node_widget.widgets.push(atom1);
 
             node_widget.help_link = Some("https://book.eldiron.com/nodes/deal_damage.html".to_string());
 
@@ -2206,6 +2198,14 @@ impl EditorContent for NodeGraph  {
             atom2.behavior_id = Some(id.clone());
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
+
+            let mut atom1 = AtomWidget::new(vec!["Speed Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("speed", Value::Empty()));
+            atom1.atom_data.text = "Speed Delay".to_string();
+            let id = (behavior_data_id, node_id, "speed".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String(4.to_string()), self.graph_type);
+            node_widget.widgets.push(atom1);
 
             node_widget.help_link = Some("https://book.eldiron.com/nodes/skill_level.html".to_string());
 

@@ -879,16 +879,19 @@ pub fn untarget(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
 pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let mut damage : i32 = 0;
+    let mut speed : f32 = 4.0;
+
     if let Some(id) = get_weapon_script_id(instance_index, "main hand".to_string(), data) {
-        if let Some(rc) = eval_number_expression_instance(instance_index, id, data) {
+        if let Some(rc) = eval_number_expression_instance(instance_index, id.clone(), data) {
             damage = rc as i32;
             // println!("[{}] damage {}", data.instances[instance_index].name, damage);
         }
-    }
-
-    let mut speed : f32 = 8.0;
-    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
-        speed = rc;
+        let mut id_speed = id.clone();
+        id_speed.3 = "speed".to_string();
+        if let Some(rc) = eval_number_expression_instance(instance_index, id_speed, data) {
+            // println!("[{}] speed {}", data.instances[instance_index].name, rc);
+            speed = rc;
+        }
     }
 
     // Apply the speed delay
