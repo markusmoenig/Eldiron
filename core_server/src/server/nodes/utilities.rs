@@ -528,6 +528,17 @@ pub fn increase_weapon_skill_value(instance_index: usize, slot: String, data: &m
                         for lvl in 0..tree.len() {
                             if skill.value >= tree[lvl].0 {
                                 new_level = lvl as i32;
+
+                                let message_data = MessageData {
+                                    message_type    : MessageType::Status,
+                                    message         : tree[lvl].2.clone(),
+                                    from            : "System".to_string(),
+                                    right           : None,
+                                    center          : None,
+                                    buffer          : None
+                                };
+
+                                data.instances[instance_index].messages.push(message_data.clone());
                             } else {
                                 break;
                             }

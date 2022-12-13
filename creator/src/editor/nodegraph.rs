@@ -2173,10 +2173,18 @@ impl EditorContent for NodeGraph  {
             }
         } else
         if node_behavior_type == BehaviorNodeType::SkillLevel {
-            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeNumberButton,
+            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeNumberButton,
             AtomData::new("start", Value::Empty()));
-            atom2.atom_data.text = "Starts at".to_string();
+            atom1.atom_data.text = "Starts at".to_string();
             let id = (behavior_data_id, node_id, "start".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+            AtomData::new("message", Value::Empty()));
+            atom2.atom_data.text = "Message".to_string();
+            let id = (behavior_data_id, node_id, "message".to_string());
             atom2.behavior_id = Some(id.clone());
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);

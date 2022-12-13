@@ -113,7 +113,7 @@ pub struct RegionInstance<'a> {
     pub gear_slots                  : Vec<String>,
     pub weapon_slots                : Vec<String>,
 
-    pub skill_trees                 : FxHashMap<String, Vec<(i32, String)>>,
+    pub skill_trees                 : FxHashMap<String, Vec<(i32, String, String)>>,
 
     // Variable names
 
@@ -1805,7 +1805,7 @@ impl RegionInstance<'_> {
 
                                 // Add the skill to the skill_tree
 
-                                let mut rc : Vec<(i32, String)> = vec![];
+                                let mut rc : Vec<(i32, String, String)> = vec![];
                                 let mut parent_id = node.id;
 
                                 loop {
@@ -1820,10 +1820,17 @@ impl RegionInstance<'_> {
                                                             start = i;
                                                         }
                                                     }
+                                                    let mut message = "".to_string();
+                                                    if let Some(value) = node.values.get(&"message".to_string()) {
+                                                        if let Some(m) = value.to_string() {
+                                                            message = m;
+                                                        }
+                                                    }
+
                                                     parent_id = node.id;
                                                     found = true;
 
-                                                    rc.push((start, node.name.clone()));
+                                                    rc.push((start, node.name.clone(), message));
                                                 }
                                             }
                                         } else
@@ -1836,10 +1843,16 @@ impl RegionInstance<'_> {
                                                             start = i;
                                                         }
                                                     }
+                                                    let mut message = "".to_string();
+                                                    if let Some(value) = node.values.get(&"message".to_string()) {
+                                                        if let Some(m) = value.to_string() {
+                                                            message = m;
+                                                        }
+                                                    }
                                                     parent_id = node.id;
                                                     found = true;
 
-                                                    rc.push((start, node.name.clone()));
+                                                    rc.push((start, node.name.clone(), message));
                                                 }
                                             }
                                         }
