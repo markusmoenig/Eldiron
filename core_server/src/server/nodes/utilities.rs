@@ -519,7 +519,24 @@ pub fn increase_weapon_skill_value(instance_index: usize, slot: String, data: &m
             if let Some(mut skills) = s.write_lock::<Skills>() {
                 if let Some(skill) = skills.skills.get_mut(&skill_name) {
                     skill.value += 1;
-                    // println!("Increased skill {} to {}", skill_name, skill.value);
+                    // println!("[{}] Increased skill value {} to {}", data.instances[instance_index].name, skill_name, skill.value);
+
+                    // Test if we need to increase the skill level
+
+                    if let Some(tree) = data.skill_trees.get(&skill_name) {
+                        let mut new_level = 0;
+                        for lvl in 0..tree.len() {
+                            if skill.value >= tree[lvl].0 {
+                                new_level = lvl as i32;
+                            } else {
+                                break;
+                            }
+                        }
+                        if new_level > skill.level {
+                            skill.level = new_level;
+                            // println!("[{}] Increased skill {} to level {}", data.instances[instance_index].name, skill_name, skill.level);
+                        }
+                    }
                 }
             }
         }
@@ -533,7 +550,7 @@ pub fn get_weapon_script_id(instance_index: usize, slot: String, data: &mut Regi
         // Get the weapon skill
 
         let mut skill_name : String = "Unarmed".to_string();
-        let mut item_name : String = "fists".to_string();
+        let mut item_name : String = "Fists".to_string();
 
         if let Some(weapons) = v.read_lock::<Weapons>() {
             if let Some(weapon) = weapons.slots.get(&slot) {
@@ -548,7 +565,7 @@ pub fn get_weapon_script_id(instance_index: usize, slot: String, data: &mut Regi
 
         let mut skill_level = 0;
 
-        // println!("1 {:?}", skill_name);
+        // println!("1 skill name {:?}, item name {}", skill_name, item_name);
 
         if let Some(s) = data.scopes[instance_index].get("skills") {
             if let Some(skills) = s.read_lock::<Skills>() {
@@ -608,7 +625,7 @@ pub fn get_item_skill_tree(data: &RegionInstance, id: Uuid) -> Option<String> {
 /// Returns the script id for the given skill name and level
 pub fn get_skill_script_id(data: &RegionInstance, item_name: String, _skill_name: String, skill_level: i32) -> Option<(BehaviorType, Uuid, Uuid, String)> {
     for (_uuid, behavior) in &data.items {
-        if behavior.name.to_lowercase() == item_name {
+        if behavior.name == item_name {
             for (_index, node) in &behavior.nodes {
                 if node.behavior_type == BehaviorNodeType::SkillTree {
 
@@ -622,16 +639,20 @@ pub fn get_skill_script_id(data: &RegionInstance, item_name: String, _skill_name
                                     if *uuid == *id2 {
                                         rc = Some((BehaviorType::Items, behavior.id, node.id, "script".to_string()));
                                         parent_id = node.id;
+                                        break;
                                     }
                                 }
+                                break;
                             } else
                             if *id2 == parent_id && *c2 == BehaviorNodeConnector::Bottom {
                                 for (uuid, node) in &behavior.nodes {
                                     if *uuid == *id1 {
                                         rc = Some((BehaviorType::Items, behavior.id, node.id, "script".to_string()));
                                         parent_id = node.id;
+                                        break;
                                     }
                                 }
+                                break;
                             }
                         }
                     }

@@ -882,6 +882,7 @@ pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
     if let Some(id) = get_weapon_script_id(instance_index, "main hand".to_string(), data) {
         if let Some(rc) = eval_number_expression_instance(instance_index, id, data) {
             damage = rc as i32;
+            // println!("[{}] damage {}", data.instances[instance_index].name, damage);
         }
     }
 
@@ -916,6 +917,9 @@ pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
         if let Some(behavior_tree_id) = behavior_tree_id {
             data.action_subject_text = data.instances[instance_index].name.clone();
             let _rc = data.execute_node(target_index, behavior_tree_id, None);
+            if data.dealt_damage_success {
+                increase_weapon_skill_value(instance_index, "main hand".to_string(), data);
+            }
             if data.instances[target_index].state == BehaviorInstanceState::Normal {
                 rc = BehaviorNodeConnector::Right;
             } else {
@@ -935,6 +939,7 @@ pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
     }
 
     let mut rc = BehaviorNodeConnector::Success;
+    data.dealt_damage_success = false;
 
     if let Some(mut damage) = data.instances[instance_index].damage_to_be_dealt {
         damage -= reduce_by;
@@ -943,7 +948,7 @@ pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
             value -= damage;
 
             if value > 0 {
-                increase_weapon_skill_value(instance_index, "main hand".to_string(), data);
+                data.dealt_damage_success = true;
             }
 
             data.instances[instance_index].damage_to_be_dealt = Some(damage);
@@ -958,7 +963,7 @@ pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
             value -= damage;
 
             if value > 0 {
-                increase_weapon_skill_value(instance_index, "main hand".to_string(), data);
+                data.dealt_damage_success = true;
             }
 
             data.instances[instance_index].damage_to_be_dealt = Some(damage);

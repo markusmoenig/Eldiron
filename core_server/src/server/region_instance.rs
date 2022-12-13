@@ -100,6 +100,7 @@ pub struct RegionInstance<'a> {
 
     /// Tick count used for timing
     pub tick_count                  : usize,
+    pub dealt_damage_success        : bool,
 
     /// Respawns the given chararacter uuid at the given tick count
     pub respawn_instance            : FxHashMap<Uuid, (usize, CharacterInstanceData)>,
@@ -267,6 +268,7 @@ impl RegionInstance<'_> {
             pixel_based_movement            : true,
 
             tick_count                      : 0,
+            dealt_damage_success            : false,
 
             respawn_instance                : FxHashMap::default(),
 
@@ -1853,7 +1855,7 @@ impl RegionInstance<'_> {
                     }
                 }
 
-                println!("{:?}", self.skill_trees);
+                // println!("{:?}", self.skill_trees);
 
                 // Set the default values into the scope
                 let mut scope = default_scope.clone();
