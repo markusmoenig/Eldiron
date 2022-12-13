@@ -179,6 +179,12 @@ impl EditorContent for NodeGraph  {
                                 context.draw2d.scale_chunk(&mut preview_buffer[..], &(10, 10, 80, 80), 100, &icon.0[..], &(icon.1 as usize, icon.2 as usize), 0.5);
                             }
                         } else
+                        if self.graph_type == BehaviorType::Systems {
+                            // For audio draw an audio icon
+                            if let Some(icon) = context.icons.get(&"skills".to_string()) {
+                                context.draw2d.scale_chunk(&mut preview_buffer[..], &(10, 10, 80, 80), 100, &icon.0[..], &(icon.1 as usize, icon.2 as usize), 0.5);
+                            }
+                        } else
                         if self.graph_type == BehaviorType::Regions {
                             // For regions draw the center of the map
                             if let Some(region)= context.data.regions.get_mut(&context.data.regions_ids[index]) {
