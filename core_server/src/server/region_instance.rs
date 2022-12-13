@@ -112,6 +112,8 @@ pub struct RegionInstance<'a> {
     pub gear_slots                  : Vec<String>,
     pub weapon_slots                : Vec<String>,
 
+    pub skill_trees                 : FxHashMap<String, Vec<(i32, String)>>,
+
     // Variable names
 
     pub primary_currency            : String,
@@ -273,6 +275,8 @@ impl RegionInstance<'_> {
 
             weapon_slots                    : vec![],
             gear_slots                      : vec![],
+
+            skill_trees                     : FxHashMap::default(),
 
             // Variable names
             primary_currency                : "".to_string(),
@@ -1796,10 +1800,60 @@ impl RegionInstance<'_> {
                         for (_id, node) in &behavior.nodes {
                             if node.behavior_type == BehaviorNodeType::SkillTree {
                                 skills.add_skill(node.name.clone());
+
+                                // Add the skill to the skill_tree
+
+                                let mut rc : Vec<(i32, String)> = vec![];
+                                let mut parent_id = node.id;
+
+                                loop {
+                                    let mut found = false;
+                                    for (id1, c1, id2, c2) in &behavior.connections {
+                                        if *id1 == parent_id && *c1 == BehaviorNodeConnector::Bottom {
+                                            for (uuid, node) in &behavior.nodes {
+                                                if *uuid == *id2 {
+                                                    let mut start = 0;
+                                                    if let Some(value) = node.values.get(&"start".to_string()) {
+                                                        if let Some(i) = value.to_integer() {
+                                                            start = i;
+                                                        }
+                                                    }
+                                                    parent_id = node.id;
+                                                    found = true;
+
+                                                    rc.push((start, node.name.clone()));
+                                                }
+                                            }
+                                        } else
+                                        if *id2 == parent_id && *c2 == BehaviorNodeConnector::Bottom {
+                                            for (uuid, node) in &behavior.nodes {
+                                                if *uuid == *id1 {
+                                                    let mut start = 0;
+                                                    if let Some(value) = node.values.get(&"start".to_string()) {
+                                                        if let Some(i) = value.to_integer() {
+                                                            start = i;
+                                                        }
+                                                    }
+                                                    parent_id = node.id;
+                                                    found = true;
+
+                                                    rc.push((start, node.name.clone()));
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if found == false {
+                                        break;
+                                    }
+                                }
+
+                                self.skill_trees.insert(node.name.clone(), rc);
                             }
                         }
                     }
                 }
+
+                println!("{:?}", self.skill_trees);
 
                 // Set the default values into the scope
                 let mut scope = default_scope.clone();
