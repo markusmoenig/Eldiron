@@ -21,7 +21,7 @@ Eldiron is currently under active development and a v1 is planned for the first 
 * A sophisticated behavior node graph makes creation of AI behavior for NPCs easy. The node system is backed by a full-featured scripting language.
 * Eldiron Creator has editors for tile-maps, regions and node based graphs for character behavior, systems (like crafting), items and the overall game logic.
 
-Retro 3D dungeons and regions will be supported in either v1 or v1.5. I am working on a [procedural language](https://github.com/markusmoenig/RPU) just for that.
+Retro 3D dungeons and regions, top-down and isometric perspectives will be supported in either v1 or v1.5.
 
 You can download the current pre-release in [Releases](https://github.com/markusmoenig/Eldiron/releases).
 
