@@ -297,10 +297,6 @@ impl RegionInstance<'_> {
         self.area_characters = FxHashMap::default();
 
         let mut messages = vec![];
-        let mut inventory = Inventory::new();
-        let mut gear = Gear::new();
-        let mut weapons = Weapons::new();
-        let mut skills = Skills::new();
 
         let tick_time = self.get_time();
 
@@ -744,8 +740,6 @@ impl RegionInstance<'_> {
                         }
                         inv.items_to_equip = vec![];
                     }
-
-                    inventory = inv.clone();
                 }
             }
 
@@ -808,27 +802,6 @@ impl RegionInstance<'_> {
                             inv.items.push(item);
                         }
                     }
-                }
-            }
-
-            // Clone the gear for sending it to the client
-            if let Some(g) = self.scopes[inst_index].get("gear") {
-                if let Some(ge) = g.read_lock::<Gear>() {
-                    gear = ge.clone();
-                }
-            }
-
-            // Clone the weapons for sending it to the client
-            if let Some(w) = self.scopes[inst_index].get("weapons") {
-                if let Some(weap) = w.read_lock::<Weapons>() {
-                    weapons = weap.clone();
-                }
-            }
-
-            // Clone the skills for sending it to the client
-            if let Some(s) = self.scopes[inst_index].get("skills") {
-                if let Some(sk) = s.read_lock::<Skills>() {
-                    skills = sk.clone();
                 }
             }
 
@@ -908,6 +881,39 @@ impl RegionInstance<'_> {
         // Parse the player characters and generate updates
 
         for inst_index in 0..self.instances.len() {
+
+            let mut inventory = Inventory::new();
+            let mut gear = Gear::new();
+            let mut weapons = Weapons::new();
+            let mut skills = Skills::new();
+
+            // Clone the inventory for sending it to the client
+            if let Some(i) = self.scopes[inst_index].get("inventory") {
+                if let Some(inv) = i.read_lock::<Inventory>() {
+                    inventory = inv.clone();
+                }
+            }
+
+            // Clone the gear for sending it to the client
+            if let Some(g) = self.scopes[inst_index].get("gear") {
+                if let Some(ge) = g.read_lock::<Gear>() {
+                    gear = ge.clone();
+                }
+            }
+
+            // Clone the weapons for sending it to the client
+            if let Some(w) = self.scopes[inst_index].get("weapons") {
+                if let Some(weap) = w.read_lock::<Weapons>() {
+                    weapons = weap.clone();
+                }
+            }
+
+            // Clone the skills for sending it to the client
+            if let Some(s) = self.scopes[inst_index].get("skills") {
+                if let Some(sk) = s.read_lock::<Skills>() {
+                    skills = sk.clone();
+                }
+            }
 
             // Purge invalid target indices
             if let Some(target_index) = self.instances[inst_index].target_instance_index {
@@ -1883,6 +1889,7 @@ impl RegionInstance<'_> {
                 self.scopes.push(scope);
             }
         }
+
         if index < self.instances.len() {
             // Execute the startup only trees
             for startup_id in &startup_trees {
