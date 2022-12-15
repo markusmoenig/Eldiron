@@ -881,6 +881,11 @@ pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
     let mut damage : i32 = 0;
     let mut speed : f32 = 4.0;
 
+    let mut attack_rating = 0;
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "attack_rating".to_string()), data) {
+        attack_rating = rc as i32;
+    }
+
     if let Some(id) = get_weapon_script_id(instance_index, "main hand".to_string(), data) {
         if let Some(rc) = eval_number_expression_instance(instance_index, id.clone(), data) {
             damage = rc as i32;
@@ -919,6 +924,7 @@ pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
 
         if let Some(behavior_tree_id) = behavior_tree_id {
             data.action_subject_text = data.instances[instance_index].name.clone();
+            data.scopes[target_index].set_value("attack_rating", attack_rating);
             let _rc = data.execute_node(target_index, behavior_tree_id, None);
             if data.dealt_damage_success {
                 increase_weapon_skill_value(instance_index, "main hand".to_string(), data);
