@@ -181,10 +181,9 @@ impl EditorOptions for RegionOptions {
                             self.curr_layer = atom.curr_index + 1;
                         } else
                         if atom.atom_data.id == "remap" {
-                            /*
                             if let Some(region) = context.data.regions.get_mut(&content.get_region_id()) {
                                 region.remap(asset);
-                            }*/
+                            }
                         }
                     }
                     return true;
