@@ -131,9 +131,9 @@ dependencies = [
 
 [[package]]
 name = "audio-engine"
-version = "0.4.4"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "675ea4090426d189528e452c43544586acbe4ec48e32e09c8ad642db3941180d"
+checksum = "d01f018a233fb8ef703a1b4618a52926f5a3cefa2297179f0fb9a0664e305728"
 dependencies = [
  "cpal",
  "gcd",
@@ -2335,9 +2335,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.85"
+version = "1.0.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e55a28e3aaef9d5ce0506d0a14dbba8054ddc7e499ef522dd8b26859ec9d4a44"
+checksum = "877c235533714907a8c2464236f5c4b2a17262ef1bd71f38f35ea592c8da6883"
 dependencies = [
  "itoa",
  "ryu",
