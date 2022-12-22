@@ -610,17 +610,18 @@ pub fn call_system(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
     let mut systems_id : Option<Uuid> = None;
     let mut systems_tree_id : Option<Uuid> = None;
 
-    // // Try to get from node_values
-    // if let Some(node_value) = data.instances[instance_index].node_values.get(&(behavior_type, id.1)) {
-    //     systems_id = Some(node_value.0 as usize);
-    //     systems_tree_id = Some(node_value.1 as usize);
-    // } else {
-
     // The id's were not yet computed search the system trees, get the ids and store them.
     if let Some(value) = get_node_value((id.0, id.1, "system"), data, behavior_type) {
-        for (index, name) in data.system_names.iter().enumerate() {
-            if let Some(str) = value.to_string() {
-                if *name == str {
+
+        if let Some(mut system_name) = value.to_string() {
+
+            // Check if this is a variable inside the scope
+            if let Some(var) = data.scopes[instance_index].get_value::<String>(system_name.as_str()) {
+                system_name = var.to_string();
+            }
+
+            for (index, name) in data.system_names.iter().enumerate() {
+                if *name == system_name {
                     systems_id = Some(data.system_ids[index]);
                     break
                 }
