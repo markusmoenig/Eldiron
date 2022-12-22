@@ -17,10 +17,9 @@ core_server = { path = "../core_server", features = ["data_editing"] }
 core_shared = { path = "../core_shared" }
 core_render = { path = "../core_render" }
 core_embed_binaries = { path = "../core_embed_binaries", optional = true }
-env_logger = "0.10"
 log = "0.4"
-pixels = "0.10.0"
-wgpu = "0.13.0"
+pixels = "0.11.0"
+wgpu = "0.14.2"
 winit = "0.27.5"
 winit_input_helper = "0.13"
 png = "0.17.5"
@@ -32,18 +31,18 @@ itertools = "0.10.2"
 zeno = "0.2.1"
 getrandom = { version = "0.2.7", features = ["js"] }
 rand = "0.8.5"
-pathfinding = "3.0.11"
+pathfinding = "4.1.1"
 rhai = { version = "*", default-features = false, features = ["only_i32", "f32_float"] }
 regex = "1.5"
 directories = "4.0"
 fs_extra = "1.2.0"
-web-sys = { version = "0.3", features = ["Performance", "Window"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
 console_log = "0.2"
 wasm-bindgen = "0.2.78"
 wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Performance", "Window"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 env_logger = "0.10"

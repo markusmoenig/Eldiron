@@ -114,7 +114,7 @@ async fn run() {
     };
 
     // Init server
-    let game_data = GameData::load_from_path(PathBuf::new());//std::path::Path::new("/").to_path_buf());
+    let game_data = GameData::load_from_path(PathBuf::new());
 
     let mut server = core_server::server::Server::new();
     server.collect_data(&game_data);
@@ -192,9 +192,10 @@ async fn run() {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::ReceivedCharacter(char ) => match char {
                     _ => {
-                        //if curr_screen.key_down(Some(*char), None, &mut asset) {
-                        //    window.request_redraw();
-                        //}
+                        let rc = render.key_down(char.to_string(), player_uuid);
+                        for cmd in rc.0 {
+                            server.execute_packed_player_action(player_uuid, cmd);
+                        }
                     }
                 },
 

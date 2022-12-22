@@ -1304,12 +1304,10 @@ pub fn set_level_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
                 if let Some(mut exp) = e.write_lock::<Experience>() {
                     exp.system_name = system_name;
                     exp.tree_name = tree_name;
-
-                    println!("exp {:?}", exp)
                 }
             }
         }
     }
 
-    BehaviorNodeConnector::Fail
+    BehaviorNodeConnector::Bottom
 }

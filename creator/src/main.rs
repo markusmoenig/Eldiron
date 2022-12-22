@@ -299,9 +299,9 @@ fn main() -> Result<(), Error> {
 
             // Resize the window
             if let Some(size) = input.window_resized() {
-                pixels.resize_surface(size.width, size.height);
+                let _rc = pixels.resize_surface(size.width, size.height);
                 let scale = window.scale_factor() as u32;
-                pixels.resize_buffer(size.width / scale, size.height / scale);
+                let _rc = pixels.resize_buffer(size.width / scale, size.height / scale);
                 editor.resize(size.width as usize / scale as usize, size.height as usize / scale as usize);
                 //width = size.width as usize / scale as usize;
                 //height = size.height as usize / scale as usize;

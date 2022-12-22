@@ -2133,9 +2133,16 @@ impl RegionInstance<'_> {
 
     /// Gets the current time in milliseconds
     pub fn get_time(&self) -> u128 {
-        let stop = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("Time went backwards");
-            stop.as_millis()
+        #[cfg(target_arch = "wasm32")]
+        {
+            web_sys::window().unwrap().performance().unwrap().now() as u128
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let stop = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("Time went backwards");
+                stop.as_millis()
+        }
     }
 }
