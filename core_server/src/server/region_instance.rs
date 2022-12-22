@@ -148,6 +148,7 @@ impl RegionInstance<'_> {
         script_register_inventory_api(&mut engine);
         script_register_gear_api(&mut engine);
         script_register_weapons_api(&mut engine);
+        script_register_experience_api(&mut engine);
 
         // Display f64 as ints
         use pathfinding::num_traits::ToPrimitive;
@@ -172,6 +173,7 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::Heal, heal);
         nodes.insert(BehaviorNodeType::TakeHeal, take_heal);
         nodes.insert(BehaviorNodeType::Respawn, respawn);
+        nodes.insert(BehaviorNodeType::SetLevelTree, set_level_tree);
 
         /*
         nodes.insert(BehaviorNodeType::DisplaceTiles, displace_tiles);
@@ -886,6 +888,7 @@ impl RegionInstance<'_> {
             let mut gear = Gear::new();
             let mut weapons = Weapons::new();
             let mut skills = Skills::new();
+            let mut experience = Experience::new();
 
             // Clone the inventory for sending it to the client
             if let Some(i) = self.scopes[inst_index].get("inventory") {
@@ -912,6 +915,13 @@ impl RegionInstance<'_> {
             if let Some(s) = self.scopes[inst_index].get("skills") {
                 if let Some(sk) = s.read_lock::<Skills>() {
                     skills = sk.clone();
+                }
+            }
+
+            // Clone the experience for sending it to the client
+            if let Some(s) = self.scopes[inst_index].get("experience") {
+                if let Some(exp) = s.read_lock::<Experience>() {
+                    experience = exp.clone();
                 }
             }
 
@@ -1020,6 +1030,7 @@ impl RegionInstance<'_> {
                     gear                    : gear.clone(),
                     weapons                 : weapons.clone(),
                     skills                  : skills.clone(),
+                    experience              : experience.clone(),
                     multi_choice_data       : self.instances[inst_index].multi_choice_data.clone(),
                     communication           : self.instances[inst_index].communication.clone(),
                  };
@@ -1885,6 +1896,7 @@ impl RegionInstance<'_> {
                 scope.set_value("gear", Gear::new());
                 scope.set_value("weapons", Weapons::new());
                 scope.set_value("skills", skills);
+                scope.set_value("experience", Experience::new());
 
                 self.scopes.push(scope);
             }

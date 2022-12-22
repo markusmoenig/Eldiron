@@ -16,6 +16,7 @@ pub mod gear;
 pub mod weapons;
 pub mod dir;
 pub mod skills;
+pub mod experience;
 
 pub mod prelude {
     pub use crate::asset::*;
@@ -39,6 +40,7 @@ pub mod prelude {
     pub use crate::weapons::*;
     pub use crate::skills::*;
     pub use crate::dir::get_resource_dir;
+    pub use crate::experience::*;
 
     pub use crate::value::Value;
     pub use rustc_hash::FxHashMap;

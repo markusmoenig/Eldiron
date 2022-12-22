@@ -365,11 +365,12 @@ impl GameRender<'_> {
                 }
             }
 
-            // Set the inventory / weapons / gear
+            // Set the inventory / weapons / gear / experience / skills
             map.insert("inventory".into(), Dynamic::from(update.inventory.clone()));
             map.insert("weapons".into(), Dynamic::from(update.weapons.clone()));
             map.insert("gear".into(), Dynamic::from(update.gear.clone()));
             map.insert("skills".into(), Dynamic::from(update.skills.clone()));
+            map.insert("experience".into(), Dynamic::from(update.experience.clone()));
         }
 
         None

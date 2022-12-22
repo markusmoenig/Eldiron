@@ -1269,3 +1269,47 @@ pub fn respawn(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
 
     BehaviorNodeConnector::Right
 }
+
+/// Set Level Tree
+pub fn set_level_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut system_name : Option<String> = None;
+    let mut tree_name : Option<String> = None;
+
+    // Get the system name
+    if let Some(value) = get_node_value((id.0, id.1, "system"), data, behavior_type) {
+
+        if let Some(sys_name) = value.to_string() {
+
+
+            // Check if this is a variable inside the scope
+            if let Some(var) = data.scopes[instance_index].get_value::<String>(sys_name.as_str()) {
+                system_name = Some(var.to_string());
+            } else {
+                system_name = Some(sys_name);
+            }
+        }
+    }
+
+    if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
+        if let Some(str) = value.to_string() {
+            tree_name = Some(str);
+        }
+    }
+
+    if let Some(system_name) = system_name {
+        if let Some(tree_name) = tree_name {
+
+            if let Some(e) = data.scopes[instance_index].get_mut("experience") {
+                if let Some(mut exp) = e.write_lock::<Experience>() {
+                    exp.system_name = system_name;
+                    exp.tree_name = tree_name;
+
+                    println!("exp {:?}", exp)
+                }
+            }
+        }
+    }
+
+    BehaviorNodeConnector::Fail
+}

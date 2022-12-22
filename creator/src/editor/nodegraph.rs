@@ -1250,10 +1250,14 @@ impl EditorContent for NodeGraph  {
                 "Take Heal" => BehaviorNodeType::TakeHeal,
                 "Respawn" => BehaviorNodeType::Respawn,
                 "Equip" => BehaviorNodeType::Equip,
+                "Set Level Tree" => BehaviorNodeType::SetLevelTree,
 
                 "Skill Level" if self.graph_type == BehaviorType::Items => BehaviorNodeType::SkillLevelItem,
                 "Skill Tree" => BehaviorNodeType::SkillTree,
                 "Skill Level" => BehaviorNodeType::SkillLevel,
+
+                "Level Tree" => BehaviorNodeType::LevelTree,
+                "Level" => BehaviorNodeType::Level,
 
                 "Always" => BehaviorNodeType::Always,
                 "Enter Area" => BehaviorNodeType::EnterArea,
@@ -2155,6 +2159,30 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
+        if node_behavior_type == BehaviorNodeType::SetLevelTree {
+
+            let mut atom1 = AtomWidget::new(context.data.systems_names.clone(), AtomWidgetType::NodeTextButton,
+            AtomData::new("system", Value::Empty()));
+            atom1.atom_data.text = "System Name".to_string();
+            let id = (behavior_data_id, node_id, "system".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+            AtomData::new("tree", Value::Empty()));
+            atom2.atom_data.text = "Tree Name".to_string();
+            let id = (behavior_data_id, node_id, "tree".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.help_link = Some("https://book.eldiron.com/nodes/set_level_tree.html".to_string());
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        } else
 
         // System
 
@@ -2188,6 +2216,42 @@ impl EditorContent for NodeGraph  {
             node_widget.widgets.push(atom2);
 
             node_widget.help_link = Some("https://book.eldiron.com/nodes/skill_level.html".to_string());
+
+            node_widget.color = context.color_orange.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+        } else
+
+        if node_behavior_type == BehaviorNodeType::LevelTree {
+            node_widget.help_link = Some("https://book.eldiron.com/nodes/level_tree.html".to_string());
+
+            node_widget.color = context.color_orange.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+
+            // Add the node to the behavior tree ids
+            self.behavior_tree_ids.push(node_widget.id);
+            if self.curr_behavior_tree_id == None {
+                self.curr_behavior_tree_id = Some(node_widget.id);
+            }
+        } else
+        if node_behavior_type == BehaviorNodeType::Level {
+            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeNumberButton,
+            AtomData::new("start", Value::Empty()));
+            atom1.atom_data.text = "Starts at".to_string();
+            let id = (behavior_data_id, node_id, "start".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+            AtomData::new("message", Value::Empty()));
+            atom2.atom_data.text = "Message".to_string();
+            let id = (behavior_data_id, node_id, "message".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.help_link = Some("https://book.eldiron.com/nodes/level.html".to_string());
 
             node_widget.color = context.color_orange.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -2792,7 +2856,7 @@ impl EditorContent for NodeGraph  {
 
                     // Skip behavior tree nodes
                     if let Some(node_data) = behavior.data.nodes.get(&self.widget_index_to_node_id(index)) {
-                        if node_data.behavior_type == BehaviorNodeType::BehaviorTree || node_data.behavior_type == BehaviorNodeType::SkillTree {
+                        if node_data.behavior_type == BehaviorNodeType::BehaviorTree || node_data.behavior_type == BehaviorNodeType::SkillTree || node_data.behavior_type == BehaviorNodeType::LevelTree {
                             continue;
                         }
                     }
@@ -2846,7 +2910,7 @@ impl EditorContent for NodeGraph  {
             }
 
             if let Some(node_data) = behavior.data.nodes.get(&id) {
-                if node_data.behavior_type != BehaviorNodeType::BehaviorTree && node_data.behavior_type != BehaviorNodeType::SkillTree {
+                if node_data.behavior_type != BehaviorNodeType::BehaviorTree && node_data.behavior_type != BehaviorNodeType::SkillTree && node_data.behavior_type != BehaviorNodeType::LevelTree {
                     return true;
                 }
             }
