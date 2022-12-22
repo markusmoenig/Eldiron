@@ -254,6 +254,20 @@ impl GameData {
             }
         }
 
+        #[cfg(feature = "embed_binaries")]
+        {
+            for file in Embedded::iter() {
+                let name = file.as_ref();
+
+                if name.starts_with("game/items/") {
+                    let behavior = GameBehavior::load_from_embedded(name);
+                    items_names.push(behavior.name.clone());
+                    items_ids.push(behavior.data.id);
+                    items.insert(behavior.data.id, behavior);
+                }
+            }
+        }
+
         // Game
 
         #[allow(unused_mut)]
