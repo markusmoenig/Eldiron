@@ -2223,6 +2223,27 @@ impl EditorContent for NodeGraph  {
         } else
 
         if node_behavior_type == BehaviorNodeType::LevelTree {
+
+            let mut atom1 = AtomWidget::new(vec!["Experience for Kill".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("experience_kill", Value::Empty()));
+            atom1.atom_data.text = "Experience for Kill".to_string();
+            let id = (behavior_data_id, node_id, "experience_kill".to_string());
+            atom1.behavior_id = Some(id.clone());
+            let mut def_text = "".to_string();
+            if let Some(txt) = context.scripts.get("level_tree_kill") {
+                def_text = txt.clone();
+            }
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String(def_text), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
+            AtomData::new("message", Value::Empty()));
+            atom2.atom_data.text = "Experience Message".to_string();
+            let id = (behavior_data_id, node_id, "message".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("You gained {} experience.".to_string()), self.graph_type);
+            node_widget.widgets.push(atom2);
+
             node_widget.help_link = Some("https://book.eldiron.com/nodes/level_tree.html".to_string());
 
             node_widget.color = context.color_orange.clone();
@@ -2250,6 +2271,14 @@ impl EditorContent for NodeGraph  {
             atom2.behavior_id = Some(id.clone());
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
+
+            let mut atom3 = AtomWidget::new(vec![], AtomWidgetType::NodeScriptButton,
+            AtomData::new("script", Value::Empty()));
+            atom3.atom_data.text = "Script".to_string();
+            let id = (behavior_data_id, node_id, "script".to_string());
+            atom3.behavior_id = Some(id.clone());
+            atom3.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom3);
 
             node_widget.help_link = Some("https://book.eldiron.com/nodes/level.html".to_string());
 

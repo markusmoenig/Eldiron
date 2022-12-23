@@ -925,7 +925,7 @@ pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
 
         if let Some(behavior_tree_id) = behavior_tree_id {
             data.action_subject_text = data.instances[instance_index].name.clone();
-            data.scopes[target_index].set_value("attack_rating", attack_rating);
+            data.scopes[target_index].set_value("_attack_rating", attack_rating);
             let _rc = data.execute_node(target_index, behavior_tree_id, None);
             if data.dealt_damage_success {
                 increase_weapon_skill_value(instance_index, "main hand".to_string(), data);
@@ -937,6 +937,107 @@ pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
             }
         }
     }
+
+    // We killed the opponent, we call the LevelTree node to add experience
+    if rc == BehaviorNodeConnector::Success {
+
+        let mut system_name : Option<String> = None;
+        let mut tree_name : Option<String> = None;
+
+        if let Some(e) = data.scopes[instance_index].get_mut("experience") {
+            if let Some(exp) = e.read_lock::<Experience>() {
+                system_name = exp.system_name.clone();
+                tree_name = exp.tree_name.clone();
+            }
+        }
+
+        if let Some(system_name) = system_name {
+            if let Some(tree_name) = tree_name {
+
+                let mut exp_to_add = 0;
+
+                if let Some(index) = data.system_names.iter().position(|r| *r == system_name) {
+                    if let Some(behavior) = data.systems.get(&data.system_ids[index]) {
+                        for (node_id, node) in &behavior.nodes {
+                            if node.name == tree_name {
+
+                                if let Some(value) = eval_number_expression_instance(instance_index, (BehaviorType::Systems, behavior.id, *node_id, "experience_kill".to_string()), data) {
+                                    exp_to_add = value as i32;
+                                }
+
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if exp_to_add > 0 {
+
+
+                    let mut script_id = (BehaviorType::Systems, Uuid::nil(), Uuid::nil(), "".to_string());
+
+                    // Add the experience
+                    if let Some(e) = data.scopes[instance_index].get_mut("experience") {
+                        if let Some(mut exp) = e.write_lock::<Experience>() {
+
+                            exp.experience += exp_to_add;
+
+                            let mut str = exp.experience_msg.clone();
+                            str = str.replace("{}", &exp_to_add.to_string());
+
+                            // Send message
+                            let message_data = MessageData {
+                                message_type    : MessageType::Status,
+                                message         : str,
+                                from            : "System".to_string(),
+                                right           : None,
+                                center          : None,
+                                buffer          : None
+                            };
+
+                            data.instances[instance_index].messages.push(message_data.clone());
+
+                            let mut new_level = 0;
+                            for lvl in 0..exp.levels.len() {
+                                if exp.experience >= exp.levels[lvl].0 {
+                                    new_level = lvl as i32 + 1;
+
+                                    // Send message
+                                    let message_data = MessageData {
+                                        message_type    : MessageType::Status,
+                                        message         : exp.levels[lvl].1.clone(),
+                                        from            : "System".to_string(),
+                                        right           : None,
+                                        center          : None,
+                                        buffer          : None
+                                    };
+
+                                    data.instances[instance_index].messages.push(message_data.clone());
+                                } else {
+                                    break;
+                                }
+                            }
+                            if new_level > exp.level {
+                                exp.level = new_level;
+
+                                script_id = (BehaviorType::Systems, exp.level_tree_id, exp.levels[new_level as usize-1].2, "script".to_string());
+
+                                println!("[{}] Advanced to level {}", data.instances[instance_index].name, exp.level);
+                            }
+                        }
+                    }
+
+                    // Execute level script
+                    if script_id.3.is_empty() == false {
+                        println!("Execute level script: {:?}", script_id);
+                        let rc = eval_dynamic_script_instance(instance_index, script_id, data);
+                        println!("Execute level script: {:?}", rc);
+                    }
+                }
+            }
+        }
+    }
+
     rc
 }
 
@@ -1281,7 +1382,6 @@ pub fn set_level_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
 
         if let Some(sys_name) = value.to_string() {
 
-
             // Check if this is a variable inside the scope
             if let Some(var) = data.scopes[instance_index].get_value::<String>(sys_name.as_str()) {
                 system_name = Some(var.to_string());
@@ -1297,13 +1397,98 @@ pub fn set_level_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
         }
     }
 
+    let mut levels : Vec<(i32, String, Uuid)> = vec![];
+    let mut level_tree_id = Uuid::new_v4();
+    let mut experience_msg : String = "You gained {} experience.".to_string();
+
     if let Some(system_name) = system_name {
         if let Some(tree_name) = tree_name {
 
+
+            for (_id, behavior) in &data.systems {
+                if behavior.name == system_name {
+                    for (_id, node) in &behavior.nodes {
+                        if node.name == tree_name {
+
+                            if let Some(value) = node.values.get(&"message".to_string()) {
+                                if let Some(m) = value.to_string() {
+                                    experience_msg = m;
+                                }
+                            }
+                            // Store the levels
+
+                            let mut rc : Vec<(i32, String, Uuid)> = vec![];
+                            let mut parent_id = node.id;
+
+                            level_tree_id = node.id;
+
+                            loop {
+                                let mut found = false;
+                                for (id1, c1, id2, c2) in &behavior.connections {
+                                    if *id1 == parent_id && *c1 == BehaviorNodeConnector::Bottom {
+                                        for (uuid, node) in &behavior.nodes {
+                                            if *uuid == *id2 {
+                                                let mut start = 0;
+                                                if let Some(value) = node.values.get(&"start".to_string()) {
+                                                    if let Some(i) = value.to_integer() {
+                                                        start = i;
+                                                    }
+                                                }
+                                                let mut message = "".to_string();
+                                                if let Some(value) = node.values.get(&"message".to_string()) {
+                                                    if let Some(m) = value.to_string() {
+                                                        message = m;
+                                                    }
+                                                }
+
+                                                parent_id = node.id;
+                                                found = true;
+
+                                                rc.push((start, message, parent_id));
+                                            }
+                                        }
+                                    } else
+                                    if *id2 == parent_id && *c2 == BehaviorNodeConnector::Bottom {
+                                        for (uuid, node) in &behavior.nodes {
+                                            if *uuid == *id1 {
+                                                let mut start = 0;
+                                                if let Some(value) = node.values.get(&"start".to_string()) {
+                                                    if let Some(i) = value.to_integer() {
+                                                        start = i;
+                                                    }
+                                                }
+                                                let mut message = "".to_string();
+                                                if let Some(value) = node.values.get(&"message".to_string()) {
+                                                    if let Some(m) = value.to_string() {
+                                                        message = m;
+                                                    }
+                                                }
+                                                parent_id = node.id;
+                                                found = true;
+
+                                                rc.push((start, message, parent_id));
+                                            }
+                                        }
+                                    }
+                                }
+                                if found == false {
+                                    break;
+                                }
+                            }
+
+                            levels = rc;
+                        }
+                    }
+                }
+            }
+
             if let Some(e) = data.scopes[instance_index].get_mut("experience") {
                 if let Some(mut exp) = e.write_lock::<Experience>() {
-                    exp.system_name = system_name;
-                    exp.tree_name = tree_name;
+                    exp.system_name = Some(system_name);
+                    exp.tree_name = Some(tree_name);
+                    exp.levels = levels;
+                    exp.experience_msg = experience_msg;
+                    exp.level_tree_id = level_tree_id;
                 }
             }
         }
