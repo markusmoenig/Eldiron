@@ -4,6 +4,8 @@ pub struct RegionWidget {
     pub rect                : (usize, usize, usize, usize),
     pub region_id           : Uuid,
 
+    pub vlayout             : VLayout,
+
     grid_size               : usize,
     widgets                 : Vec<AtomWidget>,
 
@@ -45,6 +47,7 @@ impl EditorContent for RegionWidget {
         let toolbar_size = 33;
         let bottom_size = 250;
 
+        let vlayout = VLayout::new(rect);
         let mut widgets = vec![];
 
         let mut mode_button = AtomWidget::new(vec!["tiles".to_string(), "area".to_string(), "character".to_string(), "loot".to_string(), "settings".to_string()], AtomWidgetType::IconRow,
@@ -222,6 +225,8 @@ impl EditorContent for RegionWidget {
             rect,
             region_id               : Uuid::new_v4(),
             grid_size               : 32,
+
+            vlayout,
 
             widgets                 : widgets,
 

@@ -15,6 +15,7 @@ mod prelude {
 
     pub use crate::draw2d::Draw2D;
     pub use crate::widget::*;
+    pub use crate::widget::vlayout::*;
     pub use crate::editor::*;
     pub use crate::context::*;
     pub use crate::atom::*;

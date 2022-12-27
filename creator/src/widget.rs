@@ -9,6 +9,10 @@ pub mod tileselector;
 pub mod characterselector;
 pub mod lootselector;
 
+// Layouts
+
+pub mod vlayout;
+
 /// The widget state
 
 #[derive(PartialEq, Debug, Copy, Clone)]
