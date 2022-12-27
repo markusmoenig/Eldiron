@@ -4,15 +4,9 @@ pub struct RegionWidget {
     pub rect                : (usize, usize, usize, usize),
     pub region_id           : Uuid,
 
-    pub vlayout             : VLayout,
+    pub layouts             : Vec<HLayout>,
 
     grid_size               : usize,
-    widgets                 : Vec<AtomWidget>,
-
-    area_widgets            : Vec<AtomWidget>,
-    editing_widgets         : Vec<AtomWidget>,
-    character_widgets       : Vec<AtomWidget>,
-    loot_widgets            : Vec<AtomWidget>,
 
     offset                  : (isize, isize),
     screen_offset           : (usize, usize),
@@ -47,13 +41,14 @@ impl EditorContent for RegionWidget {
         let toolbar_size = 33;
         let bottom_size = 250;
 
-        let vlayout = VLayout::new(rect);
-        let mut widgets = vec![];
+        let mut layouts = vec![];
+        let mut hlayout = HLayout::new((rect.0, rect.1 + rect.3 - bottom_size - toolbar_size, 165, toolbar_size));
+        hlayout.margin = (10, 0, 0, 0);
 
         let mut mode_button = AtomWidget::new(vec!["tiles".to_string(), "area".to_string(), "character".to_string(), "loot".to_string(), "settings".to_string()], AtomWidgetType::IconRow,
         AtomData::new("Mode", Value::Empty()));
         mode_button.atom_data.text = "Mode".to_string();
-        mode_button.set_rect((rect.0 + 10, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 165, 33), asset, context);
+        mode_button.set_rect((0, 0, 165, toolbar_size), asset, context);
         mode_button.custom_color = Some([217, 64, 51, 255]);
 
         let mut hover_help_vector : Vec<(String, String)> = vec![];
@@ -64,7 +59,9 @@ impl EditorContent for RegionWidget {
         hover_help_vector.push(("Settings".to_string(), "Edit the settings of the region (Hotkey 'S').".to_string()));
         mode_button.hover_help_vector = Some(hover_help_vector);
 
-        widgets.push(mode_button);
+        hlayout.add(mode_button, 0);
+        hlayout.layout();
+        layouts.push(hlayout);
 
         // Tile Selector
         let mut tile_selector = TileSelectorWidget::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context);
@@ -80,106 +77,124 @@ impl EditorContent for RegionWidget {
         behavior_graph.set_mode(GraphMode::Detail, &context);
 
         // Area Widgets
-        let mut area_widgets : Vec<AtomWidget> = vec![];
+        let mut area_layout = HLayout::new((rect.0 + 180, rect.1 + rect.3 - bottom_size - toolbar_size, rect.2 - 180, toolbar_size));
+        area_layout.margin = (10, 0, 0, 0);
+        area_layout.spacing = 0;
 
         let mut regions_button = AtomWidget::new(vec![], AtomWidgetType::SliderButton,
         AtomData::new("Area", Value::Empty()));
         regions_button.atom_data.text = "Area".to_string();
-        regions_button.set_rect((rect.0 + 190, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 180, 40), asset, context);
+        regions_button.set_rect((0, 0, 180, 40), asset, context);
         regions_button.hover_help_title = Some("Cycles Areas".to_string());
         regions_button.hover_help_text = Some("Cycles through the current areas.".to_string());
-        area_widgets.push(regions_button);
+        area_layout.add(regions_button, 0);
 
         let mut add_area_button = AtomWidget::new(vec!["Add Area".to_string()], AtomWidgetType::Button,
             AtomData::new("Add Area", Value::Empty()));
-        add_area_button.set_rect((rect.0 + 190 + 200, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
+        add_area_button.set_rect((0, rect.1, 140, 40), asset, context);
         add_area_button.hover_help_title = Some("Add Area".to_string());
         add_area_button.hover_help_text = Some("Adds a new, empty area.".to_string());
-        area_widgets.push(add_area_button);
+        area_layout.add(add_area_button, 5);
 
         let mut del_area_button = AtomWidget::new(vec!["Delete".to_string()], AtomWidgetType::Button,
             AtomData::new("Delete", Value::Empty()));
         del_area_button.state = WidgetState::Disabled;
-        del_area_button.set_rect((rect.0 + 190 + 200 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
+        del_area_button.set_rect((0, 0, 140, 40), asset, context);
         del_area_button.hover_help_title = Some("Delete Area".to_string());
         del_area_button.hover_help_text = Some("Deletes the current area.".to_string());
-        area_widgets.push(del_area_button);
+        area_layout.add(del_area_button, 5);
 
         let mut rename_area_button = AtomWidget::new(vec!["Rename".to_string()], AtomWidgetType::Button,
             AtomData::new("Rename", Value::Empty()));
         rename_area_button.state = WidgetState::Disabled;
-        rename_area_button.set_rect((rect.0 + 190 + 200 + 150 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 140, 40), asset, context);
+        rename_area_button.set_rect((0, 0, 140, 40), asset, context);
         rename_area_button.hover_help_title = Some("Rename Area".to_string());
         rename_area_button.hover_help_text = Some("Renames the current area.".to_string());
-        area_widgets.push(rename_area_button);
+        area_layout.add(rename_area_button, 5);
 
         let mut pick_area_button = AtomWidget::new(vec!["pick".to_string()], AtomWidgetType::EnabledIcon,
         AtomData::new("Pick", Value::Empty()));
         pick_area_button.atom_data.text = "Pick".to_string();
-        pick_area_button.set_rect((rect.0 + 190 + 200 + 150 + 150 + 150, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 40, 38), asset, context);
+        pick_area_button.set_rect((0, 0, 35, 38), asset, context);
         pick_area_button.hover_help_title = Some("Pick Area".to_string());
         pick_area_button.hover_help_text = Some("Selects the clicked area.".to_string());
-        area_widgets.push(pick_area_button);
+        area_layout.add(pick_area_button, 15);
 
         let mut area_add_tile_button = AtomWidget::new(vec!["add".to_string()], AtomWidgetType::EnabledIcon,
         AtomData::new("Add", Value::Empty()));
         area_add_tile_button.atom_data.text = "Add".to_string();
         area_add_tile_button.checked = true;
-        area_add_tile_button.set_rect((rect.0 + 190 + 200 + 150 + 150 + 150 + 50, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 40, 38), asset, context);
+        area_add_tile_button.set_rect((0, 0, 35, 38), asset, context);
         area_add_tile_button.hover_help_title = Some("Add Tile".to_string());
         area_add_tile_button.hover_help_text = Some("Adds the clicked tile to the current area.".to_string());
-        area_widgets.push(area_add_tile_button);
+        area_layout.add(area_add_tile_button, 10);
 
         let mut area_remove_tile_button = AtomWidget::new(vec!["remove".to_string()], AtomWidgetType::EnabledIcon,
         AtomData::new("Remove", Value::Empty()));
         area_remove_tile_button.atom_data.text = "Remove".to_string();
-        area_remove_tile_button.set_rect((rect.0 + 190 + 200 + 150 + 150 + 150 + 50 + 40, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 40, 38), asset, context);
+        area_remove_tile_button.set_rect((0, 0, 40, 38), asset, context);
         area_remove_tile_button.hover_help_title = Some("Remove Tile".to_string());
         area_remove_tile_button.hover_help_text = Some("Removes the clicked tile from the current area.".to_string());
-        area_widgets.push(area_remove_tile_button);
+        area_layout.add(area_remove_tile_button, 0);
+
+        area_layout.layout();
+        layouts.push(area_layout);
 
         // Character Widgets
-        let mut character_widgets : Vec<AtomWidget> = vec![];
+
+        let mut character_layout = HLayout::new((rect.0 + 180, rect.1 + rect.3 - bottom_size - toolbar_size, rect.2 - 180, toolbar_size));
+        character_layout.margin = (10, 0, 0, 0);
+        character_layout.spacing = 0;
 
         let mut char_add_tile_button = AtomWidget::new(vec!["add".to_string()], AtomWidgetType::EnabledIcon,
         AtomData::new("Add", Value::Empty()));
         char_add_tile_button.atom_data.text = "Add".to_string();
         char_add_tile_button.checked = true;
-        char_add_tile_button.set_rect((rect.0 + 190, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 40, 38), asset, context);
+        char_add_tile_button.set_rect((rect.0 + 190, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 35, 38), asset, context);
         char_add_tile_button.hover_help_title = Some("Add Instance".to_string());
         char_add_tile_button.hover_help_text = Some("Adds a character instance.".to_string());
-        character_widgets.push(char_add_tile_button);
+        character_layout.add(char_add_tile_button, 0);
 
         let mut char_remove_tile_button = AtomWidget::new(vec!["remove".to_string()], AtomWidgetType::EnabledIcon,
         AtomData::new("Remove", Value::Empty()));
         char_remove_tile_button.atom_data.text = "Remove".to_string();
-        char_remove_tile_button.set_rect((rect.0 + 190 + 40, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 40, 38), asset, context);
+        char_remove_tile_button.set_rect((rect.0 + 190 + 40, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 35, 38), asset, context);
         char_remove_tile_button.hover_help_title = Some("Remove Instance".to_string());
         char_remove_tile_button.hover_help_text = Some("Removes a character instance.".to_string());
-        character_widgets.push(char_remove_tile_button);
+        character_layout.add(char_remove_tile_button, 0);
+
+        character_layout.layout();
+        layouts.push(character_layout);
 
         // Loot Widgets
-        let mut loot_widgets : Vec<AtomWidget> = vec![];
+        let mut loot_layout = HLayout::new((rect.0 + 180, rect.1 + rect.3 - bottom_size - toolbar_size, rect.2 - 180, toolbar_size));
+        loot_layout.margin = (10, 0, 0, 0);
+        loot_layout.spacing = 0;
 
         let mut loot_add_tile_button = AtomWidget::new(vec!["add".to_string()], AtomWidgetType::EnabledIcon,
         AtomData::new("Add", Value::Empty()));
         loot_add_tile_button.atom_data.text = "Add".to_string();
         loot_add_tile_button.checked = true;
-        loot_add_tile_button.set_rect((rect.0 + 190, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 40, 38), asset, context);
+        loot_add_tile_button.set_rect((rect.0 + 190, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 35, 38), asset, context);
         loot_add_tile_button.hover_help_title = Some("Add Loot".to_string());
         loot_add_tile_button.hover_help_text = Some("Adds loot.".to_string());
-        loot_widgets.push(loot_add_tile_button);
+        loot_layout.add(loot_add_tile_button, 0);
 
         let mut loot_remove_tile_button = AtomWidget::new(vec!["remove".to_string()], AtomWidgetType::EnabledIcon,
         AtomData::new("Remove", Value::Empty()));
         loot_remove_tile_button.atom_data.text = "Remove".to_string();
-        loot_remove_tile_button.set_rect((rect.0 + 190 + 40, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 40, 38), asset, context);
+        loot_remove_tile_button.set_rect((rect.0 + 190 + 40, rect.1 + rect.3 - bottom_size - toolbar_size - 5, 35, 38), asset, context);
         loot_remove_tile_button.hover_help_title = Some("Remove Loot".to_string());
         loot_remove_tile_button.hover_help_text = Some("Removes loot.".to_string());
-        loot_widgets.push(loot_remove_tile_button);
+        loot_layout.add(loot_remove_tile_button, 0);
+
+        loot_layout.layout();
+        layouts.push(loot_layout);
 
         // Editing Widgets
-        let mut editing_widgets : Vec<AtomWidget> = vec![];
+        let mut editing_layout = HLayout::new((rect.0 + 180, rect.1 + rect.3 - bottom_size - toolbar_size, rect.2 - 180, toolbar_size));
+        editing_layout.margin = (10, 0, 0, 0);
+        editing_layout.spacing = 0;
 
         let mut draw_mode_button = AtomWidget::new(vec!["draw".to_string(), "erase".to_string(), "pick".to_string(), "select".to_string()], AtomWidgetType::IconRow,
         AtomData::new("Mode", Value::Empty()));
@@ -194,7 +209,7 @@ impl EditorContent for RegionWidget {
         hover_help_vector.push(("Select Mode".to_string(), "Select multiple tiles (Hotkey 'R').".to_string()));
         draw_mode_button.hover_help_vector = Some(hover_help_vector);
 
-        editing_widgets.push(draw_mode_button);
+        editing_layout.add(draw_mode_button, 0);
 
         let mut cut_button = AtomWidget::new(vec!["cut".to_string()], AtomWidgetType::CheckedIcon,
         AtomData::new("Cut", Value::Empty()));
@@ -203,12 +218,16 @@ impl EditorContent for RegionWidget {
         cut_button.hover_help_title = Some("Cut Selection".to_string());
         cut_button.hover_help_text = Some("Copies the current selection to the clipboard and clears the selected area.".to_string());
 
+        editing_layout.add(cut_button, 20);
+
         let mut copy_button = AtomWidget::new(vec!["copy".to_string()], AtomWidgetType::CheckedIcon,
         AtomData::new("Copy", Value::Empty()));
         copy_button.atom_data.text = "Copy".to_string();
         copy_button.set_rect((rect.0 + 350 + 35, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 40, 33), asset, context);
         copy_button.hover_help_title = Some("Copy Selection".to_string());
         copy_button.hover_help_text = Some("Copies the current selection to the clipboard and clears the selected area.".to_string());
+
+        editing_layout.add(copy_button, 0);
 
         let mut paste_button = AtomWidget::new(vec!["paste".to_string()], AtomWidgetType::CheckedIcon,
         AtomData::new("Paste", Value::Empty()));
@@ -217,23 +236,17 @@ impl EditorContent for RegionWidget {
         paste_button.hover_help_title = Some("Paste Selection".to_string());
         paste_button.hover_help_text = Some("Copies the content of the clipboard into the region at the location of the next mouse click.".to_string());
 
-        editing_widgets.push(cut_button);
-        editing_widgets.push(copy_button);
-        editing_widgets.push(paste_button);
+        editing_layout.add(paste_button, 0);
+
+        editing_layout.layout();
+        layouts.push(editing_layout);
 
         Self {
             rect,
             region_id               : Uuid::new_v4(),
             grid_size               : 32,
 
-            vlayout,
-
-            widgets                 : widgets,
-
-            area_widgets,
-            editing_widgets,
-            character_widgets,
-            loot_widgets,
+            layouts,
 
             offset                  : (0, 0),
             screen_offset           : (0, 0),
@@ -264,26 +277,11 @@ impl EditorContent for RegionWidget {
         self.rect.2 = width;
         self.rect.3 = height;
 
-        self.widgets[0].set_rect2((self.rect.0 + 10, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 2, 165, 33));
-
-        self.area_widgets[0].set_rect2((self.rect.0 + 190, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 180, 40));
-        self.area_widgets[1].set_rect2((self.rect.0 + 190 + 200, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
-        self.area_widgets[2].set_rect2((self.rect.0 + 190 + 200 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
-        self.area_widgets[3].set_rect2((self.rect.0 + 190 + 200 + 150 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 140, 40));
-        self.area_widgets[4].set_rect2((self.rect.0 + 190 + 200 + 150 + 150 + 150, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 40, 38));
-        self.area_widgets[5].set_rect2((self.rect.0 + 190 + 200 + 150 + 150 + 150 + 50, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 40, 38));
-        self.area_widgets[6].set_rect2((self.rect.0 + 190 + 200 + 150 + 150 + 150 + 50 + 40, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 40, 38));
-
-        self.character_widgets[0].set_rect2((self.rect.0 + 190, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 40, 38));
-        self.character_widgets[1].set_rect2((self.rect.0 + 190 + 40, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 40, 38));
-
-        self.loot_widgets[0].set_rect2((self.rect.0 + 190, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 40, 38));
-        self.loot_widgets[1].set_rect2((self.rect.0 + 190 + 40, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 5, 40, 38));
-
-        self.editing_widgets[0].set_rect2((self.rect.0 + 190, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 2, 140, 33));
-        self.editing_widgets[1].set_rect2((self.rect.0 + 350, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 2, 40, 33));
-        self.editing_widgets[2].set_rect2((self.rect.0 + 350 + 35, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 2, 40, 33));
-        self.editing_widgets[3].set_rect2((self.rect.0 + 350 + 35 + 35, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size - 2, 40, 33));
+        self.layouts[0].set_rect((self.rect.0, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, 165, self.toolbar_size));
+        self.layouts[1].set_rect((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - 180, self.toolbar_size));
+        self.layouts[2].set_rect((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - 180, self.toolbar_size));
+        self.layouts[3].set_rect((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - 180, self.toolbar_size));
+        self.layouts[4].set_rect((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - 180, self.toolbar_size));
 
         self.behavior_graph.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.bottom_size, width, self.bottom_size);
         self.behavior_graph.set_mode_and_rect(GraphMode::Detail, self.behavior_graph.rect, context);
@@ -337,18 +335,15 @@ impl EditorContent for RegionWidget {
 
             context.draw2d.draw_rect(frame, &(rect.0, rect.1 + rect.3, rect.2, self.toolbar_size), context.width, &context.color_black);
 
-            for w in &mut self.widgets {
-                w.draw(frame, context.width, anim_counter, asset, context);
-            }
+            self.layouts[0].draw(frame, anim_counter, asset, context);
 
             if editor_mode == RegionEditorMode::Tiles {
                 self.tile_selector.draw(frame, context.width, anim_counter, asset, context);
-                for w in &mut self.editing_widgets {
-                    w.draw(frame, context.width, anim_counter, asset, context);
-                }
+
+                self.layouts[4].draw(frame, anim_counter, asset, context);
 
                 // Draw selection if any
-                if context.is_running == false && self.selected_range.is_some() && self.editing_widgets[0].curr_index == 3 {
+                if context.is_running == false && self.selected_range.is_some() && self.layouts[4].widgets[0].curr_index == 3 {
 
                     let x_tiles = (rect.2 / grid_size) as isize;
                     let y_tiles = (rect.3 / grid_size) as isize;
@@ -374,7 +369,7 @@ impl EditorContent for RegionWidget {
                 }
 
                 // Draw Paste preview is paste button is enabled and clipboard non-empty
-                if context.is_running == false && self.editing_widgets[3].checked == true {
+                if context.is_running == false && self.layouts[4].widgets[3].checked == true {
                     if let Some(clipboard) = &self.clipboard {
                         if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
 
@@ -425,9 +420,7 @@ impl EditorContent for RegionWidget {
             } else
             if editor_mode == RegionEditorMode::Areas {
 
-                for w in &mut self.area_widgets {
-                    w.draw(frame, context.width, anim_counter, asset, context);
-                }
+                self.layouts[1].draw(frame, anim_counter, asset, context);
 
                 if context.is_running == false {
                     if let Some(region) = context.data.regions.get(&self.region_id) {
@@ -464,15 +457,11 @@ impl EditorContent for RegionWidget {
                 self.behavior_graph.draw(frame, anim_counter, asset, context, &mut None);
             } else
             if editor_mode == RegionEditorMode::Characters {
-                for w in &mut self.character_widgets {
-                    w.draw(frame, context.width, anim_counter, asset, context);
-                }
+                self.layouts[2].draw(frame, anim_counter, asset, context);
                 self.character_selector.draw(frame, context.width, anim_counter, asset, context);
             } else
             if editor_mode == RegionEditorMode::Loot {
-                for w in &mut self.loot_widgets {
-                    w.draw(frame, context.width, anim_counter, asset, context);
-                }
+                self.layouts[3].draw(frame, anim_counter, asset, context);
                 self.loot_selector.draw(frame, context.width, anim_counter, asset, context);
             }
 
@@ -515,10 +504,8 @@ impl EditorContent for RegionWidget {
 
         if let Some(options) = options {
 
-            for atom in &mut self.widgets {
-                if atom.mouse_down(pos, asset, context) {
-                    return true;
-                }
+            if let Some(_id) = self.layouts[0].mouse_down(pos, asset, context) {
+                return true;
             }
 
             let editor_mode = options.get_editor_mode();
@@ -532,50 +519,47 @@ impl EditorContent for RegionWidget {
                         context.curr_region_tile = None;
                     }
                 }
-                for atom in &mut self.editing_widgets {
-                    if atom.mouse_down(pos, asset, context) {
+                if let Some(id) = self.layouts[4].mouse_down(pos, asset, context) {
 
-                        if atom.atom_data.id == "Cut" || atom.atom_data.id == "Copy" {
-                            if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                    if id.1 == "Cut".to_string() || id.1 == "Copy".to_string() {
+                        if let Some(region) = context.data.regions.get_mut(&self.region_id) {
 
-                                if let Some(range) = self.selected_range {
-                                    let mut clipboard = GameRegionData::new();
+                            if let Some(range) = self.selected_range {
+                                let mut clipboard = GameRegionData::new();
 
-                                    for y in 0..range.3 {
-                                        for x in 0..range.2 {
-                                            if let Some(l1) = region.data.layer1.get(&(x + range.0, y + range.1)) {
-                                                clipboard.layer1.insert((x, y), l1.clone());
-                                            }
-                                            if let Some(l2) = region.data.layer2.get(&(x + range.0, y + range.1)) {
-                                                clipboard.layer2.insert((x, y), l2.clone());
-                                            }
-                                            if let Some(l3) = region.data.layer3.get(&(x + range.0, y + range.1)) {
-                                                clipboard.layer3.insert((x, y), l3.clone());
-                                            }
-                                            if let Some(l4) = region.data.layer4.get(&(x + range.0, y + range.1)) {
-                                                clipboard.layer4.insert((x, y), l4.clone());
-                                            }
+                                for y in 0..range.3 {
+                                    for x in 0..range.2 {
+                                        if let Some(l1) = region.data.layer1.get(&(x + range.0, y + range.1)) {
+                                            clipboard.layer1.insert((x, y), l1.clone());
                                         }
-                                    }
-
-                                    clipboard.max_pos = (range.2, range.3);
-
-                                    self.selected_range = None;
-                                    self.clipboard = Some(clipboard);
-
-                                    if atom.atom_data.id == "Cut" {
-                                        for y in 0..range.3 {
-                                            for x in 0..range.2 {
-                                                region.clear_value((x + range.0, y + range.1));
-                                            }
+                                        if let Some(l2) = region.data.layer2.get(&(x + range.0, y + range.1)) {
+                                            clipboard.layer2.insert((x, y), l2.clone());
                                         }
-                                        self.has_changed = true;
+                                        if let Some(l3) = region.data.layer3.get(&(x + range.0, y + range.1)) {
+                                            clipboard.layer3.insert((x, y), l3.clone());
+                                        }
+                                        if let Some(l4) = region.data.layer4.get(&(x + range.0, y + range.1)) {
+                                            clipboard.layer4.insert((x, y), l4.clone());
+                                        }
                                     }
                                 }
-                            }
-                            atom.checked = false;
-                        }
 
+                                clipboard.max_pos = (range.2, range.3);
+
+                                self.selected_range = None;
+                                self.clipboard = Some(clipboard);
+
+                                if id.1 == "Cut" {
+                                    for y in 0..range.3 {
+                                        for x in 0..range.2 {
+                                            region.clear_value((x + range.0, y + range.1));
+                                        }
+                                    }
+                                    self.has_changed = true;
+                                }
+                            }
+                        }
+                        self.layouts[4].widgets[id.0].checked = false;
                         return true;
                     }
                 }
@@ -585,28 +569,28 @@ impl EditorContent for RegionWidget {
                     consumed = self.behavior_graph.mouse_down(pos, asset, context, &mut None, &mut None);
                     return consumed;
                 } else {
-                    for atom in &mut self.area_widgets {
-                        if atom.mouse_down(pos, asset, context) {
-                            if atom.atom_data.id == "Pick" {
-                                self.area_widgets[5].checked = false;
-                                self.area_widgets[5].dirty = true;
-                                self.area_widgets[6].checked = false;
-                                self.area_widgets[6].dirty = true;
-                            } else
-                            if atom.atom_data.id == "Add" {
-                                self.area_widgets[4].checked = false;
-                                self.area_widgets[4].dirty = true;
-                                self.area_widgets[6].checked = false;
-                                self.area_widgets[6].dirty = true;
-                            } else
-                            if atom.atom_data.id == "Remove" {
-                                self.area_widgets[4].checked = false;
-                                self.area_widgets[4].dirty = true;
-                                self.area_widgets[5].checked = false;
-                                self.area_widgets[5].dirty = true;
-                            }
-                            return true;
+                    if let Some(id) = self.layouts[1].mouse_down(pos, asset, context) {
+
+                        if id.1 == "Pick".to_string() {
+                            self.layouts[1].widgets[5].checked = false;
+                            self.layouts[1].widgets[5].dirty = true;
+                            self.layouts[1].widgets[6].checked = false;
+                            self.layouts[1].widgets[6].dirty = true;
+                        } else
+                        if id.1 == "Add".to_string() {
+                            self.layouts[1].widgets[4].checked = false;
+                            self.layouts[1].widgets[4].dirty = true;
+                            self.layouts[1].widgets[6].checked = false;
+                            self.layouts[1].widgets[6].dirty = true;
+                        } else
+                        if id.1 == "Remove".to_string() {
+                            self.layouts[0].widgets[4].checked = false;
+                            self.layouts[0].widgets[4].dirty = true;
+                            self.layouts[0].widgets[5].checked = false;
+                            self.layouts[0].widgets[5].dirty = true;
                         }
+
+                        return true;
                     }
                 }
             } else
@@ -614,20 +598,16 @@ impl EditorContent for RegionWidget {
                 if self.character_selector.mouse_down(pos, asset, context) {
                     consumed = true;
                 } else {
-                    for atom in &mut self.character_widgets {
-                        if atom.mouse_down(pos, asset, context) {
-
-                            if atom.atom_data.id == "Add" {
-                                self.character_widgets[1].checked = false;
-                                self.character_widgets[1].dirty = true;
-                            } else
-                            if atom.atom_data.id == "Remove" {
-                                self.character_widgets[0].checked = false;
-                                self.character_widgets[0].dirty = true;
-                            }
-
-                            return true;
+                    if let Some(id) = self.layouts[2].mouse_down(pos, asset, context) {
+                        if id.1 == "Add".to_string() {
+                            self.layouts[2].widgets[1].checked = false;
+                            self.layouts[2].widgets[1].dirty = true;
+                        } else
+                        if id.1 == "Remove".to_string() {
+                            self.layouts[2].widgets[0].checked = false;
+                            self.layouts[2].widgets[0].dirty = true;
                         }
+                        return true;
                     }
                 }
             } else
@@ -635,20 +615,16 @@ impl EditorContent for RegionWidget {
                 if self.loot_selector.mouse_down(pos, asset, context) {
                     consumed = true;
                 } else {
-                    for atom in &mut self.loot_widgets {
-                        if atom.mouse_down(pos, asset, context) {
-
-                            if atom.atom_data.id == "Add" {
-                                self.loot_widgets[1].checked = false;
-                                self.loot_widgets[1].dirty = true;
-                            } else
-                            if atom.atom_data.id == "Remove" {
-                                self.loot_widgets[0].checked = false;
-                                self.loot_widgets[0].dirty = true;
-                            }
-
-                            return true;
+                    if let Some(id) = self.layouts[3].mouse_down(pos, asset, context) {
+                        if id.1 == "Add".to_string() {
+                            self.layouts[3].widgets[1].checked = false;
+                            self.layouts[3].widgets[1].dirty = true;
+                        } else
+                        if id.1 == "Remove".to_string() {
+                            self.layouts[3].widgets[0].checked = false;
+                            self.layouts[3].widgets[0].dirty = true;
                         }
+                        return true;
                     }
                 }
             }
@@ -665,7 +641,7 @@ impl EditorContent for RegionWidget {
                         }
 
                         // Copy from Clipboard
-                        if self.clipboard.is_some() && self.editing_widgets[3].checked == true {
+                        if self.clipboard.is_some() && self.layouts[4].widgets[3].checked == true {
                             if let Some(clipboard) = &self.clipboard {
                                 if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                                     for y in 0..clipboard.max_pos.1 {
@@ -694,7 +670,7 @@ impl EditorContent for RegionWidget {
                                 }
                             }
                         } else
-                        if self.editing_widgets[0].curr_index == 0 {
+                        if self.layouts[4].widgets[0].curr_index == 0 {
                             // Draw selected tile
                             if let Some(selected) = &self.tile_selector.selected {
                                 if let Some(region) = context.data.regions.get_mut(&self.region_id) {
@@ -703,7 +679,7 @@ impl EditorContent for RegionWidget {
                                 }
                             }
                         } else
-                        if self.editing_widgets[0].curr_index == 1 {
+                        if self.layouts[4].widgets[0].curr_index == 1 {
                             // Clear
                             if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                                 //region.clear_value(options.get_layer(), id);
@@ -711,7 +687,7 @@ impl EditorContent for RegionWidget {
                                 self.has_changed = true;
                             }
                         } else
-                        if self.editing_widgets[0].curr_index == 2 {
+                        if self.layouts[4].widgets[0].curr_index == 2 {
                             // Pick selected tile
                             if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                                 let s = region.get_value(id);
@@ -720,7 +696,7 @@ impl EditorContent for RegionWidget {
                                 }
                             }
                         } else
-                        if self.editing_widgets[0].curr_index == 3 {
+                        if self.layouts[4].widgets[0].curr_index == 3 {
                             // Select range
                             self.selected_range = Some((id.0, id.1, 1, 1));
                         }
@@ -735,10 +711,10 @@ impl EditorContent for RegionWidget {
 
                                 let mut mode = 0;
 
-                                if self.area_widgets[4].checked {
+                                if self.layouts[1].widgets[4].checked {
                                     mode = 2;
                                 } else
-                                if self.area_widgets[6].checked {
+                                if self.layouts[1].widgets[6].checked {
                                     mode = 1;
                                 }
 
@@ -759,8 +735,8 @@ impl EditorContent for RegionWidget {
                                     // Pick
                                     for (index, area) in region.data.areas.iter().enumerate() {
                                         if area.area.contains(&id) {
-                                            self.area_widgets[0].curr_index = index;
-                                            self.area_widgets[0].dirty = true;
+                                            self.layouts[1].widgets[0].curr_index = index;
+                                            self.layouts[1].widgets[0].dirty = true;
                                             context.curr_region_area_index = index;
                                             update_graph = true;
                                             break;
@@ -791,7 +767,7 @@ impl EditorContent for RegionWidget {
                                         behavior.data.instances = Some(vec![]);
                                     }
 
-                                    let mode = self.character_widgets[0].checked;
+                                    let mode = self.layouts[2].widgets[0].checked;
 
                                     if mode{
                                         // Add
@@ -828,7 +804,7 @@ impl EditorContent for RegionWidget {
                                         behavior.data.loot = Some(vec![]);
                                     }
 
-                                    let mode = self.loot_widgets[0].checked;
+                                    let mode = self.layouts[3].widgets[0].checked;
 
                                     if mode {
                                         // Add
@@ -867,6 +843,41 @@ impl EditorContent for RegionWidget {
         let mut consumed = false;
         if let Some(options) = options {
 
+            if let Some(_id) = self.layouts[0].mouse_up(pos, asset, context) {
+                context.code_editor_is_active = false;
+
+                let curr_index = self.layouts[0].widgets[0].curr_index;
+                if curr_index == 0 {
+                    options.set_editor_mode(RegionEditorMode::Tiles);
+                } else
+                if curr_index == 1 {
+                    options.set_editor_mode(RegionEditorMode::Areas);
+                } else
+                if curr_index == 2 {
+                    options.set_editor_mode(RegionEditorMode::Characters);
+                    self.character_selector.collect(context);
+                } else
+                if curr_index == 3 {
+                    options.set_editor_mode(RegionEditorMode::Loot);
+                    self.loot_selector.collect(context);
+                } else
+                if curr_index == 4 {
+                    options.set_editor_mode(RegionEditorMode::Settings);
+                    let value;
+                    if let Some(region) = context.data.regions.get(&self.get_region_id()) {
+                        value = Value::String(region.data.settings.to_string(generate_region_sink_descriptions()));
+                    } else {
+                        return false;
+                    }
+                    let id = context.create_property_id("region_settings");
+                    context.code_editor_mode = CodeEditorMode::Settings;
+                    context.open_code_editor(id,  value, false);
+                }
+
+                return true;
+            }
+
+            /*
             for atom in &mut self.widgets {
                 if atom.mouse_up(pos, asset, context) {
                     if atom.atom_data.id == "Mode" {
@@ -900,7 +911,7 @@ impl EditorContent for RegionWidget {
                     }
                     return true;
                 }
-            }
+            }*/
 
             let editor_mode = options.get_editor_mode();
 
@@ -909,63 +920,54 @@ impl EditorContent for RegionWidget {
                 if context.contains_pos_for(pos, self.behavior_graph.rect) {
                     consumed = self.behavior_graph.mouse_up(pos, asset, context, &mut None, &mut None);
                 } else {
-
-                    for atom in &mut self.area_widgets {
-                        if atom.mouse_up(pos, asset, context) {
-                            if atom.atom_data.id == "Area" {
-                                self.update_area_ui(context);
-                                if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
-                                    if let Some(graph) = self.get_behavior_graph() {
-                                        graph.set_behavior_id(region.behaviors[context.curr_region_area_index].data.id, context);
-                                    }
+                    if let Some(id) = self.layouts[1].mouse_up(pos, asset, context) {
+                        if id.1 == "Area".to_string() {
+                            self.update_area_ui(context);
+                            if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
+                                if let Some(graph) = self.get_behavior_graph() {
+                                    graph.set_behavior_id(region.behaviors[context.curr_region_area_index].data.id, context);
                                 }
-                            } else
-                            if atom.atom_data.id == "Add Area" {
-                                if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
-                                    let id = region.create_area();
-                                    self.area_widgets[0].curr_index = region.behaviors.len() - 1;
-                                    if let Some(graph) = self.get_behavior_graph() {
-                                        graph.set_behavior_id(id, context);
-                                    }
+                            }
+                        } else
+                        if id.1 == "Add Area".to_string() {
+                            if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
+                                let id = region.create_area();
+                                self.layouts[1].widgets[0].curr_index = region.behaviors.len() - 1;
+                                if let Some(graph) = self.get_behavior_graph() {
+                                    graph.set_behavior_id(id, context);
                                 }
-
-                                self.update_area_ui(context);
-                            } else
-                            if atom.atom_data.id == "Delete" {
-                                if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
-                                    region.delete_area(context.curr_region_area_index);
-                                }
-
-                                self.update_area_ui(context);
-                            } else
-                            if atom.atom_data.id == "Rename" {
-                                context.dialog_state = DialogState::Opening;
-                                context.dialog_height = 0;
-                                context.target_fps = 60;
-                                context.dialog_entry = DialogEntry::NewName;
-                                if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
-                                    context.dialog_new_name = region.get_area_names()[context.curr_region_area_index].clone();
-                                }
-                                self.update_area_ui(context);
                             }
 
-                            return true;
+                            self.update_area_ui(context);
+                        } else
+                        if id.1 == "Delete".to_string() {
+                            if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
+                                region.delete_area(context.curr_region_area_index);
+                            }
+
+                            self.update_area_ui(context);
+                        } else
+                        if id.1 == "Rename".to_string() {
+                            context.dialog_state = DialogState::Opening;
+                            context.dialog_height = 0;
+                            context.target_fps = 60;
+                            context.dialog_entry = DialogEntry::NewName;
+                            if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
+                                context.dialog_new_name = region.get_area_names()[context.curr_region_area_index].clone();
+                            }
+                            self.update_area_ui(context);
                         }
                     }
                 }
             }
             if editor_mode == RegionEditorMode::Tiles {
-                for atom in &mut self.editing_widgets {
-                    if atom.mouse_up(pos, asset, context) {
-                    }
+                if let Some(_id) = self.layouts[4].mouse_up(pos, asset, context) {
+                    consumed = true;
                 }
             }
             if editor_mode == RegionEditorMode::Characters {
-                for atom in &mut self.character_widgets {
-                    if atom.mouse_up(pos, asset, context) {
-                        if atom.atom_data.id == "Area" {
-                        }
-                    }
+                if let Some(_id) = self.layouts[2].mouse_up(pos, asset, context) {
+                    consumed = true;
                 }
             }
         }
@@ -989,33 +991,27 @@ impl EditorContent for RegionWidget {
 
     fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
-        for atom in &mut self.widgets {
-            if atom.mouse_hover(pos, asset, context) {
-                return true;
-            }
+        if let Some(_id) = self.layouts[0].mouse_hover(pos, asset, context) {
+            return true;
         }
 
         if let Some(options) = options {
             let editor_mode = options.get_editor_mode();
             if editor_mode == RegionEditorMode::Areas {
-                for atom in &mut self.area_widgets {
-                    if atom.mouse_hover(pos, asset, context) {
-                        return true;
-                    }
+
+
+                if let Some(_id) = self.layouts[1].mouse_hover(pos, asset, context) {
+                    return true;
                 }
             } else
             if editor_mode == RegionEditorMode::Tiles {
-                for atom in &mut self.editing_widgets {
-                    if atom.mouse_hover(pos, asset, context) {
-                        return true;
-                    }
+                if let Some(_id) = self.layouts[4].mouse_hover(pos, asset, context) {
+                    return true;
                 }
             }
             if editor_mode == RegionEditorMode::Characters {
-                for atom in &mut self.character_widgets {
-                    if atom.mouse_hover(pos, asset, context) {
-                        return true;
-                    }
+                if let Some(_id) = self.layouts[2].mouse_hover(pos, asset, context) {
+                    return true;
                 }
             }
         }
@@ -1047,7 +1043,7 @@ impl EditorContent for RegionWidget {
                         if editor_mode == RegionEditorMode::Tiles {
 
                             // Copy from Clipboard
-                            if self.clipboard.is_some() && self.editing_widgets[3].checked == true {
+                            if self.clipboard.is_some() && self.layouts[4].widgets[3].checked == true {
                                 if let Some(clipboard) = &self.clipboard {
                                     if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                                         for y in 0..clipboard.max_pos.1 {
@@ -1076,7 +1072,7 @@ impl EditorContent for RegionWidget {
                                     }
                                 }
                             } else
-                            if self.editing_widgets[0].curr_index == 0 {
+                            if self.layouts[4].widgets[0].curr_index == 0 {
                                 // Draw selected tile
                                 if let Some(selected) = &self.tile_selector.selected {
                                     if let Some(region) = context.data.regions.get_mut(&self.region_id) {
@@ -1085,14 +1081,14 @@ impl EditorContent for RegionWidget {
                                     }
                                 }
                             } else
-                            if self.editing_widgets[0].curr_index == 1 {
+                            if self.layouts[4].widgets[0].curr_index == 1 {
                                 // Clear
                                 if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                                     region.clear_value(id);
                                     self.has_changed = true;
                                 }
                             } else
-                            if self.editing_widgets[0].curr_index == 2 {
+                            if self.layouts[4].widgets[0].curr_index == 2 {
                                 // Pick selected tile
                                 if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                                     let s = region.get_value(id);
@@ -1101,7 +1097,7 @@ impl EditorContent for RegionWidget {
                                     }
                                 }
                             } else
-                            if self.editing_widgets[0].curr_index == 3 {
+                            if self.layouts[4].widgets[0].curr_index == 3 {
                                 // Select range
                                 if let Some(mut range) = self.selected_range {
                                     range.2 = (id.0 - range.0 + 1).max(1);
@@ -1185,36 +1181,36 @@ impl EditorContent for RegionWidget {
         if let Some(options) = options {
             if let Some(char) = char {
                 if char == 'd' {
-                    self.widgets[0].curr_index = 0;
-                    self.widgets[0].dirty = true;
+                    self.layouts[0].widgets[0].curr_index = 0;
+                    self.layouts[0].widgets[0].dirty = true;
                     options.set_editor_mode(RegionEditorMode::Tiles);
-                    self.editing_widgets[0].curr_index = 0;
-                    self.editing_widgets[0].dirty = true;
+                    self.layouts[4].widgets[0].curr_index = 0;
+                    self.layouts[4].widgets[0].dirty = true;
                     return true;
                 } else
                 if char == 'e' {
-                    self.widgets[0].curr_index = 1;
-                    self.widgets[0].dirty = true;
+                    self.layouts[0].widgets[0].curr_index = 1;
+                    self.layouts[0].widgets[0].dirty = true;
                     options.set_editor_mode(RegionEditorMode::Areas);
                     return true;
                 } else
                 if char == 'a' {
-                    self.widgets[0].curr_index = 2;
-                    self.widgets[0].dirty = true;
+                    self.layouts[0].widgets[0].curr_index = 2;
+                    self.layouts[0].widgets[0].dirty = true;
                     options.set_editor_mode(RegionEditorMode::Characters);
                     self.character_selector.collect(context);
                     return true;
                 } else
                 if char == 'l' {
-                    self.widgets[0].curr_index = 3;
-                    self.widgets[0].dirty = true;
+                    self.layouts[0].widgets[0].curr_index = 3;
+                    self.layouts[0].widgets[0].dirty = true;
                     options.set_editor_mode(RegionEditorMode::Loot);
                     self.loot_selector.collect(context);
                     return true;
                 } else
                 if char == 's' {
-                    self.widgets[0].curr_index = 4;
-                    self.widgets[0].dirty = true;
+                    self.layouts[0].widgets[0].curr_index = 4;
+                    self.layouts[0].widgets[0].dirty = true;
                     options.set_editor_mode(RegionEditorMode::Settings);
                     let value;
                     if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
@@ -1228,18 +1224,18 @@ impl EditorContent for RegionWidget {
                     return true;
                 } else
                 if char == 'c' {
-                    self.editing_widgets[0].curr_index = 1;
-                    self.editing_widgets[0].dirty = true;
+                    self.layouts[4].widgets[0].curr_index = 1;
+                    self.layouts[4].widgets[0].dirty = true;
                     return true;
                 } else
                 if char == 'p' {
-                    self.editing_widgets[0].curr_index = 2;
-                    self.editing_widgets[0].dirty = true;
+                    self.layouts[4].widgets[0].curr_index = 2;
+                    self.layouts[4].widgets[0].dirty = true;
                     return true;
                 } else
                 if char == 'r' {
-                    self.editing_widgets[0].curr_index = 3;
-                    self.editing_widgets[0].dirty = true;
+                    self.layouts[4].widgets[0].curr_index = 3;
+                    self.layouts[4].widgets[0].dirty = true;
                     return true;
                 }
                 if char == 'o' {
@@ -1264,8 +1260,8 @@ impl EditorContent for RegionWidget {
         self.region_id = id;
         if let Some(region) = context.data.regions.get_mut(&self.region_id) {
 
-            self.area_widgets[0].text = region.get_area_names();
-            self.area_widgets[0].dirty = true;
+            self.layouts[1].widgets[0].text = region.get_area_names();
+            self.layouts[1].widgets[0].dirty = true;
 
             if context.curr_region_area_index >= region.data.areas.len() {
                 context.curr_region_area_index = 0;
@@ -1366,27 +1362,27 @@ impl EditorContent for RegionWidget {
             let area_count = region.data.areas.len();
 
             if area_count == 0 {
-                self.area_widgets[0].text = vec![];
-                self.area_widgets[0].curr_index = 0;
-                self.area_widgets[0].state = WidgetState::Disabled;
-                self.area_widgets[2].state = WidgetState::Disabled;
-                self.area_widgets[3].state = WidgetState::Disabled;
+                self.layouts[1].widgets[0].text = vec![];
+                self.layouts[1].widgets[0].curr_index = 0;
+                self.layouts[1].widgets[0].state = WidgetState::Disabled;
+                self.layouts[1].widgets[2].state = WidgetState::Disabled;
+                self.layouts[1].widgets[3].state = WidgetState::Disabled;
             } else {
-                self.area_widgets[0].text = region.get_area_names();
-                if self.area_widgets[0].curr_index >= self.area_widgets[0].text.len() {
-                    self.area_widgets[0].curr_index = 0;
+                self.layouts[1].widgets[0].text = region.get_area_names();
+                if self.layouts[1].widgets[0].curr_index >= self.layouts[1].widgets[0].text.len() {
+                    self.layouts[1].widgets[0].curr_index = 0;
                 }
-                self.area_widgets[0].state = WidgetState::Normal;
-                self.area_widgets[1].state = WidgetState::Normal;
-                self.area_widgets[2].state = WidgetState::Normal;
-                self.area_widgets[3].state = WidgetState::Normal;
+                self.layouts[1].widgets[0].state = WidgetState::Normal;
+                self.layouts[1].widgets[1].state = WidgetState::Normal;
+                self.layouts[1].widgets[2].state = WidgetState::Normal;
+                self.layouts[1].widgets[3].state = WidgetState::Normal;
             }
 
-            for a in &mut self.area_widgets {
+            for a in &mut self.layouts[1].widgets {
                 a.dirty = true;
             }
 
-            context.curr_region_area_index = self.area_widgets[0].curr_index;
+            context.curr_region_area_index = self.layouts[1].widgets[0].curr_index;
 
             region.save_data();
         }
@@ -1403,7 +1399,7 @@ impl EditorContent for RegionWidget {
     // Undo / Redo
 
     fn is_undo_available(&self, context: &ScreenContext) -> bool {
-        if self.widgets[0].curr_index == 0 {
+        if self.layouts[0].widgets[0].curr_index == 0 {
             // Tiles
             if let Some(region) = context.data.regions.get(&self.get_region_id()) {
                 return region.is_undo_available();
@@ -1412,7 +1408,7 @@ impl EditorContent for RegionWidget {
         false
     }
     fn is_redo_available(&self, context: &ScreenContext) -> bool {
-        if self.widgets[0].curr_index == 0 {
+        if self.layouts[0].widgets[0].curr_index == 0 {
             // Tiles
             if let Some(region) = context.data.regions.get(&self.get_region_id()) {
                 return region.is_redo_available();
@@ -1422,7 +1418,7 @@ impl EditorContent for RegionWidget {
     }
 
     fn undo(&mut self, context: &mut ScreenContext) {
-        if self.widgets[0].curr_index == 0 {
+        if self.layouts[0].widgets[0].curr_index == 0 {
             // Tiles
             if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
                 region.undo();
@@ -1431,7 +1427,7 @@ impl EditorContent for RegionWidget {
     }
 
     fn redo(&mut self, context: &mut ScreenContext) {
-        if self.widgets[0].curr_index == 0 {
+        if self.layouts[0].widgets[0].curr_index == 0 {
             // Tiles
             if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
                 region.redo();

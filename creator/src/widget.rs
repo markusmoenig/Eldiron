@@ -11,6 +11,7 @@ pub mod lootselector;
 
 // Layouts
 
+pub mod hlayout;
 pub mod vlayout;
 
 /// The widget state

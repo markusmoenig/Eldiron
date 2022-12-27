@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-pub struct VLayout {
+pub struct HLayout {
 
     pub rect                : (usize, usize, usize, usize),
     pub widgets             : Vec<AtomWidget>,
@@ -11,7 +11,7 @@ pub struct VLayout {
     pub margin              : (usize, usize, usize, usize),
 }
 
-impl VLayout {
+impl HLayout {
 
     pub fn new(rect: (usize, usize, usize, usize)) -> Self {
         Self {
@@ -37,13 +37,13 @@ impl VLayout {
 
     /// Layout the widgets
     pub fn layout(&mut self) {
-        let mut y = self.rect.1 + self.margin.1;
+        let mut x = self.rect.0 + self.margin.0;
 
         for index in 0..self.widgets.len() {
-            self.widgets[index].rect.0 = self.rect.0 + self.margin.0;
-            self.widgets[index].rect.1 = y + self.local_spacing[index] as usize;
-            self.widgets[index].rect.2 = self.rect.2 - self.margin.0 - self.margin.2;
-            y += self.widgets[index].rect.3 + self.spacing + self.local_spacing[index];
+            self.widgets[index].rect.0 = x + self.local_spacing[index];
+            self.widgets[index].rect.1 = self.rect.1 + self.margin.1;
+            self.widgets[index].rect.3 = self.rect.3 - self.margin.1 - self.margin.3;
+            x += self.widgets[index].rect.2 + self.spacing + self.local_spacing[index];
         }
     }
 
@@ -75,7 +75,7 @@ impl VLayout {
     }
 
         /// Mouse dragged event
-    pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> Option<(usize, String)> {
+    pub fn _mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> Option<(usize, String)> {
         for index in 0..self.widgets.len() {
             if self.widgets[index].mouse_dragged(pos, asset, context) {
                 return Some((index, self.widgets[index].atom_data.id.clone()));
