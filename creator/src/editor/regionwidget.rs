@@ -188,14 +188,14 @@ impl EditorContent for RegionWidget {
         let mut draw_mode_button = AtomWidget::new(vec!["draw".to_string(), "erase".to_string(), "pick".to_string(), "select".to_string()], AtomWidgetType::IconRow,
         AtomData::new("Mode", Value::Empty()));
         draw_mode_button.atom_data.text = "Draw Mode".to_string();
-        draw_mode_button.set_rect((rect.0 + 190, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 140, 33), asset, context);
+        draw_mode_button.set_rect((rect.0 + 190, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 135, 33), asset, context);
         draw_mode_button.custom_color = Some([217, 64, 51, 255]);
 
         let mut status_help_vector : Vec<(String, String)> = vec![];
-        status_help_vector.push(("Draw Mode".to_string(), "Draw tiles (Hotkey 'D').".to_string()));
-        status_help_vector.push(("Clear Mode".to_string(), "Clear / Erase tiles (Hotkey 'C').".to_string()));
-        status_help_vector.push(("Pick Mode".to_string(), "Pick the  (Hotkey 'P').".to_string()));
-        status_help_vector.push(("Select Mode".to_string(), "Select multiple tiles (Hotkey 'R').".to_string()));
+        status_help_vector.push(("Draw Mode".to_string(), "Draw tiles ('D').".to_string()));
+        status_help_vector.push(("Clear Mode".to_string(), "Clear / Erase tiles ('C').".to_string()));
+        status_help_vector.push(("Pick Mode".to_string(), "Pick tile. ('P').".to_string()));
+        status_help_vector.push(("Select Mode".to_string(), "Select multiple tiles ('R').".to_string()));
         draw_mode_button.status_help_vector = Some(status_help_vector);
 
         editing_layout.add(draw_mode_button, 0);
@@ -204,7 +204,7 @@ impl EditorContent for RegionWidget {
         AtomData::new("Cut", Value::Empty()));
         cut_button.atom_data.text = "Cut".to_string();
         cut_button.set_rect((rect.0 + 350, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 40, 33), asset, context);
-        cut_button.status_help_text = Some("Copies the current selection to the clipboard and clears the selected area.".to_string());
+        cut_button.status_help_text = Some("Copies the selection to the clipboard and clears it.".to_string());
 
         editing_layout.add(cut_button, 20);
 
@@ -212,7 +212,7 @@ impl EditorContent for RegionWidget {
         AtomData::new("Copy", Value::Empty()));
         copy_button.atom_data.text = "Copy".to_string();
         copy_button.set_rect((rect.0 + 350 + 35, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 40, 33), asset, context);
-        copy_button.status_help_text = Some("Copies the current selection to the clipboard and clears the selected area.".to_string());
+        copy_button.status_help_text = Some("Copies the selection to the clipboard.".to_string());
 
         editing_layout.add(copy_button, 0);
 
@@ -220,7 +220,7 @@ impl EditorContent for RegionWidget {
         AtomData::new("Paste", Value::Empty()));
         paste_button.atom_data.text = "Paste".to_string();
         paste_button.set_rect((rect.0 + 350 + 35 + 35, rect.1 + rect.3 - bottom_size - toolbar_size - 2, 40, 33), asset, context);
-        paste_button.status_help_text = Some("Copies the content of the clipboard into the region at the location of the next mouse click.".to_string());
+        paste_button.status_help_text = Some("Paste the content from the clipboard.".to_string());
 
         editing_layout.add(paste_button, 0);
 
@@ -681,6 +681,8 @@ impl EditorContent for RegionWidget {
                                     self.tile_selector.selected = Some(s[0].clone());
                                 }
                             }
+                            self.layouts[4].widgets[0].curr_index = 0;
+                            self.layouts[4].widgets[0].dirty = true;
                         } else
                         if self.layouts[4].widgets[0].curr_index == 3 {
                             // Select range
@@ -862,42 +864,6 @@ impl EditorContent for RegionWidget {
 
                 return true;
             }
-
-            /*
-            for atom in &mut self.widgets {
-                if atom.mouse_up(pos, asset, context) {
-                    if atom.atom_data.id == "Mode" {
-                        context.code_editor_is_active = false;
-                        if atom.curr_index == 0 {
-                            options.set_editor_mode(RegionEditorMode::Tiles);
-                        } else
-                        if atom.curr_index == 1 {
-                            options.set_editor_mode(RegionEditorMode::Areas);
-                        } else
-                        if atom.curr_index == 2 {
-                            options.set_editor_mode(RegionEditorMode::Characters);
-                            self.character_selector.collect(context);
-                        } else
-                        if atom.curr_index == 3 {
-                            options.set_editor_mode(RegionEditorMode::Loot);
-                            self.loot_selector.collect(context);
-                        } else
-                        if atom.curr_index == 4 {
-                            options.set_editor_mode(RegionEditorMode::Settings);
-                            let value;
-                            if let Some(region) = context.data.regions.get(&self.get_region_id()) {
-                                value = Value::String(region.data.settings.to_string(generate_region_sink_descriptions()));
-                            } else {
-                                return false;
-                            }
-                            let id = context.create_property_id("region_settings");
-                            context.code_editor_mode = CodeEditorMode::Settings;
-                            context.open_code_editor(id,  value, false);
-                        }
-                    }
-                    return true;
-                }
-            }*/
 
             let editor_mode = options.get_editor_mode();
 
