@@ -9,6 +9,8 @@ pub struct HLayout {
     pub local_spacing       : Vec<usize>,
 
     pub margin              : (usize, usize, usize, usize),
+
+    pub end                 : usize,
 }
 
 impl HLayout {
@@ -20,6 +22,7 @@ impl HLayout {
             spacing         : 0,
             local_spacing   : vec![],
             margin          : (10, 10, 10, 10),
+            end             : 0,
         }
     }
 
@@ -45,6 +48,8 @@ impl HLayout {
             self.widgets[index].rect.3 = self.rect.3 - self.margin.1 - self.margin.3;
             x += self.widgets[index].rect.2 + self.spacing + self.local_spacing[index];
         }
+
+        self.end = x;
     }
 
     /// Draw the widgets

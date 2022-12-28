@@ -145,7 +145,7 @@ impl TileSelectorWidget {
 
     pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
         self.mouse_wheel_delta += delta.1;
-        self.line_offset += self.mouse_wheel_delta / self.grid_size as isize;
+        self.line_offset -= self.mouse_wheel_delta / self.grid_size as isize;
         self.line_offset = self.line_offset.clamp(0, self.max_line_offset as isize);
         self.mouse_wheel_delta -= (self.mouse_wheel_delta / self.grid_size as isize) * self.grid_size as isize;
         true
@@ -168,7 +168,7 @@ impl TileSelectorWidget {
             for offset in 0..amount {
                 let id = map.offset_to_id(offset);
                 if let Some(tile) = map.get_tile(&id) {
-                    if tile_usage.contains(&tile.usage) {
+                    if tile_usage.contains(&tile.usage) || tile_usage.is_empty() {
                         if tilemap_id == None || tilemap_id.unwrap() == map.settings.id {
                             if tags.is_some() {
                                 if tile.tags.contains(&tags.clone().unwrap()) {

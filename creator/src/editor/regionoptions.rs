@@ -44,8 +44,8 @@ impl EditorOptions for RegionOptions {
 
         let mut usage_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new("UsageList", Value::Empty()));
-        usage_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Environment".to_string(), "Road".to_string(), "Blocking".to_string(), "Water".to_string(), "UI Element".to_string()]);
-        usage_list.set_rect((0, 0, rect.2 - 20, 180), asset, context);
+        usage_list.add_group_list(context.color_blue, context.color_light_blue, vec!["All".to_string(), "Environment".to_string(), "Road".to_string(), "Blocking".to_string(), "Water".to_string(), "UI Element".to_string()]);
+        usage_list.set_rect((0, 0, rect.2 - 20, 210), asset, context);
         tile_layout.add(usage_list, 3);
 
         let mut layer_button = AtomWidget::new(vec!["1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()], AtomWidgetType::NumberRow, AtomData::new("Layer", Value::Empty()));
@@ -121,25 +121,23 @@ impl EditorOptions for RegionOptions {
             self.layouts[self.mode as usize].draw(frame, anim_counter, asset, context);
         }
 
-        /*
         if mode == RegionEditorMode::Tiles {
             if let Some(content) = content {
                 if let Some(tile) = content.get_selected_tile() {
+
+                    let mut y = self.layouts[self.mode as usize].end;
+                    let mut name = "".to_string();
+
                     if let Some(map) = asset.get_map_of_id(tile.tilemap) {
-                        context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, self.rect.1 + self.rect.3 - 120), map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, 100);
+                        context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, y), map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, 100);
+                        name = map.get_name();
                     }
-                    //context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + self.rect.3 - 22, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("{}, {})", /*tile.0,*/ tile.1, tile.2), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
-                }
-                for atom in &mut self.tile_widgets {
-                    atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
+
+                    y += 105;
+                    context.draw2d.draw_text_rect(frame, &(0, y, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("{}: {}, {}", name, tile.x_off, tile.y_off), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
                 }
             }
-        } else
-        if mode == RegionEditorMode::Areas {
-            for atom in &mut self.area_widgets {
-                atom.draw_overlay(frame, &self.rect, anim_counter, asset, context);
-            }
-        }*/
+        }
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
@@ -152,7 +150,7 @@ impl EditorOptions for RegionOptions {
                 if let Some(content) = content {
                     if id.1 == "UsageList".to_string() {
                         if let Some(tile_selector) = content.get_tile_selector() {
-                            tile_selector.set_tile_type(vec![self.get_tile_usage()], self.get_tilemap_index(), self.get_tags(), &asset);
+                            tile_selector.set_tile_type(self.get_tile_usage(), self.get_tilemap_index(), self.get_tags(), &asset);
                         }
                     } else
                     if id.1 == "Layer".to_string() {
@@ -166,28 +164,6 @@ impl EditorOptions for RegionOptions {
                 }
                 return true;
             }
-
-            /*
-            for atom in &mut self.tile_widgets {
-                if atom.mouse_down(pos, asset, context) {
-                    if let Some(content) = content {
-                        if atom.atom_data.id == "UsageList" {
-                            if let Some(tile_selector) = content.get_tile_selector() {
-                                tile_selector.set_tile_type(vec![self.get_tile_usage()], self.get_tilemap_index(), self.get_tags(), &asset);
-                            }
-                        } else
-                        if atom.atom_data.id == "Layer" {
-                            self.curr_layer = atom.curr_index + 1;
-                        } else
-                        if atom.atom_data.id == "remap" {
-                            if let Some(region) = context.data.regions.get_mut(&content.get_region_id()) {
-                                region.remap(asset);
-                            }
-                        }
-                    }
-                    return true;
-                }
-            }*/
         } else
         if mode == RegionEditorMode::Areas {
             if let Some(_id) = self.layouts[self.mode as usize].mouse_down(pos, asset, context) {
@@ -213,9 +189,9 @@ impl EditorOptions for RegionOptions {
                     if let Some(el_content) = content {
                         if let Some(tile_selector) = el_content.get_tile_selector() {
                             if id.0 == 0 {
-                                tile_selector.set_tile_type(vec![usage], None, tags, &asset);
+                                tile_selector.set_tile_type(usage, None, tags, &asset);
                             } else {
-                                tile_selector.set_tile_type(vec![usage], Some(id.0 - 1), tags, &asset);
+                                tile_selector.set_tile_type(usage, Some(id.0 - 1), tags, &asset);
                             }
                             self.layouts[self.mode as usize].widgets[id.0].dirty = true;
                         }
@@ -223,29 +199,6 @@ impl EditorOptions for RegionOptions {
                 }
 
             }
-
-            /*
-            for atom in &mut self.tile_widgets {
-                if atom.mouse_up(pos, asset, context) {
-
-                    if atom.new_selection.is_some() {
-                        if atom.atom_data.id == "Tilemaps" {
-                            if let Some(el_content) = content {
-                                if let Some(tile_selector) = el_content.get_tile_selector() {
-                                    if atom.curr_index == 0 {
-                                        tile_selector.set_tile_type(vec![usage], None, tags, &asset);
-                                    } else {
-                                        tile_selector.set_tile_type(vec![usage], Some(atom.curr_index - 1), tags, &asset);
-                                    }
-                                    atom.dirty = true;
-                                }
-                            }
-                        }
-
-                    }
-                    return true;
-                }
-            }*/
         } else
         if mode == RegionEditorMode::Areas {
             if let Some(_id) = self.layouts[self.mode as usize].mouse_down(pos, asset, context) {
@@ -312,13 +265,14 @@ impl EditorOptions for RegionOptions {
     }
 
     /// Get the current tile usage
-    fn get_tile_usage(&self) -> TileUsage {
+    fn get_tile_usage(&self) -> Vec<TileUsage> {
         match self.layouts[RegionEditorMode::Tiles as usize].widgets[2].curr_item_index {
-            1 => TileUsage::EnvRoad,
-            2 => TileUsage::EnvBlocking,
-            3 => TileUsage::Water,
-            4 => TileUsage::UIElement,
-            _ => TileUsage::Environment,
+            1 => vec![TileUsage::Environment],
+            2 => vec![TileUsage::EnvRoad],
+            3 => vec![TileUsage::EnvBlocking],
+            4 => vec![TileUsage::Water],
+            5 => vec![TileUsage::UIElement],
+            _ => vec![],
         }
     }
 
@@ -351,7 +305,7 @@ impl EditorOptions for RegionOptions {
 
             if let Some(content) = content {
                 if let Some(tile_selector) = content.get_tile_selector() {
-                    tile_selector.set_tile_type(vec![self.get_tile_usage()], self.get_tilemap_index(), self.get_tags(), &asset);
+                    tile_selector.set_tile_type(self.get_tile_usage(), self.get_tilemap_index(), self.get_tags(), &asset);
                 }
             }
         }

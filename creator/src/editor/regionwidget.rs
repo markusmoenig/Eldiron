@@ -65,7 +65,7 @@ impl EditorContent for RegionWidget {
 
         // Tile Selector
         let mut tile_selector = TileSelectorWidget::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context);
-        tile_selector.set_tile_type(vec![TileUsage::Environment], None, None, &asset);
+        tile_selector.set_tile_type(vec![], None, None, &asset);
 
         let character_selector = CharacterSelectorWidget::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context);
 

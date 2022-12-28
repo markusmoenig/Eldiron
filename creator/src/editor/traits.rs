@@ -55,7 +55,7 @@ pub trait EditorOptions {
     fn set_editor_mode(&mut self, mode: RegionEditorMode) {}
 
     /// Get the current tile usage
-    fn get_tile_usage(&self) -> TileUsage { TileUsage::Environment }
+    fn get_tile_usage(&self) -> Vec<TileUsage> { vec![] }
 
     /// Get the current tile_id if any
     fn get_tilemap_index(&self) -> Option<usize> { None }

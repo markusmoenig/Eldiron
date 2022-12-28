@@ -9,6 +9,8 @@ pub struct VLayout {
     pub local_spacing       : Vec<usize>,
 
     pub margin              : (usize, usize, usize, usize),
+
+    pub end                 : usize,
 }
 
 impl VLayout {
@@ -20,6 +22,7 @@ impl VLayout {
             spacing         : 0,
             local_spacing   : vec![],
             margin          : (10, 10, 10, 10),
+            end             : 0,
         }
     }
 
@@ -45,6 +48,8 @@ impl VLayout {
             self.widgets[index].rect.2 = self.rect.2 - self.margin.0 - self.margin.2;
             y += self.widgets[index].rect.3 + self.spacing + self.local_spacing[index];
         }
+
+        self.end = y + self.margin.3;
     }
 
     /// Draw the widgets
