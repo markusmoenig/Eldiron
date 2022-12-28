@@ -119,10 +119,9 @@ pub struct AtomWidget {
 
     pub custom_color            : Option<[u8;4]>,
 
-    pub hover_help_title        : Option<String>,
-    pub hover_help_text         : Option<String>,
+    pub status_help_text        : Option<String>,
 
-    pub hover_help_vector       : Option<Vec<(String, String)>>,
+    pub status_help_vector      : Option<Vec<(String, String)>>,
 
     pub button_mask             : Option<Vec<bool>>,
 
@@ -175,10 +174,9 @@ impl AtomWidget {
             emb_offset          : (0,0),
             custom_color        : None,
 
-            hover_help_title    : None,
-            hover_help_text     : None,
+            status_help_text    : None,
 
-            hover_help_vector   : None,
+            status_help_vector  : None,
 
             button_mask         : None,
 
@@ -1329,7 +1327,7 @@ impl AtomWidget {
     pub fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
         if context.contains_pos_for(pos, self.rect) {
-            if let Some(hover_help_vector) = &self.hover_help_vector {
+            if let Some(status_help_vector) = &self.status_help_vector {
 
                 let mut help_index = 0;
 
@@ -1349,11 +1347,9 @@ impl AtomWidget {
                     x += cell_size + spacing;
                 }
 
-                context.hover_help_title = Some(hover_help_vector[help_index].0.clone());
-                context.hover_help_text = Some(hover_help_vector[help_index].1.clone());
+                context.status_help_text = Some(status_help_vector[help_index].1.clone());
             } else {
-                context.hover_help_title = self.hover_help_title.clone();
-                context.hover_help_text = self.hover_help_text.clone();
+                context.status_help_text = self.status_help_text.clone();
             }
         }
 

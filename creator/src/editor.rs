@@ -453,14 +453,14 @@ impl Editor<'_> {
 
         // Check hover help
 
-        if self.context.hover_help_text.is_some() {
-            if let Some(hover_help_pos) =  self.context.hover_help_pos {
-                if let Some(hover_help_pos_last) = self.context.hover_help_pos_last {
-                    if hover_help_pos == hover_help_pos_last {
-                        self.context.hover_help_counter += 1;
+        if self.context.status_help_text.is_some() {
+            if let Some(status_help_pos) =  self.context.status_help_pos {
+                if let Some(hover_help_pos_last) = self.context.status_help_pos_last {
+                    if status_help_pos == hover_help_pos_last {
+                        self.context.status_help_counter += 1;
                     }
                 }
-                self.context.hover_help_pos_last = Some(hover_help_pos);
+                self.context.status_help_pos_last = Some(status_help_pos);
             }
         }
 
@@ -1267,14 +1267,17 @@ impl Editor<'_> {
         // let stop = self.get_time();
         // println!("draw time {:?}", stop - start);
 
-        if self.context.hover_help_counter >= self.context.hover_help_target && self.context.hover_help_text.is_some() {
-            self.context.draw2d.draw_hover_help(frame, self.context.hover_help_pos.unwrap(), &asset.get_editor_font("OpenSans"), self.context.hover_help_title.clone(), self.context.hover_help_text.clone().unwrap(), (0, 0, self.context.width, self.context.height));
+        if self.context.status_help_counter >= self.context.status_help_target && self.context.status_help_text.is_some() {
+            //self.context.draw2d.draw_hover_help(frame, self.context.hover_help_pos.unwrap(), &asset.get_editor_font("OpenSans"), self.context.hover_help_title.clone(), self.context.hover_help_text.clone().unwrap(), (0, 0, self.context.width, self.context.height));
+            self.status_bar.add_message(self.context.status_help_text.clone().unwrap());
+        } else {
+            self.status_bar.clear();
         }
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
 
-        self.context.hover_help_reset();
+        self.context.status_help_reset();
 
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.mouse_down(pos, asset, &mut self.context);
@@ -1944,8 +1947,8 @@ impl Editor<'_> {
 
     pub fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset) -> bool {
 
-        self.context.hover_help_reset();
-        self.context.hover_help_pos = Some(pos);
+        self.context.status_help_reset();
+        self.context.status_help_pos = Some(pos);
 
         if self.context.dialog_state == DialogState::Open {
             return self.dialog.mouse_hover(pos, asset, &mut self.context);

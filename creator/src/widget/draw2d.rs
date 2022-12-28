@@ -1021,7 +1021,7 @@ impl Draw2D {
     }*/
 
     /// Draw hover help
-    pub fn draw_hover_help(&self, frame: &mut [u8], pos: (usize, usize), font: &Font, title: Option<String>, text: String, safe_rect: (usize, usize, usize, usize) ) {
+    pub fn _draw_hover_help(&self, frame: &mut [u8], pos: (usize, usize), font: &Font, title: Option<String>, text: String, safe_rect: (usize, usize, usize, usize) ) {
 
         let mut rect = (pos.0, pos.1, 300, 200);
         let stride = safe_rect.2;

@@ -26,7 +26,7 @@ impl StatusBar {
             dirty               : true,
             buffer              : vec![],
 
-            size                : (500, 30),
+            size                : (500, 25),
 
             text                : "".to_string(),
 
@@ -42,9 +42,16 @@ impl StatusBar {
         if let Some(message) = &self.message_to_add {
             self.text = message.clone();
             self.start_time = self.get_time();
-            self.size.0 = context.draw2d.get_text_size(&asset.get_editor_font("OpenSans"), 18.0, &self.text.as_str()).0 + 20;
+            self.size.0 = context.draw2d.get_text_size(&asset.get_editor_font("OpenSans"), 15.0, &self.text.as_str()).0 + 20;
             self.dirty = true;
             self.message_to_add = None;
+
+            if self.size.0 > 500 {
+                self.size.0 = 0;
+                self.clear();
+                self.dirty = false;
+                return;
+            }
         }
 
         if self.text.is_empty() {
@@ -68,7 +75,7 @@ impl StatusBar {
             let stride = self.size.0;
 
             context.draw2d.draw_rect(buffer_frame, &(0, 0, rect.2, rect.3), stride, &context.color_black);
-            context.draw2d.draw_text(buffer_frame, &(10, 1), rect.2, &asset.get_editor_font("OpenSans"), 18.0, &self.text, &context.color_white, &context.color_black);
+            context.draw2d.draw_text(buffer_frame, &(10, 1), rect.2, &asset.get_editor_font("OpenSans"), 15.0, &self.text, &context.color_white, &context.color_black);
         }
         context.draw2d.copy_slice(frame, &self.buffer[..], &(self.rect.0, context.height - self.size.1, self.size.0, self.size.1), context.width);
         self.dirty = false;
@@ -76,7 +83,7 @@ impl StatusBar {
     }
 
     // Clears the content
-    pub fn _clear(&mut self) {
+    pub fn clear(&mut self) {
         self.text = "".to_string();
         self.start_time = 0;
     }

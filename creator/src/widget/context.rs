@@ -133,14 +133,13 @@ pub struct ScreenContext<'a> {
 
     pub curr_project_path               : std::path::PathBuf,
 
-    // Hover Help
+    // Status Help
 
-    pub hover_help_pos                  : Option<(usize, usize)>,
-    pub hover_help_pos_last             : Option<(usize, usize)>,
-    pub hover_help_counter              : usize,
-    pub hover_help_target               : usize,
-    pub hover_help_title                : Option<String>,
-    pub hover_help_text                 : Option<String>,
+    pub status_help_pos                 : Option<(usize, usize)>,
+    pub status_help_pos_last            : Option<(usize, usize)>,
+    pub status_help_counter             : usize,
+    pub status_help_target              : usize,
+    pub status_help_text                : Option<String>,
 
     // Debug renderer
     pub debug_render                    : Option<GameRender<'a>>,
@@ -395,12 +394,11 @@ impl ScreenContext<'_> {
 
             curr_project_path           : get_resource_dir(),
 
-            hover_help_pos              : None,
-            hover_help_pos_last         : None,
-            hover_help_counter          : 0,
-            hover_help_target           : 5,
-            hover_help_title            : None,
-            hover_help_text             : None,
+            status_help_pos             : None,
+            status_help_pos_last        : None,
+            status_help_counter         : 0,
+            status_help_target          : 5,
+            status_help_text            : None,
 
             debug_render                : None,
             debug_log_variables         : vec![],
@@ -521,12 +519,11 @@ impl ScreenContext<'_> {
     }
 
     /// Resets the hover help metadata
-    pub fn hover_help_reset(&mut self) {
-        self.hover_help_pos = None;
-        self.hover_help_pos_last = None;
-        self.hover_help_counter = 0;
-        self.hover_help_title = None;
-        self.hover_help_text = None;
+    pub fn status_help_reset(&mut self) {
+        self.status_help_pos = None;
+        self.status_help_pos_last = None;
+        self.status_help_counter = 0;
+        self.status_help_text = None;
     }
 
     /// Opens the dialog
