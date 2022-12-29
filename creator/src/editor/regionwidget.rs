@@ -194,7 +194,7 @@ impl EditorContent for RegionWidget {
         let mut status_help_vector : Vec<(String, String)> = vec![];
         status_help_vector.push(("Draw Mode".to_string(), "Draw tiles ('D').".to_string()));
         status_help_vector.push(("Clear Mode".to_string(), "Clear / Erase tiles ('C').".to_string()));
-        status_help_vector.push(("Pick Mode".to_string(), "Pick tile. ('P').".to_string()));
+        status_help_vector.push(("Pick Mode".to_string(), "Pick tile. ('X').".to_string()));
         status_help_vector.push(("Select Mode".to_string(), "Select multiple tiles ('R').".to_string()));
         draw_mode_button.status_help_vector = Some(status_help_vector);
 
@@ -1180,7 +1180,7 @@ impl EditorContent for RegionWidget {
                     self.layouts[4].widgets[0].dirty = true;
                     return true;
                 } else
-                if char == 'p' {
+                if char == 'x' {
                     self.layouts[4].widgets[0].curr_index = 2;
                     self.layouts[4].widgets[0].dirty = true;
                     return true;

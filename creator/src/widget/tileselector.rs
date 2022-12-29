@@ -168,7 +168,7 @@ impl TileSelectorWidget {
             for offset in 0..amount {
                 let id = map.offset_to_id(offset);
                 if let Some(tile) = map.get_tile(&id) {
-                    if tile_usage.contains(&tile.usage) || tile_usage.is_empty() {
+                    if tile_usage.contains(&tile.usage) || (tile_usage.is_empty() && tile.usage != TileUsage::Unused) {
                         if tilemap_id == None || tilemap_id.unwrap() == map.settings.id {
                             if tags.is_some() {
                                 if tile.tags.contains(&tags.clone().unwrap()) {
