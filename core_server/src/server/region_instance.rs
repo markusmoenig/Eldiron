@@ -602,6 +602,7 @@ impl RegionInstance<'_> {
 
             let mut to_add = vec![];
             let mut to_equip = vec![];
+            let mut to_equip_queued = vec![];
 
             // Check if we have to add items to the inventory and clone it for sending to the client
             if let Some(i) = self.scopes[inst_index].get_mut("inventory") {
@@ -734,11 +735,16 @@ impl RegionInstance<'_> {
 
                     // Equip an item ?
                     if inv.items_to_equip.is_empty() == false {
-                        let name = inv.items_to_equip[0].clone();
-                        let removed_item = inv.remove_item_by_name(name);
-                        if let Some(item) = removed_item {
-                            // TODO: Equip the removed item
-                            to_equip.push(item);
+                        for index in 0..inv.items_to_equip.len() {
+                            let name = inv.items_to_equip[index].clone();
+                            // Item is in the inventory ?
+                            let removed_item = inv.remove_item_by_name(name.clone());
+                            if let Some(item) = removed_item {
+                                to_equip.push(item);
+                            } else {
+                                // Not in the inventory, has to be queued
+                                to_equip_queued.push(name);
+                            }
                         }
                         inv.items_to_equip = vec![];
                     }
@@ -759,7 +765,13 @@ impl RegionInstance<'_> {
                 }
                 if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
                     if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                        inv.add_item(item);
+                        // Test if the item is queued to be equipped
+                        if let Some(queued_index) = to_equip_queued.iter().position(|name| *name == item.name) {
+                            to_equip_queued.remove(queued_index);
+                            to_equip.push(item);
+                        } else {
+                            inv.add_item(item);
+                        }
                     }
                 }
             }
