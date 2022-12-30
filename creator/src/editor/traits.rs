@@ -184,9 +184,7 @@ pub trait EditorContent {
     fn add_overview_node(&mut self, node: NodeWidget, context: &mut ScreenContext) {}
 
     /// Inits the node widget (atom widgets, id)
-    fn init_node_widget(&mut self, behavior_data: &GameBehaviorData, node_data: &BehaviorNode, node_widget: &mut NodeWidget, context: &ScreenContext) {}
-
-    fn init_node_widget2(&mut self, node_widget: &mut NodeWidget, context: &mut ScreenContext) {}
+    fn init_node_widget(&mut self, node_widget: &mut NodeWidget, context: &mut ScreenContext) {}
 
 
     /// Sets up the corner node widget

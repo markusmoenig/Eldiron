@@ -48,7 +48,7 @@ impl EditorOptions for RegionOptions {
         usage_list.set_rect((0, 0, rect.2 - 20, 210), asset, context);
         tile_layout.add(usage_list, 3);
 
-        let mut layer_button = AtomWidget::new(vec!["1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()], AtomWidgetType::NumberRow, AtomData::new("Layer", Value::Empty()));
+        let mut layer_button = AtomWidget::new(vec!["1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()], AtomWidgetType::LayerNumberRow, AtomData::new("Layer", Value::Empty()));
         layer_button.set_rect((0, 0, rect.2 - 20, 30), asset, context);
         tile_layout.add(layer_button, 3);
 
@@ -72,7 +72,7 @@ impl EditorOptions for RegionOptions {
 
         node_list.add_group_list(context.color_green, context.color_light_green, vec!["Action".to_string(), "Always".to_string(), "Enter Area".to_string(), "Leave Area".to_string(), "Inside Area".to_string()]);
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio".to_string(), "Displace Tiles".to_string(), "Light".to_string(), "Message".to_string(), "Spawn".to_string(), "Teleport".to_string()]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio".to_string(), "Light".to_string(), "Message".to_string(), "Overlay Tiles".to_string(), "Spawn".to_string(), "Teleport".to_string()]);
 
         node_list.set_rect((0, 0, rect.2 - 20, rect.3 - 200), asset, context);
         area_layout.add(node_list, 0);
@@ -125,7 +125,7 @@ impl EditorOptions for RegionOptions {
             if let Some(content) = content {
                 if let Some(tile) = content.get_selected_tile() {
 
-                    let mut y = self.layouts[self.mode as usize].end;
+                    let mut y = self.layouts[self.mode as usize].end + 20;
                     let mut name = "".to_string();
 
                     if let Some(map) = asset.get_map_of_id(tile.tilemap) {
@@ -154,7 +154,7 @@ impl EditorOptions for RegionOptions {
                         }
                     } else
                     if id.1 == "Layer".to_string() {
-                        self.curr_layer = self.layouts[self.mode as usize].widgets[2].curr_index + 1;
+                        self.curr_layer = self.layouts[self.mode as usize].widgets[3].curr_index + 1;
                     } else
                     if id.1 == "Remap".to_string() {
                         if let Some(region) = context.data.regions.get_mut(&content.get_region_id()) {

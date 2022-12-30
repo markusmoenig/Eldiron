@@ -67,7 +67,7 @@ pub enum AtomWidgetType {
     TagsButton,
     SliderButton,
     SmallMenuButton,
-    NumberRow,
+    LayerNumberRow,
     IconRow,
     CheckedIcon,
     EnabledIcon,
@@ -707,7 +707,7 @@ impl AtomWidget {
                     }
                 }
             } else
-            if self.atom_widget_type == AtomWidgetType::NumberRow {
+            if self.atom_widget_type == AtomWidgetType::LayerNumberRow {
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.button_height) / 2, self.rect.2 - 2, context.button_height);
 
                 let cell_size = rect.3;
@@ -719,7 +719,11 @@ impl AtomWidget {
 
                     let r = (x, rect.1, cell_size, rect.3);
 
-                    let fill_color = if index != self.curr_index { &context.color_black } else { &context.color_light_gray };
+                    let mut fill_color = if index != self.curr_index { &context.color_black } else { &context.color_light_gray };
+
+                    if index == 3 {
+                        fill_color = if index != self.curr_index { &context.color_orange } else { &context.color_light_orange };
+                    }
 
                     let mut border_color = &context.color_light_gray;
                     if let Some(mask) = &self.button_mask {
@@ -985,7 +989,7 @@ impl AtomWidget {
                     return true;
                 }
             } else
-            if self.atom_widget_type == AtomWidgetType::NumberRow || self.atom_widget_type == AtomWidgetType::IconRow {
+            if self.atom_widget_type == AtomWidgetType::LayerNumberRow || self.atom_widget_type == AtomWidgetType::IconRow {
                 let rect = self.rect;
 
                 let cell_size = rect.3;

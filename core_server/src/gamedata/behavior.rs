@@ -83,6 +83,7 @@ pub enum BehaviorNodeType {
     LevelTree,
     Level,
     SetLevelTree,
+    OverlayTiles,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

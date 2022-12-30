@@ -175,9 +175,8 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::Respawn, respawn);
         nodes.insert(BehaviorNodeType::SetLevelTree, set_level_tree);
 
-        /*
-        nodes.insert(BehaviorNodeType::DisplaceTiles, displace_tiles);
-        */
+        nodes.insert(BehaviorNodeType::OverlayTiles, overlay_tiles);
+
         nodes.insert(BehaviorNodeType::Move, player_move);
         nodes.insert(BehaviorNodeType::Screen, screen);
         nodes.insert(BehaviorNodeType::Widget, widget);

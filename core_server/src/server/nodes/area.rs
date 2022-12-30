@@ -165,45 +165,18 @@ pub fn inside_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
     }
     BehaviorNodeConnector::Fail
 }
-/*
-/// Displace Tiles
-pub fn displace_tiles(_region_id: usize, id: (usize, usize), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
-    if let Some(value) = get_node_value((id.0, id.1, "tile"), data, behavior_type) {
-        let tile_id = TileData {
-            tilemap     : value.0 as usize,
-            grid_x      : value.1 as usize,
-            grid_y      : value.2 as usize,
-            usage       : TileUsage::Environment
-        };
-
-        // Filter based ?
-        if let Some(value) = get_node_value((id.0, id.1, "filter"), data, behavior_type) {
-            let filter_id = (value.0 as usize, value.1 as usize, value.2 as usize);
-
-            for (x,y) in &data.region_data.areas[id.0].area {
-                let tiles = data.get_tile_without_displacements_at((*x, *y));
-
-                for tile in tiles {
-                    if tile.tilemap == filter_id.0 && tile.grid_x == filter_id.1 && tile.grid_y == filter_id.2 {
-                        data.displacements.insert((*x, *y), tile_id.clone());
-                    }
-                }
-            }
-
-        } else {
-            // No filter, displace all
-            let region = &mut data.region_data;
-
-            for (x,y) in &region.areas[id.0].area {
-                data.displacements.insert((*x, *y), tile_id.clone());
-            }
+/// Overlay Tiles
+pub fn overlay_tiles(area_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    let region = &mut data.region_data;
+    for pos in &region.areas[area_index].area {
+        if let Some(t) = region.layer4.get(&pos) {
+            data.displacements.insert(*pos, t.clone());
         }
     }
-
     BehaviorNodeConnector::Fail
 }
-*/
+
 /// Teleport Area
 pub fn teleport_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 

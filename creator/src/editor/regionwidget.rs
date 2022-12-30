@@ -300,9 +300,14 @@ impl EditorContent for RegionWidget {
                 if context.is_running == false {
 
                     if editor_mode != RegionEditorMode::Characters && editor_mode != RegionEditorMode::Loot {
-                        context.draw2d.draw_region(frame, region, &rect, &(-self.offset.0, -self.offset.1), context.width, grid_size, anim_counter, asset);
-                    } else {
+                        let mut show_overlay = false;
 
+                        if options.get_layer() == 4 {
+                            show_overlay = true;
+                        }
+
+                        context.draw2d.draw_region(frame, region, &rect, &(-self.offset.0, -self.offset.1), context.width, grid_size, anim_counter, asset, show_overlay);
+                    } else {
                         context.draw2d.draw_region_with_behavior(frame, region, &rect, &(-self.offset.0, -self.offset.1), context.width, grid_size, anim_counter, asset, context);
                     }
                 } else {
@@ -677,8 +682,10 @@ impl EditorContent for RegionWidget {
                             // Pick selected tile
                             if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                                 let s = region.get_value(id);
-                                if s.len() > 0 {
-                                    self.tile_selector.selected = Some(s[0].clone());
+                                let mut layer_index = options.get_layer();
+                                if layer_index > 0 { layer_index -= 1; }
+                                if s.len() > layer_index {
+                                    self.tile_selector.selected = Some(s[layer_index].clone());
                                 }
                             }
                             self.layouts[4].widgets[0].curr_index = 0;

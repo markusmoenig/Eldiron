@@ -737,7 +737,7 @@ impl Draw2D {
     }
 
     /// Draws the given region with the given offset into the rectangle
-    pub fn draw_region(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), offset: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset) {
+    pub fn draw_region(&self, frame: &mut [u8], region: &GameRegion, rect: &(usize, usize, usize, usize), offset: &(isize, isize), stride: usize, tile_size: usize, anim_counter: usize, asset: &Asset, show_overlay: bool) {
         let left_offset = (rect.2 % tile_size) / 2;
         let top_offset = (rect.3 % tile_size) / 2;
 
@@ -746,7 +746,15 @@ impl Draw2D {
 
         for y in 0..y_tiles {
             for x in 0..x_tiles {
-                let values = region.get_value((x + offset.0, y + offset.1));
+
+                let values;
+
+                if show_overlay == false {
+                    values = region.get_value((x + offset.0, y + offset.1));
+                } else {
+                    values = region.get_value_overlay((x + offset.0, y + offset.1));
+                }
+
                 for value in values {
                     let pos = (rect.0 + left_offset + (x as usize) * tile_size, rect.1 + top_offset + (y as usize) * tile_size);
 
