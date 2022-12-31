@@ -6,7 +6,7 @@ use core_shared::prelude::*;
 pub fn update_item_sink(sink: &mut PropertySink) {
 
     if sink.contains("item_type") == false {
-        sink.properties.insert(0,Property::new_string("item_type".to_string(), "\"Tool\"".to_string()));
+        sink.properties.insert(0,Property::new_string("item_type".to_string(), "Tool".to_string()));
     }
 
     if sink.contains("state") == false {
