@@ -427,11 +427,19 @@ pub fn update_region_sink(sink: &mut PropertySink) {
     }
 
     if sink.contains("movement") == false {
-        sink.properties.insert(1,Property::new_color("movement".to_string(), "\"pixel\"".to_string()));
+        sink.properties.insert(1,Property::new_string("movement".to_string(), "pixel".to_string()));
     }
 
     if sink.contains("base_lighting") == false {
         sink.push(Property::new_float("base_lighting".to_string(), 1.0));
+    }
+
+    if sink.contains("visibility") == false {
+        sink.push(Property::new_string("visibility".to_string(), "full".to_string()));
+    }
+
+    if sink.contains("visible_distance") == false {
+        sink.push(Property::new_int("visible_distance".to_string(), 10));
     }
 }
 
@@ -441,6 +449,8 @@ pub fn generate_region_sink_descriptions() -> FxHashMap<String, Vec<String>> {
     map.insert("background".to_string(), vec!["The background color of the region".to_string()]);
     map.insert("movement".to_string(), vec!["Use \"tile\" for tile based movement or \"pixel\" for sub-tile movement.".to_string()]);
     map.insert("base_lighting".to_string(), vec!["The base lighting of the region. 0.0 for fully black and 1.0 for fully lit.".to_string()]);
+    map.insert("visibility".to_string(), vec!["Use \"full\" for unlimited visibility or \"limited\" to enable the parameters below.".to_string()]);
+    map.insert("visible_distance".to_string(), vec!["The visible distance in tiles. \"visibility\" has to be set to \"limited\".".to_string()]);
 
     map
 }

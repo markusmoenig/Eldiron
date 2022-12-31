@@ -118,6 +118,14 @@ impl Property {
         }
     }
 
+    pub fn to_int(&self) -> i32 {
+        match &self.value {
+            PropertyValue::Int(value) => *value,
+            PropertyValue::Float(value) => *value as i32,
+            _ => { 0 }
+        }
+    }
+
     pub fn to_rgb(&self) -> Option<[u8; 4]> {
         match &self.value {
             PropertyValue::Int(_value) => None,

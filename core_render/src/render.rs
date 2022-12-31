@@ -742,6 +742,23 @@ impl GameRender<'_> {
                 light_map = compute_lighting(&region, lights);
             }
 
+            // Get base lighting
+            let mut full_visibility = true;
+            if let Some(property) = region.settings.get(&"visibility") {
+                if let Some(str) = property.as_string() {
+                    if str == "limited" {
+                        full_visibility = false;
+                    }
+                }
+            }
+
+            let mut visible_distance = 10;
+            if full_visibility == false {
+                if let Some(property) = region.settings.get(&"visible_distance") {
+                    visible_distance = property.to_int();
+                }
+            }
+
             // Clear if not in a transition
             if set.is_none() {
                 self.draw2d.draw_rect(&mut self.frame[..], &rect, self.width, &background);
@@ -863,6 +880,18 @@ impl GameRender<'_> {
 
                     let pos_x = x + offset.0;
                     let pos_y = y + offset.1;
+
+                    if full_visibility == false {
+
+                        let a = position.x - pos_x;
+                        let b = position.y - pos_y;
+
+                        let d = (( a*a + b*b ) as f32).sqrt() + 0.1;
+
+                        if d > visible_distance as f32 {
+                            continue;
+                        }
+                    }
 
                     let mut values = self.get_region_value(region, (pos_x, pos_y), update);
 
