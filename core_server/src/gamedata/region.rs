@@ -310,6 +310,8 @@ impl GameRegion {
     /// Remaps the TileUsage field of the tiles
     pub fn remap(&mut self, asset: &mut Asset) {
         let mut tiles : FxHashMap<(isize, isize), TileData> = HashMap::default();
+
+        // Layer 1
         let ids: Vec<&(isize, isize)> = self.data.layer1.keys().collect();
         for id in &ids {
             let value = &self.data.layer1[id];
@@ -324,6 +326,58 @@ impl GameRegion {
             }
         }
         self.data.layer1 = tiles;
+
+        // Layer 2
+        tiles = HashMap::default();
+        let ids: Vec<&(isize, isize)> = self.data.layer2.keys().collect();
+        for id in &ids {
+            let value = &self.data.layer2[id];
+            if let Some(tile) = asset.get_tile(&TileId::new(value.tilemap, value.x_off, value.y_off)) {
+                tiles.insert(**id, TileData {
+                    tilemap     : value.tilemap,
+                    x_off       : value.x_off,
+                    y_off       : value.y_off,
+                    usage       : tile.usage.clone(),
+                    size        : None,
+                });
+            }
+        }
+        self.data.layer2 = tiles;
+
+        // Layer 3
+        tiles = HashMap::default();
+        let ids: Vec<&(isize, isize)> = self.data.layer3.keys().collect();
+        for id in &ids {
+            let value = &self.data.layer3[id];
+            if let Some(tile) = asset.get_tile(&TileId::new(value.tilemap, value.x_off, value.y_off)) {
+                tiles.insert(**id, TileData {
+                    tilemap     : value.tilemap,
+                    x_off       : value.x_off,
+                    y_off       : value.y_off,
+                    usage       : tile.usage.clone(),
+                    size        : None,
+                });
+            }
+        }
+        self.data.layer3 = tiles;
+
+        // Layer 4
+        tiles = HashMap::default();
+        let ids: Vec<&(isize, isize)> = self.data.layer4.keys().collect();
+        for id in &ids {
+            let value = &self.data.layer4[id];
+            if let Some(tile) = asset.get_tile(&TileId::new(value.tilemap, value.x_off, value.y_off)) {
+                tiles.insert(**id, TileData {
+                    tilemap     : value.tilemap,
+                    x_off       : value.x_off,
+                    y_off       : value.y_off,
+                    usage       : tile.usage.clone(),
+                    size        : None,
+                });
+            }
+        }
+        self.data.layer4 = tiles;
+
         self.save_data();
     }
 
