@@ -681,11 +681,27 @@ impl EditorContent for RegionWidget {
                         if self.layouts[4].widgets[0].curr_index == 2 {
                             // Pick selected tile
                             if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                                let s = region.get_value(id);
-                                let mut layer_index = options.get_layer();
-                                if layer_index > 0 { layer_index -= 1; }
-                                if s.len() > layer_index {
-                                    self.tile_selector.selected = Some(s[layer_index].clone());
+                                let layer_index = options.get_layer();
+
+                                if layer_index == 1 {
+                                    if let Some(tile) = region.data.layer1.get(&id) {
+                                        self.tile_selector.selected = Some(tile.clone());
+                                    }
+                                }
+                                if layer_index == 2 {
+                                    if let Some(tile) = region.data.layer2.get(&id) {
+                                        self.tile_selector.selected = Some(tile.clone());
+                                    }
+                                }
+                                if layer_index == 3 {
+                                    if let Some(tile) = region.data.layer3.get(&id) {
+                                        self.tile_selector.selected = Some(tile.clone());
+                                    }
+                                }
+                                if layer_index == 4 {
+                                    if let Some(tile) = region.data.layer4.get(&id) {
+                                        self.tile_selector.selected = Some(tile.clone());
+                                    }
                                 }
                             }
                             self.layouts[4].widgets[0].curr_index = 0;
