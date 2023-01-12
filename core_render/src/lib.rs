@@ -3,6 +3,7 @@ pub mod script_shapes;
 pub mod draw2d;
 pub mod render;
 pub mod lighting;
+pub mod raycast;
 
 pub mod prelude {
     pub use crate::script_types::*;

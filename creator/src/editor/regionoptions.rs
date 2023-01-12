@@ -48,7 +48,7 @@ impl EditorOptions for RegionOptions {
         usage_list.set_rect((0, 0, rect.2 - 20, 210), asset, context);
         tile_layout.add(usage_list, 3);
 
-        let mut layer_button = AtomWidget::new(vec!["1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()], AtomWidgetType::LayerNumberRow, AtomData::new("Layer", Value::Empty()));
+        let mut layer_button = AtomWidget::new(vec!["F".to_string(), "W".to_string(), "C".to_string(), "O".to_string()], AtomWidgetType::LayerNumberRow, AtomData::new("Layer", Value::Empty()));
         layer_button.set_rect((0, 0, rect.2 - 20, 30), asset, context);
         tile_layout.add(layer_button, 3);
 
@@ -295,6 +295,13 @@ impl EditorOptions for RegionOptions {
     /// Get the current layer
     fn get_layer(&self) -> usize {
         self.curr_layer
+    }
+
+    /// Set the current layer
+    fn set_layer(&mut self, layer: usize)  {
+        self.curr_layer = layer;
+        self.layouts[self.mode as usize].widgets[3].dirty = true;
+        self.layouts[self.mode as usize].widgets[3].curr_index = layer - 1;
     }
 
     /// Updates a value from the dialog

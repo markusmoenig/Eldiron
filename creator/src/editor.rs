@@ -172,6 +172,8 @@ impl Editor<'_> {
     /// A key was pressed
     pub fn key_down(&mut self, char: Option<char>, key: Option<WidgetKey>, asset: &mut Asset) -> bool {
 
+        let mut consumed = false;
+
         if self.context.is_running && (self.context.code_editor_is_active == false || self.context.is_debugging == false) {
 
             let mut key_string = "";
@@ -251,6 +253,28 @@ impl Editor<'_> {
             return true;
         } else {
             // General shortcuts
+
+            if self.content.is_empty() == false {
+                let index = self.state as usize;
+                let mut options : Option<Box<dyn EditorOptions>> = None;
+                let mut content : Option<Box<dyn EditorContent>> = None;
+
+                if let Some(element) = self.content.drain(index..index+1).next() {
+                    options = element.0;
+                    content = element.1;
+
+                    if let Some(mut el_content) = content {
+                        consumed = el_content.key_down(char, key, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
+                        content = Some(el_content);
+                    }
+
+                }
+                self.content.insert(index, (options, content));
+            }
+
+            if consumed {
+                return  true;
+            }
 
             // Deselects all toolbar buttons
             let mut deselect_all = || {
@@ -352,7 +376,7 @@ impl Editor<'_> {
                     self.toolbar.widgets[ToolBarButtons::Items as usize].set_switch_button_state(true, false);
                 }
                 return true;
-            } else
+            }
             if char == Some('1') {
                 deselect_all();
                 self.context.switch_editor_state = Some(EditorState::TilesOverview);
@@ -409,24 +433,6 @@ impl Editor<'_> {
             }
         }
 
-        let mut consumed = false;
-        if self.content.is_empty() == false {
-            let index = self.state as usize;
-            let mut options : Option<Box<dyn EditorOptions>> = None;
-            let mut content : Option<Box<dyn EditorContent>> = None;
-
-            if let Some(element) = self.content.drain(index..index+1).next() {
-                options = element.0;
-                content = element.1;
-
-                if let Some(mut el_content) = content {
-                    consumed = el_content.key_down(char, key, asset, &mut self.context, &mut options, &mut Some(&mut self.toolbar));
-                    content = Some(el_content);
-                }
-
-            }
-            self.content.insert(index, (options, content));
-        }
         consumed
     }
 

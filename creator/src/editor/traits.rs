@@ -66,6 +66,9 @@ pub trait EditorOptions {
     /// Get the current layer
     fn get_layer(&self) -> usize { 0 }
 
+    /// Set the current layer
+    fn set_layer(&mut self, layer: usize)  {}
+
     // For ScreenOptions
 
     /// Update the ui

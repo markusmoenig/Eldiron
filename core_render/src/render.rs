@@ -7,6 +7,8 @@ use rhai::{ Engine, Scope, AST, Dynamic, Map };
 
 use audio_engine::{AudioEngine, WavDecoder, OggDecoder};
 
+use crate::raycast::Raycast;
+
 #[derive(Eq, Hash, PartialEq)]
 pub enum Group {
     Effect,
@@ -48,6 +50,8 @@ pub struct GameRender<'a> {
     //#[cfg(target_arch = "wasm32")]
     pub audio_engine            : Option<AudioEngine<Group>>,
 
+    pub raycast                 : Raycast,
+
     pub this_map                : Dynamic,
 
     pub vendor_rects            : Vec<(usize, usize, usize, usize, Uuid)>,
@@ -88,7 +92,8 @@ impl GameRender<'_> {
             .register_fn("draw_tile_sized", ScriptCmd::draw_tile_sized)
             .register_fn("draw_frame", ScriptCmd::draw_frame)
             .register_fn("draw_frame_sat", ScriptCmd::draw_frame_sat)
-            .register_fn("draw_game", ScriptCmd::draw_game)
+            .register_fn("draw_game_2d", ScriptCmd::draw_game_2d)
+            .register_fn("draw_game_3d", ScriptCmd::draw_game_3d)
             .register_fn("draw_region", ScriptCmd::draw_region)
             .register_fn("draw_messages", ScriptCmd::draw_messages)
             .register_fn("draw_shape", ScriptCmd::draw_shape)
@@ -159,6 +164,8 @@ impl GameRender<'_> {
             last_update         : GameUpdate::new(),
 
             audio_engine        : None,
+
+            raycast             : Raycast::new(),
 
             this_map            : this_map.into(),
 
@@ -275,6 +282,8 @@ impl GameRender<'_> {
         // Got a new region ?
         if let Some(region) = &update.region {
             self.regions.insert(region.id, region.clone());
+
+            self.raycast.load_region(&self.asset, region);
         }
 
         // Get new messages
@@ -640,13 +649,22 @@ impl GameRender<'_> {
                         }
                     }
                 },
-                ScriptDrawCmd::DrawGame(rect) => {
+                ScriptDrawCmd::DrawGame2D(rect) => {
                     if rect.is_safe(self.width, self.height) {
                     if let Some(update) = update {
-                        self.process_game_draw(rect.rect, anim_counter, update, &mut None, self.width);
+                        self.process_game_draw_2d(rect.rect, anim_counter, update, &mut None, self.width);
                     } else {
                         let update = self.last_update.clone();
-                        self.process_game_draw(rect.rect, anim_counter, &update, &mut None, self.width);
+                        self.process_game_draw_2d(rect.rect, anim_counter, &update, &mut None, self.width);
+                    }                    }
+                },
+                ScriptDrawCmd::DrawGame3D(rect) => {
+                    if rect.is_safe(self.width, self.height) {
+                    if let Some(update) = update {
+                        self.process_game_draw_3d(rect.rect, anim_counter, update, &mut None, self.width);
+                    } else {
+                        let update = self.last_update.clone();
+                        self.process_game_draw_3d(rect.rect, anim_counter, &update, &mut None, self.width);
                     }                    }
                 },
                 ScriptDrawCmd::DrawRegion(_name, _rect, _size) => {
@@ -657,7 +675,15 @@ impl GameRender<'_> {
         None
     }
 
-    pub fn process_game_draw(&mut self, rect: (usize, usize, usize, usize), anim_counter: usize, update: &GameUpdate, external_frame: &mut Option<&mut [u8]>, stride: usize) {
+    pub fn process_game_draw_3d(&mut self, rect: (usize, usize, usize, usize), _anim_counter: usize, update: &GameUpdate, _external_frame: &mut Option<&mut [u8]>, _stride: usize) {
+        if let Some(position) = update.position.clone(){
+            if let Some(region) = self.regions.get(&position.region) {
+                self.raycast.render(&mut self.frame[..], (position.x as i32, position.y as i32), &region.id, rect, self.width);
+            }
+        }
+    }
+
+    pub fn process_game_draw_2d(&mut self, rect: (usize, usize, usize, usize), anim_counter: usize, update: &GameUpdate, external_frame: &mut Option<&mut [u8]>, stride: usize) {
         if let Some(position) = update.position.clone(){
 
             if self.transition_active == false {
@@ -672,7 +698,7 @@ impl GameRender<'_> {
             }
 
             if self.transition_active {
-                self.draw_game_rect(rect, self.last_position.clone().unwrap().clone(), anim_counter, update, None, external_frame, stride);
+                self.draw_game_tile_2d_rect(rect, self.last_position.clone().unwrap().clone(), anim_counter, update, None, external_frame, stride);
 
                 let mut r = rect.clone();
 
@@ -691,7 +717,7 @@ impl GameRender<'_> {
                     }
                 }
 
-                self.draw_game_rect(rect, position.clone(), anim_counter, update, Some(set), external_frame, stride);
+                self.draw_game_tile_2d_rect(rect, position.clone(), anim_counter, update, Some(set), external_frame, stride);
 
                 self.transition_counter += 1;
                 if self.transition_counter == self.transition_steps {
@@ -700,13 +726,14 @@ impl GameRender<'_> {
                 }
             } else
             if self.transition_active == false {
-                self.draw_game_rect(rect, position.clone(), anim_counter, update, None, external_frame, stride);
+                self.draw_game_tile_2d_rect(rect, position.clone(), anim_counter, update, None, external_frame, stride);
             }
         }
     }
 
+
     /// Draws the game in the given rect
-    pub fn draw_game_rect(&mut self, rect: (usize, usize, usize, usize), cposition: Position, anim_counter: usize, update: &GameUpdate, set: Option<FxHashSet<(isize, isize)>>, external_frame: &mut Option<&mut [u8]>, stride: usize) {
+    pub fn draw_game_tile_2d_rect(&mut self, rect: (usize, usize, usize, usize), cposition: Position, anim_counter: usize, update: &GameUpdate, set: Option<FxHashSet<(isize, isize)>>, external_frame: &mut Option<&mut [u8]>, stride: usize) {
 
         self.draw2d.scissor = Some(rect);
 
@@ -721,7 +748,6 @@ impl GameRender<'_> {
         let mut y_tiles = (rect.3 / tile_size) as isize;
 
         if let Some(region) = self.regions.get(&position.region) {
-
             // Get background color
             let mut background = [0, 0, 0, 255];
             if let Some(property) = region.settings.get(&"background") {

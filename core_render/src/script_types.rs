@@ -154,7 +154,8 @@ pub enum ScriptDrawCmd {
     DrawTileSized(ScriptPosition, ScriptTile, i32),
     DrawFrame(ScriptRect, ScriptTile),
     DrawFrameSat(ScriptRect, ScriptRGB, ScriptTile),
-    DrawGame(ScriptRect),
+    DrawGame2D(ScriptRect),
+    DrawGame3D(ScriptRect),
     DrawRegion(String, ScriptRect, i32),
     DrawText(ScriptPosition, String, String, f32, ScriptRGB),
     DrawTextRect(ScriptRect, String, String, f32, ScriptRGB, String),
@@ -249,8 +250,12 @@ impl ScriptCmd {
         self.draw_commands.push(ScriptDrawCmd::DrawMessages(rect, font_name.to_owned(), size as f32, rgb));
     }
 
-    pub fn draw_game(&mut self, rect: ScriptRect) {
-        self.draw_commands.push(ScriptDrawCmd::DrawGame(rect));
+    pub fn draw_game_2d(&mut self, rect: ScriptRect) {
+        self.draw_commands.push(ScriptDrawCmd::DrawGame2D(rect));
+    }
+
+    pub fn draw_game_3d(&mut self, rect: ScriptRect) {
+        self.draw_commands.push(ScriptDrawCmd::DrawGame3D(rect));
     }
 
     pub fn draw_region(&mut self, name: &str, rect: ScriptRect, size: i32) {

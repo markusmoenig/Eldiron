@@ -318,7 +318,7 @@ impl EditorContent for RegionWidget {
                     if let Some(update) = &self.debug_update {
                         if let Some(render) = &mut context.debug_render {
                             render.process_update(update);
-                            render.process_game_draw(rect, anim_counter, update, &mut Some(frame), context.width);
+                            render.process_game_draw_2d(rect, anim_counter, update, &mut Some(frame), context.width);
                         }
                     }
                 }
@@ -673,8 +673,8 @@ impl EditorContent for RegionWidget {
                         if self.layouts[4].widgets[0].curr_index == 1 {
                             // Clear
                             if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                                //region.clear_value(options.get_layer(), id);
-                                region.clear_value(id);
+                                region.clear_layer_value(options.get_layer(), id);
+                                //region.clear_value(id);
                                 self.has_changed = true;
                             }
                         } else
@@ -1155,6 +1155,24 @@ impl EditorContent for RegionWidget {
 
         if let Some(options) = options {
             if let Some(char) = char {
+
+                if char == '1' {
+                    options.set_layer(1);
+                    return true;
+                } else
+                if char == '2' {
+                    options.set_layer(2);
+                    return true;
+                } else
+                if char == '3' {
+                    options.set_layer(3);
+                    return true;
+                } else
+                if char == '4' {
+                    options.set_layer(4);
+                    return true;
+                }
+
                 if char == 'd' {
                     self.layouts[0].widgets[0].curr_index = 0;
                     self.layouts[0].widgets[0].dirty = true;
