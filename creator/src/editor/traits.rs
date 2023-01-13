@@ -45,8 +45,8 @@ pub trait EditorOptions {
     /// Sets the default tile for the current map
     fn set_default_tile(&mut self, asset: &mut Asset, context: &ScreenContext) {}
 
-    /// Set the tile tags
-    fn set_tags(&mut self, tags: String, asset: &mut Asset, context: &ScreenContext) {}
+    /// Set the tile settings
+    fn set_tile_settings(&mut self, open_editor: bool, asset: &mut Asset, context: &mut ScreenContext) {}
 
     // For RegionOptions
 

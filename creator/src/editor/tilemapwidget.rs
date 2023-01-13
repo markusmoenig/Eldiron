@@ -186,6 +186,7 @@ impl EditorContent for TileMapWidget {
 
             if let Some(options) = options {
                 options.adjust_tile_usage(asset, context);
+                options.set_tile_settings(false, asset, context);
 
                 if context.curr_tile.is_some() {
                     options.set_state(WidgetState::Normal);

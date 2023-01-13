@@ -20,11 +20,11 @@ impl EditorOptions for TileMapOptions {
         group_list.set_rect(rect, asset, context);
         widgets.push(group_list);
 
-        let mut tags_button = AtomWidget::new(vec!["".to_string()], AtomWidgetType::TagsButton,
-            AtomData::new("Tags", Value::Empty()));
-        tags_button.state = WidgetState::Disabled;
-        tags_button.set_rect((rect.0 + 10, rect.1 + 310 + 30, rect.2 - 20, 40), asset, context);
-        widgets.push(tags_button);
+        let mut settings_button = AtomWidget::new(vec!["Settings".to_string()], AtomWidgetType::Button,
+            AtomData::new("Settings", Value::Empty()));
+        settings_button.state = WidgetState::Disabled;
+        settings_button.set_rect((rect.0 + 10, rect.1 + 310 + 30, rect.2 - 20, 40), asset, context);
+        widgets.push(settings_button);
 
         let mut set_anim_button = AtomWidget::new(vec!["Set Anim".to_string()], AtomWidgetType::Button,
             AtomData::new("Set Anim", Value::Empty()));
@@ -142,6 +142,9 @@ impl EditorOptions for TileMapOptions {
 
                         atom.clicked = false;
                     } else
+                    if atom.atom_data.id == "Settings" {
+                        self.set_tile_settings(true, asset, context);
+                    } else
                     if atom.atom_data.id == "Set Anim" {
                         self.set_anim(asset, context);
                     } else
@@ -207,14 +210,14 @@ impl EditorOptions for TileMapOptions {
                     TileUsage::Icon => self.widgets[0].curr_item_index = 8,
                     TileUsage::UIElement => self.widgets[0].curr_item_index = 9,
                 }
-                self.widgets[1].text[0] = tile.tags.clone();
+                //self.widgets[1].text[0] = tile.tags.clone();
             } else {
                 self.widgets[0].curr_item_index = 0;
-                self.widgets[1].text[0] = "".to_string();
+                // self.widgets[1].text[0] = "".to_string();
             }
         }
         self.widgets[0].dirty = true;
-        self.widgets[1].dirty = true;
+        // self.widgets[1].dirty = true;
     }
 
     /// Sets the tile anim for the current tile
@@ -285,50 +288,49 @@ impl EditorOptions for TileMapOptions {
     }
 
     /// Set the tags
-    fn set_tags(&mut self, tags: String, asset: &mut Asset, context: &ScreenContext) {
-        let mut tiles : Vec<(usize, usize)> = vec![];
+    fn set_tile_settings(&mut self, open_editor: bool, asset: &mut Asset, context: &mut ScreenContext) {
 
-        if let Some(tile_id) = context.curr_tile {
-            let mut i = tile_id.clone();
-
-            tiles.push(i);
-
-            // Collect all tiles in the selection
-            if let Some(selection_end) = context.selection_end {
-                if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
-                    while i.0 != selection_end.0 || i.1 != selection_end.1 {
-                        i.0 += 1;
-                        if i.0 >= map.max_tiles_per_row() {
-                            i.0 = 0;
-                            i.1 += 1;
-                        }
-                        tiles.push(i);
-                    }
-                }
-            }
+        if open_editor == false && context.code_editor_is_active == false {
+            return;
         }
 
-        self.widgets[1].text[0] = tags.clone().to_lowercase();
-        self.widgets[1].dirty = true;
+        if let Some(selection) = context.curr_tile {
+            if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
+                if let Some(tile) = map.get_mut_tile(&selection) {
 
-        if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
-            for tile_id in &tiles {
-                if let Some(tile) = map.get_mut_tile(&tile_id) {
-                    tile.tags = tags.clone().to_lowercase();
-                } else {
-                    let mut tile = Tile::new();
-                    tile.tags = tags.clone().to_lowercase();
-                    map.set_tile(*tile_id, tile);
+                    let value;
+
+                    if let Some(properties) = &tile.settings {
+                        value = Value::String(properties.to_string(generate_tile_settings_sink_descriptions()));
+                    } else {
+                        let mut properties = PropertySink::new();
+                        update_tile_settings_sink(&mut properties);
+                        value = Value::String(properties.to_string(generate_tile_settings_sink_descriptions()));
+                    }
+
+                    //value = Value::String(region.data.settings.to_string(generate_region_sink_descriptions()));
+                    let id = context.create_property_id("tile_settings");
+                    context.code_editor_mode = CodeEditorMode::Settings;
+                    context.open_code_editor(id, value, false);
                 }
             }
-            map.save_settings();
         }
     }
 
     /// Updates a value from the dialog
-    fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) {
-        if id.2 == "tags".to_string() {
-            self.set_tags(value.to_string_value(), asset, context);
+    fn update_from_dialog(&mut self, _id: (Uuid, Uuid, String), value: Value, asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) {
+        if let Some(selection) = context.curr_tile {
+            if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[context.curr_tileset_index]) {
+                if let Some(tile) = map.get_mut_tile(&selection) {
+                    let mut properties = PropertySink::new();
+                    properties.load_from_string(value.to_string_value());
+                    if let Some(tags ) = properties.get("tags") {
+                        tile.tags = tags.to_string();
+                    }
+                    tile.settings = Some(properties);
+                    map.save_settings();
+                }
+            }
         }
     }
 }

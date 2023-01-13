@@ -31,6 +31,7 @@ pub struct Tile {
     pub usage               : TileUsage,
     pub anim_tiles          : Vec<(usize, usize)>,
     pub tags                : String,
+    pub settings            : Option<PropertySink>,
 }
 
 impl Tile {
@@ -40,6 +41,7 @@ impl Tile {
             usage       : TileUsage::Environment,
             anim_tiles  : vec![],
             tags        : "".to_string(),
+            settings    : None
         }
     }
 }
@@ -219,4 +221,37 @@ impl TileMap {
     pub fn offset_to_id(&self, offset: usize) -> (usize, usize) {
         (offset % (self.width / self.settings.grid_size), offset / (self.width / self.settings.grid_size))
     }
+}
+
+// Generate tile settings sink
+
+pub fn update_tile_settings_sink(sink: &mut PropertySink) {
+
+    if sink.contains("tags") == false {
+        sink.properties.insert(0,Property::new_string("tags".to_string(), "".to_string()));
+    }
+
+    // if sink.contains("base_lighting") == false {
+    //     sink.push(Property::new_float("base_lighting".to_string(), 1.0));
+    // }
+
+    // if sink.contains("visibility") == false {
+    //     sink.push(Property::new_string("visibility".to_string(), "full".to_string()));
+    // }
+
+    // if sink.contains("visible_distance") == false {
+    //     sink.push(Property::new_int("visible_distance".to_string(), 10));
+    // }
+}
+
+pub fn generate_tile_settings_sink_descriptions() -> FxHashMap<String, Vec<String>> {
+    let mut map : FxHashMap<String, Vec<String>> = HashMap::default();
+
+    map.insert("tags".to_string(), vec!["The tags for this tile, useful for searching for and grouping tiles".to_string()]);
+    // map.insert("movement".to_string(), vec!["Use \"tile\" for tile based movement or \"pixel\" for sub-tile movement.".to_string()]);
+    // map.insert("base_lighting".to_string(), vec!["The base lighting of the region. 0.0 for fully black and 1.0 for fully lit.".to_string()]);
+    // map.insert("visibility".to_string(), vec!["Use \"full\" for unlimited visibility or \"limited\" to enable the parameters below.".to_string()]);
+    // map.insert("visible_distance".to_string(), vec!["The visible distance in tiles. \"visibility\" has to be set to \"limited\".".to_string()]);
+
+    map
 }
