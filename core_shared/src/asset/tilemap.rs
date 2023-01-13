@@ -26,7 +26,7 @@ pub enum TileUsage {
     UIElement,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Tile {
     pub usage               : TileUsage,
     pub anim_tiles          : Vec<(usize, usize)>,
@@ -231,27 +231,28 @@ pub fn update_tile_settings_sink(sink: &mut PropertySink) {
         sink.properties.insert(0,Property::new_string("tags".to_string(), "".to_string()));
     }
 
-    // if sink.contains("base_lighting") == false {
-    //     sink.push(Property::new_float("base_lighting".to_string(), 1.0));
-    // }
+    if sink.contains("raycaster_wall") == false {
+        sink.properties.push(Property::new_string("raycaster_wall".to_string(), "wall".to_string()));
+    }
 
-    // if sink.contains("visibility") == false {
-    //     sink.push(Property::new_string("visibility".to_string(), "full".to_string()));
-    // }
+    if sink.contains("raycaster_sprite_shrink") == false {
+        sink.properties.push(Property::new_int("raycaster_sprite_shrink".to_string(), 1));
+    }
 
-    // if sink.contains("visible_distance") == false {
-    //     sink.push(Property::new_int("visible_distance".to_string(), 10));
-    // }
+    if sink.contains("raycaster_sprite_move_y") == false {
+        sink.properties.push(Property::new_float("raycaster_sprite_move_y".to_string(), 0.0));
+    }
+
 }
 
 pub fn generate_tile_settings_sink_descriptions() -> FxHashMap<String, Vec<String>> {
     let mut map : FxHashMap<String, Vec<String>> = HashMap::default();
 
-    map.insert("tags".to_string(), vec!["The tags for this tile, useful for searching for and grouping tiles".to_string()]);
-    // map.insert("movement".to_string(), vec!["Use \"tile\" for tile based movement or \"pixel\" for sub-tile movement.".to_string()]);
-    // map.insert("base_lighting".to_string(), vec!["The base lighting of the region. 0.0 for fully black and 1.0 for fully lit.".to_string()]);
-    // map.insert("visibility".to_string(), vec!["Use \"full\" for unlimited visibility or \"limited\" to enable the parameters below.".to_string()]);
-    // map.insert("visible_distance".to_string(), vec!["The visible distance in tiles. \"visibility\" has to be set to \"limited\".".to_string()]);
+    map.insert("tags".to_string(), vec!["The comma separated tags for this tile, useful for searching for and grouping tiles".to_string()]);
+    map.insert("raycaster_wall".to_string(), vec!["Display this tile in the raycaster as a \"wall\" or \"sprite\".".to_string()]);
+    map.insert("raycaster_sprite_shrink".to_string(), vec!["The shrink factor for sprites. 1 is the original size, higher values shrink the sprite.".to_string()]);
+    map.insert("raycaster_sprite_move_y".to_string(), vec!["Moves the sprite up / down.".to_string()]);
+
 
     map
 }

@@ -54,12 +54,52 @@ impl Raycast {
         }
 
         for (pos, tile) in &region.layer2 {
+
+            let tile_orig = self.get_tile(tile, asset);
+
             if let Some(world) = self.world_maps.get_mut(&region.id) {
+
                 if let Some((t_id, size, width, _height)) = tilemaps.get(&tile.tilemap) {
                     let rect =  (tile.x_off as usize * size * 4, tile.y_off as usize * width * size * 4, *size, *size);
-                    let t = raycaster::Tile::textured(*t_id, rect);
-                    //world.set_wall(pos.0 as i32, -pos.1 as i32, t);
-                    world.add_sprite(Sprite::new(pos.0 as f32 + 0.5, -pos.1 as f32, t));
+
+                    let mut sprite = false;
+                    let mut sprite_shrink = 1;
+                    let mut sprite_move_y = 0.0;
+
+                    if let Some(tt) = tile_orig {
+
+                        let t = raycaster::Tile::textured_anim(*t_id, rect, (tt.anim_tiles.len() as u16).max(1));
+
+                        if let Some(props) = &tt.settings {
+
+                            if let Some(raycaster_wall) = props.get("raycaster_wall") {
+                                if let Some(raycaster_wall) = raycaster_wall.as_string() {
+                                    if raycaster_wall.to_lowercase() == "sprite" {
+                                        sprite = true;
+                                    }
+                                }
+                            }
+                            if let Some(raycaster_sprite_shrink) = props.get("raycaster_sprite_shrink") {
+                                if let Some(raycaster_sprite_shrink) = raycaster_sprite_shrink.as_int() {
+                                    sprite_shrink = raycaster_sprite_shrink;
+                                }
+                            }
+                            if let Some(raycaster_sprite_move_y) = props.get("raycaster_sprite_move_y") {
+                                if let Some(raycaster_sprite_move_y) = raycaster_sprite_move_y.as_float() {
+                                    sprite_move_y = raycaster_sprite_move_y;
+                                }
+                            }
+                        }
+
+                        if sprite {
+                            let mut sprite = Sprite::new(pos.0 as f32 + 0.5, -pos.1 as f32, t);
+                            sprite.shrink = sprite_shrink;
+                            sprite.move_y = sprite_move_y;
+                            world.add_sprite(sprite);
+                        } else {
+                            world.set_wall(pos.0 as i32, -pos.1 as i32, t);
+                        }
+                    }
                 }
             }
         }
@@ -78,5 +118,17 @@ impl Raycast {
         if let Some(world) = self.world_maps.get_mut(region) {
             self.raycaster.render(frame, rect, stride, world);
         }
+    }
+
+    pub fn get_tile(&self, tile: &TileData, asset: &Asset) -> Option<core_shared::prelude::Tile> {
+        if let Some(tilemap) = asset.tileset.maps.get(&tile.tilemap) {
+            if let Some(tile) = tilemap.get_tile(&(tile.x_off as usize, tile.y_off as usize)) {
+                return Some(tile.clone());
+            }
+            //if let Some(tile) = tilemap.get_tile(&(tile.x_off as usize, tile.y_off as usize)) {
+            //    return tile.settings.clone();
+            //}
+        }
+        None
     }
 }
