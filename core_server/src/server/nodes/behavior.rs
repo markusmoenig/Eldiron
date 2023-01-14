@@ -1029,9 +1029,9 @@ pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
 
                     // Execute level script
                     if script_id.3.is_empty() == false {
-                        println!("Execute level script: {:?}", script_id);
-                        let rc = eval_dynamic_script_instance(instance_index, script_id, data);
-                        println!("Execute level script: {:?}", rc);
+                        //println!("Execute level script: {:?}", script_id);
+                        let _rc = eval_dynamic_script_instance(instance_index, script_id, data);
+                        // println!("Execute level script: {:?}", rc);
                     }
                 }
             }

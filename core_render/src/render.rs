@@ -295,6 +295,7 @@ impl GameRender<'_> {
                             if let Some(value) = r.as_string() {
                                 if value.to_lowercase() == "3d" {
                                     region_map.insert("render".into(), Dynamic::from("3d"));
+                                    self.raycast.load_region(&self.asset, region);
                                 } else {
                                     region_map.insert("render".into(), Dynamic::from("2d"));
                                 }
@@ -303,8 +304,6 @@ impl GameRender<'_> {
                     }
                 }
             }
-
-            self.raycast.load_region(&self.asset, region);
         }
 
         // Get new messages
