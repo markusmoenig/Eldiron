@@ -212,6 +212,7 @@ impl GameRender<'_> {
                     }
                     this_map.insert("tilemaps".into(), Dynamic::from(tilemaps) );
                     this_map.insert("player".into(), Dynamic::from(rhai::Map::new()));
+                    this_map.insert("region".into(), Dynamic::from(rhai::Map::new()));
 
                     self.this_map = this_map.into();
 
@@ -282,6 +283,26 @@ impl GameRender<'_> {
         // Got a new region ?
         if let Some(region) = &update.region {
             self.regions.insert(region.id, region.clone());
+
+            // Set the settings into the region map
+            if let Some(mut map) = self.this_map.write_lock::<Map>() {
+                if let Some(c) = map.get_mut("region") {
+                    if let Some(mut region_map) = c.write_lock::<rhai::Map>() {
+
+                        let properties = &region.settings;
+
+                        if let Some(r) = properties.get("render") {
+                            if let Some(value) = r.as_string() {
+                                if value.to_lowercase() == "3d" {
+                                    region_map.insert("render".into(), Dynamic::from("3d"));
+                                } else {
+                                    region_map.insert("render".into(), Dynamic::from("2d"));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             self.raycast.load_region(&self.asset, region);
         }
@@ -731,7 +752,6 @@ impl GameRender<'_> {
         }
     }
 
-
     /// Draws the game in the given rect
     pub fn draw_game_tile_2d_rect(&mut self, rect: (usize, usize, usize, usize), cposition: Position, anim_counter: usize, update: &GameUpdate, set: Option<FxHashSet<(isize, isize)>>, external_frame: &mut Option<&mut [u8]>, stride: usize) {
 
@@ -1178,6 +1198,7 @@ impl GameRender<'_> {
         if let Some(mut map) = self.this_map.write_lock::<Map>() {
             if let Some(c) = map.get_mut("cmd") {
                 if let Some(mut cmd) = c.write_lock::<ScriptCmd>() {
+
 
                     for cmd in &cmd.action_commands {
 

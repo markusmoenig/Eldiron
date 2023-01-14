@@ -495,6 +495,10 @@ pub fn update_region_sink(sink: &mut PropertySink) {
     if sink.contains("visible_distance") == false {
         sink.push(Property::new_int("visible_distance".to_string(), 10));
     }
+
+    if sink.contains("render") == false {
+        sink.push(Property::new_string("render".to_string(), "2d".to_string()));
+    }
 }
 
 pub fn generate_region_sink_descriptions() -> FxHashMap<String, Vec<String>> {
@@ -505,6 +509,7 @@ pub fn generate_region_sink_descriptions() -> FxHashMap<String, Vec<String>> {
     map.insert("base_lighting".to_string(), vec!["The base lighting of the region. 0.0 for fully black and 1.0 for fully lit.".to_string()]);
     map.insert("visibility".to_string(), vec!["Use \"full\" for unlimited visibility or \"limited\" to enable the parameters below.".to_string()]);
     map.insert("visible_distance".to_string(), vec!["The visible distance in tiles. \"visibility\" has to be set to \"limited\".".to_string()]);
+    map.insert("render".to_string(), vec!["By default render the region in \"2d\" or \"3d\".".to_string()]);
 
     map
 }
