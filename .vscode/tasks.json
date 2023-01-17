@@ -8,7 +8,7 @@
         "args": [
             "run",
             "-p",
-            "creator"
+            "creator_main"
             // "--release",
             // "--",
             // "arg1"
@@ -26,7 +26,7 @@
             "run",
              "--release",
              "-p",
-             "creator"
+             "creator_main"
             // "--",
             // "arg1"
         ],

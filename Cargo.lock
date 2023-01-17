@@ -150,6 +150,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "audio-engine"
+version = "0.4.5"
+source = "git+https://github.com/Rodrigodd/audio-engine#24120b286f61456a2cc4a3286bd324aeb43eb4b1"
+dependencies = [
+ "cpal",
+ "gcd",
+ "hound",
+ "lewton",
+ "log",
+ "ndk-glue 0.6.2",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -451,9 +464,9 @@ dependencies = [
 
 [[package]]
 name = "code_editor"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "303c8f6172faf1e79d20077f7e6c0caabbc15fabec61089b533f9a95333b66bc"
+checksum = "7b70760e3a68258a1b2971f7626e331489e8aa10ea0e03dd65bbe120ad0172aa"
 dependencies = [
  "copypasta",
  "fontdue",
@@ -611,7 +624,7 @@ dependencies = [
 name = "core_render"
 version = "0.1.0"
 dependencies = [
- "audio-engine",
+ "audio-engine 0.4.5 (git+https://github.com/Rodrigodd/audio-engine)",
  "colori",
  "core_embed_binaries",
  "core_shared",
@@ -736,15 +749,50 @@ dependencies = [
 ]
 
 [[package]]
-name = "creator"
+name = "creator_lib"
 version = "0.7.0"
 dependencies = [
- "audio-engine",
+ "audio-engine 0.4.5 (git+https://github.com/Rodrigodd/audio-engine)",
  "code_editor",
  "copypasta",
  "core_render",
  "core_server",
  "core_shared",
+ "directories",
+ "env_logger 0.10.0",
+ "fontdue",
+ "fs_extra",
+ "itertools",
+ "lazy_static",
+ "log",
+ "open",
+ "pathfinding",
+ "pixels",
+ "png",
+ "rand",
+ "regex",
+ "rfd",
+ "rhai",
+ "serde",
+ "serde_json",
+ "uuid",
+ "vectorize",
+ "winit",
+ "winit_input_helper",
+ "zeno",
+]
+
+[[package]]
+name = "creator_main"
+version = "0.7.5"
+dependencies = [
+ "audio-engine 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "code_editor",
+ "copypasta",
+ "core_render",
+ "core_server",
+ "core_shared",
+ "creator_lib",
  "directories",
  "env_logger 0.10.0",
  "fontdue",
@@ -2260,9 +2308,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.6.0"
+version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c4eb3267174b8c6c2f654116623910a0fef09c4753f8dd83db29c48a0df988b"
+checksum = "48aaa5748ba571fb95cd2c85c09f629215d3a6ece942baa100950af03a34f733"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -2316,9 +2364,9 @@ dependencies = [
 
 [[package]]
 name = "rhai"
-version = "1.11.0"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f61559c2ea5fef5af856ae95443111dc14e7c9ce73d29c257a840249c0ed298"
+checksum = "4ff176e72a35d975ea0759b1bed69e30ad5cf47580b2e5d00449e8623b5a37dc"
 dependencies = [
  "ahash 0.8.2",
  "bitflags",
@@ -2331,9 +2379,9 @@ dependencies = [
 
 [[package]]
 name = "rhai_codegen"
-version = "1.4.2"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36791b0b801159db25130fd46ac726d2751c070260bba3a4a0a3eeb6231bb82a"
+checksum = "db74e3fdd29d969a0ec1f8e79171a6f0f71d0429293656901db382d248c4c021"
 dependencies = [
  "proc-macro2",
  "quote",

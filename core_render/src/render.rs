@@ -72,6 +72,8 @@ impl GameRender<'_> {
 
         let mut engine = Engine::new();
 
+        engine.set_max_expr_depths(30, 30);
+
         engine.register_type_with_name::<ScriptTilemaps>("Tilemaps")
             .register_fn("get", ScriptTilemaps::get);
 
@@ -218,6 +220,7 @@ impl GameRender<'_> {
 
                     let result = self.engine.eval_ast_with_scope::<Dynamic>(&mut self.scope, &ast);
                     if result.is_err() {
+
                         if let Some(err) = result.err() {
                             let mut string = err.to_string();
                             let mut parts = string.split("(");
@@ -228,6 +231,7 @@ impl GameRender<'_> {
                         }
                     }
 
+                    #[allow(deprecated)]
                     let _result = self.engine.call_fn_raw(
                                     &mut self.scope,
                                     &ast,
@@ -418,6 +422,7 @@ impl GameRender<'_> {
 
         // Call the draw function
         if let Some(ast) = &self.ast {
+            #[allow(deprecated)]
             let result = self.engine.call_fn_raw(
                             &mut self.scope,
                             &ast,
@@ -468,6 +473,7 @@ impl GameRender<'_> {
             let stride = self.width;
 
             match cmd {
+
                 ScriptDrawCmd::DrawRect(rect, rgb) => {
                     if rect.is_safe(self.width, self.height) {
                         self.draw2d.draw_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
@@ -1118,6 +1124,7 @@ impl GameRender<'_> {
 
         // Call the key_down function
         if let Some(ast) = &self.ast {
+            #[allow(deprecated)]
             let result = self.engine.call_fn_raw(
                             &mut self.scope,
                             &ast,
@@ -1163,6 +1170,7 @@ impl GameRender<'_> {
         // Call the touch_down function
 
         if let Some(ast) = &self.ast {
+            #[allow(deprecated)]
             let result = self.engine.call_fn_raw(
                             &mut self.scope,
                             &ast,

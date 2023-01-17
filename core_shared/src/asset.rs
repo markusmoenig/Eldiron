@@ -34,8 +34,8 @@ impl Asset  {
     }
 
     /// Load editor font
-    pub fn load_editor_font<'a>(&mut self, name: String, resource_name: String) {
-        let path = get_resource_dir().join("resources").join(resource_name);
+    pub fn load_editor_font<'a>(&mut self, resoure_path: PathBuf, name: String, resource_name: String) {
+        let path = resoure_path.join("resources").join(resource_name);
 
         if let Some(font_bytes) = std::fs::read(path).ok() {
             if let Some(font) = Font::from_bytes(font_bytes, fontdue::FontSettings::default()).ok() {
