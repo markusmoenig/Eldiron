@@ -15,6 +15,8 @@ use winit::event::KeyboardInput;
 use std::time::Duration;
 use std::ffi::CString;
 
+use directories::{ UserDirs };
+
 fn main() -> Result<(), Error> {
 
     let mut width     : usize = 1248;
@@ -61,8 +63,28 @@ fn main() -> Result<(), Error> {
 
     // Init the editor
 
-    let empty_path = CString::new("").unwrap();
-    creator_lib::rust_init(empty_path.as_ptr() as *const i8);
+    let resource_path = CString::new("").unwrap();
+    let mut project_path = CString::new("").unwrap();
+
+    if let Some(user_dirs) = UserDirs::new() {
+        if let Some(dir) = user_dirs.document_dir() {
+
+            let eldiron_path = dir.join("Eldiron");
+            project_path = CString::new(eldiron_path.to_str().unwrap()).unwrap();
+
+            // Check or create "Eldiron" directory
+            if fs::metadata(eldiron_path.clone()).is_ok() == false {
+                // have to create dir
+                let rc = fs::create_dir(eldiron_path.clone());
+
+                if rc.is_err() {
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    creator_lib::rust_init(resource_path.as_ptr() as *const i8, project_path.as_ptr() as *const i8);
 
     // Draw first frame
     let frame = pixels.get_frame_mut();

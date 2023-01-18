@@ -164,6 +164,9 @@ pub struct ScreenContext<'a> {
 
     // Resouce path
     pub resource_path                   : PathBuf,
+    pub project_path                    : PathBuf,
+
+    pub project_to_load                 : Option<std::path::PathBuf>
 }
 
 impl ScreenContext<'_> {
@@ -376,10 +379,13 @@ impl ScreenContext<'_> {
             audio_engine                : None,
 
             resource_path               : PathBuf::new(),
+            project_path                : PathBuf::new(),
+
+            project_to_load             : None,
         }
     }
 
-    pub fn init(&mut self, resource_path: PathBuf) {
+    pub fn init(&mut self, resource_path: PathBuf, project_path: PathBuf) {
 
         //println!("Loading resources from {:?}", resource_path);
 
@@ -427,6 +433,7 @@ impl ScreenContext<'_> {
         self.icons = icons;
         self.scripts = scripts;
         self.resource_path = resource_path;
+        self.project_path = project_path;
 
     }
 
@@ -499,41 +506,24 @@ impl ScreenContext<'_> {
         Err("Could not find Documents directory".to_string())
     }
 
-    /// Returns a list of the current projects
-    pub fn get_project_list(&self) -> Vec<String> {
+    /// Copy the demo project to the given destination path
+    pub fn copy_demo(&mut self, project_path: PathBuf) -> Result<std::path::PathBuf, String> {
 
-        let mut projects: Vec<String> = vec![];
-
-        if let Some(user_dirs) = UserDirs::new() {
-            if let Some(dir) = user_dirs.document_dir() {
-
-                let eldiron_path = dir.join("Eldiron");
-
-                // Check or create "Eldiron" directory
-                if fs::metadata(eldiron_path.clone()).is_ok() == true {
-                    if let Some(paths) = fs::read_dir(eldiron_path).ok() {
-                        for path in paths {
-                            let path = &path.unwrap().path();
-                            if path.is_dir() {
-                                let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
-                                projects.push(file_name);
-                            }
-                        }
-                    }
-                }
-            }
+        // Copy asset directory
+        let asset_path = self.resource_path.join("assets");
+        let rc = fs_extra::dir::copy(asset_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
+        if rc.is_err() {
+            return Err("Could not copy 'assets' directory".to_string());
         }
-        projects
-    }
 
-    /// Returns the path for the given project name
-    pub fn get_project_path(&self, name: String) -> Option<std::path::PathBuf> {
-        if let Some(user_dirs) = UserDirs::new() {
-            if let Some(dir) = user_dirs.document_dir() {
-                return Some(dir.join("Eldiron").join(name));
-            }
+        // Copy game directory
+        let game_path = get_resource_dir().join("game");
+        let rc = fs_extra::dir::copy(game_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
+        if rc.is_err() {
+            return Err("Could not copy 'game' directory".to_string());
         }
-        None
+
+        Ok(project_path)
     }
 
     /// Resets the hover help metadata

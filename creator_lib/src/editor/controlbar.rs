@@ -4,7 +4,11 @@ use crate::prelude::*;
 enum ControlWidgets {
     _Undo,
     _Redo,
-    _ProjectSwitch,
+    Demo,
+    Game1,
+    Game2,
+    Game3,
+    Game4,
     _Help,
     Play,
     Debug,
@@ -36,13 +40,41 @@ impl Widget for ControlBar {
         redo_button.set_rect((rect.0 + 100, rect.1, 80, rect.3), asset, context);
         widgets.push(redo_button);
 
+        let mut demo_button = AtomWidget::new(vec!["Demo".to_string()], AtomWidgetType::ToolBarCheckButton,
+            AtomData::new("Demo", Value::Empty()));
+        demo_button.no_border = true;
+        demo_button.checked = true;
+        demo_button.status_help_text = Some("Switch to the Demo project.".to_string());
+        demo_button.set_rect((rect.0 + 200, rect.1, 80, rect.3), asset, context);
+        widgets.push(demo_button);
 
-        let mut projects_button = AtomWidget::new(context.get_project_list(), AtomWidgetType::ToolBarSliderButton,
-            AtomData::new("Projects", Value::Empty()));
-        projects_button.no_border = true;
-        projects_button.state = WidgetState::Disabled;
-        projects_button.set_rect((rect.0 + 220, rect.1, 300, rect.3), asset, context);
-        widgets.push(projects_button);
+        let mut game1_button = AtomWidget::new(vec!["G1".to_string()], AtomWidgetType::ToolBarCheckButton,
+            AtomData::new("Game1", Value::Empty()));
+        game1_button.status_help_text = Some("Switch to Game 1.".to_string());
+        game1_button.no_border = true;
+        game1_button.set_rect((rect.0 + 290, rect.1, 60, rect.3), asset, context);
+        widgets.push(game1_button);
+
+        let mut game2_button = AtomWidget::new(vec!["G2".to_string()], AtomWidgetType::ToolBarCheckButton,
+            AtomData::new("Game2", Value::Empty()));
+        game2_button.no_border = true;
+        game2_button.status_help_text = Some("Switch to Game 2.".to_string());
+        game2_button.set_rect((rect.0 + 360, rect.1, 60, rect.3), asset, context);
+        widgets.push(game2_button);
+
+        let mut game3_button = AtomWidget::new(vec!["G3".to_string()], AtomWidgetType::ToolBarCheckButton,
+            AtomData::new("Game3", Value::Empty()));
+        game3_button.no_border = true;
+        game3_button.status_help_text = Some("Switch to Game 3.".to_string());
+        game3_button.set_rect((rect.0 + 430, rect.1, 60, rect.3), asset, context);
+        widgets.push(game3_button);
+
+        let mut game4_button = AtomWidget::new(vec!["G4".to_string()], AtomWidgetType::ToolBarCheckButton,
+            AtomData::new("Game4", Value::Empty()));
+        game4_button.no_border = true;
+        game4_button.status_help_text = Some("Switch to Game 4.".to_string());
+        game4_button.set_rect((rect.0 + 500, rect.1, 60, rect.3), asset, context);
+        widgets.push(game4_button);
 
         let mut help_button = AtomWidget::new(vec!["Help".to_string()], AtomWidgetType::ToolBarButton,
             AtomData::new("Help", Value::Empty()));
@@ -91,6 +123,46 @@ impl Widget for ControlBar {
         for atom_widget in &mut self.widgets {
             if atom_widget.mouse_down(pos, asset, context) {
 
+                if atom_widget.atom_data.id == "Demo" {
+                    for i in ControlWidgets::Demo as usize..=ControlWidgets::Game4 as usize {
+                        self.widgets[i].checked = false;
+                        self.widgets[i].dirty = true;
+                    }
+                    self.widgets[ControlWidgets::Demo as usize].checked = true;
+                    context.project_to_load = Some(context.project_path.join("Demo"));
+                } else
+                if atom_widget.atom_data.id == "Game1" {
+                    for i in ControlWidgets::Demo as usize..=ControlWidgets::Game4 as usize {
+                        self.widgets[i].checked = false;
+                        self.widgets[i].dirty = true;
+                    }
+                    self.widgets[ControlWidgets::Game1 as usize].checked = true;
+                    context.project_to_load = Some(context.project_path.join("Game1"));
+                } else
+                if atom_widget.atom_data.id == "Game2" {
+                    for i in ControlWidgets::Demo as usize..=ControlWidgets::Game4 as usize {
+                        self.widgets[i].checked = false;
+                        self.widgets[i].dirty = true;
+                    }
+                    self.widgets[ControlWidgets::Game2 as usize].checked = true;
+                    context.project_to_load = Some(context.project_path.join("Game2"));
+                } else
+                if atom_widget.atom_data.id == "Game3" {
+                    for i in ControlWidgets::Demo as usize..=ControlWidgets::Game4 as usize {
+                        self.widgets[i].checked = false;
+                        self.widgets[i].dirty = true;
+                    }
+                    self.widgets[ControlWidgets::Game3 as usize].checked = true;
+                    context.project_to_load = Some(context.project_path.join("Game3"));
+                } else
+                if atom_widget.atom_data.id == "Game4" {
+                    for i in ControlWidgets::Demo as usize..=ControlWidgets::Game4 as usize {
+                        self.widgets[i].checked = false;
+                        self.widgets[i].dirty = true;
+                    }
+                    self.widgets[ControlWidgets::Game4 as usize].checked = true;
+                    context.project_to_load = Some(context.project_path.join("Game4"));
+                } else
                 if atom_widget.atom_data.id == "Help" {
                     self.show_help = true;
                 } else

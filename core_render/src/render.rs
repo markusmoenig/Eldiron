@@ -72,8 +72,6 @@ impl GameRender<'_> {
 
         let mut engine = Engine::new();
 
-        engine.set_max_expr_depths(30, 30);
-
         engine.register_type_with_name::<ScriptTilemaps>("Tilemaps")
             .register_fn("get", ScriptTilemaps::get);
 

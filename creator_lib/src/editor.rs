@@ -72,8 +72,6 @@ pub struct Editor<'a> {
 
     game_render                     : Option<GameRender<'a>>,
     game_rect                       : (usize, usize, usize, usize),
-
-    project_to_load                 : Option<std::path::PathBuf>
 }
 
 impl Editor<'_> {
@@ -94,7 +92,7 @@ impl Editor<'_> {
         let dialog_position = DialogPositionWidget::new(&asset, &context);
 
         let log = LogWidget::new(&context);
-        let mut status_bar = StatusBar::new();
+        let status_bar = StatusBar::new();
 
         let code_editor =  CodeEditorWidget::new(vec!(), (0, context.toolbar_height, width, height - context.toolbar_height), &asset, &context);
 
@@ -125,41 +123,52 @@ impl Editor<'_> {
 
             game_render             : None,
             game_rect               : (0, 0, 0, 0),
-
-            project_to_load         : None,
         }
     }
 
     ///
-    pub fn init(&mut self, resource_path: String) {
+    pub fn init(&mut self, resource_path: String, project_path: String) {
 
         let path = PathBuf::from(resource_path);
+        let project_path = PathBuf::from(project_path);
 
-        self.context.init(path.clone());
+        self.context.init(path.clone(), project_path.clone());
 
-        self.asset.load_editor_font(path.clone(), "OpenSans".to_string(), "Open_Sans/static/OpenSans/OpenSans-Regular.ttf".to_string());
-        self.asset.load_editor_font(path.clone(), "OpenSans_Light".to_string(), "Open_Sans/static/OpenSans/OpenSans-Light.ttf".to_string());
-        self.asset.load_editor_font(path.clone(), "SourceCodePro".to_string(), "Source_Code_Pro/static/SourceCodePro-Regular.ttf".to_string());
+        // Create projects if necessary
 
-        // Set current project
-        /*
-        let mut project_to_load: Option<std::path::PathBuf> = None;
-        let project_list = context.get_project_list();
+        let demo_path = project_path.join("Demo");
+        if fs::metadata(demo_path.clone()).is_ok() == false {
+            let _rc = fs::create_dir(demo_path.clone());
+        }
+        _ = self.context.copy_demo(demo_path.clone());
 
-        if project_list.is_empty() {
-            // Show Dialog to create a new project
-            context.dialog_state = DialogState::Opening;
-            context.dialog_height = 0;
-            context.target_fps = 60;
-            context.dialog_entry = DialogEntry::NewProjectName;
-            context.dialog_value = Value::String("New Game".to_string());
-        } else {
-            project_to_load = context.get_project_path(project_list[0].clone());
+        let game1_path = project_path.join("Game1");
+        if fs::metadata(game1_path.clone()).is_ok() == false {
+            let _rc = fs::create_dir(game1_path.clone());
+            _ = self.context.copy_demo(game1_path);
+        }
 
-            status_bar.add_message(format!("Loaded Documents >> Eldiron >> {}", project_list[0]));
-        }*/
+        let game2_path = project_path.join("Game2");
+        if fs::metadata(game2_path.clone()).is_ok() == false {
+            let _rc = fs::create_dir(game2_path.clone());
+            _ = self.context.copy_demo(game2_path);
+        }
 
-        self.project_to_load = Some(path); // Load the local project for development
+        let game3_path = project_path.join("Game3");
+        if fs::metadata(game3_path.clone()).is_ok() == false {
+            let _rc = fs::create_dir(game3_path.clone());
+            _ = self.context.copy_demo(game3_path);
+        }
+
+        let game4_path = project_path.join("Game4");
+        if fs::metadata(game4_path.clone()).is_ok() == false {
+            let _rc = fs::create_dir(game4_path.clone());
+            _ = self.context.copy_demo(game4_path);
+        }
+
+        // --- Load Demo
+
+        self.load_project(demo_path);
 
     }
 
@@ -562,9 +571,9 @@ impl Editor<'_> {
         }
 
         // Do we need to load a new project ?
-        if self.project_to_load.is_some() {
-            self.load_project(self.project_to_load.clone().unwrap());
-            self.project_to_load = None;
+        if self.context.project_to_load.is_some() {
+            self.load_project(self.context.project_to_load.clone().unwrap());
+            self.context.project_to_load = None;
         }
 
         // Do we need to switch to another state ?
@@ -740,45 +749,6 @@ impl Editor<'_> {
                         self.context.code_editor_error = Some((sink.error.clone().unwrap().1, Some(sink.error.unwrap().0)));
                     }
                 }
-                /* TODO
-                // Region settings ?
-                if self.state == EditorState::RegionDetail && self.context.code_editor_node_behavior_id.0 == 130000 {
-
-                    let mut sink = PropertySink::new();
-                    if sink.load_from_string(self.context.code_editor_value.clone()) {
-                        self.context.code_editor_error = None;
-                        let id = self.content[self.state as usize].1.as_mut().unwrap().get_region_id();
-                        /* TODO
-                        if let Some(region) = self.context.data.regions.get_mut(&id) {
-                            region.data.settings = sink;
-                            region.save_data();
-                        }*/
-                    } else {
-                        self.context.code_editor_error = Some((sink.error.clone().unwrap().1, Some(sink.error.unwrap().0)));
-                    }
-                } else
-                if self.state == EditorState::GameDetail && self.context.code_editor_node_behavior_id.0 == 120000 {
-                    let mut sink = PropertySink::new();
-                    if sink.load_from_string(self.context.code_editor_value.clone()) {
-                        self.context.code_editor_error = None;
-                        self.context.data.game.behavior.data.settings = Some(sink);
-                        self.context.data.game.save_data();
-                    } else {
-                        self.context.code_editor_error = Some((sink.error.clone().unwrap().1, Some(sink.error.unwrap().0)));
-                    }
-                }
-
-
-                self.context.code_editor_node_behavior_value.4 = self.context.code_editor_value.clone();
-                self.context.dialog_node_behavior_value = self.context.code_editor_node_behavior_value.clone();
-                self.context.dialog_node_behavior_id = self.context.code_editor_node_behavior_id.clone();
-                if self.state == EditorState::ScreenDetail {
-                    self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
-                } else {
-                    self.content[self.state as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
-                }*/
-                //self.context.data.set_behavior_id_value(self.context.code_editor_node_behavior_id.clone(), self.context.code_editor_node_behavior_value.clone(), self.context.curr_graph_type);
-
                 self.context.code_editor_update_node = false;
             }
 
@@ -807,21 +777,6 @@ impl Editor<'_> {
             self.dialog.draw(frame, anim_counter, &mut self.asset, &mut self.context);
         } else
         if self.context.dialog_entry != DialogEntry::None {
-
-            // New Project Name
-            if self.context.dialog_entry == DialogEntry::NewProjectName {
-                match self.context.create_project(self.context.dialog_new_name.clone()) {
-                    Ok(path) => {
-                        self.context.curr_project_path = path;
-                        self.state = EditorState::TilesOverview;
-                        self.controlbar.widgets[2].text = self.context.get_project_list();
-                        self.controlbar.widgets[2].dirty = true;
-                        self.project_to_load = self.context.get_project_path(self.context.dialog_new_name.clone());
-                        self.status_bar.add_message(format!("Created Documents >> Eldiron >> {}", self.context.dialog_new_name.clone()));
-                    },
-                    Err(err) => print!("Error: {}", err)
-                }
-            } else
             if self.state == EditorState::TilesOverview && self.context.dialog_entry == DialogEntry::NodeGridSize && self.context.dialog_accepted == true {
                 // Grid size for tilemaps
                 if let Some(value) = self.context.dialog_value.to_string_value().parse::<usize>().ok() {
@@ -1004,219 +959,6 @@ impl Editor<'_> {
                     self.content.insert(index, (options, content));
                 }
             }
-            /*
-            if self.context.dialog_entry == DialogEntry::NewProjectName {
-                match self.context.create_project(self.context.dialog_new_name.clone()) {
-                    Ok(path) => {
-                        self.context.curr_project_path = path;
-                        self.state = EditorState::TilesOverview;
-                        self.controlbar.widgets[2].text = self.context.get_project_list();
-                        self.controlbar.widgets[2].dirty = true;
-                        self.project_to_load = self.context.get_project_path(self.context.dialog_new_name.clone());
-                        self.status_bar.add_message(format!("Created Documents >> Eldiron >> {}", self.context.dialog_new_name.clone()));
-                    },
-                    Err(err) => print!("Error: {}", err)
-                }
-            } else
-            if self.state == EditorState::TilesOverview && self.context.dialog_entry == DialogEntry::NodeGridSize && self.context.dialog_accepted == true {
-                if let Some(value) = self.context.dialog_node_behavior_value.4.parse::<usize>().ok() {
-                    let index = self.context.dialog_node_behavior_value.0 as usize;
-                    if let Some(tilemap) = asset.tileset.maps.get_mut(&asset.tileset.maps_ids[index]) {
-                        tilemap.settings.grid_size = value;
-                        tilemap.save_settings();
-
-                        // Update the node and its widget with the new value
-                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[index].widgets[0].atom_data.data.4 = self.context.dialog_node_behavior_value.4.clone();
-                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[index].widgets[0].dirty = true;
-                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[index].dirty = true;
-                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().set_dirty();
-                    }
-                }
-            } else
-            if self.state == EditorState::RegionOverview {
-                if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
-                    //println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
-
-                    if self.context.data.create_region(self.context.dialog_new_name.clone()) {
-                        let mut node = NodeWidget::new(self.context.dialog_new_name.clone(),
-                        NodeUserData { position: (100, 50 + 150 * self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().len() as isize) });
-
-                        let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
-                        node.menu = Some(node_menu_atom);
-
-                        self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
-                        self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().set_dirty();
-                        self.toolbar.widgets[0].text = self.context.data.regions_names.clone();
-                        self.toolbar.widgets[0].dirty = true;
-                    }
-                } else {
-                    if self.context.dialog_entry == DialogEntry::NodeName {
-                        if self.context.dialog_accepted == true {
-                            if let Some(region) = self.context.data.regions.get_mut(&self.context.data.regions_ids[self.context.curr_region_index]) {
-                                self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_region_index].name = self.context.dialog_node_behavior_value.4.clone();
-                                self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_region_index].dirty = true;
-                                self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().set_dirty();
-                                region.rename(self.context.dialog_node_behavior_value.4.clone());
-                                self.context.data.regions_names[self.context.curr_region_index] = self.context.dialog_node_behavior_value.4.clone();
-                                self.toolbar.widgets[0].text = self.context.data.regions_names.clone();
-                                self.toolbar.widgets[0].dirty = true;
-                            }
-                        }
-                    } else {
-                        self.content[EditorState::RegionOverview as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
-                    }
-                }
-            } else
-            if self.state == EditorState::RegionDetail && self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
-                let index = EditorState::RegionDetail as usize;
-                let mut options : Option<Box<dyn EditorOptions>> = None;
-                let mut content : Option<Box<dyn EditorContent>> = None;
-
-                if let Some(element) = self.content.drain(index..index+1).next() {
-                    options = element.0;
-                    content = element.1;
-
-                    if let Some(mut el_content) = content {
-                        el_content.set_area_name(self.context.dialog_new_name.clone(), &mut self.context);
-                        content = Some(el_content);
-                    }
-                }
-                self.content.insert(index, (options, content));
-            } else
-            if self.state == EditorState::ScreenDetail && self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
-                let index = EditorState::ScreenDetail as usize;
-                let mut options : Option<Box<dyn EditorOptions>> = None;
-                let mut content : Option<Box<dyn EditorContent>> = None;
-
-                if let Some(element) = self.content.drain(index..index+1).next() {
-                    options = element.0;
-                    content = element.1;
-
-                    if let Some(mut el_option) = options {
-                        el_option.set_widget_name(self.context.dialog_new_name.clone(), &mut self.context, &mut content);
-                        options = Some(el_option);
-                    }
-                }
-                self.content.insert(index, (options, content));
-            } else
-            if self.state == EditorState::TilesDetail && self.context.dialog_entry == DialogEntry::Tags && self.context.dialog_accepted == true {
-                let index = EditorState::TilesDetail as usize;
-                let mut options : Option<Box<dyn EditorOptions>> = None;
-                let mut content : Option<Box<dyn EditorContent>> = None;
-
-                if let Some(element) = self.content.drain(index..index+1).next() {
-                    options = element.0;
-                    content = element.1;
-
-                    if let Some(mut el_option) = options {
-                        el_option.set_tags(self.context.dialog_new_name.clone(), asset, &self.context);
-                        options = Some(el_option);
-                    }
-                }
-                self.content.insert(index, (options, content));
-            } else
-            if self.state == EditorState::RegionDetail && self.context.dialog_entry == DialogEntry::Tags && self.context.dialog_accepted == true {
-                let index = EditorState::RegionDetail as usize;
-                let mut options : Option<Box<dyn EditorOptions>> = None;
-                let mut content : Option<Box<dyn EditorContent>> = None;
-
-                if let Some(element) = self.content.drain(index..index+1).next() {
-                    options = element.0;
-                    content = element.1;
-
-                    if let Some(mut el_option) = options {
-                        el_option.set_tags(self.context.dialog_new_name.clone(), asset, &self.context);//, &mut content);
-                        options = Some(el_option);
-                    }
-                }
-                self.content.insert(index, (options, content));
-            } else
-            if self.state == EditorState::RegionDetail {
-                self.content[EditorState::RegionDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
-            } else
-            if self.state == EditorState::BehaviorDetail {
-                if self.context.dialog_entry == DialogEntry::NodeTile {
-                    //TODO self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().set_node_atom_data(self.context.dialog_node_behavior_id.clone(), self.context.dialog_node_behavior_value.clone(), &mut self.context);
-                } else {
-                    self.content[EditorState::BehaviorDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
-                }
-            } else
-            if self.state == EditorState::SystemsDetail {
-                if self.context.dialog_entry == DialogEntry::NodeTile {
-                    // TODO self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().set_node_atom_data(self.context.dialog_node_behavior_id.clone(), self.context.dialog_node_behavior_value.clone(), &mut self.context);
-                } else {
-                    self.content[EditorState::SystemsDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
-                }
-            } else
-            if self.state == EditorState::BehaviorOverview {
-                if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
-                    //println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
-                    self.context.data.create_behavior(self.context.dialog_new_name.clone(), 0);
-
-                    let mut node = NodeWidget::new(self.context.dialog_new_name.clone(),
-                    NodeUserData { position: (100, 50 + 150 * self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().len() as isize) });
-
-                    let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
-                    node.menu = Some(node_menu_atom);
-
-                    self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
-                    self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().set_dirty();
-                    self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
-                    self.toolbar.widgets[0].dirty = true;
-                } else {
-                    if self.context.dialog_entry == DialogEntry::NodeName {
-                        if self.context.dialog_accepted == true {
-                            if let Some(behavior) = self.context.data.behaviors.get_mut(&self.context.data.behaviors_ids[self.context.curr_behavior_index]) {
-                                self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_behavior_index].name = self.context.dialog_node_behavior_value.4.clone();
-                                self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_behavior_index].dirty = true;
-                                self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().set_dirty();
-                                behavior.rename(self.context.dialog_node_behavior_value.4.clone());
-                                self.context.data.behaviors_names[self.context.curr_behavior_index] = self.context.dialog_node_behavior_value.4.clone();
-                                self.toolbar.widgets[0].text = self.context.data.behaviors_names.clone();
-                                self.toolbar.widgets[0].dirty = true;
-                            }
-                        }
-                    } else {
-                        self.content[EditorState::BehaviorOverview as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
-                    }
-                }
-            } else
-            if self.state == EditorState::SystemsOverview {
-                if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
-                    //println!("dialog ended {} {}", self.context.dialog_new_name, self.context.dialog_new_name_type);
-                    self.context.data.create_system(self.context.dialog_new_name.clone(), 0);
-
-                    let mut node = NodeWidget::new(self.context.dialog_new_name.clone(),
-                    NodeUserData { position: (100, 50 + 150 * self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().len() as isize) });
-
-                    let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new_as_int("menu".to_string(), 0));
-                    node.menu = Some(node_menu_atom);
-
-                    self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
-                    self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().set_dirty();
-                    self.toolbar.widgets[0].text = self.context.data.systems_names.clone();
-                    self.toolbar.widgets[0].dirty = true;
-                } else {
-                    if self.context.dialog_entry == DialogEntry::NodeName {
-                        if self.context.dialog_accepted == true {
-                            if let Some(system) = self.context.data.systems.get_mut(&self.context.data.systems_ids[self.context.curr_systems_index]) {
-                                self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_systems_index].name = self.context.dialog_node_behavior_value.4.clone();
-                                self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_systems_index].dirty = true;
-                                self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().set_dirty();
-                                system.rename(self.context.dialog_node_behavior_value.4.clone());
-                                self.context.data.systems_names[self.context.curr_systems_index] = self.context.dialog_node_behavior_value.4.clone();
-                                self.toolbar.widgets[0].text = self.context.data.systems_names.clone();
-                                self.toolbar.widgets[0].dirty = true;
-                            }
-                        }
-                    }
-                    self.content[EditorState::SystemsOverview as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
-                }
-            } else
-            if self.state == EditorState::GameDetail {
-                self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().update_from_dialog(&mut self.context);
-            }
-            */
             self.context.dialog_entry = DialogEntry::None;
         }
 
@@ -1965,6 +1707,9 @@ impl Editor<'_> {
 
         if consumed == false && self.toolbar.mouse_hover(pos, &mut self.asset, &mut self.context) {
             consumed = true;
+        } else
+        if consumed == false && self.controlbar.mouse_hover(pos, &mut self.asset, &mut self.context) {
+            consumed = true;
         } else {
 
             self.mouse_hover_pos = pos.clone();
@@ -2099,6 +1844,18 @@ impl Editor<'_> {
 
     /// Loads the project from the given path
     fn load_project(&mut self, path: std::path::PathBuf) {
+
+        println!("Loading project from path: {:?}", path);
+        self.context.curr_project_path = path.clone();
+
+        // ---
+
+        self.asset = Asset::new();
+
+        self.asset.load_editor_font(self.context.resource_path.clone(), "OpenSans".to_string(), "Open_Sans/static/OpenSans/OpenSans-Regular.ttf".to_string());
+        self.asset.load_editor_font(self.context.resource_path.clone(), "OpenSans_Light".to_string(), "Open_Sans/static/OpenSans/OpenSans-Light.ttf".to_string());
+        self.asset.load_editor_font(self.context.resource_path.clone(), "SourceCodePro".to_string(), "Source_Code_Pro/static/SourceCodePro-Regular.ttf".to_string());
+
         self.asset.load_from_path(path.clone());
         self.context.data = core_server::gamedata::GameData::load_from_path(path.clone());
 

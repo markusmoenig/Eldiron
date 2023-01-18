@@ -81,10 +81,13 @@ pub extern "C" fn rust_draw(pixels: *mut u8, width: u32, height: u32, anim_count
 }
 
 #[no_mangle]
-pub extern "C" fn rust_init(p: *const c_char) {
-    let c_str = unsafe { CStr::from_ptr(p) };
-    if let Some(path) = c_str.to_str().ok() {
-        EDITOR.lock().unwrap().init(path.to_string());
+pub extern "C" fn rust_init(r: *const c_char, p: *const c_char) {
+    let r_str = unsafe { CStr::from_ptr(r) };
+    let p_str = unsafe { CStr::from_ptr(p) };
+    if let Some(resource_path) = r_str.to_str().ok() {
+        if let Some(projects_path) = p_str.to_str().ok() {
+            EDITOR.lock().unwrap().init(resource_path.to_string(), projects_path.to_string());
+        }
     }
 }
 
