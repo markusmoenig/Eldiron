@@ -331,7 +331,7 @@ fragment float4 m4mGridDrawable(RasterizerData in [[stage_in]],
     
     float size = data->gridSize / 2;
     float scale = data->scale;
-    float onion = 0.0001;
+//    float onion = 0.0001;
 
     float2 gv = fract(uv / (size * scale));
     

@@ -168,6 +168,14 @@ pub extern "C" fn rust_special_key_down(key: u32) -> bool {
     }
 }
 
+#[no_mangle]
+pub extern "C" fn rust_dropped_file(p: *const c_char) {
+    let path_str = unsafe { CStr::from_ptr(p) };
+    if let Some(path) = path_str.to_str().ok() {
+        EDITOR.lock().unwrap().dropped_file(path.to_string());
+    }
+}
+
 // Get the the current time in ms
 fn _get_time() -> u128 {
     let stop = std::time::SystemTime::now()

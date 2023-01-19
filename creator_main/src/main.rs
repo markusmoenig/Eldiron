@@ -119,6 +119,15 @@ fn main() -> Result<(), Error> {
         match &event {
 
             Event::WindowEvent { event, .. } => match event {
+
+                WindowEvent::DroppedFile(path ) => match path {
+                    _ => {
+                        let path = CString::new(path.to_str().unwrap()).unwrap();
+                        creator_lib::rust_dropped_file(path.as_ptr() as *const i8);
+                        window.request_redraw();
+                    }
+                },
+
                 WindowEvent::ReceivedCharacter(char ) => match char {
                     _ => {
                         let key = CString::new(char.to_string()).unwrap();

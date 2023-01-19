@@ -1395,6 +1395,7 @@ impl Editor<'_> {
         // Node Drag ?
         if let Some(drag_context) = &self.context.drag_context.clone() {
 
+
             if self.state == EditorState::TilesOverview {
                 if drag_context.text == "Tilemaps" {
                     let res = rfd::FileDialog::new()
@@ -1796,6 +1797,103 @@ impl Editor<'_> {
 
         if self.context.code_editor_is_active {
             consumed = self.code_editor.modifier_changed(shift, ctrl, alt, logo, asset, &mut self.context);
+        }
+
+        consumed
+    }
+
+    /// A file has been dropped on the window
+    pub fn dropped_file(&mut self, path: String) -> bool {
+
+        let mut consumed = false;
+        let p = PathBuf::from(path);
+
+        if self.state == EditorState::TilesOverview {
+
+            let sub_type = self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_sub_node_type();
+
+            if sub_type == NodeSubType::Tilemap {
+
+                // Add Tilemap
+
+                let dest_path = self.asset.tileset.path.join("assets").join("tilemaps").join(p.file_name().unwrap()).clone();
+                let rc = fs_extra::file::copy(p.clone(), dest_path, &fs_extra::file::CopyOptions::new());
+
+                if rc.is_ok() {
+                    if self.asset.tileset.add_tilemap(p) {
+
+                        let index = self.asset.tileset.maps_names.len() - 1;
+                        let name = self.asset.tileset.maps_names[index].clone();
+                        let mut node = NodeWidget::new(name.clone(), NodeUserData { position: (0,0) });
+                        node.sub_type = NodeSubType::Tilemap;
+
+                        let mut size_text = "".to_string();
+                        if let Some(tilemap) = self.asset.tileset.maps.get(&self.asset.tileset.maps_ids[index]) {
+                            size_text = format!("{}", tilemap.settings.grid_size);
+                        }
+
+                        let mut size_atom = AtomWidget::new(vec!["Grid Size".to_string()], AtomWidgetType::NodeGridSizeButton,
+                        AtomData::new("grid_size", Value::Empty()));
+                        size_atom.atom_data.text = "Grid Size".to_string();
+                        size_atom.atom_data.value = Value::String(size_text);
+                        size_atom.behavior_id = Some(self.context.create_property_id("grid_size"));
+                        node.widgets.push(size_atom);
+
+                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
+
+                        self.toolbar.widgets[0].text.push(name);
+                        self.toolbar.widgets[0].dirty = true;
+
+                        consumed = true;
+                    }
+                }
+            } else
+            if sub_type == NodeSubType::Audio {
+
+                // Add Audio
+                let dest_path = self.asset.tileset.path.join("assets").join("audio").join(p.file_name().unwrap()).clone();
+                let rc = fs_extra::file::copy(p.clone(), dest_path, &fs_extra::file::CopyOptions::new());
+
+                if rc.is_ok() {
+                    if self.asset.add_audio(p) {
+
+                        let index = self.asset.audio_names.len() - 1;
+                        let name = self.asset.audio_names[index].clone();
+                        let mut node = NodeWidget::new(name.clone(), NodeUserData { position: (0,0) });
+                        node.sub_type = NodeSubType::Audio;
+
+                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
+
+                        self.toolbar.widgets[0].text.push(name);
+                        self.toolbar.widgets[0].dirty = true;
+
+                        consumed = true;
+                    }
+                }
+            } else
+            if sub_type == NodeSubType::Image {
+
+                // Add Image
+                let dest_path = self.asset.tileset.path.join("assets").join("images").join(p.file_name().unwrap()).clone();
+                let rc = fs_extra::file::copy(p.clone(), dest_path, &fs_extra::file::CopyOptions::new());
+
+                if rc.is_ok() {
+                    if self.asset.tileset.add_image(p) {
+
+                        let index = self.asset.tileset.images_names.len() - 1;
+                        let name = self.asset.tileset.images_names[index].clone();
+                        let mut node = NodeWidget::new(name.clone(), NodeUserData { position: (0,0) });
+                        node.sub_type = NodeSubType::Image;
+
+                        self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
+
+                        self.toolbar.widgets[0].text.push(name);
+                        self.toolbar.widgets[0].dirty = true;
+
+                        consumed = true;
+                    }
+                }
+            }
         }
 
         consumed

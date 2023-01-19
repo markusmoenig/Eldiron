@@ -29,7 +29,7 @@
 
 void rust_draw(uint8_t *pixels, uint32_t width, uint32_t height, uintptr_t anim_counter);
 
-void rust_init(const char *p);
+void rust_init(const char *r, const char *p);
 
 uint32_t rust_target_fps(void);
 

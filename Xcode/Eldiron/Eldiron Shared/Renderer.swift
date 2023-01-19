@@ -41,8 +41,11 @@ class Renderer: NSObject, MTKViewDelegate {
         self.view = metalKitView
         self.device = metalKitView.device
         
-        let subdir = Bundle.main.resourceURL!.path
-        rust_init(subdir)
+        let resourceDir = Bundle.main.resourceURL!.path
+        let file = File()
+        
+        print(file.containerUrl)
+        rust_init(resourceDir, file.containerUrl!.path)
         
         #if os(OSX)
         scaleFactor = Float(NSScreen.main!.backingScaleFactor)
