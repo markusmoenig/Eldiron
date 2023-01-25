@@ -87,6 +87,8 @@ impl DialogPositionWidget {
                 self.widgets[2].dirty = true;
                 self.widgets[3].dirty = true;
 
+                self.region_scroll_offset = (0, 0);
+
                 match &context.dialog_value {
                     Value::Area(region_id, area_id) => {
                         self.curr_area_id = *area_id;
@@ -108,7 +110,24 @@ impl DialogPositionWidget {
                     _ => {}
                 }
 
-                self.region_scroll_offset = (0, 0);
+                if context.data.regions_ids.is_empty() == false {
+                    let region_id = context.data.regions_ids[self.widgets[0].curr_index];
+                    if let Some(region) = context.data.regions.get(&region_id) {
+                        self.region_scroll_offset = match &context.dialog_value {
+                            // Value::Area(region_id, area_id) => {
+                            // },
+                            Value::Position(position) => {
+                                let x = position.x as isize - ((self.rect.2 as isize / 32) / 2);
+                                let y = position.y as isize - ((self.rect.3 as isize / 32) / 2);
+                                ( - x / 2, - y / 2)
+                            },
+                            _ => {
+                                (-region.data.min_pos.0 / 2,  -region.data.min_pos.1 / 2)
+                            }
+                        }
+                    }
+                }
+
                 self.new_value = false;
             }
             self.dirty = true;
@@ -359,6 +378,11 @@ impl DialogPositionWidget {
 
                     context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_value.clone(), context.curr_graph_type);
 
+                    let region_id = context.data.regions_ids[self.widgets[0].curr_index];
+                    if let Some(region) = context.data.regions.get(&region_id) {
+                        region.save_data();
+                    }
+
                     self.new_value = true;
                 } else
                 if self.clicked_id == "Accept" {
@@ -367,6 +391,11 @@ impl DialogPositionWidget {
                     context.dialog_accepted = true;
 
                     context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_value.clone(), context.curr_graph_type);
+
+                    let region_id = context.data.regions_ids[self.widgets[0].curr_index];
+                    if let Some(region) = context.data.regions.get(&region_id) {
+                        region.save_data();
+                    }
 
                     self.new_value = true;
                 }
@@ -403,8 +432,8 @@ impl DialogPositionWidget {
     }
 
     pub fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
-        self.region_scroll_offset.0 -= delta.0 / 8 as isize;
-        self.region_scroll_offset.1 += delta.1 / 8 as isize;
+        self.region_scroll_offset.0 += delta.0 / 12 as isize;
+        self.region_scroll_offset.1 += delta.1 / 12 as isize;
         self.dirty = true;
         true
     }

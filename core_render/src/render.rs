@@ -676,21 +676,23 @@ impl GameRender<'_> {
                 },
                 ScriptDrawCmd::DrawGame2D(rect) => {
                     if rect.is_safe(self.width, self.height) {
-                    if let Some(update) = update {
-                        self.process_game_draw_2d(rect.rect, anim_counter, update, &mut None, self.width);
-                    } else {
-                        let update = self.last_update.clone();
-                        self.process_game_draw_2d(rect.rect, anim_counter, &update, &mut None, self.width);
-                    }                    }
+                        if let Some(update) = update {
+                            self.process_game_draw_2d(rect.rect, anim_counter, update, &mut None, self.width);
+                        } else {
+                            let update = self.last_update.clone();
+                            self.process_game_draw_2d(rect.rect, anim_counter, &update, &mut None, self.width);
+                        }
+                    }
                 },
                 ScriptDrawCmd::DrawGame3D(rect) => {
                     if rect.is_safe(self.width, self.height) {
-                    if let Some(update) = update {
-                        self.process_game_draw_3d(rect.rect, anim_counter, update, &mut None, self.width);
-                    } else {
-                        let update = self.last_update.clone();
-                        self.process_game_draw_3d(rect.rect, anim_counter, &update, &mut None, self.width);
-                    }                    }
+                        if let Some(update) = update {
+                            self.process_game_draw_3d(rect.rect, anim_counter, update, &mut None, self.width);
+                        } else {
+                            let update = self.last_update.clone();
+                            self.process_game_draw_3d(rect.rect, anim_counter, &update, &mut None, self.width);
+                        }
+                    }
                 },
                 ScriptDrawCmd::DrawRegion(_name, _rect, _size) => {
                 }
