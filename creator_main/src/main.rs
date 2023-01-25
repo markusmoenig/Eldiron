@@ -139,9 +139,9 @@ fn main() -> Result<(), Error> {
 
                 WindowEvent::ModifiersChanged(state) => match state {
                     _ => {
-                        // if editor.modifier_changed(state.shift(), state.ctrl(), state.alt(), state.logo(), &mut asset) {
-                        //     window.request_redraw();
-                        // }
+                        if creator_lib::rust_key_modifier_changed(state.shift(), state.ctrl(), state.alt(), state.logo()) {
+                            window.request_redraw();
+                        }
                     }
                 },
 

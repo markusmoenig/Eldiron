@@ -169,6 +169,11 @@ pub extern "C" fn rust_special_key_down(key: u32) -> bool {
 }
 
 #[no_mangle]
+pub extern "C" fn rust_key_modifier_changed(shift: bool, ctrl: bool, alt: bool, logo: bool) -> bool {
+    EDITOR.lock().unwrap().modifier_changed(shift, ctrl, alt, logo)
+}
+
+#[no_mangle]
 pub extern "C" fn rust_dropped_file(p: *const c_char) {
     let path_str = unsafe { CStr::from_ptr(p) };
     if let Some(path) = path_str.to_str().ok() {

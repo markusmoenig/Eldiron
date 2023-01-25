@@ -1791,12 +1791,12 @@ impl Editor<'_> {
         consumed
     }
 
-    pub fn modifier_changed(&mut self, shift: bool, ctrl: bool, alt: bool, logo: bool, asset: &mut Asset) -> bool {
+    pub fn modifier_changed(&mut self, shift: bool, ctrl: bool, alt: bool, logo: bool) -> bool {
 
         let mut consumed = false;
 
         if self.context.code_editor_is_active {
-            consumed = self.code_editor.modifier_changed(shift, ctrl, alt, logo, asset, &mut self.context);
+            consumed = self.code_editor.modifier_changed(shift, ctrl, alt, logo, &mut self.asset, &mut self.context);
         }
 
         consumed

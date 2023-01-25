@@ -132,6 +132,7 @@ impl GameRender<'_> {
         script_register_inventory_api(&mut engine);
         script_register_gear_api(&mut engine);
         script_register_weapons_api(&mut engine);
+        script_register_experience_api(&mut engine);
 
         let this_map = Map::new();
 
