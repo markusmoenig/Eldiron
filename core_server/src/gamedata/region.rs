@@ -18,7 +18,7 @@ pub struct GameRegion {
 impl GameRegion {
     pub fn new(path: &PathBuf, region_path: &PathBuf) -> Self {
         let name = path::Path::new(&path).file_stem().unwrap().to_str().unwrap();
-
+        println!("{:?}", path);
         // Gets the content of the settings file
         let level1_path = path.join( format!("{}{}", "level1", ".json"));
 
