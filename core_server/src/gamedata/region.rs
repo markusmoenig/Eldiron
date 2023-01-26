@@ -18,7 +18,7 @@ pub struct GameRegion {
 impl GameRegion {
     pub fn new(path: &PathBuf, region_path: &PathBuf) -> Self {
         let name = path::Path::new(&path).file_stem().unwrap().to_str().unwrap();
-        println!("{:?}", path);
+
         // Gets the content of the settings file
         let level1_path = path.join( format!("{}{}", "level1", ".json"));
 
@@ -44,12 +44,12 @@ impl GameRegion {
         // Read the behaviors
         let mut behaviors : Vec<GameBehavior> = vec![];
 
-        let file_name = path.file_stem().unwrap().to_str().unwrap().to_string();
-
         for a in &data.areas {
-            let name = format!("game/regions/{}/area_{}.json", file_name, a.id);
+            let mut area_path = path.clone();
+            let name = format!("area_{}.json", a.id);
             let path = std::path::Path::new(&name).to_path_buf();
-            let behavior = GameBehavior::load_from_path(&path, &path);
+            area_path.push(path.clone());
+            let behavior = GameBehavior::load_from_path(&area_path, &area_path);
             behaviors.push(behavior);
         }
 
