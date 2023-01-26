@@ -455,57 +455,6 @@ impl ScreenContext<'_> {
         }
     }
 
-    /// Create a new project
-    pub fn create_project(&mut self, name: String) -> Result<std::path::PathBuf, String> {
-
-        if let Some(user_dirs) = UserDirs::new() {
-            if let Some(dir) = user_dirs.document_dir() {
-
-                let eldiron_path = dir.join("Eldiron");
-
-                // Check or create "Eldiron" directory
-                if fs::metadata(eldiron_path.clone()).is_ok() == false {
-                    // have to create dir
-                    let rc = fs::create_dir(eldiron_path.clone());
-
-                    if rc.is_err() {
-                        return Err("Could not create Eldiron directory.".to_string());
-                    }
-                }
-
-                // Create project directory
-                let project_path = eldiron_path.join(name);
-                // Check or create "Eldiron" directory
-                if fs::metadata(project_path.clone()).is_ok() == false {
-                    // have to create dir
-                    let rc = fs::create_dir(project_path.clone());
-
-                    if rc.is_err() {
-                        return Err("Could not create project directory.".to_string());
-                    }
-                }
-
-                // Copy asset directory
-                let asset_path = get_resource_dir().join("assets");
-                let rc = fs_extra::dir::copy(asset_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
-                if rc.is_err() {
-                    return Err("Could not copy 'assets' directory".to_string());
-                }
-
-                // Copy game directory
-                let game_path = get_resource_dir().join("game");
-                let rc = fs_extra::dir::copy(game_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
-                if rc.is_err() {
-                    return Err("Could not copy 'game' directory".to_string());
-                }
-
-                return Ok(project_path);
-            }
-        }
-
-        Err("Could not find Documents directory".to_string())
-    }
-
     /// Copy the demo project to the given destination path
     pub fn copy_demo(&mut self, project_path: PathBuf) -> Result<std::path::PathBuf, String> {
 
@@ -521,6 +470,69 @@ impl ScreenContext<'_> {
         let rc = fs_extra::dir::copy(game_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
         if rc.is_err() {
             return Err("Could not copy 'game' directory".to_string());
+        }
+
+        Ok(project_path)
+    }
+
+    /// Copy only the assets amnd create everything else new
+    pub fn create_empty_project(&mut self, project_path: PathBuf) -> Result<std::path::PathBuf, String> {
+
+        // Copy asset directory
+        let asset_path = self.resource_path.join("assets");
+        let rc = fs_extra::dir::copy(asset_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
+        if rc.is_err() {
+            return Err("Could not copy 'assets' directory".to_string());
+        }
+
+        // Create game directory
+        let game_path = project_path.join("game");
+        if fs::metadata(game_path.clone()).is_ok() == false {
+            let rc = fs::create_dir(game_path.clone());
+
+            if rc.is_err() {
+                return Err("Could not create game directory.".to_string());
+            }
+        }
+
+        // Create game characters directory
+        let characters_path = game_path.join("characters");
+        if fs::metadata(characters_path.clone()).is_ok() == false {
+            let rc = fs::create_dir(characters_path.clone());
+
+            if rc.is_err() {
+                return Err("Could not create characters directory.".to_string());
+            }
+        }
+
+        // Create game regions directory
+        let regions_path = game_path.join("regions");
+        if fs::metadata(regions_path.clone()).is_ok() == false {
+            let rc = fs::create_dir(regions_path.clone());
+
+            if rc.is_err() {
+                return Err("Could not create regions directory.".to_string());
+            }
+        }
+
+        // Create game systems directory
+        let systems_path = game_path.join("systems");
+        if fs::metadata(systems_path.clone()).is_ok() == false {
+            let rc = fs::create_dir(systems_path.clone());
+
+            if rc.is_err() {
+                return Err("Could not create systems directory.".to_string());
+            }
+        }
+
+        // Create game items directory
+        let items_path = game_path.join("items");
+        if fs::metadata(items_path.clone()).is_ok() == false {
+            let rc = fs::create_dir(items_path.clone());
+
+            if rc.is_err() {
+                return Err("Could not create items directory.".to_string());
+            }
         }
 
         Ok(project_path)

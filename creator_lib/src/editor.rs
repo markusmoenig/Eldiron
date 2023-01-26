@@ -145,25 +145,25 @@ impl Editor<'_> {
         let game1_path = project_path.join("Game1");
         if fs::metadata(game1_path.clone()).is_ok() == false {
             let _rc = fs::create_dir(game1_path.clone());
-            _ = self.context.copy_demo(game1_path);
+            _ = self.context.create_empty_project(game1_path);
         }
 
         let game2_path = project_path.join("Game2");
         if fs::metadata(game2_path.clone()).is_ok() == false {
             let _rc = fs::create_dir(game2_path.clone());
-            _ = self.context.copy_demo(game2_path);
+            _ = self.context.create_empty_project(game2_path);
         }
 
         let game3_path = project_path.join("Game3");
         if fs::metadata(game3_path.clone()).is_ok() == false {
             let _rc = fs::create_dir(game3_path.clone());
-            _ = self.context.copy_demo(game3_path);
+            _ = self.context.create_empty_project(game3_path);
         }
 
         let game4_path = project_path.join("Game4");
         if fs::metadata(game4_path.clone()).is_ok() == false {
             let _rc = fs::create_dir(game4_path.clone());
-            _ = self.context.copy_demo(game4_path);
+            _ = self.context.create_empty_project(game4_path);
         }
 
         // --- Load Demo
@@ -1124,7 +1124,9 @@ impl Editor<'_> {
                         options = element.0;
                         content = element.1;
                         if let Some(mut el_content) = content {
-                            el_content.set_region_id(self.context.data.regions_ids[self.context.curr_region_index], &mut self.context, &mut options);
+                            if self.context.data.regions_ids.len() > 0 {
+                                el_content.set_region_id(self.context.data.regions_ids[self.context.curr_region_index], &mut self.context, &mut options);
+                            }
                             content = Some(el_content);
                         }
                     }
@@ -2143,9 +2145,17 @@ impl Editor<'_> {
         //
 
         self.state = EditorState::TilesOverview;
-        self.toolbar.widgets[0].text = self.asset.tileset.maps_names.clone();
         self.controlbar.widgets[2].state = WidgetState::Normal;
         self.controlbar.widgets[2].dirty = true;
+
+        for i in 1..=6 {
+            self.toolbar.widgets[i].selected = false;
+            self.toolbar.widgets[i].right_selected = false;
+            self.toolbar.widgets[i].dirty = true;
+        }
+
+        self.toolbar.widgets[0].text = self.asset.tileset.maps_names.clone();
+        self.toolbar.widgets[1].selected = true;
     }
 
     /// Switches the asset view to the current asset index
