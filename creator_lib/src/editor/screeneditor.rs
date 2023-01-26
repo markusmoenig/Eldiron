@@ -208,7 +208,7 @@ impl EditorContent for ScreenEditor<'_> {
                 self.mouse_wheel_delta.0 += delta.0;
                 self.mouse_wheel_delta.1 += delta.1;
 
-                self.offset.0 -= self.mouse_wheel_delta.0 / self.grid_size as isize;
+                self.offset.0 += self.mouse_wheel_delta.0 / self.grid_size as isize;
                 self.offset.1 += self.mouse_wheel_delta.1 / self.grid_size as isize;
 
                 self.mouse_wheel_delta.0 -= (self.mouse_wheel_delta.0 / self.grid_size as isize) * self.grid_size as isize;
