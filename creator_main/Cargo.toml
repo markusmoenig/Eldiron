@@ -5,47 +5,14 @@ edition = "2021"
 authors = ["Markus Moenig"]
 description = "A game creator for classic RPGs."
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-core_server = { path = "../core_server", features = ["data_editing"] }
-core_shared = { path = "../core_shared" }
-core_render = { path = "../core_render" }
 creator_lib = { path = "../creator_lib" }
 env_logger = "0.10"
 log = "0.4"
 pixels = "0.11.0"
 winit = "0.27.5"
 winit_input_helper = "0.13"
-png = "0.17.5"
-serde = { version = "1.0.90", features = ["derive"] }
-serde_json = "1.0.90"
-fontdue = "0.7.2"
-vectorize = "0.2.0"
-itertools = "0.10.2"
-zeno = "0.2.1"
-rand = "0.8.5"
-pathfinding = "4.1.1"
-rhai = { version = "1.11.0", default-features = true, features = ["only_i32", "f32_float"] }
-#rhai = { git = "https://github.com/rhaiscript/rhai/" }
-regex = "1.5"
 directories = "4.0"
-fs_extra = "1.2.0"
-open = "3.0.1"
-copypasta = "0.8.1"
-code_editor = "0.3.2"
-# code_editor = { path = "../../code_editor/code_editor" }
-rfd = "0.10.0"
-audio-engine = "0.4.5"
-
-[dependencies.uuid]
-version = "1.1.2"
-features = [
-    "v4",                # Lets you generate random UUIDs
-    "fast-rng",          # Use a faster (but still sufficiently random) RNG
-    "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
-    "serde"
-]
 
 [package.metadata.bundle]
 name = "Eldiron"

@@ -1,7 +1,6 @@
 use crate::prelude::*;
 
 use zeno::{Mask, Stroke};
-use directories::{ UserDirs };
 use std::{fs::File, io::BufReader};
 
 use audio_engine::{AudioEngine, WavDecoder, OggDecoder};
