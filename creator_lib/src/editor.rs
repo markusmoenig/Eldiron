@@ -1956,6 +1956,7 @@ impl Editor<'_> {
 
         self.asset.load_from_path(path.clone());
         self.context.data = core_server::gamedata::GameData::load_from_path(path.clone());
+        self.content = vec!();
 
         let left_width = 180_usize;
         let width = self.rect.2;
