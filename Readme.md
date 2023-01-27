@@ -60,7 +60,9 @@ Linux:
 
 ## License
 
-The source and all assets I commissioned for Eldiron are licensed under the MIT. You can use the source and assets freely.
+The source and all assets I commissioned for Eldiron are licensed under the MIT.
+
+Unless explicitly stated otherwise, any contribution intentionally submitted for inclusion in Eldiron, shall be MIT licensed as above, without any additional terms or conditions.
 
   ## Acknowledgements
 
