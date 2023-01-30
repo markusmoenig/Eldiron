@@ -808,35 +808,50 @@ impl EditorContent for RegionWidget {
                             if let Some(meta) = self.loot_selector.selected.clone() {
 
                                 let amount = 1;//context.data.get_behavior_default_alignment(meta.id);
+                                let mode = self.layouts[3].widgets[0].checked;
 
-                                if let Some(behavior) = context.data.get_mut_behavior(meta.id, BehaviorType::Items) {
+                                if mode {
+                                    // Add
+                                    if let Some(behavior) = context.data.get_mut_behavior(meta.id, BehaviorType::Items) {
 
-                                    if behavior.data.loot.is_none() {
-                                        behavior.data.loot = Some(vec![]);
-                                    }
+                                        if behavior.data.loot.is_none() {
+                                            behavior.data.loot = Some(vec![]);
+                                        }
 
-                                    let mode = self.layouts[3].widgets[0].checked;
 
-                                    if mode {
-                                        // Add
+
                                         let index = behavior.data.loot.as_ref().unwrap().iter().position(|r| r.position == Position::new(self.region_id, id.0, id.1));
 
+                                        println!("111 {:?} {:?}", id, behavior.data.loot);
 
-                                        if index.is_none() {
-                                            let loot = LootInstanceData {
-                                                position    : Position::new(self.region_id, id.0, id.1),
-                                                name        : None,
-                                                tile        : None,
-                                                amount      : amount };
-                                            behavior.data.loot.as_mut().unwrap().push(loot);
+                                            if index.is_none() {
+                                                let loot = LootInstanceData {
+                                                    position    : Position::new(self.region_id, id.0, id.1),
+                                                    name        : None,
+                                                    tile        : None,
+                                                    amount      : amount };
+                                                behavior.data.loot.as_mut().unwrap().push(loot);
+                                                behavior.save_data();
+                                            }
                                         }
-                                    } else {
-                                        // Remove
-                                        if let Some(index) = behavior.data.loot.as_ref().unwrap().iter().position(|r| r.position == Position::new(self.region_id, id.0, id.1)) {
+                                } else {
+                                    // Remove loot from all items at the given position
+                                    for (_id, behavior) in &mut context.data.items {
+
+                                        let mut to_remove = vec![];
+                                        if let Some(loot) = &behavior.data.loot {
+                                            for (index, l) in loot.iter().enumerate() {
+                                                if l.position.region == self.region_id && l.position.x == id.0 && l.position.y == id.1 {
+                                                    to_remove.push(index);
+                                                }
+                                            }
+                                        }
+
+                                        for index in to_remove {
                                             behavior.data.loot.as_mut().unwrap().remove(index);
+                                            behavior.save_data();
                                         }
                                     }
-                                    behavior.save_data();
                                 }
                             }
                         }
