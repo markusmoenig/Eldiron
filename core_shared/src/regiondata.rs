@@ -26,22 +26,25 @@ pub struct GameRegionData {
     pub max_pos         : (isize, isize),
     pub areas           : Vec<RegionArea>,
 
+    pub editor_offset   : Option<(isize, isize)>,
+
     pub settings        : PropertySink,
 }
 
 impl GameRegionData {
     pub fn new() -> Self {
         Self {
-            layer1      : FxHashMap::default(),
-            layer2      : FxHashMap::default(),
-            layer3      : FxHashMap::default(),
-            layer4      : FxHashMap::default(),
-            id          : Uuid::new_v4(),
-            curr_pos    : (0,0),
-            min_pos     : (10000,10000),
-            max_pos     : (-10000, -10000),
-            areas       : vec![],
-            settings    : PropertySink::new(),
+            layer1          : FxHashMap::default(),
+            layer2          : FxHashMap::default(),
+            layer3          : FxHashMap::default(),
+            layer4          : FxHashMap::default(),
+            id              : Uuid::new_v4(),
+            curr_pos        : (0,0),
+            min_pos         : (10000,10000),
+            max_pos         : (-10000, -10000),
+            areas           : vec![],
+            editor_offset   : None,
+            settings        : PropertySink::new(),
         }
     }
 }

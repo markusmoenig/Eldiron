@@ -27,16 +27,17 @@ impl GameRegion {
 
         let mut data = serde_json::from_str(&contents)
                 .unwrap_or(GameRegionData {
-                    layer1      : FxHashMap::default(),
-                    layer2      : FxHashMap::default(),
-                    layer3      : FxHashMap::default(),
-                    layer4      : FxHashMap::default(),
-                    id          : Uuid::new_v4(),
-                    curr_pos    : (0,0),
-                    min_pos     : (10000,10000),
-                    max_pos     : (-10000, -10000),
-                    areas       : vec![],
-                    settings    : PropertySink::new(),
+                    layer1          : FxHashMap::default(),
+                    layer2          : FxHashMap::default(),
+                    layer3          : FxHashMap::default(),
+                    layer4          : FxHashMap::default(),
+                    id              : Uuid::new_v4(),
+                    curr_pos        : (0,0),
+                    min_pos         : (10000,10000),
+                    max_pos         : (-10000, -10000),
+                    areas           : vec![],
+                    editor_offset   : None,
+                    settings        : PropertySink::new(),
                 });
 
         update_region_sink(&mut data.settings);
@@ -69,16 +70,17 @@ impl GameRegion {
     pub fn new_from_embedded(file_name: &str) -> Self {
 
         let mut data = GameRegionData {
-            layer1      : FxHashMap::default(),
-            layer2      : FxHashMap::default(),
-            layer3      : FxHashMap::default(),
-            layer4      : FxHashMap::default(),
-            id          : Uuid::new_v4(),
-            curr_pos    : (0,0),
-            min_pos     : (10000,10000),
-            max_pos     : (-10000, -10000),
-            areas       : vec![],
-            settings    : PropertySink::new(),
+            layer1          : FxHashMap::default(),
+            layer2          : FxHashMap::default(),
+            layer3          : FxHashMap::default(),
+            layer4          : FxHashMap::default(),
+            id              : Uuid::new_v4(),
+            curr_pos        : (0,0),
+            min_pos         : (10000,10000),
+            max_pos         : (-10000, -10000),
+            areas           : vec![],
+            editor_offset   : None,
+            settings        : PropertySink::new(),
         };
 
         update_region_sink(&mut data.settings);

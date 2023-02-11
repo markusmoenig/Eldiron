@@ -287,6 +287,7 @@ impl EditorContent for RegionWidget {
 
             let mut rect = self.rect.clone();
             rect.3 -= self.bottom_size + self.toolbar_size;
+            rect.2 -= rect.2 / 3;
 
             let grid_size = self.grid_size;
 
@@ -324,7 +325,7 @@ impl EditorContent for RegionWidget {
                 }
             }
 
-            context.draw2d.draw_rect(frame, &(rect.0, rect.1 + rect.3, rect.2, self.toolbar_size), context.width, &context.color_black);
+            context.draw2d.draw_rect(frame, &(rect.0, rect.1 + rect.3, self.rect.2, self.toolbar_size), context.width, &context.color_black);
 
             self.layouts[0].draw(frame, anim_counter, asset, context);
 
@@ -492,6 +493,7 @@ impl EditorContent for RegionWidget {
 
         let mut rect = self.rect.clone();
         rect.3 -= self.bottom_size + self.toolbar_size;
+        rect.2 -= rect.2 / 3;
 
         if let Some(options) = options {
 
@@ -620,6 +622,7 @@ impl EditorContent for RegionWidget {
                 }
             }
 
+            // Click inside the editor
             if consumed == false && context.contains_pos_for(pos, rect) {
                 if let Some(id) = self.get_tile_id(pos) {
                     self.clicked = Some(id);
@@ -821,8 +824,6 @@ impl EditorContent for RegionWidget {
 
 
                                         let index = behavior.data.loot.as_ref().unwrap().iter().position(|r| r.position == Position::new(self.region_id, id.0, id.1));
-
-                                        println!("111 {:?} {:?}", id, behavior.data.loot);
 
                                             if index.is_none() {
                                                 let loot = LootInstanceData {
@@ -1141,6 +1142,11 @@ impl EditorContent for RegionWidget {
 
                 self.mouse_wheel_delta.0 -= (self.mouse_wheel_delta.0 / self.grid_size as isize) * self.grid_size as isize;
                 self.mouse_wheel_delta.1 -= (self.mouse_wheel_delta.1 / self.grid_size as isize) * self.grid_size as isize;
+
+                if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                    region.data.editor_offset = Some(self.offset.clone());
+                    region.save_data();
+                }
             }
         }
         true
@@ -1267,6 +1273,12 @@ impl EditorContent for RegionWidget {
     fn set_region_id(&mut self, id: Uuid, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
         self.region_id = id;
         if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+
+            if let Some(editor_offset) = region.data.editor_offset {
+                self.offset = editor_offset.clone();
+            } else {
+                self.offset = (0, 0);
+            }
 
             self.layouts[1].widgets[0].text = region.get_area_names();
             self.layouts[1].widgets[0].dirty = true;
