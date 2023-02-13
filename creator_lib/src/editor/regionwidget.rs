@@ -323,6 +323,22 @@ impl EditorContent for RegionWidget {
                         }
                     }
                 }
+
+                // Preview
+
+                if let Some(render) = &mut context.debug_render {
+
+                    let mut prev_rect = rect.clone();
+                    prev_rect.0 += self.rect.2 / 3 * 2;
+                    prev_rect.2 = self.rect.2 / 3;
+
+                    let mut update = GameUpdate::new();
+                    if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
+                        update.position = Some(Position { region: region.data.id, x: id.0, y: id.1 });
+                        render.process_update(&update);
+                        render.process_game_draw_2d(prev_rect, anim_counter, &update, &mut Some(frame), context.width);
+                    }
+                }
             }
 
             context.draw2d.draw_rect(frame, &(rect.0, rect.1 + rect.3, self.rect.2, self.toolbar_size), context.width, &context.color_black);
@@ -1278,6 +1294,18 @@ impl EditorContent for RegionWidget {
                 self.offset = editor_offset.clone();
             } else {
                 self.offset = (0, 0);
+            }
+
+            // Make sure we have the renderer for preview
+            if context.debug_render.is_none() {
+                context.debug_render = Some(GameRender::new(context.curr_project_path.clone(), context.player_id ));
+            }
+
+            // Send the region to the preview renderer
+            if let Some(render) = &mut context.debug_render {
+                let mut update = GameUpdate::new();
+                update.region = Some(region.data.clone());
+                render.process_update(&update);
             }
 
             self.layouts[1].widgets[0].text = region.get_area_names();
