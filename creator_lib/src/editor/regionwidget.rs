@@ -335,8 +335,153 @@ impl EditorContent for RegionWidget {
                     let mut update = GameUpdate::new();
                     if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
                         update.position = Some(Position { region: region.data.id, x: id.0, y: id.1 });
-                        render.process_update(&update);
-                        render.process_game_draw_2d(prev_rect, anim_counter, &update, &mut Some(frame), context.width);
+                        update.region = Some(region.data.clone());
+
+                        // Add characters
+                        for (id, behavior) in &context.data.behaviors {
+
+                            let mut default_position        : Option<Position> = None;
+                            let mut default_tile            : Option<TileId> = None;
+
+                            for (_id, node) in &behavior.data.nodes {
+                                if node.behavior_type == BehaviorNodeType::BehaviorType {
+                                    if let Some(value )= node.values.get(&"position".to_string()) {
+                                        default_position = value.to_position();
+                                    }
+                                    if let Some(value )= node.values.get(&"tile".to_string()) {
+                                        default_tile = value.to_tile_id()
+                                    }
+                                }
+                            }
+
+                            if default_position.is_some() && default_position.clone().unwrap().region == region.data.id && default_tile.is_some() {
+                                let character = CharacterData {
+                                    position                : default_position.clone().unwrap(),
+                                    old_position            : None,
+                                    max_transition_time     : 0,
+                                    curr_transition_time    : 0,
+                                    tile                    : default_tile.clone().unwrap(),
+                                    name                    : "".to_string(),
+                                    id                      : *id,
+                                    index                   : 0,
+                                    effects                 : vec![],
+                                };
+                                update.characters.push(character);
+                            }
+
+                            for inst_arr in &behavior.data.instances {
+                                for i in inst_arr {
+                                    let tile            : Option<TileId>;
+
+                                    if i.tile.is_some() {
+                                        tile = i.tile.clone();
+                                    } else {
+                                        tile = default_tile.clone();
+                                    }
+
+                                    if i.position.region == region.data.id && tile.is_some() {
+                                        let character = CharacterData {
+                                            position                : i.position.clone(),
+                                            old_position            : None,
+                                            max_transition_time     : 0,
+                                            curr_transition_time    : 0,
+                                            tile                    : tile.clone().unwrap(),
+                                            name                    : "".to_string(),
+                                            id                      : *id,
+                                            index                   : 0,
+                                            effects                 : vec![],
+                                        };
+                                        update.characters.push(character);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Add Loot
+
+                        for (id, behavior) in &context.data.items  {
+                            if let Some(instances) = &behavior.data.loot {
+                                for instance in instances {
+                                    if instance.position.region != region.data.id { continue; }
+                                    let mut loot = LootData {
+                                        id          : id.clone(),
+                                        item_type   : "gear".to_string(),
+                                        name        : Some(behavior.data.name.clone()),
+                                        tile        : None,
+                                        state       : None,
+                                        light       : None,
+                                        slot        : None,
+                                        amount      : instance.amount,
+                                        stackable   : 1,
+                                        static_item : false,
+                                        price       : 0.0,
+                                        weight      : 0.0,
+                                    };
+
+                                    for (_index, node) in &behavior.data.nodes {
+                                        if node.behavior_type == BehaviorNodeType::BehaviorType {
+                                            if let Some(value) = node.values.get(&"tile".to_string()) {
+                                                loot.tile = value.to_tile_data();
+                                            }
+                                            if let Some(value) = node.values.get(&"settings".to_string()) {
+                                                if let Some(str) = value.to_string() {
+                                                    let mut s = PropertySink::new();
+                                                    s.load_from_string(str.clone());
+                                                    if let Some(static_item) = s.get("static") {
+                                                        if let Some(st) = static_item.as_bool() {
+                                                            loot.static_item = st;
+                                                        }
+                                                    }
+                                                    if let Some(stackable_item) = s.get("stackable") {
+                                                        if let Some(st) = stackable_item.as_int() {
+                                                            if st >= 0 {
+                                                                loot.stackable = st;
+                                                            }
+                                                        }
+                                                    }
+                                                    if let Some(price_item) = s.get("price") {
+                                                        let price = price_item.to_float();
+                                                        if price >= 0.0 {
+                                                            loot.price = price;
+                                                        }
+                                                    }
+                                                    if let Some(weight_item) = s.get("weight") {
+                                                        let weight = weight_item.to_float();
+                                                        if weight >= 0.0 {
+                                                            loot.weight = weight;
+                                                        }
+                                                    }
+                                                    if let Some(item_type) = s.get("item_type") {
+                                                        if let Some(i_type) = item_type.as_string() {
+                                                            loot.item_type = i_type;
+                                                        }
+                                                    }
+                                                    if let Some(item_slot) = s.get("slot") {
+                                                        if let Some(slot) = item_slot.as_string() {
+                                                            loot.slot = Some(slot);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } else
+                                        if node.behavior_type == BehaviorNodeType::LightItem {
+                                            // Insert a light if we found a light node for the item
+                                            let light = LightData {
+                                                light_type              : LightType::PointLight,
+                                                position                : (instance.position.x, instance.position.y),
+                                                intensity               : 1,
+                                            };
+                                            update.lights.push(light);
+                                        }
+                                    }
+
+                                    update.loot.insert((instance.position.x, instance.position.y), vec![loot]);
+                                }
+                            }
+
+                            render.process_update(&update);
+                            render.process_game_draw_2d(prev_rect, anim_counter, &update, &mut Some(frame), context.width);
+                        }
                     }
                 }
             }
@@ -1299,13 +1444,6 @@ impl EditorContent for RegionWidget {
             // Make sure we have the renderer for preview
             if context.debug_render.is_none() {
                 context.debug_render = Some(GameRender::new(context.curr_project_path.clone(), context.player_id ));
-            }
-
-            // Send the region to the preview renderer
-            if let Some(render) = &mut context.debug_render {
-                let mut update = GameUpdate::new();
-                update.region = Some(region.data.clone());
-                render.process_update(&update);
             }
 
             self.layouts[1].widgets[0].text = region.get_area_names();
