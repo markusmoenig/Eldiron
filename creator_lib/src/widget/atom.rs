@@ -205,6 +205,23 @@ impl AtomWidget {
         }
     }
 
+    pub fn set_rect2(&mut self, rect: (usize, usize, usize, usize)) {
+        self.rect = rect;
+        let mut height = rect.3;
+        if self.atom_widget_type == AtomWidgetType::GroupedList {
+            self.scroll_distance = 0;
+            let h = self.grouped_list_height();
+            if h > height {
+                self.scroll_distance = h as isize - height as isize;
+            }
+            height = height.max(h);
+            self.grouped_list_height = height as isize;
+        }
+        if self.buffer.len() != rect.2 * height * 4 {
+            self.buffer = vec![0;rect.2 * height * 4];
+        }
+    }
+
     pub fn draw(&mut self, frame: &mut [u8], stride: usize, _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
 
         let rect = (0_usize, 0_usize, self.rect.2, self.rect.3);

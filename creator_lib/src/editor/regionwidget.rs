@@ -2,6 +2,10 @@ use crate::prelude::*;
 
 pub struct RegionWidget {
     pub rect                : (usize, usize, usize, usize),
+
+    editor_rect             : (usize, usize, usize, usize),
+    preview_rect            : (usize, usize, usize, usize),
+
     pub region_id           : Uuid,
 
     pub layouts             : Vec<HLayout>,
@@ -32,6 +36,8 @@ pub struct RegionWidget {
 
     undo                    : Option<String>,
     has_changed             : bool,
+
+    preview_button          : AtomWidget,
 }
 
 impl EditorContent for RegionWidget {
@@ -62,6 +68,15 @@ impl EditorContent for RegionWidget {
         hlayout.add(mode_button, 0);
         hlayout.layout();
         layouts.push(hlayout);
+
+        // Preview button
+
+        let mut preview_button = AtomWidget::new(vec!["Preview: Off".to_string(), "Preview: On".to_string()], AtomWidgetType::SliderButton,
+        AtomData::new("Preview", Value::Empty()));
+        preview_button.curr_index = 0;
+        preview_button.atom_data.text = "Preview".to_string();
+        preview_button.set_rect((rect.0 + rect.2 - 190, rect.1, 180, 40), asset, context);
+        preview_button.status_help_text = Some("Toggles the preview ('P').".to_string());
 
         // Tile Selector
         let mut tile_selector = TileSelectorWidget::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context);
@@ -229,6 +244,10 @@ impl EditorContent for RegionWidget {
 
         Self {
             rect,
+
+            editor_rect             : (0, 0, 0, 0),
+            preview_rect            : (0, 0, 0, 0),
+
             region_id               : Uuid::new_v4(),
             grid_size               : 32,
 
@@ -256,6 +275,8 @@ impl EditorContent for RegionWidget {
 
             undo                    : None,
             has_changed             : false,
+
+            preview_button,
         }
     }
 
@@ -268,6 +289,8 @@ impl EditorContent for RegionWidget {
         self.layouts[2].set_rect((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - 180, self.toolbar_size));
         self.layouts[3].set_rect((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - 180, self.toolbar_size));
         self.layouts[4].set_rect((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - 180, self.toolbar_size));
+
+        self.preview_button.set_rect2((self.rect.0 + self.rect.2 - 190, self.rect.1, 180, 40));
 
         self.behavior_graph.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.bottom_size, width, self.bottom_size);
         self.behavior_graph.set_mode_and_rect(GraphMode::Detail, self.behavior_graph.rect, context);
@@ -287,7 +310,12 @@ impl EditorContent for RegionWidget {
 
             let mut rect = self.rect.clone();
             rect.3 -= self.bottom_size + self.toolbar_size;
-            rect.2 -= rect.2 / 3;
+
+            if self.preview_button.curr_index == 1 {
+                rect.2 -= rect.2 / 3;
+            }
+
+            self.editor_rect = rect.clone();
 
             let grid_size = self.grid_size;
 
@@ -326,161 +354,165 @@ impl EditorContent for RegionWidget {
 
                 // Preview
 
-                if let Some(render) = &mut context.debug_render {
+                if self.preview_button.curr_index == 1 {
+                    if let Some(render) = &mut context.debug_render {
 
-                    let mut prev_rect = rect.clone();
-                    prev_rect.0 += self.rect.2 / 3 * 2;
-                    prev_rect.2 = self.rect.2 / 3;
+                        let mut prev_rect = rect.clone();
+                        prev_rect.0 += self.rect.2 / 3 * 2;
+                        prev_rect.2 = self.rect.2 / 3;
 
-                    let mut update = GameUpdate::new();
-                    if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
-                        update.position = Some(Position { region: region.data.id, x: id.0, y: id.1 });
-                        update.region = Some(region.data.clone());
+                        self.preview_rect = prev_rect.clone();
 
-                        // Add characters
-                        for (id, behavior) in &context.data.behaviors {
+                        let mut update = GameUpdate::new();
+                        if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
+                            update.position = Some(Position { region: region.data.id, x: id.0, y: id.1 });
+                            update.region = Some(region.data.clone());
 
-                            let mut default_position        : Option<Position> = None;
-                            let mut default_tile            : Option<TileId> = None;
+                            // Add characters
+                            for (id, behavior) in &context.data.behaviors {
 
-                            for (_id, node) in &behavior.data.nodes {
-                                if node.behavior_type == BehaviorNodeType::BehaviorType {
-                                    if let Some(value )= node.values.get(&"position".to_string()) {
-                                        default_position = value.to_position();
-                                    }
-                                    if let Some(value )= node.values.get(&"tile".to_string()) {
-                                        default_tile = value.to_tile_id()
-                                    }
-                                }
-                            }
+                                let mut default_position        : Option<Position> = None;
+                                let mut default_tile            : Option<TileId> = None;
 
-                            if default_position.is_some() && default_position.clone().unwrap().region == region.data.id && default_tile.is_some() {
-                                let character = CharacterData {
-                                    position                : default_position.clone().unwrap(),
-                                    old_position            : None,
-                                    max_transition_time     : 0,
-                                    curr_transition_time    : 0,
-                                    tile                    : default_tile.clone().unwrap(),
-                                    name                    : "".to_string(),
-                                    id                      : *id,
-                                    index                   : 0,
-                                    effects                 : vec![],
-                                };
-                                update.characters.push(character);
-                            }
-
-                            for inst_arr in &behavior.data.instances {
-                                for i in inst_arr {
-                                    let tile            : Option<TileId>;
-
-                                    if i.tile.is_some() {
-                                        tile = i.tile.clone();
-                                    } else {
-                                        tile = default_tile.clone();
-                                    }
-
-                                    if i.position.region == region.data.id && tile.is_some() {
-                                        let character = CharacterData {
-                                            position                : i.position.clone(),
-                                            old_position            : None,
-                                            max_transition_time     : 0,
-                                            curr_transition_time    : 0,
-                                            tile                    : tile.clone().unwrap(),
-                                            name                    : "".to_string(),
-                                            id                      : *id,
-                                            index                   : 0,
-                                            effects                 : vec![],
-                                        };
-                                        update.characters.push(character);
+                                for (_id, node) in &behavior.data.nodes {
+                                    if node.behavior_type == BehaviorNodeType::BehaviorType {
+                                        if let Some(value )= node.values.get(&"position".to_string()) {
+                                            default_position = value.to_position();
+                                        }
+                                        if let Some(value )= node.values.get(&"tile".to_string()) {
+                                            default_tile = value.to_tile_id()
+                                        }
                                     }
                                 }
-                            }
-                        }
 
-                        // Add Loot
-
-                        for (id, behavior) in &context.data.items  {
-                            if let Some(instances) = &behavior.data.loot {
-                                for instance in instances {
-                                    if instance.position.region != region.data.id { continue; }
-                                    let mut loot = LootData {
-                                        id          : id.clone(),
-                                        item_type   : "gear".to_string(),
-                                        name        : Some(behavior.data.name.clone()),
-                                        tile        : None,
-                                        state       : None,
-                                        light       : None,
-                                        slot        : None,
-                                        amount      : instance.amount,
-                                        stackable   : 1,
-                                        static_item : false,
-                                        price       : 0.0,
-                                        weight      : 0.0,
+                                if default_position.is_some() && default_position.clone().unwrap().region == region.data.id && default_tile.is_some() {
+                                    let character = CharacterData {
+                                        position                : default_position.clone().unwrap(),
+                                        old_position            : None,
+                                        max_transition_time     : 0,
+                                        curr_transition_time    : 0,
+                                        tile                    : default_tile.clone().unwrap(),
+                                        name                    : "".to_string(),
+                                        id                      : *id,
+                                        index                   : 0,
+                                        effects                 : vec![],
                                     };
+                                    update.characters.push(character);
+                                }
 
-                                    for (_index, node) in &behavior.data.nodes {
-                                        if node.behavior_type == BehaviorNodeType::BehaviorType {
-                                            if let Some(value) = node.values.get(&"tile".to_string()) {
-                                                loot.tile = value.to_tile_data();
-                                            }
-                                            if let Some(value) = node.values.get(&"settings".to_string()) {
-                                                if let Some(str) = value.to_string() {
-                                                    let mut s = PropertySink::new();
-                                                    s.load_from_string(str.clone());
-                                                    if let Some(static_item) = s.get("static") {
-                                                        if let Some(st) = static_item.as_bool() {
-                                                            loot.static_item = st;
+                                for inst_arr in &behavior.data.instances {
+                                    for i in inst_arr {
+                                        let tile            : Option<TileId>;
+
+                                        if i.tile.is_some() {
+                                            tile = i.tile.clone();
+                                        } else {
+                                            tile = default_tile.clone();
+                                        }
+
+                                        if i.position.region == region.data.id && tile.is_some() {
+                                            let character = CharacterData {
+                                                position                : i.position.clone(),
+                                                old_position            : None,
+                                                max_transition_time     : 0,
+                                                curr_transition_time    : 0,
+                                                tile                    : tile.clone().unwrap(),
+                                                name                    : "".to_string(),
+                                                id                      : *id,
+                                                index                   : 0,
+                                                effects                 : vec![],
+                                            };
+                                            update.characters.push(character);
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Add Loot
+
+                            for (id, behavior) in &context.data.items  {
+                                if let Some(instances) = &behavior.data.loot {
+                                    for instance in instances {
+                                        if instance.position.region != region.data.id { continue; }
+                                        let mut loot = LootData {
+                                            id          : id.clone(),
+                                            item_type   : "gear".to_string(),
+                                            name        : Some(behavior.data.name.clone()),
+                                            tile        : None,
+                                            state       : None,
+                                            light       : None,
+                                            slot        : None,
+                                            amount      : instance.amount,
+                                            stackable   : 1,
+                                            static_item : false,
+                                            price       : 0.0,
+                                            weight      : 0.0,
+                                        };
+
+                                        for (_index, node) in &behavior.data.nodes {
+                                            if node.behavior_type == BehaviorNodeType::BehaviorType {
+                                                if let Some(value) = node.values.get(&"tile".to_string()) {
+                                                    loot.tile = value.to_tile_data();
+                                                }
+                                                if let Some(value) = node.values.get(&"settings".to_string()) {
+                                                    if let Some(str) = value.to_string() {
+                                                        let mut s = PropertySink::new();
+                                                        s.load_from_string(str.clone());
+                                                        if let Some(static_item) = s.get("static") {
+                                                            if let Some(st) = static_item.as_bool() {
+                                                                loot.static_item = st;
+                                                            }
                                                         }
-                                                    }
-                                                    if let Some(stackable_item) = s.get("stackable") {
-                                                        if let Some(st) = stackable_item.as_int() {
-                                                            if st >= 0 {
-                                                                loot.stackable = st;
+                                                        if let Some(stackable_item) = s.get("stackable") {
+                                                            if let Some(st) = stackable_item.as_int() {
+                                                                if st >= 0 {
+                                                                    loot.stackable = st;
+                                                                }
+                                                            }
+                                                        }
+                                                        if let Some(price_item) = s.get("price") {
+                                                            let price = price_item.to_float();
+                                                            if price >= 0.0 {
+                                                                loot.price = price;
+                                                            }
+                                                        }
+                                                        if let Some(weight_item) = s.get("weight") {
+                                                            let weight = weight_item.to_float();
+                                                            if weight >= 0.0 {
+                                                                loot.weight = weight;
+                                                            }
+                                                        }
+                                                        if let Some(item_type) = s.get("item_type") {
+                                                            if let Some(i_type) = item_type.as_string() {
+                                                                loot.item_type = i_type;
+                                                            }
+                                                        }
+                                                        if let Some(item_slot) = s.get("slot") {
+                                                            if let Some(slot) = item_slot.as_string() {
+                                                                loot.slot = Some(slot);
                                                             }
                                                         }
                                                     }
-                                                    if let Some(price_item) = s.get("price") {
-                                                        let price = price_item.to_float();
-                                                        if price >= 0.0 {
-                                                            loot.price = price;
-                                                        }
-                                                    }
-                                                    if let Some(weight_item) = s.get("weight") {
-                                                        let weight = weight_item.to_float();
-                                                        if weight >= 0.0 {
-                                                            loot.weight = weight;
-                                                        }
-                                                    }
-                                                    if let Some(item_type) = s.get("item_type") {
-                                                        if let Some(i_type) = item_type.as_string() {
-                                                            loot.item_type = i_type;
-                                                        }
-                                                    }
-                                                    if let Some(item_slot) = s.get("slot") {
-                                                        if let Some(slot) = item_slot.as_string() {
-                                                            loot.slot = Some(slot);
-                                                        }
-                                                    }
                                                 }
+                                            } else
+                                            if node.behavior_type == BehaviorNodeType::LightItem {
+                                                // Insert a light if we found a light node for the item
+                                                let light = LightData {
+                                                    light_type              : LightType::PointLight,
+                                                    position                : (instance.position.x, instance.position.y),
+                                                    intensity               : 1,
+                                                };
+                                                update.lights.push(light);
                                             }
-                                        } else
-                                        if node.behavior_type == BehaviorNodeType::LightItem {
-                                            // Insert a light if we found a light node for the item
-                                            let light = LightData {
-                                                light_type              : LightType::PointLight,
-                                                position                : (instance.position.x, instance.position.y),
-                                                intensity               : 1,
-                                            };
-                                            update.lights.push(light);
                                         }
+
+                                        update.loot.insert((instance.position.x, instance.position.y), vec![loot]);
                                     }
-
-                                    update.loot.insert((instance.position.x, instance.position.y), vec![loot]);
                                 }
-                            }
 
-                            render.process_update(&update);
-                            render.process_game_draw_2d(prev_rect, anim_counter, &update, &mut Some(frame), context.width);
+                                render.process_update(&update);
+                                render.process_game_draw_2d(prev_rect, anim_counter, &update, &mut Some(frame), context.width);
+                            }
                         }
                     }
                 }
@@ -629,6 +661,8 @@ impl EditorContent for RegionWidget {
                 }
             }
         }
+
+        self.preview_button.draw(frame, context.width, anim_counter, asset, context);
     }
 
     fn debug_data(&mut self, context: &mut ScreenContext, data: BehaviorDebugData) {
@@ -650,6 +684,11 @@ impl EditorContent for RegionWidget {
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+
+        if self.preview_button.mouse_down(pos, asset, context) {
+            return true;
+        }
+
         let mut consumed = false;
 
         let mut rect = self.rect.clone();
@@ -1026,6 +1065,11 @@ impl EditorContent for RegionWidget {
     }
 
     fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+
+        if self.preview_button.mouse_up(pos, asset, context) {
+            return true;
+        }
+
         self.clicked = None;
 
         let mut consumed = false;
@@ -1143,6 +1187,10 @@ impl EditorContent for RegionWidget {
 
     fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
+        if self.preview_button.mouse_hover(pos, asset, context) {
+            return true;
+        }
+
         if let Some(_id) = self.layouts[0].mouse_hover(pos, asset, context) {
             return true;
         }
@@ -1168,7 +1216,9 @@ impl EditorContent for RegionWidget {
             }
         }
 
-        self.mouse_hover_pos = pos.clone();
+        if context.contains_pos_for(pos, self.editor_rect) {
+            self.mouse_hover_pos = pos.clone();
+        }
         true
     }
 
@@ -1295,18 +1345,20 @@ impl EditorContent for RegionWidget {
             }
 
             if consumed == false {
-                self.mouse_wheel_delta.0 += delta.0;
-                self.mouse_wheel_delta.1 += delta.1;
+                if context.contains_pos_for(self.mouse_hover_pos, self.editor_rect) {
+                    self.mouse_wheel_delta.0 += delta.0;
+                    self.mouse_wheel_delta.1 += delta.1;
 
-                self.offset.0 += self.mouse_wheel_delta.0 / self.grid_size as isize;
-                self.offset.1 += self.mouse_wheel_delta.1 / self.grid_size as isize;
+                    self.offset.0 += self.mouse_wheel_delta.0 / self.grid_size as isize;
+                    self.offset.1 += self.mouse_wheel_delta.1 / self.grid_size as isize;
 
-                self.mouse_wheel_delta.0 -= (self.mouse_wheel_delta.0 / self.grid_size as isize) * self.grid_size as isize;
-                self.mouse_wheel_delta.1 -= (self.mouse_wheel_delta.1 / self.grid_size as isize) * self.grid_size as isize;
+                    self.mouse_wheel_delta.0 -= (self.mouse_wheel_delta.0 / self.grid_size as isize) * self.grid_size as isize;
+                    self.mouse_wheel_delta.1 -= (self.mouse_wheel_delta.1 / self.grid_size as isize) * self.grid_size as isize;
 
-                if let Some(region) = context.data.regions.get_mut(&self.region_id) {
-                    region.data.editor_offset = Some(self.offset.clone());
-                    region.save_data();
+                    if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                        region.data.editor_offset = Some(self.offset.clone());
+                        region.save_data();
+                    }
                 }
             }
         }
@@ -1423,6 +1475,15 @@ impl EditorContent for RegionWidget {
                     if self.grid_size < 100 {
                         self.grid_size += 2;
                     }
+                    return true;
+                } else
+                if char == 'p' {
+                    if self.preview_button.curr_index == 0 {
+                        self.preview_button.curr_index = 1;
+                    } else {
+                        self.preview_button.curr_index = 0;
+                    }
+                    self.preview_button.dirty = true;
                     return true;
                 }
             }
