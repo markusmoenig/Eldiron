@@ -56,7 +56,9 @@ pub struct GameRender<'a> {
 
     pub vendor_rects            : Vec<(usize, usize, usize, usize, Uuid)>,
 
-    pub character_effects       : FxHashMap<Uuid, (TileId, usize)>
+    pub character_effects       : FxHashMap<Uuid, (TileId, usize)>,
+
+    three_d_preview             : bool,
 }
 
 impl GameRender<'_> {
@@ -173,6 +175,8 @@ impl GameRender<'_> {
             vendor_rects        : vec![],
 
             character_effects   : FxHashMap::default(),
+
+            three_d_preview     : false,
         }
     }
 
@@ -287,8 +291,16 @@ impl GameRender<'_> {
         if let Some(region) = &update.region {
             self.regions.insert(region.id, region.clone());
 
+            self.three_d_preview = false;
+
             // Set the settings into the region map
             if let Some(mut map) = self.this_map.write_lock::<Map>() {
+
+                // If we dont use a screen script we may have to set the region map ourself
+                if map.contains_key("region") == false {
+                    map.insert("region".into(), Dynamic::from(rhai::Map::new()));
+                }
+
                 if let Some(c) = map.get_mut("region") {
                     if let Some(mut region_map) = c.write_lock::<rhai::Map>() {
 
@@ -299,6 +311,7 @@ impl GameRender<'_> {
                                 if value.to_lowercase() == "3d" {
                                     region_map.insert("render".into(), Dynamic::from("3d"));
                                     self.raycast.load_region(&self.asset, region);
+                                    self.three_d_preview = true;
                                 } else {
                                     region_map.insert("render".into(), Dynamic::from("2d"));
                                 }
@@ -702,10 +715,25 @@ impl GameRender<'_> {
         None
     }
 
-    pub fn process_game_draw_3d(&mut self, rect: (usize, usize, usize, usize), _anim_counter: usize, update: &GameUpdate, _external_frame: &mut Option<&mut [u8]>, _stride: usize) {
+    // Display the preview in the default region settings mode
+    pub fn process_game_draw_auto(&mut self, rect: (usize, usize, usize, usize), anim_counter: usize, update: &GameUpdate, external_frame: &mut Option<&mut [u8]>, stride: usize) {
+        if self.three_d_preview {
+            self.process_game_draw_3d(rect, anim_counter, &update, external_frame, stride);
+        } else {
+            self.process_game_draw_2d(rect, anim_counter, &update, external_frame, stride);
+        }
+    }
+
+    pub fn process_game_draw_3d(&mut self, rect: (usize, usize, usize, usize), _anim_counter: usize, update: &GameUpdate, external_frame: &mut Option<&mut [u8]>, stride: usize) {
         if let Some(position) = update.position.clone(){
             if let Some(region) = self.regions.get(&position.region) {
-                self.raycast.render(&mut self.frame[..], (position.x as i32, position.y as i32), &region.id, rect, self.width);
+
+                if external_frame.is_some() {
+                    let frame = external_frame.as_deref_mut().unwrap();
+                    self.raycast.render(frame, (position.x as i32, position.y as i32), &region.id, rect, stride);
+                } else {
+                    self.raycast.render(&mut self.frame[..], (position.x as i32, position.y as i32), &region.id, rect, self.width);
+                }
             }
         }
     }

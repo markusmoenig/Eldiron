@@ -511,7 +511,7 @@ impl EditorContent for RegionWidget {
                                 }
 
                                 render.process_update(&update);
-                                render.process_game_draw_2d(prev_rect, anim_counter, &update, &mut Some(frame), context.width);
+                                render.process_game_draw_auto(prev_rect, anim_counter, &update, &mut Some(frame), context.width);
                             }
                         }
                     }
