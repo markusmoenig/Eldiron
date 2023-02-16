@@ -5,6 +5,7 @@ pub enum Message {
     Quit(),
     Status(String),
     CreatePlayerInstance(Uuid, Position),
+    DestroyPlayerInstance(Uuid),
     ExecutePlayerAction(Uuid, Uuid, PlayerAction),
     PlayerUpdate(Uuid, GameUpdate),
     TransferCharacter(Uuid, BehaviorInstance),

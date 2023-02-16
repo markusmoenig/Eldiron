@@ -1715,6 +1715,17 @@ impl RegionInstance<'_> {
         }
     }
 
+    /// Destroyes a player instance
+    pub fn destroy_player_instance(&mut self, uuid: Uuid) {
+        for inst_index in 0..self.instances.len() {
+            if self.instances[inst_index].id == uuid {
+                self.purge_instance(inst_index);
+                break;
+            }
+        }
+    }
+
+
     /// Creates an instance of a behavior (character)
     fn create_behavior_instance(&mut self, id: Uuid, npc_only: bool, data: Option<CharacterInstanceData>) -> usize {
 

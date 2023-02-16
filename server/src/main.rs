@@ -16,10 +16,6 @@ fn get_time() -> u128 {
         stop.as_millis()
 }*/
 
-enum Signal {
-    Update,
-}
-
 fn main() {
     env_logger::init();
 
@@ -82,6 +78,7 @@ fn main() {
             },
             NetEvent::Disconnected(endpoint) => {
                 if let Some(player_id) = endpoint_uuid.get(&endpoint) {
+                    server.destroy_player_instance(*player_id);
                     uuid_endpoint.remove(player_id);
                 }
                 endpoint_uuid.remove(&endpoint);
@@ -91,15 +88,12 @@ fn main() {
 
         NodeEvent::Signal(signal) => match signal {
             _ => {
-                //println!("test");
-
                 let messages = server.check_for_messages();
 
                 for message in messages {
                     match message {
                         Message::PlayerUpdate(_uuid, update) => {
                             //println!("got update for {:?}", update.id);
-
                             if let Some(client) = uuid_endpoint.get(&update.id) {
                                 let cmd = ServerCmd::GameUpdate(update);
                                 if let Some(json) = cmd.to_json() {

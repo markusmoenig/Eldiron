@@ -257,6 +257,19 @@ impl Server<'_> {
         uuid
     }
 
+    /// Destroy a player instance
+    pub fn destroy_player_instance(&mut self, uuid: Uuid) {
+        if self.threaded {
+            for m in &self.metas {
+                _ = m.sender.send(Message::DestroyPlayerInstance(uuid));
+            }
+        } else {
+            if let Some(pool) = &mut self.pool {
+                pool.destroy_player_instance(uuid);
+            }
+        }
+    }
+
     /// Send the behavior id to debug to all pools.
     pub fn set_debug_behavior_id(&self, behavior_id: Uuid) {
         for m in &self.metas {

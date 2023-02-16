@@ -59,6 +59,9 @@ impl RegionPool<'_> {
                             Message::CreatePlayerInstance(uuid, position) => {
                                 self.create_player_instance(uuid, position);
                             },
+                            Message::DestroyPlayerInstance(uuid) => {
+                                self.destroy_player_instance(uuid);
+                            },
                             Message::ExecutePlayerAction(uuid, region_id, player_action) => {
                                 self.execute_player_action(uuid, region_id, player_action);
                             },
@@ -130,6 +133,13 @@ impl RegionPool<'_> {
             if inst.region_data.id == position.region {
                 inst.create_player_instance(uuid, position.clone());
             }
+        }
+    }
+
+    /// Create a new player instance
+    pub fn destroy_player_instance(&mut self, uuid: Uuid) {
+        for inst in &mut self.instances {
+            inst.destroy_player_instance(uuid);
         }
     }
 

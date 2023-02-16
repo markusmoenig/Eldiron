@@ -45,7 +45,7 @@ fn main() -> Result<(), Error> {
     handler.signals().send_with_timer((), Duration::from_millis(10));
 
     if let Some((server, _)) = handler.network().connect(Transport::FramedTcp, "127.0.0.1:3042").ok() {
-        let task = listener.for_each_async(move |event| match event {
+        let _task = listener.for_each_async(move |event| match event {
             NodeEvent::Network(net_event) => match net_event {
                 NetEvent::Connected(_endpoint, _ok) => {
                     let cmd = ServerCmd::LoginAnonymous;
