@@ -9,7 +9,7 @@ Classic RPG Creation
 [![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/channel/UCCmrO356zLQv_m8dPEqBUfA)
 -->
 
-Eldiron is currently under active development and a v1 is planned for the half of 2023. Eldiron is open source and licensed under the MIT.
+Eldiron is currently under active development and a v1 is planned for 2023. Eldiron is open source and licensed under the MIT.
 
 ![Screenshot](images/region_screenshot.png)
 ![Screenshot](images/behavior_screenshot.png)

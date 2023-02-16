@@ -290,7 +290,6 @@ impl GameRender<'_> {
         // Got a new region ?
         if let Some(region) = &update.region {
             self.regions.insert(region.id, region.clone());
-
             self.three_d_preview = false;
 
             // Set the settings into the region map

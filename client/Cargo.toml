@@ -1,0 +1,43 @@
+[package]
+name = "client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+message-io = "0.14"
+core_shared = { path = "../core_shared" }
+core_render = { path = "../core_render" }
+core_embed_binaries = { path = "../core_embed_binaries", optional = true }
+env_logger = "0.10"
+log = "0.4"
+pixels = "0.11.0"
+winit = "0.27.5"
+winit_input_helper = "0.13"
+png = "0.17.5"
+serde = { version = "1.0.144", features = ["derive"] }
+serde_json = "1.0"
+fontdue = "0.7.2"
+vectorize = "0.2.0"
+itertools = "0.10.2"
+zeno = "0.2.1"
+getrandom = { version = "0.2.7", features = ["js"] }
+rand = "0.8.5"
+pathfinding = "4.1.1"
+rhai = { version = "1.12.0", default-features = false, features = ["only_i32", "f32_float", "sync"] }
+regex = "1.5"
+directories = "4.0"
+fs_extra = "1.2.0"
+crossbeam-channel = "0.5.6"
+
+[features]
+default = []
+embed_binaries = ["dep:core_embed_binaries", "core_render/embed_binaries",  "core_shared/embed_binaries"]
+
+[dependencies.uuid]
+version = "1.1.2"
+features = [
+    "v4",                # Lets you generate random UUIDs
+    "fast-rng",          # Use a faster (but still sufficiently random) RNG
+    "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
+    "serde"
+]

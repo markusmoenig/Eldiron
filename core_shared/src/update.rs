@@ -38,6 +38,7 @@ pub struct GameUpdate {
     pub characters              : Vec<CharacterData>,
 
     /// Loot information
+    #[serde(with = "vectorize")]
     pub loot                    : FxHashMap<(isize, isize), Vec<LootData>>,
 
     /// Messages
