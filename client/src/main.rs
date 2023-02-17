@@ -36,8 +36,6 @@ fn main() -> Result<(), Error> {
 
     env_logger::init();
 
-    // let mut player_id = Uuid::new_v4();
-
     let (sender, receiver) = unbounded();
     let (cmd_sender, cmd_receiver) = unbounded();
 

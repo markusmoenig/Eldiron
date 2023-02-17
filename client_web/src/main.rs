@@ -9,6 +9,7 @@ use core_render::render::GameRender;
 use core_server::prelude::*;
 use prelude::*;
 
+use core::borrow;
 use std::rc::Rc;
 
 use log::error;
@@ -23,6 +24,12 @@ use winit::event::KeyboardInput;
 use std::path::PathBuf;
 
 pub use std::time::*;
+
+use std::cell::RefCell;
+use std::panic;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+use wasm_sockets::{self, ConnectionStatus, WebSocketError, Message};
 
 fn main() {
 
@@ -43,6 +50,25 @@ fn main() {
 }
 
 async fn run() {
+
+    //"0.0.0.0:3044"
+
+    // Client is wrapped in an Rc<RefCell<>> so it can be used within setInterval
+    // This isn't required when being used within a game engine
+    let mut client = wasm_sockets::PollingClient::new("ws://127.0.0.1:3044");//.ok().unwrap();
+
+    //client.send_string("Hello, World!").unwrap();
+
+    /*
+    let f = Closure::wrap(Box::new(move || {
+
+        if client.borrow().as_ref().status() == ConnectionStatus::Connected {
+            //info!("Sending message");
+            //client.borrow().ok().unwrap().as_ref()..send_string("Hello, World!").unwrap();
+        }
+        // receive() gives you all new websocket messages since receive() was last called
+        //info!("New messages: {:#?}", client.borrow_mut().receive());
+    }) as Box<dyn Fn()>);*/
 
     let width     : usize = 1024;
     let height    : usize = 608;
@@ -113,15 +139,11 @@ async fn run() {
             .expect("Pixels error")
     };
 
-    // Init server
-    let game_data = GameData::load_from_path(PathBuf::new());
-
-    let mut server = core_server::server::Server::new();
-    server.collect_data(&game_data);
-    _ = server.start(None);
-    let player_uuid = server.create_player_instance();
-
     let mut game_rect = (0, 0, 0, 0);
+
+    // Init renderer
+    let player_uuid = Uuid::new_v4();
+    let mut render = GameRender::new(PathBuf::from(".."), player_uuid);
 
     // Init renderer
     let mut render = GameRender::new(PathBuf::new(), player_uuid);
@@ -132,7 +154,7 @@ async fn run() {
 
     let mut curr_time = 0;
 
-    let mut messages : Vec<Message> = vec![];
+    let mut logged_in_send = false;
 
     event_loop.run(move |event, _, control_flow| {
         use winit::event::{ElementState, VirtualKeyCode};
@@ -141,14 +163,57 @@ async fn run() {
 
         if let Event::RedrawRequested(_) = event {
 
+            if let Some(mut client) = client.as_mut().ok() {
+
+                if client.status() == ConnectionStatus::Connected {
+
+                    if logged_in_send == false {
+                        let cmd = ServerCmd::LoginAnonymous;
+                        if let Some(json) = cmd.to_json() {
+                            //handler.network().send(server, json.as_bytes());
+                            log::error!("{:?}", client.status());
+                            client.send_binary(json.into_bytes()).unwrap();
+                            logged_in_send = true;
+                        }
+                    } else {
+                        let messages = client.receive();
+                        for m in messages {
+                            match m {
+                                Message::Binary(binary) => {
+                                    let cmd_string = String::from_utf8_lossy(&binary[..]);
+                                    let cmd : ServerCmd = serde_json::from_str(&cmd_string).ok()
+                                        .unwrap_or(ServerCmd::NoOp);
+
+                                    match cmd {
+                                        ServerCmd::GameUpdate(update) => {
+                                            render.player_id = update.id;
+                                            render.draw(anim_counter, Some(&update));
+                                        },
+                                        _ => {
+                                        }
+                                    }
+                                },
+                                _ => {
+
+                                }
+                            }
+
+                        }
+
+                        //log::error!("{:?}", messages);
+                    }
+                }
+            }
+
+            /*
             for message in &messages {
                 match message {
                     Message::PlayerUpdate(_uuid, update) => {
-                        render.draw(anim_counter, Some(&update));
+                        render.draw(anim_counter, Some(update));
                     },
                     _ => {}
                 }
-            }
+            }*/
 
             // Draw current screen
 
@@ -194,7 +259,12 @@ async fn run() {
                     _ => {
                         let rc = render.key_down(char.to_string(), player_uuid);
                         for cmd in rc.0 {
-                            server.execute_packed_player_action(player_uuid, cmd);
+                            let cmd = ServerCmd::GameCmd(cmd);
+                            if let Some(cmd) = cmd.to_json() {
+                                if let Some(mut client) = client.as_mut().ok() {
+                                    client.send_binary(cmd.into_bytes());
+                                }
+                            }
                         }
                     }
                 },
@@ -263,7 +333,12 @@ async fn run() {
         if key_string.is_empty() == false {
             let rc = render.key_down(key_string.to_owned(), player_uuid);
             for cmd in rc.0 {
-                server.execute_packed_player_action(player_uuid, cmd);
+                let cmd = ServerCmd::GameCmd(cmd);
+                if let Some(cmd) = cmd.to_json() {
+                    if let Some(mut client) = client.as_mut().ok() {
+                        client.send_binary(cmd.into_bytes());
+                    }
+                }
             }
         }
 
@@ -272,7 +347,7 @@ async fn run() {
             // Close events
             if /*input.key_pressed(VirtualKeyCode::Escape) ||*/ input.quit() {
                 *control_flow = ControlFlow::Exit;
-                _ = server.shutdown();
+                //_ = server.shutdown();
                 return;
             }
 
@@ -284,7 +359,12 @@ async fn run() {
                 if contains_pos_for(pixel_pos, game_rect) {
                     let rc = render.mouse_down((pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1), player_uuid);
                     for cmd in rc.0 {
-                        server.execute_packed_player_action(player_uuid, cmd);
+                        let cmd = ServerCmd::GameCmd(cmd);
+                        if let Some(cmd) = cmd.to_json() {
+                            if let Some(mut client) = client.as_mut().ok() {
+                                client.send_binary(cmd.into_bytes());
+                            }
+                        }
                     }
                 }
             }
@@ -335,7 +415,7 @@ async fn run() {
 
             // Game tick ?
             if curr_time > game_tick_timer + GAME_TICK_IN_MS {
-                messages = server.tick();
+                //messages = server.tick();
                 game_tick_timer = curr_time;
                 anim_counter = anim_counter.wrapping_add(1);
             } else {
@@ -367,4 +447,3 @@ pub fn contains_pos_for(pos: (usize, usize), rect: (usize, usize, usize, usize))
         false
     }
 }
-

@@ -436,6 +436,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "client_web"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "console_log",
+ "core_embed_binaries",
+ "core_render",
+ "core_server",
+ "core_shared",
+ "directories",
+ "env_logger 0.10.0",
+ "fontdue",
+ "fs_extra",
+ "getrandom",
+ "itertools",
+ "log",
+ "pathfinding",
+ "pixels",
+ "png",
+ "pollster",
+ "rand",
+ "regex",
+ "rhai",
+ "serde",
+ "serde_json",
+ "vectorize",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-sockets",
+ "web-sys",
+ "wgpu",
+ "winit",
+ "winit_input_helper",
+ "zeno",
+]
+
+[[package]]
 name = "clipboard-win"
 version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3303,6 +3340,19 @@ dependencies = [
  "log",
  "walrus",
  "wasm-bindgen-wasm-conventions",
+]
+
+[[package]]
+name = "wasm-sockets"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d14bbe65995269301ab677e5d69b3b69195447c01137ef44f72b10eecea55c77"
+dependencies = [
+ "js-sys",
+ "log",
+ "thiserror",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
