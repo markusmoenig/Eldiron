@@ -50,7 +50,9 @@ fn main() {
     //listener.for_each(move |event| match event.network() {
         NodeEvent::Network(net_event) => match net_event {
             NetEvent::Connected(_, _) => unreachable!(), // Used for explicit connections.
-            NetEvent::Accepted(_endpoint, _listener) => println!("Client connected"), // Tcp or Ws
+            NetEvent::Accepted(_endpoint, _listener) => {
+                println!("Client connected.");
+            },
             NetEvent::Message(endpoint, data) => {
                 let cmd_string = String::from_utf8_lossy(data);
                 let cmd : ServerCmd = serde_json::from_str(&cmd_string).ok()
