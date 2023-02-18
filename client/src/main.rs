@@ -42,7 +42,7 @@ fn main() -> Result<(), Error> {
     let (handler, listener) = node::split::<()>();
     handler.signals().send_with_timer((), Duration::from_millis(10));
 
-    if let Some((server, _)) = handler.network().connect(Transport::FramedTcp, "127.0.0.1:3042").ok() {
+    if let Some((server, _)) = handler.network().connect(Transport::FramedTcp, "24.199.125.6:3042").ok() {
         let _task = listener.for_each_async(move |event| match event {
             NodeEvent::Network(net_event) => match net_event {
                 NetEvent::Connected(_endpoint, _ok) => {

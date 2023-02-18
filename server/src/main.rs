@@ -55,7 +55,6 @@ fn main() {
                 println!("Client connected."); // Tcp or Ws
             },
             NetEvent::Message(endpoint, data) => {
-                println!("Client send something.");
 
                 let cmd_string = String::from_utf8_lossy(data);
                 let cmd : ServerCmd = serde_json::from_str(&cmd_string).ok()
@@ -98,11 +97,10 @@ fn main() {
                 for message in messages {
                     match message {
                         Message::PlayerUpdate(_uuid, update) => {
-                            //println!("got update for {:?}", update.id);
                             if let Some(client) = uuid_endpoint.get(&update.id) {
                                 let cmd = ServerCmd::GameUpdate(update);
                                 if let Some(json) = cmd.to_json() {
-                                    println!("{:?}", json.len());
+                                    //println!("{:?}", json.len());
                                     handler.network().send(*client, json.as_bytes());
                                 }
                             }
