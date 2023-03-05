@@ -36,10 +36,6 @@ Join the community on [Discord](https://discord.gg/ZrNj6baSZU) to get in contact
 * Support single-player or multi-player games and even MMOs.
 * Over time support more perspectives like top-down and isometric.
 
-## Eldiron Book
-
-I am currently working on the [Eldiron Book](https://book.eldiron.com). Please refer to the book for more detailed information on the creator, the server and clients and the overall project.
-
 ## Supporting Eldiron
 
 You can support the Eldiron project by becoming a [Patreon](https://patreon.com/eldiron) or a [GitHub Sponsor](https://github.com/sponsors/markusmoenig).
