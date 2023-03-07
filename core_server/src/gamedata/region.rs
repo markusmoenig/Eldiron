@@ -128,28 +128,28 @@ impl GameRegion {
     }
 
     /// Returns which layer has a tile for this position
-    pub fn get_layer_mask(&self, pos: (isize, isize)) -> Vec<bool> {
+    pub fn get_layer_mask(&self, pos: (isize, isize)) -> Vec<Option<TileData>> {
         let mut rc = vec![];
 
-        if self.data.layer1.contains_key(&pos) {
-            rc.push(true);
+        if let Some(t) = self.data.layer1.get(&pos) {
+            rc.push(Some(t.clone()));
         } else {
-            rc.push(false)
+            rc.push(None)
         }
-        if self.data.layer2.contains_key(&pos) {
-            rc.push(true);
+        if let Some(t) = self.data.layer2.get(&pos) {
+            rc.push(Some(t.clone()));
         }  else {
-            rc.push(false)
+            rc.push(None)
         }
-        if self.data.layer3.contains_key(&pos) {
-            rc.push(true);
+        if let Some(t) = self.data.layer3.get(&pos) {
+            rc.push(Some(t.clone()));
         } else {
-            rc.push(false)
+            rc.push(None)
         }
-        if self.data.layer4.contains_key(&pos) {
-            rc.push(true);
+        if let Some(t) = self.data.layer4.get(&pos) {
+            rc.push(Some(t.clone()));
         } else {
-            rc.push(false)
+            rc.push(None)
         }
 
         rc

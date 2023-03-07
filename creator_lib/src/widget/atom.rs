@@ -123,7 +123,7 @@ pub struct AtomWidget {
 
     pub status_help_vector      : Option<Vec<(String, String)>>,
 
-    pub button_mask             : Option<Vec<bool>>,
+    pub button_mask             : Option<Vec<Option<TileData>>>,
 
     pub debug_value             : Option<f32>,
 
@@ -742,16 +742,26 @@ impl AtomWidget {
                         fill_color = if index != self.curr_index { &context.color_orange } else { &context.color_light_orange };
                     }
 
-                    let mut border_color = &context.color_light_gray;
+                    let mut drawn = false;
+
                     if let Some(mask) = &self.button_mask {
-                        if mask[index] == true {
-                            border_color = &context.color_white;
+                        if let Some(t) = &mask[index] {
+
+                            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &((cell_size - 2) as f64, (cell_size - 2) as f64), &context.color_black , &(0.0, 0.0, 0.0, 0.0), &context.color_white, 1.5);
+
+                            drawn = true;
+
+                            if let Some(map) = asset.get_map_of_id(t.tilemap) {
+                                context.draw2d.draw_animated_tile(buffer_frame, &(r.0 + 2, r.1 + 2), map, rect.2, &(t.x_off as usize, t.y_off as usize), 0, cell_size - 4);
+                            }
                         }
                     }
 
-                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &((cell_size - 2) as f64, (cell_size - 2) as f64), &fill_color, &(0.0, 0.0, 0.0, 0.0), border_color, 1.5);
+                    if drawn == false {
+                        context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &((cell_size - 2) as f64, (cell_size - 2) as f64), &fill_color, &(0.0, 0.0, 0.0, 0.0), &context.color_light_gray, 1.5);
 
-                    context.draw2d.draw_text_rect(buffer_frame, &r, rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+                        context.draw2d.draw_text_rect(buffer_frame, &r, rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
+                    }
 
                     x += cell_size + spacing;
                 }

@@ -673,7 +673,7 @@ impl EditorContent for RegionWidget {
         self.debug_update = Some(update);
     }
 
-    fn get_layer_mask(&mut self, context: &mut ScreenContext) -> Option<Vec<bool>> {
+    fn get_layer_mask(&mut self, context: &mut ScreenContext) -> Option<Vec<Option<TileData>>> {
         if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
             if let Some(region) = context.data.regions.get(&self.region_id) {
                 let mask = region.get_layer_mask(id);
