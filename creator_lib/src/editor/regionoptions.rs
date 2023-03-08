@@ -11,6 +11,7 @@ pub enum RegionEditorMode {
 
 pub struct RegionOptions {
     rect                    : (usize, usize, usize, usize),
+    tile_rect               : (usize, usize, usize, usize),
 
     pub layouts             : Vec<VLayout>,
 
@@ -82,6 +83,7 @@ impl EditorOptions for RegionOptions {
 
         Self {
             rect,
+            tile_rect                   : (0, 0, 0, 0),
 
             layouts,
 
@@ -131,6 +133,7 @@ impl EditorOptions for RegionOptions {
                     if let Some(map) = asset.get_map_of_id(tile.tilemap) {
                         context.draw2d.draw_animated_tile(frame, &((self.rect.2 - 100) / 2, y), map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, 100);
                         name = map.get_name();
+                        self.tile_rect = ((self.rect.2 - 100) / 2, y, 100, 100);
                     }
 
                     y += 105;
@@ -143,6 +146,14 @@ impl EditorOptions for RegionOptions {
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
         let mode = self.get_editor_mode();
+
+        if context.contains_pos_for(pos, self.tile_rect) {
+            context.switch_editor_state = Some(EditorState::TilesDetail);
+            if let Some(content) = content {
+                context.switch_tilemap_to_tile = content.get_selected_tile().clone();
+            }
+            return true;
+        }
 
         if mode == RegionEditorMode::Tiles {
 

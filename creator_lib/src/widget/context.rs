@@ -25,6 +25,7 @@ pub struct ScreenContext<'a> {
     pub data                            : GameData,
 
     pub switch_editor_state             : Option<EditorState>,
+    pub switch_tilemap_to_tile          : Option<TileData>,
 
     pub toolbar_height                  : usize,
     pub toolbar_button_height           : usize,
@@ -247,7 +248,9 @@ impl ScreenContext<'_> {
             width, height,
 
             data                        : GameData::new(),
+
             switch_editor_state         : None,
+            switch_tilemap_to_tile      : None,
 
             // Editor statics
             toolbar_height              : 44 * 2,

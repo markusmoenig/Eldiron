@@ -289,7 +289,6 @@ impl EditorOptions for TileMapOptions {
 
     /// Set the tags
     fn set_tile_settings(&mut self, open_editor: bool, asset: &mut Asset, context: &mut ScreenContext) {
-
         if open_editor == false && context.code_editor_is_active == false {
             return;
         }
@@ -312,6 +311,9 @@ impl EditorOptions for TileMapOptions {
                     let id = context.create_property_id("tile_settings");
                     context.code_editor_mode = CodeEditorMode::Settings;
                     context.open_code_editor(id, value, false);
+
+                    // Clear the debug renderer in case the settings change
+                    context.debug_render = None;
                 }
             }
         }

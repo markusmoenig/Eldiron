@@ -355,6 +355,8 @@ impl EditorContent for RegionWidget {
                 // Preview
 
                 if self.preview_button.curr_index == 1 || self.preview_button.curr_index == 2 {
+
+
                     if let Some(render) = &mut context.debug_render {
 
                         let mut prev_rect = rect.clone();
@@ -510,7 +512,7 @@ impl EditorContent for RegionWidget {
                                     }
                                 }
 
-                                if self.preview_button.curr_index == 1 {
+                                if self.preview_button.curr_index == 2 {
                                     render.force_display_mode = Some(ForceDisplayMode::ThreeD);
                                 }
                                 render.process_update(&update);

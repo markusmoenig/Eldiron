@@ -736,18 +736,20 @@ impl AtomWidget {
 
                     let r = (x, rect.1, cell_size, rect.3);
 
-                    let mut fill_color = if index != self.curr_index { &context.color_black } else { &context.color_light_gray };
+                    let border_color = if index != self.curr_index { &context.color_light_gray } else { &context.color_white };
 
-                    if index == 3 {
-                        fill_color = if index != self.curr_index { &context.color_orange } else { &context.color_light_orange };
-                    }
+                    let fill_color = if index != 3{ &context.color_black } else { &context.color_orange};
+
+                    // if index == 3 {
+                    //     fill_color = if index != self.curr_index { &context.color_orange } else { &context.color_light_orange };
+                    // }
 
                     let mut drawn = false;
 
                     if let Some(mask) = &self.button_mask {
                         if let Some(t) = &mask[index] {
 
-                            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &((cell_size - 2) as f64, (cell_size - 2) as f64), &context.color_black , &(0.0, 0.0, 0.0, 0.0), &context.color_white, 1.5);
+                            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &((cell_size - 2) as f64, (cell_size - 2) as f64), &context.color_black , &(0.0, 0.0, 0.0, 0.0), &border_color, 1.5);
 
                             drawn = true;
 
@@ -758,7 +760,7 @@ impl AtomWidget {
                     }
 
                     if drawn == false {
-                        context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &((cell_size - 2) as f64, (cell_size - 2) as f64), &fill_color, &(0.0, 0.0, 0.0, 0.0), &context.color_light_gray, 1.5);
+                        context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &((cell_size - 2) as f64, (cell_size - 2) as f64), &fill_color, &(0.0, 0.0, 0.0, 0.0), border_color, 1.5);
 
                         context.draw2d.draw_text_rect(buffer_frame, &r, rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
                     }

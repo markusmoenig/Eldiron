@@ -590,6 +590,53 @@ impl Editor<'_> {
             if state == EditorState::TilesDetail {
                 self.context.curr_graph_type = BehaviorType::Tiles;
                 self.set_asset_id();
+
+                // Do we need to set the tilemap editor to a new tile ?
+                if let Some(tile_data) = &self.context.switch_tilemap_to_tile.clone() {
+
+                    self.context.curr_tile = Some((tile_data.x_off as usize, tile_data.y_off as usize));
+
+                    for i in 1..=6 {
+                        self.toolbar.widgets[i].selected = false;
+                        self.toolbar.widgets[i].right_selected = false;
+                        self.toolbar.widgets[i].checked = false;
+                        self.toolbar.widgets[i].dirty = true;
+                    }
+
+                    self.toolbar.widgets[1].right_selected = true;
+                    self.toolbar.widgets[1].dirty = true;
+                    self.toolbar.widgets[0].text = self.asset.tileset.maps_names.clone();
+                    self.toolbar.widgets[0].dirty = true;
+
+                    for (index, id) in self.asset.tileset.maps_ids.iter().enumerate() {
+                        if *id == tile_data.tilemap {
+                            self.toolbar.widgets[0].curr_index = index;
+                        }
+                    }
+
+                    let index = EditorState::TilesDetail as usize;
+                    let mut options : Option<Box<dyn EditorOptions>> = None;
+                    let mut content : Option<Box<dyn EditorContent>> = None;
+
+                    if let Some(element) = self.content.drain(index..index+1).next() {
+                        options = element.0;
+                        content = element.1;
+
+                        if let Some(mut el_content) = content {
+                            el_content.set_tilemap_id(tile_data.tilemap, &mut self.asset);
+                            content = Some(el_content);
+                        }
+
+                        if let Some(mut el_options) = options {
+                            el_options.adjust_tile_usage(&self.asset, &self.context);
+                            el_options.set_tile_settings(false, &mut self.asset, &mut self.context);
+                            el_options.set_state(WidgetState::Normal);
+                            options = Some(el_options);
+                        }
+                    }
+                    self.content.insert(index, (options, content));
+                }
+                self.context.switch_tilemap_to_tile = None;
             } else
             if state == EditorState::RegionDetail {
                 self.context.curr_graph_type = BehaviorType::Regions;
