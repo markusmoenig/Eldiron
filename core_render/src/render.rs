@@ -15,6 +15,12 @@ pub enum Group {
     Music,
 }
 
+#[derive(Eq, PartialEq, Clone)]
+pub enum ForceDisplayMode {
+    TwoD,
+    ThreeD,
+}
+
 #[cfg(feature = "embed_binaries")]
 use core_embed_binaries::Embedded;
 
@@ -58,7 +64,8 @@ pub struct GameRender<'a> {
 
     pub character_effects       : FxHashMap<Uuid, (TileId, usize)>,
 
-    three_d_preview             : bool,
+    use_3d_preview            : bool,
+    pub force_display_mode      : Option<ForceDisplayMode>,
 }
 
 impl GameRender<'_> {
@@ -176,7 +183,8 @@ impl GameRender<'_> {
 
             character_effects   : FxHashMap::default(),
 
-            three_d_preview     : false,
+            use_3d_preview      : false,
+            force_display_mode  : None,
         }
     }
 
@@ -290,7 +298,7 @@ impl GameRender<'_> {
         // Got a new region ?
         if let Some(region) = &update.region {
             self.regions.insert(region.id, region.clone());
-            self.three_d_preview = false;
+            self.use_3d_preview = false;
 
             // Set the settings into the region map
             if let Some(mut map) = self.this_map.write_lock::<Map>() {
@@ -307,10 +315,10 @@ impl GameRender<'_> {
 
                         if let Some(r) = properties.get("render") {
                             if let Some(value) = r.as_string() {
-                                if value.to_lowercase() == "3d" {
+                                if value.to_lowercase() == "3d" || self.force_display_mode == Some(ForceDisplayMode::ThreeD) {
                                     region_map.insert("render".into(), Dynamic::from("3d"));
                                     self.raycast.load_region(&self.asset, region);
-                                    self.three_d_preview = true;
+                                    self.use_3d_preview = true;
                                 } else {
                                     region_map.insert("render".into(), Dynamic::from("2d"));
                                 }
@@ -716,7 +724,7 @@ impl GameRender<'_> {
 
     // Display the preview in the default region settings mode
     pub fn process_game_draw_auto(&mut self, rect: (usize, usize, usize, usize), anim_counter: usize, update: &GameUpdate, external_frame: &mut Option<&mut [u8]>, stride: usize) {
-        if self.three_d_preview {
+        if self.use_3d_preview {
             self.process_game_draw_3d(rect, anim_counter, &update, external_frame, stride);
         } else {
             self.process_game_draw_2d(rect, anim_counter, &update, external_frame, stride);

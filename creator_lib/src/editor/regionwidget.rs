@@ -71,7 +71,7 @@ impl EditorContent for RegionWidget {
 
         // Preview button
 
-        let mut preview_button = AtomWidget::new(vec!["Preview: Off".to_string(), "Preview: On".to_string()], AtomWidgetType::SliderButton,
+        let mut preview_button = AtomWidget::new(vec!["Preview: Off".to_string(), "Preview: 2D".to_string(), "Preview: 3D".to_string()], AtomWidgetType::SliderButton,
         AtomData::new("Preview", Value::Empty()));
         preview_button.curr_index = 0;
         preview_button.atom_data.text = "Preview".to_string();
@@ -311,7 +311,7 @@ impl EditorContent for RegionWidget {
             let mut rect = self.rect.clone();
             rect.3 -= self.bottom_size + self.toolbar_size;
 
-            if self.preview_button.curr_index == 1 {
+            if self.preview_button.curr_index == 1 ||  self.preview_button.curr_index == 2 {
                 rect.2 -= rect.2 / 3;
             }
 
@@ -354,7 +354,7 @@ impl EditorContent for RegionWidget {
 
                 // Preview
 
-                if self.preview_button.curr_index == 1 {
+                if self.preview_button.curr_index == 1 || self.preview_button.curr_index == 2 {
                     if let Some(render) = &mut context.debug_render {
 
                         let mut prev_rect = rect.clone();
@@ -510,8 +510,17 @@ impl EditorContent for RegionWidget {
                                     }
                                 }
 
+                                if self.preview_button.curr_index == 1 {
+                                    render.force_display_mode = Some(ForceDisplayMode::ThreeD);
+                                }
                                 render.process_update(&update);
-                                render.process_game_draw_auto(prev_rect, anim_counter, &update, &mut Some(frame), context.width);
+                                // render.process_game_draw_auto(prev_rect, anim_counter, &update, &mut Some(frame), context.width);
+
+                                if self.preview_button.curr_index == 1 {
+                                    render.process_game_draw_2d(prev_rect, anim_counter, &update, &mut Some(frame), context.width);
+                                } else {
+                                    render.process_game_draw_3d(prev_rect, anim_counter, &update, &mut Some(frame), context.width);
+                                }
                             }
                         }
                     }
@@ -1480,6 +1489,9 @@ impl EditorContent for RegionWidget {
                 if char == 'p' {
                     if self.preview_button.curr_index == 0 {
                         self.preview_button.curr_index = 1;
+                    } else
+                    if self.preview_button.curr_index == 1 {
+                        self.preview_button.curr_index = 2;
                     } else {
                         self.preview_button.curr_index = 0;
                     }
