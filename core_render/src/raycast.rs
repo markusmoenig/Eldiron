@@ -85,8 +85,8 @@ impl Raycast {
                                 }
                             }
                             if let Some(raycaster_sprite_move_y) = props.get("raycaster_sprite_move_y") {
-                                if let Some(raycaster_sprite_move_y) = raycaster_sprite_move_y.as_float() {
-                                    sprite_move_y = raycaster_sprite_move_y;
+                                if let Some(raycaster_sprite_move_y) = raycaster_sprite_move_y.as_int() {
+                                    sprite_move_y = raycaster_sprite_move_y as f32;
                                 }
                             }
                         }
