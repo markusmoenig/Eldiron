@@ -7,7 +7,7 @@ use rhai::{ Engine, Scope, AST, Dynamic, Map };
 
 use audio_engine::{AudioEngine, WavDecoder, OggDecoder};
 
-use crate::raycast::Raycast;
+use crate::raycast::{Raycast, Facing};
 
 #[derive(Eq, Hash, PartialEq)]
 pub enum Group {
@@ -16,7 +16,7 @@ pub enum Group {
 }
 
 #[derive(Eq, PartialEq, Clone)]
-pub enum ForceDisplayMode {
+pub enum DisplayMode {
     TwoD,
     ThreeD,
 }
@@ -64,8 +64,8 @@ pub struct GameRender<'a> {
 
     pub character_effects       : FxHashMap<Uuid, (TileId, usize)>,
 
-    use_3d_preview            : bool,
-    pub force_display_mode      : Option<ForceDisplayMode>,
+    pub force_display_mode      : Option<DisplayMode>,
+    pub display_mode            : DisplayMode,
 }
 
 impl GameRender<'_> {
@@ -183,8 +183,8 @@ impl GameRender<'_> {
 
             character_effects   : FxHashMap::default(),
 
-            use_3d_preview      : false,
             force_display_mode  : None,
+            display_mode        : DisplayMode::TwoD,
         }
     }
 
@@ -298,7 +298,7 @@ impl GameRender<'_> {
         // Got a new region ?
         if let Some(region) = &update.region {
             self.regions.insert(region.id, region.clone());
-            self.use_3d_preview = false;
+            self.display_mode = DisplayMode::ThreeD;
 
             // Set the settings into the region map
             if let Some(mut map) = self.this_map.write_lock::<Map>() {
@@ -315,10 +315,10 @@ impl GameRender<'_> {
 
                         if let Some(r) = properties.get("render") {
                             if let Some(value) = r.as_string() {
-                                if value.to_lowercase() == "3d" || self.force_display_mode == Some(ForceDisplayMode::ThreeD) {
+                                if value.to_lowercase() == "3d" || self.force_display_mode == Some(DisplayMode::ThreeD) {
                                     region_map.insert("render".into(), Dynamic::from("3d"));
                                     self.raycast.load_region(&self.asset, region);
-                                    self.use_3d_preview = true;
+                                    self.display_mode = DisplayMode::ThreeD;
                                 } else {
                                     region_map.insert("render".into(), Dynamic::from("2d"));
                                 }
@@ -724,7 +724,7 @@ impl GameRender<'_> {
 
     // Display the preview in the default region settings mode
     pub fn process_game_draw_auto(&mut self, rect: (usize, usize, usize, usize), anim_counter: usize, update: &GameUpdate, external_frame: &mut Option<&mut [u8]>, stride: usize) {
-        if self.use_3d_preview {
+        if self.display_mode == DisplayMode::ThreeD {
             self.process_game_draw_3d(rect, anim_counter, &update, external_frame, stride);
         } else {
             self.process_game_draw_2d(rect, anim_counter, &update, external_frame, stride);
@@ -1247,7 +1247,7 @@ impl GameRender<'_> {
 
                         match cmd {
                             ScriptServerCmd::Action(action, direction) => {
-                                let dir : Option<PlayerDirection>;
+                                let mut dir : Option<PlayerDirection>;
 
                                 if direction == "west" {
                                     dir = Some(PlayerDirection::West);
@@ -1264,9 +1264,75 @@ impl GameRender<'_> {
                                     dir = Some(PlayerDirection::None);
                                 }
 
-                                if let Some(dir) = dir {
-                                    if let Some(action) = pack_action(player_id, action.clone(), dir) {
-                                        commands.push(action);
+                                let mut processed_cmd = false;
+
+                                // 3D mode overrides left / right
+                                if self.display_mode == DisplayMode::ThreeD && action == "Move" {
+
+                                    if dir == Some(PlayerDirection::West) {
+                                        if self.raycast.facing == Facing::North {
+                                            self.raycast.facing = Facing::West;
+                                        } else
+                                        if self.raycast.facing == Facing::West {
+                                            self.raycast.facing = Facing::South;
+                                        } else
+                                        if self.raycast.facing == Facing::South {
+                                            self.raycast.facing = Facing::East;
+                                        } else
+                                        if self.raycast.facing == Facing::East {
+                                            self.raycast.facing = Facing::North;
+                                        }
+                                        self.raycast.raycaster.turn_by(90.0);
+                                        processed_cmd = true;
+                                    } else
+                                    if dir == Some(PlayerDirection::East) {
+                                        if self.raycast.facing == Facing::North {
+                                            self.raycast.facing = Facing::East;
+                                        } else
+                                        if self.raycast.facing == Facing::East {
+                                            self.raycast.facing = Facing::South;
+                                        } else
+                                        if self.raycast.facing == Facing::South {
+                                            self.raycast.facing = Facing::West;
+                                        } else
+                                        if self.raycast.facing == Facing::West {
+                                            self.raycast.facing = Facing::North;
+                                        }
+                                        self.raycast.raycaster.turn_by(-90.0);
+                                        processed_cmd = true;
+                                    } else
+                                    if dir == Some(PlayerDirection::North) {
+                                        if self.raycast.facing == Facing::West {
+                                            dir = Some(PlayerDirection::West);
+                                        } else
+                                        if self.raycast.facing == Facing::South {
+                                            dir = Some(PlayerDirection::South);
+                                        } else
+                                        if self.raycast.facing == Facing::East {
+                                            dir = Some(PlayerDirection::East);
+                                        }
+                                    } else
+                                    if dir == Some(PlayerDirection::South) {
+                                        if self.raycast.facing == Facing::North {
+                                            dir = Some(PlayerDirection::South);
+                                        } else
+                                        if self.raycast.facing == Facing::West {
+                                            dir = Some(PlayerDirection::East);
+                                        } else
+                                        if self.raycast.facing == Facing::South {
+                                            dir = Some(PlayerDirection::North);
+                                        } else
+                                        if self.raycast.facing == Facing::East {
+                                            dir = Some(PlayerDirection::West);
+                                        }
+                                    }
+                                }
+
+                                if processed_cmd == false {
+                                    if let Some(dir) = dir {
+                                        if let Some(action) = pack_action(player_id, action.clone(), dir) {
+                                            commands.push(action);
+                                        }
                                     }
                                 }
                             },

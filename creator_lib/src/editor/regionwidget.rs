@@ -513,7 +513,7 @@ impl EditorContent for RegionWidget {
                                 }
 
                                 if self.preview_button.curr_index == 2 {
-                                    render.force_display_mode = Some(ForceDisplayMode::ThreeD);
+                                    render.force_display_mode = Some(DisplayMode::ThreeD);
                                 }
                                 render.process_update(&update);
                                 // render.process_game_draw_auto(prev_rect, anim_counter, &update, &mut Some(frame), context.width);

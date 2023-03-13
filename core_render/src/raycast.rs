@@ -2,6 +2,14 @@
 use crate::prelude::*;
 use raycaster::prelude::*;
 
+#[derive(Eq, PartialEq, Clone)]
+pub enum Facing {
+    North,
+    East,
+    South,
+    West
+}
+
 /// Handles the 2.5D raycaster support.
 pub struct Raycast {
 
@@ -10,6 +18,8 @@ pub struct Raycast {
     /// Tilemaps map
     world_maps                  : FxHashMap<Uuid, WorldMap>,
     world_tilemaps              : FxHashMap<Uuid, FxHashMap<Uuid, (usize, usize, usize, usize)>>,
+
+    pub facing                  : Facing
 }
 
 impl Raycast {
@@ -20,6 +30,8 @@ impl Raycast {
 
             world_maps          : FxHashMap::default(),
             world_tilemaps      : FxHashMap::default(),
+
+            facing              : Facing::North,
         }
     }
 
@@ -111,7 +123,19 @@ impl Raycast {
 
     /// Sets the position of the raycaster
     pub fn render(&mut self, frame: &mut [u8], pos: (i32, i32), region: &Uuid, rect: (usize, usize, usize, usize), stride: usize) {
-        self.raycaster.set_pos(pos.0 as f32 + 0.5, -pos.1 as f32);
+
+        let off_x;
+        let off_y;
+
+        if self.facing == Facing::North || self.facing == Facing::South {
+            off_x = 0.5;
+            off_y = 0.0;
+        } else {
+            off_x = 0.5;
+            off_y = 0.0;
+        }
+
+        self.raycaster.set_pos(pos.0 as f32 + off_x, -pos.1 as f32 + off_y);
 
         //println!("pos: {:?}, {}", pos, stride);
 

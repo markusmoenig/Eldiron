@@ -489,7 +489,7 @@ impl Editor<'_> {
             self.context.draw2d.draw_rect(frame, &clear_frame, self.context.width, &self.context.color_black);
 
             if self.game_render.is_none() {
-                self.game_render = Some(GameRender::new(self.context.resource_path.clone(), self.context.player_id));
+                self.game_render = Some(GameRender::new(self.context.curr_project_path.clone(), self.context.player_id));
             }
 
             if let Some(render) = &mut self.game_render {
