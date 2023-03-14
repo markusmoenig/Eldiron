@@ -19,6 +19,8 @@ pub struct Raycast {
     world_maps                  : FxHashMap<Uuid, WorldMap>,
     world_tilemaps              : FxHashMap<Uuid, FxHashMap<Uuid, (usize, usize, usize, usize)>>,
 
+    static_sprites              : Vec<Sprite>,
+
     pub facing                  : Facing
 }
 
@@ -31,12 +33,19 @@ impl Raycast {
             world_maps          : FxHashMap::default(),
             world_tilemaps      : FxHashMap::default(),
 
+            static_sprites      : vec![],
+
             facing              : Facing::North,
         }
     }
 
     /// Creates a WorldMap for the given region and passed the required tilemaps.
     pub fn load_region(&mut self, asset: &Asset, region: &GameRegionData) {
+
+        // Check if we loaded the region already
+        if self.world_tilemaps.contains_key(&region.id) {
+            return;
+        }
 
         let mut world = WorldMap::new();
         let mut tilemaps : FxHashMap<Uuid, (usize, usize, usize, usize)> = FxHashMap::default();
@@ -104,9 +113,10 @@ impl Raycast {
                         }
 
                         if sprite {
-                            let mut sprite = Sprite::new(pos.0 as f32 + 0.5, -pos.1 as f32, t);
+                            let mut sprite = Sprite::new(pos.0 as f32 + 0.5, -pos.1 as f32 + 0.5, t);
                             sprite.shrink = sprite_shrink;
                             sprite.move_y = sprite_move_y;
+                            self.static_sprites.push(sprite.clone());
                             world.add_sprite(sprite);
                         } else {
                             world.set_wall(pos.0 as i32, -pos.1 as i32, t);
@@ -122,24 +132,41 @@ impl Raycast {
     }
 
     /// Sets the position of the raycaster
-    pub fn render(&mut self, frame: &mut [u8], pos: (i32, i32), region: &Uuid, rect: (usize, usize, usize, usize), stride: usize) {
+    pub fn render(&mut self, frame: &mut [u8], pos: (i32, i32), region: &Uuid, rect: (usize, usize, usize, usize), stride: usize, update: &GameUpdate, asset: &Asset) {
 
         let off_x;
         let off_y;
 
         if self.facing == Facing::North || self.facing == Facing::South {
             off_x = 0.5;
-            off_y = 0.0;
+            off_y = 0.5;
         } else {
             off_x = 0.5;
-            off_y = 0.0;
+            off_y = 0.5;
+        }
+
+        let mut sprites = self.static_sprites.clone();
+        for character in &update.characters {
+            if let Some(tile_orig) = self.get_tile_id(&character.tile, asset) {
+                if let Some(region_maps) = self.world_tilemaps.get(region) {
+                    if let Some((t_id, size, width, _height))  = region_maps.get(&character.tile.tilemap) {
+                        let rect =  (character.tile.x_off as usize * size * 4, character.tile.y_off as usize * width * size * 4, *size, *size);
+
+                        let t = raycaster::Tile::textured_anim(*t_id, rect, (tile_orig.anim_tiles.len() as u16).max(1));
+
+                        let sprite = Sprite::new(character.position.x as f32 + 0.5, -character.position.y as f32 + 0.5, t);
+                        //sprite.shrink = sprite_shrink;
+                        //sprite.move_y = sprite_move_y;
+                        sprites.push(sprite);
+                    }
+                }
+            }
         }
 
         self.raycaster.set_pos(pos.0 as f32 + off_x, -pos.1 as f32 + off_y);
 
-        //println!("pos: {:?}, {}", pos, stride);
-
         if let Some(world) = self.world_maps.get_mut(region) {
+            world.sprites = sprites;
             self.raycaster.render(frame, rect, stride, world);
         }
     }
@@ -149,9 +176,15 @@ impl Raycast {
             if let Some(tile) = tilemap.get_tile(&(tile.x_off as usize, tile.y_off as usize)) {
                 return Some(tile.clone());
             }
-            //if let Some(tile) = tilemap.get_tile(&(tile.x_off as usize, tile.y_off as usize)) {
-            //    return tile.settings.clone();
-            //}
+        }
+        None
+    }
+
+    pub fn get_tile_id(&self, tile: &TileId, asset: &Asset) -> Option<core_shared::prelude::Tile> {
+        if let Some(tilemap) = asset.tileset.maps.get(&tile.tilemap) {
+            if let Some(tile) = tilemap.get_tile(&(tile.x_off as usize, tile.y_off as usize)) {
+                return Some(tile.clone());
+            }
         }
         None
     }

@@ -298,7 +298,7 @@ impl GameRender<'_> {
         // Got a new region ?
         if let Some(region) = &update.region {
             self.regions.insert(region.id, region.clone());
-            self.display_mode = DisplayMode::ThreeD;
+            self.display_mode = if self.force_display_mode == Some(DisplayMode::ThreeD) { DisplayMode::ThreeD } else { DisplayMode::TwoD};
 
             // Set the settings into the region map
             if let Some(mut map) = self.this_map.write_lock::<Map>() {
@@ -313,19 +313,21 @@ impl GameRender<'_> {
 
                         let properties = &region.settings;
 
-                        if let Some(r) = properties.get("render") {
-                            if let Some(value) = r.as_string() {
-                                if value.to_lowercase() == "3d" || self.force_display_mode == Some(DisplayMode::ThreeD) {
-                                    region_map.insert("render".into(), Dynamic::from("3d"));
+                        if let Some(r) = properties.get("supports_3d") {
+                            if let Some(value) = r.as_bool() {
+                                region_map.insert("supports_3d".into(), Dynamic::from(value));
+                                if value == true {
                                     self.raycast.load_region(&self.asset, region);
-                                    self.display_mode = DisplayMode::ThreeD;
-                                } else {
-                                    region_map.insert("render".into(), Dynamic::from("2d"));
                                 }
                             }
                         }
                     }
                 }
+            }
+
+            // 3D ? Load the region into the raycaster
+            if self.display_mode == DisplayMode::ThreeD {
+                self.raycast.load_region(&self.asset, region);
             }
         }
 
@@ -737,9 +739,9 @@ impl GameRender<'_> {
 
                 if external_frame.is_some() {
                     let frame = external_frame.as_deref_mut().unwrap();
-                    self.raycast.render(frame, (position.x as i32, position.y as i32), &region.id, rect, stride);
+                    self.raycast.render(frame, (position.x as i32, position.y as i32), &region.id, rect, stride, update, &self.asset);
                 } else {
-                    self.raycast.render(&mut self.frame[..], (position.x as i32, position.y as i32), &region.id, rect, self.width);
+                    self.raycast.render(&mut self.frame[..], (position.x as i32, position.y as i32), &region.id, rect, self.width, update, &self.asset);
                 }
             }
         }
@@ -1239,9 +1241,21 @@ impl GameRender<'_> {
         let mut commands = vec![];
 
         if let Some(mut map) = self.this_map.write_lock::<Map>() {
+
+            let mut display_mode_3d = false;
+
+            if let Some(c) = map.get("region") {
+                if let Some(region_map) = c.read_lock::<rhai::Map>() {
+                    if let Some(mode) = region_map.get("display_mode") {
+                        if mode.to_string() == "3d" {
+                            display_mode_3d = true;
+                        }
+                    }
+                }
+            }
+
             if let Some(c) = map.get_mut("cmd") {
                 if let Some(mut cmd) = c.write_lock::<ScriptCmd>() {
-
 
                     for cmd in &cmd.action_commands {
 
@@ -1267,7 +1281,7 @@ impl GameRender<'_> {
                                 let mut processed_cmd = false;
 
                                 // 3D mode overrides left / right
-                                if self.display_mode == DisplayMode::ThreeD && action == "Move" {
+                                if display_mode_3d && action == "Move" {
 
                                     if dir == Some(PlayerDirection::West) {
                                         if self.raycast.facing == Facing::North {
