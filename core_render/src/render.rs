@@ -102,6 +102,7 @@ impl GameRender<'_> {
             .register_fn("draw_frame", ScriptCmd::draw_frame)
             .register_fn("draw_frame_sat", ScriptCmd::draw_frame_sat)
             .register_fn("draw_game_2d", ScriptCmd::draw_game_2d)
+            .register_fn("draw_game_offset_2d", ScriptCmd::draw_game_offset_2d)
             .register_fn("draw_game_3d", ScriptCmd::draw_game_3d)
             .register_fn("draw_region", ScriptCmd::draw_region)
             .register_fn("draw_messages", ScriptCmd::draw_messages)
@@ -497,7 +498,8 @@ impl GameRender<'_> {
 
                 ScriptDrawCmd::DrawRect(rect, rgb) => {
                     if rect.is_safe(self.width, self.height) {
-                        self.draw2d.draw_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
+                        //self.draw2d.draw_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
+                        self.draw2d.blend_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
                     }
                 },
                 ScriptDrawCmd::DrawShape(shape) => {
@@ -699,10 +701,20 @@ impl GameRender<'_> {
                 ScriptDrawCmd::DrawGame2D(rect) => {
                     if rect.is_safe(self.width, self.height) {
                         if let Some(update) = update {
-                            self.process_game_draw_2d(rect.rect, anim_counter, update, &mut None, self.width);
+                            self.process_game_draw_2d(rect.rect, anim_counter, update, &mut None, self.width, (0, 0));
                         } else {
                             let update = self.last_update.clone();
-                            self.process_game_draw_2d(rect.rect, anim_counter, &update, &mut None, self.width);
+                            self.process_game_draw_2d(rect.rect, anim_counter, &update, &mut None, self.width, (0, 0));
+                        }
+                    }
+                },
+                ScriptDrawCmd::DrawGameOffset2D(rect, offset) => {
+                    if rect.is_safe(self.width, self.height) {
+                        if let Some(update) = update {
+                            self.process_game_draw_2d(rect.rect, anim_counter, update, &mut None, self.width, offset.pos_signed);
+                        } else {
+                            let update = self.last_update.clone();
+                            self.process_game_draw_2d(rect.rect, anim_counter, &update, &mut None, self.width, offset.pos_signed);
                         }
                     }
                 },
@@ -725,11 +737,11 @@ impl GameRender<'_> {
     }
 
     // Display the preview in the default region settings mode
-    pub fn process_game_draw_auto(&mut self, rect: (usize, usize, usize, usize), anim_counter: usize, update: &GameUpdate, external_frame: &mut Option<&mut [u8]>, stride: usize) {
+    pub fn process_game_draw_auto(&mut self, rect: (usize, usize, usize, usize), anim_counter: usize, update: &GameUpdate, external_frame: &mut Option<&mut [u8]>, stride: usize, center_offset: (isize, isize)) {
         if self.display_mode == DisplayMode::ThreeD {
             self.process_game_draw_3d(rect, anim_counter, &update, external_frame, stride);
         } else {
-            self.process_game_draw_2d(rect, anim_counter, &update, external_frame, stride);
+            self.process_game_draw_2d(rect, anim_counter, &update, external_frame, stride, center_offset);
         }
     }
 
@@ -747,7 +759,7 @@ impl GameRender<'_> {
         }
     }
 
-    pub fn process_game_draw_2d(&mut self, rect: (usize, usize, usize, usize), anim_counter: usize, update: &GameUpdate, external_frame: &mut Option<&mut [u8]>, stride: usize) {
+    pub fn process_game_draw_2d(&mut self, rect: (usize, usize, usize, usize), anim_counter: usize, update: &GameUpdate, external_frame: &mut Option<&mut [u8]>, stride: usize, center_offset: (isize, isize)) {
         if let Some(position) = update.position.clone(){
 
             if self.transition_active == false {
@@ -762,7 +774,7 @@ impl GameRender<'_> {
             }
 
             if self.transition_active {
-                self.draw_game_tile_2d_rect(rect, self.last_position.clone().unwrap().clone(), anim_counter, update, None, external_frame, stride);
+                self.draw_game_tile_2d_rect(rect, self.last_position.clone().unwrap().clone(), anim_counter, update, None, external_frame, stride, center_offset);
 
                 let mut r = rect.clone();
 
@@ -781,7 +793,7 @@ impl GameRender<'_> {
                     }
                 }
 
-                self.draw_game_tile_2d_rect(rect, position.clone(), anim_counter, update, Some(set), external_frame, stride);
+                self.draw_game_tile_2d_rect(rect, position.clone(), anim_counter, update, Some(set), external_frame, stride, center_offset);
 
                 self.transition_counter += 1;
                 if self.transition_counter == self.transition_steps {
@@ -790,14 +802,13 @@ impl GameRender<'_> {
                 }
             } else
             if self.transition_active == false {
-                self.draw_game_tile_2d_rect(rect, position.clone(), anim_counter, update, None, external_frame, stride);
+                self.draw_game_tile_2d_rect(rect, position.clone(), anim_counter, update, None, external_frame, stride, center_offset);
             }
         }
     }
 
     /// Draws the game in the given rect
-    pub fn draw_game_tile_2d_rect(&mut self, rect: (usize, usize, usize, usize), cposition: Position, anim_counter: usize, update: &GameUpdate, set: Option<FxHashSet<(isize, isize)>>, external_frame: &mut Option<&mut [u8]>, stride: usize) {
-
+    pub fn draw_game_tile_2d_rect(&mut self, rect: (usize, usize, usize, usize), cposition: Position, anim_counter: usize, update: &GameUpdate, set: Option<FxHashSet<(isize, isize)>>, external_frame: &mut Option<&mut [u8]>, stride: usize, center_offset:(isize, isize)) {
         self.draw2d.scissor = Some(rect);
 
         let mut position = cposition;
@@ -877,8 +888,8 @@ impl GameRender<'_> {
                 position = old_position.clone();
             }
 
-            offset.0 = position.x;
-            offset.1 = position.y;
+            offset.0 = position.x + center_offset.0;
+            offset.1 = position.y + center_offset.1;
 
             let region_width = region.max_pos.0 - region.min_pos.0;
             let region_height = region.max_pos.1 - region.min_pos.1;

@@ -66,13 +66,15 @@ use std::{cmp::max, collections::HashMap};
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScriptPosition {
-    pub pos             : (usize, usize)
+    pub pos             : (usize, usize),
+    pub pos_signed      : (isize, isize)
 }
 
 impl ScriptPosition {
     pub fn new(x: i32, y: i32) -> Self {
         Self {
             pos         : (x as usize, y as usize),
+            pos_signed  : (x as isize, y as isize),
         }
     }
 }
@@ -111,7 +113,7 @@ impl ScriptRect {
     }
 
     pub fn pos(&mut self) -> ScriptPosition {
-        ScriptPosition { pos: (self.rect.0, self.rect.1) }
+        ScriptPosition { pos: (self.rect.0, self.rect.1), pos_signed: (self.rect.0 as isize, self.rect.1 as isize) }
     }
 
     pub fn is_inside(&mut self, pos: ScriptPosition) -> bool {
@@ -134,9 +136,9 @@ impl ScriptRGB {
         }
     }
 
-    pub fn new_with_alpha(r: u8, g: u8, b: u8, a: u8) -> Self {
+    pub fn new_with_alpha(r: i32, g: i32, b: i32, a: i32) -> Self {
         Self {
-            value       : [r, g, b, a],
+            value       : [r as u8, g as u8, b as u8, a as u8],
         }
     }
 
@@ -155,6 +157,7 @@ pub enum ScriptDrawCmd {
     DrawFrame(ScriptRect, ScriptTile),
     DrawFrameSat(ScriptRect, ScriptRGB, ScriptTile),
     DrawGame2D(ScriptRect),
+    DrawGameOffset2D(ScriptRect, ScriptPosition),
     DrawGame3D(ScriptRect),
     DrawRegion(String, ScriptRect, i32),
     DrawText(ScriptPosition, String, String, f32, ScriptRGB),
@@ -252,6 +255,10 @@ impl ScriptCmd {
 
     pub fn draw_game_2d(&mut self, rect: ScriptRect) {
         self.draw_commands.push(ScriptDrawCmd::DrawGame2D(rect));
+    }
+
+    pub fn draw_game_offset_2d(&mut self, rect: ScriptRect, offset: ScriptPosition) {
+        self.draw_commands.push(ScriptDrawCmd::DrawGameOffset2D(rect, offset));
     }
 
     pub fn draw_game_3d(&mut self, rect: ScriptRect) {

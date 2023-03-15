@@ -347,7 +347,7 @@ impl EditorContent for RegionWidget {
                     if let Some(update) = &self.debug_update {
                         if let Some(render) = &mut context.debug_render {
                             render.process_update(update);
-                            render.process_game_draw_2d(rect, anim_counter, update, &mut Some(frame), context.width);
+                            render.process_game_draw_2d(rect, anim_counter, update, &mut Some(frame), context.width, (0, 0));
                         }
                     }
                 }
@@ -519,7 +519,7 @@ impl EditorContent for RegionWidget {
                                 // render.process_game_draw_auto(prev_rect, anim_counter, &update, &mut Some(frame), context.width);
 
                                 if self.preview_button.curr_index == 1 {
-                                    render.process_game_draw_2d(prev_rect, anim_counter, &update, &mut Some(frame), context.width);
+                                    render.process_game_draw_2d(prev_rect, anim_counter, &update, &mut Some(frame), context.width, (0, 0));
                                 } else {
                                     render.process_game_draw_3d(prev_rect, anim_counter, &update, &mut Some(frame), context.width);
                                 }

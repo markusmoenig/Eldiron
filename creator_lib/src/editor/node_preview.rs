@@ -137,7 +137,7 @@ impl NodePreviewWidget {
                     if let Some(update) = &self.debug_update {
                         if let Some(render) = &mut context.debug_render {
                             render.process_update(update);
-                            render.process_game_draw_2d(self.preview_rect, anim_counter, update, &mut Some(buffer_frame), stride);
+                            render.process_game_draw_2d(self.preview_rect, anim_counter, update, &mut Some(buffer_frame), stride, (0, 0));
                         }
                     }
                 } else {
