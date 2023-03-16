@@ -120,6 +120,9 @@ pub struct RegionInstance<'a> {
     pub primary_currency            : String,
     pub hitpoints                   : String,
     pub max_hitpoints               : String,
+
+    // Date & Time
+    pub date                        : Date,
 }
 
 impl RegionInstance<'_> {
@@ -284,7 +287,10 @@ impl RegionInstance<'_> {
             // Variable names
             primary_currency                : "".to_string(),
             hitpoints                       : "".to_string(),
-            max_hitpoints                   : "".to_string()
+            max_hitpoints                   : "".to_string(),
+
+            // Date
+            date                            : Date::new()
         }
     }
 
@@ -1044,6 +1050,7 @@ impl RegionInstance<'_> {
                     experience              : experience.clone(),
                     multi_choice_data       : self.instances[inst_index].multi_choice_data.clone(),
                     communication           : self.instances[inst_index].communication.clone(),
+                    date                    : self.date.clone(),
                  };
 
                 self.instances[inst_index].messages = vec![];
@@ -1061,6 +1068,7 @@ impl RegionInstance<'_> {
         //println!("tick time {}", self.get_time() - tick_time);
 
         self.tick_count = self.tick_count.wrapping_add(1);
+        self.date.from_ticks(self.tick_count);
 
         messages
     }

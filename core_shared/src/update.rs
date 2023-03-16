@@ -69,7 +69,10 @@ pub struct GameUpdate {
     pub multi_choice_data       : Vec<MultiChoiceData>,
 
     /// Ongoing communications
-    pub communication           : Vec<PlayerCommunication>
+    pub communication           : Vec<PlayerCommunication>,
+
+    /// Date
+    pub date                    : Date
 }
 
 impl GameUpdate {
@@ -102,7 +105,7 @@ impl GameUpdate {
             experience          : Experience::new(),
             multi_choice_data   : vec![],
             communication       : vec![],
-
+            date                : Date::new(),
         }
     }
 }

@@ -143,6 +143,7 @@ impl GameRender<'_> {
         script_register_gear_api(&mut engine);
         script_register_weapons_api(&mut engine);
         script_register_experience_api(&mut engine);
+        script_register_date_api(&mut engine);
 
         let this_map = Map::new();
 
@@ -426,6 +427,7 @@ impl GameRender<'_> {
             map.insert("gear".into(), Dynamic::from(update.gear.clone()));
             map.insert("skills".into(), Dynamic::from(update.skills.clone()));
             map.insert("experience".into(), Dynamic::from(update.experience.clone()));
+            map.insert("date".into(), Dynamic::from(update.date.clone()));
         }
 
         None

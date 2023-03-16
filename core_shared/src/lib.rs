@@ -44,6 +44,7 @@ pub mod prelude {
     pub use crate::dir::get_resource_dir;
     pub use crate::experience::*;
     pub use crate::server::*;
+    pub use crate::date::*;
 
     pub use crate::value::Value;
     pub use rustc_hash::FxHashMap;

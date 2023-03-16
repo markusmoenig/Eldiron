@@ -436,20 +436,11 @@ impl EditorContent for RegionWidget {
                                 if let Some(instances) = &behavior.data.loot {
                                     for instance in instances {
                                         if instance.position.region != region.data.id { continue; }
-                                        let mut loot = LootData {
-                                            id          : id.clone(),
-                                            item_type   : "gear".to_string(),
-                                            name        : Some(behavior.data.name.clone()),
-                                            tile        : None,
-                                            state       : None,
-                                            light       : None,
-                                            slot        : None,
-                                            amount      : instance.amount,
-                                            stackable   : 1,
-                                            static_item : false,
-                                            price       : 0.0,
-                                            weight      : 0.0,
-                                        };
+
+                                        let mut loot = Item::new(*id, behavior.data.name.clone());
+                                        loot.item_type = "gear".into();
+                                        loot.amount = instance.amount;
+                                        loot.stackable = 1;
 
                                         for (_index, node) in &behavior.data.nodes {
                                             if node.behavior_type == BehaviorNodeType::BehaviorType {
