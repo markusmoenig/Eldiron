@@ -498,8 +498,11 @@ impl GameRender<'_> {
 
                 ScriptDrawCmd::DrawRect(rect, rgb) => {
                     if rect.is_safe(self.width, self.height) {
-                        //self.draw2d.draw_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
-                        self.draw2d.blend_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
+                        if rgb.value[3] == 255 {
+                            self.draw2d.draw_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
+                        } else {
+                            self.draw2d.blend_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
+                        }
                     }
                 },
                 ScriptDrawCmd::DrawShape(shape) => {
