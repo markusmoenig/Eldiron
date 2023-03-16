@@ -16,19 +16,3 @@ pub struct CharacterData {
     pub effects                 : Vec<TileId>
 }
 
-/// Represents a placed loot instance in the region
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct LootData {
-    pub id                      : Uuid,
-    pub name                    : Option<String>,
-    pub tile                    : Option<TileData>,
-    pub state                   : Option<ScopeBuffer>,
-    pub light                   : Option<LightData>,
-    pub slot                    : Option<String>,
-    pub item_type               : String,
-    pub amount                  : i32,
-    pub stackable               : i32,
-    pub static_item             : bool,
-    pub price                   : f32,
-    pub weight                  : f32,
-}

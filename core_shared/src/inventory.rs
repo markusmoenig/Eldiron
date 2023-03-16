@@ -3,7 +3,7 @@
 use crate::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct InventoryItem {
+pub struct Item {
     pub id                  : Uuid,
     pub name                : String,
     pub item_type           : String,
@@ -18,9 +18,28 @@ pub struct InventoryItem {
     pub weight              : f32,
 }
 
+impl Item {
+    pub fn new(id: Uuid, name: String) -> Self {
+        Self {
+            id,
+            name,
+            item_type       : "tool".into(),
+            tile            : None,
+            state           : None,
+            light           : None,
+            slot            : None,
+            amount          : 0,
+            stackable       : i32::MAX,
+            static_item     : false,
+            price           : 0.0,
+            weight          : 0.0,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Inventory {
-    pub items               : Vec<InventoryItem>,
+    pub items               : Vec<Item>,
     pub items_to_add        : Vec<(String, u32)>,
     pub items_to_equip      : Vec<String>
 }
@@ -45,7 +64,7 @@ impl Inventory {
     }
 
     /// Add an item to the inventory.
-    pub fn add_item(&mut self, mut item: InventoryItem) {
+    pub fn add_item(&mut self, mut item: Item) {
         if item.stackable > 1 {
             for it in &mut self.items {
                 if it.id == item.id {
@@ -86,7 +105,7 @@ impl Inventory {
     }
 
     // Removes the item of the given name
-    pub fn remove_item_by_name(&mut self, name: String) -> Option<InventoryItem> {
+    pub fn remove_item_by_name(&mut self, name: String) -> Option<Item> {
         let mut id : Option<Uuid> = None;
         for index in 0..self.items.len() {
             if self.items[index].name == name {
@@ -102,7 +121,7 @@ impl Inventory {
     }
 
     // Removes the given amount of items from the inventory and returns it
-    pub fn remove_item(&mut self, id: Uuid, _amount: i32) -> Option<InventoryItem> {
+    pub fn remove_item(&mut self, id: Uuid, _amount: i32) -> Option<Item> {
 
         let mut to_remove : Option<usize> = None;
         for index in 0..self.items.len() {

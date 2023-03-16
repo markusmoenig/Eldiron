@@ -116,33 +116,19 @@ pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
                 if loot[index].static_item { continue; }
                 let element = loot.remove(index);
 
-                if element.name.is_some() && element.name.clone().unwrap().to_lowercase() == data.primary_currency {
+                if element.name.to_lowercase() == data.primary_currency {
                     add_to_character_currency(instance_index, element.amount as f32, data);
-                    data.action_subject_text = element.name.clone().unwrap();
+                    data.action_subject_text = element.name;
                 } else
                 if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
                     if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                        if let Some(name) = element.name {
+                        if element.name.is_empty() == false {
                             if element.state.is_none() {
-                                inv.add(name.as_str(), element.amount);
+                                inv.add(element.name.as_str(), element.amount);
                             } else {
-                                let item = InventoryItem {
-                                    id          : element.id,
-                                    name        : name.clone(),
-                                    item_type   : element.item_type,
-                                    tile        : element.tile,
-                                    state       : element.state,
-                                    light       : element.light,
-                                    slot        : element.slot,
-                                    amount      : element.amount,
-                                    stackable   : element.stackable,
-                                    static_item : element.static_item,
-                                    price       : element.price,
-                                    weight      : element.weight,
-                                };
-                                inv.add_item(item);
+                                inv.add_item(element.clone());
                             }
-                            data.action_subject_text = name;
+                            data.action_subject_text = element.name;
                         }
                     }
                 }
@@ -181,20 +167,7 @@ pub fn player_drop(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
                             item.light = Some(light);
                         }
 
-                        let loot = LootData {
-                            id          : item.id,
-                            name        : Some(item.name),
-                            item_type   : item.item_type,
-                            tile        : item.tile,
-                            state       : item.state,
-                            light       : item.light,
-                            slot        : item.slot,
-                            amount      : item.amount as i32,
-                            stackable   : item.stackable as i32,
-                            static_item : item.static_item,
-                            price       : item.price,
-                            weight      : item.weight
-                        };
+                        let loot = item.clone();
 
                         if let Some(existing_loot) = data.loot.get_mut(&(p.x, p.y)) {
                             existing_loot.push(loot);
@@ -271,8 +244,8 @@ pub fn player_equip(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionI
 
     let mut rc = BehaviorNodeConnector::Fail;
 
-    let mut to_equip: Option<InventoryItem> = None;
-    let mut to_add_back_to_inventory: Vec<InventoryItem> = vec![];
+    let mut to_equip: Option<Item> = None;
+    let mut to_add_back_to_inventory: Vec<Item> = vec![];
 
     // Remove the item to equip from the inventory
     if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {

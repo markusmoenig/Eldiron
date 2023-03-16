@@ -29,7 +29,7 @@ pub struct RegionInstance<'a> {
     pub scopes                      : Vec<rhai::Scope<'a>>,
 
     /// The loot in the region
-    pub loot                        : FxHashMap<(isize, isize), Vec<LootData>>,
+    pub loot                        : FxHashMap<(isize, isize), Vec<Item>>,
 
     /// During action execution for regions this indicates the calling behavior index
     pub curr_action_inst_index      : Option<usize>,
@@ -644,7 +644,7 @@ impl RegionInstance<'_> {
                                     }
 
                                     if behavior.name == *data.0 {
-                                        let mut item = InventoryItem {
+                                        let mut item = Item {
                                             id          : behavior.id,
                                             name        : behavior.name.clone(),
                                             item_type   : "gear".to_string(),
@@ -776,7 +776,7 @@ impl RegionInstance<'_> {
             }
 
             // Equip items
-            let mut to_add_back_to_inventory: Vec<InventoryItem> = vec![];
+            let mut to_add_back_to_inventory: Vec<Item> = vec![];
             for item in to_equip {
                 let item_type = item.item_type.clone().to_lowercase();
                 if let Some(slot) = item.slot.clone() {
@@ -1469,20 +1469,10 @@ impl RegionInstance<'_> {
                 if let Some(instances) = &behavior_data.loot {
                     for instance in instances {
                         if instance.position.region != self.region_data.id { continue; }
-                        let mut loot = LootData {
-                            id          : behavior_data.id.clone(),
-                            item_type   : "gear".to_string(),
-                            name        : Some(behavior_data.name.clone()),
-                            tile        : None,
-                            state       : None,
-                            light       : None,
-                            slot        : None,
-                            amount      : instance.amount,
-                            stackable   : 1,
-                            static_item : false,
-                            price       : 0.0,
-                            weight      : 0.0,
-                        };
+                        let mut loot = Item::new(behavior_data.id, behavior_data.name.clone());
+                        loot.item_type = "gear".to_string();
+                        loot.amount = instance.amount;
+                        loot.stackable = 1;
 
                         for (_index, node) in &behavior_data.nodes {
                             if node.behavior_type == BehaviorNodeType::BehaviorType {

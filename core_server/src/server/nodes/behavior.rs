@@ -461,7 +461,7 @@ pub fn sell(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, 
             //let curr = character_currency(instance_index, data);
             let npc_index = get_local_instance_index(instance_index, data);
 
-            let mut traded_item : Option<InventoryItem> = None;
+            let mut traded_item : Option<Item> = None;
 
             // Remove the item
             if let Some(mess) = data.scopes[npc_index].get_mut("inventory") {
@@ -1116,20 +1116,7 @@ pub fn drop_inventory(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
                             item.light = Some(light);
                         }
 
-                        let loot = LootData {
-                            id          : item.id,
-                            name        : Some(item.name),
-                            item_type   : item.item_type,
-                            tile        : item.tile,
-                            state       : item.state,
-                            light       : item.light,
-                            slot        : item.slot,
-                            amount      : item.amount as i32,
-                            stackable   : item.stackable as i32,
-                            static_item : item.static_item,
-                            price       : item.price,
-                            weight      : item.weight
-                        };
+                        let loot = item.clone();
 
                         if let Some(existing_loot) = data.loot.get_mut(&(p.x, p.y)) {
                             existing_loot.push(loot);
@@ -1160,20 +1147,8 @@ pub fn drop_inventory(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
 
         for (id, behavior) in &data.items {
             if behavior.name.to_lowercase() == data.primary_currency {
-                let mut loot = LootData {
-                    id          : *id,
-                    name        : Some(behavior.name.clone()),
-                    item_type   : "tool".to_string(),
-                    tile        : None,
-                    state       : None,
-                    light       : None,
-                    slot        : None,
-                    amount      : gold,
-                    stackable   : i32::MAX,
-                    static_item : false,
-                    price       : 0.0,
-                    weight      : 0.0
-                };
+                let mut loot = Item::new(*id, behavior.name.clone());
+                loot.amount = gold;
 
                 for (_index, node) in &behavior.nodes {
                     if node.behavior_type == BehaviorNodeType::BehaviorType {

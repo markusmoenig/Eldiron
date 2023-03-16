@@ -18,6 +18,7 @@ pub mod dir;
 pub mod skills;
 pub mod experience;
 pub mod server;
+pub mod date;
 
 pub mod prelude {
     pub use crate::asset::*;

@@ -4,7 +4,7 @@ use crate::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Gear {
-    pub slots               : FxHashMap<String, InventoryItem>,
+    pub slots               : FxHashMap<String, Item>,
 }
 
 impl Gear {
