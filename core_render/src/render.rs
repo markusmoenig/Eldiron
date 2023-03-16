@@ -929,8 +929,10 @@ impl GameRender<'_> {
             } else {
                 let top = y_tiles / 2;
 
+                let uneven = if top % 2 == 1 { 1 } else { 0 };
+
                 let distance_to_bottom = region.max_pos.1 - position.y + center_offset.1;
-                let distance_to_top = position.y - region.min_pos.1 + center_offset.1;
+                let distance_to_top = position.y - region.min_pos.1 + center_offset.1 + uneven;
 
                 if distance_to_top < top + 1 {
                     offset.1 = region.min_pos.1;
@@ -948,7 +950,7 @@ impl GameRender<'_> {
                         gr.1 = 0;
                     }
                 } else {
-                    offset.1 -= top;
+                    offset.1 -= top - uneven;
                 }
             }
 
