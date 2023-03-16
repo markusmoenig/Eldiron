@@ -900,8 +900,8 @@ impl GameRender<'_> {
             } else {
                 let left = x_tiles / 2;
 
-                let distance_to_right = region.max_pos.0 - position.x;
-                let distance_to_left = position.x - region.min_pos.0;
+                let distance_to_right = region.max_pos.0 - position.x + center_offset.0;
+                let distance_to_left = position.x - region.min_pos.0 + center_offset.0;
 
                 if distance_to_left < left + 1 {
                     offset.0 = region.min_pos.0;
@@ -912,7 +912,7 @@ impl GameRender<'_> {
                     }
                 } else
                 if distance_to_right < left + 1 {
-                    offset.0 = region.max_pos.0 - x_tiles + 1;
+                    offset.0 = region.max_pos.0 - x_tiles + 1 + if center_offset.0 > 0 { center_offset.0 * 2 - 1 } else { 0 };
                     if distance_to_right == left && gr.0 < 0 {
                         // At the transition point going right do not clear
                     } else {
@@ -929,8 +929,8 @@ impl GameRender<'_> {
             } else {
                 let top = y_tiles / 2;
 
-                let distance_to_bottom = region.max_pos.1 - position.y;
-                let distance_to_top = position.y - region.min_pos.1;
+                let distance_to_bottom = region.max_pos.1 - position.y + center_offset.1;
+                let distance_to_top = position.y - region.min_pos.1 + center_offset.1;
 
                 if distance_to_top < top + 1 {
                     offset.1 = region.min_pos.1;
@@ -941,7 +941,7 @@ impl GameRender<'_> {
                     }
                 } else
                 if distance_to_bottom < top + 1 {
-                    offset.1 = region.max_pos.1 - y_tiles + 1;
+                    offset.1 = region.max_pos.1 - y_tiles + 1 + if center_offset.1 > 0 { center_offset.1 * 2 - 1 } else { 0 };
                     if distance_to_bottom == top && gr.1 < 0 {
                         // At the transition point going upward do not clear
                     } else {
