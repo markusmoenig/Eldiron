@@ -841,6 +841,44 @@ impl GameRender<'_> {
                 base_light = property.to_float() as f64;
             }
 
+            if let Some(property) = region.settings.get(&"lighting") {
+                fn get_brightness(minutes: i32) -> f32 {
+                    let sunrise = 300; // 5:00 am
+                    let sunset = 1200; // 8:00 pm
+                    let transition_duration = 60; // 1 hour
+
+                    let daylight_start = sunrise + transition_duration;
+                    let daylight_end = sunset + transition_duration;
+
+                    if minutes < sunrise || minutes > daylight_end {
+                        return 0.0; // it's dark outside
+                    }
+
+                    if minutes >= sunrise && minutes <= daylight_start {
+                        // transition from darkness to daylight
+                        let transition_start = sunrise;
+                        let time_since_transition_start = minutes - transition_start;
+                        let brightness = time_since_transition_start as f32 / transition_duration as f32;
+                        return brightness;
+                    } else if minutes >= sunset && minutes <= daylight_end {
+                        // transition from daylight to darkness
+                        let transition_start = sunset;
+                        let time_since_transition_start = minutes - transition_start;
+                        let brightness = 1.0 - time_since_transition_start as f32 / transition_duration as f32;
+                        return brightness;
+                    } else {
+                        return 1.0;
+                    }
+                }
+
+                if let Some(v) = property.as_string() {
+                    if v == "timeofday" {
+                        let daylight = get_brightness(update.date.minutes_in_day) as f64;
+                        base_light = base_light.max(daylight);
+                    }
+                }
+            }
+
             // Compute the light_map
             let mut light_map : FxHashMap<(isize, isize), f64> = FxHashMap::default();
             if let Some(lights) = self.lights.get(&region.id) {

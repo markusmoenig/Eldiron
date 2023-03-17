@@ -7,6 +7,7 @@ pub struct Date {
 
     pub hours                   : i32,
     pub minutes                 : i32,
+    pub minutes_in_day          : i32,
 }
 
 impl Date {
@@ -17,15 +18,17 @@ impl Date {
 
             hours               : 0,
             minutes             : 0,
+            minutes_in_day      : 0,
         }
     }
 
     pub fn from_ticks(&mut self, ticks: usize) {
-        let minutes = ticks / 4;
+        let minutes = ticks;// / 4;
         self.hours = (minutes / 60) as i32;
         self.minutes = (minutes % 60) as i32;
 
         self.total_minutes = minutes;
+        self.minutes_in_day = (minutes % 1440) as i32;
     }
 
     pub fn get_hours(&mut self) -> i32 {
@@ -38,6 +41,10 @@ impl Date {
 
     pub fn time24(&mut self) -> String {
         format!("{:0>2}:{:0>2}", self.hours, self.minutes)
+    }
+
+    pub fn time12(&mut self) -> String {
+        format!("{}{}", self.hours % 12, if self.hours > 12 { "pm" } else { "am" })
     }
 }
 
@@ -63,5 +70,6 @@ pub fn script_register_date_api(engine: &mut rhai::Engine) {
         .register_get("hours", Date::get_hours)
         .register_get("minutes", Date::get_minutes)
 
+        .register_fn("time12", Date::time12)
         .register_fn("time24", Date::time24);
 }
