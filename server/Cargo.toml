@@ -20,7 +20,6 @@ pathfinding = "4.1.1"
 rhai = { version = "1.12.0", default-features = false, features = ["only_i32", "f32_float", "sync"] }
 regex = "1.5"
 directories = "4.0"
-fs_extra = "1.2.0"
 
 [features]
 default = []
