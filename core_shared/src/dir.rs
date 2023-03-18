@@ -9,7 +9,9 @@ pub fn get_resource_dir() -> std::path::PathBuf {
     //     curr_exe.pop();
     //     curr_exe.pop();
 
-    //     curr_exe = curr_exe.join("Resources");//.join("_up_");
+    //     curr_exe = curr_exe.join("Resources").join("_up_");
+
+    //     println!("{:?}", curr_exe);
     //     return curr_exe;
     // }
 

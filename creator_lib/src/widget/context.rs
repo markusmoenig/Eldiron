@@ -389,7 +389,7 @@ impl ScreenContext<'_> {
 
     pub fn init(&mut self, resource_path: PathBuf, project_path: PathBuf) {
 
-        //println!("Loading resources from {:?}", resource_path);
+        println!("Loading resources from {:?}", resource_path);
 
         fn load_icon(file_name: &PathBuf) -> Option<(Vec<u8>, u32, u32)> {
 

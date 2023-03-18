@@ -810,7 +810,7 @@ dependencies = [
 
 [[package]]
 name = "creator_lib"
-version = "0.7.0"
+version = "0.7.5"
 dependencies = [
  "audio-engine",
  "code_editor",
@@ -2395,7 +2395,7 @@ dependencies = [
 
 [[package]]
 name = "raycaster"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "rand",
  "rayon",

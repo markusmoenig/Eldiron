@@ -271,7 +271,7 @@ impl RegionInstance<'_> {
 
             pixel_based_movement            : true,
 
-            tick_count                      : 0,
+            tick_count                      : 5 * 60 * 4, // 5am
             dealt_damage_success            : false,
 
             respawn_instance                : FxHashMap::default(),

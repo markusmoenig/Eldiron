@@ -23,7 +23,7 @@ impl Date {
     }
 
     pub fn from_ticks(&mut self, ticks: usize) {
-        let minutes = ticks;// / 4;
+        let minutes = ticks / 4;
         self.hours = (minutes / 60) as i32;
         self.minutes = (minutes % 60) as i32;
 
