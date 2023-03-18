@@ -28,11 +28,11 @@ rhai = { version = "1.11.0", default-features = true, features = ["only_i32", "f
 #rhai = { git = "https://github.com/rhaiscript/rhai/" }
 regex = "1.5"
 fs_extra = "1.3.0"
-open = "3.0.1"
+open = "4.0.0"
 copypasta = "0.8.1"
 code_editor = "0.3.3"
 # code_editor = { path = "../../code_editor/code_editor" }
-rfd = "0.10.0"
+rfd = "0.11.2"
 #audio-engine = "0.4.5"
 audio-engine = { git = "https://github.com/Rodrigodd/audio-engine" }
 

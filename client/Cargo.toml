@@ -19,13 +19,9 @@ serde_json = "1.0"
 fontdue = "0.7.2"
 vectorize = "0.2.0"
 itertools = "0.10.2"
-zeno = "0.2.1"
 getrandom = { version = "0.2.7", features = ["js"] }
 rand = "0.8.5"
-pathfinding = "4.1.1"
 rhai = { version = "1.12.0", default-features = false, features = ["only_i32", "f32_float", "sync"] }
-regex = "1.5"
-directories = "4.0"
 crossbeam-channel = "0.5.6"
 
 [features]

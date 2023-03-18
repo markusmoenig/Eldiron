@@ -20,7 +20,7 @@ png = "0.17.2"
 #env_logger = "0.10"
 log = "0.4"
 #console_log = "0.2"
-cpal = "0.14.0"
+cpal = "0.15.1"
 colors-transform = "0.2.11"
 rhai = { version = "1.11.0", default-features = true, features = ["only_i32", "f32_float"] }
 rustc-hash = "1.1.0"

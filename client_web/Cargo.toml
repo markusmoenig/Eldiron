@@ -26,22 +26,18 @@ serde_json = "1.0"
 fontdue = "0.7.2"
 vectorize = "0.2.0"
 itertools = "0.10.2"
-zeno = "0.2.1"
 getrandom = { version = "0.2.7", features = ["js"] }
 rand = "0.8.5"
-pathfinding = "4.1.1"
 rhai = { version = "*", default-features = false, features = ["only_i32", "f32_float"] }
-regex = "1.5"
-directories = "4.0"
 wasm-sockets = "1.0.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
-console_log = "0.2"
+console_log = "1.0.0"
 wasm-bindgen = "0.2.78"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = ["Performance", "Window"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 env_logger = "0.10"
-pollster = "0.2"
+pollster = "0.3"
