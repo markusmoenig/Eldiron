@@ -2396,6 +2396,8 @@ dependencies = [
 [[package]]
 name = "raycaster"
 version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94f4fc2879bcb0052de594f23973893b4116094ba990ab3de6e35ed41b3d240f"
 dependencies = [
  "rand",
  "rayon",
