@@ -28,6 +28,11 @@ Retro top-down and isometric perspectives as well as low-poly meshes will be sup
 
 You can download the current pre-release in [Releases](https://github.com/markusmoenig/Eldiron/releases).
 
+For ArchLinux users, simply add Eldiron from AUR:
+```
+yay -S eldiron
+```
+
 Join the community on [Discord](https://discord.gg/ZrNj6baSZU) to get in contact.
 
 ## Goals
