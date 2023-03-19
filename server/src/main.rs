@@ -56,8 +56,7 @@ fn main() {
             },
             NetEvent::Message(endpoint, data) => {
 
-                let cmd_string = String::from_utf8_lossy(data);
-                let cmd : ServerCmd = serde_json::from_str(&cmd_string).ok()
+                let cmd : ServerCmd = ServerCmd::from_bin(&data)
                     .unwrap_or(ServerCmd::NoOp);
 
                 match cmd {
@@ -99,9 +98,9 @@ fn main() {
                         Message::PlayerUpdate(_uuid, update) => {
                             if let Some(client) = uuid_endpoint.get(&update.id) {
                                 let cmd = ServerCmd::GameUpdate(update);
-                                if let Some(json) = cmd.to_json() {
-                                    //println!("{:?}", json.len());
-                                    handler.network().send(*client, json.as_bytes());
+                                if let Some(bin) = cmd.to_bin() {
+                                    //println!("{:?}", bin.len());
+                                    handler.network().send(*client, &bin);
                                 }
                             }
                         },

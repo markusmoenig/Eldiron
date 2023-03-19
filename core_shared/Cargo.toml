@@ -24,6 +24,7 @@ cpal = "0.15.1"
 colors-transform = "0.2.11"
 rhai = { version = "1.11.0", default-features = true, features = ["only_i32", "f32_float"] }
 rustc-hash = "1.1.0"
+bincode = "1.3.3"
 
 [features]
 default = ["embed_binaries"]
