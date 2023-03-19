@@ -15,5 +15,9 @@ pub fn get_resource_dir() -> std::path::PathBuf {
     //     return curr_exe;
     // }
 
+    // Uncomment for Debian build, fix resources path to /usr/lib/creator_main/_up_
+
+    //return std::path::PathBuf::from("/usr/lib/creator_main/_up_".into());
+
     std::path::PathBuf::new()
 }
