@@ -18,4 +18,20 @@ impl ServerCmd {
             None
         }
     }
+
+    pub fn to_bin(&self) -> Option<Vec<u8>> {
+        if let Ok(bin) = bincode::serialize(&self) {
+            Some(bin)
+        } else {
+            None
+        }
+    }
+
+    pub fn from_bin(bin: &[u8]) -> Option<Self> {
+        if let Ok(data) = bincode::deserialize(&bin) {
+            Some(data)
+        } else {
+            None
+        }
+    }
 }

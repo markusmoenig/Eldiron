@@ -47,13 +47,12 @@ fn main() -> Result<(), Error> {
             NodeEvent::Network(net_event) => match net_event {
                 NetEvent::Connected(_endpoint, _ok) => {
                     let cmd = ServerCmd::LoginAnonymous;
-                    if let Some(json) = cmd.to_json() {
-                        handler.network().send(server, json.as_bytes());
+                    if let Some(bin) = cmd.to_bin() {
+                        handler.network().send(server, &bin);
                     }
                 },
                 NetEvent::Message(_endpoint, data) => {
-                    let cmd_string = String::from_utf8_lossy(data);
-                    let cmd : ServerCmd = serde_json::from_str(&cmd_string).ok()
+                    let cmd : ServerCmd = ServerCmd::from_bin(data)
                         .unwrap_or(ServerCmd::NoOp);
 
                     match cmd {
@@ -73,8 +72,8 @@ fn main() -> Result<(), Error> {
                 let t : Option<String> = cmd_receiver.try_recv().ok();
                 if t.is_some() {
                     let cmd = ServerCmd::GameCmd(t.unwrap());
-                    if let Some(to_send) = cmd.to_json() {
-                        handler.network().send(server, to_send.as_bytes());
+                    if let Some(bin) = cmd.to_bin() {
+                        handler.network().send(server, &bin);
                     }
                 }
                 handler.signals().send_with_timer((), Duration::from_millis(10));

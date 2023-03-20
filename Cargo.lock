@@ -167,6 +167,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
+name = "bincode"
+version = "1.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.59.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -342,8 +351,6 @@ dependencies = [
  "png",
  "rand",
  "rhai",
- "serde",
- "serde_json",
  "uuid",
  "vectorize",
  "winit",
@@ -632,6 +639,7 @@ dependencies = [
 name = "core_shared"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "colors-transform",
  "core_embed_binaries",
  "cpal 0.15.1",
@@ -2627,8 +2635,6 @@ dependencies = [
  "png",
  "rand",
  "rhai",
- "serde",
- "serde_json",
  "vectorize",
 ]
 
