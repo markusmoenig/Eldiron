@@ -25,5 +25,3 @@ short_description = "A game creator for classic RPGs."
 long_description = """
 Create classic RPGs with Eldiron.
 """
-#deb_depends = ["libgl1-mesa-glx", "libsdl2-2.0-0 (>= 2.0.5)"]
-#osx_frameworks = ["SDL2"]

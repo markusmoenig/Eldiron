@@ -1062,6 +1062,22 @@ impl RegionInstance<'_> {
                     self.purge_instance(inst_index);
                 }
                 messages.push(Message::PlayerUpdate(update.id, update));
+            } else {
+                // This handles character region transfers for NPCs
+                if let Some(position) = self.instances[inst_index].position.clone() {
+                    let mut needs_transfer_to: Option<Uuid> = None;
+                    if position.region != self.region_data.id {
+                        // We need to transfer the character to a new region
+                        needs_transfer_to = Some(position.region);
+                    }
+
+                    if let Some(transfer_to) = needs_transfer_to {
+                        // Serialize character
+                        self.serialize_character_instance(inst_index);
+                        messages.push(Message::TransferCharacter(transfer_to, self.instances[inst_index].clone()));
+                        self.purge_instance(inst_index);
+                    }
+                }
             }
         }
 

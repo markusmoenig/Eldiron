@@ -129,7 +129,8 @@ impl Editor<'_> {
     ///
     pub fn init(&mut self, _resource_path: String, project_path: String) {
 
-        let path = get_resource_dir();//PathBuf::from(resource_path);
+        let path = get_resource_dir();
+        // let path = PathBuf::from(_resource_path);
         let project_path = PathBuf::from(project_path);
 
         self.context.init(path.clone(), project_path.clone());
