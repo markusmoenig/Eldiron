@@ -904,7 +904,7 @@ impl GameRender<'_> {
 
             // Clear if not in a transition
             if set.is_none() {
-                self.draw2d.draw_rect(&mut self.frame[..], &rect, self.width, &background);
+                //self.draw2d.draw_rect(&mut self.frame[..], &rect, self.width, &background);
             }
 
             let mut offset = (0_isize, 0_isize);
@@ -1065,8 +1065,12 @@ impl GameRender<'_> {
                         }
 
                         if set.is_some() {
-                            self.draw2d.draw_rect(frame/*if external_frame.is_some() { &mut(external_frame.as_deref_mut().unwrap()) } else { &mut self.frame[..]}*/, &(pos.0, pos.1, tile_size, tile_size), stride, &background);
-                            //self.draw2d.draw_rect(&mut self.frame[..], &(pos.0, pos.1, tile_size, tile_size), stride, &clear.unwrap());
+                            // Security checks for drawing region transitions
+                            if pos.0 < rect.0 { continue; }
+                            if pos.1 < rect.1 { continue; }
+                            if pos.0 + tile_size >= rect.0 + rect.2 { continue; }
+                            if pos.1 + tile_size >= rect.1 + rect.3 { continue; }
+                            self.draw2d.draw_rect(frame, &(pos.0, pos.1, tile_size, tile_size), stride, &background);
                         }
 
                         let mut light = base_light;
