@@ -28,6 +28,9 @@ pub mod screeneditor;
 pub mod screeneditor_options;
 pub mod assets_overview_options;
 
+use std::sync::mpsc::{Sender, Receiver};
+use std::sync::mpsc;
+
 #[derive (PartialEq, Copy, Clone, Debug)]
 pub enum EditorState {
     TilesOverview,
@@ -72,6 +75,10 @@ pub struct Editor<'a> {
 
     game_render                     : Option<GameRender<'a>>,
     game_rect                       : (usize, usize, usize, usize),
+
+    tile_map_rfd_receiver           : Option<Receiver<Vec<PathBuf>>>,
+    image_rfd_receiver              : Option<Receiver<Vec<PathBuf>>>,
+    audio_rfd_receiver              : Option<Receiver<Vec<PathBuf>>>,
 }
 
 impl Editor<'_> {
@@ -123,17 +130,21 @@ impl Editor<'_> {
 
             game_render             : None,
             game_rect               : (0, 0, 0, 0),
+
+            tile_map_rfd_receiver   : None,
+            image_rfd_receiver      : None,
+            audio_rfd_receiver      : None,
         }
     }
 
     ///
-    pub fn init(&mut self, _resource_path: String, project_path: String) {
+    pub fn init(&mut self, resource_path: String, project_path: String) {
 
-        let path = get_resource_dir();
-        // let path = PathBuf::from(_resource_path);
+        let path = if resource_path.is_empty() { get_resource_dir() } else { PathBuf::from(resource_path) };
         let project_path = PathBuf::from(project_path);
 
         self.context.init(path.clone(), project_path.clone());
+        self.code_editor.init(&mut self.context);
 
         // Create projects if necessary
 
@@ -170,7 +181,6 @@ impl Editor<'_> {
         // --- Load Demo
 
         self.load_project(demo_path);
-
     }
 
     /// A key was pressed
@@ -475,6 +485,41 @@ impl Editor<'_> {
                     }
                 }
                 self.context.status_help_pos_last = Some(status_help_pos);
+            }
+        }
+
+        // TODO: Create an abstracted command queue and don't handle this in draw()
+
+        // Add a tilemap ?
+        if let Some(rx) = &self.tile_map_rfd_receiver {
+            let rc = rx.try_recv();
+            if let Some(paths) = rc.ok() {
+                for p in paths {
+                    self.add_tilemap(p);
+                }
+                self.tile_map_rfd_receiver = None;
+            }
+        }
+
+        // Add an image ?
+        if let Some(rx) = &self.image_rfd_receiver {
+            let rc = rx.try_recv();
+            if let Some(paths) = rc.ok() {
+                for p in paths {
+                    self.add_image(p);
+                }
+                self.image_rfd_receiver = None;
+            }
+        }
+
+        // Add audio ?
+        if let Some(rx) = &self.audio_rfd_receiver {
+            let rc = rx.try_recv();
+            if let Some(paths) = rc.ok() {
+                for p in paths {
+                    self.add_audio(p);
+                }
+                self.audio_rfd_receiver = None;
             }
         }
 
@@ -1448,106 +1493,76 @@ impl Editor<'_> {
 
             if self.state == EditorState::TilesOverview {
                 if drag_context.text == "Tilemaps" {
-                    let res = rfd::FileDialog::new()
+                    let (tx, rx): (Sender<Vec<PathBuf>>, Receiver<Vec<PathBuf>>) = mpsc::channel();
+
+                    let task = rfd::AsyncFileDialog::new()
                         .add_filter("PNG", &["png"])
                         .set_title("Choose Image")
                         .pick_files();
 
-                    // Add Tilemap
-                    if let Some(paths) = res {
-                        for p in paths {
+                    std::thread::spawn(move || {
+                        let files = futures::executor::block_on(task);
 
-                            let dest_path = self.asset.tileset.path.join("assets").join("tilemaps").join(p.file_name().unwrap()).clone();
-                            let rc = fs_extra::file::copy(p.clone(), dest_path, &fs_extra::file::CopyOptions::new());
-
-                            if rc.is_ok() {
-                                if self.asset.tileset.add_tilemap(p) {
-
-                                    let index = self.asset.tileset.maps_names.len() - 1;
-                                    let name = self.asset.tileset.maps_names[index].clone();
-                                    let mut node = NodeWidget::new(name.clone(), NodeUserData { position: (0,0) });
-                                    node.sub_type = NodeSubType::Tilemap;
-
-                                    let mut size_text = "".to_string();
-                                    if let Some(tilemap) = self.asset.tileset.maps.get(&self.asset.tileset.maps_ids[index]) {
-                                        size_text = format!("{}", tilemap.settings.grid_size);
-                                    }
-
-                                    let mut size_atom = AtomWidget::new(vec!["Grid Size".to_string()], AtomWidgetType::NodeGridSizeButton,
-                                    AtomData::new("grid_size", Value::Empty()));
-                                    size_atom.atom_data.text = "Grid Size".to_string();
-                                    size_atom.atom_data.value = Value::String(size_text);
-                                    size_atom.behavior_id = Some(self.context.create_property_id("grid_size"));
-                                    node.widgets.push(size_atom);
-
-                                    self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
-
-                                    self.toolbar.widgets[0].text.push(name);
-                                    self.toolbar.widgets[0].dirty = true;
-                                }
+                        if let Some(files) = files {
+                            let mut ff = vec![];
+                            for f in files {
+                                ff.push(f.path().to_path_buf());
                             }
+                            tx.send(ff).unwrap();
+                        } else {
+                            tx.send(vec![]).unwrap();
                         }
-                    }
+                    });
+
+                    self.tile_map_rfd_receiver = Some(rx);
                 } else
                 if drag_context.text == "Audio" {
-                    let res = rfd::FileDialog::new()
+                    let (tx, rx): (Sender<Vec<PathBuf>>, Receiver<Vec<PathBuf>>) = mpsc::channel();
+
+                    let task = rfd::AsyncFileDialog::new()
                         .add_filter("Audio", &["wav", "ogg"])
                         .set_title("Choose Audio")
                         .pick_files();
 
-                    // Add Image
-                    if let Some(paths) = res {
-                        for p in paths {
+                    std::thread::spawn(move || {
+                        let files = futures::executor::block_on(task);
 
-                            let dest_path = self.asset.tileset.path.join("assets").join("audio").join(p.file_name().unwrap()).clone();
-                            let rc = fs_extra::file::copy(p.clone(), dest_path, &fs_extra::file::CopyOptions::new());
-
-                            if rc.is_ok() {
-                                if self.asset.add_audio(p) {
-
-                                    let index = self.asset.audio_names.len() - 1;
-                                    let name = self.asset.audio_names[index].clone();
-                                    let mut node = NodeWidget::new(name.clone(), NodeUserData { position: (0,0) });
-                                    node.sub_type = NodeSubType::Audio;
-
-                                    self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
-
-                                    self.toolbar.widgets[0].text.push(name);
-                                    self.toolbar.widgets[0].dirty = true;
-                                }
+                        if let Some(files) = files {
+                            let mut ff = vec![];
+                            for f in files {
+                                ff.push(f.path().to_path_buf());
                             }
+                            tx.send(ff).unwrap();
+                        } else {
+                            tx.send(vec![]).unwrap();
                         }
-                    }
+                    });
+
+                    self.audio_rfd_receiver = Some(rx);
                 }
                 if drag_context.text == "Images" {
-                    let res = rfd::FileDialog::new()
+                    let (tx, rx): (Sender<Vec<PathBuf>>, Receiver<Vec<PathBuf>>) = mpsc::channel();
+
+                    let task = rfd::AsyncFileDialog::new()
                         .add_filter("PNG", &["png"])
                         .set_title("Choose Image")
                         .pick_files();
 
-                    // Add Image
-                    if let Some(paths) = res {
-                        for p in paths {
+                    std::thread::spawn(move || {
+                        let files = futures::executor::block_on(task);
 
-                            let dest_path = self.asset.tileset.path.join("assets").join("images").join(p.file_name().unwrap()).clone();
-                            let rc = fs_extra::file::copy(p.clone(), dest_path, &fs_extra::file::CopyOptions::new());
-
-                            if rc.is_ok() {
-                                if self.asset.tileset.add_image(p) {
-
-                                    let index = self.asset.tileset.images_names.len() - 1;
-                                    let name = self.asset.tileset.images_names[index].clone();
-                                    let mut node = NodeWidget::new(name.clone(), NodeUserData { position: (0,0) });
-                                    node.sub_type = NodeSubType::Image;
-
-                                    self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
-
-                                    self.toolbar.widgets[0].text.push(name);
-                                    self.toolbar.widgets[0].dirty = true;
-                                }
+                        if let Some(files) = files {
+                            let mut ff = vec![];
+                            for f in files {
+                                ff.push(f.path().to_path_buf());
                             }
+                            tx.send(ff).unwrap();
+                        } else {
+                            tx.send(vec![]).unwrap();
                         }
-                    }
+                    });
+
+                    self.image_rfd_receiver = Some(rx);
                 }
             } else
             if self.state == EditorState::RegionOverview {
@@ -2221,4 +2236,80 @@ impl Editor<'_> {
             }
         }
     }
+
+    /// Add a tilemap to the current project
+    fn add_tilemap(&mut self, p: PathBuf) {
+        let dest_path = self.asset.tileset.path.join("assets").join("tilemaps").join(p.file_name().unwrap()).clone();
+        let rc = fs_extra::file::copy(p.clone(), dest_path, &fs_extra::file::CopyOptions::new());
+
+        if rc.is_ok() {
+            if self.asset.tileset.add_tilemap(p) {
+
+                let index = self.asset.tileset.maps_names.len() - 1;
+                let name = self.asset.tileset.maps_names[index].clone();
+                let mut node = NodeWidget::new(name.clone(), NodeUserData { position: (0,0) });
+                node.sub_type = NodeSubType::Tilemap;
+
+                let mut size_text = "".to_string();
+                if let Some(tilemap) = self.asset.tileset.maps.get(&self.asset.tileset.maps_ids[index]) {
+                    size_text = format!("{}", tilemap.settings.grid_size);
+                }
+
+                let mut size_atom = AtomWidget::new(vec!["Grid Size".to_string()], AtomWidgetType::NodeGridSizeButton,
+                AtomData::new("grid_size", Value::Empty()));
+                size_atom.atom_data.text = "Grid Size".to_string();
+                size_atom.atom_data.value = Value::String(size_text);
+                size_atom.behavior_id = Some(self.context.create_property_id("grid_size"));
+                node.widgets.push(size_atom);
+
+                self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
+
+                self.toolbar.widgets[0].text.push(name);
+                self.toolbar.widgets[0].dirty = true;
+            }
+        }
+    }
+
+    /// Add audio to the current project
+    fn add_audio(&mut self, p: PathBuf) {
+        let dest_path = self.asset.tileset.path.join("assets").join("audio").join(p.file_name().unwrap()).clone();
+        let rc = fs_extra::file::copy(p.clone(), dest_path, &fs_extra::file::CopyOptions::new());
+
+        if rc.is_ok() {
+            if self.asset.add_audio(p) {
+
+                let index = self.asset.audio_names.len() - 1;
+                let name = self.asset.audio_names[index].clone();
+                let mut node = NodeWidget::new(name.clone(), NodeUserData { position: (0,0) });
+                node.sub_type = NodeSubType::Audio;
+
+                self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
+
+                self.toolbar.widgets[0].text.push(name);
+                self.toolbar.widgets[0].dirty = true;
+            }
+        }
+    }
+
+    /// Add an image to the current project
+    fn add_image(&mut self, p: PathBuf) {
+        let dest_path = self.asset.tileset.path.join("assets").join("images").join(p.file_name().unwrap()).clone();
+        let rc = fs_extra::file::copy(p.clone(), dest_path, &fs_extra::file::CopyOptions::new());
+
+        if rc.is_ok() {
+            if self.asset.tileset.add_image(p) {
+
+                let index = self.asset.tileset.images_names.len() - 1;
+                let name = self.asset.tileset.images_names[index].clone();
+                let mut node = NodeWidget::new(name.clone(), NodeUserData { position: (0,0) });
+                node.sub_type = NodeSubType::Image;
+
+                self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().add_overview_node(node, &mut self.context);
+
+                self.toolbar.widgets[0].text.push(name);
+                self.toolbar.widgets[0].dirty = true;
+            }
+        }
+    }
+
 }

@@ -56,6 +56,11 @@ public class RMTKView       : MTKView
     
     override public func keyDown(with event: NSEvent)
     {
+        if event.keyCode == Keycode.escape {
+            if rust_special_key_down(UInt32(KEY_ESCAPE)) {
+                renderer.needsUpdate()
+            }
+        } else
         if event.keyCode == Keycode.returnKey {
             if rust_special_key_down(UInt32(KEY_RETURN)) {
                 renderer.needsUpdate()
