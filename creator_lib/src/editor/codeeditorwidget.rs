@@ -30,14 +30,7 @@ impl CodeEditorWidget {
 
     pub fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext) -> Self {
 
-        let mut editor = CodeEditor::new();
-
-        let path = get_resource_dir().join("resources/Source_Code_Pro/static/SourceCodePro-Regular.ttf");
-
-        if let Some(path_str) = path.to_str(){
-            editor.set_font(path_str);
-        }
-        //editor.theme.background[3] = 10;
+        let editor = CodeEditor::new();
 
         Self {
             rect,
@@ -49,6 +42,13 @@ impl CodeEditorWidget {
             size            : CodeEditorSize::Small,
 
             editor,
+        }
+    }
+
+    pub fn init(&mut self, context: &ScreenContext) {
+        let path = context.resource_path.join("resources/Source_Code_Pro/static/SourceCodePro-Regular.ttf");
+        if let Some(path_str) = path.to_str(){
+            self.editor.set_font(path_str);
         }
     }
 

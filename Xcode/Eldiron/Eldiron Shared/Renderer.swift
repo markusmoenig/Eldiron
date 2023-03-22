@@ -44,7 +44,6 @@ class Renderer: NSObject, MTKViewDelegate {
         let resourceDir = Bundle.main.resourceURL!.path
         let file = File()
         
-        print(file.containerUrl)
         rust_init(resourceDir, file.containerUrl!.path)
         
         #if os(OSX)

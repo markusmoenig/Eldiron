@@ -390,6 +390,7 @@ impl ScreenContext<'_> {
     pub fn init(&mut self, resource_path: PathBuf, project_path: PathBuf) {
 
         println!("Loading resources from {:?}", resource_path);
+        self.resource_path = resource_path.clone();
 
         fn load_icon(file_name: &PathBuf) -> Option<(Vec<u8>, u32, u32)> {
 
@@ -464,14 +465,14 @@ impl ScreenContext<'_> {
         let asset_path = self.resource_path.join("assets");
         let rc = fs_extra::dir::copy(asset_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
         if rc.is_err() {
-            return Err("Could not copy 'assets' directory".to_string());
+            //return Err("Could not copy 'assets' directory".to_string());
         }
 
         // Copy game directory
-        let game_path = get_resource_dir().join("game");
+        let game_path = self.resource_path.join("game");
         let rc = fs_extra::dir::copy(game_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
         if rc.is_err() {
-            return Err("Could not copy 'game' directory".to_string());
+            //return Err(format!("Could not copy 'game' directory {:?}", rc.err()));
         }
 
         Ok(project_path)
@@ -484,7 +485,8 @@ impl ScreenContext<'_> {
         let asset_path = self.resource_path.join("assets");
         let rc = fs_extra::dir::copy(asset_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
         if rc.is_err() {
-            return Err("Could not copy 'assets' directory".to_string());
+            // return Err("Could not copy 'assets' directory".to_string());
+            println!("Could not copy 'assets' directory.");
         }
 
         // Create game directory
@@ -493,7 +495,8 @@ impl ScreenContext<'_> {
             let rc = fs::create_dir(game_path.clone());
 
             if rc.is_err() {
-                return Err("Could not create game directory.".to_string());
+                // return Err("Could not create game directory.".to_string());
+                println!("Could not create game directory.");
             }
         }
 
@@ -503,7 +506,7 @@ impl ScreenContext<'_> {
             let rc = fs::create_dir(characters_path.clone());
 
             if rc.is_err() {
-                return Err("Could not create characters directory.".to_string());
+                // return Err("Could not create characters directory.".to_string());
             }
         }
 
@@ -513,7 +516,7 @@ impl ScreenContext<'_> {
             let rc = fs::create_dir(regions_path.clone());
 
             if rc.is_err() {
-                return Err("Could not create regions directory.".to_string());
+                // return Err("Could not create regions directory.".to_string());
             }
         }
 
@@ -523,7 +526,7 @@ impl ScreenContext<'_> {
             let rc = fs::create_dir(systems_path.clone());
 
             if rc.is_err() {
-                return Err("Could not create systems directory.".to_string());
+                // return Err("Could not create systems directory.".to_string());
             }
         }
 
@@ -533,7 +536,7 @@ impl ScreenContext<'_> {
             let rc = fs::create_dir(items_path.clone());
 
             if rc.is_err() {
-                return Err("Could not create items directory.".to_string());
+                // return Err("Could not create items directory.".to_string());
             }
         }
 
