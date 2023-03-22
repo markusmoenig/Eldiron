@@ -26,13 +26,13 @@ fn get_time() -> u128 {
 
 #[cfg(feature = "tls")]
 type UuidPeerMap = FxHashMap<
-    Uuid, 
+    Uuid,
     SplitSink<WebSocketStream<TlsStream<TcpStream>>, tungstenite::Message>
 >;
 
 #[cfg(not(feature = "tls"))]
 type UuidPeerMap = FxHashMap<
-    Uuid, 
+    Uuid,
     SplitSink<WebSocketStream<TcpStream>, tungstenite::Message>
 >;
 
@@ -87,7 +87,7 @@ async fn handle_client_messages(
         #[cfg(feature = "tls")]
         Stream::Tls(ws_stream) => ws_stream.split(),
     };
-    
+
     if !wait_for_login(&mut stream).await {
         return;
     }
@@ -110,7 +110,7 @@ async fn handle_client_messages(
                 tungstenite::Message::Binary(bin) => {
                     let cmd : ServerCmd = ServerCmd::from_bin(&bin)
                         .unwrap_or(ServerCmd::NoOp);
-    
+
                     match cmd {
                         ServerCmd::GameCmd(action) => {
                             server
@@ -135,7 +135,7 @@ async fn handle_server_messages(
         tokio::time::sleep(Duration::from_millis(10)).await;
 
         let messages = server.lock().await.check_for_messages();
-        
+
         for message in messages {
             match message {
                 Message::PlayerUpdate(_uuid, update) => {
@@ -219,7 +219,7 @@ async fn main() {
     let uuid_endpoint : Arc<Mutex<UuidPeerMap>> = Arc::new(Mutex::new(FxHashMap::default()));
 
     tokio::spawn(handle_server_messages(server.clone(), uuid_endpoint.clone()));
-    
+
     // Init network
 
     let tcp_listener = TcpListener::bind("127.0.0.1:3042").await.unwrap();
@@ -227,8 +227,8 @@ async fn main() {
     while let Ok((stream, _)) = tcp_listener.accept().await {
         #[cfg(feature = "tls")]
         {
-            let tls_acceptor = Arc::new(read_tls_acceptor(&PathBuf::from("keyStore.p12"), ""));
-            
+            let tls_acceptor = Arc::new(read_tls_acceptor(&PathBuf::from("keyStore.p12"), "eldiron"));
+
             tokio::spawn(handle_client_connection_with_tls(
                 stream,
                 tls_acceptor.clone(),
