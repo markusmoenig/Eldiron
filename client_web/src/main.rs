@@ -55,7 +55,7 @@ async fn run() {
 
     // Client is wrapped in an Rc<RefCell<>> so it can be used within setInterval
     // This isn't required when being used within a game engine
-    let mut client = wasm_sockets::PollingClient::new("ws://127.0.0.1:3044");//.ok().unwrap();
+    let mut client = wasm_sockets::PollingClient::new("ws://24.199.125.6:3042/socket");//.ok().unwrap();
 
     //client.send_string("Hello, World!").unwrap();
 
@@ -169,10 +169,10 @@ async fn run() {
 
                     if logged_in_send == false {
                         let cmd = ServerCmd::LoginAnonymous;
-                        if let Some(json) = cmd.to_json() {
+                        if let Some(bin) = cmd.to_bin() {
                             //handler.network().send(server, json.as_bytes());
                             log::error!("{:?}", client.status());
-                            client.send_binary(json.into_bytes()).unwrap();
+                            client.send_binary(bin).unwrap();
                             logged_in_send = true;
                         }
                     } else {
@@ -180,8 +180,7 @@ async fn run() {
                         for m in messages {
                             match m {
                                 Message::Binary(binary) => {
-                                    let cmd_string = String::from_utf8_lossy(&binary[..]);
-                                    let cmd : ServerCmd = serde_json::from_str(&cmd_string).ok()
+                                    let cmd : ServerCmd = ServerCmd::from_bin(&binary)
                                         .unwrap_or(ServerCmd::NoOp);
 
                                     match cmd {
@@ -260,9 +259,9 @@ async fn run() {
                         let rc = render.key_down(char.to_string(), player_uuid);
                         for cmd in rc.0 {
                             let cmd = ServerCmd::GameCmd(cmd);
-                            if let Some(cmd) = cmd.to_json() {
+                            if let Some(cmd) = cmd.to_bin() {
                                 if let Some(mut client) = client.as_mut().ok() {
-                                    client.send_binary(cmd.into_bytes());
+                                    client.send_binary(cmd);
                                 }
                             }
                         }
@@ -334,9 +333,9 @@ async fn run() {
             let rc = render.key_down(key_string.to_owned(), player_uuid);
             for cmd in rc.0 {
                 let cmd = ServerCmd::GameCmd(cmd);
-                if let Some(cmd) = cmd.to_json() {
+                if let Some(cmd) = cmd.to_bin() {
                     if let Some(mut client) = client.as_mut().ok() {
-                        client.send_binary(cmd.into_bytes());
+                        client.send_binary(cmd);
                     }
                 }
             }
@@ -360,9 +359,9 @@ async fn run() {
                     let rc = render.mouse_down((pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1), player_uuid);
                     for cmd in rc.0 {
                         let cmd = ServerCmd::GameCmd(cmd);
-                        if let Some(cmd) = cmd.to_json() {
+                        if let Some(cmd) = cmd.to_bin() {
                             if let Some(mut client) = client.as_mut().ok() {
-                                client.send_binary(cmd.into_bytes());
+                                client.send_binary(cmd);
                             }
                         }
                     }

@@ -7,11 +7,11 @@ members = [
     "creator_lib",
     "creator_main",
     "client_standalone",
-#    "client_standalone_web",
-#    "run-wasm",
+    "client_standalone_web",
+    "run-wasm",
     "server",
     "client",
-#    "client_web"
+    "client_web"
 ]
 
 #edition = "2021"
