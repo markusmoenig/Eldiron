@@ -87,7 +87,7 @@ fn main() -> Result<(), Error> {
     creator_lib::rust_init(resource_path.as_ptr() as *const i8, project_path.as_ptr() as *const i8);
 
     // Draw first frame
-    let frame = pixels.get_frame_mut();
+    let frame = pixels.frame_mut();
     creator_lib::rust_draw(frame.as_mut_ptr(), width as u32, height as u32, anim_counter);
     if pixels
         .render()
@@ -103,7 +103,7 @@ fn main() -> Result<(), Error> {
 
         if let Event::RedrawRequested(_) = event {
             // let start = get_time();
-            let frame = pixels.get_frame_mut();
+            let frame = pixels.frame_mut();
             creator_lib::rust_draw(frame.as_mut_ptr(), width as u32, height as u32, anim_counter);
             // println!("Time: {}", get_time() - start);
             if pixels

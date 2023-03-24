@@ -130,7 +130,7 @@ async fn run() {
     let mut timer : u128 = 0;
     let mut game_tick_timer : u128 = 0;
 
-    let mut curr_time = 0;
+    let curr_time = 0;
 
     let mut messages : Vec<Message> = vec![];
 
@@ -325,7 +325,7 @@ async fn run() {
 
             // Resize the window
             if let Some(size) = input.window_resized() {
-                pixels.resize_surface(size.width, size.height);
+                _ = pixels.resize_surface(size.width, size.height);
             }
 
             #[cfg(target_arch = "wasm32")]

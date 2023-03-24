@@ -16,10 +16,10 @@ core_shared = { path = "../core_shared" }
 core_render = { path = "../core_render" }
 core_embed_binaries = { path = "../core_embed_binaries", optional = true }
 log = "0.4"
-pixels = "0.11.0"
-wgpu = "0.14.2"
-winit = "0.27.5"
-winit_input_helper = "0.13"
+pixels = "0.12.0"
+wgpu = "0.15.1"
+winit = "0.28.3"
+winit_input_helper = "0.14"
 png = "0.17.5"
 serde = { version = "*", features = ["derive"] }
 serde_json = "1.0"
@@ -32,16 +32,16 @@ rand = "0.8.5"
 pathfinding = "4.1.1"
 rhai = { version = "*", default-features = false, features = ["only_i32", "f32_float"] }
 regex = "1.5"
-directories = "4.0"
+directories = "5.0"
 fs_extra = "1.2.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
-console_log = "0.2"
+console_log = "1.0"
 wasm-bindgen = "0.2.78"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = ["Performance", "Window"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 env_logger = "0.10"
-pollster = "0.2"
+pollster = "0.3"

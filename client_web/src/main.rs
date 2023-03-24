@@ -219,7 +219,7 @@ async fn run() {
             let mut cx : usize = 0;
             let mut cy : usize = 0;
 
-            let frame = pixels.get_frame_mut();
+            let frame = pixels.frame_mut();
 
             if render.width < width {
                 cx = (width - render.width) / 2;

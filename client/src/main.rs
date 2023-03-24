@@ -101,7 +101,8 @@ async fn main() -> Result<(), Error> {
         "ws"
     };
 
-    let server_address = "localhost:3042/socket";
+    //let server_address = "localhost:3042/socket";
+    let server_address = "24.199.125.6:3042/socket";
 
     let (mut stream, _) = tokio_tungstenite::connect_async(
         format!("{}://{}", protocol, server_address)
@@ -211,7 +212,7 @@ async fn main() -> Result<(), Error> {
             let mut cx : usize = 0;
             let mut cy : usize = 0;
 
-            let frame = pixels.get_frame_mut();
+            let frame = pixels.frame_mut();
 
             if render.width < width {
                 cx = (width - render.width) / 2;
@@ -325,7 +326,7 @@ async fn main() -> Result<(), Error> {
         // Handle input events
         if input.update(&event) {
             // Close events
-            if /*input.key_pressed(VirtualKeyCode::Escape) ||*/ input.quit() {
+            if /*input.key_pressed(VirtualKeyCode::Escape) ||*/ input.close_requested() {
                 *control_flow = ControlFlow::Exit;
                 // todo _ = server.shutdown();
                 return;
