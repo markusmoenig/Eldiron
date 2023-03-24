@@ -97,6 +97,10 @@ async fn handle_client_messages(
     uuid_endpoint.lock().await.insert(uuid, sink);
 
     loop {
+        if !uuid_endpoint.lock().await.contains_key(&uuid) {
+            break;
+        }
+
         let msg = stream.try_next().await;
         if msg.is_err() {
             server.lock().await.destroy_player_instance(uuid);
@@ -128,7 +132,7 @@ async fn handle_client_messages(
 }
 
 async fn handle_server_messages(
-    server: Arc<Mutex<core_server::server::Server<'_>>>,
+    server: Arc<Mutex<Server<'_>>>,
     uuid_endpoint: Arc<Mutex<UuidPeerMap>>,
 ) {
     loop {
@@ -138,14 +142,22 @@ async fn handle_server_messages(
 
         for message in messages {
             match message {
-                Message::PlayerUpdate(_uuid, update) => {
-                    if let Some(sink) = uuid_endpoint.lock().await.get_mut(&update.id) {
+                Message::PlayerUpdate(uuid, update) => {
+                    let mut uuid_endpoint = uuid_endpoint.lock().await;
+
+                    if let Some(sink) = uuid_endpoint.get_mut(&update.id) {
                         let cmd = ServerCmd::GameUpdate(update);
+
                         if let Some(bin) = cmd.to_bin() {
-                            sink
+                            if sink
                                 .send(tungstenite::Message::binary(bin))
                                 .await
-                                .unwrap();
+                                .is_err() {
+                                    println!("Client disconnected");
+                                    server.lock().await.destroy_player_instance(uuid);
+                                    uuid_endpoint.remove(&uuid);
+                                    break;
+                                }
                         }
                     }
                 },
@@ -205,7 +217,7 @@ async fn main() {
     // Init server
     let game_data = GameData::load_from_path(PathBuf::from(".."));
 
-    let mut server = core_server::server::Server::new();
+    let mut server = Server::new();
     server.collect_data(&game_data);
 
     // Start the server with a maximum of 10 thread pools
