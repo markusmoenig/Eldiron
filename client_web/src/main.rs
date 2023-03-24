@@ -51,8 +51,6 @@ fn main() {
 
 async fn run() {
 
-    //"0.0.0.0:3044"
-
     // Client is wrapped in an Rc<RefCell<>> so it can be used within setInterval
     // This isn't required when being used within a game engine
     let mut client = wasm_sockets::PollingClient::new("ws://24.199.125.6:3042/socket");//.ok().unwrap();
@@ -143,9 +141,6 @@ async fn run() {
 
     // Init renderer
     let player_uuid = Uuid::new_v4();
-    let mut render = GameRender::new(PathBuf::from(".."), player_uuid);
-
-    // Init renderer
     let mut render = GameRender::new(PathBuf::new(), player_uuid);
 
     let mut anim_counter : usize = 0;
@@ -172,7 +167,7 @@ async fn run() {
                         if let Some(bin) = cmd.to_bin() {
                             //handler.network().send(server, json.as_bytes());
                             log::error!("{:?}", client.status());
-                            client.send_binary(bin).unwrap();
+                            _ = client.send_binary(bin).unwrap();
                             logged_in_send = true;
                         }
                     } else {
@@ -261,7 +256,7 @@ async fn run() {
                             let cmd = ServerCmd::GameCmd(cmd);
                             if let Some(cmd) = cmd.to_bin() {
                                 if let Some(mut client) = client.as_mut().ok() {
-                                    client.send_binary(cmd);
+                                    _ = client.send_binary(cmd);
                                 }
                             }
                         }
@@ -404,7 +399,7 @@ async fn run() {
 
             // Resize the window
             if let Some(size) = input.window_resized() {
-                pixels.resize_surface(size.width, size.height);
+                _ = pixels.resize_surface(size.width, size.height);
             }
 
             #[cfg(target_arch = "wasm32")]
