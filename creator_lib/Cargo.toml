@@ -12,9 +12,6 @@ core_render = { path = "../core_render" }
 lazy_static = "1.4.0"
 env_logger = "0.10"
 log = "0.4"
-pixels = "0.11.0"
-winit = "0.27.5"
-winit_input_helper = "0.13"
 png = "0.17.5"
 serde = { version = "1.0.90", features = ["derive"] }
 serde_json = "1.0.90"
@@ -30,7 +27,7 @@ regex = "1.5"
 fs_extra = "1.3.0"
 open = "4.0.0"
 copypasta = "0.8.1"
-code_editor = "0.3.3"
+code_editor = "0.3.4"
 # code_editor = { path = "../../code_editor/code_editor" }
 rfd = "0.11.2"
 #audio-engine = "0.4.5"

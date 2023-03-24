@@ -627,9 +627,9 @@ dependencies = [
 
 [[package]]
 name = "code_editor"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b70760e3a68258a1b2971f7626e331489e8aa10ea0e03dd65bbe120ad0172aa"
+checksum = "d728e468a377503ffe1a1bb1f6aa521b1b67ee66dc51ec7c199875c567f24934"
 dependencies = [
  "copypasta",
  "fontdue",
@@ -979,7 +979,6 @@ dependencies = [
  "log",
  "open",
  "pathfinding",
- "pixels 0.11.0",
  "png",
  "rand",
  "regex",
@@ -989,8 +988,6 @@ dependencies = [
  "serde_json",
  "uuid",
  "vectorize",
- "winit 0.27.5",
- "winit_input_helper 0.13.0",
  "zeno",
 ]
 
