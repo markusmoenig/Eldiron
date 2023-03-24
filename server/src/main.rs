@@ -222,7 +222,7 @@ async fn main() {
 
     // Init network
 
-    let tcp_listener = TcpListener::bind("127.0.0.1:3042").await.unwrap();
+    let tcp_listener = TcpListener::bind("0.0.0.0:3042").await.unwrap();
 
     while let Ok((stream, _)) = tcp_listener.accept().await {
         #[cfg(feature = "tls")]
