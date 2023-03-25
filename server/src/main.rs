@@ -12,7 +12,7 @@ use core_server::prelude::*;
 use std::{fs::File, io::Read};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration};//, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};//, SystemTime, UNIX_EPOCH};
 /*
 
 /// Gets the current time in milliseconds
@@ -31,7 +31,7 @@ type Stream = WebSocketStream<TcpStream>;
 
 type UuidPeerMap = FxHashMap<
     Uuid,
-    SplitSink<Stream, tungstenite::Message>
+    (SplitSink<Stream, tungstenite::Message>, Instant)
 >;
 
 async fn handle_client_messages(
@@ -47,39 +47,51 @@ async fn handle_client_messages(
 
     let uuid = server.lock().await.create_player_instance();
     println!("logged in anonymous {:?}", uuid);
-    uuid_endpoint.lock().await.insert(uuid, sink);
+    uuid_endpoint.lock().await.insert(uuid, (sink, Instant::now()));
 
     loop {
-        if !uuid_endpoint.lock().await.contains_key(&uuid) {
-            break;
-        }
-
         let msg = stream.try_next().await;
         if msg.is_err() {
             server.lock().await.destroy_player_instance(uuid);
             uuid_endpoint.lock().await.remove(&uuid);
-            println!("Client disconnected");
+            println!("Client disconnected: stream error: {:?}", msg.err().unwrap());
             break;
         }
 
-        if let Some(msg) = msg.unwrap() {
-            match msg {
-                tungstenite::Message::Binary(bin) => {
-                    let cmd : ServerCmd = ServerCmd::from_bin(&bin)
-                        .unwrap_or(ServerCmd::NoOp);
+        let mut uuid_endpoint = uuid_endpoint.lock().await;
 
-                    match cmd {
-                        ServerCmd::GameCmd(action) => {
-                            server
-                                .lock()
-                                .await
-                                .execute_packed_player_action(uuid, action)
-                        },
-                        _ => {}
-                    }
-                },
-                _ => {}
+        if let Some((_, last)) = uuid_endpoint.get_mut(&uuid) {
+            let now = Instant::now();
+            if now.duration_since(*last) > Duration::from_secs(60 * 5) {
+                server.lock().await.destroy_player_instance(uuid);
+                uuid_endpoint.remove(&uuid);
+                println!("Client disconnected: timeout");
+                break;
             }
+
+            if let Some(msg) = msg.unwrap() {
+                match msg {
+                    tungstenite::Message::Binary(bin) => {
+                        let cmd : ServerCmd = ServerCmd::from_bin(&bin)
+                            .unwrap_or(ServerCmd::NoOp);
+    
+                        match cmd {
+                            ServerCmd::GameCmd(action) => {
+                                server
+                                    .lock()
+                                    .await
+                                    .execute_packed_player_action(uuid, action)
+                            },
+                            _ => {}
+                        }
+    
+                        *last = now;
+                    },
+                    _ => {}
+                }
+            }
+        } else {
+            break;
         }
     }
 }
@@ -95,21 +107,16 @@ async fn handle_server_messages(
 
         for message in messages {
             match message {
-                Message::PlayerUpdate(uuid, update) => {
-                    let mut uuid_endpoint = uuid_endpoint.lock().await;
-
-                    if let Some(sink) = uuid_endpoint.get_mut(&update.id) {
+                Message::PlayerUpdate(_uuid, update) => {
+                    if let Some((sink, last)) = uuid_endpoint.lock().await.get_mut(&update.id) {
                         let cmd = ServerCmd::GameUpdate(update);
 
                         if let Some(bin) = cmd.to_bin() {
                             if sink
                                 .send(tungstenite::Message::binary(bin))
                                 .await
-                                .is_err() {
-                                    println!("Client disconnected");
-                                    server.lock().await.destroy_player_instance(uuid);
-                                    uuid_endpoint.remove(&uuid);
-                                    break;
+                                .is_ok() {
+                                    *last = Instant::now();
                                 }
                         }
                     }
@@ -136,7 +143,7 @@ async fn wait_for_login(stream: &mut SplitStream<Stream>) -> bool {
     let msg = stream.try_next().await;
 
     if msg.is_err() {
-        println!("Client disconnected");
+        println!("Client disconnected: not logged in");
         return false;
     }
 
