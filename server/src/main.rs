@@ -1,6 +1,5 @@
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
-use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 #[cfg(feature = "tls")]
@@ -25,68 +24,22 @@ fn get_time() -> u128 {
 }*/
 
 #[cfg(feature = "tls")]
-type UuidPeerMap = FxHashMap<
-    Uuid,
-    SplitSink<WebSocketStream<TlsStream<TcpStream>>, tungstenite::Message>
->;
+type Stream = WebSocketStream<TlsStream<TcpStream>>;
 
 #[cfg(not(feature = "tls"))]
+type Stream = WebSocketStream<TcpStream>;
+
 type UuidPeerMap = FxHashMap<
     Uuid,
-    SplitSink<WebSocketStream<TcpStream>, tungstenite::Message>
+    SplitSink<Stream, tungstenite::Message>
 >;
-
-enum Stream {
-    #[cfg(not(feature = "tls"))]
-    Plain(WebSocketStream<TcpStream>),
-    #[cfg(feature = "tls")]
-    Tls(WebSocketStream<TlsStream<TcpStream>>),
-}
-
-#[cfg(not(feature = "tls"))]
-async fn handle_client_connection(
-    stream: TcpStream,
-    server: Arc<Mutex<Server<'_>>>,
-    uuid_endpoint: Arc<Mutex<UuidPeerMap>>,
-) {
-    let ws_stream = tokio_tungstenite::accept_async(stream).await.unwrap();
-
-    handle_client_messages(
-        Stream::Plain(ws_stream),
-        server,
-        uuid_endpoint
-    ).await;
-}
-
-#[cfg(feature = "tls")]
-async fn handle_client_connection_with_tls(
-    stream: TcpStream,
-    tls_acceptor: Arc<TlsAcceptor>,
-    server: Arc<Mutex<Server<'_>>>,
-    uuid_endpoint: Arc<Mutex<UuidPeerMap>>,
-) {
-    let tls_stream = tls_acceptor.accept(stream).await.unwrap();
-
-    let ws_stream = tokio_tungstenite::accept_async(tls_stream).await.unwrap();
-
-    handle_client_messages(
-        Stream::Tls(ws_stream),
-        server,
-        uuid_endpoint
-    ).await;
-}
 
 async fn handle_client_messages(
     ws_stream: Stream,
     server: Arc<Mutex<Server<'_>>>,
     uuid_endpoint: Arc<Mutex<UuidPeerMap>>,
 ) {
-    let (sink, mut stream) = match ws_stream {
-        #[cfg(not(feature = "tls"))]
-        Stream::Plain(ws_stream) => ws_stream.split(),
-        #[cfg(feature = "tls")]
-        Stream::Tls(ws_stream) => ws_stream.split(),
-    };
+    let (sink, mut stream) = ws_stream.split();
 
     if !wait_for_login(&mut stream).await {
         return;
@@ -179,10 +132,7 @@ fn read_tls_acceptor(file_path: &PathBuf, password: &str) -> TlsAcceptor {
     TlsAcceptor::from(native_tls::TlsAcceptor::new(identity).unwrap())
 }
 
-async fn wait_for_login<S>(stream: &mut SplitStream<WebSocketStream<S>>) -> bool
-where
-    S: AsyncRead + AsyncWrite + Unpin
-{
+async fn wait_for_login(stream: &mut SplitStream<Stream>) -> bool {
     let msg = stream.try_next().await;
 
     if msg.is_err() {
@@ -241,9 +191,10 @@ async fn main() {
         {
             let tls_acceptor = Arc::new(read_tls_acceptor(&PathBuf::from("keyStore.p12"), "eldiron"));
 
-            tokio::spawn(handle_client_connection_with_tls(
-                stream,
-                tls_acceptor.clone(),
+            let tls_stream = tls_acceptor.accept(stream).await.unwrap();
+
+            tokio::spawn(handle_client_messages(
+                tokio_tungstenite::accept_async(tls_stream).await.unwrap(),
                 server.clone(),
                 uuid_endpoint.clone()
             ));
@@ -251,8 +202,8 @@ async fn main() {
 
         #[cfg(not(feature = "tls"))]
         {
-            tokio::spawn(handle_client_connection(
-                stream,
+            tokio::spawn(handle_client_messages(
+                tokio_tungstenite::accept_async(stream).await.unwrap(),
                 server.clone(),
                 uuid_endpoint.clone()
             ));
