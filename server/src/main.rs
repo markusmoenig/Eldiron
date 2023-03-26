@@ -1,6 +1,5 @@
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
-use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 #[cfg(feature = "tls")]
@@ -13,7 +12,7 @@ use core_server::prelude::*;
 use std::{fs::File, io::Read};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration};//, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};//, SystemTime, UNIX_EPOCH};
 /*
 
 /// Gets the current time in milliseconds
@@ -25,68 +24,22 @@ fn get_time() -> u128 {
 }*/
 
 #[cfg(feature = "tls")]
-type UuidPeerMap = FxHashMap<
-    Uuid,
-    SplitSink<WebSocketStream<TlsStream<TcpStream>>, tungstenite::Message>
->;
+type Stream = WebSocketStream<TlsStream<TcpStream>>;
 
 #[cfg(not(feature = "tls"))]
+type Stream = WebSocketStream<TcpStream>;
+
 type UuidPeerMap = FxHashMap<
     Uuid,
-    SplitSink<WebSocketStream<TcpStream>, tungstenite::Message>
+    (SplitSink<Stream, tungstenite::Message>, Instant)
 >;
-
-enum Stream {
-    #[cfg(not(feature = "tls"))]
-    Plain(WebSocketStream<TcpStream>),
-    #[cfg(feature = "tls")]
-    Tls(WebSocketStream<TlsStream<TcpStream>>),
-}
-
-#[cfg(not(feature = "tls"))]
-async fn handle_client_connection(
-    stream: TcpStream,
-    server: Arc<Mutex<Server<'_>>>,
-    uuid_endpoint: Arc<Mutex<UuidPeerMap>>,
-) {
-    let ws_stream = tokio_tungstenite::accept_async(stream).await.unwrap();
-
-    handle_client_messages(
-        Stream::Plain(ws_stream),
-        server,
-        uuid_endpoint
-    ).await;
-}
-
-#[cfg(feature = "tls")]
-async fn handle_client_connection_with_tls(
-    stream: TcpStream,
-    tls_acceptor: Arc<TlsAcceptor>,
-    server: Arc<Mutex<Server<'_>>>,
-    uuid_endpoint: Arc<Mutex<UuidPeerMap>>,
-) {
-    let tls_stream = tls_acceptor.accept(stream).await.unwrap();
-
-    let ws_stream = tokio_tungstenite::accept_async(tls_stream).await.unwrap();
-
-    handle_client_messages(
-        Stream::Tls(ws_stream),
-        server,
-        uuid_endpoint
-    ).await;
-}
 
 async fn handle_client_messages(
     ws_stream: Stream,
     server: Arc<Mutex<Server<'_>>>,
     uuid_endpoint: Arc<Mutex<UuidPeerMap>>,
 ) {
-    let (sink, mut stream) = match ws_stream {
-        #[cfg(not(feature = "tls"))]
-        Stream::Plain(ws_stream) => ws_stream.split(),
-        #[cfg(feature = "tls")]
-        Stream::Tls(ws_stream) => ws_stream.split(),
-    };
+    let (sink, mut stream) = ws_stream.split();
 
     if !wait_for_login(&mut stream).await {
         return;
@@ -94,39 +47,51 @@ async fn handle_client_messages(
 
     let uuid = server.lock().await.create_player_instance();
     println!("logged in anonymous {:?}", uuid);
-    uuid_endpoint.lock().await.insert(uuid, sink);
+    uuid_endpoint.lock().await.insert(uuid, (sink, Instant::now()));
 
     loop {
-        if !uuid_endpoint.lock().await.contains_key(&uuid) {
-            break;
-        }
-
         let msg = stream.try_next().await;
         if msg.is_err() {
             server.lock().await.destroy_player_instance(uuid);
             uuid_endpoint.lock().await.remove(&uuid);
-            println!("Client disconnected");
+            println!("Client disconnected: stream error: {:?}", msg.err().unwrap());
             break;
         }
 
-        if let Some(msg) = msg.unwrap() {
-            match msg {
-                tungstenite::Message::Binary(bin) => {
-                    let cmd : ServerCmd = ServerCmd::from_bin(&bin)
-                        .unwrap_or(ServerCmd::NoOp);
+        let mut uuid_endpoint = uuid_endpoint.lock().await;
 
-                    match cmd {
-                        ServerCmd::GameCmd(action) => {
-                            server
-                                .lock()
-                                .await
-                                .execute_packed_player_action(uuid, action)
-                        },
-                        _ => {}
-                    }
-                },
-                _ => {}
+        if let Some((_, last)) = uuid_endpoint.get_mut(&uuid) {
+            let now = Instant::now();
+            if now.duration_since(*last) > Duration::from_secs(60 * 5) {
+                server.lock().await.destroy_player_instance(uuid);
+                uuid_endpoint.remove(&uuid);
+                println!("Client disconnected: timeout");
+                break;
             }
+
+            if let Some(msg) = msg.unwrap() {
+                match msg {
+                    tungstenite::Message::Binary(bin) => {
+                        let cmd : ServerCmd = ServerCmd::from_bin(&bin)
+                            .unwrap_or(ServerCmd::NoOp);
+    
+                        match cmd {
+                            ServerCmd::GameCmd(action) => {
+                                server
+                                    .lock()
+                                    .await
+                                    .execute_packed_player_action(uuid, action)
+                            },
+                            _ => {}
+                        }
+    
+                        *last = now;
+                    },
+                    _ => {}
+                }
+            }
+        } else {
+            break;
         }
     }
 }
@@ -142,21 +107,16 @@ async fn handle_server_messages(
 
         for message in messages {
             match message {
-                Message::PlayerUpdate(uuid, update) => {
-                    let mut uuid_endpoint = uuid_endpoint.lock().await;
-
-                    if let Some(sink) = uuid_endpoint.get_mut(&update.id) {
+                Message::PlayerUpdate(_uuid, update) => {
+                    if let Some((sink, last)) = uuid_endpoint.lock().await.get_mut(&update.id) {
                         let cmd = ServerCmd::GameUpdate(update);
 
                         if let Some(bin) = cmd.to_bin() {
                             if sink
                                 .send(tungstenite::Message::binary(bin))
                                 .await
-                                .is_err() {
-                                    println!("Client disconnected");
-                                    server.lock().await.destroy_player_instance(uuid);
-                                    uuid_endpoint.remove(&uuid);
-                                    break;
+                                .is_ok() {
+                                    *last = Instant::now();
                                 }
                         }
                     }
@@ -179,14 +139,11 @@ fn read_tls_acceptor(file_path: &PathBuf, password: &str) -> TlsAcceptor {
     TlsAcceptor::from(native_tls::TlsAcceptor::new(identity).unwrap())
 }
 
-async fn wait_for_login<S>(stream: &mut SplitStream<WebSocketStream<S>>) -> bool
-where
-    S: AsyncRead + AsyncWrite + Unpin
-{
+async fn wait_for_login(stream: &mut SplitStream<Stream>) -> bool {
     let msg = stream.try_next().await;
 
     if msg.is_err() {
-        println!("Client disconnected");
+        println!("Client disconnected: not logged in");
         return false;
     }
 
@@ -241,9 +198,10 @@ async fn main() {
         {
             let tls_acceptor = Arc::new(read_tls_acceptor(&PathBuf::from("keyStore.p12"), "eldiron"));
 
-            tokio::spawn(handle_client_connection_with_tls(
-                stream,
-                tls_acceptor.clone(),
+            let tls_stream = tls_acceptor.accept(stream).await.unwrap();
+
+            tokio::spawn(handle_client_messages(
+                tokio_tungstenite::accept_async(tls_stream).await.unwrap(),
                 server.clone(),
                 uuid_endpoint.clone()
             ));
@@ -251,8 +209,8 @@ async fn main() {
 
         #[cfg(not(feature = "tls"))]
         {
-            tokio::spawn(handle_client_connection(
-                stream,
+            tokio::spawn(handle_client_messages(
+                tokio_tungstenite::accept_async(stream).await.unwrap(),
                 server.clone(),
                 uuid_endpoint.clone()
             ));
