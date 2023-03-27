@@ -26,6 +26,16 @@ Eldiron is currently under active development and a v1 is planned for 2023. Eldi
 
 Retro top-down and isometric perspectives as well as low-poly meshes will be supported post v1.
 
+Join the community on [Discord](https://discord.gg/ZrNj6baSZU) to get in contact.
+
+## Goals
+
+* Being able to create games similar to the RPGs of the 80's and 90's.
+* Support single-player or multi-player games and even MMOs.
+* Over time support more perspectives like top-down and isometric.
+
+## Installation
+
 You can download the current pre-release in [Releases](https://github.com/markusmoenig/Eldiron/releases).
 
 On macOS you can get access to the current Beta via a public [TestFlight Link](https://testflight.apple.com/join/50oZ5yds).
@@ -34,14 +44,6 @@ For ArchLinux users, simply add Eldiron from AUR:
 ```
 yay -S eldiron
 ```
-
-Join the community on [Discord](https://discord.gg/ZrNj6baSZU) to get in contact.
-
-## Goals
-
-* Being able to create games similar to the RPGs of the 80's and 90's.
-* Support single-player or multi-player games and even MMOs.
-* Over time support more perspectives like top-down and isometric.
 
 ## Supporting Eldiron
 
@@ -55,8 +57,8 @@ First, create the directory `embedded` in the `core_embed_binaries` directory:
 $ mkdir core_embed_binaries/embedded
 ```
 
-Than, if you have [Rust installed](https://www.rust-lang.org/tools/install), you can build Eldiron simply via
-```cargo build --release```
+Than, if you have [Rust installed](https://www.rust-lang.org/tools/install), you can build Eldiron Creator simply via
+```cargo build --release --bin creator_main```
 
 Linux:
 
