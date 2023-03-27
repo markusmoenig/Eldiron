@@ -68,6 +68,28 @@ impl CodeEditorWidget {
         self.rect.3 = height;
     }
 
+    pub fn has_undo(&mut self) -> bool {
+        self.editor.has_undo()
+    }
+
+    pub fn has_redo(&mut self) -> bool {
+        self.editor.has_redo()
+    }
+
+    pub fn undo(&mut self, context: &mut ScreenContext) {
+        self.dirty = true;
+        self.editor.undo();
+        context.code_editor_value = self.editor.get_text().clone();
+        context.code_editor_update_node = true;
+    }
+
+    pub fn redo(&mut self, context: &mut ScreenContext) {
+        self.dirty = true;
+        self.editor.redo();
+        context.code_editor_value = self.editor.get_text().clone();
+        context.code_editor_update_node = true;
+    }
+
     pub fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
 
         self.rect = rect.clone();

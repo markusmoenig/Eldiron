@@ -726,10 +726,9 @@ impl Editor<'_> {
         }
 
         // Undo / Redo states
-
         if self.content.is_empty() == false {
-            let has_undo = self.content[self.state as usize].1.as_mut().unwrap().is_undo_available(&self.context);
-            let has_redo = self.content[self.state as usize].1.as_mut().unwrap().is_redo_available(&self.context);
+            let has_undo = if self.context.code_editor_is_active { self.code_editor.has_undo() } else { self.content[self.state as usize].1.as_mut().unwrap().is_undo_available(&self.context) };
+            let has_redo = if self.context.code_editor_is_active { self.code_editor.has_redo() } else { self.content[self.state as usize].1.as_mut().unwrap().is_redo_available(&self.context) };
 
             if self.controlbar.widgets[0].state == WidgetState::Disabled && has_undo == true {
                 self.controlbar.widgets[0].state = WidgetState::Normal;
@@ -1131,11 +1130,19 @@ impl Editor<'_> {
             consumed = true;
             if self.controlbar.widgets[0].clicked {
                 // Undo
-                self.content[self.state as usize].1.as_mut().unwrap().undo(&mut self.context);
+                if self.context.code_editor_is_active {
+                    self.code_editor.undo(&mut self.context);
+                } else {
+                    self.content[self.state as usize].1.as_mut().unwrap().undo(&mut self.context);
+                }
             } else
             if self.controlbar.widgets[1].clicked {
-                // Undo
-                self.content[self.state as usize].1.as_mut().unwrap().redo(&mut self.context);
+                // Redo
+                if self.context.code_editor_is_active {
+                    self.code_editor.redo(&mut self.context);
+                } else {
+                    self.content[self.state as usize].1.as_mut().unwrap().redo(&mut self.context);
+                }
             } else
             if self.controlbar.show_help {
                 match self.state {

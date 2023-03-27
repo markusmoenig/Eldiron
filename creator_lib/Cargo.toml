@@ -27,7 +27,7 @@ regex = "1.5"
 fs_extra = "1.3.0"
 open = "4.0.0"
 copypasta = "0.8.1"
-code_editor = "0.3.4"
+code_editor = "0.3.7"
 # code_editor = { path = "../../code_editor/code_editor" }
 rfd = "0.11.2"
 #audio-engine = "0.4.5"
