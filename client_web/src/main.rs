@@ -172,6 +172,8 @@ async fn run() {
                         }
                     } else {
                         let messages = client.receive();
+                        let mut game_update = None;
+
                         for m in messages {
                             match m {
                                 Message::Binary(binary) => {
@@ -180,8 +182,7 @@ async fn run() {
 
                                     match cmd {
                                         ServerCmd::GameUpdate(update) => {
-                                            render.player_id = update.id;
-                                            render.draw(anim_counter, Some(&update));
+                                            game_update = Some(update);
                                         },
                                         _ => {
                                         }
@@ -192,6 +193,11 @@ async fn run() {
                                 }
                             }
 
+                        }
+
+                        if let Some(update) = game_update {
+                            render.player_id = update.id;
+                            render.draw(anim_counter, Some(&update));
                         }
 
                         //log::error!("{:?}", messages);
