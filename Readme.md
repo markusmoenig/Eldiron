@@ -45,10 +45,6 @@ For ArchLinux users, simply add Eldiron from AUR:
 yay -S eldiron
 ```
 
-## Supporting Eldiron
-
-You can support the Eldiron project by becoming a [Patreon](https://patreon.com/eldiron) or a [GitHub Sponsor](https://github.com/sponsors/markusmoenig).
-
 ## Building Eldiron Locally
 
 First, create the directory `embedded` in the `core_embed_binaries` directory:
@@ -63,6 +59,10 @@ Than, if you have [Rust installed](https://www.rust-lang.org/tools/install), you
 Linux:
 
  Make sure these dependencies are installed: `libasound2-dev` `libatk1.0-dev` `libgtk-3-dev`
+
+## Supporting Eldiron
+
+You can support the Eldiron project by becoming a [Patreon](https://patreon.com/eldiron) or a [GitHub Sponsor](https://github.com/sponsors/markusmoenig).
 
 ## License
 
