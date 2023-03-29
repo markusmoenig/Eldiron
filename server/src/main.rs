@@ -198,22 +198,26 @@ async fn main() {
         {
             let tls_acceptor = Arc::new(read_tls_acceptor(&PathBuf::from("keyStore.p12"), "eldiron"));
 
-            let tls_stream = tls_acceptor.accept(stream).await.unwrap();
-
-            tokio::spawn(handle_client_messages(
-                tokio_tungstenite::accept_async(tls_stream).await.unwrap(),
-                server.clone(),
-                uuid_endpoint.clone()
-            ));
+            if let Ok(tls_stream) = tls_acceptor.accept(stream).await {
+                if let Ok(stream) = tokio_tungstenite::accept_async(tls_stream).await {
+                    tokio::spawn(handle_client_messages(
+                        stream,
+                        server.clone(),
+                        uuid_endpoint.clone()
+                    ));
+                }
+            }
         }
 
         #[cfg(not(feature = "tls"))]
         {
-            tokio::spawn(handle_client_messages(
-                tokio_tungstenite::accept_async(stream).await.unwrap(),
-                server.clone(),
-                uuid_endpoint.clone()
-            ));
+            if let Ok(stream) = tokio_tungstenite::accept_async(stream).await {
+                tokio::spawn(handle_client_messages(
+                    stream,
+                    server.clone(),
+                    uuid_endpoint.clone()
+                ));
+            }
         }
     }
 }
