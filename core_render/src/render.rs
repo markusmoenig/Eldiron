@@ -1095,12 +1095,7 @@ impl GameRender<'_> {
                         }
 
                         if set.is_some() {
-                            // Security checks for drawing region transitions
-                            if pos.0 < rect.0 { continue; }
-                            if pos.1 < rect.1 { continue; }
-                            if pos.0 + tile_size >= rect.0 + rect.2 { continue; }
-                            if pos.1 + tile_size >= rect.1 + rect.3 { continue; }
-                            self.draw2d.draw_rect(frame, &(pos.0, pos.1, tile_size, tile_size), stride, &background);
+                            self.draw2d.draw_safe_rect(frame, &(pos.0, pos.1, tile_size, tile_size), stride, &background);
                         }
 
                         let mut light = base_light;

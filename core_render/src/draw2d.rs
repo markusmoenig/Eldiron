@@ -43,6 +43,18 @@ impl Draw2D {
         }
     }
 
+    /// Draws the given rectangle within the scissor
+    pub fn draw_safe_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, color: &[u8; 4]) {
+        for y in rect.1..rect.1+rect.3 {
+            for x in rect.0..rect.0+rect.2 {
+                if self.is_safe(x, y) {
+                    let i = x * 4 + y * stride * 4;
+                    frame[i..i + 4].copy_from_slice(color);
+                }
+            }
+        }
+    }
+
     /// Blend the given rectangle
     pub fn blend_rect(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, color: &[u8; 4]) {
         for y in rect.1..rect.1+rect.3 {
