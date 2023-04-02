@@ -129,29 +129,35 @@ pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
     let mut rc = BehaviorNodeConnector::Fail;
 
     if let Some(dp) = dp {
-        if let Some(loot) = data.loot.get_mut(&(dp.x, dp.y)) {
-            for index in (0..loot.len()).rev() {
-                if loot[index].static_item { continue; }
-                let element = loot.remove(index);
+        if let Some(position) = &data.instances[instance_index].position {
+            // Make sure the distance to the loot is 0 or 1
+            let distance = compute_distance(&position, &dp);
+            if  distance == 1.0 || distance == 0.0{
+                if let Some(loot) = data.loot.get_mut(&(dp.x, dp.y)) {
+                    for index in (0..loot.len()).rev() {
+                        if loot[index].static_item { continue; }
+                        let element = loot.remove(index);
 
-                if element.name.to_lowercase() == data.primary_currency {
-                    add_to_character_currency(instance_index, element.amount as f32, data);
-                    data.action_subject_text = element.name;
-                } else
-                if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
-                    if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                        if element.name.is_empty() == false {
-                            if element.state.is_none() {
-                                inv.add(element.name.as_str(), element.amount);
-                            } else {
-                                inv.add_item(element.clone());
-                            }
+                        if element.name.to_lowercase() == data.primary_currency {
+                            add_to_character_currency(instance_index, element.amount as f32, data);
                             data.action_subject_text = element.name;
+                        } else
+                        if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
+                            if let Some(mut inv) = mess.write_lock::<Inventory>() {
+                                if element.name.is_empty() == false {
+                                    if element.state.is_none() {
+                                        inv.add(element.name.as_str(), element.amount);
+                                    } else {
+                                        inv.add_item(element.clone());
+                                    }
+                                    data.action_subject_text = element.name;
+                                }
+                            }
                         }
+                        rc = BehaviorNodeConnector::Success;
+                        break;
                     }
                 }
-                rc = BehaviorNodeConnector::Success;
-                break;
             }
         }
     }
