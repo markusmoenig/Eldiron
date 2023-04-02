@@ -29,6 +29,12 @@ pub fn player_move(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
             if action.direction == PlayerDirection::West {
                 dp = Some(Position::new(p.region, p.x - 1, p.y));
                 data.action_direction_text = "West".to_string();
+            } else
+            if action.direction == PlayerDirection::Coordinate {
+                if let Some(coord) = action.coordinate {
+                    dp = Some(Position::new(p.region, coord.0, coord.1));
+                    data.action_direction_text = "".to_string();
+                }
             }
         }
     }
@@ -66,6 +72,12 @@ pub fn player_action(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionI
             if action.direction == PlayerDirection::West {
                 dp = Some(Position::new(p.region, p.x - 1, p.y));
                 data.action_direction_text = "West".to_string();
+            } else
+            if action.direction == PlayerDirection::Coordinate {
+                if let Some(coord) = action.coordinate {
+                    dp = Some(Position::new(p.region, coord.0, coord.1));
+                    data.action_direction_text = "".to_string();
+                }
             }
         }
     }
@@ -104,6 +116,12 @@ pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
             if action.direction == PlayerDirection::West {
                 dp = Some(Position::new(p.region, p.x - 1, p.y));
                 data.action_direction_text = "West".to_string();
+            } else
+            if action.direction == PlayerDirection::Coordinate {
+                if let Some(coord) = action.coordinate {
+                    dp = Some(Position::new(p.region, coord.0, coord.1));
+                    data.action_direction_text = "".to_string();
+                }
             }
         }
     }
@@ -112,7 +130,7 @@ pub fn player_take(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
 
     if let Some(dp) = dp {
         if let Some(loot) = data.loot.get_mut(&(dp.x, dp.y)) {
-            for index in 0..loot.len() {
+            for index in (0..loot.len()).rev() {
                 if loot[index].static_item { continue; }
                 let element = loot.remove(index);
 
@@ -206,6 +224,12 @@ pub fn player_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut Region
             if action.direction == PlayerDirection::West {
                 dp = Some(Position::new(p.region, p.x - 1, p.y));
                 data.action_direction_text = "West".to_string();
+            } else
+            if action.direction == PlayerDirection::Coordinate {
+                if let Some(coord) = action.coordinate {
+                    dp = Some(Position::new(p.region, coord.0, coord.1));
+                    data.action_direction_text = "".to_string();
+                }
             }
         }
     }

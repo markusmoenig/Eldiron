@@ -2,6 +2,34 @@
 // data structures which can be accessed from both Rust and scripts.
 
 use crate::prelude::*;
+use rhai::{ Engine };
+
+// --- Button (Unused for now)
+
+#[derive(Debug, Clone)]
+pub struct ScriptButton {
+
+    pub rect            : ScriptRect,
+    pub text            : String,
+    pub font_name       : String,
+    pub font_size       : f32,
+}
+
+impl ScriptButton {
+    pub fn new(rect: ScriptRect, text: String, font_name: String, font_size: f32) -> Self {
+        Self {
+            rect,
+            text,
+            font_name,
+            font_size,
+        }
+    }
+
+    pub fn register(_engine: &mut Engine) {
+        //engine.register_type_with_name::<ScriptButton>("Button");
+            //.register_fn("get", ScriptTilemaps::get);
+    }
+}
 
 // --- Tilemaps
 
@@ -171,6 +199,7 @@ pub enum ScriptDrawCmd {
 #[derive(PartialEq, Clone, Debug)]
 pub enum ScriptServerCmd {
     Action(String, String),
+    ActionCoordinate(String),
     ActionInventory(String, i32),
     ActionGear(String, i32),
 }
@@ -193,6 +222,10 @@ impl ScriptCmd {
 
     pub fn action(&mut self, action: &str, direction: &str) {
         self.action_commands.push(ScriptServerCmd::Action(action.to_owned(), direction.to_owned().to_lowercase()));
+    }
+
+    pub fn action_coordinate(&mut self, action: &str) {
+        self.action_commands.push(ScriptServerCmd::ActionCoordinate(action.to_owned()));
     }
 
     // Gear Action

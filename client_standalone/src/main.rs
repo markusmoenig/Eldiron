@@ -292,13 +292,12 @@ fn main() -> Result<(), Error> {
             } else {
                 let diff =  input.mouse_diff();
                 if diff.0 != 0.0 || diff.1 != 0.0 {
-                    //let coords =  input.mouse().unwrap();
-                    //let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
-                    //    .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+                    let coords =  input.mouse().unwrap();
+                    let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
+                       .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                    // if curr_screen.mouse_hover((pixel_pos.0, pixel_pos.1), &mut asset) {
-                    //     window.request_redraw();
-                    // }
+                    render.mouse_hover((pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1));
+                    window.request_redraw();
                 }
             }
 

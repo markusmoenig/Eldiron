@@ -66,6 +66,14 @@ pub struct GameRender<'a> {
 
     pub force_display_mode      : Option<DisplayMode>,
     pub display_mode            : DisplayMode,
+
+    mouse_pos                   : Option<(usize, usize)>,
+    mouse_region_pos            : Option<(isize, isize)>,
+    draw_mouse_pos_once         : bool,
+
+    // The region and screen rects of the 2d game drawing area
+    region_rect_2d              : (isize, isize, isize, isize),
+    screen_rect_2d              : (usize, usize, usize, usize)
 }
 
 impl GameRender<'_> {
@@ -81,6 +89,8 @@ impl GameRender<'_> {
 
         let mut engine = Engine::new();
 
+        ScriptButton::register(&mut engine);
+
         engine.register_type_with_name::<ScriptTilemaps>("Tilemaps")
             .register_fn("get", ScriptTilemaps::get);
 
@@ -92,6 +102,7 @@ impl GameRender<'_> {
         engine.register_type_with_name::<ScriptCmd>("Cmd")
 
             .register_fn("action", ScriptCmd::action)
+            .register_fn("action_coordinate", ScriptCmd::action_coordinate)
             .register_fn("action_inventory", ScriptCmd::action_inventory)
 
             .register_fn("draw_rect", ScriptCmd::draw_rect)
@@ -187,6 +198,13 @@ impl GameRender<'_> {
 
             force_display_mode  : None,
             display_mode        : DisplayMode::TwoD,
+
+            mouse_pos           : None,
+            mouse_region_pos    : None,
+            draw_mouse_pos_once : false,
+
+            region_rect_2d      : (0, 0, 0, 0),
+            screen_rect_2d      : (0, 0, 0, 0),
         }
     }
 
@@ -814,7 +832,9 @@ impl GameRender<'_> {
 
     /// Draws the game in the given rect
     pub fn draw_game_tile_2d_rect(&mut self, rect: (usize, usize, usize, usize), cposition: Position, anim_counter: usize, update: &GameUpdate, set: Option<FxHashSet<(isize, isize)>>, external_frame: &mut Option<&mut [u8]>, stride: usize, center_offset:(isize, isize)) {
+
         self.draw2d.scissor = Some(rect);
+        self.mouse_region_pos = None;
 
         let mut position = cposition;
 
@@ -1048,20 +1068,30 @@ impl GameRender<'_> {
                         }
                     }
 
+                    // Draw the tile(s)
+
+                    let pos = (rect.0 + left_offset + (x * tile_size as isize - gr.0) as usize, rect.1 + top_offset + (y * tile_size as isize - gr.1) as usize);
+
+                    // Store the region & screen position from the top-left tile
+                    // To be able to easily calculate mouse to region coordinates
+                    if x == from_x && y == from_y {
+                        self.region_rect_2d = (pos_x, pos_y, x_tiles, y_tiles);
+                        self.screen_rect_2d = (pos.0, pos.1, tile_size, tile_size);
+                    }
+
+                    let frame;
+                    if external_frame.is_some() {
+                        frame = external_frame.as_deref_mut().unwrap();
+                    } else {
+                        frame = &mut self.frame[..];
+                    }
+
                     for value in values {
-                        let pos = (rect.0 + left_offset + (x * tile_size as isize - gr.0) as usize, rect.1 + top_offset + (y * tile_size as isize - gr.1) as usize);
 
                         if let Some(set) = &set {
                             if set.contains(&(x, y)) == false {
                                 continue;
                             }
-                        }
-
-                        let frame;
-                        if external_frame.is_some() {
-                            frame = external_frame.as_deref_mut().unwrap();
-                        } else {
-                            frame = &mut self.frame[..];
                         }
 
                         if set.is_some() {
@@ -1080,6 +1110,22 @@ impl GameRender<'_> {
 
                         if let Some(map) = self.asset.get_map_of_id(value.tilemap) {
                             self.draw2d.draw_animated_tile_with_blended_color(frame/*&mut self.frame[..]*/, &pos, map, stride, &(value.x_off as usize, value.y_off as usize), anim_counter, tile_size, &background, light);
+                        }
+                    }
+
+                    // Is the mouse on this position ?
+
+                    if self.mouse_region_pos.is_some() { continue; }
+                    if let Some(mouse_pos) = &self.mouse_pos {
+                        if pos.0 <= mouse_pos.0 && pos.1 <= mouse_pos.1 && pos.0 + tile_size > mouse_pos.0 && pos.1 + tile_size > mouse_pos.1 {
+                            self.draw2d.draw_rect_outline(frame, &(pos.0, pos.1, tile_size, tile_size), stride, [128, 128, 128, 255]);
+
+                            if self.draw_mouse_pos_once {
+                                self.mouse_pos = None;
+                                self.draw_mouse_pos_once = false;
+                            } else {
+                                self.mouse_region_pos = Some((pos_x, pos_y));
+                            }
                         }
                     }
                 }
@@ -1252,6 +1298,8 @@ impl GameRender<'_> {
 
     pub fn mouse_down(&mut self, pos: (usize, usize), player_id: Uuid) -> (Vec<String>, Option<(String, Option<usize>)>) {
 
+        self.mouse_pos = Some(pos);
+
         // Check if we have an active multiple choice communication
         if self.multi_choice_data.is_empty() == false {
 
@@ -1296,6 +1344,9 @@ impl GameRender<'_> {
 
     }
 
+    pub fn mouse_hover(&mut self, pos: (usize, usize)) {
+        self.mouse_pos = Some(pos);
+    }
 
     fn process_cmds(&mut self, player_id: Uuid) -> Vec<String> {
         let mut commands = vec![];
@@ -1409,6 +1460,34 @@ impl GameRender<'_> {
                                         }
                                     }
                                 }
+                            },
+                            ScriptServerCmd::ActionCoordinate(action) => {
+
+                                // If we don't have the current mouse region pos, manually comp it
+                                if self.mouse_region_pos.is_none() {
+                                    if let Some(mouse_pos) = &self.mouse_pos {
+                                        if mouse_pos.0 >= self.screen_rect_2d.0 && mouse_pos.1 >= self.screen_rect_2d.1 {
+                                            let sdx = mouse_pos.0 - self.screen_rect_2d.0;
+                                            let sdy = mouse_pos.1 - self.screen_rect_2d.1;
+                                            let ox = (sdx / self.screen_rect_2d.2) as isize;
+                                            let oy = (sdy / self.screen_rect_2d.3) as isize;
+                                            if ox < self.region_rect_2d.2 && oy < self.region_rect_2d.3 {
+                                                let px = self.region_rect_2d.0 + ox;
+                                                let py = self.region_rect_2d.1 + oy;
+                                                self.mouse_region_pos = Some((px, py));
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if let Some(region_pos) = &self.mouse_region_pos {
+                                    if let Some(action) = pack_action_coordinate(player_id, action.clone(), *region_pos) {
+                                        commands.push(action);
+                                    }
+                                }
+
+                                self.mouse_region_pos = None;
+                                self.draw_mouse_pos_once = true;
                             },
                             ScriptServerCmd::ActionGear(action, gear_index) => {
                                 if let Some(action) = pack_gear_action(player_id, action.clone(), *gear_index as u16) {

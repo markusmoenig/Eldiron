@@ -68,11 +68,11 @@ impl CodeEditorWidget {
         self.rect.3 = height;
     }
 
-    pub fn has_undo(&mut self) -> bool {
+    pub fn has_undo(&self) -> bool {
         self.editor.has_undo()
     }
 
-    pub fn has_redo(&mut self) -> bool {
+    pub fn has_redo(&self) -> bool {
         self.editor.has_redo()
     }
 

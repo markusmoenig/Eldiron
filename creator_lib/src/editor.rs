@@ -1776,6 +1776,16 @@ impl Editor<'_> {
             return self.dialog_position.mouse_hover(pos, &mut self.asset, &mut self.context);
         }
 
+        // Need to send game touch_hover event ?
+        if self.context.is_running && self.context.is_debugging == false {
+            if self.context.contains_pos_for(pos, self.game_rect) {
+                if let Some(render) = &mut self.game_render {
+                    render.mouse_hover((pos.0 - self.game_rect.0, pos.1 - self.game_rect.1));
+                }
+            }
+            return true;
+        }
+
         let mut consumed = false;
 
         if consumed == false && self.toolbar.mouse_hover(pos, &mut self.asset, &mut self.context) {
