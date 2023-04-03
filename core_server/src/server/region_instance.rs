@@ -651,18 +651,19 @@ impl RegionInstance<'_> {
 
                                     if behavior.name == *data.0 {
                                         let mut item = Item {
-                                            id          : behavior.id,
-                                            name        : behavior.name.clone(),
-                                            item_type   : "gear".to_string(),
-                                            tile        : tile_data,
-                                            state       : None,
-                                            light       : None,
-                                            slot        : None,
-                                            amount      : data.1 as i32,
-                                            stackable   : 1,
-                                            static_item : false,
-                                            price       : 0.0,
-                                            weight      : 0.0,
+                                            id              : behavior.id,
+                                            name            : behavior.name.clone(),
+                                            item_type       : "gear".to_string(),
+                                            tile            : tile_data,
+                                            state           : None,
+                                            light           : None,
+                                            slot            : None,
+                                            amount          : data.1 as i32,
+                                            stackable       : 1,
+                                            static_item     : false,
+                                            price           : 0.0,
+                                            weight          : 0.0,
+                                            weapon_distance : 1
                                         };
 
                                         // Add state ?
@@ -1539,6 +1540,13 @@ impl RegionInstance<'_> {
                                         if let Some(item_slot) = s.get("slot") {
                                             if let Some(slot) = item_slot.as_string() {
                                                 loot.slot = Some(slot);
+                                            }
+                                        }
+                                        if let Some(weapon_distance) = s.get("weapon_distance") {
+                                            if let Some(wd) = weapon_distance.as_int() {
+                                                if wd >= 0 {
+                                                    loot.weapon_distance = wd;
+                                                }
                                             }
                                         }
                                     }

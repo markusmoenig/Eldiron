@@ -600,6 +600,23 @@ pub fn get_weapon_script_id(instance_index: usize, slot: String, data: &mut Regi
     None
 }
 
+/// Returns the weapon distance for the given weapon slot
+pub fn get_weapon_distance(instance_index: usize, slot: String, data: &mut RegionInstance) -> i32 {
+    let mut weapon_distance = 1;
+
+    if let Some(v) = data.scopes[instance_index].get("weapons") {
+        if let Some(weapons) = v.read_lock::<Weapons>() {
+            if let Some(weapon) = weapons.slots.get(&slot) {
+                if weapon.weapon_distance > weapon_distance {
+                    weapon_distance = weapon.weapon_distance;
+                }
+            }
+        }
+    }
+
+    weapon_distance
+}
+
 /// Returns the PropertySink for the given item id
 pub fn get_item_sink(data: &RegionInstance, id: Uuid) -> Option<PropertySink> {
     for (uuid, item) in &data.items {

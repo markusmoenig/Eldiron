@@ -32,6 +32,10 @@ pub fn update_item_sink(sink: &mut PropertySink) {
     if sink.contains("slot") == false {
         sink.properties.push(Property::new_string("slot".to_string(), "".to_string()));
     }
+
+    if sink.contains("weapon_distance") == false {
+        sink.properties.push(Property::new_int("weapon_distance".to_string(), 1));
+    }
 }
 
 pub fn generate_item_sink_descriptions() -> FxHashMap<String, Vec<String>> {
@@ -44,6 +48,7 @@ pub fn generate_item_sink_descriptions() -> FxHashMap<String, Vec<String>> {
     map.insert("price".to_string(), vec!["The sales price of the item. 0.0 if the item cannot be sold.".to_string()]);
     map.insert("weight".to_string(), vec!["The weight of the item.".to_string()]);
     map.insert("slot".to_string(), vec!["If item_type is \"Weapon\" or \"Gear\" the slot it fits in.".to_string()]);
+    map.insert("weapon_distance".to_string(), vec!["The maximum distance for a weapon. Default is 1 (Sword etc.).".to_string()]);
 
     map
 }

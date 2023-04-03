@@ -16,6 +16,7 @@ pub struct Item {
     pub static_item         : bool,
     pub price               : f32,
     pub weight              : f32,
+    pub weapon_distance     : i32,
 }
 
 impl Item {
@@ -33,6 +34,7 @@ impl Item {
             static_item     : false,
             price           : 0.0,
             weight          : 0.0,
+            weapon_distance : 1,
         }
     }
 }

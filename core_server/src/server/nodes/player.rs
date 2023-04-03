@@ -243,14 +243,21 @@ pub fn player_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut Region
     let mut rc = BehaviorNodeConnector::Fail;
 
     if let Some(dp) = &dp {
-        for inst_index in 0..data.instances.len() {
-            if inst_index != instance_index {
-                // Only track if the state is normal
-                if data.instances[inst_index].state == BehaviorInstanceState::Normal {
-                    if let Some(pos) = &data.instances[inst_index].position {
-                        if *dp == *pos {
-                            data.instances[instance_index].target_instance_index = Some(inst_index);
-                            rc = BehaviorNodeConnector::Success;
+        if let Some(position) = &data.instances[instance_index].position {
+            // Make sure the target is within weapons range
+            let distance = compute_distance(&position, &dp);
+            let weapon_distance = get_weapon_distance(instance_index, "main hand".to_string(), data);
+            if  distance as i32 <= weapon_distance {
+                for inst_index in 0..data.instances.len() {
+                    if inst_index != instance_index {
+                        // Only track if the state is normal
+                        if data.instances[inst_index].state == BehaviorInstanceState::Normal {
+                            if let Some(pos) = &data.instances[inst_index].position {
+                                if *dp == *pos {
+                                    data.instances[instance_index].target_instance_index = Some(inst_index);
+                                    rc = BehaviorNodeConnector::Success;
+                                }
+                            }
                         }
                     }
                 }

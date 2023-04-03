@@ -485,6 +485,13 @@ impl EditorContent for RegionWidget {
                                                                 loot.slot = Some(slot);
                                                             }
                                                         }
+                                                        if let Some(weapon_distance) = s.get("weapon_distance") {
+                                                            if let Some(wd) = weapon_distance.as_int() {
+                                                                if wd >= 0 {
+                                                                    loot.weapon_distance = wd;
+                                                                }
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             } else
