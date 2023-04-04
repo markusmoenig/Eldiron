@@ -37,6 +37,53 @@ impl Item {
             weapon_distance : 1,
         }
     }
+
+    /// Reads the Item properties from a PropertySink.
+    pub fn read_from_sink(&mut self, sink: &PropertySink) {
+
+        if let Some(static_item) = sink.get("static") {
+            if let Some(st) = static_item.as_bool() {
+                self.static_item = st;
+            }
+        }
+        if let Some(stackable_item) = sink.get("stackable") {
+            if let Some(st) = stackable_item.as_int() {
+                if st >= 0 {
+                    self.stackable = st;
+                }
+            }
+        }
+        if let Some(price_item) = sink.get("price") {
+            let price = price_item.to_float();
+            if price >= 0.0 {
+                self.price = price;
+            }
+        }
+        if let Some(weight_item) = sink.get("weight") {
+            let weight = weight_item.to_float();
+            if weight >= 0.0 {
+                self.weight = weight;
+            }
+        }
+        if let Some(item_type) = sink.get("item_type") {
+            if let Some(i_type) = item_type.as_string() {
+                self.item_type = i_type;
+            }
+        }
+        if let Some(item_slot) = sink.get("slot") {
+            if let Some(slot) = item_slot.as_string() {
+                self.slot = Some(slot);
+            }
+        }
+        if let Some(weapon_distance) = sink.get("weapon_distance") {
+            if let Some(wd) = weapon_distance.as_int() {
+                if wd >= 0 {
+                    self.weapon_distance = wd;
+                }
+            }
+        }
+
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]

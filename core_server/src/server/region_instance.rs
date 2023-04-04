@@ -650,21 +650,11 @@ impl RegionInstance<'_> {
                                     }
 
                                     if behavior.name == *data.0 {
-                                        let mut item = Item {
-                                            id              : behavior.id,
-                                            name            : behavior.name.clone(),
-                                            item_type       : "gear".to_string(),
-                                            tile            : tile_data,
-                                            state           : None,
-                                            light           : None,
-                                            slot            : None,
-                                            amount          : data.1 as i32,
-                                            stackable       : 1,
-                                            static_item     : false,
-                                            price           : 0.0,
-                                            weight          : 0.0,
-                                            weapon_distance : 1
-                                        };
+                                        let mut item = Item::new(behavior.id, behavior.name.clone());
+                                        item.item_type = "gear".to_string();
+                                        item.tile = tile_data;
+                                        item.amount = data.1 as i32;
+                                        item.stackable = 1;
 
                                         // Add state ?
 
@@ -692,47 +682,7 @@ impl RegionInstance<'_> {
                                                     }
                                                 }
                                             }
-                                            if let Some(static_item) = sink.get("static") {
-                                                if let Some(st) = static_item.as_bool() {
-                                                    item.static_item = st;
-                                                }
-                                            }
-                                            if let Some(stackable_item) = sink.get("stackable") {
-                                                if let Some(st) = stackable_item.as_int() {
-                                                    if st >= 0 {
-                                                        item.stackable = st;
-                                                    }
-                                                }
-                                            }
-                                            if let Some(price_item) = sink.get("price") {
-                                                let price = price_item.to_float();
-                                                if price >= 0.0 {
-                                                    item.price = price;
-                                                }
-                                            }
-                                            if let Some(weight_item) = sink.get("weight") {
-                                                let weight = weight_item.to_float();
-                                                if weight >= 0.0 {
-                                                    item.weight = weight;
-                                                }
-                                            }
-                                            if let Some(item_type) = sink.get("item_type") {
-                                                if let Some(i_type) = item_type.as_string() {
-                                                    item.item_type = i_type;
-                                                }
-                                            }
-                                            if let Some(item_slot) = sink.get("slot") {
-                                                if let Some(slot) = item_slot.as_string() {
-                                                    item.slot = Some(slot);
-                                                }
-                                            }
-                                            if let Some(weapon_distance) = sink.get("weapon_distance") {
-                                                if let Some(wd) = weapon_distance.as_int() {
-                                                    if wd >= 0 {
-                                                        item.weapon_distance = wd;
-                                                    }
-                                                }
-                                            }
+                                            item.read_from_sink(&sink);
                                         }
 
                                         to_add.push((item, states_to_execute));
@@ -1515,47 +1465,7 @@ impl RegionInstance<'_> {
                                     if let Some(str) = value.to_string() {
                                         let mut s = PropertySink::new();
                                         s.load_from_string(str.clone());
-                                        if let Some(static_item) = s.get("static") {
-                                            if let Some(st) = static_item.as_bool() {
-                                                loot.static_item = st;
-                                            }
-                                        }
-                                        if let Some(stackable_item) = s.get("stackable") {
-                                            if let Some(st) = stackable_item.as_int() {
-                                                if st >= 0 {
-                                                    loot.stackable = st;
-                                                }
-                                            }
-                                        }
-                                        if let Some(price_item) = s.get("price") {
-                                            let price = price_item.to_float();
-                                            if price >= 0.0 {
-                                                loot.price = price;
-                                            }
-                                        }
-                                        if let Some(weight_item) = s.get("weight") {
-                                            let weight = weight_item.to_float();
-                                            if weight >= 0.0 {
-                                                loot.weight = weight;
-                                            }
-                                        }
-                                        if let Some(item_type) = s.get("item_type") {
-                                            if let Some(i_type) = item_type.as_string() {
-                                                loot.item_type = i_type;
-                                            }
-                                        }
-                                        if let Some(item_slot) = s.get("slot") {
-                                            if let Some(slot) = item_slot.as_string() {
-                                                loot.slot = Some(slot);
-                                            }
-                                        }
-                                        if let Some(weapon_distance) = s.get("weapon_distance") {
-                                            if let Some(wd) = weapon_distance.as_int() {
-                                                if wd >= 0 {
-                                                    loot.weapon_distance = wd;
-                                                }
-                                            }
-                                        }
+                                        loot.read_from_sink(&s);
                                     }
                                 }
                             }

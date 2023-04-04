@@ -451,47 +451,7 @@ impl EditorContent for RegionWidget {
                                                     if let Some(str) = value.to_string() {
                                                         let mut s = PropertySink::new();
                                                         s.load_from_string(str.clone());
-                                                        if let Some(static_item) = s.get("static") {
-                                                            if let Some(st) = static_item.as_bool() {
-                                                                loot.static_item = st;
-                                                            }
-                                                        }
-                                                        if let Some(stackable_item) = s.get("stackable") {
-                                                            if let Some(st) = stackable_item.as_int() {
-                                                                if st >= 0 {
-                                                                    loot.stackable = st;
-                                                                }
-                                                            }
-                                                        }
-                                                        if let Some(price_item) = s.get("price") {
-                                                            let price = price_item.to_float();
-                                                            if price >= 0.0 {
-                                                                loot.price = price;
-                                                            }
-                                                        }
-                                                        if let Some(weight_item) = s.get("weight") {
-                                                            let weight = weight_item.to_float();
-                                                            if weight >= 0.0 {
-                                                                loot.weight = weight;
-                                                            }
-                                                        }
-                                                        if let Some(item_type) = s.get("item_type") {
-                                                            if let Some(i_type) = item_type.as_string() {
-                                                                loot.item_type = i_type;
-                                                            }
-                                                        }
-                                                        if let Some(item_slot) = s.get("slot") {
-                                                            if let Some(slot) = item_slot.as_string() {
-                                                                loot.slot = Some(slot);
-                                                            }
-                                                        }
-                                                        if let Some(weapon_distance) = s.get("weapon_distance") {
-                                                            if let Some(wd) = weapon_distance.as_int() {
-                                                                if wd >= 0 {
-                                                                    loot.weapon_distance = wd;
-                                                                }
-                                                            }
-                                                        }
+                                                        loot.read_from_sink(&s);
                                                     }
                                                 }
                                             } else
