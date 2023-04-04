@@ -726,6 +726,13 @@ impl RegionInstance<'_> {
                                                     item.slot = Some(slot);
                                                 }
                                             }
+                                            if let Some(weapon_distance) = sink.get("weapon_distance") {
+                                                if let Some(wd) = weapon_distance.as_int() {
+                                                    if wd >= 0 {
+                                                        item.weapon_distance = wd;
+                                                    }
+                                                }
+                                            }
                                         }
 
                                         to_add.push((item, states_to_execute));
