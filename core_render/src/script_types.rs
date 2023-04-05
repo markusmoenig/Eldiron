@@ -148,6 +148,11 @@ impl ScriptRect {
         pos.pos.0 >= self.rect.0 && pos.pos.1 >= self.rect.1 && pos.pos.0 < self.rect.0 + self.rect.2 && pos.pos.1 < self.rect.1 + self.rect.3
     }
 
+    // Rust side only
+    pub fn contains(&self, pos: (usize, usize)) -> bool {
+        pos.0 >= self.rect.0 && pos.1 >= self.rect.1 && pos.0 < self.rect.0 + self.rect.2 && pos.1 < self.rect.1 + self.rect.3
+
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -202,6 +207,7 @@ pub enum ScriptServerCmd {
     ActionCoordinate(String),
     ActionInventory(String, i32),
     ActionGear(String, i32),
+    ActionValidMouseRect(ScriptRect),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -226,6 +232,12 @@ impl ScriptCmd {
 
     pub fn action_coordinate(&mut self, action: &str) {
         self.action_commands.push(ScriptServerCmd::ActionCoordinate(action.to_owned()));
+    }
+
+    // Valid Mouse Rect
+
+    pub fn action_set_valid_mouse_rect(&mut self, rect: ScriptRect ) {
+        self.action_commands.push(ScriptServerCmd::ActionValidMouseRect(rect));
     }
 
     // Gear Action

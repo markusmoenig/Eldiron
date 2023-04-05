@@ -71,6 +71,8 @@ pub struct GameRender<'a> {
     mouse_region_pos            : Option<(isize, isize)>,
     draw_mouse_pos_once         : bool,
 
+    valid_mouse_rect            : Option<ScriptRect>,
+
     // The region and screen rects of the 2d game drawing area
     region_rect_2d              : (isize, isize, isize, isize),
     screen_rect_2d              : (usize, usize, usize, usize)
@@ -104,6 +106,7 @@ impl GameRender<'_> {
             .register_fn("action", ScriptCmd::action)
             .register_fn("action_coordinate", ScriptCmd::action_coordinate)
             .register_fn("action_inventory", ScriptCmd::action_inventory)
+            .register_fn("set_valid_mouse_rect", ScriptCmd::action_set_valid_mouse_rect)
 
             .register_fn("draw_rect", ScriptCmd::draw_rect)
             .register_fn("draw_tile", ScriptCmd::draw_tile)
@@ -202,6 +205,8 @@ impl GameRender<'_> {
             mouse_pos           : None,
             mouse_region_pos    : None,
             draw_mouse_pos_once : false,
+
+            valid_mouse_rect    : None,
 
             region_rect_2d      : (0, 0, 0, 0),
             screen_rect_2d      : (0, 0, 0, 0),
@@ -1293,7 +1298,16 @@ impl GameRender<'_> {
 
     pub fn mouse_down(&mut self, pos: (usize, usize), player_id: Uuid) -> (Vec<String>, Option<(String, Option<usize>)>) {
 
-        self.mouse_pos = Some(pos);
+        // Check mouse pos
+        if let Some(valid_mouse_rect) = &self.valid_mouse_rect {
+            if valid_mouse_rect.contains(pos) {
+                self.mouse_pos = Some(pos);
+            } else {
+                self.mouse_pos = None;
+            }
+        } else {
+            self.mouse_pos = Some(pos);
+        }
 
         // Check if we have an active multiple choice communication
         if self.multi_choice_data.is_empty() == false {
@@ -1340,7 +1354,16 @@ impl GameRender<'_> {
     }
 
     pub fn mouse_hover(&mut self, pos: (usize, usize)) {
-        self.mouse_pos = Some(pos);
+        // Check mouse pos
+        if let Some(valid_mouse_rect) = &self.valid_mouse_rect {
+            if valid_mouse_rect.contains(pos) {
+                self.mouse_pos = Some(pos);
+            } else {
+                self.mouse_pos = None;
+            }
+        } else {
+            self.mouse_pos = Some(pos);
+        }
     }
 
     fn process_cmds(&mut self, player_id: Uuid) -> Vec<String> {
@@ -1493,6 +1516,9 @@ impl GameRender<'_> {
                                 if let Some(action) = pack_inventory_action(player_id, action.clone(), *inv_index as u16) {
                                     commands.push(action);
                                 }
+                            },
+                            ScriptServerCmd::ActionValidMouseRect(rect) => {
+                                self.valid_mouse_rect = Some(rect.clone());
                             }
                         }
                     }
