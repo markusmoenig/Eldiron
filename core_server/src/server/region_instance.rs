@@ -115,6 +115,8 @@ pub struct RegionInstance<'a> {
 
     pub skill_trees                 : FxHashMap<String, Vec<(i32, String, String)>>,
 
+    pub ticks_per_minute            : usize,
+
     // Variable names
 
     pub primary_currency            : String,
@@ -282,6 +284,8 @@ impl RegionInstance<'_> {
 
             weapon_slots                    : vec![],
             gear_slots                      : vec![],
+
+            ticks_per_minute                : 4,
 
             skill_trees                     : FxHashMap::default(),
 
@@ -1044,7 +1048,7 @@ impl RegionInstance<'_> {
         //println!("tick time {}", self.get_time() - tick_time);
 
         self.tick_count = self.tick_count.wrapping_add(1);
-        self.date.from_ticks(self.tick_count);
+        self.date.from_ticks(self.tick_count, self.ticks_per_minute);
 
         messages
     }
@@ -1550,6 +1554,12 @@ impl RegionInstance<'_> {
                         for s in ar {
                             self.weapon_slots.push(s.to_lowercase().trim().to_string());
                         }
+                    }
+                }
+
+                if let Some(property) = settings.get("ticks_per_minute") {
+                    if let Some(ticks) = property.as_int() {
+                        self.ticks_per_minute = ticks as usize;
                     }
                 }
             }

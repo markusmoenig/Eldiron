@@ -92,6 +92,9 @@ pub fn update_game_sink(sink: &mut PropertySink) {
     if sink.contains("weapon_slots") == false {
         sink.push(Property::new_string("weapon_slots".to_string(), "main hand, off hand".to_string()));
     }
+    if sink.contains("ticks_per_minute") == false {
+        sink.push(Property::new_int("ticks_per_minute".to_string(), 4));
+    }
 }
 
 pub fn generate_game_sink_descriptions() -> FxHashMap<String, Vec<String>> {
@@ -107,6 +110,7 @@ pub fn generate_game_sink_descriptions() -> FxHashMap<String, Vec<String>> {
     map.insert("max_hitpoints".to_string(), vec!["The name of the characters maximum hitpoints variable.".to_string()]);
     map.insert("gear_slots".to_string(), vec!["The supported gear slots.".to_string()]);
     map.insert("weapon_slots".to_string(), vec!["The supported weapon slots.".to_string()]);
+    map.insert("ticks_per_minute".to_string(), vec!["The number of game ticks per in-game minute. 4 by default.".to_string()]);
 
     map
 }
