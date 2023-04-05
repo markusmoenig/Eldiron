@@ -1333,12 +1333,12 @@ pub fn take_heal(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
 pub fn respawn(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let mut ticks : f32 = 0.0;
-    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "ticks".to_string()), data) {
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "minutes".to_string()), data) {
         ticks = rc;
     }
 
     let mut respawn_tick = data.tick_count;
-    respawn_tick = respawn_tick.wrapping_add(ticks as usize);
+    respawn_tick = respawn_tick.wrapping_add(ticks as usize * data.ticks_per_minute);
     if let Some(d) = &data.instances[instance_index].instance_creation_data {
         data.respawn_instance.insert(id.0, (respawn_tick, d.clone()));
     }
