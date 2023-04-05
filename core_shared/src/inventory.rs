@@ -2,6 +2,7 @@
 
 use crate::prelude::*;
 
+/// An inventory item
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Item {
     pub id                  : Uuid,
@@ -84,8 +85,20 @@ impl Item {
         }
 
     }
+
+    // Getter
+
+    pub fn get_name(&mut self) -> String {
+        self.name.clone()
+    }
+
+    pub fn get_amount(&mut self) -> i32 {
+        self.amount
+    }
+
 }
 
+/// Inventory
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Inventory {
     pub items               : Vec<Item>,
@@ -187,13 +200,38 @@ impl Inventory {
         None
     }
 
+
+    pub fn get_item_at(&mut self, index: i32) -> Item {
+        if index >= 0 && index < self.items.len() as i32 {
+            return self.items[index as usize].clone()
+        }
+        Item::new(Uuid::new_v4(), "".to_string())
+    }
+
+}
+
+// Implement 'IntoIterator' trait
+impl IntoIterator for Inventory {
+    type Item = Item;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter()
+    }
 }
 
 pub fn script_register_inventory_api(engine: &mut rhai::Engine) {
+
+    engine.register_type_with_name::<Item>("Item")
+        .register_get("name", Item::get_name)
+        .register_get("amount", Item::get_amount);
+
     engine.register_type_with_name::<Inventory>("Inventory")
         .register_fn("len", Inventory::len)
         .register_fn("item_name_at", Inventory::item_name_at)
         .register_fn("item_amount_at", Inventory::item_amount_at)
         .register_fn("add", Inventory::add)
-        .register_fn("equip", Inventory::equip);
+        .register_fn("equip", Inventory::equip)
+        .register_iterator::<Inventory>();
+
 }
