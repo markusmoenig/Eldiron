@@ -152,6 +152,7 @@ impl RegionInstance<'_> {
         script_register_gear_api(&mut engine);
         script_register_weapons_api(&mut engine);
         script_register_experience_api(&mut engine);
+        script_register_date_api(&mut engine);
 
         // Display f64 as ints
         use pathfinding::num_traits::ToPrimitive;
@@ -408,6 +409,7 @@ impl RegionInstance<'_> {
                                         }
                                     }
                                 }
+                                self.scopes[inst_index].set_value("date", self.date.clone());
                                 self.execute_node(inst_index, node_id.clone(), None);
                             }
                         }
@@ -1858,6 +1860,7 @@ impl RegionInstance<'_> {
                 scope.set_value("weapons", Weapons::new());
                 scope.set_value("skills", skills);
                 scope.set_value("experience", Experience::new());
+                scope.set_value("date", self.date.clone());
 
                 self.scopes.push(scope);
             }

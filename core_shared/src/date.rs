@@ -7,6 +7,7 @@ pub struct Date {
 
     pub hours                   : i32,
     pub minutes                 : i32,
+    pub seconds                 : i32,
     pub minutes_in_day          : i32,
 }
 
@@ -18,12 +19,14 @@ impl Date {
 
             hours               : 0,
             minutes             : 0,
+            seconds             : 0,
             minutes_in_day      : 0,
         }
     }
 
     pub fn from_ticks(&mut self, ticks: usize) {
         let minutes = ticks / 4;
+        self.seconds = (ticks as i32 % 4) * 15;
         self.hours = (minutes / 60) as i32;
         self.minutes = (minutes % 60) as i32;
 
@@ -37,6 +40,10 @@ impl Date {
 
     pub fn get_minutes(&mut self) -> i32 {
         self.minutes
+    }
+
+    pub fn get_seconds(&mut self) -> i32 {
+        self.seconds
     }
 
     pub fn time24(&mut self) -> String {
@@ -69,6 +76,7 @@ pub fn script_register_date_api(engine: &mut rhai::Engine) {
     engine.register_type_with_name::<Date>("Date")
         .register_get("hours", Date::get_hours)
         .register_get("minutes", Date::get_minutes)
+        .register_get("seconds", Date::get_seconds)
 
         .register_fn("time12", Date::time12)
         .register_fn("time24", Date::time24);
