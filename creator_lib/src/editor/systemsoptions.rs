@@ -17,7 +17,7 @@ impl EditorOptions for SystemsOptions {
     AtomData::new("NodeList", Value::Empty()));
         node_list.drag_enabled = true;
 
-        node_list.add_group_list(context.color_green, context.color_light_green, vec!["Behavior Tree".to_string(), "Expression".to_string(), "Script".to_string(), "Linear".to_string(), "Sequence".to_string(), "Has Target ?".to_string()]);
+        node_list.add_group_list(context.color_green, context.color_light_green, vec!["Behavior Tree".to_string(), "Expression".to_string(), "Script".to_string(), "Linear".to_string(), "Sequence".to_string(), "Has State ?".to_string(), "Has Target ?".to_string()]);
 
         node_list.add_group_list(context.color_orange, context.color_light_orange, vec!["Skill Tree".to_string(), "Skill Level".to_string(), "Level Tree".to_string(), "Level".to_string()]);
 

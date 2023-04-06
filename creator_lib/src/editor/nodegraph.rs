@@ -1235,6 +1235,7 @@ impl EditorContent for NodeGraph  {
                 "Set State" => BehaviorNodeType::SetState,
                 "Call System" => BehaviorNodeType::CallSystem,
                 "Call Behavior" => BehaviorNodeType::CallBehavior,
+                "Has State ?" => BehaviorNodeType::HasState,
                 "Has Target ?" => BehaviorNodeType::HasTarget,
                 "Untarget" => BehaviorNodeType::Untarget,
                 "Deal Damage" => BehaviorNodeType::DealDamage,
@@ -1691,7 +1692,7 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::Lookout {
-            let type_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string()], Value::Integer(0));
+            let type_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string(), "Sleeping".to_string(), "Intoxicated".to_string()], Value::Integer(0));
             node_widget.widgets.push(type_menu);
 
             let mut atom1 = AtomWidget::new(vec!["Expression".to_string()], AtomWidgetType::NodeExpressionButton,
@@ -1834,7 +1835,7 @@ impl EditorContent for NodeGraph  {
             let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
             node_widget.widgets.push(target_menu);
 
-            let state_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string(), "Purged".to_string()], Value::Integer(0));
+            let state_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string(), "Purged".to_string(), "Sleeping".to_string(), "Intoxicated".to_string()], Value::Integer(0));
             node_widget.widgets.push(state_menu);
 
             node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#set-state".to_string());
@@ -1882,6 +1883,17 @@ impl EditorContent for NodeGraph  {
             node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#call-behavior".to_string());
 
             node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::HasState {
+            let type_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string(), "Sleeping".to_string(), "Intoxicated".to_string()], Value::Integer(0));
+            node_widget.widgets.push(type_menu);
+
+            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#has-state".to_string());
+            node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );

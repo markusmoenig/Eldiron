@@ -84,7 +84,8 @@ pub enum BehaviorNodeType {
     Level,
     SetLevelTree,
     OverlayTiles,
-    Schedule
+    Schedule,
+    HasState
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -117,6 +118,28 @@ pub enum BehaviorInstanceState {
     Normal,
     Killed,
     Purged,
+    Sleeping,
+    Intoxicated
+}
+
+impl BehaviorInstanceState {
+    // Character is dead
+    pub fn is_dead(&self) -> bool {
+        match self {
+            Self::Killed => true,
+            Self::Purged => true,
+            _ => false
+        }
+    }
+
+    // Character is alive
+    pub fn is_alive(&self) -> bool {
+        match self {
+            Self::Killed => false,
+            Self::Purged => false,
+            _ => true
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

@@ -293,7 +293,7 @@ pub fn lookout(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
     if let Some(position) = &data.instances[instance_index].position {
         for inst_index in 0..data.instances.len() {
             if inst_index != instance_index {
-                if (data.instances[inst_index].state == BehaviorInstanceState::Normal && state == 0) || (data.instances[inst_index].state == BehaviorInstanceState::Killed && state == 1) {
+                if (data.instances[inst_index].state == BehaviorInstanceState::Normal && state == 0) || (data.instances[inst_index].state == BehaviorInstanceState::Killed && state == 1) || (data.instances[inst_index].state == BehaviorInstanceState::Sleeping && state == 3) || (data.instances[inst_index].state == BehaviorInstanceState::Intoxicated && state == 4) {
                     if let Some(pos) = &data.instances[inst_index].position {
                         if pos.region == position.region {
                             let dx = position.x - pos.x;
@@ -798,6 +798,23 @@ pub fn unlock_tree(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
     BehaviorNodeConnector::Bottom
 }
 
+/// Has State ?
+pub fn has_state(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let mut state = 0;
+    if let Some(value) = get_node_value((id.0, id.1, "state"), data, behavior_type) {
+        if let Some(s) = value.to_integer() {
+            state = s;
+        }
+    }
+
+    if (data.instances[instance_index].state == BehaviorInstanceState::Normal && state == 0) || (data.instances[instance_index].state == BehaviorInstanceState::Killed && state == 1) || (data.instances[instance_index].state == BehaviorInstanceState::Sleeping && state == 3) || (data.instances[instance_index].state == BehaviorInstanceState::Intoxicated && state == 4) {
+        BehaviorNodeConnector::Success
+    } else {
+        BehaviorNodeConnector::Fail
+    }
+}
+
 /// Set State
 pub fn set_state(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
@@ -825,16 +842,17 @@ pub fn set_state(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
                 data.instances[behavior_instance].state = match v {
                     1 => BehaviorInstanceState::Killed,
                     2 => BehaviorInstanceState::Purged,
+                    3 => BehaviorInstanceState::Sleeping,
+                    4 => BehaviorInstanceState::Intoxicated,
 
                     _ => BehaviorInstanceState::Normal,
                 };
             }
 
-            // If != normal, clean this instance from all targets
-            if data.instances[behavior_instance].state != BehaviorInstanceState::Normal {
+            // If target is dead, clean this instance from all targets
+            if data.instances[behavior_instance].state.is_dead() {
                 for i in 0..data.instances.len() {
                     if data.instances[i].target_instance_index == Some(behavior_instance) {
-                        // We do this in tick() data.instances[i].target_instance_index = None;
                         data.instances[i].locked_tree = None;
                     }
                 }

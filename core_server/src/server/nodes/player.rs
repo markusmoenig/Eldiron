@@ -209,7 +209,7 @@ pub fn player_drop(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
     BehaviorNodeConnector::Fail
 }
 
-/// Player wants to drop something
+/// Assign target
 pub fn player_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     let mut dp:Option<Position> = None;
@@ -250,8 +250,8 @@ pub fn player_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut Region
             if  distance as i32 <= weapon_distance {
                 for inst_index in 0..data.instances.len() {
                     if inst_index != instance_index {
-                        // Only track if the state is normal
-                        if data.instances[inst_index].state == BehaviorInstanceState::Normal {
+                        // Only track if the state is OK
+                        if data.instances[inst_index].state.is_alive() {
                             if let Some(pos) = &data.instances[inst_index].position {
                                 if *dp == *pos {
                                     data.instances[instance_index].target_instance_index = Some(inst_index);

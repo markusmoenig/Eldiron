@@ -182,6 +182,7 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::SetLevelTree, set_level_tree);
         nodes.insert(BehaviorNodeType::SetLevelTree, set_level_tree);
         nodes.insert(BehaviorNodeType::Schedule, schedule);
+        nodes.insert(BehaviorNodeType::HasState, has_state);
 
         nodes.insert(BehaviorNodeType::OverlayTiles, overlay_tiles);
 
@@ -910,7 +911,7 @@ impl RegionInstance<'_> {
 
             // Purge invalid target indices
             if let Some(target_index) = self.instances[inst_index].target_instance_index {
-                if self.instances[target_index].state != BehaviorInstanceState::Normal {
+                if self.instances[target_index].state.is_dead() {
                     self.instances[inst_index].target_instance_index = None;
                 }
             }
