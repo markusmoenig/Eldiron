@@ -180,6 +180,8 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::TakeHeal, take_heal);
         nodes.insert(BehaviorNodeType::Respawn, respawn);
         nodes.insert(BehaviorNodeType::SetLevelTree, set_level_tree);
+        nodes.insert(BehaviorNodeType::SetLevelTree, set_level_tree);
+        nodes.insert(BehaviorNodeType::Schedule, schedule);
 
         nodes.insert(BehaviorNodeType::OverlayTiles, overlay_tiles);
 

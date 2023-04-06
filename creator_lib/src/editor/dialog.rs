@@ -9,6 +9,7 @@ pub enum DialogEntry {
     NodeExpressionValue,
     NodeScript,
     NodeText,
+    NodeTime,
     NodeName,
     NodeTile,
     NewName,
@@ -106,6 +107,13 @@ impl DialogWidget {
                         self.text = "".to_string();
                     }
                 } else
+                if context.dialog_entry == DialogEntry::NodeTime  {
+                    if let Some(v) = context.dialog_value.to_date() {
+                        self.text = v.to_time24();
+                    } else {
+                        self.text = "".to_string();
+                    }
+                } else
                 if context.dialog_entry == DialogEntry::NodeSize2D {
                     self.text = format!("{}", context.dialog_node_behavior_value.0);
                 } else
@@ -160,6 +168,17 @@ impl DialogWidget {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Number".to_string(), &context.color_white, &context.color_black);
 
                     if self.text.parse::<f64>().is_err() {
+                        border_color = context.color_red;
+                        self.widgets[1].state = WidgetState::Disabled;
+                    } else
+                    if self.widgets[1].state == WidgetState::Disabled {
+                        self.widgets[1].state = WidgetState::Normal;
+                    }
+                } else
+                if context.dialog_entry == DialogEntry::NodeTime {
+                    context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Time".to_string(), &context.color_white, &context.color_black);
+
+                    if Date::verify_time24(self.text.clone()) == false {
                         border_color = context.color_red;
                         self.widgets[1].state = WidgetState::Disabled;
                     } else
@@ -278,17 +297,21 @@ impl DialogWidget {
         if context.dialog_entry == DialogEntry::NodeNumber {
             let int_value = self.text.parse::<i32>();
             if int_value.is_ok() {
-                //context.dialog_node_behavior_value.0 = int_value.unwrap() as f32;
                 let v = int_value.unwrap() as f32;
                 context.dialog_value = Value::Float(v);
-                //context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), Value::Float(v), context.curr_graph_type);
                 return true;
             }
             let float_value = self.text.parse::<f64>();
             if float_value.is_ok() {
                 context.dialog_node_behavior_value.0 = float_value.unwrap();
-                // TODO context.data.set_behavior_id_value(context.dialog_node_behavior_id.clone(), context.dialog_node_behavior_value.clone(), context.curr_graph_type);
                 return true;
+            }
+        } else
+        if context.dialog_entry == DialogEntry::NodeTime {
+            if Date::verify_time24(self.text.clone()) {
+                let d = Date::from_time24(self.text.clone());
+                context.dialog_value = Value::Date(d);
+                return  true;
             }
         } else
         if context.dialog_entry == DialogEntry::NodeExpression || context.dialog_entry == DialogEntry::NodeExpressionValue || context.dialog_entry == DialogEntry::NodeScript {

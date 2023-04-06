@@ -138,6 +138,14 @@ impl NodePreviewWidget {
                         if let Some(render) = &mut context.debug_render {
                             render.process_update(update);
                             render.process_game_draw_2d(self.preview_rect, anim_counter, update, &mut Some(buffer_frame), stride, (0, 0));
+
+                            let mut r = self.preview_rect.clone();
+                            r.0 = 0;
+                            r.1 = 0;
+                            r.2 = 100;
+                            r.3 = 20;
+
+                            context.draw2d.draw_text_rect(buffer_frame, &r, stride, asset.get_editor_font("OpenSans"), 15.0, &update.date.to_time24(), &context.color_white, &context.color_black, crate::draw2d::TextAlignment::Center);
                         }
                     }
                 } else {

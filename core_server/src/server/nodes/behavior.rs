@@ -1471,3 +1471,23 @@ pub fn set_level_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
 
     BehaviorNodeConnector::Bottom
 }
+
+/// Schedule
+pub fn schedule(_instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    // Get the system name
+    if let Some(from) = get_node_value((id.0, id.1, "from"), data, behavior_type) {
+        if let Some(to) = get_node_value((id.0, id.1, "to"), data, behavior_type) {
+            if let Some(f) = from.to_date() {
+                if let Some(t) = to.to_date() {
+                    if data.date >= f && data.date <= t {
+                        return BehaviorNodeConnector::Right;
+                    }
+                }
+            }
+
+        }
+    }
+
+    BehaviorNodeConnector::Bottom
+}

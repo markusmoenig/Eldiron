@@ -1251,6 +1251,7 @@ impl EditorContent for NodeGraph  {
                 "Respawn" => BehaviorNodeType::Respawn,
                 "Equip" => BehaviorNodeType::Equip,
                 "Set Level Tree" => BehaviorNodeType::SetLevelTree,
+                "Schedule" => BehaviorNodeType::Schedule,
 
                 "Skill Level" if self.graph_type == BehaviorType::Items => BehaviorNodeType::SkillLevelItem,
                 "Skill Tree" => BehaviorNodeType::SkillTree,
@@ -2067,6 +2068,30 @@ impl EditorContent for NodeGraph  {
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::Schedule {
+            let mut atom1 = AtomWidget::new(vec!["From".to_string()], AtomWidgetType::NodeTimeButton,
+            AtomData::new("from", Value::Empty()));
+            atom1.atom_data.text = "From".to_string();
+            let id = (behavior_data_id, node_id, "from".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Date(Date::new_time(0, 0)), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            let mut atom2 = AtomWidget::new(vec!["To".to_string()], AtomWidgetType::NodeTimeButton,
+            AtomData::new("to", Value::Empty()));
+            atom2.atom_data.text = "To".to_string();
+            let id = (behavior_data_id, node_id, "to".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Date(Date::new_time(23, 59)), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#schedule".to_string());
+
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
 
         // Area

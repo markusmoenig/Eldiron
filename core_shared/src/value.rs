@@ -22,7 +22,8 @@ pub enum Value {
     TileData(TileData),
     PropertySink(PropertySink),
     Bool(bool),
-    USize(usize)
+    USize(usize),
+    Date(Date)
 }
 
 impl Value {
@@ -83,4 +84,12 @@ impl Value {
             _ => None,
         }
     }
+
+    pub fn to_date(&self ) -> Option<Date> {
+        match self {
+            Value::Date(value) => return Some(value.clone()),
+            _ => None,
+        }
+    }
+
 }
