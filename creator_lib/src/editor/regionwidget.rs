@@ -1185,7 +1185,7 @@ impl EditorContent for RegionWidget {
             }
         }
 
-        if context.contains_pos_for(pos, self.editor_rect) {
+        if context.contains_pos_for(pos, self.editor_rect) || context.contains_pos_for(pos, self.tile_selector.rect) {
             self.mouse_hover_pos = pos.clone();
         }
         true
