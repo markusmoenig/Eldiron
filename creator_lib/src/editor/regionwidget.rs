@@ -662,7 +662,9 @@ impl EditorContent for RegionWidget {
 
         let mut rect = self.rect.clone();
         rect.3 -= self.bottom_size + self.toolbar_size;
-        rect.2 -= rect.2 / 3;
+        if self.preview_button.curr_index == 1 ||  self.preview_button.curr_index == 2 {
+            rect.2 -= rect.2 / 3;
+        }
 
         if let Some(options) = options {
 
