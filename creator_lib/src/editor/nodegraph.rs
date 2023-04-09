@@ -2167,7 +2167,7 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            node_widget.help_link = Some("https://book.eldiron.com/nodes/audio.html".to_string());
+            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#audio".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );

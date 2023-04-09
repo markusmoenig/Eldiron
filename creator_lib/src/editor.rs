@@ -1146,10 +1146,10 @@ impl Editor<'_> {
             } else
             if self.controlbar.show_help {
                 match self.state {
-                    EditorState::TilesOverview => _ = open::that("https://book.eldiron.com/tiles/overview.html"),
-                    EditorState::TilesDetail => _ = open::that("https://book.eldiron.com/tiles/details.html"),
+                    EditorState::TilesOverview => _ = open::that("https://eldiron.com/creator/user_interface/assets_view/index.html"),
+                    EditorState::TilesDetail => _ = open::that("https://eldiron.com/creator/user_interface/assets_view/index.html"),
 
-                    _ => _ = open::that("https://book.eldiron.com")
+                    _ => _ = open::that("https://eldiron.com")
                 }
                 self.controlbar.show_help = false;
             }
