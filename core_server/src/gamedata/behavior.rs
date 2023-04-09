@@ -431,3 +431,26 @@ impl GameBehavior {
     }
 
 }
+
+// Settings
+
+pub fn update_behavior_sink(sink: &mut PropertySink) {
+
+    if sink.contains("race") == false {
+        sink.properties.push(Property::new_string("race".to_string(), "human".to_string()));
+    }
+
+    if sink.contains("class") == false {
+        sink.properties.push(Property::new_string("class".to_string(), "paladin".to_string()));
+    }
+
+}
+
+pub fn generate_behavior_sink_descriptions() -> FxHashMap<String, Vec<String>> {
+    let mut map : FxHashMap<String, Vec<String>> = FxHashMap::default();
+
+    map.insert("race".to_string(), vec!["The race of the character.".to_string()]);
+    map.insert("class".to_string(), vec!["The class of the character.".to_string()]);
+
+    map
+}

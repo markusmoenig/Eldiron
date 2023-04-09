@@ -1361,6 +1361,16 @@ impl EditorContent for NodeGraph  {
                 tile_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
                 node_widget.widgets.push(tile_atom);
 
+                let mut character_settings = AtomWidget::new(vec!["Settings".to_string()], AtomWidgetType::NodeCharacterSettingsButton,
+                AtomData::new("settings", Value::Empty()));
+                character_settings.atom_data.text = "Settings".to_string();
+                let id = (behavior_data_id, node_id, "settings".to_string());
+                character_settings.behavior_id = Some(id.clone());
+                let mut sink = PropertySink::new();
+                update_item_sink(&mut sink);
+                character_settings.atom_data.value = context.data.get_behavior_id_value(id, Value::PropertySink(sink), self.graph_type);
+                node_widget.widgets.push(character_settings);
+
                 // Chunks
                 let mut chunk_atom = AtomWidget::new(vec![], AtomWidgetType::NodePropertyLog,
                     AtomData::new("chunks", Value::Empty()));

@@ -59,6 +59,7 @@ pub enum AtomWidgetType {
     NodePropertyLog,
     NodeItemSettingsButton,
     NodeTimeButton,
+    NodeCharacterSettingsButton,
 
     LargeButton,
     CheckButton,
@@ -470,7 +471,7 @@ impl AtomWidget {
 
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &format!("{} x {}", v1, v2), &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
-            if self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton || self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton {
+            if self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton || self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton || self.atom_widget_type == AtomWidgetType::NodeCharacterSettingsButton {
 
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height);
 
@@ -1005,7 +1006,7 @@ impl AtomWidget {
             return false;
         }
         if self.contains_pos(pos) {
-            if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeNumberButton || self.atom_widget_type == AtomWidgetType::NodeTimeButton || self.atom_widget_type == AtomWidgetType::NodeSize2DButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton || self.atom_widget_type == AtomWidgetType::NodeIconTileButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton || self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton || self.atom_widget_type == AtomWidgetType::NodeEffectTileButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeNumberButton || self.atom_widget_type == AtomWidgetType::NodeTimeButton || self.atom_widget_type == AtomWidgetType::NodeSize2DButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton || self.atom_widget_type == AtomWidgetType::NodeIconTileButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton || self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton || self.atom_widget_type == AtomWidgetType::NodeEffectTileButton || self.atom_widget_type == AtomWidgetType::NodeCharacterSettingsButton {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
@@ -1298,6 +1299,20 @@ impl AtomWidget {
                     sink.load_from_string(self.atom_data.value.to_string_value());
                     update_item_sink(&mut sink);
                     let str = sink.to_string(generate_item_sink_descriptions());
+
+                    self.atom_data.value = Value::String(str);
+
+                    context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
+                }
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodeCharacterSettingsButton {
+                context.code_editor_mode = CodeEditorMode::Settings;
+                if let Some(id) = &self.behavior_id {
+
+                    let mut sink = PropertySink::new();
+                    sink.load_from_string(self.atom_data.value.to_string_value());
+                    update_behavior_sink(&mut sink);
+                    let str = sink.to_string(generate_behavior_sink_descriptions());
 
                     self.atom_data.value = Value::String(str);
 
