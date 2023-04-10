@@ -242,6 +242,8 @@ pub fn player_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut Region
 
     let mut rc = BehaviorNodeConnector::Fail;
 
+    data.scopes[instance_index].set_value("failure", FailureEnum::No);
+
     if let Some(dp) = &dp {
         if let Some(position) = &data.instances[instance_index].position {
             // Make sure the target is within weapons range
@@ -261,6 +263,8 @@ pub fn player_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut Region
                         }
                     }
                 }
+            } else {
+                data.scopes[instance_index].set_value("failure", FailureEnum::TooFarAway);
             }
         }
     }

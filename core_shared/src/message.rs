@@ -7,7 +7,7 @@ pub enum MessageType {
     Status,
     Say,
     Yell,
-    Private,
+    Tell,
     Debug,
     Error,
     Vendor,

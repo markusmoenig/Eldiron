@@ -214,7 +214,7 @@ pub fn message_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
             message_type = match index {
                 1 => MessageType::Say,
                 2 => MessageType::Yell,
-                3 => MessageType::Private,
+                3 => MessageType::Tell,
                 4 => MessageType::Debug,
                 _ => MessageType::Status
             }

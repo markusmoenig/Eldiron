@@ -155,6 +155,7 @@ impl RegionInstance<'_> {
         script_register_weapons_api(&mut engine);
         script_register_experience_api(&mut engine);
         script_register_date_api(&mut engine);
+        script_register_failure_enum_api(&mut engine);
 
         // Display f64 as ints
         use pathfinding::num_traits::ToPrimitive;
@@ -1874,6 +1875,7 @@ impl RegionInstance<'_> {
                 scope.set_value("skills", skills);
                 scope.set_value("experience", Experience::new());
                 scope.set_value("date", self.date.clone());
+                scope.set_value("failure", FailureEnum::No);
 
                 self.scopes.push(scope);
             }
