@@ -203,8 +203,8 @@ pub enum ScriptDrawCmd {
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum ScriptServerCmd {
-    Action(String, String),
-    ActionCoordinate(String),
+    Action(String, String, Option<String>),
+    ActionCoordinate(String, Option<String>),
     ActionInventory(String, i32),
     ActionGear(String, i32),
     ActionValidMouseRect(ScriptRect),
@@ -227,11 +227,19 @@ impl ScriptCmd {
     // Action
 
     pub fn action(&mut self, action: &str, direction: &str) {
-        self.action_commands.push(ScriptServerCmd::Action(action.to_owned(), direction.to_owned().to_lowercase()));
+        self.action_commands.push(ScriptServerCmd::Action(action.to_owned(), direction.to_owned().to_lowercase(), None));
     }
 
     pub fn action_coordinate(&mut self, action: &str) {
-        self.action_commands.push(ScriptServerCmd::ActionCoordinate(action.to_owned()));
+        self.action_commands.push(ScriptServerCmd::ActionCoordinate(action.to_owned(), None));
+    }
+
+    pub fn action_spell(&mut self, action: &str, direction: &str, spell: &str) {
+        self.action_commands.push(ScriptServerCmd::Action(action.to_owned(), direction.to_owned().to_lowercase(), Some(spell.to_string())));
+    }
+
+    pub fn action_spell_coordinate(&mut self, action: &str, spell: &str) {
+        self.action_commands.push(ScriptServerCmd::ActionCoordinate(action.to_owned(), Some(spell.to_string())));
     }
 
     // Valid Mouse Rect

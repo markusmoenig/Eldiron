@@ -181,7 +181,6 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::TakeHeal, take_heal);
         nodes.insert(BehaviorNodeType::Respawn, respawn);
         nodes.insert(BehaviorNodeType::SetLevelTree, set_level_tree);
-        nodes.insert(BehaviorNodeType::SetLevelTree, set_level_tree);
         nodes.insert(BehaviorNodeType::Schedule, schedule);
         nodes.insert(BehaviorNodeType::HasState, has_state);
 
@@ -570,7 +569,7 @@ impl RegionInstance<'_> {
             }
 
             // Extract the script messages for this instance
-            if let Some(mess) = self.scopes[inst_index].get_mut("messages") {
+            if let Some(mess) = self.scopes[inst_index].get_mut("message") {
                 if let Some(mut message) = mess.write_lock::<ScriptMessageCmd>() {
                     if message.messages.is_empty() == false {
                         let my_name = self.instances[inst_index].name.clone();
@@ -1680,29 +1679,36 @@ impl RegionInstance<'_> {
         }
     }
 
-
     /// Creates an instance of a behavior (character)
     fn create_behavior_instance(&mut self, id: Uuid, npc_only: bool, data: Option<CharacterInstanceData>) -> usize {
 
         let mut index = 0;
 
         let mut startup_trees               : Vec<Uuid> = vec![];
+        let mut startup_system_trees        : Vec<(Uuid, Uuid)> = vec![];
+        let mut behavior_name       = "".to_string();
+        let mut behavior_id         = Uuid::new_v4();
+        let mut class_name                  : Option<String> = None;
+
+        let mut to_create : Vec<CharacterInstanceData> = vec![];
+
+        // Collect all the default data for the behavior from the nodes: Position, tile, behavior Trees and variables.
+        let mut to_execute              : Vec<Uuid> = vec![];
+        let mut default_position        : Option<Position> = None;
+        let mut default_tile            : Option<TileId> = None;
+        let mut default_alignment       : i32 = 1;
+        let mut settings_sink   = PropertySink::new();
+        let default_scope     = rhai::Scope::new();
 
         // Instances to create for this behavior
-        if let Some(behavior) = self.behaviors.get_mut(&id) {
+        if let Some(behavior) = &self.behaviors.get_mut(&id) {
+
+            behavior_name = behavior.name.clone();
+            behavior_id = behavior.id.clone();
 
             if npc_only && behavior.name == "Player" {
                 return index;
             }
-
-            let mut to_create : Vec<CharacterInstanceData> = vec![];
-
-            // Collect all the default data for the behavior from the nodes: Position, tile, behavior Trees and variables.
-            let mut to_execute              : Vec<Uuid> = vec![];
-            let mut default_position        : Option<Position> = None;
-            let mut default_tile            : Option<TileId> = None;
-            let mut default_alignment       : i32 = 1;
-            let default_scope        = rhai::Scope::new();
 
             for (id, node) in &behavior.nodes {
                 if node.behavior_type == BehaviorNodeType::BehaviorTree {
@@ -1736,6 +1742,11 @@ impl RegionInstance<'_> {
                     }
                     if let Some(value )= node.values.get(&"tile".to_string()) {
                         default_tile = value.to_tile_id()
+                    }
+                    if let Some(value )= node.values.get(&"settings".to_string()) {
+                        if let Some(settings) = value.to_string() {
+                            settings_sink.load_from_string(settings);
+                        }
                     }
                     if let Some(value )= node.values.get(&"alignment".to_string()) {
                         if let Some(alignment) = value.to_integer() {
@@ -1772,119 +1783,176 @@ impl RegionInstance<'_> {
                 // If we get the character instance data, only add this (respawn)
                 to_create.push(data.unwrap());
             }
-            // Now we have all instances of the behavior we need to create
-            for inst in to_create {
+        }
 
-                // Only create when instance is in this region
-                if inst.position.region != self.region_data.id {
-                    continue;
-                }
+        // Now we have all instances of the behavior we need to create
+        for inst in to_create {
 
-                //println!("Creating instance {}", inst.name.unwrap());
+            // Only create when instance is in this region
+            if inst.position.region != self.region_data.id {
+                continue;
+            }
 
-                let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, skills_buffer: None, experience_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: Some(inst.clone()) };
+            //println!("Creating instance {}", inst.name.unwrap());
 
-                index = self.instances.len();
-                self.instances.push(instance);
+            let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior_name.clone(), behavior_id: behavior_id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, skills_buffer: None, experience_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: Some(inst.clone()) };
 
-                // Create skills
+            index = self.instances.len();
+            self.instances.push(instance);
 
-                let mut skills = Skills::new();
+            // Create skills
 
-                for (_id, behavior) in &self.systems {
-                    if behavior.name.to_lowercase() == "skills" {
-                        for (_id, node) in &behavior.nodes {
-                            if node.behavior_type == BehaviorNodeType::SkillTree {
-                                skills.add_skill(node.name.clone());
+            let mut skills = Skills::new();
 
-                                // Add the skill to the skill_tree
+            for (_id, behavior) in &self.systems {
+                if behavior.name.to_lowercase() == "skills" {
+                    for (_id, node) in &behavior.nodes {
+                        if node.behavior_type == BehaviorNodeType::SkillTree {
+                            skills.add_skill(node.name.clone());
 
-                                let mut rc : Vec<(i32, String, String)> = vec![];
-                                let mut parent_id = node.id;
+                            // Add the skill to the skill_tree
 
-                                loop {
-                                    let mut found = false;
-                                    for (id1, c1, id2, c2) in &behavior.connections {
-                                        if *id1 == parent_id && *c1 == BehaviorNodeConnector::Bottom {
-                                            for (uuid, node) in &behavior.nodes {
-                                                if *uuid == *id2 {
-                                                    let mut start = 0;
-                                                    if let Some(value) = node.values.get(&"start".to_string()) {
-                                                        if let Some(i) = value.to_integer() {
-                                                            start = i;
-                                                        }
+                            let mut rc : Vec<(i32, String, String)> = vec![];
+                            let mut parent_id = node.id;
+
+                            loop {
+                                let mut found = false;
+                                for (id1, c1, id2, c2) in &behavior.connections {
+                                    if *id1 == parent_id && *c1 == BehaviorNodeConnector::Bottom {
+                                        for (uuid, node) in &behavior.nodes {
+                                            if *uuid == *id2 {
+                                                let mut start = 0;
+                                                if let Some(value) = node.values.get(&"start".to_string()) {
+                                                    if let Some(i) = value.to_integer() {
+                                                        start = i;
                                                     }
-                                                    let mut message = "".to_string();
-                                                    if let Some(value) = node.values.get(&"message".to_string()) {
-                                                        if let Some(m) = value.to_string() {
-                                                            message = m;
-                                                        }
-                                                    }
-
-                                                    parent_id = node.id;
-                                                    found = true;
-
-                                                    rc.push((start, node.name.clone(), message));
                                                 }
-                                            }
-                                        } else
-                                        if *id2 == parent_id && *c2 == BehaviorNodeConnector::Bottom {
-                                            for (uuid, node) in &behavior.nodes {
-                                                if *uuid == *id1 {
-                                                    let mut start = 0;
-                                                    if let Some(value) = node.values.get(&"start".to_string()) {
-                                                        if let Some(i) = value.to_integer() {
-                                                            start = i;
-                                                        }
+                                                let mut message = "".to_string();
+                                                if let Some(value) = node.values.get(&"message".to_string()) {
+                                                    if let Some(m) = value.to_string() {
+                                                        message = m;
                                                     }
-                                                    let mut message = "".to_string();
-                                                    if let Some(value) = node.values.get(&"message".to_string()) {
-                                                        if let Some(m) = value.to_string() {
-                                                            message = m;
-                                                        }
-                                                    }
-                                                    parent_id = node.id;
-                                                    found = true;
+                                                }
 
-                                                    rc.push((start, node.name.clone(), message));
+                                                parent_id = node.id;
+                                                found = true;
+
+                                                rc.push((start, node.name.clone(), message));
+                                            }
+                                        }
+                                    } else
+                                    if *id2 == parent_id && *c2 == BehaviorNodeConnector::Bottom {
+                                        for (uuid, node) in &behavior.nodes {
+                                            if *uuid == *id1 {
+                                                let mut start = 0;
+                                                if let Some(value) = node.values.get(&"start".to_string()) {
+                                                    if let Some(i) = value.to_integer() {
+                                                        start = i;
+                                                    }
+                                                }
+                                                let mut message = "".to_string();
+                                                if let Some(value) = node.values.get(&"message".to_string()) {
+                                                    if let Some(m) = value.to_string() {
+                                                        message = m;
+                                                    }
+                                                }
+                                                parent_id = node.id;
+                                                found = true;
+
+                                                rc.push((start, node.name.clone(), message));
+                                            }
+                                        }
+                                    }
+                                }
+                                if found == false {
+                                    break;
+                                }
+                            }
+
+                            self.skill_trees.insert(node.name.clone(), rc);
+                        }
+                    }
+                }
+            }
+
+            // println!("{:?}", self.skill_trees);
+
+            // Set the default values into the scope
+            let mut scope = default_scope.clone();
+            scope.set_value("name", behavior_name.clone());
+            scope.set_value("alignment", inst.alignment as i32);
+            scope.set_value("message", ScriptMessageCmd::new());
+            scope.set_value("inventory", Inventory::new());
+            scope.set_value("gear", Gear::new());
+            scope.set_value("weapons", Weapons::new());
+            scope.set_value("skills", skills);
+            scope.set_value("experience", Experience::new());
+            scope.set_value("date", self.date.clone());
+            scope.set_value("failure", FailureEnum::No);
+
+            let mut system_startup_trees : Vec<String> = vec![];
+
+            if let Some(class) = settings_sink.get("class") {
+                if let Some(cl) = class.as_string() {
+                    class_name = Some(cl.clone());
+                    scope.set_value("class", cl.clone());
+                    system_startup_trees.push(cl);
+                }
+            }
+            if let Some(race) = settings_sink.get("race") {
+                if let Some(ra) = race.as_string() {
+                    scope.set_value("race", ra.clone());
+                    system_startup_trees.push(ra);
+                }
+            }
+
+            // Execute the startup trees in the given systems for execution (for class and race)
+            for system_name in system_startup_trees {
+                if self.system_names.contains(&system_name) {
+                    for (system_id, system) in &self.systems {
+                        if system.name == system_name {
+                            for (id, node) in &system.nodes {
+                                if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                                    for (value_name, value) in &node.values {
+                                        if *value_name == "execute".to_string() {
+                                            if let Some(v) = value.to_integer() {
+                                                if v == 1 {
+                                                    // Startup only tree
+                                                    for c in &system.connections {
+                                                        if c.0 == *id {
+                                                            startup_system_trees.push((*system_id, c.0));
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                    if found == false {
-                                        break;
-                                    }
                                 }
-
-                                self.skill_trees.insert(node.name.clone(), rc);
                             }
                         }
                     }
                 }
-
-                // println!("{:?}", self.skill_trees);
-
-                // Set the default values into the scope
-                let mut scope = default_scope.clone();
-                scope.set_value("name", behavior.name.clone());
-                scope.set_value("alignment", inst.alignment as i32);
-                scope.set_value("messages", ScriptMessageCmd::new());
-                scope.set_value("inventory", Inventory::new());
-                scope.set_value("gear", Gear::new());
-                scope.set_value("weapons", Weapons::new());
-                scope.set_value("skills", skills);
-                scope.set_value("experience", Experience::new());
-                scope.set_value("date", self.date.clone());
-                scope.set_value("failure", FailureEnum::No);
-
-                self.scopes.push(scope);
             }
-        }
 
-        if index < self.instances.len() {
-            // Execute the startup only trees
-            for startup_id in &startup_trees {
-                self.execute_node(index, startup_id.clone(), None);
+            self.scopes.push(scope);
+
+            if index < self.instances.len() {
+
+                // Set the class based level tree
+                if let Some(class_name) = class_name.clone() {
+                    self.set_level_tree(index, class_name);
+                }
+
+                // Execute the system startup trees
+                for startup_id in &startup_system_trees {
+                    self.instances[index].systems_id = startup_id.0;
+                    self.execute_systems_node(index, startup_id.1);
+                }
+
+                // Execute the startup only trees
+                for startup_id in &startup_trees {
+                    self.execute_node(index, startup_id.clone(), None);
+                }
             }
         }
 
@@ -2079,7 +2147,7 @@ impl RegionInstance<'_> {
             buffer.write_to_scope(&mut scope);
         }
 
-        scope.set_value("messages", ScriptMessageCmd::new());
+        scope.set_value("message", ScriptMessageCmd::new());
 
         if let Some(inventory_buffer) = &instance.inventory_buffer {
             let inventory : Inventory = serde_json::from_str(&inventory_buffer)
@@ -2142,4 +2210,103 @@ impl RegionInstance<'_> {
                 stop.as_millis()
         }
     }
+
+    /// Set class based level tree for a character
+    pub fn set_level_tree(&mut self, instance_index: usize, system_name: String) {
+
+        let tree_name = "Level Tree".to_string();
+
+        let mut levels : Vec<(i32, String, Uuid)> = vec![];
+        let mut level_tree_id = Uuid::new_v4();
+        let mut experience_msg : String = "You gained {} experience.".to_string();
+
+        for (_id, behavior) in &self.systems {
+            if behavior.name == system_name {
+                for (_id, node) in &behavior.nodes {
+                    if node.name == tree_name {
+
+                        if let Some(value) = node.values.get(&"message".to_string()) {
+                            if let Some(m) = value.to_string() {
+                                experience_msg = m;
+                            }
+                        }
+                        // Store the levels
+
+                        let mut rc : Vec<(i32, String, Uuid)> = vec![];
+                        let mut parent_id = node.id;
+
+                        level_tree_id = node.id;
+
+                        loop {
+                            let mut found = false;
+                            for (id1, c1, id2, c2) in &behavior.connections {
+                                if *id1 == parent_id && *c1 == BehaviorNodeConnector::Bottom {
+                                    for (uuid, node) in &behavior.nodes {
+                                        if *uuid == *id2 {
+                                            let mut start = 0;
+                                            if let Some(value) = node.values.get(&"start".to_string()) {
+                                                if let Some(i) = value.to_integer() {
+                                                    start = i;
+                                                }
+                                            }
+                                            let mut message = "".to_string();
+                                            if let Some(value) = node.values.get(&"message".to_string()) {
+                                                if let Some(m) = value.to_string() {
+                                                    message = m;
+                                                }
+                                            }
+
+                                            parent_id = node.id;
+                                            found = true;
+
+                                            rc.push((start, message, parent_id));
+                                        }
+                                    }
+                                } else
+                                if *id2 == parent_id && *c2 == BehaviorNodeConnector::Bottom {
+                                    for (uuid, node) in &behavior.nodes {
+                                        if *uuid == *id1 {
+                                            let mut start = 0;
+                                            if let Some(value) = node.values.get(&"start".to_string()) {
+                                                if let Some(i) = value.to_integer() {
+                                                    start = i;
+                                                }
+                                            }
+                                            let mut message = "".to_string();
+                                            if let Some(value) = node.values.get(&"message".to_string()) {
+                                                if let Some(m) = value.to_string() {
+                                                    message = m;
+                                                }
+                                            }
+                                            parent_id = node.id;
+                                            found = true;
+
+                                            rc.push((start, message, parent_id));
+                                        }
+                                    }
+                                }
+                            }
+                            if found == false {
+                                break;
+                            }
+                        }
+
+                        levels = rc;
+                    }
+                }
+            }
+        }
+
+        if let Some(e) = self.scopes[instance_index].get_mut("experience") {
+            if let Some(mut exp) = e.write_lock::<Experience>() {
+                exp.system_name = Some(system_name);
+                exp.tree_name = Some(tree_name.to_string());
+                exp.levels = levels;
+                exp.experience_msg = experience_msg;
+                exp.level_tree_id = level_tree_id;
+            }
+        }
+
+    }
+
 }

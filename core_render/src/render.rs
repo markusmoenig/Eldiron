@@ -1389,7 +1389,7 @@ impl GameRender<'_> {
                     for cmd in &cmd.action_commands {
 
                         match cmd {
-                            ScriptServerCmd::Action(action, direction) => {
+                            ScriptServerCmd::Action(action, direction, spell) => {
                                 let mut dir : Option<PlayerDirection>;
 
                                 if direction == "west" {
@@ -1473,13 +1473,13 @@ impl GameRender<'_> {
 
                                 if processed_cmd == false {
                                     if let Some(dir) = dir {
-                                        if let Some(action) = pack_action(player_id, action.clone(), dir) {
+                                        if let Some(action) = pack_action(player_id, action.clone(), dir, spell.clone()) {
                                             commands.push(action);
                                         }
                                     }
                                 }
                             },
-                            ScriptServerCmd::ActionCoordinate(action) => {
+                            ScriptServerCmd::ActionCoordinate(action, spell) => {
 
                                 // If we don't have the current mouse region pos, manually comp it
                                 if self.mouse_region_pos.is_none() {
@@ -1499,7 +1499,7 @@ impl GameRender<'_> {
                                 }
 
                                 if let Some(region_pos) = &self.mouse_region_pos {
-                                    if let Some(action) = pack_action_coordinate(player_id, action.clone(), *region_pos) {
+                                    if let Some(action) = pack_action_coordinate(player_id, action.clone(), *region_pos, spell.clone()) {
                                         commands.push(action);
                                     }
                                 }
