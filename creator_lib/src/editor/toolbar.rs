@@ -57,17 +57,17 @@ impl Widget for ToolBar {
         systems_button.status_help_text = Some("Edit the systems in your game ('4'). 'Space' to toggle.".to_string());
         widgets.push(systems_button);
 
-        let mut items_button = AtomWidget::new(vec!["Items".to_string()], AtomWidgetType::ToolBarSwitchButton,
+        let mut items_button = AtomWidget::new(vec!["Items & Spells".to_string()], AtomWidgetType::ToolBarSwitchButton,
         AtomData::new("Items", Value::Empty()));
-        items_button.set_rect((rect.0 + 725 + 195, rect.1, 140, rect.3), asset, context);
-        items_button.status_help_text = Some("Edit the items in your game ('5'). 'Space' to toggle.".to_string());
+        items_button.set_rect((rect.0 + 725 + 195, rect.1, 220, rect.3), asset, context);
+        items_button.status_help_text = Some("Edit the items and spells in your game ('5'). 'Space' to toggle.".to_string());
         items_button.custom_color = Some([205, 142, 67, 255]);
 
         widgets.push(items_button);
 
         let mut game_button = AtomWidget::new(vec!["Game".to_string()], AtomWidgetType::ToolBarSwitchButton,
             AtomData::new("Game", Value::Empty()));
-        game_button.set_rect((rect.0 + 725 + 175 + 170, rect.1, 140, rect.3), asset, context);
+        game_button.set_rect((rect.0 + 725 + 175 + 170 + 80, rect.1, 140, rect.3), asset, context);
         game_button.custom_color = Some([215, 30, 146, 255]);
         game_button.status_help_text = Some("Edit the game logic and settings ('6'). '7' for game settings.".to_string());
         widgets.push(game_button);

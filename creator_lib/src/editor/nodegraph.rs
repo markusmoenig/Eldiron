@@ -165,7 +165,7 @@ impl EditorContent for NodeGraph  {
 
                     if self.nodes[index].dirty {
                         let mut preview_buffer = vec![0; 100 * 100 * 4];
-                        if self.graph_type == BehaviorType::Tiles && self.sub_type ==  NodeSubType::Tilemap {
+                        if self.graph_type == BehaviorType::Tiles && self.sub_type == NodeSubType::Tilemap {
                             // For tile maps draw the default_tile
                             if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[active_index]) {
                                 if let Some(default_tile) = map.settings.default_tile {
@@ -173,7 +173,7 @@ impl EditorContent for NodeGraph  {
                                 }
                             }
                         } else
-                        if self.graph_type == BehaviorType::Tiles && self.sub_type ==  NodeSubType::Audio {
+                        if self.graph_type == BehaviorType::Tiles && self.sub_type == NodeSubType::Audio {
                             // For audio draw an audio icon
                             if let Some(icon) = context.icons.get(&"audio".to_string()) {
                                 context.draw2d.scale_chunk(&mut preview_buffer[..], &(10, 10, 80, 80), 100, &icon.0[..], &(icon.1 as usize, icon.2 as usize), 0.5);
@@ -210,10 +210,12 @@ impl EditorContent for NodeGraph  {
                             }
                         } else
                         if self.graph_type == BehaviorType::Items {
-                            // Draw the item tile
-                            if let Some(tile_id) = context.data.get_item_default_tile(context.data.items_ids[index]) {
-                                if let Some(map)= asset.tileset.maps.get_mut(&tile_id.tilemap) {
-                                    context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.x_off as usize, tile_id.y_off as usize), 0, 100);
+                            if self.sub_type == NodeSubType::Item {
+                                // Draw the item tile
+                                if let Some(tile_id) = context.data.get_item_default_tile(context.data.items_ids[index]) {
+                                    if let Some(map)= asset.tileset.maps.get_mut(&tile_id.tilemap) {
+                                        context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.x_off as usize, tile_id.y_off as usize), 0, 100);
+                                    }
                                 }
                             }
                         }
@@ -1352,15 +1354,6 @@ impl EditorContent for NodeGraph  {
                 position_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
                 node_widget.widgets.push(position_atom);
 
-                // Default Character Tile
-                let mut tile_atom = AtomWidget::new(vec![], AtomWidgetType::NodeCharTileButton,
-                    AtomData::new("tile", Value::Empty()));
-                tile_atom.atom_data.text = "tile".to_string();
-                let id = (behavior_data_id, node_id, "tile".to_string());
-                tile_atom.behavior_id = Some(id.clone());
-                tile_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
-                node_widget.widgets.push(tile_atom);
-
                 let mut character_settings = AtomWidget::new(vec!["Settings".to_string()], AtomWidgetType::NodeCharacterSettingsButton,
                 AtomData::new("settings", Value::Empty()));
                 character_settings.atom_data.text = "Settings".to_string();
@@ -1370,6 +1363,15 @@ impl EditorContent for NodeGraph  {
                 update_item_sink(&mut sink);
                 character_settings.atom_data.value = context.data.get_behavior_id_value(id, Value::PropertySink(sink), self.graph_type);
                 node_widget.widgets.push(character_settings);
+
+                // Default Character Tile
+                let mut tile_atom = AtomWidget::new(vec![], AtomWidgetType::NodeCharTileButton,
+                    AtomData::new("tile", Value::Empty()));
+                tile_atom.atom_data.text = "tile".to_string();
+                let id = (behavior_data_id, node_id, "tile".to_string());
+                tile_atom.behavior_id = Some(id.clone());
+                tile_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+                node_widget.widgets.push(tile_atom);
 
                 // Chunks
                 let mut chunk_atom = AtomWidget::new(vec![], AtomWidgetType::NodePropertyLog,
@@ -2723,6 +2725,28 @@ impl EditorContent for NodeGraph  {
 
             if indices.len() > 0 && !indices.contains(&context.curr_tileset_index) {
                 context.curr_tileset_index = indices[0];
+            }
+        } else
+        if self.graph_type == BehaviorType::Items {
+            let mut c = 0;
+            for index in 0..self.nodes.len() {
+                if self.nodes[index].sub_type == self.sub_type {
+                    c += 1;
+                    indices.push(index);
+                    self.nodes[index].visible = true;
+                } else {
+                    self.nodes[index].visible = false;
+                }
+            }
+
+            for i in 0..c {
+                let index = indices[i];
+                self.nodes[index].user_data.position = (20 + (i as isize % per_row) * item_width, 20 + (i as isize / per_row) * item_height);
+                self.nodes[index].dirty = true;
+            }
+
+            if indices.len() > 0 && !indices.contains(&context.curr_items_index) {
+                context.curr_items_index = indices[0];
             }
         } else {
             for index in 0..self.nodes.len() {

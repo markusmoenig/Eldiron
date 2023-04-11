@@ -1685,9 +1685,8 @@ impl RegionInstance<'_> {
         let mut index = 0;
 
         let mut startup_trees               : Vec<Uuid> = vec![];
-        let mut startup_system_trees        : Vec<(Uuid, Uuid)> = vec![];
         let mut behavior_name       = "".to_string();
-        let mut behavior_id         = Uuid::new_v4();
+        let mut behavior_id           = Uuid::new_v4();
         let mut class_name                  : Option<String> = None;
 
         let mut to_create : Vec<CharacterInstanceData> = vec![];
@@ -1905,6 +1904,8 @@ impl RegionInstance<'_> {
                     system_startup_trees.push(ra);
                 }
             }
+
+            let mut startup_system_trees        : Vec<(Uuid, Uuid)> = vec![];
 
             // Execute the startup trees in the given systems for execution (for class and race)
             for system_name in system_startup_trees {

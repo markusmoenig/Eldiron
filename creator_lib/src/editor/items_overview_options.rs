@@ -17,7 +17,7 @@ impl EditorOptions for ItemsOverviewOptions {
     AtomData::new("NodeList", Value::Empty()));
         node_list.drag_enabled = true;
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Item".to_string()]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Items".to_string(), "Spells".to_string()]);
 
         node_list.set_rect(rect, asset, context);
         widgets.push(node_list);
@@ -42,12 +42,36 @@ impl EditorOptions for ItemsOverviewOptions {
         }
     }
 
-    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>, toolbar: &mut Option<&mut ToolBar>) -> bool {
         for atom in &mut self.widgets {
             if atom.mouse_down(pos, asset, context) {
                 if atom.clicked {
                     if atom.atom_data.id == "NodeList" {
+                        if let Some(el_content) = content {
+                            if atom.curr_item_index == 0 {
+                                el_content.set_sub_node_type(NodeSubType::Item, context);
+                            } else
+                            if atom.curr_item_index == 1 {
+                                el_content.set_sub_node_type(NodeSubType::Spell, context);
+                            }
+                            if let Some(toolbar) = toolbar {
 
+                                let mut items = vec![];
+                                let indices = el_content.get_active_indices();
+
+                                if let Some(nodes) = el_content.get_nodes() {
+                                    for i in &indices {
+                                        items.push(nodes[*i].name.clone());
+                                    }
+                                }
+
+                                toolbar.widgets[0].text = items;
+                                toolbar.widgets[0].dirty = true;
+                                if indices.len() > 0 {
+                                    toolbar.widgets[0].curr_index = 0;
+                                }
+                            }
+                        }
                         return true;
                     }
                 }

@@ -6,6 +6,8 @@ pub enum NodeSubType {
     Audio,
     Image,
     Tilemap,
+    Item,
+    Spell
 }
 
 pub struct NodeUserData {

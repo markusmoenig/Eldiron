@@ -19,7 +19,7 @@ use directories::{ UserDirs };
 
 fn main() -> Result<(), Error> {
 
-    let mut width     : usize = 1248;
+    let mut width     : usize = 1300;
     let mut height    : usize = 700;
 
     env_logger::init();

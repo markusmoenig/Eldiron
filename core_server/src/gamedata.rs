@@ -47,6 +47,10 @@ pub struct GameData {
     pub items_names             : Vec<String>,
     pub items_ids               : Vec<Uuid>,
 
+    pub spells                  : FxHashMap<Uuid, GameBehavior>,
+    pub spells_names            : Vec<String>,
+    pub spells_ids              : Vec<Uuid>,
+
     pub game                    : Game,
 }
 
@@ -228,26 +232,29 @@ impl GameData {
         let mut items_names = vec![];
         let mut items_ids = vec![];
 
-        let item_path = path.join("game").join("items");
-        if let Some(paths) = fs::read_dir(item_path.clone()).ok() {
+        #[cfg(not(feature = "embed_binaries"))]
+        {
+            let item_path = path.join("game").join("items");
+            if let Some(paths) = fs::read_dir(item_path.clone()).ok() {
 
-            for path in paths {
-                let path = &path.unwrap().path();
-                let md = metadata(path).unwrap();
+                for path in paths {
+                    let path = &path.unwrap().path();
+                    let md = metadata(path).unwrap();
 
-                if md.is_file() {
-                    if let Some(name) = path::Path::new(&path).extension() {
-                        if name == "json" || name == "JSON" {
-                            let mut item = GameBehavior::load_from_path(path, &item_path);
-                            items_names.push(item.name.clone());
+                    if md.is_file() {
+                        if let Some(name) = path::Path::new(&path).extension() {
+                            if name == "json" || name == "JSON" {
+                                let mut item = GameBehavior::load_from_path(path, &item_path);
+                                items_names.push(item.name.clone());
 
-                            if item.data.nodes.len() == 0 {
-                                item.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
-                                item.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
-                                item.save_data();
+                                if item.data.nodes.len() == 0 {
+                                    item.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                                    item.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                                    item.save_data();
+                                }
+                                items_ids.push(item.data.id);
+                                items.insert(item.data.id, item);
                             }
-                            items_ids.push(item.data.id);
-                            items.insert(item.data.id, item);
                         }
                     }
                 }
@@ -264,6 +271,54 @@ impl GameData {
                     items_names.push(behavior.name.clone());
                     items_ids.push(behavior.data.id);
                     items.insert(behavior.data.id, behavior);
+                }
+            }
+        }
+
+        // Spells
+
+        let mut spells: FxHashMap<Uuid, GameBehavior> = FxHashMap::default();
+        let mut spells_names = vec![];
+        let mut spells_ids = vec![];
+
+        #[cfg(not(feature = "embed_binaries"))]
+        {
+            let spell_path = path.join("game").join("spells");
+            if let Some(paths) = fs::read_dir(spell_path.clone()).ok() {
+
+                for path in paths {
+                    let path = &path.unwrap().path();
+                    let md = metadata(path).unwrap();
+                    if md.is_file() {
+                        if let Some(name) = path::Path::new(&path).extension() {
+                            if name == "json" || name == "JSON" {
+                                let mut spell = GameBehavior::load_from_path(path, &spell_path);
+                                spells_names.push(spell.name.clone());
+
+                                if spell.data.nodes.len() == 0 {
+                                    spell.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                                    spell.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                                    spell.save_data();
+                                }
+                                spells_ids.push(spell.data.id);
+                                spells.insert(spell.data.id, spell);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        #[cfg(feature = "embed_binaries")]
+        {
+            for file in Embedded::iter() {
+                let name = file.as_ref();
+
+                if name.starts_with("game/spells/") {
+                    let behavior = GameBehavior::load_from_embedded(name);
+                    spells_names.push(behavior.name.clone());
+                    spells_ids.push(behavior.data.id);
+                    spells.insert(behavior.data.id, behavior);
                 }
             }
         }
@@ -310,6 +365,10 @@ impl GameData {
             items_names,
             items_ids,
 
+            spells,
+            spells_names,
+            spells_ids,
+
             game,
         }
     }
@@ -339,6 +398,12 @@ impl GameData {
         let items_names = vec![];
         let items_ids = vec![];
 
+        // Spells
+
+        let spells: FxHashMap<Uuid, GameBehavior> = FxHashMap::default();
+        let spells_names = vec![];
+        let spells_ids = vec![];
+
         // Game
 
         let game = Game::new();
@@ -363,6 +428,10 @@ impl GameData {
             items,
             items_names,
             items_ids,
+
+            spells,
+            spells_names,
+            spells_ids,
 
             game,
         }
@@ -442,7 +511,7 @@ impl GameData {
     }
 
     #[cfg(feature = "data_editing")]
-    /// Create a new system
+    /// Create a new item
     pub fn create_item(&mut self, name: String, _behavior_type: usize) {
 
         let path = self.path.join("game").join("items").join(name.clone() + ".json");
@@ -458,6 +527,25 @@ impl GameData {
         item.save_data();
 
         self.items.insert(item.data.id, item);
+    }
+
+    #[cfg(feature = "data_editing")]
+    /// Create a new spell
+    pub fn create_spell(&mut self, name: String, _behavior_type: usize) {
+
+        let path = self.path.join("game").join("spells").join(name.clone() + ".json");
+
+        let mut spell = GameBehavior::load_from_path(&path, &self.path.join("game").join("spells"));
+        spell.data.name = name.clone();
+
+        self.spells_names.push(spell.name.clone());
+        self.spells_ids.push(spell.data.id);
+
+        spell.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+        spell.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+        spell.save_data();
+
+        self.spells.insert(spell.data.id, spell);
     }
 
     #[cfg(feature = "data_editing")]
@@ -624,6 +712,19 @@ impl GameData {
         self.items.remove(&id);
     }
 
+    /// Delete the spell of the given id
+    pub fn delete_spell(&mut self, index: &usize) {
+        let id = self.spells_ids[*index].clone();
+
+        if let Some(spell) = self.spells.get(&id) {
+            let _ = std::fs::remove_file(spell.path.clone());
+        }
+
+        self.spells_names.remove(*index);
+        self.spells_ids.remove(*index);
+        self.spells.remove(&id);
+    }
+
     /// Gets the behavior for the given behavior type
     pub fn get_behavior(&self, id: Uuid, behavior_type: BehaviorType) -> Option<&GameBehavior> {
         if behavior_type == BehaviorType::Regions {
@@ -642,7 +743,12 @@ impl GameData {
             return self.systems.get(&id);
         } else
         if behavior_type == BehaviorType::Items {
-            return self.items.get(&id);
+            let item = self.items.get(&id);
+            if item.is_none() {
+                return self.spells.get(&id);
+            } else {
+                return item;
+            }
         } else
         if behavior_type == BehaviorType::GameLogic {
             return Some(&self.game.behavior);
@@ -668,7 +774,12 @@ impl GameData {
             return self.systems.get_mut(&id);
         } else
         if behavior_type == BehaviorType::Items {
-            return self.items.get_mut(&id);
+            let item = self.items.get_mut(&id);
+            if item.is_none() {
+                return self.spells.get_mut(&id);
+            } else {
+                return item;
+            }
         } else
         if behavior_type == BehaviorType::GameLogic {
             return Some(&mut self.game.behavior);

@@ -983,19 +983,38 @@ impl Editor<'_> {
             } else
             if self.state == EditorState::ItemsOverview {
                 if self.context.dialog_entry == DialogEntry::NewName && self.context.dialog_accepted == true {
-                    self.context.data.create_item(self.context.dialog_new_name.clone(), 0);
 
-                    let mut node = NodeWidget::new(self.context.dialog_new_name.clone(),
-                    NodeUserData { position: (100, 50) } );
+                    if self.context.dialog_new_name_type.ends_with("Items") {
+                        self.context.data.create_item(self.context.dialog_new_name.clone(), 0);
 
-                    let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new("menu", Value::Integer(0)));
-                    node.menu = Some(node_menu_atom);
+                        let mut node = NodeWidget::new(self.context.dialog_new_name.clone(),
+                        NodeUserData { position: (100, 50) } );
+                        node.sub_type = NodeSubType::Item;
 
-                    self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
-                    self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().sort(&mut self.context);
-                    self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().set_dirty();
-                    self.toolbar.widgets[0].text = self.context.data.systems_names.clone();
-                    self.toolbar.widgets[0].dirty = true;
+                        let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new("menu", Value::Integer(0)));
+                        node.menu = Some(node_menu_atom);
+
+                        self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
+                        self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().sort(&mut self.context);
+                        self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().set_dirty();
+                        self.toolbar.widgets[0].text = self.context.data.items_names.clone();
+                        self.toolbar.widgets[0].dirty = true;
+                    } else {
+                        self.context.data.create_spell(self.context.dialog_new_name.clone(), 0);
+
+                        let mut node = NodeWidget::new(self.context.dialog_new_name.clone(),
+                        NodeUserData { position: (100, 50) } );
+                        node.sub_type = NodeSubType::Spell;
+
+                        let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new("menu", Value::Integer(0)));
+                        node.menu = Some(node_menu_atom);
+
+                        self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
+                        self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().sort(&mut self.context);
+                        self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().set_dirty();
+                        self.toolbar.widgets[0].text = self.context.data.items_names.clone();
+                        self.toolbar.widgets[0].dirty = true;
+                    }
                 } else {
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {
@@ -1497,7 +1516,6 @@ impl Editor<'_> {
         // Node Drag ?
         if let Some(drag_context) = &self.context.drag_context.clone() {
 
-
             if self.state == EditorState::TilesOverview {
                 if drag_context.text == "Tilemaps" {
                     let (tx, rx): (Sender<Vec<PathBuf>>, Receiver<Vec<PathBuf>>) = mpsc::channel();
@@ -1675,7 +1693,7 @@ impl Editor<'_> {
                     self.context.dialog_height = 0;
                     self.context.target_fps = 60;
                     self.context.dialog_entry = DialogEntry::NewName;
-                    self.context.dialog_new_name = "New Item".to_string();
+                    self.context.dialog_new_name = format!("New {}", drag_context.text).to_string();
                     self.context.dialog_new_name_type = format!("NewBehavior_{}", drag_context.text);
                     self.context.dialog_new_node_position = position;
                 }
@@ -2189,6 +2207,7 @@ impl Editor<'_> {
             let p = get_pos(index, width - left_width);
             let mut node = NodeWidget::new(item_name.to_string(),
              NodeUserData { position: p });
+            node.sub_type = NodeSubType::Item;
 
             let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new("menu", Value::Empty()));
             node.menu = Some(node_menu_atom);
@@ -2198,9 +2217,12 @@ impl Editor<'_> {
 
         let mut node_graph_items = NodeGraph::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Items, &self.asset, &self.context);
         node_graph_items.set_mode_and_nodes(GraphMode::Overview, items_nodes, &self.context);
+        node_graph_items.sub_type = NodeSubType::Item;
 
         let mut node_graph_items_details = NodeGraph::new(vec!(), (left_width, self.context.toolbar_height, width - left_width, height - self.context.toolbar_height), BehaviorType::Items, &self.asset, &self.context);
         node_graph_items_details.set_mode(GraphMode::Detail, &self.context);
+
+        node_graph_items.sort(&mut self.context);
 
         self.content.push( (Some(Box::new(items_overview_options)), Some(Box::new(node_graph_items))) );
         self.content.push( (Some(Box::new(items_options)), Some(Box::new(node_graph_items_details))) );

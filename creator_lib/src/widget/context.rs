@@ -540,6 +540,16 @@ impl ScreenContext<'_> {
             }
         }
 
+        // Create game spells directory
+        let spells_path = game_path.join("spells");
+        if fs::metadata(spells_path.clone()).is_ok() == false {
+            let rc = fs::create_dir(spells_path.clone());
+
+            if rc.is_err() {
+                // return Err("Could not create items directory.".to_string());
+            }
+        }
+
         Ok(project_path)
     }
 
