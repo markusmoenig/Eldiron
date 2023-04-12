@@ -715,7 +715,8 @@ impl Editor<'_> {
             if state == EditorState::ItemsDetail {
                 self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                 self.context.curr_graph_type = BehaviorType::Items;
-                self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.items_ids[self.context.curr_items_index] , &mut self.context);
+                //self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.items_ids[self.context.curr_items_index] , &mut self.context);
+                self.set_items_id();
             } else
             if state == EditorState::GameDetail {
                 self.content[EditorState::GameDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
@@ -1012,20 +1013,39 @@ impl Editor<'_> {
                         self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap().push(node);
                         self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().sort(&mut self.context);
                         self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().set_dirty();
-                        self.toolbar.widgets[0].text = self.context.data.items_names.clone();
+                        self.toolbar.widgets[0].text = self.context.data.spells_names.clone();
                         self.toolbar.widgets[0].dirty = true;
                     }
                 } else {
                     if self.context.dialog_entry == DialogEntry::NodeName {
                         if self.context.dialog_accepted == true {
-                            if let Some(system) = self.context.data.items.get_mut(&self.context.data.items_ids[self.context.curr_items_index]) {
-                                self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_items_index].name = self.context.dialog_node_behavior_value.4.clone();
-                                self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_items_index].dirty = true;
-                                self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().set_dirty();
-                                system.rename(self.context.dialog_node_behavior_value.4.clone());
-                                self.context.data.systems_names[self.context.curr_items_index] = self.context.dialog_node_behavior_value.4.clone();
-                                self.toolbar.widgets[0].text = self.context.data.items_names.clone();
-                                self.toolbar.widgets[0].dirty = true;
+                            if self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_sub_node_type() == NodeSubType::Item {
+                                let active_indices = self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_active_indices();
+                                if let Some(index) = active_indices.iter().position(|&r| r == self.context.curr_items_index) {
+                                    if let Some(system) = self.context.data.items.get_mut(&self.context.data.items_ids[index]) {
+                                        self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_items_index].name = self.context.dialog_node_behavior_value.4.clone();
+                                        self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_items_index].dirty = true;
+                                        self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().set_dirty();
+                                        system.rename(self.context.dialog_node_behavior_value.4.clone());
+                                        self.context.data.items_names[index] = self.context.dialog_node_behavior_value.4.clone();
+                                        self.toolbar.widgets[0].text = self.context.data.items_names.clone();
+                                        self.toolbar.widgets[0].dirty = true;
+                                    }
+                                }
+                            } else
+                            if self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_sub_node_type() == NodeSubType::Spell {
+                                let active_indices = self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_active_indices();
+                                if let Some(index) = active_indices.iter().position(|&r| r == self.context.curr_items_index) {
+                                    if let Some(system) = self.context.data.spells.get_mut(&self.context.data.spells_ids[index]) {
+                                        self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_items_index].name = self.context.dialog_node_behavior_value.4.clone();
+                                        self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_nodes().unwrap()[self.context.curr_items_index].dirty = true;
+                                        self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().set_dirty();
+                                        system.rename(self.context.dialog_node_behavior_value.4.clone());
+                                        self.context.data.spells_names[index] = self.context.dialog_node_behavior_value.4.clone();
+                                        self.toolbar.widgets[0].text = self.context.data.spells_names.clone();
+                                        self.toolbar.widgets[0].dirty = true;
+                                    }
+                                }
                             }
                         }
                     }
@@ -1331,9 +1351,10 @@ impl Editor<'_> {
                     self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_mode_and_rect( GraphMode::Detail, (self.left_width, self.rect.1 + self.context.toolbar_height, self.rect.2 - self.left_width, self.rect.3 - self.context.toolbar_height), &mut self.context);
                     self.state = EditorState::ItemsDetail;
                     self.context.curr_graph_type = BehaviorType::Items;
-                    if self.context.data.items_ids.len() > 0 {
-                        self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.items_ids[self.context.curr_items_index] , &mut self.context);
-                    }
+                    // if self.context.data.items_ids.len() > 0 {
+                    //     self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.items_ids[self.context.curr_items_index] , &mut self.context);
+                    // }
+                    self.set_items_id();
                 }
 
                 for i in 1..4 {
@@ -1346,8 +1367,12 @@ impl Editor<'_> {
                 self.toolbar.widgets[6].right_selected = false;
                 self.toolbar.widgets[6].dirty = true;
 
-                self.toolbar.widgets[0].text = self.context.data.items_names.clone();
-                self.toolbar.widgets[0].curr_index = self.context.curr_items_index;
+                self.toolbar.widgets[0].text = self.context.data.spells_names.clone();
+
+                let active_indices = self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_active_indices();
+                if let Some(index) = active_indices.iter().position(|&r| r == self.context.curr_items_index) {
+                    self.toolbar.widgets[0].curr_index = index;
+                }
                 self.toolbar.widgets[0].dirty = true;
             } else
             // Game Button
@@ -2203,11 +2228,26 @@ impl Editor<'_> {
         let items_overview_options = ItemsOverviewOptions::new(vec!(), (0, self.context.toolbar_height, left_width, height - self.context.toolbar_height), &self.asset, &self.context);
 
         let mut items_nodes = vec![];
+
+        // Load items
         for (index, item_name) in self.context.data.items_names.iter().enumerate() {
             let p = get_pos(index, width - left_width);
             let mut node = NodeWidget::new(item_name.to_string(),
              NodeUserData { position: p });
             node.sub_type = NodeSubType::Item;
+
+            let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new("menu", Value::Empty()));
+            node.menu = Some(node_menu_atom);
+
+            items_nodes.push(node);
+        }
+
+        // Load spells
+        for (index, spells_name) in self.context.data.spells_names.iter().enumerate() {
+            let p = get_pos(index, width - left_width);
+            let mut node = NodeWidget::new(spells_name.to_string(),
+             NodeUserData { position: p });
+            node.sub_type = NodeSubType::Spell;
 
             let node_menu_atom = crate::atom::AtomWidget::new(vec!["Rename".to_string(), "Delete".to_string()], crate::atom::AtomWidgetType::NodeMenu, crate::atom::AtomData::new("menu", Value::Empty()));
             node.menu = Some(node_menu_atom);
@@ -2272,6 +2312,26 @@ impl Editor<'_> {
             } else
             if sub_type == NodeSubType::Image {
                 self.content[EditorState::TilesDetail as usize].1.as_mut().unwrap().set_tilemap_id(self.asset.tileset.images_ids[index], &mut self.asset);
+            }
+        }
+    }
+
+    /// Switches the items view to the current items index
+    fn set_items_id(&mut self) {
+        let active_indices = self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_active_indices();
+        if let Some(index) = active_indices.iter().position(|&r| r == self.context.curr_items_index) {
+
+            let sub_type = self.content[EditorState::ItemsOverview as usize].1.as_mut().unwrap().get_sub_node_type();
+
+            if sub_type == NodeSubType::Item {
+                self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_sub_node_type(NodeSubType::Item, &mut self.context);
+                self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_active_indices(active_indices);
+                self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.items_ids[index], &mut self.context);
+            } else
+            if sub_type == NodeSubType::Spell {
+                self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_sub_node_type(NodeSubType::Spell, &mut self.context);
+                self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_active_indices(active_indices);
+                self.content[EditorState::ItemsDetail as usize].1.as_mut().unwrap().set_behavior_id(self.context.data.spells_ids[index], &mut self.context);
             }
         }
     }

@@ -260,7 +260,9 @@ pub trait EditorContent : Sync + Send {
     fn sort(&mut self, context: &mut ScreenContext) {}
 
     /// Get the currently active indices in the node graph
-    fn get_active_indices(&mut self) -> Vec<usize> { vec![] }
+    fn get_active_indices(&self) -> Vec<usize> { vec![] }
+
+    fn set_active_indices(&mut self, indices: Vec<usize> ) {}
 
     // For ScreenEditor
 

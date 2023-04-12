@@ -933,12 +933,28 @@ impl EditorContent for NodeGraph  {
                         if self.graph_type == BehaviorType::Items {
 
                             self.nodes.remove(context.curr_items_index);
-                            context.data.delete_item(&context.curr_items_index);
-                            if let Some(toolbar) = toolbar {
-                                toolbar.widgets[0].text = context.data.items_names.clone();
-                                toolbar.widgets[0].curr_index = 0;
-                                toolbar.widgets[0].dirty = true;
+
+                            if self.sub_type == NodeSubType::Item {
+                                if let Some(index) = self.active_indices.iter().position(|&r| r == context.curr_items_index) {
+                                    context.data.delete_item(&index);
+                                    if let Some(toolbar) = toolbar {
+                                        toolbar.widgets[0].text = context.data.items_names.clone();
+                                        toolbar.widgets[0].curr_index = 0;
+                                        toolbar.widgets[0].dirty = true;
+                                    }
+                                }
+                            } else
+                            if self.sub_type == NodeSubType::Spell {
+                                if let Some(index) = self.active_indices.iter().position(|&r| r == context.curr_items_index) {
+                                    context.data.delete_spell(&index);
+                                    if let Some(toolbar) = toolbar {
+                                        toolbar.widgets[0].text = context.data.spells_names.clone();
+                                        toolbar.widgets[0].curr_index = 0;
+                                        toolbar.widgets[0].dirty = true;
+                                    }
+                                }
                             }
+
                             context.curr_items_index = 0;
                         }
                         self.sort(context);
@@ -2600,7 +2616,16 @@ impl EditorContent for NodeGraph  {
             return context.data.systems_ids[context.curr_systems_index];
         } else
         if self.graph_type == BehaviorType::Items {
-            return context.data.items_ids[context.curr_items_index];
+
+            let active_indices = self.get_active_indices();
+            if let Some(index) = active_indices.iter().position(|&r| r == context.curr_items_index) {
+                if self.sub_type == NodeSubType::Item {
+                    return context.data.items_ids[index];
+                } else
+                if self.sub_type == NodeSubType::Spell {
+                   return context.data.spells_ids[index];
+                }
+            }
         }
         Uuid::new_v4()
     }
@@ -2758,12 +2783,15 @@ impl EditorContent for NodeGraph  {
         }
 
         self.active_indices = indices.clone();
-
     }
 
     /// Get the currently active indices in the node graph
-    fn get_active_indices(&mut self) -> Vec<usize> {
+    fn get_active_indices(&self) -> Vec<usize> {
         self.active_indices.clone()
+    }
+
+    fn set_active_indices(&mut self, indices: Vec<usize> ) {
+        self.active_indices = indices;
     }
 
     fn key_down(&mut self, _char: Option<char>, key: Option<WidgetKey>, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
