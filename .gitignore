@@ -2,4 +2,5 @@
 /generated
 utilities/target
 .DS_Store
-core_embed_binaries/embedded/
+core_embed_binaries/embedded/assets
+core_embed_binaries/embedded/game

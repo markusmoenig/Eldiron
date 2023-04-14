@@ -5,6 +5,7 @@ pub mod item;
 
 use core_shared::prelude::*;
 
+#[cfg(not(feature = "embed_binaries"))]
 use std::fs::metadata;
 
 pub mod prelude {
