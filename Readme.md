@@ -47,13 +47,7 @@ yay -S eldiron
 
 ## Building Eldiron Locally
 
-First, create the directory `embedded` in the `core_embed_binaries` directory:
-
-```sh
-$ mkdir core_embed_binaries/embedded
-```
-
-Than, if you have [Rust installed](https://www.rust-lang.org/tools/install), you can build Eldiron Creator simply via
+If you have [Rust installed](https://www.rust-lang.org/tools/install), you can build Eldiron Creator simply via
 ```cargo build --release --bin creator_main```
 
 Linux:
