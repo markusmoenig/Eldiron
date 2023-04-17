@@ -19,6 +19,7 @@ pub mod skills;
 pub mod experience;
 pub mod server;
 pub mod date;
+pub mod spells;
 
 pub mod prelude {
     pub use crate::asset::*;
@@ -45,6 +46,7 @@ pub mod prelude {
     pub use crate::experience::*;
     pub use crate::server::*;
     pub use crate::date::*;
+    pub use crate::spells::*;
 
     pub use crate::value::Value;
     pub use rustc_hash::FxHashMap;

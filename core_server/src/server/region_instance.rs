@@ -9,6 +9,7 @@ pub struct RegionInstance<'a> {
     pub behaviors                   : FxHashMap<Uuid, GameBehaviorData>,
     pub systems                     : FxHashMap<Uuid, GameBehaviorData>,
     pub items                       : FxHashMap<Uuid, GameBehaviorData>,
+    pub spells                      : FxHashMap<Uuid, GameBehaviorData>,
     pub game_data                   : GameBehaviorData,
 
     // For faster lookup
@@ -151,6 +152,7 @@ impl RegionInstance<'_> {
 
         script_register_message_api(&mut engine);
         script_register_inventory_api(&mut engine);
+        script_register_spells_api(&mut engine);
         script_register_gear_api(&mut engine);
         script_register_weapons_api(&mut engine);
         script_register_experience_api(&mut engine);
@@ -225,6 +227,7 @@ impl RegionInstance<'_> {
             behaviors                       : FxHashMap::default(),
             systems                         : FxHashMap::default(),
             items                           : FxHashMap::default(),
+            spells                          : FxHashMap::default(),
             game_data                       : GameBehaviorData::new(),
 
             system_names                    : vec![],
@@ -1421,7 +1424,7 @@ impl RegionInstance<'_> {
     }
 
     /// Setup the region instance data by decoding the JSON for all game elements and sets up the npc and game behavior instances.
-    pub fn setup(&mut self, region: String, region_behavior: HashMap<Uuid, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, game: String) {
+    pub fn setup(&mut self, region: String, region_behavior: HashMap<Uuid, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, spells: Vec<String>, game: String) {
         // Decode all JSON
         if let Some(region_data) = serde_json::from_str(&region).ok() {
 
@@ -1488,6 +1491,11 @@ impl RegionInstance<'_> {
                     }
                 }
                 self.items.insert(behavior_data.id, behavior_data);
+            }
+        }
+        for i in spells {
+            if let Some(behavior_data) = serde_json::from_str::<GameBehaviorData>(&i).ok() {
+                self.spells.insert(behavior_data.id, behavior_data);
             }
         }
         if let Some(game_data) = serde_json::from_str(&game).ok() {
@@ -1882,6 +1890,7 @@ impl RegionInstance<'_> {
             scope.set_value("alignment", inst.alignment as i32);
             scope.set_value("message", ScriptMessageCmd::new());
             scope.set_value("inventory", Inventory::new());
+            scope.set_value("spells", Spells::new());
             scope.set_value("gear", Gear::new());
             scope.set_value("weapons", Weapons::new());
             scope.set_value("skills", skills);

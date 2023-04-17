@@ -26,6 +26,7 @@ pub struct Server<'a> {
     pub behavior            : Vec<String>,
     pub systems             : Vec<String>,
     pub items               : Vec<String>,
+    pub spells              : Vec<String>,
     pub game                : String,
 
     /// If we don't use threads (for example for the web), all regions are in here.
@@ -61,6 +62,7 @@ impl Server<'_> {
             behavior                    : vec![],
             systems                     : vec![],
             items                       : vec![],
+            spells                      : vec![],
             game                        : "".to_string(),
             pool                        : None,
             metas                       : vec![],
@@ -110,6 +112,12 @@ impl Server<'_> {
             }
         }
 
+        for (_id, spell) in &data.spells {
+            if let Some(json) = serde_json::to_string(&spell.data).ok() {
+                self.spells.push(json);
+            }
+        }
+
         if let Some(json) = serde_json::to_string(&data.game.behavior.data).ok() {
             self.game = json;
         }
@@ -148,13 +156,14 @@ impl Server<'_> {
                 let behaviors = self.behavior.clone();
                 let systems = self.systems.clone();
                 let items = self.items.clone();
+                let spells: Vec<String> = self.spells.clone();
                 let game = self.game.clone();
 
                 let to_server_sender = self.to_server_sender.clone();
 
                 let _handle = std::thread::spawn( move || {
                     let mut pool = RegionPool::new(true, to_server_sender, r);
-                    pool.add_regions(regions, region_behavior, behaviors, systems, items, game);
+                    pool.add_regions(regions, region_behavior, behaviors, systems, items, spells, game);
                 });
 
                 //meta.sender.send(Message::Status("Startup".to_string())).unwrap();
@@ -183,7 +192,7 @@ impl Server<'_> {
             sender.send(Message::Status("Startup".to_string())).unwrap();
 
             let mut pool = RegionPool::new(false, to_server_sender, receiver);
-            pool.add_regions(self.regions.values().cloned().collect(), self.region_behavior.clone(), self.behavior.clone(), self.systems.clone(), self.items.clone(), self.game.clone());
+            pool.add_regions(self.regions.values().cloned().collect(), self.region_behavior.clone(), self.behavior.clone(), self.systems.clone(), self.items.clone(), self.items.clone(), self.game.clone());
             self.pool = Some(pool);
         }
 
