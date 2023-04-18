@@ -1410,8 +1410,13 @@ impl EditorContent for NodeGraph  {
                 tile_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
                 node_widget.widgets.push(tile_atom);
 
-                let mut item_settings = AtomWidget::new(vec!["Settings".to_string()], AtomWidgetType::NodeItemSettingsButton,
-                AtomData::new("settings", Value::Empty()));
+                let mut item_settings;
+                if self.sub_type == NodeSubType::Spell {
+                    item_settings = AtomWidget::new(vec!["Settings".to_string()], AtomWidgetType::NodeSpellSettingsButton,AtomData::new("settings", Value::Empty()));
+                } else {
+                    item_settings = AtomWidget::new(vec!["Settings".to_string()], AtomWidgetType::NodeItemSettingsButton, AtomData::new("settings", Value::Empty()));
+                }
+
                 item_settings.atom_data.text = "Settings".to_string();
                 let id = (behavior_data_id, node_id, "settings".to_string());
                 item_settings.behavior_id = Some(id.clone());

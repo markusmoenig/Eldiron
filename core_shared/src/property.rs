@@ -345,4 +345,35 @@ impl PropertySink {
         None
     }
 
+    /// Get the given property name as a String.
+    pub fn get_as_string(&self, name: &str) -> Option<String> {
+        if let Some(v) = self.get(name) {
+            if let Some(s) = v.as_string() {
+                return Some(s)
+            }
+        }
+        None
+    }
+
+    /// Get the given property name as a String array.
+    pub fn get_as_string_array(&self, name: &str) -> Option<Vec<String>> {
+        if let Some(v) = self.get(name) {
+            if let Some(s) = v.as_string() {
+
+                let split = s.split(",");
+                let vec: Vec<&str> = split.collect();
+
+                if vec.len() >= 1 {
+                    let mut array = vec![];
+
+                    for i in 0..vec.len() {
+                        array.push(vec[i].trim().to_string());
+                    }
+                    return Some(array);
+                }
+            }
+        }
+        None
+    }
+
 }

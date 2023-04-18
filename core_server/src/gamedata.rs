@@ -2,6 +2,7 @@ pub mod region;
 pub mod behavior;
 pub mod game;
 pub mod item;
+pub mod spell;
 
 use core_shared::prelude::*;
 

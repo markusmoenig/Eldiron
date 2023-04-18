@@ -1704,7 +1704,7 @@ impl RegionInstance<'_> {
         let mut default_position        : Option<Position> = None;
         let mut default_tile            : Option<TileId> = None;
         let mut default_alignment       : i32 = 1;
-        let mut settings_sink   = PropertySink::new();
+        let mut settings_sink= PropertySink::new();
         let default_scope     = rhai::Scope::new();
 
         // Instances to create for this behavior
@@ -1890,7 +1890,6 @@ impl RegionInstance<'_> {
             scope.set_value("alignment", inst.alignment as i32);
             scope.set_value("message", ScriptMessageCmd::new());
             scope.set_value("inventory", Inventory::new());
-            scope.set_value("spells", Spells::new());
             scope.set_value("gear", Gear::new());
             scope.set_value("weapons", Weapons::new());
             scope.set_value("skills", skills);
@@ -1943,6 +1942,57 @@ impl RegionInstance<'_> {
                     }
                 }
             }
+
+            // Add Spells appropriate for this character
+
+            let mut spells = Spells::new();
+
+            for (id, behavior) in &self.spells {
+                for (_id, node) in &behavior.nodes {
+                    if node.behavior_type == BehaviorNodeType::BehaviorType {
+                        if let Some(value )= node.values.get(&"settings".to_string()) {
+
+                            let mut spell_tile            : Option<TileData> = None;
+                            let mut spells_sink= PropertySink::new();
+
+                            if let Some(value )= node.values.get(&"tile".to_string()) {
+                                spell_tile = value.to_tile_data();
+                            }
+                            if let Some(settings) = value.to_string() {
+                                spells_sink.load_from_string(settings);
+                            }
+
+                            let mut include_spell = false;
+
+                            if let Some(c) = spells_sink.get_as_string_array("classes") {
+                                if c[0].to_lowercase() == "all" {
+                                    include_spell = true;
+                                } else
+                                if let Some(class_name) = &class_name {
+                                    for v in 0..c.len() {
+                                        if c[v].to_lowercase() == class_name.to_lowercase() {
+                                            include_spell = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+
+                            if include_spell {
+                                let mut spell = Spell::new(*id, behavior.name.to_string());
+                                spell.tile = spell_tile;
+                                spells.spells.push(spell);
+
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+
+            scope.set_value("spells", spells);
+
+            // --- End Spells
 
             self.scopes.push(scope);
 
