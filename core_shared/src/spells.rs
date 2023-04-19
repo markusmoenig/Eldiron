@@ -65,7 +65,7 @@ impl IntoIterator for Spells {
 pub fn script_register_spells_api(engine: &mut rhai::Engine) {
 
     engine.register_type_with_name::<Spell>("Spell")
-        .register_get("name", Item::get_name);
+        .register_get("name", Spell::get_name);
 
     engine.register_type_with_name::<Spells>("Spells")
         .register_iterator::<Spells>();
