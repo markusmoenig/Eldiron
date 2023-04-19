@@ -154,6 +154,7 @@ impl GameRender<'_> {
         engine.register_fn("to_string", |x: f32| format!("{}", x.round() as i32));
 
         script_register_inventory_api(&mut engine);
+        script_register_spells_api(&mut engine);
         script_register_gear_api(&mut engine);
         script_register_weapons_api(&mut engine);
         script_register_experience_api(&mut engine);
@@ -446,6 +447,7 @@ impl GameRender<'_> {
 
             // Set the inventory / weapons / gear / experience / skills
             map.insert("inventory".into(), Dynamic::from(update.inventory.clone()));
+            map.insert("spells".into(), Dynamic::from(update.spells.clone()));
             map.insert("weapons".into(), Dynamic::from(update.weapons.clone()));
             map.insert("gear".into(), Dynamic::from(update.gear.clone()));
             map.insert("skills".into(), Dynamic::from(update.skills.clone()));

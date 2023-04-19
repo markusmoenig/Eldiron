@@ -872,6 +872,7 @@ impl RegionInstance<'_> {
         for inst_index in 0..self.instances.len() {
 
             let mut inventory = Inventory::new();
+            let mut spells: Spells = Spells::new();
             let mut gear = Gear::new();
             let mut weapons = Weapons::new();
             let mut skills = Skills::new();
@@ -881,6 +882,13 @@ impl RegionInstance<'_> {
             if let Some(i) = self.scopes[inst_index].get("inventory") {
                 if let Some(inv) = i.read_lock::<Inventory>() {
                     inventory = inv.clone();
+                }
+            }
+
+            // Clone the spells for sending it to the client
+            if let Some(s) = self.scopes[inst_index].get("spells") {
+                if let Some(sp) = s.read_lock::<Spells>() {
+                    spells = sp.clone();
                 }
             }
 
@@ -1014,6 +1022,7 @@ impl RegionInstance<'_> {
                     audio                   : self.instances[inst_index].audio.clone(),
                     scope_buffer            : scope_buffer,
                     inventory               : inventory.clone(),
+                    spells                  : spells.clone(),
                     gear                    : gear.clone(),
                     weapons                 : weapons.clone(),
                     skills                  : skills.clone(),

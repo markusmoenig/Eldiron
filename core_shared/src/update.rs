@@ -53,6 +53,9 @@ pub struct GameUpdate {
     /// Inventory
     pub inventory               : Inventory,
 
+    /// Inventory
+    pub spells                  : Spells,
+
     /// Gear
     pub gear                    : Gear,
 
@@ -99,6 +102,7 @@ impl GameUpdate {
             audio               : vec![],
             scope_buffer        : ScopeBuffer::new(),
             inventory           : Inventory::new(),
+            spells              : Spells::new(),
             gear                : Gear::new(),
             weapons             : Weapons::new(),
             skills              : Skills::new(),
