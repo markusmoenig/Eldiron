@@ -176,6 +176,7 @@ impl CodeEditorWidget {
             }
         }
 
+        context.code_editor_height = dest_rect.3;
         if context.code_editor_is_active {
             context.draw2d.blend_slice(frame, &mut self.buffer[..], &dest_rect, context.width);
         }

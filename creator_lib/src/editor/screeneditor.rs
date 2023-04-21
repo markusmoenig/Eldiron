@@ -176,7 +176,7 @@ impl EditorContent for ScreenEditor<'_> {
             let mode = options.get_screen_editor_mode();
 
             if mode != ScreenEditorMode::None {
-                rect.3 -= 250;
+                rect.3 -= context.code_editor_height;
             }
         }
 

@@ -104,6 +104,7 @@ impl GameRender<'_> {
         engine.register_type_with_name::<ScriptCmd>("Cmd")
 
             .register_fn("action", ScriptCmd::action)
+            .register_fn("action", ScriptCmd::action_spell)
             .register_fn("action_coordinate", ScriptCmd::action_coordinate)
             .register_fn("action_inventory", ScriptCmd::action_inventory)
             .register_fn("set_valid_mouse_rect", ScriptCmd::action_set_valid_mouse_rect)
