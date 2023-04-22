@@ -1531,9 +1531,18 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::Screen {
-            let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScreenButton,
+
+            let mut script_name = AtomWidget::new(vec!["Script Name".to_string()], AtomWidgetType::NodeTextButton,
+            AtomData::new("script_name", Value::String("".to_string())));
+            script_name.atom_data.text = "Script Name".to_string();
+            let id = (behavior_data_id, node_id, "script_name".to_string());
+            script_name.behavior_id = Some(id.clone());
+            script_name.atom_data.value = context.data.get_behavior_id_value(id, Value::String("main.rhai".to_string()), self.graph_type);
+            node_widget.widgets.push(script_name);
+
+            let mut atom1 = AtomWidget::new(vec!["Edit".to_string()], AtomWidgetType::NodeScreenButton,
             AtomData::new("script", Value::Empty()));
-            atom1.atom_data.text = "Script".to_string();
+            atom1.atom_data.text = "Edit".to_string();
             let id = (behavior_data_id, node_id, "script".to_string());
             atom1.behavior_id = Some(id.clone());
             let mut def_text = "".to_string();

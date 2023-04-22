@@ -552,6 +552,16 @@ impl ScreenContext<'_> {
             }
         }
 
+        // Create game scripts directory
+        let scripts_path = game_path.join("scripts");
+        if fs::metadata(spells_path.clone()).is_ok() == false {
+            let rc = fs::create_dir(scripts_path.clone());
+
+            if rc.is_err() {
+                // return Err("Could not create items directory.".to_string());
+            }
+        }
+
         Ok(project_path)
     }
 
