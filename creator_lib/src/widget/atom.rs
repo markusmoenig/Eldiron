@@ -61,6 +61,7 @@ pub enum AtomWidgetType {
     NodeSpellSettingsButton,
     NodeTimeButton,
     NodeCharacterSettingsButton,
+    NodeRevealScriptsButton,
 
     LargeButton,
     CheckButton,
@@ -472,7 +473,7 @@ impl AtomWidget {
 
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &format!("{} x {}", v1, v2), &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
-            if self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton || self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton || self.atom_widget_type == AtomWidgetType::NodeSpellSettingsButton || self.atom_widget_type == AtomWidgetType::NodeCharacterSettingsButton {
+            if self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton || self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton || self.atom_widget_type == AtomWidgetType::NodeSpellSettingsButton || self.atom_widget_type == AtomWidgetType::NodeCharacterSettingsButton  || self.atom_widget_type == AtomWidgetType::NodeRevealScriptsButton{
 
                 self.content_rect = (self.rect.0 + 1, self.rect.1 + ((self.rect.3 - context.node_button_height) / 2), self.rect.2 - 2, context.node_button_height);
 
@@ -1007,7 +1008,7 @@ impl AtomWidget {
             return false;
         }
         if self.contains_pos(pos) {
-            if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeNumberButton || self.atom_widget_type == AtomWidgetType::NodeTimeButton || self.atom_widget_type == AtomWidgetType::NodeSize2DButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton || self.atom_widget_type == AtomWidgetType::NodeIconTileButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton || self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton || self.atom_widget_type == AtomWidgetType::NodeSpellSettingsButton || self.atom_widget_type == AtomWidgetType::NodeEffectTileButton || self.atom_widget_type == AtomWidgetType::NodeCharacterSettingsButton {
+            if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeNumberButton || self.atom_widget_type == AtomWidgetType::NodeTimeButton || self.atom_widget_type == AtomWidgetType::NodeSize2DButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton || self.atom_widget_type == AtomWidgetType::NodeIconTileButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton || self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton || self.atom_widget_type == AtomWidgetType::NodeSpellSettingsButton || self.atom_widget_type == AtomWidgetType::NodeEffectTileButton || self.atom_widget_type == AtomWidgetType::NodeCharacterSettingsButton || self.atom_widget_type == AtomWidgetType::NodeRevealScriptsButton {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
@@ -1333,6 +1334,9 @@ impl AtomWidget {
 
                     context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
                 }
+            } else
+            if self.atom_widget_type == AtomWidgetType::NodeRevealScriptsButton {
+                _ = open::that(context.curr_project_path.join("game").join("scripts"));
             }
 
             if self.state == WidgetState::Clicked {

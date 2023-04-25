@@ -75,7 +75,10 @@ pub struct GameRender<'a> {
 
     // The region and screen rects of the 2d game drawing area
     region_rect_2d              : (isize, isize, isize, isize),
-    screen_rect_2d              : (usize, usize, usize, usize)
+    screen_rect_2d              : (usize, usize, usize, usize),
+
+    // Screen scripts and their utility scripts
+    scripts                     : FxHashMap<String, String>,
 }
 
 impl GameRender<'_> {
@@ -212,6 +215,8 @@ impl GameRender<'_> {
 
             region_rect_2d      : (0, 0, 0, 0),
             screen_rect_2d      : (0, 0, 0, 0),
+
+            scripts             : FxHashMap::default(),
         }
     }
 
@@ -221,104 +226,112 @@ impl GameRender<'_> {
 
     pub fn process_update(&mut self, update: &GameUpdate) -> Option<(String, Option<usize>)> {
 
+        // Screen scripts ?
+        if let Some(screen_scripts) = &update.screen_scripts {
+            self.scripts = screen_scripts.clone();
+        }
+
         // New screen script ?
-        if let Some(screen_script) = &update.screen {
+        if let Some(screen_script_name) = &update.screen_script_name {
 
-            let result = self.engine.compile_with_scope(&self.scope, screen_script.as_str());
+            if let Some(screen_script) = self.scripts.get(screen_script_name) {
 
-            if result.is_ok() {
-                if let Some(ast) = result.ok() {
+                let result = self.engine.compile_with_scope(&self.scope, screen_script.as_str());
 
-                    self.messages = vec![];
-                    self.multi_choice_data = vec![];
-                    self.last_position = None;
-                    self.transition_active = false;
+                if result.is_ok() {
+                    if let Some(ast) = result.ok() {
 
-                    let mut this_map = Map::new();
+                        self.messages = vec![];
+                        self.multi_choice_data = vec![];
+                        self.last_position = None;
+                        self.transition_active = false;
 
-                    self.scope = Scope::new();
+                        let mut this_map = Map::new();
 
-                    let cmd = ScriptCmd::new();
-                    this_map.insert("width".into(), (update.screen_size.0).into() );
-                    this_map.insert("height".into(), (update.screen_size.1).into() );
-                    this_map.insert("tile_size".into(), (update.def_square_tile_size).into() );
+                        self.scope = Scope::new();
 
-                    this_map.insert("cmd".into(), Dynamic::from(cmd) );
-                    this_map.insert("message".into(), Dynamic::from(ScriptMessageCmd::new()));
+                        let cmd = ScriptCmd::new();
+                        this_map.insert("width".into(), (update.screen_size.0).into() );
+                        this_map.insert("height".into(), (update.screen_size.1).into() );
+                        this_map.insert("tile_size".into(), (update.def_square_tile_size).into() );
 
-                    let mut tilemaps = ScriptTilemaps::new();
-                    for index in 0..self.asset.tileset.maps_names.len() {
-                        tilemaps.maps.insert(self.asset.tileset.maps_names[index].clone(), self.asset.tileset.maps_ids[index]);
-                    }
-                    this_map.insert("tilemaps".into(), Dynamic::from(tilemaps) );
-                    this_map.insert("player".into(), Dynamic::from(rhai::Map::new()));
-                    this_map.insert("region".into(), Dynamic::from(rhai::Map::new()));
+                        this_map.insert("cmd".into(), Dynamic::from(cmd) );
+                        this_map.insert("message".into(), Dynamic::from(ScriptMessageCmd::new()));
 
-                    self.this_map = this_map.into();
-
-                    let result = self.engine.eval_ast_with_scope::<Dynamic>(&mut self.scope, &ast);
-                    if result.is_err() {
-
-                        if let Some(err) = result.err() {
-                            let mut string = err.to_string();
-                            let mut parts = string.split("(");
-                            if let Some(first) = parts.next() {
-                                string = first.to_owned();
-                            }
-                            return Some((string, err.position().line()));
+                        let mut tilemaps = ScriptTilemaps::new();
+                        for index in 0..self.asset.tileset.maps_names.len() {
+                            tilemaps.maps.insert(self.asset.tileset.maps_names[index].clone(), self.asset.tileset.maps_ids[index]);
                         }
-                    }
+                        this_map.insert("tilemaps".into(), Dynamic::from(tilemaps) );
+                        this_map.insert("player".into(), Dynamic::from(rhai::Map::new()));
+                        this_map.insert("region".into(), Dynamic::from(rhai::Map::new()));
 
-                    #[allow(deprecated)]
-                    let _result = self.engine.call_fn_raw(
-                                    &mut self.scope,
-                                    &ast,
-                                    false,
-                                    true,
-                                    "init",
-                                    Some(&mut self.this_map),
-                                    []
-                                );
+                        self.this_map = this_map.into();
 
-                    if let Some(map) = self.this_map.read_lock::<Map>() {
-                        if let Some(w) = map.get("width") {
-                            if let Some(width) = w.as_int().ok() {
-                                self.width = width as usize;
+                        let result = self.engine.eval_ast_with_scope::<Dynamic>(&mut self.scope, &ast);
+                        if result.is_err() {
+
+                            if let Some(err) = result.err() {
+                                let mut string = err.to_string();
+                                let mut parts = string.split("(");
+                                if let Some(first) = parts.next() {
+                                    string = first.to_owned();
+                                }
+                                return Some((string, err.position().line()));
                             }
                         }
-                        if let Some(h) = map.get("height") {
-                            if let Some(height) = h.as_int().ok() {
-                                self.height = height as usize;
+
+                        #[allow(deprecated)]
+                        let _result = self.engine.call_fn_raw(
+                                        &mut self.scope,
+                                        &ast,
+                                        false,
+                                        true,
+                                        "init",
+                                        Some(&mut self.this_map),
+                                        []
+                                    );
+
+                        if let Some(map) = self.this_map.read_lock::<Map>() {
+                            if let Some(w) = map.get("width") {
+                                if let Some(width) = w.as_int().ok() {
+                                    self.width = width as usize;
+                                }
+                            }
+                            if let Some(h) = map.get("height") {
+                                if let Some(height) = h.as_int().ok() {
+                                    self.height = height as usize;
+                                }
+                            }
+                            if let Some(ts) = map.get("tile_size") {
+                                if let Some(tile_size) = ts.as_int().ok() {
+                                    self.tile_size = tile_size as usize;
+                                }
                             }
                         }
-                        if let Some(ts) = map.get("tile_size") {
-                            if let Some(tile_size) = ts.as_int().ok() {
-                                self.tile_size = tile_size as usize;
-                            }
+
+                        if let Some(width) = self.scope.get_value::<i64>("width") {
+                            self.width = width as usize;
                         }
-                    }
+                        if let Some(height) = self.scope.get_value::<i64>("height") {
+                            self.height = height as usize;
+                        }
+                        if let Some(tile_size) = self.scope.get_value::<i64>("tile_size") {
+                            self.tile_size = tile_size as usize;
+                        }
 
-                    if let Some(width) = self.scope.get_value::<i64>("width") {
-                        self.width = width as usize;
-                    }
-                    if let Some(height) = self.scope.get_value::<i64>("height") {
-                        self.height = height as usize;
-                    }
-                    if let Some(tile_size) = self.scope.get_value::<i64>("tile_size") {
-                        self.tile_size = tile_size as usize;
-                    }
+                        if self.frame.len() != self.width * self.height * 4 {
+                            self.frame = vec![0; self.width * self.height * 4];
+                        }
 
-                    if self.frame.len() != self.width * self.height * 4 {
-                        self.frame = vec![0; self.width * self.height * 4];
+                        self.ast = Some(ast);
+
+                        self.process_cmds(self.player_id);
                     }
-
-                    self.ast = Some(ast);
-
-                    self.process_cmds(self.player_id);
+                } else
+                if let Some(err) = result.err() {
+                    return Some((err.0.to_string(), err.1.line()));
                 }
-            } else
-            if let Some(err) = result.err() {
-                return Some((err.0.to_string(), err.1.line()));
             }
         }
 

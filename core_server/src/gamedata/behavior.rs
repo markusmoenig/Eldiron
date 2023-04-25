@@ -8,7 +8,6 @@ use std::fs;
 use std::path;
 use std::path::PathBuf;
 
-use std::collections::HashMap;
 use itertools::Itertools;
 
 //pub type Position = (usize, isize, isize);
@@ -236,6 +235,9 @@ pub struct BehaviorInstance {
     pub curr_player_screen      : String,
     pub curr_player_widgets     : Vec<String>,
 
+    /// Did we send the screen scripts to the client already ?
+    pub send_screen_scripts     : bool,
+
     /// The locked tree for the game behavior for this player
     pub game_locked_tree        : Option<Uuid>,
 
@@ -334,7 +336,7 @@ impl GameBehavior {
 
         // Construct the json settings
         let mut data = serde_json::from_str(&contents)
-            .unwrap_or(GameBehaviorData { nodes: HashMap::default(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), loot: Some(vec![]), settings: None });
+            .unwrap_or(GameBehaviorData { nodes: FxHashMap::default(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), loot: Some(vec![]), settings: None });
 
         data.name = name.to_owned();
 
@@ -352,7 +354,7 @@ impl GameBehavior {
         let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
 
         // Construct the json settings
-        let mut data = GameBehaviorData { nodes: HashMap::default(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), loot: Some(vec![]), settings: None };
+        let mut data = GameBehaviorData { nodes: FxHashMap::default(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), loot: Some(vec![]), settings: None };
 
         if let Some(bytes) = Embedded::get(file_name) {
             if let Some(string) = std::str::from_utf8(bytes.data.as_ref()).ok() {
@@ -374,7 +376,7 @@ impl GameBehavior {
             name            : "name".to_string(),
             path            : std::path::Path::new("").to_path_buf(),
             behavior_path   : std::path::Path::new("").to_path_buf(),
-            data            : GameBehaviorData { nodes: HashMap::default(), connections: vec![], id: Uuid::new_v4(), name            : "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), loot: Some(vec![]), settings: None }
+            data            : GameBehaviorData { nodes: FxHashMap::default(), connections: vec![], id: Uuid::new_v4(), name            : "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), loot: Some(vec![]), settings: None }
         }
     }
 

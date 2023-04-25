@@ -23,10 +23,10 @@ impl RegionPool<'_> {
         }
     }
 
-    pub fn add_regions(&mut self, regions: Vec<String>, regions_behavior: HashMap<Uuid, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, spells: Vec<String>, game: String) {
+    pub fn add_regions(&mut self, regions: Vec<String>, regions_behavior: FxHashMap<Uuid, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, spells: Vec<String>, game: String, scripts: FxHashMap<String, String>) {
         for region in regions {
             let mut instance = RegionInstance::new();
-            instance.setup(region, regions_behavior.clone(), behaviors.clone(), systems.clone(), items.clone(), spells.clone(), game.clone());
+            instance.setup(region, regions_behavior.clone(), behaviors.clone(), systems.clone(), items.clone(), spells.clone(), game.clone(), scripts.clone());
             self.instances.push(instance);
         }
 

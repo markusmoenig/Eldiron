@@ -20,14 +20,15 @@ pub struct Server<'a> {
     to_server_receiver      : Receiver<Message>,
     to_server_sender        : Sender<Message>,
 
-    pub regions             : HashMap<Uuid, String>,
-    pub region_behavior     : HashMap<Uuid, Vec<String>>,
+    pub regions             : FxHashMap<Uuid, String>,
+    pub region_behavior     : FxHashMap<Uuid, Vec<String>>,
 
     pub behavior            : Vec<String>,
     pub systems             : Vec<String>,
     pub items               : Vec<String>,
     pub spells              : Vec<String>,
     pub game                : String,
+    pub scripts             : FxHashMap<String, String>,
 
     /// If we don't use threads (for example for the web), all regions are in here.
     pub pool                : Option<RegionPool<'a>>,
@@ -56,8 +57,8 @@ impl Server<'_> {
             to_server_receiver          : receiver,
             to_server_sender            : sender,
 
-            regions                     : HashMap::new(),
-            region_behavior             : HashMap::new(),
+            regions                     : FxHashMap::default(),
+            region_behavior             : FxHashMap::default(),
 
             behavior                    : vec![],
             systems                     : vec![],
@@ -66,6 +67,8 @@ impl Server<'_> {
             game                        : "".to_string(),
             pool                        : None,
             metas                       : vec![],
+
+            scripts                     : FxHashMap::default(),
 
             player_default_position     : None,
             players_region_ids          : HashMap::new(),
@@ -121,6 +124,8 @@ impl Server<'_> {
         if let Some(json) = serde_json::to_string(&data.game.behavior.data).ok() {
             self.game = json;
         }
+
+        self.scripts = data.scripts.clone();
     }
 
     /// Starts the server and distributes regions over threads. max_num_threads limits the max number of threads or does not use threads at all if None.
@@ -141,7 +146,7 @@ impl Server<'_> {
 
                 let r = receiver.clone();
 
-                let mut region_behavior: HashMap<Uuid, Vec<String>> = HashMap::new();
+                let mut region_behavior: FxHashMap<Uuid, Vec<String>> = FxHashMap::default();
                 for rid in &region_ids {
                     let behavior = self.region_behavior.get(rid).unwrap().clone();
                     region_behavior.insert(*rid, behavior);
@@ -158,12 +163,13 @@ impl Server<'_> {
                 let items = self.items.clone();
                 let spells: Vec<String> = self.spells.clone();
                 let game = self.game.clone();
+                let scripts = self.scripts.clone();
 
                 let to_server_sender = self.to_server_sender.clone();
 
                 let _handle = std::thread::spawn( move || {
                     let mut pool = RegionPool::new(true, to_server_sender, r);
-                    pool.add_regions(regions, region_behavior, behaviors, systems, items, spells, game);
+                    pool.add_regions(regions, region_behavior, behaviors, systems, items, spells, game, scripts);
                 });
 
                 //meta.sender.send(Message::Status("Startup".to_string())).unwrap();
@@ -192,7 +198,7 @@ impl Server<'_> {
             sender.send(Message::Status("Startup".to_string())).unwrap();
 
             let mut pool = RegionPool::new(false, to_server_sender, receiver);
-            pool.add_regions(self.regions.values().cloned().collect(), self.region_behavior.clone(), self.behavior.clone(), self.systems.clone(), self.items.clone(), self.items.clone(), self.game.clone());
+            pool.add_regions(self.regions.values().cloned().collect(), self.region_behavior.clone(), self.behavior.clone(), self.systems.clone(), self.items.clone(), self.items.clone(), self.game.clone(), self.scripts.clone());
             self.pool = Some(pool);
         }
 

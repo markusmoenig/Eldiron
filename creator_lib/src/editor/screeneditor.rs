@@ -86,7 +86,7 @@ impl EditorContent for ScreenEditor<'_> {
 
             let mut update = GameUpdate::new();
             if context.code_editor_update_node {
-                update.screen = Some(context.code_editor_value.clone());
+                // TODO update.screen = Some(context.code_editor_value.clone());
             }
             update.position = self.player_position.clone();
             context.code_editor_error = render.draw(anim_counter, Some(&update));
@@ -253,7 +253,7 @@ impl EditorContent for ScreenEditor<'_> {
 
         if let Some(render) = &mut self.game_render {
             let mut update = GameUpdate::new();
-            update.screen = Some(context.code_editor_value.clone());
+            //TODO update.screen = Some(context.code_editor_value.clone());
 
             // Get the region the player is in
 

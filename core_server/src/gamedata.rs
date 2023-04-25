@@ -54,6 +54,8 @@ pub struct GameData {
     pub spells_ids              : Vec<Uuid>,
 
     pub game                    : Game,
+
+    pub scripts                 : FxHashMap<String, String>,
 }
 
 impl GameData {
@@ -346,6 +348,48 @@ impl GameData {
             game = Game::load_from_embedded("game/game.json");
         }
 
+        // Scripts
+
+        let mut scripts : FxHashMap<String, String> = FxHashMap::default();
+
+        #[cfg(not(feature = "embed_binaries"))]
+        {
+            let scripts_path: PathBuf = path.join("game").join("scripts");
+            if let Some(paths) = fs::read_dir(scripts_path.clone()).ok() {
+
+                for path in paths {
+                    let path = &path.unwrap().path();
+                    let md = metadata(path).unwrap();
+                    if md.is_file() {
+                        if let Some(name) = path::Path::new(&path).extension() {
+                            if name == "rhai" {
+                                if let Some(script) = std::fs::read_to_string(path).ok() {
+                                    let name = path::Path::new(path).file_stem().unwrap().to_str().unwrap().to_string();
+                                    scripts.insert(name + ".rhai", script);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        #[cfg(feature = "embed_binaries")]
+        {
+            for file in Embedded::iter() {
+                let file_name = file.as_ref();
+
+                if file_name.starts_with("game/scripts/") {
+                    let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
+                    if let Some(bytes) = Embedded::get(file_name) {
+                        if let Some(script) = std::str::from_utf8(bytes.data.as_ref()).ok() {
+                            scripts.insert(name.to_string() + ".rhai", script.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
         Self {
 
             path                    : path.clone(),
@@ -372,6 +416,7 @@ impl GameData {
             spells_ids,
 
             game,
+            scripts,
         }
     }
 
@@ -409,6 +454,7 @@ impl GameData {
         // Game
 
         let game = Game::new();
+        let scripts: FxHashMap<String, String> = FxHashMap::default();
 
         Self {
 
@@ -436,6 +482,7 @@ impl GameData {
             spells_ids,
 
             game,
+            scripts,
         }
     }
 

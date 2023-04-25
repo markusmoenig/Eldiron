@@ -11,6 +11,7 @@ pub struct RegionInstance<'a> {
     pub items                       : FxHashMap<Uuid, GameBehaviorData>,
     pub spells                      : FxHashMap<Uuid, GameBehaviorData>,
     pub game_data                   : GameBehaviorData,
+    pub scripts                     : FxHashMap<String, String>,
 
     // For faster lookup
     pub system_names                : Vec<String>,
@@ -229,6 +230,7 @@ impl RegionInstance<'_> {
             items                           : FxHashMap::default(),
             spells                          : FxHashMap::default(),
             game_data                       : GameBehaviorData::new(),
+            scripts                         : FxHashMap::default(),
 
             system_names                    : vec![],
             system_ids                      : vec![],
@@ -948,7 +950,8 @@ impl RegionInstance<'_> {
                 self.curr_player_inst_index = inst_index;
                 let old_screen_id = self.instances[inst_index].curr_player_screen_id;
 
-                let mut screen : Option<String> = None;
+                let mut screen_script_name : Option<String> = None;
+                let mut screen_scripts : Option<FxHashMap<String, String>> = None;
                 let mut widgets : Vec<String> = vec![];
 
                 // Execute the game behavior
@@ -960,16 +963,23 @@ impl RegionInstance<'_> {
                     }
                 }
 
-                // Check if we need to send a new screen
+                // Send screen scripts ?
+
+                if self.instances[inst_index].send_screen_scripts == false {
+                    screen_scripts = Some(self.scripts.clone());
+                    self.instances[inst_index].send_screen_scripts =  true;
+                }
+
+                // Check if we need to send a new screen script name
 
                 if let Some(new_screen_id) = &self.instances[inst_index].curr_player_screen_id {
                     if let Some(old_screen_id) = &old_screen_id {
                         if new_screen_id != old_screen_id {
-                            screen = Some(self.instances[inst_index].curr_player_screen.clone());
+                            screen_script_name = Some(self.instances[inst_index].curr_player_screen.clone());
                             widgets = self.instances[inst_index].curr_player_widgets.clone();
                         }
                     } else {
-                        screen = Some(self.instances[inst_index].curr_player_screen.clone());
+                        screen_script_name = Some(self.instances[inst_index].curr_player_screen.clone());
                         widgets = self.instances[inst_index].curr_player_widgets.clone();
                     }
                 }
@@ -1011,7 +1021,8 @@ impl RegionInstance<'_> {
                     max_transition_time     : self.instances[inst_index].max_transition_time,
                     curr_transition_time    : self.instances[inst_index].curr_transition_time,
                     tile                    : self.instances[inst_index].tile.clone(),
-                    screen,
+                    screen_script_name,
+                    screen_scripts,
                     widgets,
                     region,
                     lights                  : self.lights.clone(),
@@ -1433,7 +1444,7 @@ impl RegionInstance<'_> {
     }
 
     /// Setup the region instance data by decoding the JSON for all game elements and sets up the npc and game behavior instances.
-    pub fn setup(&mut self, region: String, region_behavior: HashMap<Uuid, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, spells: Vec<String>, game: String) {
+    pub fn setup(&mut self, region: String, region_behavior: FxHashMap<Uuid, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, spells: Vec<String>, game: String, scripts: FxHashMap<String, String>) {
         // Decode all JSON
         if let Some(region_data) = serde_json::from_str(&region).ok() {
 
@@ -1585,6 +1596,8 @@ impl RegionInstance<'_> {
             }
         }
 
+        self.scripts = scripts;
+
         // Create all behavior instances of characters inside this region
         let ids : Vec<Uuid> = self.behaviors.keys().cloned().collect();
         for id in ids {
@@ -1626,7 +1639,7 @@ impl RegionInstance<'_> {
 
         let index = self.instances.len();
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, skills_buffer: None, experience_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: None };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, skills_buffer: None, experience_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: None, send_screen_scripts: false };
 
         self.instances.push(instance);
         self.scopes.push(scope);
@@ -1811,7 +1824,7 @@ impl RegionInstance<'_> {
 
             //println!("Creating instance {}", inst.name.unwrap());
 
-            let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior_name.clone(), behavior_id: behavior_id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, skills_buffer: None, experience_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: Some(inst.clone()) };
+            let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior_name.clone(), behavior_id: behavior_id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, skills_buffer: None, experience_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: Some(inst.clone()), send_screen_scripts: false };
 
             index = self.instances.len();
             self.instances.push(instance);

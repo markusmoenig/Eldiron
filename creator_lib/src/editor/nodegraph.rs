@@ -1540,17 +1540,25 @@ impl EditorContent for NodeGraph  {
             script_name.atom_data.value = context.data.get_behavior_id_value(id, Value::String("main.rhai".to_string()), self.graph_type);
             node_widget.widgets.push(script_name);
 
-            let mut atom1 = AtomWidget::new(vec!["Edit".to_string()], AtomWidgetType::NodeScreenButton,
+            let mut reveal_atom = AtomWidget::new(vec!["Reveal Scripts Folder".to_string()], AtomWidgetType::NodeRevealScriptsButton,
+            AtomData::new("reveal_scripts", Value::String("".to_string())));
+            reveal_atom.atom_data.text = "Reveal Scripts Folder".to_string();
+            let id = (behavior_data_id, node_id, "reveal_scripts".to_string());
+            reveal_atom.behavior_id = Some(id.clone());
+            reveal_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::String("Reveal".to_string()), self.graph_type);
+            node_widget.widgets.push(reveal_atom);
+
+            let mut edit_atom = AtomWidget::new(vec!["Edit Script".to_string()], AtomWidgetType::NodeScreenButton,
             AtomData::new("script", Value::Empty()));
-            atom1.atom_data.text = "Edit".to_string();
+            edit_atom.atom_data.text = "Edit Script".to_string();
             let id = (behavior_data_id, node_id, "script".to_string());
-            atom1.behavior_id = Some(id.clone());
-            let mut def_text = "".to_string();
-            if let Some(txt) = context.scripts.get("screen") {
-                def_text = txt.clone();
-            }
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String(def_text), self.graph_type);
-            node_widget.widgets.push(atom1);
+            edit_atom.behavior_id = Some(id.clone());
+            // let mut def_text = "".to_string();
+            // if let Some(txt) = context.scripts.get("screen") {
+            //     def_text = txt.clone();
+            // }
+            edit_atom.atom_data.value = Value::String("Edit".to_string());//context.data.get_behavior_id_value(id, Value::String("Edit".to_string()), self.graph_type);
+            node_widget.widgets.push(edit_atom);
 
             node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#screen".to_string());
 

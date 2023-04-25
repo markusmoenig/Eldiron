@@ -13,7 +13,7 @@ pub fn screen(_instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
 
     data.instances[data.curr_player_inst_index].curr_player_screen_id = Some(id.1);
 
-    if let Some(value) = get_node_value((id.0, id.1, &"script".to_owned()), data, behavior_type) {
+    if let Some(value) = get_node_value((id.0, id.1, &"script_name".to_owned()), data, behavior_type) {
         if let Some(script) = value.to_string() {
             data.instances[data.curr_player_inst_index].curr_player_screen = script;
         }

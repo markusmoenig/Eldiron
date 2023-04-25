@@ -18,8 +18,11 @@ pub struct GameUpdate {
 
     pub tile                    : Option<TileId>,
 
-    /// The script for the current screen which handles the drawing
-    pub screen                  : Option<String>,
+    /// The script for the current script which handles the screen drawing
+    pub screen_script_name      : Option<String>,
+
+    /// The screen scripts and their utility scripts, will be send only once
+    pub screen_scripts          : Option<FxHashMap<String, String>>,
 
     /// The widget scripts for the current screen
     pub widgets                 : Vec<String>,
@@ -91,7 +94,8 @@ impl GameUpdate {
             max_transition_time : 0,
             curr_transition_time: 0,
             tile                : None,
-            screen              : None,
+            screen_script_name  : None,
+            screen_scripts      : None,
             widgets             : vec![],
             region              : None,
             lights              : vec![],
