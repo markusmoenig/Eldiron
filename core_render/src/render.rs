@@ -3,7 +3,7 @@ use std::{path::PathBuf};
 
 use crate::prelude::*;
 use crate::draw2d::Draw2D;
-use rhai::{ Engine, Scope, AST, Dynamic, Map };
+use rhai::{ Engine, Scope, AST, Dynamic, Map, Module, module_resolvers::StaticModuleResolver };
 
 use audio_engine::{AudioEngine, WavDecoder, OggDecoder};
 
@@ -229,6 +229,20 @@ impl GameRender<'_> {
         // Screen scripts ?
         if let Some(screen_scripts) = &update.screen_scripts {
             self.scripts = screen_scripts.clone();
+
+            // Create a module resolver
+
+            let mut resolver = StaticModuleResolver::new();
+
+            for (name, script) in screen_scripts {
+                if let Some(ast) = self.engine.compile(script).ok() {
+                    if let Some(module) = Module::eval_ast_as_new(Scope::new(), &ast, &self.engine).ok() {
+                        resolver.insert(name.replace(".rhai", ""), module);
+                    }
+                }
+            }
+
+            self.engine.set_module_resolver(resolver);
         }
 
         // New screen script ?
@@ -285,7 +299,7 @@ impl GameRender<'_> {
                         let _result = self.engine.call_fn_raw(
                                         &mut self.scope,
                                         &ast,
-                                        false,
+                                        true,
                                         true,
                                         "init",
                                         Some(&mut self.this_map),
@@ -489,7 +503,7 @@ impl GameRender<'_> {
             let result = self.engine.call_fn_raw(
                             &mut self.scope,
                             &ast,
-                            false,
+                            true,
                             true,
                             "draw",
                             Some(&mut self.this_map),
@@ -1288,7 +1302,7 @@ impl GameRender<'_> {
             let result = self.engine.call_fn_raw(
                             &mut self.scope,
                             &ast,
-                            false,
+                            true,
                             true,
                             "key_down",
                             Some(&mut self.this_map),
@@ -1345,7 +1359,7 @@ impl GameRender<'_> {
             let result = self.engine.call_fn_raw(
                             &mut self.scope,
                             &ast,
-                            false,
+                            true,
                             false,
                             "touch_down",
                             Some(&mut self.this_map),
