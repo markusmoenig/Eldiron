@@ -348,7 +348,9 @@ impl EditorContent for ScreenEditor<'_> {
     }
 
     /// Set the current script
-    fn set_current_script(&mut self, script_name: String, context: &mut ScreenContext) {
+    fn set_current_script(&mut self, script: String, context: &mut ScreenContext) {
+
+        let script_name = script + ".rhai";
 
         // Save the current one
         if let Some(path) = &context.code_editor_file_path {

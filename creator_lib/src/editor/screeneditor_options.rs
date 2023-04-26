@@ -170,7 +170,7 @@ impl EditorOptions for ScreenEditorOptions {
         for s in scripts {
             items.push(GroupItem {
                 rect : (0, 0, 0, 0),
-                text : s.clone(),
+                text : s.replace(".rhai", ""),
             })
         }
 
