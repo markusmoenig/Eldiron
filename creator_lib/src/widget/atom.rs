@@ -3,12 +3,12 @@ use crate::prelude::*;
 pub struct GroupedList {
     color                       : [u8;4],
     selected_color              : [u8;4],
-    items                       : Vec<GroupItem>
+    pub items                   : Vec<GroupItem>
 }
 
-struct GroupItem {
-    rect                        : (usize, usize, usize, usize),
-    text                        : String
+pub struct GroupItem {
+    pub rect                    : (usize, usize, usize, usize),
+    pub text                    : String
 }
 
 #[derive(Serialize, Deserialize)]
@@ -103,7 +103,7 @@ pub struct AtomWidget {
     pub curr_index              : usize,
 
     // For GroupedLists
-    groups                      : Vec<GroupedList>,
+    pub groups                  : Vec<GroupedList>,
     pub curr_group_index        : usize,
     pub curr_item_index         : usize,
     pub centered_text           : bool,
@@ -1204,9 +1204,9 @@ impl AtomWidget {
                 context.switch_editor_state = Some(crate::editor::EditorState::ScreenDetail);
                 context.code_editor_mode = CodeEditorMode::Rhai;
                 if let Some(id) = &self.behavior_id {
-                    context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
+                    context.code_editor_node_behavior_id = id.clone();
+                    //     context.open_code_editor(id.clone(), self.atom_data.value.clone(), true);
                 }
-                //context.code_editor_value = self.atom_data.data.4.clone();
             } else
             if self.atom_widget_type == AtomWidgetType::NodeNumberButton {
                 context.dialog_state = DialogState::Opening;

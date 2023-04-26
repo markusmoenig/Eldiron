@@ -26,7 +26,9 @@ pub struct ScreenEditor<'a> {
     player_position         : Option<Position>,
     player_tile             : Option<TileId>,
 
-    hover_rect              : Option<(usize, usize, usize, usize)>
+    hover_rect              : Option<(usize, usize, usize, usize)>,
+
+    screen_script_name      : String,
 }
 
 impl EditorContent for ScreenEditor<'_> {
@@ -63,7 +65,9 @@ impl EditorContent for ScreenEditor<'_> {
             player_position         : None,
             player_tile             : None,
 
-            hover_rect             : None,
+            hover_rect              : None,
+
+            screen_script_name      : "main.rhai".to_string(),
         }
     }
 
@@ -85,9 +89,16 @@ impl EditorContent for ScreenEditor<'_> {
             tile_size = render.tile_size;
 
             let mut update = GameUpdate::new();
-            if context.code_editor_update_node {
-                // TODO update.screen = Some(context.code_editor_value.clone());
+
+            // If the screen script was changed, update the script in memory
+            if context.code_editor_update_from_file {
+                context.data.scripts.insert(self.screen_script_name.clone(), context.code_editor_value.clone());
+
+                update.screen_scripts = Some(context.data.scripts.clone());
+                update.screen_script_name = Some(self.screen_script_name.clone());
+                context.code_editor_update_from_file = false;
             }
+
             update.position = self.player_position.clone();
             context.code_editor_error = render.draw(anim_counter, Some(&update));
 
@@ -247,13 +258,15 @@ impl EditorContent for ScreenEditor<'_> {
     }
 
     /// Screen is opening
-    fn opening(&mut self, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
+    fn opening(&mut self, _asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
+
+        self.screen_script_name = "main.rhai".into();
 
         self.game_render = Some(GameRender::new(context.curr_project_path.clone(), context.player_id));
 
         if let Some(render) = &mut self.game_render {
             let mut update = GameUpdate::new();
-            //TODO update.screen = Some(context.code_editor_value.clone());
+            update.screen_scripts = Some(context.data.scripts.clone());
 
             // Get the region the player is in
 
@@ -277,15 +290,79 @@ impl EditorContent for ScreenEditor<'_> {
                     update.region = Some(region.data.clone());
                 }
             }
+
+            let mut id  = context.code_editor_node_behavior_id.clone();
+            id.2 = "script_name".into();
+
+            if let Some(name) = context.data.get_behavior_id_value_raw(id, BehaviorType::GameLogic) {
+                if let Some(script_name) = name.to_string() {
+                    update.screen_script_name = Some(script_name.clone());
+                    self.screen_script_name = script_name;
+                }
+            }
+
             update.position = self.player_position.clone();
             context.code_editor_error = render.process_update(&update);
             self.grid_size = render.tile_size;
         }
+
+        context.data.update_scripts();
+
+        let keys : Vec<&String> = context.data.scripts.keys().collect();
+
+        let mut index = 0;
+
+        for (i, k) in keys.iter().enumerate() {
+            if **k == self.screen_script_name {
+                index = i;
+                break;
+            }
+        }
+
+        // Set the scripts
+        if let Some(options) = options {
+            options.set_script_names(keys.clone(), index);
+        }
+
+        if keys.is_empty() == false {
+            if let Some(script) = context.data.scripts.get(&self.screen_script_name.clone()) {
+
+                let path = context.curr_project_path.join("game").join("scripts").join(self.screen_script_name.clone());
+                context.code_editor_file_path = Some(path);
+                context.open_code_editor(context.code_editor_node_behavior_id.clone(), Value::String(script.clone()), true);
+            }
+        }
     }
 
     /// Screen is closing
-    fn closing(&mut self, _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
+    fn closing(&mut self, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
         self.game_render = None;
+
+        if let Some(path) = &context.code_editor_file_path {
+            _ = std::fs::write(path, context.code_editor_value.clone());
+            context.data.update_scripts();
+        }
+
+        context.code_editor_file_path = None;
+
+    }
+
+    /// Set the current script
+    fn set_current_script(&mut self, script_name: String, context: &mut ScreenContext) {
+
+        // Save the current one
+        if let Some(path) = &context.code_editor_file_path {
+            _ = std::fs::write(path, context.code_editor_value.clone());
+            context.data.update_scripts();
+        }
+
+        // Load the new one
+        let path = context.curr_project_path.join("game").join("scripts").join(script_name);
+        context.code_editor_file_path = Some(path.clone());
+
+        if let Some(script) = std::fs::read_to_string(path).ok() {
+            context.open_code_editor(context.code_editor_node_behavior_id.clone(), Value::String(script.clone()), true);
+        }
     }
 
 }

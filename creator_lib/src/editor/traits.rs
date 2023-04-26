@@ -77,8 +77,10 @@ pub trait EditorOptions : Sync + Send  {
     /// Set the name of the widget
     fn set_widget_name(&mut self, name: String, context: &mut ScreenContext, content: &mut Option<Box<dyn EditorContent>>) {}
 
-    /// Returns the current region editor mode
-    fn get_screen_editor_mode(&self) -> super::screeneditor_options::ScreenEditorMode { super::screeneditor_options::ScreenEditorMode::Script }
+    /// Returns the current screen editor mode
+    fn get_screen_editor_mode(&self) -> super::screeneditor_options::ScreenEditorMode { super::screeneditor_options::ScreenEditorMode::Scripts }
+
+    fn set_script_names(&mut self, scripts: Vec<&String>, index: usize) {}
 
 }
 
@@ -267,6 +269,8 @@ pub trait EditorContent : Sync + Send {
     // For ScreenEditor
 
     fn get_hover_rect(&self) -> Option<(usize, usize, usize, usize)> { None }
+    fn set_current_script(&mut self, script: String, context: &mut ScreenContext) {}
+
 
     // Undo / Redo
 

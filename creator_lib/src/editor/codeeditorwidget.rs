@@ -196,7 +196,12 @@ impl CodeEditorWidget {
         if consumed {
             self.dirty = true;
             context.code_editor_value = self.editor.get_text().clone();
-            context.code_editor_update_node = true;
+
+            if context.code_editor_file_path.is_none() {
+                context.code_editor_update_node = true;
+            } else {
+                context.code_editor_update_from_file = true;
+            }
         }
         consumed
     }

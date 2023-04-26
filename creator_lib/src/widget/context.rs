@@ -106,6 +106,8 @@ pub struct ScreenContext<'a> {
     pub code_editor_node_behavior_value : Value,
     pub code_editor_error               : Option<(String, Option<usize>)>,
     pub code_editor_height              : usize,
+    pub code_editor_file_path           : Option<PathBuf>,
+    pub code_editor_update_from_file    : bool,
 
     pub active_position_id              : Option<(Uuid, Uuid, String)>,
 
@@ -341,6 +343,8 @@ impl ScreenContext<'_> {
             code_editor_node_behavior_value  : Value::Empty(),
             code_editor_error                : None,
             code_editor_height               : 0,
+            code_editor_file_path            : None,
+            code_editor_update_from_file     : false,
 
             active_position_id          : None,
             jump_to_position            : None,

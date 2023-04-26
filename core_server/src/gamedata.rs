@@ -636,6 +636,17 @@ impl GameData {
         def
     }
 
+    /// Gets the value of the behavior id
+    pub fn get_behavior_id_value_raw(&self, id: (Uuid, Uuid, String), behavior_type: BehaviorType) -> Option<Value> {
+
+        if let Some(behavior) = self.get_behavior(id.0, behavior_type) {
+            if let Some(node) = behavior.data.nodes.get(&id.1) {
+                return node.values.get(&id.2).cloned();
+            }
+        }
+        None
+    }
+
     /// Gets the position for the given behavior
     pub fn get_behavior_default_position(&self, id: Uuid) -> Option<Position> {
         if let Some(behavior) = self.behaviors.get(&id) {
@@ -887,6 +898,30 @@ impl GameData {
                 }*/
             }
         }
+    }
+
+    #[cfg(not(feature = "embed_binaries"))]
+    pub fn update_scripts(&mut self) {
+        let mut scripts : FxHashMap<String, String> = FxHashMap::default();
+        let scripts_path: PathBuf = self.path.join("game").join("scripts");
+        if let Some(paths) = fs::read_dir(scripts_path.clone()).ok() {
+
+            for path in paths {
+                let path = &path.unwrap().path();
+                let md = metadata(path).unwrap();
+                if md.is_file() {
+                    if let Some(name) = path::Path::new(&path).extension() {
+                        if name == "rhai" {
+                            if let Some(script) = std::fs::read_to_string(path).ok() {
+                                let name = path::Path::new(path).file_stem().unwrap().to_str().unwrap().to_string();
+                                scripts.insert(name + ".rhai", script);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        self.scripts = scripts;
     }
 
 }
