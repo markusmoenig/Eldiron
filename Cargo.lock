@@ -469,7 +469,7 @@ dependencies = [
  "pixels 0.12.0",
  "png",
  "rand",
- "rhai",
+ "rhai 1.12.0",
  "tokio",
  "tokio-native-tls",
  "tokio-tungstenite",
@@ -498,7 +498,7 @@ dependencies = [
  "png",
  "rand",
  "regex",
- "rhai",
+ "rhai 1.12.0",
  "serde",
  "serde_json",
  "vectorize",
@@ -530,7 +530,7 @@ dependencies = [
  "pollster 0.3.0",
  "rand",
  "regex",
- "rhai",
+ "rhai 1.12.0",
  "serde",
  "serde_json",
  "vectorize",
@@ -562,7 +562,7 @@ dependencies = [
  "png",
  "pollster 0.3.0",
  "rand",
- "rhai",
+ "rhai 1.12.0",
  "serde",
  "serde_json",
  "vectorize",
@@ -805,12 +805,13 @@ dependencies = [
  "core_shared",
  "fontdue",
  "itertools",
+ "lazy_static",
  "log",
  "png",
  "rand",
  "raycaster",
  "regex",
- "rhai",
+ "rhai 1.14.0",
  "rustc-hash",
  "serde",
  "serde_json",
@@ -832,7 +833,7 @@ dependencies = [
  "pathfinding",
  "rand",
  "regex",
- "rhai",
+ "rhai 1.14.0",
  "rustc-hash",
  "serde",
  "serde_json",
@@ -853,7 +854,7 @@ dependencies = [
  "log",
  "png",
  "rand",
- "rhai",
+ "rhai 1.14.0",
  "rustc-hash",
  "serde",
  "serde_json",
@@ -983,7 +984,7 @@ dependencies = [
  "rand",
  "regex",
  "rfd",
- "rhai",
+ "rhai 1.14.0",
  "serde",
  "serde_json",
  "uuid",
@@ -3022,7 +3023,21 @@ dependencies = [
  "bitflags",
  "instant",
  "num-traits",
- "rhai_codegen",
+ "rhai_codegen 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "smallvec",
+ "smartstring",
+]
+
+[[package]]
+name = "rhai"
+version = "1.14.0"
+source = "git+https://github.com/rhaiscript/rhai/#aa47dd2407ce3e5f5dc324618addd4f7043f880e"
+dependencies = [
+ "ahash 0.8.2",
+ "bitflags",
+ "instant",
+ "num-traits",
+ "rhai_codegen 1.5.0 (git+https://github.com/rhaiscript/rhai/)",
  "smallvec",
  "smartstring",
 ]
@@ -3032,6 +3047,16 @@ name = "rhai_codegen"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db74e3fdd29d969a0ec1f8e79171a6f0f71d0429293656901db382d248c4c021"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "rhai_codegen"
+version = "1.5.0"
+source = "git+https://github.com/rhaiscript/rhai/#aa47dd2407ce3e5f5dc324618addd4f7043f880e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3257,7 +3282,7 @@ dependencies = [
  "log",
  "png",
  "rand",
- "rhai",
+ "rhai 1.12.0",
  "tokio",
  "tokio-native-tls",
  "tokio-tungstenite",

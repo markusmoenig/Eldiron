@@ -1,4 +1,7 @@
+import "button" as button;
+
 fn init() {
+
   this.tile_size = 41;  // Default tile size
   this.gold = rgb(200, 200, 150);
   this.silver = rgb(192, 192, 192);
@@ -12,7 +15,11 @@ fn init() {
   this.items = rect(671, 90, 326, 80);
   this.item_id = -1;
   this.item_highlighted = 0;
-  this.cmd.set_valid_mouse_rect(rect(80, 80, 510, 340));
+  set_valid_mouse_rect(rect(80, 80, 510, 340));
+
+  this.switch_button = button::TextButton();
+  this.switch_button.text = "MODERN";
+  this.switch_button.rect = rect(28, 28, 80, 20);
 
   this.style_switch_rect = rect(28, 28, 80, 20);
   this.style_name = "MODERN";
@@ -62,93 +69,93 @@ fn draw() {
     shape.add_rect(rect(game_width, 70, this.width - game_width, 20));
     shape.add_rect(rect(game_width, 170, this.width - game_width, s));
     shape.add_rounded_rect(rect(this.width - s, 0, s, game_height), rect(0, 10, 0, 10));
-    this.cmd.draw_shape(shape);
+    draw_shape(shape);
   } else {
-    this.cmd.draw_rect(rect(0, 0, this.width, this.height), rgb(0, 0, 0));
+    draw_rect(rect(0, 0, this.width, this.height), rgb(0, 0, 0));
   }
 
   // Game
 
   // 3d ?
   if this.region.supports_3d == true && this.region_mode == "3D" {
-    this.cmd.draw_game_3d(rect(s, s, 615, 533));
-    this.cmd.draw_game_2d(rect(s + 615 - 150, s, 150, 150));
+    draw_game_3d(rect(s, s, 615, 533));
+    draw_game_2d(rect(s + 615 - 150, s, 150, 150));
     this.region.display_mode = "3d";
   } else {
     if this.style_name == "CLASSIC" {
-      this.cmd.draw_game_2d(rect(s, s, 615, 533));
+      draw_game_2d(rect(s, s, 615, 533));
     } else {
-      this.cmd.draw_game_offset_2d(rect(15, 10, this.width - 35, this.height - 34), pos(5, 0));
+      draw_game_offset_2d(rect(15, 10, this.width - 35, this.height - 34), pos(5, 0));
     }
     this.region.display_mode = "2d";
   }
 
-  this.cmd.draw_rect(rect(215, 2, 180, 25), rgb(0, 0, 0));
-  this.cmd.draw_text(pos(220, 2), "Eldiron Demo " + this.date.time12(), this.font_name, 19.0, rgb(150, 150, 150));
+  draw_rect(rect(215, 2, 180, 25), rgb(0, 0, 0));
+  draw_text(pos(220, 2), "Eldiron Demo " + this.date.time12(), this.font_name, 19.0, rgb(150, 150, 150));
 
   // Buttons
 
-  this.cmd.draw_rect(this.style_switch_rect, rgb(0, 0, 0));
-  this.cmd.draw_text_rect(this.style_switch_rect, this.style_name, this.font_name, 15.0, rgb(180, 180, 180), "center");
+  //this.cmd.draw_rect(this.style_switch_rect, rgb(0, 0, 0));
+  //this.cmd.draw_text_rect(this.style_switch_rect, this.style_name, this.font_name, 15.0, rgb(180, 180, 180), "center");
 
   if this.region.supports_3d == true {
     // This region supports 3d, make it switchable
-    this.cmd.draw_rect(this.region_mode_rect, rgb(0, 0, 0));
-    this.cmd.draw_text_rect(this.region_mode_rect, this.region_mode, this.font_name, 15.0, rgb(180, 180, 180), "center");
+    draw_rect(this.region_mode_rect, rgb(0, 0, 0));
+    draw_text_rect(this.region_mode_rect, this.region_mode, this.font_name, 15.0, rgb(180, 180, 180), "center");
   }
 
   // Movement control
   let offset = 0; if this.movement_id == "West" { offset = 1; };
-  this.cmd.draw_tile_sat(pos(1 * ts, 11 * ts), this.tm1.get_tile(1 + offset, 8), this.silver);
+  draw_tile_sat(pos(1 * ts, 11 * ts), this.tm1.get_tile(1 + offset, 8), this.silver);
   offset = 0; if this.movement_id == "North" { offset = 1; };
-  this.cmd.draw_tile_sat(pos(2 * ts, 10 * ts), this.tm1.get_tile(7 + offset, 6), this.silver);
+  draw_tile_sat(pos(2 * ts, 10 * ts), this.tm1.get_tile(7 + offset, 6), this.silver);
   offset = 0; if this.movement_id == "East" { offset = 1; };
-  this.cmd.draw_tile_sat(pos(3 * ts, 11 * ts), this.tm1.get_tile(4 + offset, 8), this.silver);
+  draw_tile_sat(pos(3 * ts, 11 * ts), this.tm1.get_tile(4 + offset, 8), this.silver);
   offset = 0; if this.movement_id == "South" { offset = 1; };
-  this.cmd.draw_tile_sat(pos(2 * ts, 12 * ts), this.tm1.get_tile(7 + offset, 7), this.silver);
+  draw_tile_sat(pos(2 * ts, 12 * ts), this.tm1.get_tile(7 + offset, 7), this.silver);
   this.movement_visible -= 1;
   if this.movement_visible <= 0 { this.movement_id = ""; }
 
   // Action Icons
   let tile;
   if this.curr_action == "Attack" { tile = this.iconstm.get_tile(23, 1); } else { tile = this.iconstm.get_tile(22, 1); }
-  this.cmd.draw_tile_sized(this.actions.Attack.pos, tile, 32);
+  draw_tile_sized(this.actions.Attack.pos, tile, 32);
   if this.curr_action == "Move" { tile = this.iconstm.get_tile(3, 4); } else { tile = this.iconstm.get_tile(2, 4); }
-  this.cmd.draw_tile_sized(this.actions.Move.pos, tile, 32);
+  draw_tile_sized(this.actions.Move.pos, tile, 32);
   if this.curr_action == "Look" { tile = this.iconstm.get_tile(1, 0);} else { tile = this.iconstm.get_tile(0, 0); }
-  this.cmd.draw_tile_sized(this.actions.Look.pos, tile, 32);
+  draw_tile_sized(this.actions.Look.pos, tile, 32);
   if this.curr_action == "Use" { tile = this.iconstm.get_tile(21, 2);} else { tile = this.iconstm.get_tile(20, 2); }
-  this.cmd.draw_tile_sized(this.actions.Use.pos, tile, 32);
+  draw_tile_sized(this.actions.Use.pos, tile, 32);
   if this.curr_action == "Talk" { tile = this.iconstm.get_tile(7, 0);} else { tile = this.iconstm.get_tile(6, 0); }
-  this.cmd.draw_tile_sized(this.actions.Talk.pos, tile, 32);
+  draw_tile_sized(this.actions.Talk.pos, tile, 32);
   if this.curr_action == "Equip" { tile = this.iconstm.get_tile(21, 1);} else { tile = this.iconstm.get_tile(20, 1); }
-  this.cmd.draw_tile_sized(this.actions.Equip.pos, tile, 32);
+  draw_tile_sized(this.actions.Equip.pos, tile, 32);
   if this.curr_action == "Take" { tile = this.iconstm.get_tile(13, 2);} else { tile = this.iconstm.get_tile(12, 2); }
-  this.cmd.draw_tile_sized(this.actions.Take.pos, tile, 32);
+  draw_tile_sized(this.actions.Take.pos, tile, 32);
   if this.curr_action == "Drop" { tile = this.iconstm.get_tile(15, 2);} else { tile = this.iconstm.get_tile(14, 2); }
-  this.cmd.draw_tile_sized(this.actions.Drop.pos, tile, 32);
+  draw_tile_sized(this.actions.Drop.pos, tile, 32);
   if this.context == "Spells" { tile = this.iconstm.get_tile(25, 2);} else { tile = this.iconstm.get_tile(24, 2); }
-  this.cmd.draw_tile_sized(this.actions.Spells.pos, tile, 32);
+  draw_tile_sized(this.actions.Spells.pos, tile, 32);
   if this.context == "Weapons" { tile = this.iconstm.get_tile(23, 1);} else { tile = this.iconstm.get_tile(22, 1); }
-  this.cmd.draw_tile_sized(this.actions.Weapons.pos, tile, 32);
+  draw_tile_sized(this.actions.Weapons.pos, tile, 32);
   if this.context == "Gear" { tile = this.iconstm.get_tile(23, 0);} else { tile = this.iconstm.get_tile(22, 0); }
-  this.cmd.draw_tile_sized(this.actions.Gear.pos, tile, 32);
+  draw_tile_sized(this.actions.Gear.pos, tile, 32);
   if this.context == "Inventory" { tile = this.iconstm.get_tile(11, 0);} else { tile = this.iconstm.get_tile(10, 0); }
-  this.cmd.draw_tile_sized(this.actions.Inventory.pos, tile, 32);
+  draw_tile_sized(this.actions.Inventory.pos, tile, 32);
 
   // Player Info
   if this.style_name == "MODERN" {
-    this.cmd.draw_rect(rect(671 - 8, 26 - 8, 326 + 16, 40 + 16), rgba(20, 20, 20, 220));
-    this.cmd.draw_rect(rect(671 - 8, 90 - 8, 326 + 16, 80 + 16), rgba(20, 20, 20, 220));
-    this.cmd.draw_rect(rect(671 - 8, 197 - 8, 326 + 16, 364 + 16), rgba(20, 20, 20, 220));
+    draw_rect(rect(671 - 8, 26 - 8, 326 + 16, 40 + 16), rgba(20, 20, 20, 220));
+    draw_rect(rect(671 - 8, 90 - 8, 326 + 16, 80 + 16), rgba(20, 20, 20, 220));
+    draw_rect(rect(671 - 8, 197 - 8, 326 + 16, 364 + 16), rgba(20, 20, 20, 220));
   }
-  this.cmd.draw_text_rect(rect(671, 26, 326, 20), "" + this.player.name, this.font_name, 19.0, rgb(150, 150, 150), "left");
-  this.cmd.draw_text_rect(rect(671, 26, 326, 20), "" + this.player.gold + "G", this.font_name, 19.0, rgb(150, 150, 150), "right");
-  this.cmd.draw_text_rect(rect(671, 50, 326, 20), "HP: " + this.player.HP + "  STR:" + this.player.STR, this.font_name, 19.0, rgb(150, 150, 150), "left");
-  this.cmd.draw_text_rect(rect(671, 50, 326, 20), "LVL: " + this.experience.level, this.font_name, 19.0, rgb(150, 150, 150), "right");
+  draw_text_rect(rect(671, 26, 326, 20), "" + this.player.name, this.font_name, 19.0, rgb(150, 150, 150), "left");
+  draw_text_rect(rect(671, 26, 326, 20), "" + this.player.gold + "G", this.font_name, 19.0, rgb(150, 150, 150), "right");
+  draw_text_rect(rect(671, 50, 326, 20), "HP: " + this.player.HP + "  STR:" + this.player.STR, this.font_name, 19.0, rgb(150, 150, 150), "left");
+  draw_text_rect(rect(671, 50, 326, 20), "LVL: " + this.experience.level, this.font_name, 19.0, rgb(150, 150, 150), "right");
 
   // Messages
-  this.cmd.draw_messages(this.board, this.font_name, 16.0, this.silver);
+  draw_messages(this.board, this.font_name, 16.0, this.silver);
 
   if this.context == "Spells" {
     let y = 90;
@@ -159,7 +166,7 @@ fn draw() {
       //  color = this.silver;
       //  this.item_highlight -= 1;
       //}
-      this.cmd.draw_text(pos(671, y), "" + (index + 1) + ". " + spell.name, this.font_name, 19.0, color);
+      draw_text(pos(671, y), "" + (index + 1) + ". " + spell.name, this.font_name, 19.0, color);
       //this.cmd.draw_text_rect(rect(671, y, 326, 20), "" + this.inventory.item_amount_at(item), this.font_name, 19.0, color, "right");
       y += 20;
       index += 1;
@@ -173,8 +180,8 @@ fn draw() {
         color = this.silver;
         this.item_highlight -= 1;
       }
-      this.cmd.draw_text(pos(671, y), "" + (item + 1) + ". " + this.inventory.item_name_at(item), this.font_name, 19.0, color);
-      this.cmd.draw_text_rect(rect(671, y, 326, 20), "" + this.inventory.item_amount_at(item), this.font_name, 19.0, color, "right");
+      draw_text(pos(671, y), "" + (item + 1) + ". " + this.inventory.item_name_at(item), this.font_name, 19.0, color);
+      draw_text_rect(rect(671, y, 326, 20), "" + this.inventory.item_amount_at(item), this.font_name, 19.0, color, "right");
       y += 20;
     }
   } else
@@ -183,14 +190,16 @@ fn draw() {
     let color = rgb(150, 150, 150);
     let name = this.weapons.item_name_for("main hand");
     if name == "" { name = "<Empty>"; };
-    this.cmd.draw_text(pos(671, y), "Main Hand: " + name, this.font_name, 19.0, color);
+    draw_text(pos(671, y), "Main Hand: " + name, this.font_name, 19.0, color);
   }
 
   // Action Text
-  this.cmd.draw_text(pos(10, this.height - 22), this.action_text, this.font_name, 14.0, rgb(150, 150, 150));
+  draw_text(pos(10, this.height - 22), this.action_text, this.font_name, 14.0, rgb(150, 150, 150));
   if this.context_text.len() > 0 {
-    this.cmd.draw_text(pos(300, this.height - 22), this.context_text, this.font_name, 14.0, rgb(150, 150, 150));
+    draw_text(pos(300, this.height - 22), this.context_text, this.font_name, 14.0, rgb(150, 150, 150));
   }
+
+  this.switch_button.draw();
 }
 
 // Handle the mouse events
@@ -250,7 +259,7 @@ fn touch_down(x, y) {
   if this.items.is_inside(pos(x, y)) {
     let item = (y - this.items.y) / 20;
     if this.inventory.len() > item {
-      this.cmd.action_inventory(this.curr_action, item);
+      action_inventory(this.curr_action, item);
       this.item_id = 0;
       this.item_highlight = 2;
       this.curr_action = "Move";
@@ -258,7 +267,7 @@ fn touch_down(x, y) {
   }
 
   // Coordinate based action ?
-  this.cmd.action_coordinate(this.curr_action);
+  action_coordinate(this.curr_action);
   this.set_info_text();
 }
 
@@ -323,7 +332,7 @@ fn key_down(key) {
       let key_int = parse_int(key) - 1;
       if key_int >= 0 {
         if this.inventory.len() > key_int {
-          this.cmd.action_inventory(this.curr_action, key_int);
+          action_inventory(this.curr_action, key_int);
           this.item_id = key_int;
           this.item_highlight = 2;
           this.curr_action = "Move";
@@ -343,7 +352,7 @@ fn handle_action(dir) {
   if dir.len() > 0 {
     this.movement_id = dir;
     this.movement_visible = 2;
-    this.cmd.action(this.curr_action, dir);
+    action(this.curr_action, dir);
     this.curr_action = "Move";
   }
 }

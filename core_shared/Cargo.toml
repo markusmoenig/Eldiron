@@ -22,7 +22,8 @@ log = "0.4"
 #console_log = "0.2"
 cpal = "0.15.1"
 colors-transform = "0.2.11"
-rhai = { version = "1.11.0", default-features = true, features = ["only_i32", "f32_float"] }
+#rhai = { version = "1.11.0", default-features = true, features = ["only_i32", "f32_float"] }
+rhai = { git = "https://github.com/rhaiscript/rhai/", default-features = true, features = ["only_i32", "f32_float", "sync"] }
 rustc-hash = "1.1.0"
 bincode = "1.3.3"
 

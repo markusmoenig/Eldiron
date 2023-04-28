@@ -335,3 +335,87 @@ impl ScriptCmd {
         self.action_commands.clear();
     }
 }
+
+// Global functions
+
+use lazy_static::lazy_static;
+use std::sync::Mutex;
+
+lazy_static! {
+    pub static ref SCRIPTCMD : Mutex<ScriptCmd> = Mutex::new(ScriptCmd::new());
+}
+
+/// Register the global cmd functions for drawing etc.
+pub fn register_global_cmd_functions(engine: &mut Engine) {
+
+    // Action Cmds
+
+    engine.register_fn("action", |action: &str, direction: &str| {
+        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::Action(action.to_owned(), direction.to_owned().to_lowercase(), None));
+    });
+
+    engine.register_fn("action_coordinate", |action: &str| {
+        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::ActionCoordinate(action.to_owned(), None));
+    });
+
+    engine.register_fn("action_gear", |action: &str,  gear_index: i32| {
+        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::ActionGear(action.to_owned(), gear_index));
+    });
+
+    engine.register_fn("action_inventory", |action: &str,  inventory_index: i32| {
+        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::ActionInventory(action.to_owned(), inventory_index));
+    });
+
+    engine.register_fn("set_valid_mouse_rect", |rect: ScriptRect| {
+        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::ActionValidMouseRect(rect));
+    });
+
+    // Draw Cmds
+
+    engine.register_fn("draw_shape", |shape: ScriptShape | {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawShape(shape));
+    });
+    engine.register_fn("draw_rect", |rect: ScriptRect, rgb: ScriptRGB| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawRect(rect, rgb));
+    });
+    engine.register_fn("draw_tile", |pos: ScriptPosition, tile: ScriptTile| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawTile(pos, tile));
+    });
+    engine.register_fn("draw_tile_sat", |pos: ScriptPosition, tile: ScriptTile, rgb: ScriptRGB| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawTileSat(pos, tile, rgb));
+    });
+    engine.register_fn("draw_tile_mult", |pos: ScriptPosition, tile: ScriptTile, rgb: ScriptRGB| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawTileMult(pos, tile, rgb));
+    });
+    engine.register_fn("draw_tile_sized", |pos: ScriptPosition, tile: ScriptTile, size: i32| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawTileSized(pos, tile, size));
+    });
+    engine.register_fn("draw_frame", |rect: ScriptRect, tile: ScriptTile| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawFrame(rect, tile));
+    });
+    engine.register_fn("draw_frame_sat", |rect: ScriptRect, rgb: ScriptRGB, tile: ScriptTile| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawFrameSat(rect, rgb, tile));
+    });
+    engine.register_fn("draw_text", |pos: ScriptPosition, text: &str, font_name: &str, size: f32, rgb: ScriptRGB| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawText(pos, text.to_owned(), font_name.to_owned(), size as f32, rgb));
+    });
+    engine.register_fn("draw_text_rect", |rect: ScriptRect, text: &str, font_name: &str, size: f32, rgb: ScriptRGB, align: String| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawTextRect(rect, text.to_owned(), font_name.to_owned(), size as f32, rgb, align));
+    });
+    engine.register_fn("draw_messages", | rect: ScriptRect, font_name: &str, size: f32, rgb: ScriptRGB| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawMessages(rect, font_name.to_owned(), size as f32, rgb));
+    });
+    engine.register_fn("draw_game_2d", |rect: ScriptRect| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawGame2D(rect));
+    });
+    engine.register_fn("draw_game_offset_2d", |rect: ScriptRect, offset: ScriptPosition| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawGameOffset2D(rect, offset));
+    });
+    engine.register_fn("draw_game_3d", |rect: ScriptRect| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawGame3D(rect));
+    });
+    engine.register_fn("draw_region", |name: &str, rect: ScriptRect, size: i32| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawRegion(name.to_owned(), rect, size));
+    });
+
+}

@@ -19,7 +19,8 @@ vectorize = "0.2.0"
 itertools = "0.10.2"
 rand = "0.8.5"
 pathfinding = "4.1.1"
-rhai = { version = "1.12.0", default-features = true, features = ["only_i32", "f32_float", "sync"] }
+#rhai = { version = "1.12.0", default-features = true, features = ["only_i32", "f32_float", "sync"] }
+rhai = { git = "https://github.com/rhaiscript/rhai/", default-features = true, features = ["only_i32", "f32_float", "sync"] }
 regex = "1.5"
 console_log = "1.0.0"
 crossbeam-channel = "0.5.6"
