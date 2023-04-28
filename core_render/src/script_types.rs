@@ -310,17 +310,39 @@ impl ScriptCmd {
 }
 
 pub struct ScriptInfo {
-    pub width           : i32,
-    pub height          : i32,
-    pub tile_size       : i32,
+    pub width               : i32,
+    pub height              : i32,
+    pub tile_size           : i32,
+    pub player              : rhai::Map,
+    pub tilemaps            : ScriptTilemaps,
+    pub region              : rhai::Map,
+    pub display_mode_3d     : bool,
+    pub inventory           : Inventory,
+    pub spells              : Spells,
+    pub weapons             : Weapons,
+    pub gear                : Gear,
+    pub skills              : Skills,
+    pub experience          : Experience,
+    pub date                : Date,
 }
 
 impl ScriptInfo {
     pub fn new() -> Self {
         Self {
-            width       : 0,
-            height      : 0,
-            tile_size   : 0,
+            width           : 0,
+            height          : 0,
+            tile_size       : 0,
+            player          : rhai::Map::new(),
+            tilemaps        : ScriptTilemaps::new(),
+            region          : rhai::Map::new(),
+            display_mode_3d : false,
+            inventory       : Inventory::new(),
+            spells          : Spells::new(),
+            weapons         : Weapons::new(),
+            gear            : Gear::new(),
+            skills          : Skills::new(),
+            experience      : Experience::new(),
+            date            : Date::new(),
         }
     }
 }
@@ -431,6 +453,62 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
 
     engine.register_fn("set_tile_size", |size: i32| {
         INFOCMD.lock().unwrap().tile_size = size;
+    });
+
+    engine.register_fn("get_player", || -> rhai::Map {
+        INFOCMD.lock().unwrap().player.clone()
+    });
+
+    engine.register_fn("get_tilemaps", || -> ScriptTilemaps {
+        INFOCMD.lock().unwrap().tilemaps.clone()
+    });
+
+    engine.register_fn("get_region", || -> rhai::Map {
+        INFOCMD.lock().unwrap().region.clone()
+    });
+
+    engine.register_fn("get_display_mode_3d", || -> bool {
+        INFOCMD.lock().unwrap().display_mode_3d
+    });
+
+    engine.register_fn("get_display_mode_2d", || -> bool {
+        !INFOCMD.lock().unwrap().display_mode_3d
+    });
+
+    engine.register_fn("set_display_mode_3d", |display_mode: bool| {
+        INFOCMD.lock().unwrap().display_mode_3d = display_mode;
+    });
+
+    engine.register_fn("set_display_mode_2d", |display_mode: bool| {
+        INFOCMD.lock().unwrap().display_mode_3d = !display_mode;
+    });
+
+    engine.register_fn("get_inventory", || -> Inventory {
+        INFOCMD.lock().unwrap().inventory.clone()
+    });
+
+    engine.register_fn("get_spells", || -> Spells {
+        INFOCMD.lock().unwrap().spells.clone()
+    });
+
+    engine.register_fn("get_weapons", || -> Weapons {
+        INFOCMD.lock().unwrap().weapons.clone()
+    });
+
+    engine.register_fn("get_gear", || -> Gear {
+        INFOCMD.lock().unwrap().gear.clone()
+    });
+
+    engine.register_fn("get_skills", || -> Skills {
+        INFOCMD.lock().unwrap().skills.clone()
+    });
+
+    engine.register_fn("get_experience", || -> Experience {
+        INFOCMD.lock().unwrap().experience.clone()
+    });
+
+    engine.register_fn("get_date", || -> Date {
+        INFOCMD.lock().unwrap().date.clone()
     });
 
 }

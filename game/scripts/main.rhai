@@ -7,8 +7,8 @@ fn init() {
 
   this.gold = rgb(200, 200, 150);
   this.silver = rgb(192, 192, 192);
-  this.tm1 = this.tilemaps.get("UIParts1");
-  this.iconstm = this.tilemaps.get("Icons");
+  this.tm1 = get_tilemaps().get("UIParts1");
+  this.iconstm = get_tilemaps().get("Icons");
   this.movement_id = "";
   this.movement_visible = 0;
   this.font_name = "Roboto-Medium";
@@ -47,7 +47,6 @@ fn init() {
     "Spells"      : rect(560, 505, 32, 32),
   };
   this.curr_action = "Move";
-
   this.action_text = "FOR MORE INFORMATION PLEASE VISIT ELDIRON.COM";
   this.context_text = "";
 }
@@ -76,27 +75,27 @@ fn draw() {
   // Game
 
   // 3d ?
-  if this.region.supports_3d == true && this.region_mode == "3D" {
+  if get_region().supports_3d == true && this.region_mode == "3D" {
     draw_game_3d(rect(s, s, 615, 533));
     draw_game_2d(rect(s + 615 - 150, s, 150, 150));
-    this.region.display_mode = "3d";
+    set_display_mode_3d(true);
   } else {
     if this.switch_button.text == "CLASSIC" {
       draw_game_2d(rect(s, s, 615, 533));
     } else {
       draw_game_offset_2d(rect(15, 10, get_width() - 35, get_height() - 34), pos(5, 0));
     }
-    this.region.display_mode = "2d";
+    set_display_mode_2d(true);
   }
 
   draw_rect(rect(215, 2, 180, 25), rgb(0, 0, 0));
-  draw_text(pos(220, 2), "Eldiron Demo " + this.date.time12(), this.font_name, 19.0, rgb(150, 150, 150));
+  draw_text(pos(220, 2), "Eldiron Demo " + get_date().time12(), this.font_name, 19.0, rgb(150, 150, 150));
 
   // Buttons
 
   this.switch_button.draw();
 
-  if this.region.supports_3d == true {
+  if get_region().supports_3d == true {
     // This region supports 3d, make it switchable
     draw_rect(this.region_mode_rect, rgb(0, 0, 0));
     draw_text_rect(this.region_mode_rect, this.region_mode, this.font_name, 15.0, rgb(180, 180, 180), "center");
@@ -147,10 +146,12 @@ fn draw() {
     draw_rect(rect(671 - 8, 90 - 8, 326 + 16, 80 + 16), rgba(20, 20, 20, 220));
     draw_rect(rect(671 - 8, 197 - 8, 326 + 16, 364 + 16), rgba(20, 20, 20, 220));
   }
-  draw_text_rect(rect(671, 26, 326, 20), "" + this.player.name, this.font_name, 19.0, rgb(150, 150, 150), "left");
-  draw_text_rect(rect(671, 26, 326, 20), "" + this.player.gold + "G", this.font_name, 19.0, rgb(150, 150, 150), "right");
-  draw_text_rect(rect(671, 50, 326, 20), "HP: " + this.player.HP + "  STR:" + this.player.STR, this.font_name, 19.0, rgb(150, 150, 150), "left");
-  draw_text_rect(rect(671, 50, 326, 20), "LVL: " + this.experience.level, this.font_name, 19.0, rgb(150, 150, 150), "right");
+
+  let player = get_player();
+  draw_text_rect(rect(671, 26, 326, 20), "" + player.name, this.font_name, 19.0, rgb(150, 150, 150), "left");
+  draw_text_rect(rect(671, 26, 326, 20), "" + player.gold + "G", this.font_name, 19.0, rgb(150, 150, 150), "right");
+  draw_text_rect(rect(671, 50, 326, 20), "HP: " + player.HP + "  STR:" + player.STR, this.font_name, 19.0, rgb(150, 150, 150), "left");
+  draw_text_rect(rect(671, 50, 326, 20), "LVL: " + get_experience().level, this.font_name, 19.0, rgb(150, 150, 150), "right");
 
   // Messages
   draw_messages(this.board, this.font_name, 16.0, this.silver);
@@ -159,13 +160,13 @@ fn draw() {
     let y = 90;
     let color = rgb(150, 150, 150);
     let index = 0;
-    for spell in this.spells {
+    let spells = get_spells();
+    for spell in spells {
       //if this.item_id == item && this.item_highlight > 0 {
       //  color = this.silver;
       //  this.item_highlight -= 1;
       //}
       draw_text(pos(671, y), "" + (index + 1) + ". " + spell.name, this.font_name, 19.0, color);
-      //this.cmd.draw_text_rect(rect(671, y, 326, 20), "" + this.inventory.item_amount_at(item), this.font_name, 19.0, color, "right");
       y += 20;
       index += 1;
     }
@@ -173,20 +174,24 @@ fn draw() {
   if this.context == "Inventory" {
     let y = 90;
     let color = rgb(150, 150, 150);
-    for item in 0..this.inventory.len() {
-      if this.item_id == item && this.item_highlight > 0 {
+    let index = 0;
+    let inventory = get_inventory();
+    for item in inventory {
+      if this.item_id == index && this.item_highlight > 0 {
         color = this.silver;
         this.item_highlight -= 1;
       }
-      draw_text(pos(671, y), "" + (item + 1) + ". " + this.inventory.item_name_at(item), this.font_name, 19.0, color);
-      draw_text_rect(rect(671, y, 326, 20), "" + this.inventory.item_amount_at(item), this.font_name, 19.0, color, "right");
+      draw_text(pos(671, y), "" + (index + 1) + ". " + item, this.font_name, 19.0, color);
+      draw_text_rect(rect(671, y, 326, 20), "" + item.amount, this.font_name, 19.0, color, "right");
       y += 20;
+      index += 1;
     }
   } else
   if this.context == "Weapons" {
     let y = 90;
     let color = rgb(150, 150, 150);
-    let name = this.weapons.item_name_for("main hand");
+    let weapons = get_weapons();
+    let name = weapons.item_name_for("main hand");
     if name == "" { name = "<Empty>"; };
     draw_text(pos(671, y), "Main Hand: " + name, this.font_name, 19.0, color);
   }
@@ -327,7 +332,8 @@ fn key_down(key) {
     try {
       let key_int = parse_int(key) - 1;
       if key_int >= 0 {
-        if this.inventory.len() > key_int {
+        let inventory = get_inventory();
+        if inventory.len() > key_int {
           action_inventory(this.curr_action, key_int);
           this.item_id = key_int;
           this.item_highlight = 2;

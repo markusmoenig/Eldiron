@@ -241,21 +241,22 @@ impl GameRender<'_> {
                         self.last_position = None;
                         self.transition_active = false;
 
-                        let mut this_map = Map::new();
+                        let this_map = Map::new();
 
                         self.scope = Scope::new();
 
+                        // Width / Height / Tilesize
                         INFOCMD.lock().unwrap().width = update.screen_size.0;
                         INFOCMD.lock().unwrap().height = update.screen_size.1;
                         INFOCMD.lock().unwrap().tile_size = update.def_square_tile_size;
 
+                        // Tilemaps
                         let mut tilemaps = ScriptTilemaps::new();
                         for index in 0..self.asset.tileset.maps_names.len() {
                             tilemaps.maps.insert(self.asset.tileset.maps_names[index].clone(), self.asset.tileset.maps_ids[index]);
                         }
-                        this_map.insert("tilemaps".into(), Dynamic::from(tilemaps) );
-                        this_map.insert("player".into(), Dynamic::from(rhai::Map::new()));
-                        this_map.insert("region".into(), Dynamic::from(rhai::Map::new()));
+
+                        INFOCMD.lock().unwrap().tilemaps = tilemaps;
 
                         self.this_map = this_map.into();
 
@@ -295,6 +296,7 @@ impl GameRender<'_> {
                     }
                 } else
                 if let Some(err) = result.err() {
+                    println!("{} : {:?}", err.0.to_string(), err.1.line());
                     return Some((err.0.to_string(), err.1.line()));
                 }
             }
@@ -305,27 +307,13 @@ impl GameRender<'_> {
             self.regions.insert(region.id, region.clone());
             self.display_mode = if self.force_display_mode == Some(DisplayMode::ThreeD) { DisplayMode::ThreeD } else { DisplayMode::TwoD};
 
-            // Set the settings into the region map
-            if let Some(mut map) = self.this_map.write_lock::<Map>() {
+            let properties = &region.settings;
 
-                // If we dont use a screen script we may have to set the region map ourself
-                if map.contains_key("region") == false {
-                    map.insert("region".into(), Dynamic::from(rhai::Map::new()));
-                }
-
-                if let Some(c) = map.get_mut("region") {
-                    if let Some(mut region_map) = c.write_lock::<rhai::Map>() {
-
-                        let properties = &region.settings;
-
-                        if let Some(r) = properties.get("supports_3d") {
-                            if let Some(value) = r.as_bool() {
-                                region_map.insert("supports_3d".into(), Dynamic::from(value));
-                                if value == true {
-                                    self.raycast.load_region(&self.asset, region);
-                                }
-                            }
-                        }
+            if let Some(r) = properties.get("supports_3d") {
+                if let Some(value) = r.as_bool() {
+                    INFOCMD.lock().unwrap().region.insert("supports_3d".into(), Dynamic::from(value));
+                    if value == true {
+                        self.raycast.load_region(&self.asset, region);
                     }
                 }
             }
@@ -401,38 +389,35 @@ impl GameRender<'_> {
             self.lights.insert(position.region, update.lights.clone());
         }
 
-        if let Some(mut map) = self.this_map.write_lock::<Map>() {
+        // Insert the scope into the player map
 
-            // Insert the scope into the player map
+        let mut player_map = rhai::Map::new();
 
-            if let Some(c) = map.get_mut("player") {
-                if let Some(mut player_map) = c.write_lock::<rhai::Map>() {
-                    for (n, v) in &update.scope_buffer.values {
-                        match v {
-                            Value::Integer(value) => {
-                                player_map.insert(n.into(), Dynamic::from(value.clone()));
-                            },
-                            Value::Float(value) => {
-                                player_map.insert(n.into(), Dynamic::from(value.clone()));
-                            },
-                            Value::String(value) => {
-                                player_map.insert(n.into(), Dynamic::from(value.clone()));
-                            },
-                            _ => {},
-                        }
-                    }
-                }
+        for (n, v) in &update.scope_buffer.values {
+            match v {
+                Value::Integer(value) => {
+                    player_map.insert(n.into(), Dynamic::from(value.clone()));
+                },
+                Value::Float(value) => {
+                    player_map.insert(n.into(), Dynamic::from(value.clone()));
+                },
+                Value::String(value) => {
+                    player_map.insert(n.into(), Dynamic::from(value.clone()));
+                },
+                _ => {},
             }
-
-            // Set the inventory / spells / weapons / gear / experience / skills / date
-            map.insert("inventory".into(), Dynamic::from(update.inventory.clone()));
-            map.insert("spells".into(), Dynamic::from(update.spells.clone()));
-            map.insert("weapons".into(), Dynamic::from(update.weapons.clone()));
-            map.insert("gear".into(), Dynamic::from(update.gear.clone()));
-            map.insert("skills".into(), Dynamic::from(update.skills.clone()));
-            map.insert("experience".into(), Dynamic::from(update.experience.clone()));
-            map.insert("date".into(), Dynamic::from(update.date.clone()));
         }
+
+        INFOCMD.lock().unwrap().player = player_map;
+
+        // Set the inventory / spells / weapons / gear / experience / skills / date
+        INFOCMD.lock().unwrap().inventory = update.inventory.clone();
+        INFOCMD.lock().unwrap().spells = update.spells.clone();
+        INFOCMD.lock().unwrap().weapons = update.weapons.clone();
+        INFOCMD.lock().unwrap().gear = update.gear.clone();
+        INFOCMD.lock().unwrap().skills = update.skills.clone();
+        INFOCMD.lock().unwrap().experience = update.experience.clone();
+        INFOCMD.lock().unwrap().date = update.date.clone();
 
         None
     }
@@ -1341,157 +1326,144 @@ impl GameRender<'_> {
     fn process_cmds(&mut self, player_id: Uuid) -> Vec<String> {
         let mut commands = vec![];
 
-        if let Some(map) = self.this_map.write_lock::<Map>() {
+        let display_mode_3d = INFOCMD.lock().unwrap().display_mode_3d;
 
-            let mut display_mode_3d = false;
+        let action_commands = SCRIPTCMD.lock().unwrap().action_commands.clone();
+        SCRIPTCMD.lock().unwrap().action_commands.clear();
 
-            if let Some(c) = map.get("region") {
-                if let Some(region_map) = c.read_lock::<rhai::Map>() {
-                    if let Some(mode) = region_map.get("display_mode") {
-                        if mode.to_string() == "3d" {
-                            display_mode_3d = true;
+        for cmd in action_commands {
+
+            match cmd {
+                ScriptServerCmd::Action(action, direction, spell) => {
+                    let mut dir : Option<PlayerDirection>;
+
+                    if direction == "west" {
+                        dir = Some(PlayerDirection::West);
+                    } else
+                    if direction == "north" {
+                        dir = Some(PlayerDirection::North);
+                    } else
+                    if direction == "east" {
+                        dir = Some(PlayerDirection::East);
+                    } else
+                    if direction == "south" {
+                        dir = Some(PlayerDirection::South);
+                    } else {
+                        dir = Some(PlayerDirection::None);
+                    }
+
+                    let mut processed_cmd = false;
+
+                    // 3D mode overrides left / right
+                    if display_mode_3d && action == "Move" {
+
+                        if dir == Some(PlayerDirection::West) {
+                            if self.raycast.facing == Facing::North {
+                                self.raycast.facing = Facing::West;
+                            } else
+                            if self.raycast.facing == Facing::West {
+                                self.raycast.facing = Facing::South;
+                            } else
+                            if self.raycast.facing == Facing::South {
+                                self.raycast.facing = Facing::East;
+                            } else
+                            if self.raycast.facing == Facing::East {
+                                self.raycast.facing = Facing::North;
+                            }
+                            self.raycast.raycaster.turn_by(90.0);
+                            processed_cmd = true;
+                        } else
+                        if dir == Some(PlayerDirection::East) {
+                            if self.raycast.facing == Facing::North {
+                                self.raycast.facing = Facing::East;
+                            } else
+                            if self.raycast.facing == Facing::East {
+                                self.raycast.facing = Facing::South;
+                            } else
+                            if self.raycast.facing == Facing::South {
+                                self.raycast.facing = Facing::West;
+                            } else
+                            if self.raycast.facing == Facing::West {
+                                self.raycast.facing = Facing::North;
+                            }
+                            self.raycast.raycaster.turn_by(-90.0);
+                            processed_cmd = true;
+                        } else
+                        if dir == Some(PlayerDirection::North) {
+                            if self.raycast.facing == Facing::West {
+                                dir = Some(PlayerDirection::West);
+                            } else
+                            if self.raycast.facing == Facing::South {
+                                dir = Some(PlayerDirection::South);
+                            } else
+                            if self.raycast.facing == Facing::East {
+                                dir = Some(PlayerDirection::East);
+                            }
+                        } else
+                        if dir == Some(PlayerDirection::South) {
+                            if self.raycast.facing == Facing::North {
+                                dir = Some(PlayerDirection::South);
+                            } else
+                            if self.raycast.facing == Facing::West {
+                                dir = Some(PlayerDirection::East);
+                            } else
+                            if self.raycast.facing == Facing::South {
+                                dir = Some(PlayerDirection::North);
+                            } else
+                            if self.raycast.facing == Facing::East {
+                                dir = Some(PlayerDirection::West);
+                            }
                         }
                     }
-                }
-            }
 
-            let action_commands = SCRIPTCMD.lock().unwrap().action_commands.clone();
-            SCRIPTCMD.lock().unwrap().action_commands.clear();
-
-            for cmd in action_commands {
-
-                match cmd {
-                    ScriptServerCmd::Action(action, direction, spell) => {
-                        let mut dir : Option<PlayerDirection>;
-
-                        if direction == "west" {
-                            dir = Some(PlayerDirection::West);
-                        } else
-                        if direction == "north" {
-                            dir = Some(PlayerDirection::North);
-                        } else
-                        if direction == "east" {
-                            dir = Some(PlayerDirection::East);
-                        } else
-                        if direction == "south" {
-                            dir = Some(PlayerDirection::South);
-                        } else {
-                            dir = Some(PlayerDirection::None);
-                        }
-
-                        let mut processed_cmd = false;
-
-                        // 3D mode overrides left / right
-                        if display_mode_3d && action == "Move" {
-
-                            if dir == Some(PlayerDirection::West) {
-                                if self.raycast.facing == Facing::North {
-                                    self.raycast.facing = Facing::West;
-                                } else
-                                if self.raycast.facing == Facing::West {
-                                    self.raycast.facing = Facing::South;
-                                } else
-                                if self.raycast.facing == Facing::South {
-                                    self.raycast.facing = Facing::East;
-                                } else
-                                if self.raycast.facing == Facing::East {
-                                    self.raycast.facing = Facing::North;
-                                }
-                                self.raycast.raycaster.turn_by(90.0);
-                                processed_cmd = true;
-                            } else
-                            if dir == Some(PlayerDirection::East) {
-                                if self.raycast.facing == Facing::North {
-                                    self.raycast.facing = Facing::East;
-                                } else
-                                if self.raycast.facing == Facing::East {
-                                    self.raycast.facing = Facing::South;
-                                } else
-                                if self.raycast.facing == Facing::South {
-                                    self.raycast.facing = Facing::West;
-                                } else
-                                if self.raycast.facing == Facing::West {
-                                    self.raycast.facing = Facing::North;
-                                }
-                                self.raycast.raycaster.turn_by(-90.0);
-                                processed_cmd = true;
-                            } else
-                            if dir == Some(PlayerDirection::North) {
-                                if self.raycast.facing == Facing::West {
-                                    dir = Some(PlayerDirection::West);
-                                } else
-                                if self.raycast.facing == Facing::South {
-                                    dir = Some(PlayerDirection::South);
-                                } else
-                                if self.raycast.facing == Facing::East {
-                                    dir = Some(PlayerDirection::East);
-                                }
-                            } else
-                            if dir == Some(PlayerDirection::South) {
-                                if self.raycast.facing == Facing::North {
-                                    dir = Some(PlayerDirection::South);
-                                } else
-                                if self.raycast.facing == Facing::West {
-                                    dir = Some(PlayerDirection::East);
-                                } else
-                                if self.raycast.facing == Facing::South {
-                                    dir = Some(PlayerDirection::North);
-                                } else
-                                if self.raycast.facing == Facing::East {
-                                    dir = Some(PlayerDirection::West);
-                                }
-                            }
-                        }
-
-                        if processed_cmd == false {
-                            if let Some(dir) = dir {
-                                if let Some(action) = pack_action(player_id, action.clone(), dir, spell.clone()) {
-                                    commands.push(action);
-                                }
-                            }
-                        }
-                    },
-                    ScriptServerCmd::ActionCoordinate(action, spell) => {
-
-                        // If we don't have the current mouse region pos, manually comp it
-                        if self.mouse_region_pos.is_none() {
-                            if let Some(mouse_pos) = &self.mouse_pos {
-                                if mouse_pos.0 >= self.screen_rect_2d.0 && mouse_pos.1 >= self.screen_rect_2d.1 {
-                                    let sdx = mouse_pos.0 - self.screen_rect_2d.0;
-                                    let sdy = mouse_pos.1 - self.screen_rect_2d.1;
-                                    let ox = (sdx / self.screen_rect_2d.2) as isize;
-                                    let oy = (sdy / self.screen_rect_2d.3) as isize;
-                                    if ox < self.region_rect_2d.2 && oy < self.region_rect_2d.3 {
-                                        let px = self.region_rect_2d.0 + ox;
-                                        let py = self.region_rect_2d.1 + oy;
-                                        self.mouse_region_pos = Some((px, py));
-                                    }
-                                }
-                            }
-                        }
-
-                        if let Some(region_pos) = &self.mouse_region_pos {
-                            if let Some(action) = pack_action_coordinate(player_id, action.clone(), *region_pos, spell.clone()) {
+                    if processed_cmd == false {
+                        if let Some(dir) = dir {
+                            if let Some(action) = pack_action(player_id, action.clone(), dir, spell.clone()) {
                                 commands.push(action);
                             }
                         }
-
-                        self.mouse_region_pos = None;
-                        self.draw_mouse_pos_once = true;
-                    },
-                    ScriptServerCmd::ActionGear(action, gear_index) => {
-                        if let Some(action) = pack_gear_action(player_id, action.clone(), gear_index as u16) {
-                            commands.push(action);
-                        }
-                    },
-                    ScriptServerCmd::ActionInventory(action, inv_index) => {
-                        if let Some(action) = pack_inventory_action(player_id, action.clone(), inv_index as u16) {
-                            commands.push(action);
-                        }
-                    },
-                    ScriptServerCmd::ActionValidMouseRect(rect) => {
-                        self.valid_mouse_rect = Some(rect.clone());
                     }
+                },
+                ScriptServerCmd::ActionCoordinate(action, spell) => {
+
+                    // If we don't have the current mouse region pos, manually comp it
+                    if self.mouse_region_pos.is_none() {
+                        if let Some(mouse_pos) = &self.mouse_pos {
+                            if mouse_pos.0 >= self.screen_rect_2d.0 && mouse_pos.1 >= self.screen_rect_2d.1 {
+                                let sdx = mouse_pos.0 - self.screen_rect_2d.0;
+                                let sdy = mouse_pos.1 - self.screen_rect_2d.1;
+                                let ox = (sdx / self.screen_rect_2d.2) as isize;
+                                let oy = (sdy / self.screen_rect_2d.3) as isize;
+                                if ox < self.region_rect_2d.2 && oy < self.region_rect_2d.3 {
+                                    let px = self.region_rect_2d.0 + ox;
+                                    let py = self.region_rect_2d.1 + oy;
+                                    self.mouse_region_pos = Some((px, py));
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some(region_pos) = &self.mouse_region_pos {
+                        if let Some(action) = pack_action_coordinate(player_id, action.clone(), *region_pos, spell.clone()) {
+                            commands.push(action);
+                        }
+                    }
+
+                    self.mouse_region_pos = None;
+                    self.draw_mouse_pos_once = true;
+                },
+                ScriptServerCmd::ActionGear(action, gear_index) => {
+                    if let Some(action) = pack_gear_action(player_id, action.clone(), gear_index as u16) {
+                        commands.push(action);
+                    }
+                },
+                ScriptServerCmd::ActionInventory(action, inv_index) => {
+                    if let Some(action) = pack_inventory_action(player_id, action.clone(), inv_index as u16) {
+                        commands.push(action);
+                    }
+                },
+                ScriptServerCmd::ActionValidMouseRect(rect) => {
+                    self.valid_mouse_rect = Some(rect.clone());
                 }
             }
         }
