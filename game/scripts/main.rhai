@@ -2,7 +2,9 @@ import "button" as button;
 
 fn init() {
 
-  this.tile_size = 41;  // Default tile size
+  // Set the tile size for drawing
+  set_tile_size(41);
+
   this.gold = rgb(200, 200, 150);
   this.silver = rgb(192, 192, 192);
   this.tm1 = this.tilemaps.get("UIParts1");
@@ -24,11 +26,11 @@ fn init() {
   this.region_mode_rect = rect(578, 28, 60, 20);
   this.region_mode = "2D";
 
-  this.message.status("Welcome to the Eldiron Demo worthy adventurer.");
+  message_status("Welcome to the Eldiron Demo worthy adventurer.");
 
   // The action icon rectangles
 
-  let ts = this.tile_size;
+  let ts = get_tile_size();
   this.actions = #{
     "Attack"      : rect(168, 505, 32, 32),
     "Move"        : rect(200, 505, 32, 32),
@@ -52,23 +54,23 @@ fn init() {
 
 // Draw the screen
 fn draw() {
-  let ts = this.tile_size;
+  let ts = get_tile_size();
 
   let shape = shape();
   let s = 25; let game_width = 640; let game_height = 581; shape.border_size = 2.0;
   if this.switch_button.text == "CLASSIC" {
     shape.color = rgb(20, 30, 100); shape.border_color = rgb(100, 100, 100);
     shape.add_rounded_rect(rect(0, 0, 200, s), rect(10, 15, 0, 15));                     // Top Left
-    shape.add_rounded_rect(rect(400, 0, this.width - 400, s), rect(15, 10, 15, 0));      // Top Right
+    shape.add_rounded_rect(rect(400, 0, get_width() - 400, s), rect(15, 10, 15, 0));      // Top Right
     shape.add_rounded_rect(rect(0, 0, s, game_height), rect(10, 0, 10, 0));              // Left Vertical
     shape.add_rounded_rect(rect(game_width, 0, s, game_height), rect(10, 10, 0, 10));    // Middle Vertical
-    shape.add_rounded_rect(rect(0, game_height - s, this.width, s), rect(0, 0, 10, 10));
-    shape.add_rect(rect(game_width, 70, this.width - game_width, 20));
-    shape.add_rect(rect(game_width, 170, this.width - game_width, s));
-    shape.add_rounded_rect(rect(this.width - s, 0, s, game_height), rect(0, 10, 0, 10));
+    shape.add_rounded_rect(rect(0, game_height - s, get_width(), s), rect(0, 0, 10, 10));
+    shape.add_rect(rect(game_width, 70, get_width() - game_width, 20));
+    shape.add_rect(rect(game_width, 170, get_width() - game_width, s));
+    shape.add_rounded_rect(rect(get_width() - s, 0, s, game_height), rect(0, 10, 0, 10));
     draw_shape(shape);
   } else {
-    draw_rect(rect(0, 0, this.width, this.height), rgb(0, 0, 0));
+    draw_rect(rect(0, 0, get_width(), get_height()), rgb(0, 0, 0));
   }
 
   // Game
@@ -82,7 +84,7 @@ fn draw() {
     if this.switch_button.text == "CLASSIC" {
       draw_game_2d(rect(s, s, 615, 533));
     } else {
-      draw_game_offset_2d(rect(15, 10, this.width - 35, this.height - 34), pos(5, 0));
+      draw_game_offset_2d(rect(15, 10, get_width() - 35, get_height() - 34), pos(5, 0));
     }
     this.region.display_mode = "2d";
   }
@@ -190,9 +192,9 @@ fn draw() {
   }
 
   // Action Text
-  draw_text(pos(10, this.height - 22), this.action_text, this.font_name, 14.0, rgb(150, 150, 150));
+  draw_text(pos(10, get_height() - 22), this.action_text, this.font_name, 14.0, rgb(150, 150, 150));
   if this.context_text.len() > 0 {
-    draw_text(pos(300, this.height - 22), this.context_text, this.font_name, 14.0, rgb(150, 150, 150));
+    draw_text(pos(300, get_height() - 22), this.context_text, this.font_name, 14.0, rgb(150, 150, 150));
   }
 }
 
@@ -217,7 +219,7 @@ fn touch_down(x, y) {
     return;
   }
 
-  let tx = x / this.tile_size; let ty = y / this.tile_size;
+  let tx = x / get_tile_size(); let ty = y / get_tile_size();
 
   let dir = "";
   if tx == 1 && ty == 11 {

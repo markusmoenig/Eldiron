@@ -4,33 +4,6 @@
 use crate::prelude::*;
 use rhai::{ Engine };
 
-// --- Button (Unused for now)
-
-#[derive(Debug, Clone)]
-pub struct ScriptButton {
-
-    pub rect            : ScriptRect,
-    pub text            : String,
-    pub font_name       : String,
-    pub font_size       : f32,
-}
-
-impl ScriptButton {
-    pub fn new(rect: ScriptRect, text: String, font_name: String, font_size: f32) -> Self {
-        Self {
-            rect,
-            text,
-            font_name,
-            font_size,
-        }
-    }
-
-    pub fn register(_engine: &mut Engine) {
-        //engine.register_type_with_name::<ScriptButton>("Button");
-            //.register_fn("get", ScriptTilemaps::get);
-    }
-}
-
 // --- Tilemaps
 
 #[derive(Debug, Clone)]
@@ -336,6 +309,22 @@ impl ScriptCmd {
     }
 }
 
+pub struct ScriptInfo {
+    pub width           : i32,
+    pub height          : i32,
+    pub tile_size       : i32,
+}
+
+impl ScriptInfo {
+    pub fn new() -> Self {
+        Self {
+            width       : 0,
+            height      : 0,
+            tile_size   : 0,
+        }
+    }
+}
+
 // Global functions
 
 use lazy_static::lazy_static;
@@ -343,6 +332,8 @@ use std::sync::Mutex;
 
 lazy_static! {
     pub static ref SCRIPTCMD : Mutex<ScriptCmd> = Mutex::new(ScriptCmd::new());
+    pub static ref MESSAGECMD : Mutex<ScriptMessageCmd> = Mutex::new(ScriptMessageCmd::new());
+    pub static ref INFOCMD : Mutex<ScriptInfo> = Mutex::new(ScriptInfo::new());
 }
 
 /// Register the global cmd functions for drawing etc.
@@ -416,6 +407,30 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
     });
     engine.register_fn("draw_region", |name: &str, rect: ScriptRect, size: i32| {
         SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawRegion(name.to_owned(), rect, size));
+    });
+
+    // Message Cmds
+
+    engine.register_fn("message_status", |message: &str| {
+        MESSAGECMD.lock().unwrap().status(message);
+    });
+
+    // Info Cmds
+
+    engine.register_fn("get_width", || -> i32 {
+        INFOCMD.lock().unwrap().width
+    });
+
+    engine.register_fn("get_height", || -> i32 {
+        INFOCMD.lock().unwrap().height
+    });
+
+    engine.register_fn("get_tile_size", || -> i32 {
+        INFOCMD.lock().unwrap().tile_size
+    });
+
+    engine.register_fn("set_tile_size", |size: i32| {
+        INFOCMD.lock().unwrap().tile_size = size;
     });
 
 }

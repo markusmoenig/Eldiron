@@ -104,8 +104,7 @@ impl GameRender<'_> {
 
         engine.register_type_with_name::<ScriptTile>("Tile");
 
-        engine.register_type_with_name::<ScriptMessageCmd>("MessageCmd")
-           .register_fn("status", ScriptMessageCmd::status);
+        engine.register_type_with_name::<ScriptMessageCmd>("MessageCmd");
 
         engine.register_type_with_name::<ScriptRect>("Rect")
             .register_fn("rect", ScriptRect::new)
@@ -246,12 +245,9 @@ impl GameRender<'_> {
 
                         self.scope = Scope::new();
 
-                        let cmd = ScriptCmd::new();
-                        this_map.insert("width".into(), (update.screen_size.0).into() );
-                        this_map.insert("height".into(), (update.screen_size.1).into() );
-                        this_map.insert("tile_size".into(), (update.def_square_tile_size).into() );
-
-                        this_map.insert("message".into(), Dynamic::from(ScriptMessageCmd::new()));
+                        INFOCMD.lock().unwrap().width = update.screen_size.0;
+                        INFOCMD.lock().unwrap().height = update.screen_size.1;
+                        INFOCMD.lock().unwrap().tile_size = update.def_square_tile_size;
 
                         let mut tilemaps = ScriptTilemaps::new();
                         for index in 0..self.asset.tileset.maps_names.len() {
@@ -287,33 +283,7 @@ impl GameRender<'_> {
                                         []
                                     );
 
-                        if let Some(map) = self.this_map.read_lock::<Map>() {
-                            if let Some(w) = map.get("width") {
-                                if let Some(width) = w.as_int().ok() {
-                                    self.width = width as usize;
-                                }
-                            }
-                            if let Some(h) = map.get("height") {
-                                if let Some(height) = h.as_int().ok() {
-                                    self.height = height as usize;
-                                }
-                            }
-                            if let Some(ts) = map.get("tile_size") {
-                                if let Some(tile_size) = ts.as_int().ok() {
-                                    self.tile_size = tile_size as usize;
-                                }
-                            }
-                        }
-
-                        if let Some(width) = self.scope.get_value::<i64>("width") {
-                            self.width = width as usize;
-                        }
-                        if let Some(height) = self.scope.get_value::<i64>("height") {
-                            self.height = height as usize;
-                        }
-                        if let Some(tile_size) = self.scope.get_value::<i64>("tile_size") {
-                            self.tile_size = tile_size as usize;
-                        }
+                        self.tile_size = INFOCMD.lock().unwrap().tile_size as usize;
 
                         if self.frame.len() != self.width * self.height * 4 {
                             self.frame = vec![0; self.width * self.height * 4];
@@ -1371,7 +1341,7 @@ impl GameRender<'_> {
     fn process_cmds(&mut self, player_id: Uuid) -> Vec<String> {
         let mut commands = vec![];
 
-        if let Some(mut map) = self.this_map.write_lock::<Map>() {
+        if let Some(map) = self.this_map.write_lock::<Map>() {
 
             let mut display_mode_3d = false;
 
@@ -1526,17 +1496,8 @@ impl GameRender<'_> {
             }
         }
 
-        let mut messages = vec![];
-
-        if let Some(mut map) = self.this_map.write_lock::<Map>() {
-            if let Some(c) = map.get_mut("message") {
-                if let Some(mut cmd) = c.write_lock::<ScriptMessageCmd>() {
-
-                    messages = cmd.messages.clone();
-                    cmd.clear();
-                }
-            }
-        }
+        let messages = MESSAGECMD.lock().unwrap().messages.clone();
+        MESSAGECMD.lock().unwrap().clear();
 
         for cmd in &messages {
 
