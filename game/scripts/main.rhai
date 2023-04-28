@@ -21,9 +21,6 @@ fn init() {
   this.switch_button.text = "MODERN";
   this.switch_button.rect = rect(28, 28, 80, 20);
 
-  this.style_switch_rect = rect(28, 28, 80, 20);
-  this.style_name = "MODERN";
-
   this.region_mode_rect = rect(578, 28, 60, 20);
   this.region_mode = "2D";
 
@@ -59,7 +56,7 @@ fn draw() {
 
   let shape = shape();
   let s = 25; let game_width = 640; let game_height = 581; shape.border_size = 2.0;
-  if this.style_name == "CLASSIC" {
+  if this.switch_button.text == "CLASSIC" {
     shape.color = rgb(20, 30, 100); shape.border_color = rgb(100, 100, 100);
     shape.add_rounded_rect(rect(0, 0, 200, s), rect(10, 15, 0, 15));                     // Top Left
     shape.add_rounded_rect(rect(400, 0, this.width - 400, s), rect(15, 10, 15, 0));      // Top Right
@@ -82,7 +79,7 @@ fn draw() {
     draw_game_2d(rect(s + 615 - 150, s, 150, 150));
     this.region.display_mode = "3d";
   } else {
-    if this.style_name == "CLASSIC" {
+    if this.switch_button.text == "CLASSIC" {
       draw_game_2d(rect(s, s, 615, 533));
     } else {
       draw_game_offset_2d(rect(15, 10, this.width - 35, this.height - 34), pos(5, 0));
@@ -95,8 +92,7 @@ fn draw() {
 
   // Buttons
 
-  //this.cmd.draw_rect(this.style_switch_rect, rgb(0, 0, 0));
-  //this.cmd.draw_text_rect(this.style_switch_rect, this.style_name, this.font_name, 15.0, rgb(180, 180, 180), "center");
+  this.switch_button.draw();
 
   if this.region.supports_3d == true {
     // This region supports 3d, make it switchable
@@ -144,7 +140,7 @@ fn draw() {
   draw_tile_sized(this.actions.Inventory.pos, tile, 32);
 
   // Player Info
-  if this.style_name == "MODERN" {
+  if this.switch_button.text == "MODERN" {
     draw_rect(rect(671 - 8, 26 - 8, 326 + 16, 40 + 16), rgba(20, 20, 20, 220));
     draw_rect(rect(671 - 8, 90 - 8, 326 + 16, 80 + 16), rgba(20, 20, 20, 220));
     draw_rect(rect(671 - 8, 197 - 8, 326 + 16, 364 + 16), rgba(20, 20, 20, 220));
@@ -198,18 +194,16 @@ fn draw() {
   if this.context_text.len() > 0 {
     draw_text(pos(300, this.height - 22), this.context_text, this.font_name, 14.0, rgb(150, 150, 150));
   }
-
-  this.switch_button.draw();
 }
 
 // Handle the mouse events
 fn touch_down(x, y) {
 
-  if this.style_switch_rect.is_inside(pos(x,y)) {
-    if this.style_name == "CLASSIC" {
-      this.style_name = "MODERN";
+  if this.switch_button.clicked(pos(x, y)) {
+    if this.switch_button.text == "CLASSIC" {
+      this.switch_button.text = "MODERN";
     } else {
-      this.style_name = "CLASSIC";
+      this.switch_button.text = "CLASSIC";
     }
     return;
   }
