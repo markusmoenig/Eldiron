@@ -1,4 +1,5 @@
 import "button" as button;
+import "context" as context;
 
 fn init() {
 
@@ -14,14 +15,14 @@ fn init() {
   this.font_name = "Roboto-Medium";
   this.context = "Inventory";
   this.board = rect(671, 197, 326, 364);
-  this.items = rect(671, 90, 326, 80);
-  this.item_id = -1;
-  this.item_highlighted = 0;
   set_valid_mouse_rect(rect(80, 80, 510, 340));
 
-  this.switch_button = button::TextButton();
-  this.switch_button.text = "MODERN";
-  this.switch_button.rect = rect(28, 28, 80, 20);
+  // In the context rect we list the spells, inventory, gear etc.
+  this.context_rect = rect(663, 82, 342, 96);
+  this.inventory = context::InventoryWidget(this.context_rect);
+  this.spells = context::SpellsWidget(this.context_rect);
+
+  this.switch_button = button::TextButton("MODERN", rect(28, 28, 80, 20));
 
   this.region_mode_rect = rect(578, 28, 60, 20);
   this.region_mode = "2D";
@@ -143,7 +144,7 @@ fn draw() {
   // Player Info
   if this.switch_button.text == "MODERN" {
     draw_rect(rect(671 - 8, 26 - 8, 326 + 16, 40 + 16), rgba(20, 20, 20, 220));
-    draw_rect(rect(671 - 8, 90 - 8, 326 + 16, 80 + 16), rgba(20, 20, 20, 220));
+    draw_rect(this.context_rect, rgba(20, 20, 20, 220));
     draw_rect(rect(671 - 8, 197 - 8, 326 + 16, 364 + 16), rgba(20, 20, 20, 220));
   }
 
@@ -157,35 +158,10 @@ fn draw() {
   draw_messages(this.board, this.font_name, 16.0, this.silver);
 
   if this.context == "Spells" {
-    let y = 90;
-    let color = rgb(150, 150, 150);
-    let index = 0;
-    let spells = get_spells();
-    for spell in spells {
-      //if this.item_id == item && this.item_highlight > 0 {
-      //  color = this.silver;
-      //  this.item_highlight -= 1;
-      //}
-      draw_text(pos(671, y), "" + (index + 1) + ". " + spell.name, this.font_name, 19.0, color);
-      y += 20;
-      index += 1;
-    }
+    this.spells.draw();
   } else
   if this.context == "Inventory" {
-    let y = 90;
-    let color = rgb(150, 150, 150);
-    let index = 0;
-    let inventory = get_inventory();
-    for item in inventory {
-      if this.item_id == index && this.item_highlight > 0 {
-        color = this.silver;
-        this.item_highlight -= 1;
-      }
-      draw_text(pos(671, y), "" + (index + 1) + ". " + item, this.font_name, 19.0, color);
-      draw_text_rect(rect(671, y, 326, 20), "" + item.amount, this.font_name, 19.0, color, "right");
-      y += 20;
-      index += 1;
-    }
+    this.inventory.draw();
   } else
   if this.context == "Weapons" {
     let y = 90;
@@ -256,14 +232,11 @@ fn touch_down(x, y) {
     }
   }
 
-  // Item based action ?
-  if this.items.is_inside(pos(x, y)) {
-    let item = (y - this.items.y) / 20;
-    if this.inventory.len() > item {
-      action_inventory(this.curr_action, item);
-      this.item_id = 0;
-      this.item_highlight = 2;
+    // Inventory Action ?
+  if this.context == "Inventory" {
+    if this.inventory.clicked(pos(x, y), this.curr_action) {
       this.curr_action = "Move";
+      return;
     }
   }
 
@@ -329,20 +302,10 @@ fn key_down(key) {
 
   // Inventory Action ?
   if this.context == "Inventory" {
-    try {
-      let key_int = parse_int(key) - 1;
-      if key_int >= 0 {
-        let inventory = get_inventory();
-        if inventory.len() > key_int {
-          action_inventory(this.curr_action, key_int);
-          this.item_id = key_int;
-          this.item_highlight = 2;
-          this.curr_action = "Move";
-          return;
-        }
-      }
+    if this.inventory.key_down(key, this.curr_action) {
+      this.curr_action = "Move";
+      return;
     }
-    catch(err) {}
   }
 
   this.set_info_text();

@@ -106,15 +106,8 @@ impl GameRender<'_> {
 
         engine.register_type_with_name::<ScriptMessageCmd>("MessageCmd");
 
-        engine.register_type_with_name::<ScriptRect>("Rect")
-            .register_fn("rect", ScriptRect::new)
-            .register_fn("is_inside", ScriptRect::is_inside)
-            .register_get("x", ScriptRect::x)
-            .register_get("y", ScriptRect::y)
-            .register_get("pos", ScriptRect::pos);
-
-        engine.register_type_with_name::<ScriptPosition>("Position")
-            .register_fn("pos", ScriptPosition::new);
+        ScriptPosition::register(&mut engine);
+        ScriptRect::register(&mut engine);
 
         engine.register_type_with_name::<ScriptRGB>("RGB")
             .register_fn("rgb", ScriptRGB::new)
@@ -218,7 +211,7 @@ impl GameRender<'_> {
                             resolver.insert(name.replace(".rhai", ""), module);
                         }
                     } else {
-                        print!("Error in {}: {}", name, rc.err().unwrap().to_string());
+                        println!("Error in {}: {}", name, rc.err().unwrap().to_string());
                     }
                 }
             }
@@ -274,7 +267,7 @@ impl GameRender<'_> {
                         }
 
                         #[allow(deprecated)]
-                        let _result = self.engine.call_fn_raw(
+                        let result = self.engine.call_fn_raw(
                                         &mut self.scope,
                                         &ast,
                                         true,
@@ -283,6 +276,10 @@ impl GameRender<'_> {
                                         Some(&mut self.this_map),
                                         []
                                     );
+
+                        if let Some(err) = result.err() {
+                            print!("Error in init(): {}", err.to_string());
+                        }
 
                         self.tile_size = INFOCMD.lock().unwrap().tile_size as usize;
 

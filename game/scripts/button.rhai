@@ -1,11 +1,11 @@
 // A text button
 
-fn TextButton() {
+fn TextButton(text, rect) {
   let button = #{
-    text              : "Button",
+    text              : text,
     font_name         : "Roboto-Medium",
     font_size         : 15.0,
-    rect              : rect(0, 0, 100, 40),
+    rect              : rect,
     background_color  : rgb(0, 0, 0),
     text_color        : rgb(180, 180, 180),
     clicked_count     : -1,

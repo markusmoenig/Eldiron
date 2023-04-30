@@ -78,6 +78,21 @@ impl ScriptPosition {
             pos_signed  : (x as isize, y as isize),
         }
     }
+
+    pub fn x(&mut self) -> i32 {
+        self.pos.0 as i32
+    }
+
+    pub fn y(&mut self) -> i32 {
+        self.pos.1 as i32
+    }
+
+    pub fn register(engine: &mut Engine) {
+        engine.register_type_with_name::<ScriptPosition>("Position")
+            .register_get("x", ScriptPosition::x)
+            .register_get("y", ScriptPosition::y)
+            .register_fn("pos", ScriptPosition::new);
+    }
 }
 
 // --- ScriptRect
@@ -113,6 +128,14 @@ impl ScriptRect {
         self.rect.1 as i32
     }
 
+    pub fn width(&mut self) -> i32 {
+        self.rect.2 as i32
+    }
+
+    pub fn height(&mut self) -> i32 {
+        self.rect.3 as i32
+    }
+
     pub fn pos(&mut self) -> ScriptPosition {
         ScriptPosition { pos: (self.rect.0, self.rect.1), pos_signed: (self.rect.0 as isize, self.rect.1 as isize) }
     }
@@ -125,6 +148,17 @@ impl ScriptRect {
     pub fn contains(&self, pos: (usize, usize)) -> bool {
         pos.0 >= self.rect.0 && pos.1 >= self.rect.1 && pos.0 < self.rect.0 + self.rect.2 && pos.1 < self.rect.1 + self.rect.3
 
+    }
+
+    pub fn register(engine: &mut Engine) {
+        engine.register_type_with_name::<ScriptRect>("Rect")
+            .register_fn("rect", ScriptRect::new)
+            .register_fn("is_inside", ScriptRect::is_inside)
+            .register_get("x", ScriptRect::x)
+            .register_get("y", ScriptRect::y)
+            .register_get("width", ScriptRect::width)
+            .register_get("height", ScriptRect::height)
+            .register_get("pos", ScriptRect::pos);
     }
 }
 
