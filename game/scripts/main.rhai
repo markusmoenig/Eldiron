@@ -232,7 +232,14 @@ fn touch_down(x, y) {
     }
   }
 
-    // Inventory Action ?
+  // Spells ?
+  if this.context == "Spells" {
+    if this.spells.clicked(pos(x, y)) {
+      return;
+    }
+  }
+
+  // Inventory Action ?
   if this.context == "Inventory" {
     if this.inventory.clicked(pos(x, y), this.curr_action) {
       this.curr_action = "Move";
@@ -241,7 +248,12 @@ fn touch_down(x, y) {
   }
 
   // Coordinate based action ?
-  action_coordinate(this.curr_action);
+  if this.context == "Spells" && this.spells.selected_item != -1 {
+    spell_at_coordinate(this.spells.selected_name);
+  } else {
+    action_at_coordinate(this.curr_action);
+  }
+
   this.set_info_text();
 }
 
@@ -298,6 +310,13 @@ fn key_down(key) {
   } else
   if key == "e" {
     this.curr_action = "Equip";
+  }
+
+  // Spell selected ?
+  if this.context == "Spells" {
+    if this.spells.key_down(key) {
+      return;
+    }
   }
 
   // Inventory Action ?

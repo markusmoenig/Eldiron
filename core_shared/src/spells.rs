@@ -46,6 +46,18 @@ impl Spells {
         }
     }
 
+    /// Length of the spells array
+    pub fn len(&mut self) -> i32 {
+        self.spells.len() as i32
+    }
+
+    pub fn get_spell_at(&mut self, index: i32) -> Spell {
+        if index >= 0 && index < self.spells.len() as i32 {
+            return self.spells[index as usize].clone()
+        }
+        Spell::new(Uuid::new_v4(), "".to_string())
+    }
+
     /// Queues a spell to be executed
     pub fn execute(&mut self, name: &str) {
         self.spells_to_execute.push(name.to_string());
@@ -68,6 +80,8 @@ pub fn script_register_spells_api(engine: &mut rhai::Engine) {
         .register_get("name", Spell::get_name);
 
     engine.register_type_with_name::<Spells>("Spells")
+        .register_fn("len", Spells::len)
+        .register_fn("spell_at", Spells::get_spell_at)
         .register_iterator::<Spells>();
 
 }

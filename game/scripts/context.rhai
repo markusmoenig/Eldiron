@@ -9,6 +9,7 @@ fn SpellsWidget(rect) {
     text_color        : rgb(150, 150, 150),
     highlighted_color : rgb(192, 192, 192),
     selected_item     : -1,
+    selected_name     : "",
     highlight_item    : -1,
   };
 
@@ -20,9 +21,8 @@ fn SpellsWidget(rect) {
 
     for spell in spells {
       let color = this.text_color;
-      if this.selected_item == index && this.highlight_item > 0 {
+      if this.selected_item == index {
         color = this.highlighted_color;
-        this.highlight_item -= 1;
       }
       draw_text(pos(x, y), "" + (index + 1) + ". " + spell.name, this.font_name, this.font_size, color);
       y += 20;
@@ -30,15 +30,14 @@ fn SpellsWidget(rect) {
     }
   };
 
-  spells.key_down = |key, curr_action| {
+  spells.key_down = |key| {
     try {
       let key_int = parse_int(key) - 1;
       if key_int >= 0 {
         let spells = get_spells();
         if spells.len() > key_int {
-          //action_inventory(curr_action, key_int);
           this.selected_item = key_int;
-          this.highlight_item = 2;
+          this.selected_name = spells.spell_at(this.selected_item).name;
           return true;
         }
       }
@@ -47,15 +46,14 @@ fn SpellsWidget(rect) {
     return false;
   };
 
-  spells.clicked = |pos, curr_action| {
+  spells.clicked = |pos| {
     if this.rect.is_inside(pos) {
       let y = this.rect.y + this.margin;
       let selected_item = (pos.y - y) / 20;
       let spells = get_spells();
       if spells.len() > selected_item {
-        //action_inventory(curr_action, selected_item);
         this.selected_item = selected_item;
-        this.highlight_item = 2;
+        this.selected_name = spells.spell_at(selected_item).name;
       }
       true
     } else {

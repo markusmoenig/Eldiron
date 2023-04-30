@@ -401,8 +401,12 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
         SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::Action(action.to_owned(), direction.to_owned().to_lowercase(), None));
     });
 
-    engine.register_fn("action_coordinate", |action: &str| {
+    engine.register_fn("action_at_coordinate", |action: &str| {
         SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::ActionCoordinate(action.to_owned(), None));
+    });
+
+    engine.register_fn("spell_at_coordinate", |spell: &str| {
+        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::ActionCoordinate("Cast".to_owned(), Some(spell.to_owned())));
     });
 
     engine.register_fn("action_gear", |action: &str,  gear_index: i32| {
