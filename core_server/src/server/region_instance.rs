@@ -437,21 +437,44 @@ impl RegionInstance<'_> {
 
                             // A directed action ( Move / Look - North etc)
 
-                            for id in &self.instances[inst_index].tree_ids {
-                                if let Some(behavior) = self.get_behavior(self.instances[inst_index].behavior_id, BehaviorType::Behaviors) {
-                                    if let Some(node) = behavior.nodes.get(&id) {
-                                        if node.name == action.action {
-                                            tree_id = Some(*id);
-                                            break;
+                            if action.action.to_lowercase() == "cast" && action.spell.is_some() {
+                                // Cast spell
+
+                                let mut to_cast : Option<(Uuid, Uuid)> = None;
+                                if let Some(spell_name) = &action.spell {
+                                    let name = spell_name.to_lowercase();
+                                    for (behavior_id, spell) in&self.spells {
+                                        if spell.name.to_lowercase() == name {
+                                            for (node_id, node) in &spell.nodes {
+                                                if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name.to_lowercase() == "cast" {
+                                                    to_cast = Some((*behavior_id, *node_id));
+                                                }
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            if let Some(tree_id) = tree_id {
-                                self.execute_node(inst_index, tree_id, None);
+                                if let Some(to_cast) = to_cast {
+                                    self.execute_spell_node(inst_index, to_cast.0, to_cast.1);
+                                }
+
                             } else {
-                                println!("Cannot find valid tree for directed action {}", action.action);
+                                for id in &self.instances[inst_index].tree_ids {
+                                    if let Some(behavior) = self.get_behavior(self.instances[inst_index].behavior_id, BehaviorType::Behaviors) {
+                                        if let Some(node) = behavior.nodes.get(&id) {
+                                            if node.name == action.action {
+                                                tree_id = Some(*id);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if let Some(tree_id) = tree_id {
+                                    self.execute_node(inst_index, tree_id, None);
+                                } else {
+                                    println!("Cannot find valid tree for directed action {}", action.action);
+                                }
                             }
                         } else
                         if let Some(inventory_index) = &action.inventory_index {
@@ -1307,6 +1330,83 @@ impl RegionInstance<'_> {
             }
 
             if let Some(connector) = self.execute_item_node(instance_index, item_id, *connected_node_id) {
+                if is_sequence {
+                    // Inside a sequence break out if the connector is not Success
+                    if connector == BehaviorNodeConnector::Fail || connector == BehaviorNodeConnector::Right {
+                        break;
+                    }
+
+                }
+            }
+        }
+        rc
+    }
+
+    /// Executes the given spell node and follows the connection chain
+    pub fn execute_spell_node(&mut self, instance_index: usize, spell_id: Uuid, node_id: Uuid) -> Option<BehaviorNodeConnector> {
+
+        let mut connectors : Vec<BehaviorNodeConnector> = vec![];
+        let mut connected_node_ids : Vec<Uuid> = vec![];
+        let mut possibly_executed_connections : Vec<(BehaviorType, Uuid, BehaviorNodeConnector)> = vec![];
+
+        let mut is_sequence = false;
+        let mut rc : Option<BehaviorNodeConnector> = None;
+
+        // Call the node and get the resulting BehaviorNodeConnector
+        if let Some(item) = self.spells.get_mut(&spell_id) {
+            if let Some(node) = item.nodes.get_mut(&node_id) {
+
+                // Handle special nodes
+                if node.behavior_type == BehaviorNodeType::BehaviorTree || node.behavior_type == BehaviorNodeType::Linear {
+                    connectors.push(BehaviorNodeConnector::Bottom1);
+                    connectors.push(BehaviorNodeConnector::Bottom2);
+                    connectors.push(BehaviorNodeConnector::Bottom);
+                } else
+                if node.behavior_type == BehaviorNodeType::Sequence {
+                    connectors.push(BehaviorNodeConnector::Bottom1);
+                    connectors.push(BehaviorNodeConnector::Bottom2);
+                    connectors.push(BehaviorNodeConnector::Bottom);
+                    connectors.push(BehaviorNodeConnector::Bottom3);
+                    connectors.push(BehaviorNodeConnector::Bottom4);
+                    is_sequence = true;
+                } else {
+                    if let Some(node_call) = self.nodes.get_mut(&node.behavior_type) {
+                        let item_id = spell_id;
+                        let connector = node_call(instance_index, (item_id, node_id), self, BehaviorType::Spells);
+                        rc = Some(connector);
+                        connectors.push(connector);
+                    } else {
+                        connectors.push(BehaviorNodeConnector::Bottom);
+                    }
+                }
+            }
+        }
+
+        // Search the connections to check if we can find an ongoing node connection
+        for connector in connectors {
+            if let Some(item) = self.spells.get_mut(&spell_id) {
+                for c in &item.connections {
+                    if c.0 == node_id && c.1 == connector {
+                        connected_node_ids.push(c.2);
+                        if is_sequence == false {
+                            self.executed_connections.push((BehaviorType::Spells, c.0, c.1));
+                        } else {
+                            possibly_executed_connections.push((BehaviorType::Spells, c.0, c.1));
+                        }
+                    }
+                }
+            }
+        }
+
+        // And if yes execute it
+        for (index, connected_node_id) in connected_node_ids.iter().enumerate() {
+
+            // If this is a sequence, mark this connection as executed
+            if is_sequence {
+                self.executed_connections.push(possibly_executed_connections[index]);
+            }
+
+            if let Some(connector) = self.execute_spell_node(instance_index, spell_id, *connected_node_id) {
                 if is_sequence {
                     // Inside a sequence break out if the connector is not Success
                     if connector == BehaviorNodeConnector::Fail || connector == BehaviorNodeConnector::Right {

@@ -85,6 +85,15 @@ pub fn get_node_value(id: (Uuid, Uuid, &str), data: &mut RegionInstance, behavio
             }
         }
     } else
+    if behavior_type == BehaviorType::Spells {
+        if let Some(item) = data.spells.get_mut(&id.0) {
+            if let Some(node) = item.nodes.get_mut(&id.1) {
+                if let Some(value) = node.values.get_mut(id.2) {
+                    return Some(value.clone());
+                }
+            }
+        }
+    } else
     if behavior_type == BehaviorType::GameLogic {
         let game = &mut data.game_data;
         if let Some(node) = game.nodes.get_mut(&id.1) {

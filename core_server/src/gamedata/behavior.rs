@@ -24,6 +24,7 @@ pub enum BehaviorType {
     Systems,
     Items,
     GameLogic,
+    Spells,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Copy, Clone, Debug)]
