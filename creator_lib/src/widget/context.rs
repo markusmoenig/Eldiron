@@ -435,7 +435,8 @@ impl ScreenContext<'_> {
         for path in paths {
             let path = &path.path();
             if let Some(script) = fs::read_to_string(path).ok() {
-                scripts.insert(path::Path::new(&path).file_stem().unwrap().to_str().unwrap().to_string(), script);
+                let name = path::Path::new(&path).file_stem().unwrap().to_str().unwrap().to_string();
+                scripts.insert(name, script);
             }
         }
 
@@ -467,16 +468,20 @@ impl ScreenContext<'_> {
     /// Copy the demo project to the given destination path
     pub fn copy_demo(&mut self, project_path: PathBuf) -> Result<std::path::PathBuf, String> {
 
+        let mut options = fs_extra::dir::CopyOptions::new();
+        options.overwrite = true;
+        options.copy_inside = true;
+
         // Copy asset directory
         let asset_path = self.resource_path.join("assets");
-        let rc = fs_extra::dir::copy(asset_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
+        let rc = fs_extra::dir::copy(asset_path, project_path.clone(), &options);
         if rc.is_err() {
             //return Err("Could not copy 'assets' directory".to_string());
         }
 
         // Copy game directory
         let game_path = self.resource_path.join("game");
-        let rc = fs_extra::dir::copy(game_path, project_path.clone(), &fs_extra::dir::CopyOptions::new());
+        let rc = fs_extra::dir::copy(game_path, project_path.clone(), &options);
         if rc.is_err() {
             //return Err(format!("Could not copy 'game' directory {:?}", rc.err()));
         }
@@ -558,8 +563,13 @@ impl ScreenContext<'_> {
 
         // Create game scripts directory
         let scripts_path = game_path.join("scripts");
-        if fs::metadata(spells_path.clone()).is_ok() == false {
+        if fs::metadata(scripts_path.clone()).is_ok() == false {
             let rc = fs::create_dir(scripts_path.clone());
+
+            if let Some(main) = self.scripts.get("screen") {
+                let path = scripts_path.join("main.rhai");
+                _ = fs::write(path, main);
+            }
 
             if rc.is_err() {
                 // return Err("Could not create items directory.".to_string());
