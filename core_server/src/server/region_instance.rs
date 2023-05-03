@@ -175,6 +175,7 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::CallBehavior, call_behavior);
         nodes.insert(BehaviorNodeType::HasTarget, has_target);
         nodes.insert(BehaviorNodeType::Untarget, untarget);
+        nodes.insert(BehaviorNodeType::MagicDamage, magic_damage);
         nodes.insert(BehaviorNodeType::DealDamage, deal_damage);
         nodes.insert(BehaviorNodeType::TakeDamage, take_damage);
         nodes.insert(BehaviorNodeType::DropInventory, drop_inventory);
@@ -197,6 +198,7 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::Take, player_take);
         nodes.insert(BehaviorNodeType::Drop, player_drop);
         nodes.insert(BehaviorNodeType::Target, player_target);
+        nodes.insert(BehaviorNodeType::MagicTarget, magic_target);
         nodes.insert(BehaviorNodeType::LightItem, light_item);
         nodes.insert(BehaviorNodeType::SetItemTile, set_item_tile);
         nodes.insert(BehaviorNodeType::RandomWalk, random_walk);
@@ -2076,6 +2078,7 @@ impl RegionInstance<'_> {
 
                             let mut spell_tile            : Option<TileData> = None;
                             let mut spells_sink= PropertySink::new();
+                            let mut spell_distance = 3;
 
                             if let Some(value )= node.values.get(&"tile".to_string()) {
                                 spell_tile = value.to_tile_data();
@@ -2099,10 +2102,16 @@ impl RegionInstance<'_> {
                                     }
                                 }
                             }
+                            if let Some(distance) = spells_sink.get(&"spell_distance") {
+                                if let Some(d)  = distance.as_int() {
+                                    spell_distance = d;
+                                }
+                            }
 
                             if include_spell {
                                 let mut spell = Spell::new(*id, behavior.name.to_string());
                                 spell.tile = spell_tile;
+                                spell.distance = spell_distance;
                                 spells.spells.push(spell);
 
                             }

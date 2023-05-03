@@ -1106,6 +1106,222 @@ pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
     rc
 }
 
+/// Assign target
+pub fn magic_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+    if data.instances[instance_index].instance_type == BehaviorInstanceType::NonPlayerCharacter {
+        return BehaviorNodeConnector::Success;
+    }
+
+    let mut dp:Option<Position> = None;
+    if let Some(p) = &data.instances[instance_index].position {
+        if let Some(action) = &data.instances[instance_index].action {
+            if action.direction == PlayerDirection::North {
+                dp = Some(Position::new(p.region, p.x, p.y - 1));
+                data.action_direction_text = "North".to_string();
+            } else
+            if action.direction == PlayerDirection::South {
+                dp = Some(Position::new(p.region, p.x, p.y + 1));
+                data.action_direction_text = "South".to_string();
+            } else
+            if action.direction == PlayerDirection::East {
+                dp = Some(Position::new(p.region, p.x + 1, p.y));
+                data.action_direction_text = "East".to_string();
+            } else
+            if action.direction == PlayerDirection::West {
+                dp = Some(Position::new(p.region, p.x - 1, p.y));
+                data.action_direction_text = "West".to_string();
+            } else
+            if action.direction == PlayerDirection::Coordinate {
+                if let Some(coord) = action.coordinate {
+                    dp = Some(Position::new(p.region, coord.0, coord.1));
+                    data.action_direction_text = "".to_string();
+                }
+            }
+        }
+    }
+
+    let mut rc = BehaviorNodeConnector::Fail;
+
+    data.scopes[instance_index].set_value("failure", FailureEnum::No);
+
+    if let Some(dp) = &dp {
+        if let Some(position) = &data.instances[instance_index].position {
+            // Make sure the target is within spell range
+            let spell_name = data.instances[instance_index].action.clone().unwrap().spell.unwrap();
+            let distance = compute_distance(&position, &dp);
+            let spell_distance = get_spell_distance(instance_index, spell_name, data);
+            if  distance as i32 <= spell_distance {
+                for inst_index in 0..data.instances.len() {
+                    if inst_index != instance_index {
+                        // Only track if the state is OK
+                        if data.instances[inst_index].state.is_alive() {
+                            if let Some(pos) = &data.instances[inst_index].position {
+                                if *dp == *pos {
+                                    data.instances[instance_index].target_instance_index = Some(inst_index);
+                                    rc = BehaviorNodeConnector::Success;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                data.scopes[instance_index].set_value("failure", FailureEnum::TooFarAway);
+            }
+        }
+    }
+
+    rc
+}
+
+/// Deal magic damage
+pub fn magic_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+
+    let speed : f32 = 4.0;
+
+    let mut damage = 0;
+    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "damage".to_string()), data) {
+        damage = rc as i32;
+    }
+
+    // Apply the speed delay
+    let delay = speed.clamp(0.0, f32::MAX);
+
+    let mut rc = BehaviorNodeConnector::Fail;
+
+    if data.instances[instance_index].target_instance_index.is_some() {
+        let target_index = data.instances[instance_index].target_instance_index.unwrap();
+        data.instances[target_index].damage_to_be_dealt = Some(damage);
+
+        let mut behavior_tree_id : Option<Uuid> = None;
+
+        let tree_name = "onHit";
+        if let Some(behavior) = data.behaviors.get(&data.instances[target_index].behavior_id) {
+            for (node_id, node) in &behavior.nodes {
+                if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name {
+                    behavior_tree_id = Some(*node_id);
+                    break;
+                }
+            }
+        }
+
+        data.instances[instance_index].sleep_cycles = delay as usize;
+
+        if let Some(behavior_tree_id) = behavior_tree_id {
+            data.action_subject_text = data.instances[instance_index].name.clone();
+            data.scopes[target_index].set_value("_attack_rating", 1);
+            let _rc = data.execute_node(target_index, behavior_tree_id, None);
+            if data.instances[target_index].state == BehaviorInstanceState::Normal {
+                rc = BehaviorNodeConnector::Right;
+            } else {
+                rc = BehaviorNodeConnector::Success;
+            }
+        }
+    }
+
+    // We killed the opponent, we call the LevelTree node to add experience
+    if rc == BehaviorNodeConnector::Success {
+
+        let mut system_name : Option<String> = None;
+        let mut tree_name : Option<String> = None;
+
+        if let Some(e) = data.scopes[instance_index].get_mut("experience") {
+            if let Some(exp) = e.read_lock::<Experience>() {
+                system_name = exp.system_name.clone();
+                tree_name = exp.tree_name.clone();
+            }
+        }
+
+        if let Some(system_name) = system_name {
+            if let Some(tree_name) = tree_name {
+
+                let mut exp_to_add = 0;
+
+                if let Some(index) = data.system_names.iter().position(|r| *r == system_name) {
+                    if let Some(behavior) = data.systems.get(&data.system_ids[index]) {
+                        for (node_id, node) in &behavior.nodes {
+                            if node.name == tree_name {
+
+                                if let Some(value) = eval_number_expression_instance(instance_index, (BehaviorType::Systems, behavior.id, *node_id, "experience_kill".to_string()), data) {
+                                    exp_to_add = value as i32;
+                                }
+
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if exp_to_add > 0 {
+
+
+                    let mut script_id = (BehaviorType::Systems, Uuid::nil(), Uuid::nil(), "".to_string());
+
+                    // Add the experience
+                    if let Some(e) = data.scopes[instance_index].get_mut("experience") {
+                        if let Some(mut exp) = e.write_lock::<Experience>() {
+
+                            exp.experience += exp_to_add;
+
+                            let mut str = exp.experience_msg.clone();
+                            str = str.replace("{}", &exp_to_add.to_string());
+
+                            // Send message
+                            let message_data = MessageData {
+                                message_type    : MessageType::Status,
+                                message         : str,
+                                from            : "System".to_string(),
+                                right           : None,
+                                center          : None,
+                                buffer          : None
+                            };
+
+                            data.instances[instance_index].messages.push(message_data.clone());
+
+                            let mut new_level = 0;
+                            for lvl in 0..exp.levels.len() {
+                                if exp.experience >= exp.levels[lvl].0 {
+                                    new_level = lvl as i32 + 1;
+
+                                    // Send message
+                                    let message_data = MessageData {
+                                        message_type    : MessageType::Status,
+                                        message         : exp.levels[lvl].1.clone(),
+                                        from            : "System".to_string(),
+                                        right           : None,
+                                        center          : None,
+                                        buffer          : None
+                                    };
+
+                                    data.instances[instance_index].messages.push(message_data.clone());
+                                } else {
+                                    break;
+                                }
+                            }
+                            if new_level > exp.level {
+                                exp.level = new_level;
+
+                                script_id = (BehaviorType::Systems, exp.level_tree_id, exp.levels[new_level as usize-1].2, "script".to_string());
+
+                                println!("[{}] Advanced to level {}", data.instances[instance_index].name, exp.level);
+                            }
+                        }
+                    }
+
+                    // Execute level script
+                    if script_id.3.is_empty() == false {
+                        //println!("Execute level script: {:?}", script_id);
+                        let _rc = eval_dynamic_script_instance(instance_index, script_id, data);
+                        // println!("Execute level script: {:?}", rc);
+                    }
+                }
+            }
+        }
+    }
+
+    rc
+}
+
 /// Drop Inventory :(
 pub fn drop_inventory(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 

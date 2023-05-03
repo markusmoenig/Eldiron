@@ -7,6 +7,7 @@ use crate::prelude::*;
 pub struct Spell {
     pub id                  : Uuid,
     pub name                : String,
+    pub distance            : i32,
     pub tile                : Option<TileData>,
 }
 
@@ -15,6 +16,7 @@ impl Spell {
         Self {
             id,
             name,
+            distance        : 5,
             tile            : None,
         }
     }
@@ -54,6 +56,15 @@ impl Spells {
     pub fn get_spell_at(&mut self, index: i32) -> Spell {
         if index >= 0 && index < self.spells.len() as i32 {
             return self.spells[index as usize].clone()
+        }
+        Spell::new(Uuid::new_v4(), "".to_string())
+    }
+
+    pub fn get_spell(&self, name: &String) -> Spell {
+        for index in 0..self.spells.len() {
+            if self.spells[index].name == *name {
+                return self.spells[index].clone();
+            }
         }
         Spell::new(Uuid::new_v4(), "".to_string())
     }

@@ -193,7 +193,7 @@ impl NodeWidget {
                     context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3) as f64 - 2.5), &[0,0,0,0], rounding, &context.color_gray, 1.5);
                 }
 
-                context.draw2d.draw_text(buffer_frame, &(25, 10), stride, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.name, &context.color_white, title_color);
+                context.draw2d.draw_text(buffer_frame, &(23, 10), stride, &asset.get_editor_font("OpenSans"), context.node_title_text_size, &self.name, &context.color_white, title_color);
 
                 // Draw menu
 

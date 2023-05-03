@@ -36,6 +36,7 @@ pub struct ScreenContext<'a> {
     pub button_text_size                : f32,
     pub button_rounding                 : (f64, f64, f64, f64),
 
+    pub node_title_text_size            : f32,
     pub node_button_height              : usize,
     pub node_button_text_size           : f32,
     pub node_button_header_text_size    : f32,
@@ -269,6 +270,7 @@ impl ScreenContext<'_> {
             large_button_text_size      : 20.0,
             large_button_rounding       : (14.0, 14.0, 14.0, 14.0),
 
+            node_title_text_size        : 17.5,
             node_button_height          : 24,
             node_button_text_size       : 16.0,
             node_button_header_text_size: 12.0,
@@ -469,7 +471,7 @@ impl ScreenContext<'_> {
     pub fn copy_demo(&mut self, project_path: PathBuf) -> Result<std::path::PathBuf, String> {
 
         let mut options = fs_extra::dir::CopyOptions::new();
-        options.overwrite = true;
+        //options.overwrite = true;
         options.copy_inside = true;
 
         // Copy asset directory

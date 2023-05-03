@@ -706,6 +706,20 @@ impl GameData {
         None
     }
 
+    /// Gets the default tile for the given spell
+    pub fn get_spell_default_tile(&self, id: Uuid) -> Option<TileData> {
+        if let Some(spell) = self.spells.get(&id) {
+            for (_index, node) in &spell.data.nodes {
+                if node.behavior_type == BehaviorNodeType::BehaviorType {
+                    if let Some(value) = node.values.get(&"tile".to_string()) {
+                        return value.to_tile_data();
+                    }
+                }
+            }
+        }
+        None
+    }
+
     /// Save data and return it
     // pub fn save(&self) -> String {
     //     let json = serde_json::to_string(&self.instances).unwrap();

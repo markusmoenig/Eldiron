@@ -211,7 +211,6 @@ pub fn player_drop(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionIn
 
 /// Assign target
 pub fn player_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
-
     let mut dp:Option<Position> = None;
     if let Some(p) = &data.instances[instance_index].position {
         if let Some(action) = &data.instances[instance_index].action {

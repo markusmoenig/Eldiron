@@ -217,6 +217,14 @@ impl EditorContent for NodeGraph  {
                                         context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.x_off as usize, tile_id.y_off as usize), 0, 100);
                                     }
                                 }
+                            } else
+                            if self.sub_type == NodeSubType::Spell {
+                                // Draw the spell tile
+                                if let Some(tile_id) = context.data.get_spell_default_tile(context.data.spells_ids[active_index]) {
+                                    if let Some(map)= asset.tileset.maps.get_mut(&tile_id.tilemap) {
+                                        context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.x_off as usize, tile_id.y_off as usize), 0, 100);
+                                    }
+                                }
                             }
                         }
 
@@ -1258,8 +1266,10 @@ impl EditorContent for NodeGraph  {
                 "Untarget" => BehaviorNodeType::Untarget,
                 "Deal Damage" => BehaviorNodeType::DealDamage,
                 "Take Damage" => BehaviorNodeType::TakeDamage,
+                "Magic Damage" => BehaviorNodeType::MagicDamage,
                 "Drop Inv." => BehaviorNodeType::DropInventory,
                 "Target" => BehaviorNodeType::Target,
+                "Magic Target" => BehaviorNodeType::MagicTarget,
                 "Teleport" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::TeleportArea,
                 "Teleport" => BehaviorNodeType::Teleport,
                 "Audio" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::AudioArea,
@@ -1604,6 +1614,13 @@ impl EditorContent for NodeGraph  {
         if node_behavior_type == BehaviorNodeType::Target {
             node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#target".to_string());
             node_widget.color = context.color_gray.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::MagicTarget {
+            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#magic-target".to_string());
+            node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
@@ -2009,6 +2026,24 @@ impl EditorContent for NodeGraph  {
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::MagicDamage {
+            let mut atom2 = AtomWidget::new(vec!["Damage".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("damage", Value::Empty()));
+            atom2.atom_data.text = "Damage".to_string();
+            let id = (behavior_data_id, node_id, "damage".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("0".to_string()), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#magic-damage".to_string());
+
+            node_widget.color = context.color_blue.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else

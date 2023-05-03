@@ -626,6 +626,20 @@ pub fn get_weapon_distance(instance_index: usize, slot: String, data: &mut Regio
     weapon_distance
 }
 
+/// Returns the spell distance for the given spell name
+pub fn get_spell_distance(instance_index: usize, name: String, data: &mut RegionInstance) -> i32 {
+    let mut spell_distance = 3;
+
+    if let Some(v) = data.scopes[instance_index].get("spells") {
+        if let Some(spells) = v.read_lock::<Spells>() {
+            let spell = spells.get_spell(&name);
+            spell_distance = spell.distance;
+        }
+    }
+
+    spell_distance
+}
+
 /// Returns the PropertySink for the given item id
 pub fn get_item_sink(data: &RegionInstance, id: Uuid) -> Option<PropertySink> {
     for (uuid, item) in &data.items {
