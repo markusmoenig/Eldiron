@@ -88,6 +88,8 @@ pub enum BehaviorNodeType {
     HasState,
     MagicTarget,
     MagicDamage,
+
+    Dungeon,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

@@ -51,10 +51,9 @@ impl EditorContent for RegionWidget {
         let mut hlayout = HLayout::new((rect.0, rect.1 + rect.3 - bottom_size - toolbar_size, 165, toolbar_size));
         hlayout.margin = (10, 0, 0, 0);
 
-        let mut mode_button = AtomWidget::new(vec!["tiles".to_string(), "area".to_string(), "character".to_string(), "loot".to_string(), "settings".to_string()], AtomWidgetType::IconRow,
-        AtomData::new("Mode", Value::Empty()));
+        let mut mode_button = AtomWidget::new(vec!["tiles".to_string(), "area".to_string(), "character".to_string(), "loot".to_string(), "settings".to_string(), "procedural".to_string()], AtomWidgetType::IconRow, AtomData::new("Mode", Value::Empty()));
         mode_button.atom_data.text = "Mode".to_string();
-        mode_button.set_rect((0, 0, 165, toolbar_size), asset, context);
+        mode_button.set_rect((0, 0, 198, toolbar_size), asset, context);
         mode_button.custom_color = Some([217, 64, 51, 255]);
 
         let mut status_help_vector : Vec<(String, String)> = vec![];
@@ -63,6 +62,7 @@ impl EditorContent for RegionWidget {
         status_help_vector.push(("Character Mode".to_string(), "Place character instances ('A').".to_string()));
         status_help_vector.push(("Item Mode".to_string(), "Place item instances as loot ('L').".to_string()));
         status_help_vector.push(("Settings".to_string(), "Edit the settings of the region ('S').".to_string()));
+        status_help_vector.push(("Procedural".to_string(), "Procedural regions ('O').".to_string()));
         mode_button.status_help_vector = Some(status_help_vector);
 
         hlayout.add(mode_button, 0);
@@ -91,8 +91,10 @@ impl EditorContent for RegionWidget {
 
         behavior_graph.set_mode(GraphMode::Detail, &context);
 
+        let secondary_start = 210;
+
         // Area Widgets
-        let mut area_layout = HLayout::new((rect.0 + 180, rect.1 + rect.3 - bottom_size - toolbar_size, rect.2 - 180, toolbar_size));
+        let mut area_layout = HLayout::new((rect.0 + secondary_start, rect.1 + rect.3 - bottom_size - toolbar_size, rect.2 - secondary_start, toolbar_size));
         area_layout.margin = (10, 0, 0, 0);
         area_layout.spacing = 0;
 
@@ -150,7 +152,7 @@ impl EditorContent for RegionWidget {
 
         // Character Widgets
 
-        let mut character_layout = HLayout::new((rect.0 + 180, rect.1 + rect.3 - bottom_size - toolbar_size, rect.2 - 180, toolbar_size));
+        let mut character_layout = HLayout::new((rect.0 + secondary_start, rect.1 + rect.3 - bottom_size - toolbar_size, rect.2 - secondary_start, toolbar_size));
         character_layout.margin = (10, 0, 0, 0);
         character_layout.spacing = 0;
 
@@ -173,7 +175,7 @@ impl EditorContent for RegionWidget {
         layouts.push(character_layout);
 
         // Loot Widgets
-        let mut loot_layout = HLayout::new((rect.0 + 180, rect.1 + rect.3 - bottom_size - toolbar_size, rect.2 - 180, toolbar_size));
+        let mut loot_layout = HLayout::new((rect.0 + secondary_start, rect.1 + rect.3 - bottom_size - toolbar_size, rect.2 - secondary_start, toolbar_size));
         loot_layout.margin = (10, 0, 0, 0);
         loot_layout.spacing = 0;
 
@@ -242,6 +244,21 @@ impl EditorContent for RegionWidget {
         editing_layout.layout();
         layouts.push(editing_layout);
 
+        // Procedural Widgets
+
+        let mut procedural_layout = HLayout::new((rect.0 + secondary_start, rect.1 + rect.3 - bottom_size - toolbar_size, rect.2 - secondary_start, toolbar_size));
+        procedural_layout.margin = (10, 0, 0, 0);
+        procedural_layout.spacing = 0;
+
+        let mut generate_button = AtomWidget::new(vec!["Generate".to_string()], AtomWidgetType::Button,
+            AtomData::new("Generate", Value::Empty()));
+        generate_button.set_rect((0, rect.1, 140, 40), asset, context);
+        generate_button.status_help_text = Some("Adds a new, empty area.".to_string());
+        procedural_layout.add(generate_button, 5);
+
+        procedural_layout.layout();
+        layouts.push(procedural_layout);
+
         Self {
             rect,
 
@@ -284,11 +301,13 @@ impl EditorContent for RegionWidget {
         self.rect.2 = width;
         self.rect.3 = height;
 
+        let secondary_start = 210;
+
         self.layouts[0].set_rect((self.rect.0, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, 165, self.toolbar_size));
-        self.layouts[1].set_rect((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - 180, self.toolbar_size));
-        self.layouts[2].set_rect((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - 180, self.toolbar_size));
-        self.layouts[3].set_rect((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - 180, self.toolbar_size));
-        self.layouts[4].set_rect((self.rect.0 + 180, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - 180, self.toolbar_size));
+        self.layouts[1].set_rect((self.rect.0 + secondary_start, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - secondary_start, self.toolbar_size));
+        self.layouts[2].set_rect((self.rect.0 + secondary_start, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - secondary_start, self.toolbar_size));
+        self.layouts[3].set_rect((self.rect.0 + secondary_start, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - secondary_start, self.toolbar_size));
+        self.layouts[4].set_rect((self.rect.0 + secondary_start, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - secondary_start, self.toolbar_size));
 
         self.preview_button.set_rect2((self.rect.0 + self.rect.2 - 190, self.rect.1, 180, 40));
 
@@ -617,6 +636,10 @@ impl EditorContent for RegionWidget {
             if editor_mode == RegionEditorMode::Loot {
                 self.layouts[3].draw(frame, anim_counter, asset, context);
                 self.loot_selector.draw(frame, context.width, anim_counter, asset, context);
+            } else
+            if editor_mode == RegionEditorMode::Procedural {
+                self.layouts[5].draw(frame, anim_counter, asset, context);
+                self.behavior_graph.draw(frame, anim_counter, asset, context, &mut None);
             }
 
             // Draw a white border around the tile under the mouse cursor
@@ -788,6 +811,16 @@ impl EditorContent for RegionWidget {
                             self.layouts[3].widgets[0].checked = false;
                             self.layouts[3].widgets[0].dirty = true;
                         }
+                        return true;
+                    }
+                }
+            } else
+            if editor_mode == RegionEditorMode::Procedural {
+                if context.contains_pos_for(pos, self.behavior_graph.rect) {
+                    consumed = self.behavior_graph.mouse_down(pos, asset, context, &mut None, &mut None);
+                    return consumed;
+                } else {
+                    if let Some(_) = self.layouts[5].mouse_down(pos, asset, context) {
                         return true;
                     }
                 }
@@ -1055,6 +1088,12 @@ impl EditorContent for RegionWidget {
                 } else
                 if curr_index == 1 {
                     options.set_editor_mode(RegionEditorMode::Areas);
+                    if let Some(region) = context.data.regions.get(&self.region_id) {
+                        if region.behaviors.len() > 0 {
+                            self.behavior_graph.sub_type = NodeSubType::Area;
+                            self.behavior_graph.set_behavior_id(region.behaviors[context.curr_region_area_index].data.id, context);
+                        }
+                    }
                 } else
                 if curr_index == 2 {
                     options.set_editor_mode(RegionEditorMode::Characters);
@@ -1075,8 +1114,16 @@ impl EditorContent for RegionWidget {
                     let id = context.create_property_id("region_settings");
                     context.code_editor_mode = CodeEditorMode::Settings;
                     context.open_code_editor(id,  value, false);
+                } else
+                if curr_index == 5 {
+                    options.set_editor_mode(RegionEditorMode::Procedural);
+                    if let Some(region) = context.data.regions.get(&self.region_id) {
+                        if let Some(procedural) = &region.procedural {
+                            self.behavior_graph.sub_type = NodeSubType::Procedural;
+                            self.behavior_graph.set_behavior_id(procedural.data.id, context);
+                        }
+                    }
                 }
-
                 return true;
             }
 
@@ -1126,14 +1173,31 @@ impl EditorContent for RegionWidget {
                         }
                     }
                 }
-            }
+            } else
             if editor_mode == RegionEditorMode::Tiles {
                 if let Some(_id) = self.layouts[4].mouse_up(pos, asset, context) {
                     consumed = true;
                 }
-            }
+            } else
             if editor_mode == RegionEditorMode::Characters {
                 if let Some(_id) = self.layouts[2].mouse_up(pos, asset, context) {
+                    consumed = true;
+                }
+            } else
+            if editor_mode == RegionEditorMode::Procedural {
+                if context.contains_pos_for(pos, self.behavior_graph.rect) {
+                    consumed = self.behavior_graph.mouse_up(pos, asset, context, &mut None, &mut None);
+                } else
+                if let Some((id, _name)) = self.layouts[5].mouse_up(pos, asset, context) {
+                    if id == 0 {
+                        // Generate
+                        if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
+                            let undo = region.get_data();
+                            generate_region(region, asset);
+                            region.undo.add(undo, region.get_data());
+                            region.save_data();
+                        }
+                    }
                     consumed = true;
                 }
             }
@@ -1199,7 +1263,7 @@ impl EditorContent for RegionWidget {
         if let Some(options) = options {
             let editor_mode = options.get_editor_mode();
 
-            if editor_mode == RegionEditorMode::Areas {
+            if editor_mode == RegionEditorMode::Areas || editor_mode == RegionEditorMode::Procedural{
                 if context.contains_pos_for(pos, self.behavior_graph.rect) {
                     consumed = self.behavior_graph.mouse_dragged(pos, asset, context, &mut None, &mut None);
                     return consumed;
@@ -1488,6 +1552,7 @@ impl EditorContent for RegionWidget {
                 context.curr_region_area_index = 0;
             }
             if region.behaviors.len() > 0 {
+                self.behavior_graph.sub_type = NodeSubType::Area;
                 self.behavior_graph.set_behavior_id(region.behaviors[context.curr_region_area_index].data.id, context);
             }
         }
@@ -1505,6 +1570,14 @@ impl EditorContent for RegionWidget {
                 let id = context.create_property_id("region_settings");
                 context.code_editor_mode = CodeEditorMode::Settings;
                 context.open_code_editor(id, value, false);
+            } else
+            if mode == RegionEditorMode::Procedural {
+                if let Some(region) = context.data.regions.get(&self.region_id) {
+                    if let Some(procedural) = &region.procedural {
+                        self.behavior_graph.sub_type = NodeSubType::Procedural;
+                        self.behavior_graph.set_behavior_id(procedural.data.id, context);
+                    }
+                }
             }
         }
 
@@ -1620,17 +1693,16 @@ impl EditorContent for RegionWidget {
     // Undo / Redo
 
     fn is_undo_available(&self, context: &ScreenContext) -> bool {
-        if self.layouts[0].widgets[0].curr_index == 0 {
-            // Tiles
+        if self.layouts[0].widgets[0].curr_index == 0 || self.layouts[0].widgets[0].curr_index == 5 {
             if let Some(region) = context.data.regions.get(&self.get_region_id()) {
                 return region.is_undo_available();
             }
         }
         false
     }
+
     fn is_redo_available(&self, context: &ScreenContext) -> bool {
-        if self.layouts[0].widgets[0].curr_index == 0 {
-            // Tiles
+        if self.layouts[0].widgets[0].curr_index == 0 || self.layouts[0].widgets[0].curr_index == 5 {
             if let Some(region) = context.data.regions.get(&self.get_region_id()) {
                 return region.is_redo_available();
             }
@@ -1639,8 +1711,7 @@ impl EditorContent for RegionWidget {
     }
 
     fn undo(&mut self, context: &mut ScreenContext) {
-        if self.layouts[0].widgets[0].curr_index == 0 {
-            // Tiles
+        if self.layouts[0].widgets[0].curr_index == 0 || self.layouts[0].widgets[0].curr_index == 5 {
             if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
                 region.undo();
             }
@@ -1648,8 +1719,7 @@ impl EditorContent for RegionWidget {
     }
 
     fn redo(&mut self, context: &mut ScreenContext) {
-        if self.layouts[0].widgets[0].curr_index == 0 {
-            // Tiles
+        if self.layouts[0].widgets[0].curr_index == 0 || self.layouts[0].widgets[0].curr_index == 5 {
             if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
                 region.redo();
             }

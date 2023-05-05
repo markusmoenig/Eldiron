@@ -243,16 +243,16 @@ impl AtomWidget {
                     border_color = custom_color;
                 }
 
-                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_toolbar);
 
                 let fill_color;
                 if self.atom_widget_type == AtomWidgetType::ToolBarButton {
-                    fill_color = if self.state != WidgetState::Clicked { &context.color_black } else { &context.color_light_gray };
+                    fill_color = if self.state != WidgetState::Clicked { &context.color_toolbar } else { &context.color_light_gray };
                 } else {
                     if self.state == WidgetState::Hover {
                         fill_color = &context.color_light_gray;
                     } else {
-                        fill_color = if self.checked == false { &context.color_black } else { &context.color_gray };
+                        fill_color = if self.checked == false { &context.color_toolbar } else { &context.color_gray };
                     }
                 }
 
@@ -271,8 +271,8 @@ impl AtomWidget {
                     border_color = custom_color;
                 }
 
-                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                let fill_color = &context.color_black;//if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_toolbar);
+                let fill_color = &context.color_toolbar;//if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
 
                 if self.no_border == false {
                     context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);

@@ -48,6 +48,7 @@ pub struct ScreenContext<'a> {
     pub large_button_rounding           : (f64, f64, f64, f64),
 
     pub color_black                     : [u8;4],
+    pub color_toolbar                   : [u8;4],
     pub color_gray                      : [u8;4],
     pub color_light_gray                : [u8;4],
     pub color_white                     : [u8;4],
@@ -278,6 +279,7 @@ impl ScreenContext<'_> {
             node_connector_color        : [174, 174, 174, 255],
 
             color_black                 : [25, 25, 25, 255],
+            color_toolbar               : [15, 15, 15, 255],
             color_white                 : [255, 255, 255, 255],
             color_light_white           : [240, 240, 240, 255],
             color_gray                  : [105, 105, 105, 255],

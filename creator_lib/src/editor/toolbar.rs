@@ -83,7 +83,7 @@ impl Widget for ToolBar {
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
-        context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
+        context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_toolbar);
 
         for atom in &mut self.widgets {
             atom.draw(frame, context.width, anim_counter, asset, context);

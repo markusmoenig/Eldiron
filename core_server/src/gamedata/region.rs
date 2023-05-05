@@ -10,7 +10,9 @@ pub struct GameRegion {
     pub region_path     : PathBuf,
     pub data            : GameRegionData,
     pub behaviors       : Vec<GameBehavior>,
-    pub displacements   : HashMap<(isize, isize), TileData>,
+    pub displacements   : FxHashMap<(isize, isize), TileData>,
+
+    pub procedural      : Option<GameBehavior>,
 
     pub undo            : UndoStack,
 }
@@ -44,6 +46,7 @@ impl GameRegion {
 
         // Read the behaviors
         let mut behaviors : Vec<GameBehavior> = vec![];
+        let mut procedural : Option<GameBehavior> = None;
 
         for a in &data.areas {
             let mut area_path = path.clone();
@@ -54,13 +57,17 @@ impl GameRegion {
             behaviors.push(behavior);
         }
 
+        let procedural_path = path.join(std::path::Path::new(&"procedural.json").to_path_buf());
+        procedural = Some(GameBehavior::load_from_path(&procedural_path, &procedural_path));
+
         Self {
             name                : name.to_string(),
             path                : path.clone(),
             region_path         : region_path.clone(),
             data,
             behaviors,
-            displacements       : HashMap::new(),
+            displacements       : FxHashMap::default(),
+            procedural,
 
             undo                : UndoStack::new(),
         }
@@ -93,6 +100,7 @@ impl GameRegion {
 
         // Read the behaviors
         let mut behaviors : Vec<GameBehavior> = vec![];
+        let mut procedural : Option<GameBehavior> = None;
 
         let mut spl = file_name.split("/");
         spl.next();
@@ -112,7 +120,8 @@ impl GameRegion {
             region_path         : std::path::PathBuf::new(),
             data,
             behaviors,
-            displacements       : HashMap::new(),
+            displacements       : FxHashMap::default(),
+            procedural,
 
             undo                : UndoStack::new(),
         }

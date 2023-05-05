@@ -56,6 +56,7 @@ pub mod prelude {
     pub use crate::statusbar::*;
     pub use crate::node_preview::*;
     pub use crate::assets_overview_options::*;
+    pub use crate::procedural::generate_region;
 
     pub use code_editor::prelude::*;
 }

@@ -8,6 +8,7 @@ pub struct RegionArea {
     pub id              : Uuid,
     pub area            : Vec<(isize, isize)>,
     pub behavior        : Uuid,
+
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

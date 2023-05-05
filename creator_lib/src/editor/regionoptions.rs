@@ -6,7 +6,8 @@ pub enum RegionEditorMode {
     Areas,
     Characters,
     Loot,
-    Settings
+    Settings,
+    Procedural
 }
 
 pub struct RegionOptions {
@@ -81,6 +82,25 @@ impl EditorOptions for RegionOptions {
         area_layout.layout();
         layouts.push(area_layout);
 
+        layouts.push(VLayout::new(rect));
+        layouts.push(VLayout::new(rect));
+        layouts.push(VLayout::new(rect));
+
+        let mut procedural_layout = VLayout::new(rect);
+
+        let mut procedural_node_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
+    AtomData::new("ProceduralNodeList", Value::Empty()));
+        procedural_node_list.drag_enabled = true;
+        procedural_node_list.add_group_list(context.color_green, context.color_light_green, vec!["Dungeon".to_string()]);
+
+        //node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio".to_string(), "Light".to_string(), "Message".to_string(), "Overlay Tiles".to_string(), "Spawn".to_string(), "Teleport".to_string()]);
+
+        procedural_node_list.set_rect((0, 0, rect.2 - 20, rect.3 - 200), asset, context);
+        procedural_layout.layout();
+        procedural_layout.add(procedural_node_list, 0);
+
+        layouts.push(procedural_layout);
+
         Self {
             rect,
             tile_rect                   : (0, 0, 0, 0),
@@ -120,6 +140,9 @@ impl EditorOptions for RegionOptions {
             self.layouts[self.mode as usize].draw(frame, anim_counter, asset, context);
         } else
         if mode == RegionEditorMode::Areas {
+            self.layouts[self.mode as usize].draw(frame, anim_counter, asset, context);
+        } else
+        if mode == RegionEditorMode::Procedural {
             self.layouts[self.mode as usize].draw(frame, anim_counter, asset, context);
         }
 
@@ -180,6 +203,11 @@ impl EditorOptions for RegionOptions {
             if let Some(_id) = self.layouts[self.mode as usize].mouse_down(pos, asset, context) {
                 return true;
             }
+        } else
+        if mode == RegionEditorMode::Procedural {
+            if let Some(_id) = self.layouts[self.mode as usize].mouse_down(pos, asset, context) {
+                return true;
+            }
         }
 
         false
@@ -212,7 +240,12 @@ impl EditorOptions for RegionOptions {
             }
         } else
         if mode == RegionEditorMode::Areas {
-            if let Some(_id) = self.layouts[self.mode as usize].mouse_down(pos, asset, context) {
+            if let Some(_id) = self.layouts[self.mode as usize].mouse_up(pos, asset, context) {
+                return true;
+            }
+        } else
+        if mode == RegionEditorMode::Procedural {
+            if let Some(_id) = self.layouts[self.mode as usize].mouse_up(pos, asset, context) {
                 return true;
             }
         }
@@ -224,7 +257,7 @@ impl EditorOptions for RegionOptions {
 
         let mode = self.get_editor_mode();
 
-        if mode == RegionEditorMode::Tiles || mode == RegionEditorMode::Areas  {
+        if mode == RegionEditorMode::Tiles || mode == RegionEditorMode::Areas || mode == RegionEditorMode::Procedural  {
             if let Some(_id) = self.layouts[self.mode as usize].mouse_hover(pos, asset, context) {
                 return true;
             }
@@ -258,6 +291,29 @@ impl EditorOptions for RegionOptions {
             }
         } else
         if mode == RegionEditorMode::Tiles {
+            if let Some(_id) = self.layouts[self.mode as usize].mouse_dragged(pos, asset, context) {
+                return true;
+            }
+        } else
+        if mode == RegionEditorMode::Procedural {
+            if let Some(drag_context) = &self.layouts[self.mode as usize].widgets[0].drag_context {
+                if context.drag_context == None {
+
+                    let mut buffer = [0; 180 * 32 * 4];
+
+                    context.draw2d.draw_rect(&mut buffer[..], &(0, 0, 180, 32), 180, &drag_context.color.clone());
+                    context.draw2d.draw_text_rect(&mut buffer[..], &(0, 0, 180, 32), 180, &asset.get_editor_font("OpenSans"), context.toolbar_button_text_size, drag_context.text.as_str(), &context.color_white, &drag_context.color.clone(), draw2d::TextAlignment::Center);
+
+                    context.drag_context = Some(ScreenDragContext {
+                        text    : drag_context.text.clone(),
+                        color   : drag_context.color.clone(),
+                        offset  : drag_context.offset.clone(),
+                        buffer  : Some(buffer)
+                    });
+                    context.target_fps = 60;
+                }
+                self.layouts[self.mode as usize].widgets[0].drag_context = None;
+            }
             if let Some(_id) = self.layouts[self.mode as usize].mouse_dragged(pos, asset, context) {
                 return true;
             }

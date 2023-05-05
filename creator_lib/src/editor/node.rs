@@ -7,7 +7,9 @@ pub enum NodeSubType {
     Image,
     Tilemap,
     Item,
-    Spell
+    Spell,
+    Area,
+    Procedural,
 }
 
 pub struct NodeUserData {

@@ -27,6 +27,7 @@ pub mod codeeditorwidget;
 pub mod screeneditor;
 pub mod screeneditor_options;
 pub mod assets_overview_options;
+pub mod procedural;
 
 use std::sync::mpsc::{Sender, Receiver};
 use std::sync::mpsc;

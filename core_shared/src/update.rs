@@ -56,7 +56,7 @@ pub struct GameUpdate {
     /// Inventory
     pub inventory               : Inventory,
 
-    /// Inventory
+    /// Spells
     pub spells                  : Spells,
 
     /// Gear

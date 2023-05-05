@@ -808,6 +808,11 @@ impl GameData {
                         return Some(&region.behaviors[index]);
                     }
                 }
+                if let Some(procedural) = &region.procedural {
+                    if procedural.data.id == id {
+                        return Some(procedural);
+                    }
+                }
             }
         } else
         if behavior_type == BehaviorType::Behaviors {
@@ -837,6 +842,11 @@ impl GameData {
                 for index in 0..region.behaviors.len() {
                     if region.behaviors[index].data.id == id {
                         return Some(&mut region.behaviors[index]);
+                    }
+                }
+                if let Some(procedural) = &mut region.procedural {
+                    if procedural.data.id == id {
+                        return Some(procedural);
                     }
                 }
             }

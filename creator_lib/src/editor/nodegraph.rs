@@ -129,7 +129,7 @@ impl EditorContent for NodeGraph  {
         let safe_rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
 
         if self.dirty {
-            context.draw2d.draw_square_pattern(&mut self.buffer[..], &safe_rect, safe_rect.2, &[44, 44, 46, 255], &[56, 56, 56, 255], 40);
+            context.draw2d.draw_square_pattern(&mut self.buffer[..], &safe_rect, safe_rect.2, &[34, 34, 36, 255], &[46, 46, 46, 255], 40);
 
             if self.graph_mode == GraphMode::Overview {
                 for active_index in 0..self.active_indices.len() {
@@ -1299,6 +1299,8 @@ impl EditorContent for NodeGraph  {
 
                 "Overlay Tiles" => BehaviorNodeType::OverlayTiles,
 
+                "Dungeon" => BehaviorNodeType::Dungeon,
+
                 /*
                 "Widget" => BehaviorNodeType::Widget,
                 */
@@ -1563,11 +1565,7 @@ impl EditorContent for NodeGraph  {
             edit_atom.atom_data.text = "Edit Script".to_string();
             let id = (behavior_data_id, node_id, "script".to_string());
             edit_atom.behavior_id = Some(id.clone());
-            // let mut def_text = "".to_string();
-            // if let Some(txt) = context.scripts.get("screen") {
-            //     def_text = txt.clone();
-            // }
-            edit_atom.atom_data.value = Value::String("Edit".to_string());//context.data.get_behavior_id_value(id, Value::String("Edit".to_string()), self.graph_type);
+            edit_atom.atom_data.value = Value::String("Edit".to_string());
             node_widget.widgets.push(edit_atom);
 
             node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#screen".to_string());
@@ -2441,8 +2439,40 @@ impl EditorContent for NodeGraph  {
             node_widget.color = context.color_orange.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        }
+        } else
 
+        // Procedural
+
+        if node_behavior_type == BehaviorNodeType::Dungeon {
+            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("seed", Value::Empty()));
+            atom1.atom_data.text = "Seed".to_string();
+            let id = (behavior_data_id, node_id, "seed".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Integer(1), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeEnvTileButton,
+            AtomData::new("wall", Value::Empty()));
+            atom2.atom_data.text = "Wall".to_string();
+            let id = (behavior_data_id, node_id, "wall".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            let mut atom3 = AtomWidget::new(vec![], AtomWidgetType::NodeEnvTileButton,
+            AtomData::new("floor", Value::Empty()));
+            atom3.atom_data.text = "Floor".to_string();
+            let id = (behavior_data_id, node_id, "floor".to_string());
+            atom3.behavior_id = Some(id.clone());
+            atom3.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom3);
+
+            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#dungeon".to_string());
+
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+        }
     }
 
     /// Converts the index of a node widget to a node id
@@ -2662,8 +2692,17 @@ impl EditorContent for NodeGraph  {
     /// Returns the behavior id for the current behavior and graph type
     fn get_curr_behavior_id(&self, context: &ScreenContext) -> Uuid {
         if self.graph_type == BehaviorType::Regions {
-            if let Some(region) = context.data.regions.get(&context.data.regions_ids[context.curr_region_index]) {
-                return region.behaviors[context.curr_region_area_index].data.id;
+            if self.sub_type == NodeSubType::Area {
+                if let Some(region) = context.data.regions.get(&context.data.regions_ids[context.curr_region_index]) {
+                    return region.behaviors[context.curr_region_area_index].data.id;
+                }
+            } else
+            if self.sub_type == NodeSubType::Procedural {
+                if let Some(region) = context.data.regions.get(&context.data.regions_ids[context.curr_region_index]) {
+                    if let Some(procedural) = &region.procedural {
+                        return procedural.data.id;
+                    }
+                }
             }
         } else
         if self.graph_type == BehaviorType::Behaviors {
