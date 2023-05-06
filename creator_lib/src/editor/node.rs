@@ -134,7 +134,7 @@ impl NodeWidget {
         for atom_widget in &mut self.widgets {
             height += atom_widget.get_height(context);
             if self.is_corner_node == false {
-                height += context.node_button_header_text_size as usize;
+                height += context.node_button_header_text_size as usize / 2;
                 height += 16;
             } else {
                 height += 8;

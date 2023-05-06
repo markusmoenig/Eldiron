@@ -1299,7 +1299,7 @@ impl EditorContent for NodeGraph  {
 
                 "Overlay Tiles" => BehaviorNodeType::OverlayTiles,
 
-                "Dungeon" => BehaviorNodeType::Dungeon,
+                "Cellular" => BehaviorNodeType::Cellular,
 
                 /*
                 "Widget" => BehaviorNodeType::Widget,
@@ -2443,14 +2443,22 @@ impl EditorContent for NodeGraph  {
 
         // Procedural
 
-        if node_behavior_type == BehaviorNodeType::Dungeon {
+        if node_behavior_type == BehaviorNodeType::Cellular {
             let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("seed", Value::Empty()));
-            atom1.atom_data.text = "Seed".to_string();
-            let id = (behavior_data_id, node_id, "seed".to_string());
+            AtomData::new("steps", Value::Empty()));
+            atom1.atom_data.text = "Iterations".to_string();
+            let id = (behavior_data_id, node_id, "steps".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Integer(1), self.graph_type);
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("4".into()), self.graph_type);
             node_widget.widgets.push(atom1);
+
+            let mut atom4 = AtomWidget::new(vec![], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("size", Value::Empty()));
+            atom4.atom_data.text = "Size".to_string();
+            let id = (behavior_data_id, node_id, "size".to_string());
+            atom4.behavior_id = Some(id.clone());
+            atom4.atom_data.value = context.data.get_behavior_id_value(id, Value::String("80".into()), self.graph_type);
+            node_widget.widgets.push(atom4);
 
             let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeEnvTileButton,
             AtomData::new("wall", Value::Empty()));
@@ -2468,7 +2476,7 @@ impl EditorContent for NodeGraph  {
             atom3.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom3);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#dungeon".to_string());
+            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#cellular".to_string());
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );

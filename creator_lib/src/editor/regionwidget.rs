@@ -508,6 +508,8 @@ impl EditorContent for RegionWidget {
 
             context.draw2d.draw_rect(frame, &(rect.0, rect.1 + rect.3, self.rect.2, self.toolbar_size), context.width, &context.color_black);
 
+            context.draw2d.draw_rect(frame, &(rect.0, rect.1 + rect.3, 215, self.toolbar_size), context.width, &[208 / 3, 115 / 3, 50 / 3, 255]);
+
             self.layouts[0].draw(frame, anim_counter, asset, context);
 
             if editor_mode == RegionEditorMode::Tiles {
@@ -1196,6 +1198,7 @@ impl EditorContent for RegionWidget {
                             generate_region(region, asset);
                             region.undo.add(undo, region.get_data());
                             region.save_data();
+                            self.offset = (0,0);
                         }
                     }
                     consumed = true;
@@ -1375,6 +1378,11 @@ impl EditorContent for RegionWidget {
             } else
             if editor_mode == RegionEditorMode::Loot {
                 if context.contains_pos_for(self.mouse_hover_pos, self.loot_selector.rect) && self.loot_selector.mouse_wheel(delta, asset, context) {
+                    consumed = true;
+                }
+            } else
+            if editor_mode == RegionEditorMode::Procedural {
+                if context.contains_pos_for(self.mouse_hover_pos, self.behavior_graph.rect) && self.behavior_graph.mouse_wheel(delta, asset, context, &mut None, &mut None) {
                     consumed = true;
                 }
             }

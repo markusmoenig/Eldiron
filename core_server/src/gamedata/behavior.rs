@@ -89,7 +89,7 @@ pub enum BehaviorNodeType {
     MagicTarget,
     MagicDamage,
 
-    Dungeon,
+    Cellular,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -106,7 +106,7 @@ pub enum BehaviorNodeConnector {
     Bottom4,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct BehaviorNode {
     pub behavior_type           : BehaviorNodeType,
     pub name                    : String,
