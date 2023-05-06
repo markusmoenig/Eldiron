@@ -34,12 +34,15 @@ impl Draw2D {
     /// Safe to write a pixel
     fn is_safe(&self, x: usize, y: usize) -> bool {
         if let Some(s) = &self.scissor {
-            if x < s.0 || x >= s.0 + s.2 || y < s.1 || y >= s.1 + s.3 {
-                return false;
+            // if x < s.0 || x >= s.0 + s.2 || y < s.1 || y >= s.1 + s.3 {
+            //     return false;
+            // }
+            if x >= s.0 && x < s.0 + s.2 && y >= s.1 && y < s.1 + s.3 {
+                return true;
             }
         }
 
-        true
+        false
     }
 
     /// Draws the mask
@@ -120,22 +123,28 @@ impl Draw2D {
 
         let y = rect.1;
         for x in rect.0..rect.0+rect.2 {
-            if !self.is_safe(x, y) { continue; }
-            let mut i = x * 4 + y * stride * 4;
-            frame[i..i + 4].copy_from_slice(&color);
+            if self.is_safe(x, y) {
+                let i = x * 4 + y * stride * 4;
+                frame[i..i + 4].copy_from_slice(&color);
+            }
 
-            i = x * 4 + (y + rect.3- 1) * stride * 4;
-            frame[i..i + 4].copy_from_slice(&color);
+            if self.is_safe(x, y + rect.3- 1) {
+                let i = x * 4 + (y + rect.3- 1) * stride * 4;
+                frame[i..i + 4].copy_from_slice(&color);
+            }
         }
 
         let x = rect.0;
         for y in rect.1..rect.1+rect.3 {
-            if !self.is_safe(x, y) { continue; }
-            let mut i = x * 4 + y * stride * 4;
-            frame[i..i + 4].copy_from_slice(&color);
+            if self.is_safe(x, y) {
+                let i = x * 4 + y * stride * 4;
+                frame[i..i + 4].copy_from_slice(&color);
+            }
 
-            i = (x + rect.2 - 1) * 4 + y * stride * 4;
-            frame[i..i + 4].copy_from_slice(&color);
+            if self.is_safe(x + rect.2 - 1, y) {
+                let i = (x + rect.2 - 1) * 4 + y * stride * 4;
+                frame[i..i + 4].copy_from_slice(&color);
+            }
         }
     }
 

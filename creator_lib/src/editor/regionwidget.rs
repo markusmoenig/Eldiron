@@ -6,6 +6,7 @@ pub struct RegionWidget {
     editor_rect             : (usize, usize, usize, usize),
     preview_rect            : (usize, usize, usize, usize),
     overview_rect           : (usize, usize, usize, usize),
+    visible_rect            : (usize, usize, usize, usize),
     overview_tile_size      : usize,
 
     pub region_id           : Uuid,
@@ -275,6 +276,7 @@ impl EditorContent for RegionWidget {
             editor_rect             : (0, 0, 0, 0),
             preview_rect            : (0, 0, 0, 0),
             overview_rect           : (0, 0, 0, 0),
+            visible_rect            : (0, 0, 0, 0),
             overview_tile_size      : 1,
 
             region_id               : Uuid::new_v4(),
@@ -694,10 +696,8 @@ impl EditorContent for RegionWidget {
 
             // Draw current visible editor rect
 
-            println!("offset x {}", self.offset.0);
-
-            let mut dx = -(region.data.min_pos.0 + self.offset.0) as isize * size as isize;
-            let mut dy = -(region.data.min_pos.1 + self.offset.1) as isize * size as isize;
+            let dx = -(region.data.min_pos.0 + self.offset.0) as isize * size as isize;
+            let dy = -(region.data.min_pos.1 + self.offset.1) as isize * size as isize;
             let width = ((self.editor_rect.2 as f32 / grid_size as f32) * size as f32) as usize;
             let height = ((self.editor_rect.3 as f32 / grid_size as f32) * size as f32) as usize;
             let v_rect = (o_rect.0 + dx as usize, o_rect.1 + dy as usize, width, height);
@@ -705,6 +705,8 @@ impl EditorContent for RegionWidget {
             context.draw2d.scissor = Some(o_rect);
             context.draw2d.draw_rect_outline_safe(frame, &v_rect, context.width, context.color_red);
             context.draw2d.scissor = None;
+
+            self.visible_rect = v_rect;
         }
 
         //
@@ -732,6 +734,18 @@ impl EditorContent for RegionWidget {
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+
+        // Test for overview click
+        if context.contains_pos_for(pos, self.overview_rect) {
+            let dx: usize = pos.0 - self.overview_rect.0;
+            let dy: usize = pos.1 - self.overview_rect.1;
+
+            if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                self.offset.0 = -region.data.min_pos.0 - dx as isize / self.overview_tile_size as isize + (self.visible_rect.2 / 2) as isize / self.overview_tile_size as isize ;
+                self.offset.1 = -region.data.min_pos.1 - dy as isize / self.overview_tile_size as isize + (self.visible_rect.3 / 2) as isize / self.overview_tile_size as isize ;
+            }
+            return true;
+        }
 
         if self.preview_button.mouse_down(pos, asset, context) {
             return true;
@@ -1327,6 +1341,18 @@ impl EditorContent for RegionWidget {
     }
 
     fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+
+        // Test for overview drag
+        if context.contains_pos_for(pos, self.overview_rect) {
+            let dx: usize = pos.0 - self.overview_rect.0;
+            let dy: usize = pos.1 - self.overview_rect.1;
+
+            if let Some(region) = context.data.regions.get_mut(&self.region_id) {
+                self.offset.0 = -region.data.min_pos.0 - dx as isize / self.overview_tile_size as isize + (self.visible_rect.2 / 2) as isize / self.overview_tile_size as isize ;
+                self.offset.1 = -region.data.min_pos.1 - dy as isize / self.overview_tile_size as isize + (self.visible_rect.3 / 2) as isize / self.overview_tile_size as isize ;
+            }
+            return true;
+        }
 
         if self.scale_button.mouse_dragged(pos, asset, context) {
             return true;

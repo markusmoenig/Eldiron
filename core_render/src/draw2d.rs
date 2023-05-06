@@ -741,7 +741,6 @@ impl Draw2D {
                 return false;
             }
         }
-
         true
     }
 
