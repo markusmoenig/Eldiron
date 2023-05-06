@@ -66,6 +66,7 @@ pub enum AtomWidgetType {
     LargeButton,
     CheckButton,
     Button,
+    TileScaleButton,
     GroupedList,
     MenuButton,
     TagsButton,
@@ -671,6 +672,29 @@ impl AtomWidget {
                     context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &"Enter Tags".to_string(), &context.color_gray, &fill_color, draw2d::TextAlignment::Center);
                 }
             } else
+            // Normal
+            if self.atom_widget_type == AtomWidgetType::TileScaleButton {
+                self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2 - 2, context.button_height);
+
+                let fill_color;
+                if self.atom_widget_type != AtomWidgetType::CheckButton {
+                    fill_color = if self.state != WidgetState::Clicked { &context.color_black } else { &context.color_light_gray };
+                } else {
+                    if self.state == WidgetState::Hover {
+                        fill_color = &context.color_light_gray;
+                    } else {
+                        fill_color = if self.checked == false { &context.color_black } else { &context.color_gray };
+                    }
+                }
+
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.button_rounding, &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_light_gray}, 1.5);
+
+                let text = self.atom_data.value.to_integer().unwrap().to_string();
+
+                if text.is_empty() == false {
+                    context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &text, &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_white}, &fill_color, draw2d::TextAlignment::Center);
+                }
+            } else
             if self.atom_widget_type == AtomWidgetType::MenuButton {
                 if self.state != WidgetState::Clicked {
                     self.content_rect = (self.rect.0 + 1, self.rect.1 + (self.rect.3 - context.node_button_height) / 2, self.rect.2 - 2, context.node_button_height);
@@ -1012,6 +1036,13 @@ impl AtomWidget {
                 self.clicked = true;
                 self.state = WidgetState::Clicked;
                 self.dirty = true;
+                return true;
+            } else
+            if self.atom_widget_type == AtomWidgetType::TileScaleButton {
+                self.clicked = true;
+                self.state = WidgetState::Clicked;
+                self.dirty = true;
+                self.tile_scale();
                 return true;
             } else
             if self.atom_widget_type == AtomWidgetType::ToolBarCheckButton || self.atom_widget_type == AtomWidgetType::CheckButton || self.atom_widget_type == AtomWidgetType::CheckedIcon {
@@ -1444,7 +1475,7 @@ impl AtomWidget {
             }
         }
 
-        if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::ToolBarCheckButton || self.atom_widget_type == AtomWidgetType::CheckButton|| self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::ToolBarMenuButton {
+        if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::ToolBarCheckButton || self.atom_widget_type == AtomWidgetType::CheckButton|| self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::ToolBarMenuButton || self.atom_widget_type == AtomWidgetType::TileScaleButton {
             if self.contains_pos_for(pos, self.content_rect) {
                 if self.state != WidgetState::Disabled {
                     if self.state != WidgetState::Hover {
@@ -1612,4 +1643,40 @@ impl AtomWidget {
             self.dirty = true;
         }
     }
+
+    pub fn tile_scale(&mut self) {
+        if self.atom_widget_type == AtomWidgetType::TileScaleButton {
+            let size = self.atom_data.value.to_integer().unwrap();
+            match size {
+                32 => {
+                    self.atom_data.value = Value::Integer(48);
+                },
+                48 => {
+                    self.atom_data.value = Value::Integer(64);
+                },
+                64 => {
+                    self.atom_data.value = Value::Integer(2);
+                },
+                2 => {
+                    self.atom_data.value = Value::Integer(4);
+                },
+                4 => {
+                    self.atom_data.value = Value::Integer(8);
+                },
+                8 => {
+                    self.atom_data.value = Value::Integer(16);
+                }
+                16 => {
+                    self.atom_data.value = Value::Integer(24);
+                }
+                24 => {
+                    self.atom_data.value = Value::Integer(32);
+                },
+                _ => {
+                }
+            }
+            self.dirty = true;
+        }
+    }
+
 }

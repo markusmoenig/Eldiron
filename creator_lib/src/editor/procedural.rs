@@ -36,9 +36,9 @@ fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode)) {
 
     let mut rng = thread_rng();
 
-    let half_size = (size / 2) as isize;
-    let range_s = -half_size;
-    let range_e = half_size;
+    //let half_size = (size / 2) as isize;
+    let range_s = 0_isize;
+    let range_e = size as isize;
 
     let mut random_layer : FxHashMap<(isize, isize), i32> = FxHashMap::default();
 

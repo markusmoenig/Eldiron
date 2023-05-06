@@ -18,6 +18,7 @@ pub struct Draw2D {
     pub mask                : Option<Vec<f32>>,
     pub mask_size           : (usize, usize),
 
+    pub scissor             : Option<(usize, usize, usize, usize)>,
 }
 
 impl Draw2D {
@@ -26,7 +27,19 @@ impl Draw2D {
         Self {
             mask            : None,
             mask_size       : (0, 0),
+            scissor         : None,
         }
+    }
+
+    /// Safe to write a pixel
+    fn is_safe(&self, x: usize, y: usize) -> bool {
+        if let Some(s) = &self.scissor {
+            if x < s.0 || x >= s.0 + s.2 || y < s.1 || y >= s.1 + s.3 {
+                return false;
+            }
+        }
+
+        true
     }
 
     /// Draws the mask
@@ -94,6 +107,30 @@ impl Draw2D {
 
         let x = rect.0;
         for y in rect.1..rect.1+rect.3 {
+            let mut i = x * 4 + y * stride * 4;
+            frame[i..i + 4].copy_from_slice(&color);
+
+            i = (x + rect.2 - 1) * 4 + y * stride * 4;
+            frame[i..i + 4].copy_from_slice(&color);
+        }
+    }
+
+    /// Draws the outline of a given rectangle
+    pub fn draw_rect_outline_safe(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, color: [u8; 4]) {
+
+        let y = rect.1;
+        for x in rect.0..rect.0+rect.2 {
+            if !self.is_safe(x, y) { continue; }
+            let mut i = x * 4 + y * stride * 4;
+            frame[i..i + 4].copy_from_slice(&color);
+
+            i = x * 4 + (y + rect.3- 1) * stride * 4;
+            frame[i..i + 4].copy_from_slice(&color);
+        }
+
+        let x = rect.0;
+        for y in rect.1..rect.1+rect.3 {
+            if !self.is_safe(x, y) { continue; }
             let mut i = x * 4 + y * stride * 4;
             frame[i..i + 4].copy_from_slice(&color);
 

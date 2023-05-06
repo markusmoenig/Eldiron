@@ -5,12 +5,12 @@ pub struct RegionWidget {
 
     editor_rect             : (usize, usize, usize, usize),
     preview_rect            : (usize, usize, usize, usize),
+    overview_rect           : (usize, usize, usize, usize),
+    overview_tile_size      : usize,
 
     pub region_id           : Uuid,
 
     pub layouts             : Vec<HLayout>,
-
-    grid_size               : usize,
 
     offset                  : (isize, isize),
     screen_offset           : (usize, usize),
@@ -38,6 +38,7 @@ pub struct RegionWidget {
     has_changed             : bool,
 
     preview_button          : AtomWidget,
+    scale_button            : AtomWidget,
 }
 
 impl EditorContent for RegionWidget {
@@ -77,6 +78,15 @@ impl EditorContent for RegionWidget {
         preview_button.atom_data.text = "Preview".to_string();
         preview_button.set_rect((rect.0 + rect.2 - 190, rect.1, 180, 40), asset, context);
         preview_button.status_help_text = Some("Toggles the preview ('P').".to_string());
+
+        // Scale button
+
+        let mut scale_button = AtomWidget::new(vec![], AtomWidgetType::TileScaleButton,
+        AtomData::new("Scale", Value::Integer(32)));
+        scale_button.curr_index = 0;
+        scale_button.atom_data.text = "".to_string();
+        scale_button.set_rect((rect.0 + 2, rect.1 + 2, 60, 30), asset, context);
+        scale_button.status_help_text = Some("Tile size ('I').".to_string());
 
         // Tile Selector
         let mut tile_selector = TileSelectorWidget::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context);
@@ -264,9 +274,10 @@ impl EditorContent for RegionWidget {
 
             editor_rect             : (0, 0, 0, 0),
             preview_rect            : (0, 0, 0, 0),
+            overview_rect           : (0, 0, 0, 0),
+            overview_tile_size      : 1,
 
             region_id               : Uuid::new_v4(),
-            grid_size               : 32,
 
             layouts,
 
@@ -294,6 +305,7 @@ impl EditorContent for RegionWidget {
             has_changed             : false,
 
             preview_button,
+            scale_button,
         }
     }
 
@@ -310,6 +322,7 @@ impl EditorContent for RegionWidget {
         self.layouts[4].set_rect((self.rect.0 + secondary_start, self.rect.1 + self.rect.3 - self.bottom_size - self.toolbar_size, self.rect.2 - secondary_start, self.toolbar_size));
 
         self.preview_button.set_rect2((self.rect.0 + self.rect.2 - 190, self.rect.1, 180, 40));
+        self.scale_button.set_rect2((self.rect.0 + 2, self.rect.1 + 2, 60, 30));
 
         self.behavior_graph.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.bottom_size, width, self.bottom_size);
         self.behavior_graph.set_mode_and_rect(GraphMode::Detail, self.behavior_graph.rect, context);
@@ -324,19 +337,18 @@ impl EditorContent for RegionWidget {
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
         context.draw2d.draw_rect(frame, &self.rect, context.width, &[0,0,0,255]);
 
+        let mut rect = self.rect.clone();
+        rect.3 -= self.bottom_size + self.toolbar_size;
+
+        if self.preview_button.curr_index == 1 ||  self.preview_button.curr_index == 2 {
+            rect.2 -= rect.2 / 3;
+        }
+        self.editor_rect = rect.clone();
+
+        let grid_size = self.scale_button.atom_data.value.to_integer().unwrap() as usize;
+
         if let Some(options) = options {
             let editor_mode = options.get_editor_mode();
-
-            let mut rect = self.rect.clone();
-            rect.3 -= self.bottom_size + self.toolbar_size;
-
-            if self.preview_button.curr_index == 1 ||  self.preview_button.curr_index == 2 {
-                rect.2 -= rect.2 / 3;
-            }
-
-            self.editor_rect = rect.clone();
-
-            let grid_size = self.grid_size;
 
             let left_offset = (rect.2 % grid_size) / 2;
             let top_offset = (rect.3 % grid_size) / 2;
@@ -374,7 +386,6 @@ impl EditorContent for RegionWidget {
                 // Preview
 
                 if self.preview_button.curr_index == 1 || self.preview_button.curr_index == 2 {
-
 
                     if let Some(render) = &mut context.debug_render {
 
@@ -568,22 +579,22 @@ impl EditorContent for RegionWidget {
 
                                         if let Some(tile) = clipboard.layer1.get(&(ix, iy)) {
                                             if let Some(map) = asset.get_map_of_id(tile.tilemap) {
-                                                context.draw2d.draw_animated_tile(frame, &pos, &map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, self.grid_size);
+                                                context.draw2d.draw_animated_tile(frame, &pos, &map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, grid_size);
                                             }
                                         }
                                         if let Some(tile) = clipboard.layer2.get(&(ix, iy)) {
                                             if let Some(map) = asset.get_map_of_id(tile.tilemap) {
-                                                context.draw2d.draw_animated_tile(frame, &pos, &map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, self.grid_size);
+                                                context.draw2d.draw_animated_tile(frame, &pos, &map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, grid_size);
                                             }
                                         }
                                         if let Some(tile) = clipboard.layer3.get(&(ix, iy)) {
                                             if let Some(map) = asset.get_map_of_id(tile.tilemap) {
-                                                context.draw2d.draw_animated_tile(frame, &pos, &map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, self.grid_size);
+                                                context.draw2d.draw_animated_tile(frame, &pos, &map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, grid_size);
                                             }
                                         }
                                         if let Some(tile) = clipboard.layer4.get(&(ix, iy)) {
                                             if let Some(map) = asset.get_map_of_id(tile.tilemap) {
-                                                context.draw2d.draw_animated_tile(frame, &pos, &map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, self.grid_size);
+                                                context.draw2d.draw_animated_tile(frame, &pos, &map, context.width, &(tile.x_off as usize, tile.y_off as usize), anim_counter, grid_size);
                                             }
                                         }
                                     }
@@ -656,7 +667,50 @@ impl EditorContent for RegionWidget {
             }
         }
 
+        // Overview
+        //context.draw2d.draw_rect_outline(frame, &o_rect, context.width, context.color_white);
+
+        if let Some(region) = context.data.regions.get(&self.region_id) {
+
+            let mut size = 1;
+            let max_size = 200;
+
+            let mut ox = (region.data.max_pos.0 - region.data.min_pos.0) as usize;
+            let mut oy: usize = (region.data.max_pos.1 - region.data.min_pos.1) as usize;
+
+            while ox * 2 <= max_size && oy * 2 <= max_size {
+                ox *= 2;
+                oy *= 2;
+
+                size *= 2;
+            }
+
+            let o_rect = (rect.0 + rect.2 - ox, rect.1 + rect.3 - oy, ox, oy);
+            context.draw2d.draw_rect(frame, &o_rect, context.width, &context.color_toolbar);
+            context.draw2d.draw_region(frame, region, &o_rect, &(region.data.min_pos.0, region.data.min_pos.1), context.width, size, 0, asset, false);
+
+            self.overview_rect = o_rect.clone();
+            self.overview_tile_size = size;
+
+            // Draw current visible editor rect
+
+            println!("offset x {}", self.offset.0);
+
+            let mut dx = -(region.data.min_pos.0 + self.offset.0) as isize * size as isize;
+            let mut dy = -(region.data.min_pos.1 + self.offset.1) as isize * size as isize;
+            let width = ((self.editor_rect.2 as f32 / grid_size as f32) * size as f32) as usize;
+            let height = ((self.editor_rect.3 as f32 / grid_size as f32) * size as f32) as usize;
+            let v_rect = (o_rect.0 + dx as usize, o_rect.1 + dy as usize, width, height);
+
+            context.draw2d.scissor = Some(o_rect);
+            context.draw2d.draw_rect_outline_safe(frame, &v_rect, context.width, context.color_red);
+            context.draw2d.scissor = None;
+        }
+
+        //
+
         self.preview_button.draw(frame, context.width, anim_counter, asset, context);
+        self.scale_button.draw(frame, context.width, anim_counter, asset, context);
     }
 
     fn debug_data(&mut self, context: &mut ScreenContext, data: BehaviorDebugData) {
@@ -680,6 +734,10 @@ impl EditorContent for RegionWidget {
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
         if self.preview_button.mouse_down(pos, asset, context) {
+            return true;
+        }
+
+        if self.scale_button.mouse_down(pos, asset, context) {
             return true;
         }
 
@@ -1076,6 +1134,10 @@ impl EditorContent for RegionWidget {
             return true;
         }
 
+        if self.scale_button.mouse_up(pos, asset, context) {
+            return true;
+        }
+
         self.clicked = None;
 
         let mut consumed = false;
@@ -1229,6 +1291,10 @@ impl EditorContent for RegionWidget {
             return true;
         }
 
+        if self.scale_button.mouse_hover(pos, asset, context) {
+            return true;
+        }
+
         if let Some(_id) = self.layouts[0].mouse_hover(pos, asset, context) {
             return true;
         }
@@ -1261,6 +1327,10 @@ impl EditorContent for RegionWidget {
     }
 
     fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+
+        if self.scale_button.mouse_dragged(pos, asset, context) {
+            return true;
+        }
 
         let mut consumed = false;
         if let Some(options) = options {
@@ -1357,6 +1427,8 @@ impl EditorContent for RegionWidget {
 
     fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
+        let grid_size = self.scale_button.atom_data.value.to_integer().unwrap() as isize;
+
         let mut consumed = false;
         if let Some(options) = options {
             let editor_mode = options.get_editor_mode();
@@ -1392,11 +1464,11 @@ impl EditorContent for RegionWidget {
                     self.mouse_wheel_delta.0 += delta.0;
                     self.mouse_wheel_delta.1 += delta.1;
 
-                    self.offset.0 += self.mouse_wheel_delta.0 / self.grid_size as isize;
-                    self.offset.1 += self.mouse_wheel_delta.1 / self.grid_size as isize;
+                    self.offset.0 += self.mouse_wheel_delta.0 / grid_size;
+                    self.offset.1 += self.mouse_wheel_delta.1 / grid_size;
 
-                    self.mouse_wheel_delta.0 -= (self.mouse_wheel_delta.0 / self.grid_size as isize) * self.grid_size as isize;
-                    self.mouse_wheel_delta.1 -= (self.mouse_wheel_delta.1 / self.grid_size as isize) * self.grid_size as isize;
+                    self.mouse_wheel_delta.0 -= (self.mouse_wheel_delta.0 / grid_size) * grid_size;
+                    self.mouse_wheel_delta.1 -= (self.mouse_wheel_delta.1 / grid_size) * grid_size;
 
                     if let Some(region) = context.data.regions.get_mut(&self.region_id) {
                         region.data.editor_offset = Some(self.offset.clone());
@@ -1509,15 +1581,13 @@ impl EditorContent for RegionWidget {
                     return true;
                 }
                 if char == 'o' {
-                    if self.grid_size > 0 {
-                        self.grid_size -= 2;
-                    }
+                    // if self.grid_size > 0 {
+                    //     self.grid_size -= 2;
+                    // }
                     return true;
                 } else
                 if char == 'i' {
-                    if self.grid_size < 100 {
-                        self.grid_size += 2;
-                    }
+                    self.scale_button.tile_scale();
                     return true;
                 } else
                 if char == 'p' {
@@ -1545,7 +1615,7 @@ impl EditorContent for RegionWidget {
             if let Some(editor_offset) = region.data.editor_offset {
                 self.offset = editor_offset.clone();
             } else {
-                self.offset = (0, 0);
+                self.offset = (-region.data.min_pos.0, -region.data.min_pos.1);
             }
 
             // Make sure we have the renderer for preview
@@ -1594,7 +1664,8 @@ impl EditorContent for RegionWidget {
 
     /// Get the tile id
     fn get_tile_id(&self, pos: (usize, usize)) -> Option<(isize, isize)> {
-        let grid_size = self.grid_size;
+
+        let grid_size = self.scale_button.atom_data.value.to_integer().unwrap() as usize;
         if pos.0 > self.rect.0 + self.screen_offset.0 && pos.1 > self.rect.1 + self.screen_offset.1
         && pos.0 < self.rect.0 + self.rect.2 - self.screen_offset.0  && pos.1 < self.rect.1 + self.rect.3 - self.screen_offset.1 - self.bottom_size
         {
