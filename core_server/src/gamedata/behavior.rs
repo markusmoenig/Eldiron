@@ -90,6 +90,7 @@ pub enum BehaviorNodeType {
     MagicDamage,
 
     Cellular,
+    DrunkardsWalk,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

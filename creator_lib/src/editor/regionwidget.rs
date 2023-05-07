@@ -7,6 +7,7 @@ pub struct RegionWidget {
     preview_rect            : (usize, usize, usize, usize),
     overview_rect           : (usize, usize, usize, usize),
     visible_rect            : (usize, usize, usize, usize),
+    visible_drag            : bool,
     overview_tile_size      : usize,
 
     pub region_id           : Uuid,
@@ -277,6 +278,7 @@ impl EditorContent for RegionWidget {
             preview_rect            : (0, 0, 0, 0),
             overview_rect           : (0, 0, 0, 0),
             visible_rect            : (0, 0, 0, 0),
+            visible_drag            : false,
             overview_tile_size      : 1,
 
             region_id               : Uuid::new_v4(),
@@ -735,6 +737,8 @@ impl EditorContent for RegionWidget {
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
+        self.visible_drag = false;
+
         // Test for overview click
         if context.contains_pos_for(pos, self.overview_rect) {
             let dx: usize = pos.0 - self.overview_rect.0;
@@ -744,6 +748,8 @@ impl EditorContent for RegionWidget {
                 self.offset.0 = -region.data.min_pos.0 - dx as isize / self.overview_tile_size as isize + (self.visible_rect.2 / 2) as isize / self.overview_tile_size as isize ;
                 self.offset.1 = -region.data.min_pos.1 - dy as isize / self.overview_tile_size as isize + (self.visible_rect.3 / 2) as isize / self.overview_tile_size as isize ;
             }
+
+            self.visible_drag = true;
             return true;
         }
 
@@ -1144,6 +1150,8 @@ impl EditorContent for RegionWidget {
 
     fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
+        self.visible_drag = false;
+
         if self.preview_button.mouse_up(pos, asset, context) {
             return true;
         }
@@ -1343,7 +1351,7 @@ impl EditorContent for RegionWidget {
     fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
 
         // Test for overview drag
-        if context.contains_pos_for(pos, self.overview_rect) {
+        if self.visible_drag == true {
             let dx: usize = pos.0 - self.overview_rect.0;
             let dy: usize = pos.1 - self.overview_rect.1;
 

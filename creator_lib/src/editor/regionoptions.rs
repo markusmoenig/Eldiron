@@ -91,7 +91,7 @@ impl EditorOptions for RegionOptions {
         let mut procedural_node_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new("ProceduralNodeList", Value::Empty()));
         procedural_node_list.drag_enabled = true;
-        procedural_node_list.add_group_list(context.color_green, context.color_light_green, vec!["Cellular".to_string()]);
+        procedural_node_list.add_group_list(context.color_green, context.color_light_green, vec!["Cellular".to_string(), "Drunk. Walk".to_string()]);
 
         //node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio".to_string(), "Light".to_string(), "Message".to_string(), "Overlay Tiles".to_string(), "Spawn".to_string(), "Teleport".to_string()]);
 

@@ -11,9 +11,150 @@ pub fn generate_region(region: &mut GameRegion, _asset: &Asset) {
         for (id, node) in &nodes {
             if node.behavior_type == BehaviorNodeType::Cellular {
                 create_cellular(region, (id, node));
+                break;
+            } else
+            if node.behavior_type == BehaviorNodeType::DrunkardsWalk {
+                drunkards_walk(region, (id, node));
+                break;
             }
         }
     }
+}
+
+/// Random walk
+fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode)) {
+
+    let mut engine = setup_engine();
+
+    let mut size = 80;
+    let mut distance = 50;
+
+    if let Some(d) = get_node_script_int_value(&mut engine, node.1, "distance".into()) {
+        distance = d;
+    }
+
+    if let Some(s) = get_node_script_int_value(&mut engine, node.1, "size".into()) {
+        size = s;
+    }
+
+    let mut rng = thread_rng();
+
+    let mut layer1 = FxHashMap::default();
+    let mut layer2 = FxHashMap::default();
+    let layer3 = FxHashMap::default();
+    let layer4 = FxHashMap::default();
+
+    let needs_to_cover = (size * size) / 3;
+
+    if let Some(f) = get_node_value(node.1, "floor".into()) {
+        if let Some(w) = get_node_value(node.1, "wall".into()) {
+
+            if f.to_tile_data().is_none() || w.to_tile_data().is_none() {
+                return;
+            }
+
+            let floor = f.to_tile_data().unwrap();
+            let wall = w.to_tile_data().unwrap();
+
+            let range_s = 0_isize;
+            let range_e = size as isize;
+
+            // Fill the area with walls
+
+            for y in range_s..range_e {
+                for x in range_s..range_e {
+                    if wall.usage == TileUsage::EnvBlocking {
+                        layer2.insert((x, y), wall.clone());
+                    } else {
+                        layer1.insert((x, y), wall.clone());
+                    }
+                }
+            }
+
+            fn is_valid(x: isize, y: isize, start: isize, end: isize) -> bool {
+                if x >= start && x < end && y >= start && y < end {
+                    true
+                } else {
+                    false
+                }
+            }
+
+            let mut i = 0;
+
+            loop {
+                // Place a miner
+
+                let mut d = 0;
+                let mut x = range_e / 2;//rng.gen_range(range_s..range_e);
+                let mut y = range_e - 1;//rng.gen_range(range_s..range_e);
+
+                layer1.insert((x, y), floor.clone());
+                layer2.remove(&(x,y));
+
+                for _ in 0..distance {
+
+                    match rng.gen_range(0..4) {
+                        0 => { x -= 1; },
+                        1 => { x += 1; },
+                        2 => { y -= 1; },
+                        _ => { y += 1; }
+                    }
+
+                    if is_valid(x, y, range_s,range_e) {
+                        layer1.insert((x, y), floor.clone());
+                        layer2.remove(&(x,y));
+                        d += 1;
+                    } else {
+                        break;
+                    }
+
+                    if d >= distance {
+                        break;
+                    }
+                }
+
+                // Calc how much we cover already
+
+                let mut covers = 0;
+                for y in range_s..range_e {
+                    for x in range_s..range_e {
+                        if layer1.contains_key(&(x, y)) {
+                            covers += 1;
+                        }
+                    }
+                }
+                if covers >= needs_to_cover {
+                    break;
+                }
+
+                // Safeguard
+                i += 1;
+                if i >= 1000 {
+                    break;
+                }
+            }
+
+            // Close the edges
+            for y in range_s..range_e {
+                for x in range_s..range_e {
+                    if x == range_s || y == range_s || x == range_e -1 || y == range_e - 1 {
+                        if wall.usage == TileUsage::EnvBlocking {
+                            layer2.insert((x, y), wall.clone());
+                        } else {
+                            layer1.insert((x, y), wall.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    region.data.layer1 = layer1;
+    region.data.layer2 = layer2;
+    region.data.layer3 = layer3;
+    region.data.layer4 = layer4;
+
+    region.calc_dimensions();
 }
 
 /// Cellular creation
@@ -82,6 +223,10 @@ fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode)) {
     if let Some(f) = get_node_value(node.1, "floor".into()) {
         if let Some(w) = get_node_value(node.1, "wall".into()) {
 
+            if f.to_tile_data().is_none() || w.to_tile_data().is_none() {
+                return;
+            }
+
             let floor = f.to_tile_data().unwrap();
             let wall = w.to_tile_data().unwrap();
 
@@ -106,10 +251,25 @@ fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode)) {
                 }
             }
 
+            // Close the edges
+            for y in range_s..range_e {
+                for x in range_s..range_e {
+                    if x == range_s || y == range_s || x == range_e -1 || y == range_e - 1 {
+                        if wall.usage == TileUsage::EnvBlocking {
+                            layer2.insert((x, y), wall.clone());
+                        } else {
+                            layer1.insert((x, y), wall.clone());
+                        }
+                    }
+                }
+            }
+
             region.data.layer1 = layer1;
             region.data.layer2 = layer2;
             region.data.layer3 = layer3;
             region.data.layer4 = layer4;
+
+            region.calc_dimensions();
         }
     }
 }

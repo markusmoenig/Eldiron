@@ -1300,10 +1300,8 @@ impl EditorContent for NodeGraph  {
                 "Overlay Tiles" => BehaviorNodeType::OverlayTiles,
 
                 "Cellular" => BehaviorNodeType::Cellular,
+                "Drunk. Walk" => BehaviorNodeType::DrunkardsWalk,
 
-                /*
-                "Widget" => BehaviorNodeType::Widget,
-                */
 
                 _ => BehaviorNodeType::BehaviorTree
             };
@@ -2449,7 +2447,45 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.text = "Iterations".to_string();
             let id = (behavior_data_id, node_id, "steps".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("4".into()), self.graph_type);
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("1".into()), self.graph_type);
+            node_widget.widgets.push(atom1);
+
+            let mut atom4 = AtomWidget::new(vec![], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("size", Value::Empty()));
+            atom4.atom_data.text = "Size".to_string();
+            let id = (behavior_data_id, node_id, "size".to_string());
+            atom4.behavior_id = Some(id.clone());
+            atom4.atom_data.value = context.data.get_behavior_id_value(id, Value::String("80".into()), self.graph_type);
+            node_widget.widgets.push(atom4);
+
+            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeEnvTileButton,
+            AtomData::new("wall", Value::Empty()));
+            atom2.atom_data.text = "Wall".to_string();
+            let id = (behavior_data_id, node_id, "wall".to_string());
+            atom2.behavior_id = Some(id.clone());
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom2);
+
+            let mut atom3 = AtomWidget::new(vec![], AtomWidgetType::NodeEnvTileButton,
+            AtomData::new("floor", Value::Empty()));
+            atom3.atom_data.text = "Floor".to_string();
+            let id = (behavior_data_id, node_id, "floor".to_string());
+            atom3.behavior_id = Some(id.clone());
+            atom3.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            node_widget.widgets.push(atom3);
+
+            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#cellular".to_string());
+
+            node_widget.color = context.color_green.clone();
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+        } else
+        if node_behavior_type == BehaviorNodeType::DrunkardsWalk {
+            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("distance", Value::Empty()));
+            atom1.atom_data.text = "Max Distance".to_string();
+            let id = (behavior_data_id, node_id, "distance".to_string());
+            atom1.behavior_id = Some(id.clone());
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("50".into()), self.graph_type);
             node_widget.widgets.push(atom1);
 
             let mut atom4 = AtomWidget::new(vec![], AtomWidgetType::NodeExpressionValueButton,
