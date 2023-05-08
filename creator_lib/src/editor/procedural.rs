@@ -2,8 +2,6 @@ use crate::prelude::*;
 use rhai::{ Engine, Dynamic, Scope };
 
 pub fn generate_region(region: &mut GameRegion, _asset: &Asset) {
-    region.delete_areas();
-
     fn build_chain(data: &GameBehaviorData, uuid: Uuid) -> Vec<BehaviorNode> {
         let mut chain =  vec![];
 
@@ -80,6 +78,8 @@ fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), chain: 
 
     if let Some(f) = get_node_value(node.1, "floor".into()) {
         if let Some(w) = get_node_value(node.1, "wall".into()) {
+
+            region.delete_areas();
 
             if f.to_tile_data().is_none() || w.to_tile_data().is_none() {
                 return;
@@ -268,6 +268,8 @@ fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), chain:
 
     if let Some(f) = get_node_value(node.1, "floor".into()) {
         if let Some(w) = get_node_value(node.1, "wall".into()) {
+
+            region.delete_areas();
 
             if f.to_tile_data().is_none() || w.to_tile_data().is_none() {
                 return;

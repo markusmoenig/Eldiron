@@ -5,6 +5,7 @@ pub mod region_pool;
 pub mod message;
 pub mod nodes;
 pub mod script_utilities;
+pub mod region_utlity;
 
 use crossbeam_channel::{ Sender, Receiver, unbounded };
 

@@ -88,10 +88,10 @@ pub enum BehaviorNodeType {
     HasState,
     MagicTarget,
     MagicDamage,
-
     Cellular,
     DrunkardsWalk,
     StartArea,
+    TeleportToArea,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

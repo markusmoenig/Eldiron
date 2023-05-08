@@ -1,5 +1,12 @@
+extern crate ref_thread_local;
+use ref_thread_local::{RefThreadLocal, ref_thread_local};
+
 use crate::{prelude::*};
 use rhai::{Engine, AST, Scope};
+
+ref_thread_local! {
+    static managed UTILITY: RegionUtility = RegionUtility::new();
+}
 
 pub struct RegionInstance<'a> {
     // Game data
@@ -132,23 +139,30 @@ pub struct RegionInstance<'a> {
 impl RegionInstance<'_> {
 
     pub fn new() -> Self {
-
         let mut engine = Engine::new();
 
         // Variable resolver for d??? -> random(???)
         #[allow(deprecated)]
         engine.on_var(|name, _index, _context| {
-
             if name.starts_with("d") {
                 let mut s = name.to_string();
                 s.remove(0);
                 if let Some(n) = s.parse::<i32>().ok() {
-                    let mut rng = thread_rng();
-                    let random = rng.gen_range(1..=n) as f32;
+                    let mut util = UTILITY.borrow_mut();
+                    let random = util.rng.gen_range(1..=n) as f32;
                     return Ok(Some(random.into()));
                 }
             }
             Ok(None)
+        });
+
+        engine.register_fn("roll", |exp: &str| -> i32 {
+            let mut util = UTILITY.borrow_mut();
+            if let Some(rc) = util.roll(exp).ok() {
+                rc
+            } else {
+                1
+            }
         });
 
         script_register_message_api(&mut engine);
