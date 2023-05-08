@@ -46,7 +46,6 @@ impl GameRegion {
 
         // Read the behaviors
         let mut behaviors : Vec<GameBehavior> = vec![];
-        let mut procedural : Option<GameBehavior> = None;
 
         for a in &data.areas {
             let mut area_path = path.clone();
@@ -58,7 +57,7 @@ impl GameRegion {
         }
 
         let procedural_path = path.join(std::path::Path::new(&"procedural.json").to_path_buf());
-        procedural = Some(GameBehavior::load_from_path(&procedural_path, &procedural_path));
+        let procedural = Some(GameBehavior::load_from_path(&procedural_path, &procedural_path));
 
         Self {
             name                : name.to_string(),
@@ -100,7 +99,7 @@ impl GameRegion {
 
         // Read the behaviors
         let mut behaviors : Vec<GameBehavior> = vec![];
-        let mut procedural : Option<GameBehavior> = None;
+        let procedural : Option<GameBehavior> = None;
 
         let mut spl = file_name.split("/");
         spl.next();
@@ -393,7 +392,7 @@ impl GameRegion {
     }
 
     /// Create area
-    pub fn create_area(&mut self) -> Uuid {
+    pub fn create_area(&mut self, name: String) -> Uuid {
 
         let area_id = Uuid::new_v4();
         let mut path = self.path.clone();
@@ -404,7 +403,7 @@ impl GameRegion {
         behavior.save_data();
         self.behaviors.push(behavior);
 
-        let area = RegionArea { name: "New Area".to_string(), area: vec![], behavior: behavior_id.clone(), id: area_id };
+        let area = RegionArea { name, area: vec![], behavior: behavior_id.clone(), id: area_id };
         self.data.areas.push(area);
 
         self.save_data();
@@ -425,12 +424,19 @@ impl GameRegion {
             }
         }
 
+        self.data.areas.remove(index);
         if let Some(behavior_index) = behavior_index {
-            self.data.areas.remove(index);
             let _ = std::fs::remove_file(self.behaviors[behavior_index].path.clone());
             self.behaviors.remove(behavior_index);
         }
         self.save_data();
+    }
+
+    /// Deletes all areas
+    pub fn delete_areas(&mut self) {
+        while self.data.areas.is_empty() == false {
+            self.delete_area(0);
+        }
     }
 
     /// Get area names

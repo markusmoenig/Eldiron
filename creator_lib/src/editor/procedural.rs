@@ -1,20 +1,52 @@
 use crate::prelude::*;
-use rhai::{ Engine, Dynamic };
+use rhai::{ Engine, Dynamic, Scope };
 
 pub fn generate_region(region: &mut GameRegion, _asset: &Asset) {
-    //if region.procedural.is_none() { return; }
+    region.delete_areas();
+
+    fn build_chain(data: &GameBehaviorData, uuid: Uuid) -> Vec<BehaviorNode> {
+        let mut chain =  vec![];
+
+        let mut c = uuid;
+
+        loop {
+            let mut d : Option<Uuid> = None;
+
+            for (s1, s2, d1, d2) in &data.connections {
+                if *s1 == c {
+                    d = Some(*d1);
+                }
+            }
+
+            if let Some(d) = d {
+                for (id, node) in &data.nodes {
+                    if *id == d {
+                        chain.push(node.clone());
+                        c = d;
+                        break;
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+
+        chain
+    }
 
     if let Some(procedural) = &mut region.procedural {
 
-        let nodes = procedural.data.nodes.clone();
+        let data = procedural.data.clone();
 
-        for (id, node) in &nodes {
+        for (id, node) in &data.nodes {
             if node.behavior_type == BehaviorNodeType::Cellular {
-                create_cellular(region, (id, node));
+                let chain = build_chain(&data, node.id);
+                create_cellular(region, (id, node), chain);
                 break;
             } else
             if node.behavior_type == BehaviorNodeType::DrunkardsWalk {
-                drunkards_walk(region, (id, node));
+                let chain = build_chain(&data, node.id);
+                drunkards_walk(region, (id, node), chain);
                 break;
             }
         }
@@ -22,7 +54,7 @@ pub fn generate_region(region: &mut GameRegion, _asset: &Asset) {
 }
 
 /// Random walk
-fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode)) {
+fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), chain: Vec<BehaviorNode>) {
 
     let mut engine = setup_engine();
 
@@ -72,7 +104,7 @@ fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode)) {
             }
 
             fn is_valid(x: isize, y: isize, start: isize, end: isize) -> bool {
-                if x >= start && x < end && y >= start && y < end {
+                if x > start && x < end - 1 && y > start && y < end - 1 {
                     true
                 } else {
                     false
@@ -81,12 +113,25 @@ fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode)) {
 
             let mut i = 0;
 
+            let mut sx = range_e / 2;
+            let mut sy = range_e / 2;
+
+            if let Some(pos) = get_start_area(&engine, size, &chain) {
+                sx = pos.0;
+                sy = pos.1;
+                region.create_area(pos.2);
+                if let Some(area) = region.data.areas.last_mut() {
+                    area.area.push((pos.0, pos.1));
+                    region.save_data();
+                }
+            }
+
             loop {
                 // Place a miner
 
                 let mut d = 0;
-                let mut x = range_e / 2;//rng.gen_range(range_s..range_e);
-                let mut y = range_e - 1;//rng.gen_range(range_s..range_e);
+                let mut x = sx;
+                let mut y = sy;
 
                 layer1.insert((x, y), floor.clone());
                 layer2.remove(&(x,y));
@@ -134,6 +179,7 @@ fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode)) {
                 }
             }
 
+            /*
             // Close the edges
             for y in range_s..range_e {
                 for x in range_s..range_e {
@@ -145,7 +191,7 @@ fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode)) {
                         }
                     }
                 }
-            }
+            }*/
         }
     }
 
@@ -158,7 +204,7 @@ fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode)) {
 }
 
 /// Cellular creation
-fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode)) {
+fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), chain: Vec<BehaviorNode>) {
 
     let mut engine = setup_engine();
 
@@ -275,6 +321,19 @@ fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode)) {
 }
 
 /// Get the script int value of the given node
+fn get_node_script_dynamic_value(engine: &Engine, scope: &mut Scope, node: &BehaviorNode, name: String) -> Option<Dynamic> {
+    if let Some(v) = get_node_value(node, name) {
+        if let Some(s) = v.to_string() {
+            let rc = engine.eval_with_scope::<Dynamic>(scope, s.as_str());
+            if let Some(rc) = rc.ok() {
+                return Some(rc);
+            }
+        }
+    }
+    None
+}
+
+/// Get the script int value of the given node
 fn get_node_script_int_value(engine: &Engine, node: &BehaviorNode, name: String) -> Option<i32> {
     if let Some(v) = get_node_value(node, name) {
         if let Some(s) = v.to_string() {
@@ -298,7 +357,7 @@ fn get_node_value(node: &BehaviorNode, name: String) -> Option<Value> {
     None
 }
 
-//
+/// Setup the engine
 fn setup_engine() -> Engine {
     let mut engine = Engine::new();
 
@@ -317,5 +376,61 @@ fn setup_engine() -> Engine {
         Ok(None)
     });
 
+    ScriptPosition::register(&mut engine);
+
     engine
+}
+
+/// Extract the
+fn get_start_area(engine: &Engine, size: i32, chain: &Vec<BehaviorNode>) -> Option<(isize, isize, String)> {
+
+    let mut scope = Scope::new();
+    scope.set_value("size", size);
+
+    for n in chain {
+        if n.behavior_type == BehaviorNodeType::StartArea {
+            if let Some(p) = get_node_script_dynamic_value(engine, &mut scope, &n, "start".to_string()) {
+                if let Some(pos) = p.read_lock::<ScriptPosition>() {
+                    if let Some(name) = get_node_value(&n, "name".to_string()) {
+                        if let Some(name) = name.to_string() {
+                            return Some((pos.pos_signed.0, pos.pos_signed.1, name));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+// --- ScriptPosition
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct ScriptPosition {
+    pub pos             : (usize, usize),
+    pub pos_signed      : (isize, isize)
+}
+
+impl ScriptPosition {
+    pub fn new(x: i32, y: i32) -> Self {
+        Self {
+            pos         : (x as usize, y as usize),
+            pos_signed  : (x as isize, y as isize),
+        }
+    }
+
+    pub fn x(&mut self) -> i32 {
+        self.pos.0 as i32
+    }
+
+    pub fn y(&mut self) -> i32 {
+        self.pos.1 as i32
+    }
+
+    pub fn register(engine: &mut Engine) {
+        engine.register_type_with_name::<ScriptPosition>("Position")
+            .register_get("x", ScriptPosition::x)
+            .register_get("y", ScriptPosition::y)
+            .register_fn("pos", ScriptPosition::new);
+    }
 }

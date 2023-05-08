@@ -91,6 +91,7 @@ pub enum BehaviorNodeType {
 
     Cellular,
     DrunkardsWalk,
+    StartArea,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -287,7 +288,7 @@ pub struct LootInstanceData {
     pub amount                  : i32,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GameBehaviorData {
     pub nodes                   : FxHashMap<Uuid, BehaviorNode>,
     pub connections             : Vec<(Uuid, BehaviorNodeConnector, Uuid, BehaviorNodeConnector)>,

@@ -985,6 +985,7 @@ dependencies = [
  "regex",
  "rfd",
  "rhai 1.14.0",
+ "rustc-hash",
  "serde",
  "serde_json",
  "uuid",

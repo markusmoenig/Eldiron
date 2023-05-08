@@ -93,7 +93,7 @@ impl EditorOptions for RegionOptions {
         procedural_node_list.drag_enabled = true;
         procedural_node_list.add_group_list(context.color_green, context.color_light_green, vec!["Cellular".to_string(), "Drunk. Walk".to_string()]);
 
-        //node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio".to_string(), "Light".to_string(), "Message".to_string(), "Overlay Tiles".to_string(), "Spawn".to_string(), "Teleport".to_string()]);
+        procedural_node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Start Area".to_string()]);
 
         procedural_node_list.set_rect((0, 0, rect.2 - 20, rect.3 - 200), asset, context);
         procedural_layout.layout();

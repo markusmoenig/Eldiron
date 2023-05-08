@@ -1231,7 +1231,7 @@ impl EditorContent for RegionWidget {
                         } else
                         if id.1 == "Add Area".to_string() {
                             if let Some(region) = context.data.regions.get_mut(&self.get_region_id()) {
-                                let id = region.create_area();
+                                let id = region.create_area("New Area".to_string());
                                 self.layouts[1].widgets[0].curr_index = region.behaviors.len() - 1;
                                 if let Some(graph) = self.get_behavior_graph() {
                                     graph.set_behavior_id(id, context);
@@ -1283,6 +1283,7 @@ impl EditorContent for RegionWidget {
                             region.undo.add(undo, region.get_data());
                             region.save_data();
                             self.offset = (0,0);
+                            self.update_area_ui(context);
                         }
                     }
                     consumed = true;
