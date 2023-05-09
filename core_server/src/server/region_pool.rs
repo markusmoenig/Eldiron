@@ -1,6 +1,16 @@
+extern crate ref_thread_local;
+use ref_thread_local::{ref_thread_local};
+
 use crate::prelude::*;
 
 use crossbeam_channel::{ Sender, Receiver, tick, select };
+
+ref_thread_local! {
+    pub static managed UTILITY          : RegionUtility = RegionUtility::new();
+    pub static managed SHEETS           : Vec<Sheet> = vec![];
+
+    pub static managed CURR_SHEET       : usize = 0;
+}
 
 pub struct RegionPool<'a> {
 

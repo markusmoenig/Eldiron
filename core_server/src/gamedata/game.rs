@@ -86,6 +86,9 @@ pub fn update_game_sink(sink: &mut PropertySink) {
     if sink.contains("max_hitpoints") == false {
         sink.push(Property::new_string("max_hitpoints".to_string(), "MAX_HP".to_string()));
     }
+    if sink.contains("abilities") == false {
+        sink.push(Property::new_string("abilities".to_string(), "STR, INT, WIS, DEX, CON, CHA".to_string()));
+    }
     if sink.contains("gear_slots") == false {
         sink.push(Property::new_string("gear_slots".to_string(), "helm, chest, legs, boots".to_string()));
     }
@@ -108,6 +111,7 @@ pub fn generate_game_sink_descriptions() -> FxHashMap<String, Vec<String>> {
     map.insert("secondary_to_primary".to_string(), vec!["How much secondary currency makes up one primary. 100 by default.".to_string()]);
     map.insert("hitpoints".to_string(), vec!["The name of the characters hitpoints variable.".to_string()]);
     map.insert("max_hitpoints".to_string(), vec!["The name of the characters maximum hitpoints variable.".to_string()]);
+    map.insert("abilities".to_string(), vec!["The character abilities.".to_string()]);
     map.insert("gear_slots".to_string(), vec!["The supported gear slots.".to_string()]);
     map.insert("weapon_slots".to_string(), vec!["The supported weapon slots.".to_string()]);
     map.insert("ticks_per_minute".to_string(), vec!["The number of game ticks per in-game minute. 4 by default.".to_string()]);

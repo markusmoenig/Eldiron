@@ -11,7 +11,7 @@ pub mod prelude {
     pub use crate::server::Server;
     pub use crate::server::region_instance::RegionInstance;
     pub use crate::server::region_utlity::RegionUtility;
-    pub use crate::server::region_pool::RegionPool;
+    pub use crate::server::region_pool::*;
     pub use crate::server::message::Message;
     pub use crate::server::nodes::*;
     pub use crate::server::nodes::behavior::*;

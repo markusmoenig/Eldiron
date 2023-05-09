@@ -1,12 +1,8 @@
 extern crate ref_thread_local;
-use ref_thread_local::{RefThreadLocal, ref_thread_local};
+use ref_thread_local::{RefThreadLocal};
 
 use crate::{prelude::*};
 use rhai::{Engine, AST, Scope};
-
-ref_thread_local! {
-    static managed UTILITY: RegionUtility = RegionUtility::new();
-}
 
 pub struct RegionInstance<'a> {
     // Game data
@@ -164,6 +160,20 @@ impl RegionInstance<'_> {
                 1
             }
         });
+
+        engine.register_fn("get_sheet", || -> Sheet {
+            let curr_sheet = CURR_SHEET.borrow();
+            let sheets = SHEETS.borrow();
+            sheets[*curr_sheet].clone()
+        });
+
+        engine.register_fn("apply_sheet", |sheet: Sheet| {
+            let curr_sheet = CURR_SHEET.borrow();
+            let mut sheets = SHEETS.borrow_mut();
+            sheets[*curr_sheet] = sheet;
+        });
+
+        Sheet::register(&mut engine);
 
         script_register_message_api(&mut engine);
         script_register_inventory_api(&mut engine);
@@ -1760,6 +1770,9 @@ impl RegionInstance<'_> {
         self.instances.push(instance);
         self.scopes.push(scope);
 
+        let mut sheets = SHEETS.borrow_mut();
+        sheets.push(Sheet::new());
+
         for tree_id in &to_execute {
             // Execute this tree if it is a "Startup" Only tree
             if let Some(value)= self.get_game_node_value(*tree_id, "execute") {
@@ -1940,10 +1953,19 @@ impl RegionInstance<'_> {
 
             //println!("Creating instance {}", inst.name.unwrap());
 
-            let instance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior_name.clone(), behavior_id: behavior_id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, skills_buffer: None, experience_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: Some(inst.clone()), send_screen_scripts: false };
+            let instance: BehaviorInstance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior_name.clone(), behavior_id: behavior_id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, skills_buffer: None, experience_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: Some(inst.clone()), send_screen_scripts: false };
 
             index = self.instances.len();
             self.instances.push(instance);
+
+            // Set the sheet
+            {
+                let mut sheets = SHEETS.borrow_mut();
+                sheets.push(Sheet::new());
+
+                let mut curr_sheet = CURR_SHEET.borrow_mut();
+                *curr_sheet = index;
+            }
 
             // Create skills
 
