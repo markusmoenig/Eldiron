@@ -71,21 +71,6 @@ pub fn update_game_sink(sink: &mut PropertySink) {
     if sink.contains("square_tile_size") == false {
         sink.properties.insert(1,Property::new_int("square_tile_size".to_string(), 32));
     }
-    if sink.contains("primary_currency") == false {
-        sink.push(Property::new_string("primary_currency".to_string(), "gold".to_string()));
-    }
-    if sink.contains("secondary_currency") == false {
-        sink.push(Property::new_string("secondary_currency".to_string(), "silver".to_string()));
-    }
-    if sink.contains("secondary_to_primary") == false {
-        sink.push(Property::new_int("secondary_to_primary".to_string(), 100));
-    }
-    if sink.contains("hitpoints") == false {
-        sink.push(Property::new_string("hitpoints".to_string(), "HP".to_string()));
-    }
-    if sink.contains("max_hitpoints") == false {
-        sink.push(Property::new_string("max_hitpoints".to_string(), "MAX_HP".to_string()));
-    }
     if sink.contains("abilities") == false {
         sink.push(Property::new_string("abilities".to_string(), "STR, INT, WIS, DEX, CON, CHA".to_string()));
     }
@@ -104,13 +89,8 @@ pub fn generate_game_sink_descriptions() -> FxHashMap<String, Vec<String>> {
 
     let mut map : FxHashMap<String, Vec<String>> = FxHashMap::default();
 
-    map.insert("screen_size".to_string(), vec!["The size of the game screen.".to_string()]);
+    map.insert("screen_size".to_string(), vec!["The default size of the game screen.".to_string()]);
     map.insert("square_tile_size".to_string(), vec!["The default drawing size of square tiles.".to_string()]);
-    map.insert("primary_currency".to_string(), vec!["The variable name of your primary currency. \"gold\" by default.".to_string()]);
-    map.insert("secondary_currency".to_string(), vec!["The variable name of your (optional) secondary currency. \"silver\" by default.".to_string()]);
-    map.insert("secondary_to_primary".to_string(), vec!["How much secondary currency makes up one primary. 100 by default.".to_string()]);
-    map.insert("hitpoints".to_string(), vec!["The name of the characters hitpoints variable.".to_string()]);
-    map.insert("max_hitpoints".to_string(), vec!["The name of the characters maximum hitpoints variable.".to_string()]);
     map.insert("abilities".to_string(), vec!["The character abilities.".to_string()]);
     map.insert("gear_slots".to_string(), vec!["The supported gear slots.".to_string()]);
     map.insert("weapon_slots".to_string(), vec!["The supported weapon slots.".to_string()]);

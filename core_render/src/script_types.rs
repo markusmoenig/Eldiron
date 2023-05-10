@@ -387,6 +387,7 @@ use lazy_static::lazy_static;
 use std::sync::Mutex;
 
 lazy_static! {
+    pub static ref SHEET : Mutex<Sheet> = Mutex::new(Sheet::new());
     pub static ref SCRIPTCMD : Mutex<ScriptCmd> = Mutex::new(ScriptCmd::new());
     pub static ref MESSAGECMD : Mutex<ScriptMessageCmd> = Mutex::new(ScriptMessageCmd::new());
     pub static ref INFOCMD : Mutex<ScriptInfo> = Mutex::new(ScriptInfo::new());
@@ -522,7 +523,7 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
     });
 
     engine.register_fn("get_inventory", || -> Inventory {
-        INFOCMD.lock().unwrap().inventory.clone()
+        SHEET.lock().unwrap().inventory.clone()
     });
 
     engine.register_fn("get_spells", || -> Spells {

@@ -17,6 +17,12 @@ pub fn script(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance
     BehaviorNodeConnector::Bottom
 }
 
+pub fn node_script(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    eval_script(id, "script", nodes);
+    //_ = eval_dynamic_script_instance(instance_index, (behavior_type, id.0, id.1, "script".to_string()), data);
+    BehaviorNodeConnector::Bottom
+}
+
 /// message
 pub fn message(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 

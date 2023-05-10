@@ -10,7 +10,7 @@ pub fn generate_region(region: &mut GameRegion, _asset: &Asset) {
         loop {
             let mut d : Option<Uuid> = None;
 
-            for (s1, s2, d1, d2) in &data.connections {
+            for (s1, _s2, d1, _d2) in &data.connections {
                 if *s1 == c {
                     d = Some(*d1);
                 }
@@ -204,7 +204,7 @@ fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), chain: 
 }
 
 /// Cellular creation
-fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), chain: Vec<BehaviorNode>) {
+fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), _chain: Vec<BehaviorNode>) {
 
     let mut engine = setup_engine();
 

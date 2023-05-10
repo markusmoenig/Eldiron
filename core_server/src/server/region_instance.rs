@@ -162,15 +162,18 @@ impl RegionInstance<'_> {
         });
 
         engine.register_fn("get_sheet", || -> Sheet {
-            let curr_sheet = CURR_SHEET.borrow();
-            let sheets = SHEETS.borrow();
-            sheets[*curr_sheet].clone()
+            let data = &REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            data.sheets[data.curr_index].clone()
         });
 
-        engine.register_fn("apply_sheet", |sheet: Sheet| {
-            let curr_sheet = CURR_SHEET.borrow();
-            let mut sheets = SHEETS.borrow_mut();
-            sheets[*curr_sheet] = sheet;
+        engine.register_fn("set_sheet", |sheet: Sheet| {
+            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            data.sheets[data.curr_index] = sheet;
+        });
+
+        engine.register_fn("inventory_add", |mut sheet: Sheet, item_name: &str| -> Sheet {
+            inventory_add(&mut sheet, item_name, 1, &mut ITEMS.borrow_mut());
+            sheet
         });
 
         Sheet::register(&mut engine);
@@ -366,6 +369,11 @@ impl RegionInstance<'_> {
 
             self.instances[inst_index].audio = vec![];
             self.instances[inst_index].multi_choice_data = vec![];
+
+            {
+                let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                data.curr_index = inst_index;
+            }
 
             if self.pixel_based_movement == true {
                 if  self.instances[inst_index].old_position.is_some() {
@@ -1061,6 +1069,8 @@ impl RegionInstance<'_> {
                     scope_buffer.read_from_scope(&self.scopes[inst_index]);
                 }
 
+                let data = &REGION_DATA.borrow()[*CURR_INST.borrow()];
+
                 let update = GameUpdate{
                     id                      : self.instances[inst_index].id,
                     screen_size             : self.screen_size,
@@ -1070,6 +1080,7 @@ impl RegionInstance<'_> {
                     max_transition_time     : self.instances[inst_index].max_transition_time,
                     curr_transition_time    : self.instances[inst_index].curr_transition_time,
                     tile                    : self.instances[inst_index].tile.clone(),
+                    sheet                   : data.sheets[data.curr_index].clone(),
                     screen_script_name,
                     screen_scripts,
                     widgets,
@@ -1767,11 +1778,14 @@ impl RegionInstance<'_> {
 
         let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, skills_buffer: None, experience_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: None, send_screen_scripts: false };
 
+
         self.instances.push(instance);
         self.scopes.push(scope);
 
-        let mut sheets = SHEETS.borrow_mut();
-        sheets.push(Sheet::new());
+        {
+            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            data.sheets.push(Sheet::new());
+        }
 
         for tree_id in &to_execute {
             // Execute this tree if it is a "Startup" Only tree
@@ -1960,11 +1974,9 @@ impl RegionInstance<'_> {
 
             // Set the sheet
             {
-                let mut sheets = SHEETS.borrow_mut();
-                sheets.push(Sheet::new());
-
-                let mut curr_sheet = CURR_SHEET.borrow_mut();
-                *curr_sheet = index;
+                let mut data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                data.sheets.push(Sheet::new());
+                data.curr_index = index;
             }
 
             // Create skills

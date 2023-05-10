@@ -18,7 +18,10 @@ pub struct GameUpdate {
 
     pub tile                    : Option<TileId>,
 
-    /// The script for the current script which handles the screen drawing
+    /// The character sheet of the clients character
+    pub sheet                   : Sheet,
+
+    /// The script for the current screen which handles the screen drawing
     pub screen_script_name      : Option<String>,
 
     /// The screen scripts and their utility scripts, will be send only once
@@ -94,6 +97,7 @@ impl GameUpdate {
             max_transition_time : 0,
             curr_transition_time: 0,
             tile                : None,
+            sheet               : Sheet::new(),
             screen_script_name  : None,
             screen_scripts      : None,
             widgets             : vec![],

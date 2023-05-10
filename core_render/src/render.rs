@@ -194,6 +194,8 @@ impl GameRender<'_> {
 
     pub fn process_update(&mut self, update: &GameUpdate) -> Option<(String, Option<usize>)> {
 
+        *SHEET.lock().unwrap() = update.sheet.clone();
+
         // Screen scripts ?
         if let Some(screen_scripts) = &update.screen_scripts {
             self.scripts = screen_scripts.clone();

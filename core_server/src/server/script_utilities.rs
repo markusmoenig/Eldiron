@@ -1,5 +1,34 @@
+extern crate ref_thread_local;
+use ref_thread_local::{RefThreadLocal};
 use crate::prelude::*;
-use rhai::{ Dynamic };
+use rhai::Dynamic;
+
+/// Evaluates the script of a node value. Stores the compiled AST inside the node for future reference.
+pub fn eval_script(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMap<Uuid, GameBehaviorData>) {
+    if let Some(item) = nodes.get_mut(&id.0) {
+        if let Some(node) = item.nodes.get_mut(&id.1) {
+            for (name, value) in &node.values {
+                if *name == value_name {
+                    if let Some(script) = value.to_string() {
+                        let engine = &ENGINE.borrow();
+                        if let Some(ast) = node.asts.get(value_name) {
+                            let _rc = engine.eval_ast::<Dynamic>(ast);
+                        } else {
+                            let rc  = engine.compile(script);
+                            if rc.is_ok() {
+                                if let Some(ast) = rc.ok() {
+                                    let _rc = engine.eval_ast::<Dynamic>(&ast);
+                                    node.asts.insert(value_name.to_string(), ast);
+                                }
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+}
 
 /// Evaluates a boolean expression in the given instance.
 pub fn eval_bool_expression_instance(instance_index: usize, id: (BehaviorType, Uuid, Uuid, String), data: &mut RegionInstance) -> Option<bool> {
@@ -16,7 +45,7 @@ pub fn eval_bool_expression_instance(instance_index: usize, id: (BehaviorType, U
         if let Some(value) = get_node_value((id.1, id.2, &id.3), data, id.0) {
             if let Some(code) = value.to_string() {
                 //let script = replace_target_variables(code);
-                if let Some(ast) = data.engine.compile_expression_with_scope(&mut  data.scopes[instance_index], code.as_str()).ok() {
+                if let Some(ast) = data.engine.compile_expression_with_scope(&mut data.scopes[instance_index], code.as_str()).ok() {
                     let r = data.engine.eval_ast_with_scope(&mut  data.scopes[instance_index], &ast);
                     if r.is_ok() {
                         data.ast.insert(id.clone(), ast);

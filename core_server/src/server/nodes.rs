@@ -9,3 +9,4 @@ pub mod item;
 pub mod system;
 
 pub type NodeCall = fn(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector;
+pub type NodeDataCall = fn(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector;

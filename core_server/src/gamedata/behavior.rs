@@ -108,10 +108,13 @@ pub enum BehaviorNodeConnector {
     Bottom4,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BehaviorNode {
     pub behavior_type           : BehaviorNodeType,
     pub name                    : String,
+
+    #[serde(skip)]
+    pub asts                    : FxHashMap<String, rhai::AST>,
 
     pub values                  : FxHashMap<String, Value>,
     pub id                      : Uuid,
@@ -403,6 +406,7 @@ impl GameBehavior {
             values      : FxHashMap::default(),
             id          : Uuid::new_v4(),
             position    : (250, 50),
+            asts        : FxHashMap::default(),
         };
 
         if behavior_type == BehaviorNodeType::BehaviorType {
