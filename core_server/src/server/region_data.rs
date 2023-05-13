@@ -36,7 +36,7 @@ pub struct RegionData {
     pub curr_player_inst_index      : usize,
 
     /// The index of the game instance
-    game_instance_index             : Option<usize>,
+    pub game_instance_index             : Option<usize>,
 
     /// Player uuid => player instance index
     pub player_uuid_indices         : FxHashMap<Uuid, usize>,
@@ -82,6 +82,17 @@ impl RegionData {
         nodes.insert(BehaviorNodeType::CloseIn, node_close_in);
         nodes.insert(BehaviorNodeType::Pathfinder, node_pathfinder);
         nodes.insert(BehaviorNodeType::Untarget, node_untarget);
+        nodes.insert(BehaviorNodeType::LockTree, node_lock_tree);
+        nodes.insert(BehaviorNodeType::UnlockTree, node_unlock_tree);
+        nodes.insert(BehaviorNodeType::HasState, node_has_state);
+        nodes.insert(BehaviorNodeType::SetState, node_set_state);
+        nodes.insert(BehaviorNodeType::Take, node_player_take);
+        nodes.insert(BehaviorNodeType::Drop, node_player_drop);
+        nodes.insert(BehaviorNodeType::Target, node_player_target);
+        nodes.insert(BehaviorNodeType::Target, node_player_equip);
+
+        nodes.insert(BehaviorNodeType::Screen, node_screen);
+        //nodes.insert(BehaviorNodeType::Widget, node_widget);
 
         // PLAYER
         nodes.insert(BehaviorNodeType::Action, node_player_action);

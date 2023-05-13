@@ -13,6 +13,7 @@ ref_thread_local! {
     pub static managed BEHAVIORS        : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
     pub static managed ITEMS            : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
     pub static managed SPELLS           : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
+    pub static managed GAME_BEHAVIOR    : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
 
     pub static managed ENGINE           : rhai::Engine = rhai::Engine::new();
 
@@ -137,6 +138,16 @@ impl RegionPool<'_> {
         {
             let mut static_spells = SPELLS.borrow_mut();
             *static_spells = decoded_spells;
+        }
+
+        // --- Add the game behavior
+        let mut decoded_game : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
+        if let Some(behavior_data) = serde_json::from_str::<GameBehaviorData>(&game).ok() {
+            decoded_game.insert(behavior_data.id, behavior_data);
+        }
+        {
+            let mut static_game = GAME_BEHAVIOR.borrow_mut();
+            *static_game = decoded_game;
         }
 
         // --- Setup the regions

@@ -39,9 +39,6 @@ pub struct RegionInstance<'a> {
     /// During action execution for regions this indicates the calling behavior index
     pub curr_action_inst_index      : Option<usize>,
 
-    /// The current instance index of the current "Player" when executing the Game behavior per player
-    pub curr_player_inst_index      : usize,
-
     /// If the execute_node call has indirection, this is set to the original index
     pub curr_redirected_inst_index  : Option<usize>,
 
@@ -210,29 +207,29 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::Respawn, respawn);
         nodes.insert(BehaviorNodeType::SetLevelTree, set_level_tree);
         nodes.insert(BehaviorNodeType::Schedule, schedule);
-        nodes.insert(BehaviorNodeType::HasState, has_state);
+        //nodes.insert(BehaviorNodeType::HasState, has_state);
 
         nodes.insert(BehaviorNodeType::OverlayTiles, overlay_tiles);
 
         // nodes.insert(BehaviorNodeType::Move, player_move);
-        nodes.insert(BehaviorNodeType::Screen, screen);
-        nodes.insert(BehaviorNodeType::Widget, widget);
+        // nodes.insert(BehaviorNodeType::Screen, screen);
+        // nodes.insert(BehaviorNodeType::Widget, widget);
         //nodes.insert(BehaviorNodeType::Message, message);
         // nodes.insert(BehaviorNodeType::Action, player_action);
-        nodes.insert(BehaviorNodeType::Take, player_take);
-        nodes.insert(BehaviorNodeType::Drop, player_drop);
-        nodes.insert(BehaviorNodeType::Target, player_target);
+        //nodes.insert(BehaviorNodeType::Take, player_take);
+        // nodes.insert(BehaviorNodeType::Drop, player_drop);
+        // nodes.insert(BehaviorNodeType::Target, player_target);
+        //nodes.insert(BehaviorNodeType::Equip, player_equip);
         nodes.insert(BehaviorNodeType::MagicTarget, magic_target);
         nodes.insert(BehaviorNodeType::LightItem, light_item);
         nodes.insert(BehaviorNodeType::SetItemTile, set_item_tile);
         //nodes.insert(BehaviorNodeType::RandomWalk, random_walk);
         nodes.insert(BehaviorNodeType::MultiChoice, multi_choice);
         nodes.insert(BehaviorNodeType::Sell, sell);
-        nodes.insert(BehaviorNodeType::LockTree, lock_tree);
-        nodes.insert(BehaviorNodeType::UnlockTree, unlock_tree);
-        nodes.insert(BehaviorNodeType::SetState, set_state);
+        // nodes.insert(BehaviorNodeType::LockTree, lock_tree);
+        // nodes.insert(BehaviorNodeType::UnlockTree, unlock_tree);
+        // nodes.insert(BehaviorNodeType::SetState, set_state);
         nodes.insert(BehaviorNodeType::Teleport, teleport);
-        nodes.insert(BehaviorNodeType::Equip, player_equip);
 
         //nodes.insert(BehaviorNodeType::Always, always);
         //nodes.insert(BehaviorNodeType::InsideArea, inside_area);
@@ -272,8 +269,6 @@ impl RegionInstance<'_> {
             loot                            : FxHashMap::default(),
 
             curr_action_inst_index          : None,
-
-            curr_player_inst_index          : 0,
 
             curr_redirected_inst_index      : None,
 
@@ -1032,49 +1027,59 @@ impl RegionInstance<'_> {
 
             if send_update {
 
-                if self.instances[inst_index].state == BehaviorInstanceState::Purged {
-                    continue;
+                {
+                    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                    if data.character_instances[inst_index].state == BehaviorInstanceState::Purged {
+                        continue;
+                    }
                 }
 
-                // Set the player index
-                self.curr_player_inst_index = inst_index;
-                let old_screen_id = self.instances[inst_index].curr_player_screen_id;
+                let old_screen_id;
+                let mut game_locked_tree : Option<Uuid> = None;
+
+                {
+                    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
+                    old_screen_id = data.character_instances[inst_index].curr_player_screen_id;
+                    data.curr_player_inst_index = inst_index;
+                    if let Some(game_inst_index) = data.game_instance_index {
+                        if let Some(locked_tree) = data.character_instances[game_inst_index].locked_tree {
+                            game_locked_tree = Some(locked_tree);
+                        }
+                    }
+                }
 
                 let mut screen_script_name : Option<String> = None;
                 let mut screen_scripts : Option<FxHashMap<String, String>> = None;
                 let mut widgets : Vec<String> = vec![];
 
                 // Execute the game behavior
-                if let Some(game_inst_index) = self.game_instance_index {
-                    if self.scopes.is_empty() == false {
-                        if let Some(locked_tree) = self.instances[game_inst_index].locked_tree {
-                            self.execute_game_node(game_inst_index, locked_tree);
-                        }
-                    }
+                if let Some(locked_tree) = game_locked_tree {
+                    execute_node(self.game_data.id, locked_tree, &mut GAME_BEHAVIOR.borrow_mut());
                 }
 
                 // Send screen scripts ?
 
-                if self.instances[inst_index].send_screen_scripts == false {
+                let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
+                if data.character_instances[inst_index].send_screen_scripts == false {
                     screen_scripts = Some(self.scripts.clone());
-                    self.instances[inst_index].send_screen_scripts =  true;
+                    data.character_instances[inst_index].send_screen_scripts =  true;
                 }
 
                 // Check if we need to send a new screen script name
 
-                if let Some(new_screen_id) = &self.instances[inst_index].curr_player_screen_id {
+                if let Some(new_screen_id) = &data.character_instances[inst_index].curr_player_screen_id {
                     if let Some(old_screen_id) = &old_screen_id {
                         if new_screen_id != old_screen_id {
-                            screen_script_name = Some(self.instances[inst_index].curr_player_screen.clone());
-                            widgets = self.instances[inst_index].curr_player_widgets.clone();
+                            screen_script_name = Some(data.character_instances[inst_index].curr_player_screen.clone());
+                            widgets = data.character_instances[inst_index].curr_player_widgets.clone();
                         }
                     } else {
-                        screen_script_name = Some(self.instances[inst_index].curr_player_screen.clone());
-                        widgets = self.instances[inst_index].curr_player_widgets.clone();
+                        screen_script_name = Some(data.character_instances[inst_index].curr_player_screen.clone());
+                        widgets = data.character_instances[inst_index].curr_player_widgets.clone();
                     }
                 }
-
-                let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
                 let mut region        : Option<GameRegionData> = None;
                 let mut characters    : Vec<CharacterData> = vec![];
@@ -1092,7 +1097,6 @@ impl RegionInstance<'_> {
                     } else
                     // Check if the character is in a region we did not send to the client yet OR if the editor is debugging
                     if data.character_instances[inst_index].regions_send.contains(&position.region) == false || self.debug_behavior_id.is_some() {
-                        println!("send region");
                         region = Some(data.region_data.clone());
                         data.character_instances[inst_index].regions_send.insert(position.region);
                     }
@@ -1730,30 +1734,6 @@ impl RegionInstance<'_> {
                     }
                 }
 
-                if let Some(property) = settings.get("primary_currency") {
-                    if let Some(name) = property.as_string() {
-                        self.primary_currency = name;
-                    }
-                } else {
-                    self.primary_currency = "gold".to_string();
-                }
-
-                if let Some(property) = settings.get("hitpoints") {
-                    if let Some(name) = property.as_string() {
-                        self.hitpoints = name;
-                    }
-                } else {
-                    self.hitpoints = "HP".to_string();
-                }
-
-                if let Some(property) = settings.get("max_hitpoints") {
-                    if let Some(name) = property.as_string() {
-                        self.max_hitpoints = name;
-                    }
-                } else {
-                    self.max_hitpoints = "MAX_HP".to_string();
-                }
-
                 if let Some(property) = settings.get("gear_slots") {
                     if let Some(name) = property.as_string() {
                         let ar : Vec<&str> = name.split(",").collect();
@@ -1807,7 +1787,6 @@ impl RegionInstance<'_> {
         // Second pass parse the trees and find the startup tree
         for (id, node) in &behavior.nodes {
             if node.behavior_type == BehaviorNodeType::BehaviorTree {
-
                 for c in &behavior.connections {
                     if c.0 == *id {
                         to_execute.push(c.0);
@@ -1824,7 +1803,6 @@ impl RegionInstance<'_> {
         let index = self.instances.len();
 
         let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, skills_buffer: None, experience_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: None, send_screen_scripts: false };
-
 
         self.instances.push(instance.clone());
         self.scopes.push(scope);
@@ -1846,6 +1824,11 @@ impl RegionInstance<'_> {
             }
         }
         self.game_instance_index = Some(index);
+
+        {
+            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            data.game_instance_index = Some(index);
+        }
 
         // We iterate over all loot and initialize state if necessary
 
@@ -2360,9 +2343,6 @@ impl RegionInstance<'_> {
     /// Transfers a character instance into this region
     pub fn transfer_character_into(&mut self, mut instance: BehaviorInstance, sheet: Sheet) {
         // TODO, fill in purged
-
-        println!("region {}", self.region_data.id);
-
         let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
         data.player_uuid_indices.insert(instance.id, data.character_instances.len());
 

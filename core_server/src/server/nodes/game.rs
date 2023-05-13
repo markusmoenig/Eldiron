@@ -1,34 +1,34 @@
+extern crate ref_thread_local;
+use ref_thread_local::RefThreadLocal;
 use crate::prelude::*;
 
 /// Screen
-pub fn screen(_instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_screen(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
-    data.instances[data.curr_player_inst_index].curr_player_widgets = vec![];
+    data.character_instances[data.curr_player_inst_index].curr_player_widgets = vec![];
 
-    if let Some(curr_screen_id) = &data.instances[data.curr_player_inst_index].curr_player_screen_id {
+    if let Some(curr_screen_id) = &data.character_instances[data.curr_player_inst_index].curr_player_screen_id {
         if *curr_screen_id == id.1 {
             return BehaviorNodeConnector::Bottom;
         }
     }
 
-    data.instances[data.curr_player_inst_index].curr_player_screen_id = Some(id.1);
+    data.character_instances[data.curr_player_inst_index].curr_player_screen_id = Some(id.1);
 
-    if let Some(value) = get_node_value((id.0, id.1, &"script_name".to_owned()), data, behavior_type) {
-        if let Some(script) = value.to_string() {
-            data.instances[data.curr_player_inst_index].curr_player_screen = script;
-        }
+    if let Some(value) = get_node_string(id, "script_name", nodes) {
+        data.character_instances[data.curr_player_inst_index].curr_player_screen = value;
     }
 
     BehaviorNodeConnector::Bottom
 }
 
 /// Widget
-pub fn widget(_instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_widget(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
-    if let Some(value) = get_node_value((id.0, id.1, &"script".to_owned()), data, behavior_type) {
-        if let Some(script) = value.to_string() {
-            data.instances[data.curr_player_inst_index].curr_player_widgets.push(script);
-        }
+    if let Some(value) = get_node_string(id, "script", nodes) {
+        data.character_instances[data.curr_player_inst_index].curr_player_widgets.push(value);
     }
 
     BehaviorNodeConnector::Bottom

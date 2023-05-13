@@ -156,10 +156,10 @@ pub fn get_node_value(id: (Uuid, Uuid, &str), data: &mut RegionInstance, behavio
 }
 
 /// Computes the distance between two locations
-pub fn compute_distance(p0: &Position, p1: &Position) -> f32 {
+pub fn compute_distance(p0: &Position, p1: &Position) -> i32 {
     let dx = p0.x - p1.x;
     let dy = p0.y - p1.y;
-    ((dx * dx + dy * dy) as f32).sqrt()
+    ((dx * dx + dy * dy) as f32).sqrt().floor() as i32
 }
 
 /// Returns the current position of the instance_index, takes into account an ongoing animation
@@ -171,7 +171,7 @@ pub fn get_instance_position(inst_index: usize, instances: &Vec<BehaviorInstance
 }
 
 /// Walk towards a destination position
-pub fn walk_towards( p: Option<Position>, dp: Option<Position>, exclude_dp: bool, data: &mut RegionData) -> BehaviorNodeConnector {
+pub fn walk_towards(p: Option<Position>, dp: Option<Position>, exclude_dp: bool, data: &mut RegionData) -> BehaviorNodeConnector {
 
     // Cache the character positions
     let mut char_positions : Vec<Position> = vec![];
@@ -827,18 +827,19 @@ pub fn get_weapon_script_id(instance_index: usize, slot: String, data: &mut Regi
 }
 
 /// Returns the weapon distance for the given weapon slot
-pub fn get_weapon_distance(instance_index: usize, slot: String, data: &mut RegionInstance) -> i32 {
+pub fn get_weapon_distance(instance_index: usize, slot: String, data: &mut RegionData) -> i32 {
     let mut weapon_distance = 1;
 
-    if let Some(v) = data.scopes[instance_index].get("weapons") {
-        if let Some(weapons) = v.read_lock::<Weapons>() {
-            if let Some(weapon) = weapons.slots.get(&slot) {
-                if weapon.weapon_distance > weapon_distance {
-                    weapon_distance = weapon.weapon_distance;
-                }
-            }
-        }
-    }
+    // TODO
+    // if let Some(v) = data.scopes[instance_index].get("weapons") {
+    //     if let Some(weapons) = v.read_lock::<Weapons>() {
+    //         if let Some(weapon) = weapons.slots.get(&slot) {
+    //             if weapon.weapon_distance > weapon_distance {
+    //                 weapon_distance = weapon.weapon_distance;
+    //             }
+    //         }
+    //     }
+    // }
 
     weapon_distance
 }
