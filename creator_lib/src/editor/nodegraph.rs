@@ -1592,12 +1592,12 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::Move {
-            let mut atom1 = AtomWidget::new(vec!["Speed Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("speed", Value::Integer(0)));
-            atom1.atom_data.text = "Speed Delay".to_string();
-            let id = (behavior_data_id, node_id, "speed".to_string());
+            let mut atom1 = AtomWidget::new(vec!["Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("delay", Value::Integer(0)));
+            atom1.atom_data.text = "Delay".to_string();
+            let id = (behavior_data_id, node_id, "delay".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Integer(8), self.graph_type);
+            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Integer(2), self.graph_type);
             node_widget.widgets.push(atom1);
 
             node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#move".to_string());
@@ -1700,15 +1700,15 @@ impl EditorContent for NodeGraph  {
             max_distance.atom_data.text = "Max Distance".to_string();
             let id = (behavior_data_id, node_id, "max_distance".to_string());
             max_distance.behavior_id = Some(id.clone());
-            max_distance.atom_data.value = context.data.get_behavior_id_value(id, Value::String("4".to_string()), self.graph_type);
+            max_distance.atom_data.value = context.data.get_behavior_id_value(id, Value::String("2".to_string()), self.graph_type);
             node_widget.widgets.push(max_distance);
 
-            let mut speed = AtomWidget::new(vec!["Speed Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("speed", Value::Empty()));
-            speed.atom_data.text = "Speed Delay".to_string();
-            let id = (behavior_data_id, node_id, "speed".to_string());
+            let mut speed = AtomWidget::new(vec!["Walk Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("walk_delay", Value::Empty()));
+            speed.atom_data.text = "Walk Delay".to_string();
+            let id = (behavior_data_id, node_id, "walk_delay".to_string());
             speed.behavior_id = Some(id.clone());
-            speed.atom_data.value = context.data.get_behavior_id_value(id, Value::String("8".to_string()), self.graph_type);
+            speed.atom_data.value = context.data.get_behavior_id_value(id, Value::String("2".to_string()), self.graph_type);
             node_widget.widgets.push(speed);
 
             node_widget.color = context.color_blue.clone();
@@ -2832,7 +2832,7 @@ impl EditorContent for NodeGraph  {
     fn debug_update(&mut self, update: GameUpdate, context: &mut ScreenContext) {
 
         context.debug_log_messages.append(&mut update.messages.clone());
-        context.debug_log_inventory = update.inventory.clone();
+        context.debug_log_inventory = update.sheet.inventory.clone();
         context.debug_log_variables.clear();
 
         for key in update.scope_buffer.values.keys().sorted() {

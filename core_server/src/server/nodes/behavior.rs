@@ -1,4 +1,12 @@
+extern crate ref_thread_local;
+use ref_thread_local::RefThreadLocal;
 use crate::prelude::*;
+
+
+pub fn node_script(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    eval_script(id, "script", nodes);
+    BehaviorNodeConnector::Bottom
+}
 
 /// expression
 pub fn expression(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
@@ -12,42 +20,28 @@ pub fn expression(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInst
     BehaviorNodeConnector::Fail
 }
 
-pub fn script(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-    _ = eval_dynamic_script_instance(instance_index, (behavior_type, id.0, id.1, "script".to_string()), data);
-    BehaviorNodeConnector::Bottom
-}
-
-pub fn node_script(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
-    eval_script(id, "script", nodes);
-    //_ = eval_dynamic_script_instance(instance_index, (behavior_type, id.0, id.1, "script".to_string()), data);
-    BehaviorNodeConnector::Bottom
-}
-
-/// message
-pub fn message(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-
+pub fn node_message(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let mut message_type : MessageType = MessageType::Status;
-    let mut text;
+    let text;
 
-    // Message Type
-    if let Some(value) = get_node_value((id.0, id.1, "type"), data, behavior_type) {
-        if let Some(m_type) = value.to_integer() {
-            message_type = match m_type {
-                1 => MessageType::Say,
-                2 => MessageType::Yell,
-                3 => MessageType::Tell,
-                4 => MessageType::Debug,
-                _ => MessageType::Status
-            }
+    if let Some(value) = get_node_integer(id, "type", nodes) {
+        message_type = match value {
+            1 => MessageType::Say,
+            2 => MessageType::Yell,
+            3 => MessageType::Tell,
+            4 => MessageType::Debug,
+            _ => MessageType::Status
         }
     }
 
-    if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type) {
-        text = value.to_string_value();
-    } else {
-        text = "Message".to_string();
-    }
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
+    if let Some(value) = get_node_string(id, "text", nodes) {
+        text = value;
+    } else {
+        text = "Message".to_string()
+    }
+    /*
     if text.contains("${DIRECTION}") {
         text = text.replace("${DIRECTION}", &data.action_direction_text);
     }
@@ -117,108 +111,100 @@ pub fn message(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
     text = match message_type {
         MessageType::Say => format!("{} says \"{}\".", data.instances[instance_index].name, text),
         _ => text
-    };
+    };*/
 
     let message_data = MessageData {
         message_type,
-        message         : text.clone(),
-        from            : data.instances[instance_index].name.clone(),
+        message         : text,
+        from            : data.character_instances[data.curr_index].name.clone(),
         right           : None,
         center          : None,
         buffer          : None
     };
 
-    data.instances[instance_index].messages.push(message_data.clone());
 
-    if let Some(target_index) = data.instances[instance_index].target_instance_index {
-        data.instances[target_index].messages.push(message_data);
-    }
+    data.character_instances[data.curr_index].messages.push(message_data);
 
-    // Output it
-    data.messages.push((text, message_type));
     BehaviorNodeConnector::Bottom
 }
 
-pub fn random_walk(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_random_walk(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
-    if wait_for(instance_index, id, data) {
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
+    if wait_for(data.curr_index, id, data) {
         let mut p : Option<Position> = None;
         let mut dp : Option<Position> = None;
 
-        let mut distance = f32::MAX;
+        let mut distance = i32::MAX;
 
-        if let Some(v) = &mut data.instances[instance_index].position {
+        if let Some(v) = &mut data.character_instances[data.curr_index].position {
             p = Some(v.clone());
         }
 
-        let mut max_distance : f32 = 0.0;
-        if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "max_distance".to_string()), data) {
-            max_distance = rc;
+        let mut max_distance : i32 = 0;
+        if let Some(d) = eval_script_integer(id, "max_distance", nodes) {
+            max_distance = d;
         }
 
-        if let Some(behavior) = data.behaviors.get_mut(&id.0) {
-            if let Some(node) = behavior.nodes.get_mut(&id.1) {
+        if let Some(value) = get_node_value2(id, "position", nodes) {
 
-                if let Some(value) = node.values.get("position") {
-                    dp = match value {
-                        Value::Position(v) => {
-                            Some(v.clone())
-                        },
-                        _ => None
-                    };
+            dp = match value {
+                Value::Position(v) => {
+                    Some(v.clone())
+                },
+                _ => None
+            };
 
-                    if let Some(dp) = &mut dp {
-                        if let Some(p) = &p {
-                            distance = compute_distance(p, dp).round();
-                        }
-                    }
+            if let Some(dp) = &mut dp {
+                if let Some(p) = &p {
+                    distance = compute_distance(p, dp).round() as i32;
+                }
+            }
 
-                    // If we are within the max distance, do a random walk, otherwise just go back towards the position
-                    if distance <= max_distance {
-                        dp = p.clone();
-                        if let Some(dp) = &mut dp {
+            // If we are within the max distance, do a random walk, otherwise just go back towards the position
+            if distance <= max_distance {
+                dp = p.clone();
+                if let Some(dp) = &mut dp {
 
-                            let mut rng = thread_rng();
-                            let random = rng.gen_range(0..4);
+                    let mut rng = thread_rng();
+                    let random = rng.gen_range(0..4);
 
-                            if random == 0 {
-                                dp.y -= 1;
-                            } else
-                            if random == 1 {
-                                dp.x += 1;
-                            } else
-                            if random == 2 {
-                                dp.y += 1;
-                            } else
-                            if random == 3 {
-                                dp.x -= 1;
-                            }
-                        }
+                    if random == 0 {
+                        dp.y -= 1;
+                    } else
+                    if random == 1 {
+                        dp.x += 1;
+                    } else
+                    if random == 2 {
+                        dp.y += 1;
+                    } else
+                    if random == 3 {
+                        dp.x -= 1;
                     }
                 }
             }
         }
 
-        let mut speed : f32 = 8.0;
-        if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
-            speed = rc;
+        let mut delay : i32 = 0;
+        if let Some(d) = eval_script_integer(id, "walk_delay", nodes) {
+            delay = d.clamp(0, i32::MAX);
         }
 
-        // Apply the speed delay
-        let delay = speed.clamp(0.0, f32::MAX);
-        data.instances[instance_index].sleep_cycles = delay as usize;
+        // Apply the delay
+        data.character_instances[data.curr_index].sleep_cycles = delay as usize;
 
-        _ = walk_towards(instance_index, p, dp,false, data);
+        _ = walk_towards2(p, dp,false, data);
 
-        data.instances[instance_index].max_transition_time = delay as usize + 1;
-        data.instances[instance_index].curr_transition_time = 1;
+        data.character_instances[data.curr_index].max_transition_time = delay as usize + 1;
+        data.character_instances[data.curr_index].curr_transition_time = 1;
 
-        let mut delay_between_movement : f32 = 10.0;
-        if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "delay".to_string()), data) {
-            delay_between_movement = rc;
+        let mut delay_between_movement : i32 = 10;
+        if let Some(d) = eval_script_integer(id, "delay", nodes) {
+            delay_between_movement = d;
         }
 
-        wait_start(instance_index, delay_between_movement as usize, id, data);
+        wait_start(data.curr_index, delay_between_movement as usize, id, data);
     }
 
     BehaviorNodeConnector::Bottom
@@ -870,8 +856,9 @@ pub fn set_state(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
 }
 
 /// Has Target ?
-pub fn has_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
-    if data.instances[instance_index].target_instance_index.is_some() {
+pub fn node_has_target(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    let data = &REGION_DATA.borrow()[*CURR_INST.borrow()];
+    if data.character_instances[data.curr_index].target_instance_index.is_some() {
         BehaviorNodeConnector::Success
     } else {
         BehaviorNodeConnector::Fail
@@ -1444,11 +1431,10 @@ pub fn effect(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance
 }
 
 /// Play audio
-pub fn audio(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-    if let Some(value) = get_node_value((id.0, id.1, "audio"), data, behavior_type) {
-        if let Some(audio_file) = value.to_string() {
-            data.instances[instance_index].audio.push(audio_file.clone());
-        }
+pub fn node_audio(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    if let Some(audio_name) = get_node_string(id, "audio", nodes) {
+        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        data.character_instances[data.curr_index].audio.push(audio_name.clone());
     }
     BehaviorNodeConnector::Bottom
 }

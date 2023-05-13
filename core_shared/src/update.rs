@@ -1,6 +1,5 @@
 use crate::prelude::*;
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -38,7 +37,7 @@ pub struct GameUpdate {
 
     /// Tile displacements for the region
     #[serde(with = "vectorize")]
-    pub displacements           : HashMap<(isize, isize), TileData>,
+    pub displacements           : FxHashMap<(isize, isize), TileData>,
 
     /// Character information
     pub characters              : Vec<CharacterData>,
@@ -55,9 +54,6 @@ pub struct GameUpdate {
 
     /// Scope
     pub scope_buffer            : ScopeBuffer,
-
-    /// Inventory
-    pub inventory               : Inventory,
 
     /// Spells
     pub spells                  : Spells,
@@ -103,13 +99,12 @@ impl GameUpdate {
             widgets             : vec![],
             region              : None,
             lights              : vec![],
-            displacements       : HashMap::new(),
+            displacements       : FxHashMap::default(),
             characters          : vec![],
             loot                : FxHashMap::default(),
             messages            : vec![],
             audio               : vec![],
             scope_buffer        : ScopeBuffer::new(),
-            inventory           : Inventory::new(),
             spells              : Spells::new(),
             gear                : Gear::new(),
             weapons             : Weapons::new(),

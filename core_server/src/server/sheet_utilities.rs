@@ -93,7 +93,7 @@ pub fn inventory_add(sheet: &mut Sheet, item_name: &str, amount: i32, item_nodes
 }
 
 /// Executes the given item node and follows the connection chain
- fn execute_node(behavior_id: Uuid, node_id: Uuid, nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> Option<BehaviorNodeConnector> {
+ pub fn execute_node(behavior_id: Uuid, node_id: Uuid, nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> Option<BehaviorNodeConnector> {
 
     let mut connectors : Vec<BehaviorNodeConnector> = vec![];
     let mut connected_node_ids : Vec<Uuid> = vec![];
@@ -196,4 +196,3 @@ pub fn inventory_add(sheet: &mut Sheet, item_name: &str, amount: i32, item_nodes
     */
     rc
 }
-

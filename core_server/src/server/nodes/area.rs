@@ -1,39 +1,83 @@
+extern crate ref_thread_local;
+use ref_thread_local::RefThreadLocal;
 use crate::prelude::*;
 
+/// Returns an integer value for the given node.
+fn get_node_integer(id: Uuid, value_name: &str, nodes: &mut FxHashMap<Uuid, BehaviorNode>) -> Option<i32> {
+    if let Some(node) = nodes.get_mut(&id) {
+        for (name, value) in &node.values {
+            if *name == value_name {
+                if let Some(int) = value.to_integer() {
+                    return Some(int);
+                }
+                break;
+            }
+        }
+    }
+    None
+}
+
+/// Returns a string value for the given node.
+fn get_node_string(id: Uuid, value_name: &str, nodes: &mut FxHashMap<Uuid, BehaviorNode>) -> Option<String> {
+    if let Some(node) = nodes.get_mut(&id) {
+        for (name, value) in &node.values {
+            if *name == value_name {
+                if let Some(v) = value.to_string() {
+                    return Some(v);
+                }
+                break;
+            }
+        }
+    }
+    None
+}
+
+/// Returns a value for the given node.
+fn get_node_value(id: Uuid, value_name: &str, nodes: &mut FxHashMap<Uuid, BehaviorNode>) -> Option<Value> {
+    if let Some(node) = nodes.get_mut(&id) {
+        for (name, value) in &node.values {
+            if *name == value_name {
+                return Some(value.clone());
+            }
+        }
+    }
+    None
+}
+
 /// Always
-pub fn always(_region_id: usize, _id: (Uuid, Uuid), _data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_always_area(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     BehaviorNodeConnector::Right
 }
 
 /// Action
-pub fn action(_region_id: usize, _id: (Uuid, Uuid), _data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_action_area(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     BehaviorNodeConnector::Right
 }
 
 /// Enter Area
-pub fn enter_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_enter_area(id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
     let mut enter_everyone = true;
 
-    if let Some(value) = get_node_value((id.0, id.1, "character"), data, behavior_type) {
-        if let Some(index) = value.to_integer() {
-            if index == 1 {
-                enter_everyone = false;
-            }
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+    let nodes = &mut data.region_area_behavior[data.curr_area_index].nodes;
+
+    if let Some(index) = get_node_integer(id.1, "character", nodes) {
+        if index == 1 {
+            enter_everyone = false;
         }
     }
 
     let mut found_character = false;
-    let region = &mut data.region_data;
     if let Some(characters) = data.characters.get(&id.0) {
         for character_data in characters {
-            if let Some(position) = get_instance_position(character_data.index, &data.instances) {
-                if region.areas[area_index].area.contains(&(position.x, position.y)) {
+            if let Some(position) = data.get_instance_position(character_data.index) {
+                if data.region_data.areas[data.curr_area_index].area.contains(&(position.x, position.y)) {
 
-                    if data.area_characters.contains_key(&area_index) == false {
-                        data.area_characters.insert(area_index, vec![character_data.index]);
+                    if data.area_characters.contains_key(&data.curr_area_index) == false {
+                        data.area_characters.insert(data.curr_area_index, vec![character_data.index]);
                     } else
-                    if let Some(area_list) = data.area_characters.get_mut(&area_index) {
+                    if let Some(area_list) = data.area_characters.get_mut(&data.curr_area_index) {
                         if area_list.contains(&character_data.index) == false {
                             area_list.push(character_data.index);
                         }
@@ -41,7 +85,7 @@ pub fn enter_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance
 
                     // Check if the character existed already in the area in the previous tick
                     let mut was_inside_already = false;
-                    if let Some(area_list) = data.prev_area_characters.get(&area_index) {
+                    if let Some(area_list) = data.prev_area_characters.get(&data.curr_area_index) {
                         for index in area_list {
                             if *index == character_data.index {
                                 was_inside_already = true;
@@ -54,7 +98,7 @@ pub fn enter_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance
                             // Trigger always if somebody enters
                             found_character = true;
                         } else
-                        if data.prev_area_characters.contains_key(&area_index) == false {
+                        if data.prev_area_characters.contains_key(&data.curr_area_index) == false {
                             // This area was empty in the previous tick
                             found_character = true;
                         }
@@ -72,41 +116,33 @@ pub fn enter_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance
 }
 
 /// Leave Area
-pub fn leave_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_leave_area(id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
-    // let mut leave_everyone = true;
+    let mut leave_everyone = true;
 
-    // if let Some(value) = get_node_value((id.0, id.1, "character"), data, behavior_type, region_id) {
-    //     if value.0 == 1.0 {
-    //         leave_everyone = false;
-    //     }
-    // }
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+    let nodes = &mut data.region_area_behavior[data.curr_area_index].nodes;
 
-    let mut enter_everyone = true;
-
-    if let Some(value) = get_node_value((id.0, id.1, "character"), data, behavior_type) {
-        if let Some(index) = value.to_integer() {
-            if index == 1 {
-                enter_everyone = false;
-            }
+    if let Some(index) = get_node_integer(id.1, "character", nodes) {
+        if index == 1 {
+            leave_everyone = false;
         }
     }
 
     let mut found_character = false;
-    let region = &mut data.region_data;
     if let Some(characters) = data.characters.get(&id.0) {
         for character_data in characters {
-            if let Some(position) = get_instance_position(character_data.index, &data.instances) {
-                if region.areas[area_index].area.contains(&(position.x, position.y)) == false {
+            if let Some(position) = data.get_instance_position(character_data.index) {
+                if data.region_data.areas[data.curr_area_index].area.contains(&(position.x, position.y)) == false {
 
                     let mut was_inside_already = false;
 
-                    if data.prev_area_characters.contains_key(&area_index) == true {
+                    if data.prev_area_characters.contains_key(&data.curr_area_index) == true {
                         was_inside_already = true;
                     }
 
                     // Check if the character existed already in the area in the previous tick
-                    if let Some(area_list) = data.prev_area_characters.get(&area_index) {
+                    if let Some(area_list) = data.prev_area_characters.get(&data.curr_area_index) {
                         for index in area_list {
                             if *index == character_data.index {
                                 was_inside_already = true;
@@ -115,11 +151,11 @@ pub fn leave_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance
                     }
 
                     if was_inside_already == false {
-                        if enter_everyone {
-                            // Trigger always if somebody enters
+                        if leave_everyone {
+                            // Trigger always if somebody leaves
                             found_character = true;
                         } else
-                        if data.prev_area_characters.contains_key(&area_index) == false {
+                        if data.prev_area_characters.contains_key(&data.curr_area_index) == false {
                             // This area was empty in the previous tick
                             found_character = true;
                         }
@@ -137,19 +173,20 @@ pub fn leave_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance
 }
 
 /// Inside Area
-pub fn inside_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_inside_area(id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
     let mut found_character = false;
-    let region = &mut data.region_data;
     if let Some(characters) = data.characters.get(&id.0) {
         for character_data in characters {
-            if let Some(position) = get_instance_position(character_data.index, &data.instances) {
-                if region.areas[area_index].area.contains(&(position.x, position.y)) {
+            if let Some(position) = data.get_instance_position(character_data.index) {
+                if data.region_data.areas[data.curr_area_index].area.contains(&(position.x, position.y)) {
                     //println!("{} is in area {}", data.instances[*instance_index].name, region.data.areas[id.0].name);
-                    if data.area_characters.contains_key(&area_index) == false {
-                        data.area_characters.insert(area_index, vec![character_data.index]);
+                    if data.area_characters.contains_key(&data.curr_area_index) == false {
+                        data.area_characters.insert(data.curr_area_index, vec![character_data.index]);
                     } else
-                    if let Some(area_list) = data.area_characters.get_mut(&area_index) {
+                    if let Some(area_list) = data.area_characters.get_mut(&data.curr_area_index) {
                         if area_list.contains(&character_data.index) == false {
                             area_list.push(character_data.index);
                         }
@@ -178,24 +215,26 @@ pub fn overlay_tiles(area_index: usize, _id: (Uuid, Uuid), data: &mut RegionInst
 }
 
 /// Teleport Area
-pub fn teleport_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_teleport_area(id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+    let nodes = &mut data.region_area_behavior[data.curr_area_index].nodes;
 
-    let value = get_node_value((id.0, id.1, "position"), data, behavior_type);
+    let value = get_node_value(id.1, "position", nodes);
 
     // Somebody is in the area ?
-    if let Some(area_list) = data.area_characters.get(&area_index) {
+    if let Some(area_list) = data.area_characters.get(&data.curr_area_index) {
         if let Some(value) = value {
             for index in area_list {
                 //data.instances[*index].position = Some((value.0 as usize, value.1 as isize, value.2 as isize));
                 match &value {
                     Value::Position(position) => {
-                        data.instances[*index].position = Some(position.clone());
+                        data.character_instances[*index].position = Some(position.clone());
                     }
                     _ => {},
                 }
-                data.instances[*index].old_position = None;
-                data.instances[*index].max_transition_time = 0;
-                data.instances[*index].curr_transition_time = 0;
+                data.character_instances[*index].old_position = None;
+                data.character_instances[*index].max_transition_time = 0;
+                data.character_instances[*index].curr_transition_time = 0;
             }
         }
     }
@@ -203,26 +242,27 @@ pub fn teleport_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
 }
 
 /// Message Area
-pub fn message_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_message_area(id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
     let mut message_type : MessageType = MessageType::Status;
     let text;
 
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+    let nodes = &mut data.region_area_behavior[data.curr_area_index].nodes;
+
     // Message Type
-    if let Some(value) = get_node_value((id.0, id.1, "type"), data, behavior_type) {
-        if let Some(index) = value.to_integer() {
-            message_type = match index {
-                1 => MessageType::Say,
-                2 => MessageType::Yell,
-                3 => MessageType::Tell,
-                4 => MessageType::Debug,
-                _ => MessageType::Status
-            }
+    if let Some(index) = get_node_integer(id.1, "status", nodes) {
+        message_type = match index {
+            1 => MessageType::Say,
+            2 => MessageType::Yell,
+            3 => MessageType::Tell,
+            4 => MessageType::Debug,
+            _ => MessageType::Status
         }
     }
 
-    if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type) {
-        text = value.to_string_value();
+    if let Some(value) = get_node_string(id.1, "text", nodes) {
+        text = value;
     } else {
         text = "Hello".to_string();
     }
@@ -242,29 +282,33 @@ pub fn message_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstan
 
     if let Some(action_index) = data.curr_action_inst_index {
         let message_data = MessageData { message_type, message: text.clone(), from: "System".to_string(), buffer: None, right: None, center: None };
-        data.instances[action_index].messages.push(message_data.clone());
+        data.character_instances[action_index].messages.push(message_data.clone());
     } else
     // Somebody is in the area ?
-    if let Some(area_list) = data.area_characters.get(&area_index) {
+    if let Some(area_list) = data.area_characters.get(&data.curr_area_index) {
         let message_data = MessageData { message_type, message: text.clone(), from: "System".to_string(), buffer: None, right: None, center: None };
         for index in area_list {
-            data.instances[*index].messages.push(message_data.clone());
+            data.character_instances[*index].messages.push(message_data.clone());
         }
     }
+
     BehaviorNodeConnector::Fail
 }
 
 
 /// Audio Area
-pub fn audio_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_audio_area(id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
-    if let Some(value) = get_node_value((id.0, id.1, "audio"), data, behavior_type) {
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+    let nodes = &mut data.region_area_behavior[data.curr_area_index].nodes;
+
+    if let Some(value) = get_node_value(id.1, "audio", nodes) {
 
         if let Some(audio_file) = value.to_string() {
             // Somebody is in the area ?
-            if let Some(area_list) = data.area_characters.get(&area_index) {
+            if let Some(area_list) = data.area_characters.get(&data.curr_area_index) {
                 for index in area_list {
-                    data.instances[*index].audio.push(audio_file.clone());
+                    data.character_instances[*index].audio.push(audio_file.clone());
                 }
             }
         }
@@ -273,9 +317,10 @@ pub fn audio_area(area_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance
 }
 
 /// Light Area
-pub fn light_area(area_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_light_area(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
     let region = &mut data.region_data;
-    for pos in &region.areas[area_index].area {
+    for pos in &region.areas[data.curr_area_index].area {
         let light = LightData::new(core_shared::lightdata::LightType::PointLight, (pos.0, pos.1), 1);
         data.lights.push(light);
     }

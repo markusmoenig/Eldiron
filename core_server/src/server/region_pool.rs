@@ -9,7 +9,10 @@ ref_thread_local! {
     pub static managed REGION_DATA      : Vec<RegionData> = vec![];
 
     pub static managed UTILITY          : RegionUtility = RegionUtility::new();
+
+    pub static managed BEHAVIORS        : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
     pub static managed ITEMS            : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
+    pub static managed SPELLS           : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
 
     pub static managed ENGINE           : rhai::Engine = rhai::Engine::new();
 
@@ -100,6 +103,19 @@ impl RegionPool<'_> {
 
     pub fn add_regions(&mut self, regions: Vec<String>, regions_behavior: FxHashMap<Uuid, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, spells: Vec<String>, game: String, scripts: FxHashMap<String, String>) {
 
+        // --- Add the behaviors to the global pool
+        let mut decoded_behaviors : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
+        for i in &behaviors {
+            if let Some(behavior_data) = serde_json::from_str::<GameBehaviorData>(&i).ok() {
+                decoded_behaviors.insert(behavior_data.id, behavior_data);
+            }
+        }
+        {
+            let mut static_behaviors = BEHAVIORS.borrow_mut();
+            *static_behaviors = decoded_behaviors;
+        }
+
+        // --- Add the items to the global pool
         let mut decoded_items : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
         for i in &items {
             if let Some(behavior_data) = serde_json::from_str::<GameBehaviorData>(&i).ok() {
@@ -110,6 +126,20 @@ impl RegionPool<'_> {
             let mut static_items = ITEMS.borrow_mut();
             *static_items = decoded_items;
         }
+
+        // --- Add the spells to the global pool
+        let mut decoded_spells : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
+        for i in &spells {
+            if let Some(behavior_data) = serde_json::from_str::<GameBehaviorData>(&i).ok() {
+                decoded_spells.insert(behavior_data.id, behavior_data);
+            }
+        }
+        {
+            let mut static_spells = SPELLS.borrow_mut();
+            *static_spells = decoded_spells;
+        }
+
+        // --- Setup the regions
 
         for region in regions {
             let mut instance = RegionInstance::new();
@@ -178,7 +208,7 @@ impl RegionPool<'_> {
     pub fn tick(&mut self) -> Option<Vec<Message>> {
 
         let mut ret_messages : Vec<Message> = vec![];
-        let mut characters_to_transfer : Vec<(Uuid, BehaviorInstance)> = vec![];
+        let mut characters_to_transfer : Vec<(Uuid, BehaviorInstance, Sheet)> = vec![];
 
         {
             *CURR_INST.borrow_mut() = 0;
@@ -188,8 +218,8 @@ impl RegionPool<'_> {
             let messages = instance.tick();
             for m in messages {
                 match m {
-                    Message::TransferCharacter(region_id, instance) => {
-                        characters_to_transfer.push((region_id, instance));
+                    Message::TransferCharacter(region_id, instance, sheet) => {
+                        characters_to_transfer.push((region_id, instance, sheet));
                     },
                     _ => {
                         if self.threaded {
@@ -208,10 +238,13 @@ impl RegionPool<'_> {
         }
 
         for transfer in characters_to_transfer {
+            {
+                *CURR_INST.borrow_mut() = 0;
+            }
             for i in &mut self.instances {
                 if i.region_data.id == transfer.0 {
                     let uuid = transfer.1.id;
-                    i.transfer_character_into(transfer.1);
+                    i.transfer_character_into(transfer.1, transfer.2);
                     let message = Message::CharacterHasBeenTransferredInsidePool(uuid, i.region_data.id);
                     if self.threaded {
                         self.sender.send(message).unwrap();
@@ -219,6 +252,11 @@ impl RegionPool<'_> {
                         ret_messages.push(message);
                     }
                     break;
+                }
+                {
+                    let mut index = *CURR_INST.borrow();
+                    index += 1;
+                    *CURR_INST.borrow_mut() = index;
                 }
             }
         }
@@ -270,9 +308,10 @@ impl RegionPool<'_> {
             *CURR_INST.borrow_mut() = 0;
         }
         for inst in &mut self.instances {
+            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
             if inst.region_data.id == region_id {
-                if let Some(inst_index) = inst.player_uuid_indices.get(&uuid) {
-                    inst.instances[*inst_index].action = Some(player_action);
+                if let Some(inst_index) = data.player_uuid_indices.get(&uuid) {
+                    data.character_instances[*inst_index].action = Some(player_action);
                     break;
                 }
             }

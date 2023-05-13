@@ -51,16 +51,13 @@ pub struct RegionInstance<'a> {
     /// The index of the game instance
     game_instance_index             : Option<usize>,
 
-    /// Player uuid => player instance index
-    pub player_uuid_indices         : FxHashMap<Uuid, usize>,
-
     /// The displacements for this region
     pub displacements               : HashMap<(isize, isize), TileData>,
 
     // Used by ticks for state memory
 
     /// Current characters per region
-    pub characters                  : FxHashMap<Uuid, Vec<CharacterData>>,
+    //pub characters                  : FxHashMap<Uuid, Vec<CharacterData>>,
     // Characters instance indices in a given area
     pub area_characters             : FxHashMap<usize, Vec<usize>>,
     // The character instances from the previous tick, used to figure out onEnter, onLeave etc events
@@ -194,20 +191,20 @@ impl RegionInstance<'_> {
         let mut nodes : FxHashMap<BehaviorNodeType, NodeCall> = FxHashMap::default();
 
         nodes.insert(BehaviorNodeType::Expression, expression);
-        nodes.insert(BehaviorNodeType::Script, script);
+        //nodes.insert(BehaviorNodeType::Script, script);
         nodes.insert(BehaviorNodeType::Pathfinder, pathfinder);
         nodes.insert(BehaviorNodeType::Lookout, lookout);
         nodes.insert(BehaviorNodeType::CloseIn, close_in);
         nodes.insert(BehaviorNodeType::CallSystem, call_system);
         nodes.insert(BehaviorNodeType::CallBehavior, call_behavior);
-        nodes.insert(BehaviorNodeType::HasTarget, has_target);
+        //nodes.insert(BehaviorNodeType::HasTarget, has_target);
         nodes.insert(BehaviorNodeType::Untarget, untarget);
         nodes.insert(BehaviorNodeType::MagicDamage, magic_damage);
         nodes.insert(BehaviorNodeType::DealDamage, deal_damage);
         nodes.insert(BehaviorNodeType::TakeDamage, take_damage);
         nodes.insert(BehaviorNodeType::DropInventory, drop_inventory);
         nodes.insert(BehaviorNodeType::Effect, effect);
-        nodes.insert(BehaviorNodeType::Audio, audio);
+        //nodes.insert(BehaviorNodeType::Audio, audio);
         nodes.insert(BehaviorNodeType::Heal, heal);
         nodes.insert(BehaviorNodeType::TakeHeal, take_heal);
         nodes.insert(BehaviorNodeType::Respawn, respawn);
@@ -217,18 +214,18 @@ impl RegionInstance<'_> {
 
         nodes.insert(BehaviorNodeType::OverlayTiles, overlay_tiles);
 
-        nodes.insert(BehaviorNodeType::Move, player_move);
+        // nodes.insert(BehaviorNodeType::Move, player_move);
         nodes.insert(BehaviorNodeType::Screen, screen);
         nodes.insert(BehaviorNodeType::Widget, widget);
-        nodes.insert(BehaviorNodeType::Message, message);
-        nodes.insert(BehaviorNodeType::Action, player_action);
+        //nodes.insert(BehaviorNodeType::Message, message);
+        // nodes.insert(BehaviorNodeType::Action, player_action);
         nodes.insert(BehaviorNodeType::Take, player_take);
         nodes.insert(BehaviorNodeType::Drop, player_drop);
         nodes.insert(BehaviorNodeType::Target, player_target);
         nodes.insert(BehaviorNodeType::MagicTarget, magic_target);
         nodes.insert(BehaviorNodeType::LightItem, light_item);
         nodes.insert(BehaviorNodeType::SetItemTile, set_item_tile);
-        nodes.insert(BehaviorNodeType::RandomWalk, random_walk);
+        //nodes.insert(BehaviorNodeType::RandomWalk, random_walk);
         nodes.insert(BehaviorNodeType::MultiChoice, multi_choice);
         nodes.insert(BehaviorNodeType::Sell, sell);
         nodes.insert(BehaviorNodeType::LockTree, lock_tree);
@@ -237,15 +234,15 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::Teleport, teleport);
         nodes.insert(BehaviorNodeType::Equip, player_equip);
 
-        nodes.insert(BehaviorNodeType::Always, always);
-        nodes.insert(BehaviorNodeType::InsideArea, inside_area);
-        nodes.insert(BehaviorNodeType::EnterArea, enter_area);
-        nodes.insert(BehaviorNodeType::LeaveArea, leave_area);
-        nodes.insert(BehaviorNodeType::TeleportArea, teleport_area);
-        nodes.insert(BehaviorNodeType::MessageArea, message_area);
-        nodes.insert(BehaviorNodeType::AudioArea, audio_area);
-        nodes.insert(BehaviorNodeType::LightArea, light_area);
-        nodes.insert(BehaviorNodeType::ActionArea, action);
+        //nodes.insert(BehaviorNodeType::Always, always);
+        //nodes.insert(BehaviorNodeType::InsideArea, inside_area);
+        //nodes.insert(BehaviorNodeType::EnterArea, enter_area);
+        //nodes.insert(BehaviorNodeType::LeaveArea, leave_area);
+        //nodes.insert(BehaviorNodeType::TeleportArea, teleport_area);
+        //nodes.insert(BehaviorNodeType::MessageArea, message_area);
+        //nodes.insert(BehaviorNodeType::AudioArea, audio_area);
+        //nodes.insert(BehaviorNodeType::LightArea, light_area);
+        //nodes.insert(BehaviorNodeType::ActionArea, action);
 
         nodes.insert(BehaviorNodeType::SkillTree, skill_tree);
         nodes.insert(BehaviorNodeType::SkillLevel, skill_level);
@@ -284,11 +281,9 @@ impl RegionInstance<'_> {
 
             game_instance_index             : None,
 
-            player_uuid_indices             : FxHashMap::default(),
-
             displacements                   : HashMap::new(),
 
-            characters                      : FxHashMap::default(),
+            //characters                      : FxHashMap::default(),
             area_characters                 : FxHashMap::default(),
             prev_area_characters            : FxHashMap::default(),
             lights                          : vec![],
@@ -340,12 +335,22 @@ impl RegionInstance<'_> {
     pub fn tick(&mut self) -> Vec<Message> {
 
         self.messages = vec![];
-        self.characters = FxHashMap::default();
         self.lights = vec![];
         self.prev_area_characters = self.area_characters.clone();
         self.area_characters = FxHashMap::default();
 
         let mut messages = vec![];
+
+        let character_instances_len;
+        {
+            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            data.characters.clear();
+            data.area_characters.clear();
+            data.prev_area_characters.clear();
+            data.lights.clear();
+
+            character_instances_len = data.character_instances.len();
+        }
 
         let tick_time = self.get_time();
 
@@ -361,27 +366,33 @@ impl RegionInstance<'_> {
         }
 
         // Execute behaviors
-        for inst_index in 0..self.instances.len() {
+        for inst_index in 0..character_instances_len {
 
             self.messages = vec![];
             self.executed_connections = vec![];
             self.script_errors = vec![];
 
-            self.instances[inst_index].audio = vec![];
-            self.instances[inst_index].multi_choice_data = vec![];
+            let state;
+            let instance_type;
 
             {
                 let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
                 data.curr_index = inst_index;
-            }
 
-            if self.pixel_based_movement == true {
-                if  self.instances[inst_index].old_position.is_some() {
-                    self.instances[inst_index].curr_transition_time += 1;
+                data.character_instances[inst_index].audio = vec![];
+                data.character_instances[inst_index].multi_choice_data = vec![];
 
-                    if self.instances[inst_index].curr_transition_time > self.instances[inst_index].max_transition_time {
-                        self.instances[inst_index].old_position = None;
-                        self.instances[inst_index].curr_transition_time = 0;
+                state = data.character_instances[inst_index].state;
+                instance_type = data.character_instances[inst_index].instance_type;
+
+                if self.pixel_based_movement == true {
+                    if  data.character_instances[data.curr_index].old_position.is_some() {
+                        data.character_instances[data.curr_index].curr_transition_time += 1;
+
+                        if data.character_instances[data.curr_index].curr_transition_time > data.character_instances[data.curr_index].max_transition_time {
+                            data.character_instances[data.curr_index].old_position = None;
+                            data.character_instances[data.curr_index].curr_transition_time = 0;
+                        }
                     }
                 }
             }
@@ -392,19 +403,19 @@ impl RegionInstance<'_> {
             } else {
 
                 // Purged: Skip
-                if self.instances[inst_index].state == BehaviorInstanceState::Purged {
+                if state == BehaviorInstanceState::Purged {
                     continue;
                 }
 
                 // Killed: NPC Skip
-                if self.instances[inst_index].state == BehaviorInstanceState::Killed && self.instances[inst_index].instance_type == BehaviorInstanceType::NonPlayerCharacter {
+                if state == BehaviorInstanceState::Killed && instance_type == BehaviorInstanceType::NonPlayerCharacter {
                     continue;
                 }
 
                 // Are we debugging this character ?
                 self.is_debugging = Some(self.instances[inst_index].behavior_id) == self.debug_behavior_id;
 
-                if self.instances[inst_index].instance_type == BehaviorInstanceType::NonPlayerCharacter {
+                if instance_type == BehaviorInstanceType::NonPlayerCharacter {
 
                     let mut execute_trees = true;
 
@@ -444,27 +455,41 @@ impl RegionInstance<'_> {
                                 self.execute_node(inst_index, locked_tree, None);
                         } else {
                             // Unlocked, execute all valid trees
-                            let trees = self.instances[inst_index].tree_ids.clone();
+                            let trees;
+                            let behavior_id;
+                            {
+                                let data = &REGION_DATA.borrow()[*CURR_INST.borrow()];
+                                trees = data.character_instances[inst_index].tree_ids.clone();
+                                behavior_id = data.character_instances[inst_index].behavior_id;
+                            }
                             for node_id in &trees {
 
                                 // Only execute trees here with an "Always" execute setting (0)
-                                if let Some(value)= get_node_value((self.instances[inst_index].behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors) {
+                                if let Some(value)= get_node_value((behavior_id, *node_id, "execute"), self, BehaviorType::Behaviors) {
                                     if let Some(value) = value.to_integer() {
                                         if value != 0 {
                                             continue;
                                         }
                                     }
                                 }
-                                self.scopes[inst_index].set_value("date", self.date.clone());
-                                self.execute_node(inst_index, node_id.clone(), None);
+                                //self.scopes[inst_index].set_value("date", self.date.clone());
+                                //self.execute_node(inst_index, node_id.clone(), None);
+                                execute_node(behavior_id, *node_id, &mut BEHAVIORS.borrow_mut());
                             }
                         }
                     }
-                } else {
+                } else
+                if instance_type == BehaviorInstanceType::Player {
+
                     // Execute the tree which matches the current action
 
                     let mut tree_id: Option<Uuid> = None;
-                    if let Some(action) = &self.instances[inst_index].action {
+                    let action;
+                    {
+                        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                        action = data.character_instances[inst_index].action.clone();
+                    }
+                    if let Some(action) = &action {
                         // DEBUG INCOMING ACTION
                         // println!("{:?}", self.instances[inst_index].action);
                         if action.direction != PlayerDirection::None {
@@ -489,7 +514,7 @@ impl RegionInstance<'_> {
                                 }
 
                                 if let Some(to_cast) = to_cast {
-                                    self.execute_spell_node(inst_index, to_cast.0, to_cast.1);
+                                    execute_node(to_cast.0, to_cast.1, &mut SPELLS.borrow_mut());
                                 }
 
                             } else {
@@ -505,7 +530,8 @@ impl RegionInstance<'_> {
                                 }
 
                                 if let Some(tree_id) = tree_id {
-                                    self.execute_node(inst_index, tree_id, None);
+                                    //self.execute_node(inst_index, tree_id, None);
+                                    execute_node(self.instances[inst_index].behavior_id, tree_id, &mut BEHAVIORS.borrow_mut());
                                 } else {
                                     println!("Cannot find valid tree for directed action {}", action.action);
                                 }
@@ -623,7 +649,10 @@ impl RegionInstance<'_> {
                             }
                         }
 
-                        self.instances[inst_index].action = None;
+                        {
+                            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                            data.character_instances[inst_index].action = None;
+                        }
                     }
                     // Characters do not lock on targets
                     self.instances[inst_index].target_instance_index = None;
@@ -864,23 +893,25 @@ impl RegionInstance<'_> {
 
             // Add to the characters
 
-            if let Some(position) = self.instances[inst_index].position.clone() {
+            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
+            if let Some(position) = &data.character_instances[data.curr_index].position {
                 if let Some(tile) = self.instances[inst_index].tile.clone() {
                     let character = CharacterData {
                         position                : position.clone(),
-                        old_position            : self.instances[inst_index].old_position.clone(),
-                        max_transition_time     : self.instances[inst_index].max_transition_time,
-                        curr_transition_time    : self.instances[inst_index].curr_transition_time,
+                        old_position            : data.character_instances[data.curr_index].old_position.clone(),
+                        max_transition_time     : data.character_instances[data.curr_index].max_transition_time,
+                        curr_transition_time    : data.character_instances[data.curr_index].curr_transition_time,
                         tile,
-                        name                    : self.instances[inst_index].name.clone(),
-                        id                      : self.instances[inst_index].id,
+                        name                    : data.character_instances[data.curr_index].name.clone(),
+                        id                      : data.character_instances[data.curr_index].id,
                         index                   : inst_index,
-                        effects                 : self.instances[inst_index].effects.clone(),
+                        effects                 : data.character_instances[data.curr_index].effects.clone(),
                      };
-                     if let Some(list) = self.characters.get_mut(&position.region) {
+                     if let Some(list) = data.characters.get_mut(&position.region) {
                          list.push(character);
                      } else {
-                         self.characters.insert(position.region, vec![character]);
+                         data.characters.insert(position.region, vec![character]);
                      }
                 }
                 self.instances[inst_index].effects = vec![];
@@ -912,37 +943,33 @@ impl RegionInstance<'_> {
         }
 
         // Execute region area behaviors
-        let mut to_execute: Vec<(usize, Uuid)> = vec![];
-        self.displacements = HashMap::new();
-        for area_index in 0..self.region_data.areas.len() {
-            for (node_id, node) in &self.region_behavior[area_index].nodes {
-                if node.behavior_type == BehaviorNodeType::InsideArea || node.behavior_type == BehaviorNodeType::EnterArea || node.behavior_type == BehaviorNodeType::LeaveArea || node.behavior_type == BehaviorNodeType::Always {
-                    to_execute.push((area_index, *node_id));
+
+        let mut to_execute: Vec<(Uuid, usize, Uuid)> = vec![];
+        {
+            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            data.displacements = FxHashMap::default();
+            for area_index in 0..data.region_data.areas.len() {
+                for (node_id, node) in &data.region_area_behavior[area_index].nodes {
+                    if node.behavior_type == BehaviorNodeType::InsideArea || node.behavior_type == BehaviorNodeType::EnterArea || node.behavior_type == BehaviorNodeType::LeaveArea || node.behavior_type == BehaviorNodeType::Always {
+                        to_execute.push((data.region_data.id, area_index, *node_id));
+                    }
                 }
             }
         }
 
-        for pairs in to_execute {
-            self.execute_area_node(self.region_data.id, pairs.0, pairs.1);
+        for tuple in to_execute {
+            execute_area_node(tuple.0, tuple.1, tuple.2);
         }
 
         // Parse the player characters and generate updates
 
-        for inst_index in 0..self.instances.len() {
+        for inst_index in 0..character_instances_len {
 
-            let mut inventory = Inventory::new();
             let mut spells: Spells = Spells::new();
             let mut gear = Gear::new();
             let mut weapons = Weapons::new();
             let mut skills = Skills::new();
             let mut experience = Experience::new();
-
-            // Clone the inventory for sending it to the client
-            if let Some(i) = self.scopes[inst_index].get("inventory") {
-                if let Some(inv) = i.read_lock::<Inventory>() {
-                    inventory = inv.clone();
-                }
-            }
 
             // Clone the spells for sending it to the client
             if let Some(s) = self.scopes[inst_index].get("spells") {
@@ -1041,75 +1068,79 @@ impl RegionInstance<'_> {
                     }
                 }
 
+                let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
                 let mut region        : Option<GameRegionData> = None;
                 let mut characters    : Vec<CharacterData> = vec![];
-                let mut displacements : HashMap<(isize, isize), TileData> = HashMap::new();
+                let mut displacements : FxHashMap<(isize, isize), TileData> = FxHashMap::default();
                 let mut scope_buffer = ScopeBuffer::new();
 
                 let mut needs_transfer_to: Option<Uuid> = None;
-                if let Some(position) = self.instances[inst_index].position.clone() {
+                if let Some(position) = &data.character_instances[inst_index].position.clone() {
 
-                    if position.region != self.region_data.id {
+                    if position.region != data.region_data.id {
+                        println!("transfer region");
+
                         // We need to transfer the character to a new region
                         needs_transfer_to = Some(position.region);
                     } else
                     // Check if the character is in a region we did not send to the client yet OR if the editor is debugging
-                    if self.instances[inst_index].regions_send.contains(&position.region) == false || self.debug_behavior_id.is_some() {
-                        region = Some(self.region_data.clone());
-                        self.instances[inst_index].regions_send.insert(position.region);
+                    if data.character_instances[inst_index].regions_send.contains(&position.region) == false || self.debug_behavior_id.is_some() {
+                        println!("send region");
+                        region = Some(data.region_data.clone());
+                        data.character_instances[inst_index].regions_send.insert(position.region);
                     }
                     // Copy the displacements
-                    displacements = self.displacements.clone();
+                    displacements = data.displacements.clone();
 
                     // Send the characters of the client region
-                    if let Some(chars) = self.characters.get(&position.region) {
+                    if let Some(chars) = data.characters.get(&position.region) {
                         characters = chars.clone();
                     }
 
                     scope_buffer.read_from_scope(&self.scopes[inst_index]);
                 }
 
-                let data = &REGION_DATA.borrow()[*CURR_INST.borrow()];
-
                 let update = GameUpdate{
-                    id                      : self.instances[inst_index].id,
+                    id                      : data.character_instances[inst_index].id,
                     screen_size             : self.screen_size,
                     def_square_tile_size    : self.def_square_tile_size,
-                    position                : self.instances[inst_index].position.clone(),
-                    old_position            : self.instances[inst_index].old_position.clone(),
-                    max_transition_time     : self.instances[inst_index].max_transition_time,
-                    curr_transition_time    : self.instances[inst_index].curr_transition_time,
-                    tile                    : self.instances[inst_index].tile.clone(),
-                    sheet                   : data.sheets[data.curr_index].clone(),
+                    position                : data.character_instances[inst_index].position.clone(),
+                    old_position            : data.character_instances[inst_index].old_position.clone(),
+                    max_transition_time     : data.character_instances[inst_index].max_transition_time,
+                    curr_transition_time    : data.character_instances[inst_index].curr_transition_time,
+                    tile                    : data.character_instances[inst_index].tile.clone(),
+                    sheet                   : data.sheets[inst_index].clone(),
                     screen_script_name,
                     screen_scripts,
                     widgets,
                     region,
-                    lights                  : self.lights.clone(),
+                    lights                  : data.lights.clone(),
                     displacements,
                     characters,
-                    loot                    : self.loot.clone(),
-                    messages                : self.instances[inst_index].messages.clone(),
-                    audio                   : self.instances[inst_index].audio.clone(),
+                    loot                    : data.loot.clone(),
+                    messages                : data.character_instances[inst_index].messages.clone(),
+                    audio                   : data.character_instances[inst_index].audio.clone(),
                     scope_buffer            : scope_buffer,
-                    inventory               : inventory.clone(),
                     spells                  : spells.clone(),
                     gear                    : gear.clone(),
                     weapons                 : weapons.clone(),
                     skills                  : skills.clone(),
                     experience              : experience.clone(),
-                    multi_choice_data       : self.instances[inst_index].multi_choice_data.clone(),
-                    communication           : self.instances[inst_index].communication.clone(),
+                    multi_choice_data       : data.character_instances[inst_index].multi_choice_data.clone(),
+                    communication           : data.character_instances[inst_index].communication.clone(),
                     date                    : self.date.clone(),
                  };
 
-                self.instances[inst_index].messages = vec![];
+                data.character_instances[inst_index].messages = vec![];
 
                 if let Some(transfer_to) = needs_transfer_to {
                     // Serialize character
                     self.serialize_character_instance(inst_index);
-                    messages.push(Message::TransferCharacter(transfer_to, self.instances[inst_index].clone()));
-                    self.purge_instance(inst_index);
+                    messages.push(Message::TransferCharacter(transfer_to, data.character_instances[inst_index].clone(), data.sheets[inst_index].clone()));
+                    // Purge the character
+                    data.character_instances[inst_index].state = BehaviorInstanceState::Purged;
+                    data.player_uuid_indices.remove(&data.character_instances[inst_index].id);
                 }
                 messages.push(Message::PlayerUpdate(update.id, update));
             } else {
@@ -1124,14 +1155,20 @@ impl RegionInstance<'_> {
                     if let Some(transfer_to) = needs_transfer_to {
                         // Serialize character
                         self.serialize_character_instance(inst_index);
-                        messages.push(Message::TransferCharacter(transfer_to, self.instances[inst_index].clone()));
-                        self.purge_instance(inst_index);
+                        let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                        messages.push(Message::TransferCharacter(transfer_to, data.character_instances[inst_index].clone(), data.sheets[inst_index].clone()));
+                        // Purge the character
+                        data.character_instances[inst_index].state = BehaviorInstanceState::Purged;
+                        data.player_uuid_indices.remove(&data.character_instances[inst_index].id);
                     }
                 }
             }
         }
 
         //println!("tick time {}", self.get_time() - tick_time);
+
+        let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        data.tick_count = data.tick_count.wrapping_add(1);
 
         self.tick_count = self.tick_count.wrapping_add(1);
         self.date.from_ticks(self.tick_count, self.ticks_per_minute);
@@ -1583,22 +1620,25 @@ impl RegionInstance<'_> {
     /// Setup the region instance data by decoding the JSON for all game elements and sets up the npc and game behavior instances.
     pub fn setup(&mut self, region: String, region_behavior: FxHashMap<Uuid, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, spells: Vec<String>, game: String, scripts: FxHashMap<String, String>) {
         // Decode all JSON
-        if let Some(region_data) = serde_json::from_str(&region).ok() {
+        if let Some(region_data) = serde_json::from_str::<GameRegionData>(&region).ok() {
 
+            let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            data.region_data = region_data.clone();
             self.region_data = region_data;
 
-            if let Some(property) = self.region_data.settings.get("movement") {
+
+            if let Some(property) = data.region_data.settings.get("movement") {
                 if let Some(value) = property.as_string() {
                     if value.to_lowercase() == "tile" {
-                        self.pixel_based_movement = false;
+                        data.pixel_based_movement = false;
                     }
                 }
             }
 
-            if let Some(areas) = region_behavior.get(&self.region_data.id) {
+            if let Some(areas) = region_behavior.get(&data.region_data.id) {
                 for a in areas {
                     if let Some(ab) = serde_json::from_str::<GameBehaviorData>(&a).ok() {
-                        self.region_behavior.push(ab);
+                        data.region_area_behavior.push(ab);
                     }
                 }
             }
@@ -1640,10 +1680,11 @@ impl RegionInstance<'_> {
                             }
                         }
 
-                        if let Some(v) = self.loot.get_mut(&(instance.position.x, instance.position.y)) {
+                        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                        if let Some(v) = data.loot.get_mut(&(instance.position.x, instance.position.y)) {
                             v.push(loot);
                         } else {
-                            self.loot.insert((instance.position.x, instance.position.y), vec![loot]);
+                            data.loot.insert((instance.position.x, instance.position.y), vec![loot]);
                         }
                     }
                 }
@@ -1779,12 +1820,13 @@ impl RegionInstance<'_> {
         let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, skills_buffer: None, experience_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: None, send_screen_scripts: false };
 
 
-        self.instances.push(instance);
+        self.instances.push(instance.clone());
         self.scopes.push(scope);
 
         {
             let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
             data.sheets.push(Sheet::new());
+            data.character_instances.push(instance);
         }
 
         for tree_id in &to_execute {
@@ -1836,8 +1878,12 @@ impl RegionInstance<'_> {
             let index = self.create_behavior_instance(player_id, false, None);
             self.instances[index].instance_type = BehaviorInstanceType::Player;
             self.instances[index].id = uuid;
-            self.instances[index].position = Some(position);
-            self.player_uuid_indices.insert(uuid, index);
+            self.instances[index].position = Some(position.clone());
+            let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            data.character_instances[index].instance_type = BehaviorInstanceType::Player;
+            data.character_instances[index].id = uuid;
+            data.character_instances[index].position = Some(position);
+            data.player_uuid_indices.insert(uuid, index);
             log::info!("Player instance {} created.", uuid);
         }
     }
@@ -1970,12 +2016,13 @@ impl RegionInstance<'_> {
             let instance: BehaviorInstance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior_name.clone(), behavior_id: behavior_id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), scope_buffer: None, sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, damage_to_be_dealt: None, inventory_buffer: None, weapons_buffer: None, gear_buffer: None, skills_buffer: None, experience_buffer: None, effects: vec![], healing_to_be_dealt: None, instance_creation_data: Some(inst.clone()), send_screen_scripts: false };
 
             index = self.instances.len();
-            self.instances.push(instance);
+            self.instances.push(instance.clone());
 
             // Set the sheet
             {
-                let mut data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
                 data.sheets.push(Sheet::new());
+                data.character_instances.push(instance);
                 data.curr_index = index;
             }
 
@@ -2299,19 +2346,26 @@ impl RegionInstance<'_> {
 
     /// Purges this instance, voiding it.
     pub fn purge_instance(&mut self, inst_index: usize) {
-        self.instances[inst_index].state = BehaviorInstanceState::Purged;
-        self.player_uuid_indices.remove(&self.instances[inst_index].id);
+        let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        data.character_instances[inst_index].state = BehaviorInstanceState::Purged;
+        data.player_uuid_indices.remove(&data.character_instances[inst_index].id);
     }
 
     /// Transfers a character instance into this region
-    pub fn transfer_character_into(&mut self, mut instance: BehaviorInstance) {
+    pub fn transfer_character_into(&mut self, mut instance: BehaviorInstance, sheet: Sheet) {
         // TODO, fill in purged
-        self.player_uuid_indices.insert(instance.id, self.instances.len());
+
+        println!("region {}", self.region_data.id);
+
+        let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        data.player_uuid_indices.insert(instance.id, data.character_instances.len());
 
         let mut scope = rhai::Scope::new();
         self.deserialize_character_instance(&mut instance, &mut scope);
 
-        self.instances.push(instance);
+        self.instances.push(instance.clone());
+        data.character_instances.push(instance);
+        data.sheets.push(sheet);
         self.scopes.push(scope);
     }
 

@@ -9,25 +9,57 @@ pub fn eval_script(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMap<Uui
         if let Some(node) = item.nodes.get_mut(&id.1) {
             for (name, value) in &node.values {
                 if *name == value_name {
+                    let engine = &ENGINE.borrow();
+                    if let Some(ast) = node.asts.get(value_name) {
+                        let _rc = engine.eval_ast::<Dynamic>(ast);
+                    } else
                     if let Some(script) = value.to_string() {
-                        let engine = &ENGINE.borrow();
-                        if let Some(ast) = node.asts.get(value_name) {
-                            let _rc = engine.eval_ast::<Dynamic>(ast);
-                        } else {
-                            let rc  = engine.compile(script);
-                            if rc.is_ok() {
-                                if let Some(ast) = rc.ok() {
-                                    let _rc = engine.eval_ast::<Dynamic>(&ast);
-                                    node.asts.insert(value_name.to_string(), ast);
+                        let rc  = engine.compile(script);
+                        if rc.is_ok() {
+                            if let Some(ast) = rc.ok() {
+                                let _rc = engine.eval_ast::<Dynamic>(&ast);
+                                node.asts.insert(value_name.to_string(), ast);
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/// Evaluates the script of a node value and expects an i32 as return value. Stores the compiled AST inside the node for future reference.
+pub fn eval_script_integer(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> Option<i32> {
+    if let Some(item) = nodes.get_mut(&id.0) {
+        if let Some(node) = item.nodes.get_mut(&id.1) {
+            for (name, value) in &node.values {
+                if *name == value_name {
+                    let engine = &ENGINE.borrow();
+                    if let Some(ast) = node.asts.get(value_name) {
+                        let rc = engine.eval_ast::<i32>(ast);
+                        if rc.is_ok() {
+                            return rc.ok();
+                        }
+                    } else
+                    if let Some(script) = value.to_string() {
+                        let rc  = engine.compile(script);
+                        if rc.is_ok() {
+                            if let Some(ast) = rc.ok() {
+                                let rc = engine.eval_ast::<i32>(&ast);
+                                node.asts.insert(value_name.to_string(), ast);
+                                if rc.is_ok() {
+                                    return rc.ok();
                                 }
                             }
                         }
                     }
+                    break;
                 }
-                break;
             }
         }
     }
+    None
 }
 
 /// Evaluates a boolean expression in the given instance.

@@ -8,7 +8,7 @@ pub enum Message {
     DestroyPlayerInstance(Uuid),
     ExecutePlayerAction(Uuid, Uuid, PlayerAction),
     PlayerUpdate(Uuid, GameUpdate),
-    TransferCharacter(Uuid, BehaviorInstance),
+    TransferCharacter(Uuid, BehaviorInstance, Sheet),
     CharacterHasBeenTransferredInsidePool(Uuid, Uuid),
     SetDebugBehaviorId(Uuid),
     DebugData(BehaviorDebugData),

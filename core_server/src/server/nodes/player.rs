@@ -1,62 +1,72 @@
+extern crate ref_thread_local;
+use ref_thread_local::RefThreadLocal;
 use crate::prelude::*;
 
-/// Player moves
-pub fn player_move(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-    let mut speed : f32 = 8.0;
-    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
-        speed = rc;
-    }
-
-    // Apply the speed delay
-    let delay = speed.clamp(0.0, f32::MAX);
-    data.instances[instance_index].sleep_cycles = delay as usize;
-
-    let mut dp:Option<Position> = None;
-    if let Some(p) = &data.instances[instance_index].position {
-        if let Some(action) = &data.instances[instance_index].action {
-            if action.direction == PlayerDirection::North {
-                dp = Some(Position::new(p.region, p.x, p.y - 1));
-                data.action_direction_text = "North".to_string();
-            } else
-            if action.direction == PlayerDirection::South {
-                dp = Some(Position::new(p.region, p.x, p.y + 1));
-                data.action_direction_text = "South".to_string();
-            } else
-            if action.direction == PlayerDirection::East {
-                dp = Some(Position::new(p.region, p.x + 1, p.y));
-                data.action_direction_text = "East".to_string();
-            } else
-            if action.direction == PlayerDirection::West {
-                dp = Some(Position::new(p.region, p.x - 1, p.y));
-                data.action_direction_text = "West".to_string();
-            } else
-            if action.direction == PlayerDirection::Coordinate {
-                if let Some(coord) = action.coordinate {
-                    dp = Some(Position::new(p.region, coord.0, coord.1));
-                    data.action_direction_text = "".to_string();
-                }
-            }
-        }
-    }
-
-    data.instances[instance_index].action = None;
-
-    let mut rc = walk_towards(instance_index, data.instances[instance_index].position.clone(), dp, false, data);
-    if rc == BehaviorNodeConnector::Right {
-        data.instances[instance_index].max_transition_time = delay as usize;
-        data.instances[instance_index].curr_transition_time = 1;
-        rc = BehaviorNodeConnector::Success;
-    }
-    // println!("rc {:?}", rc);
-    rc
-}
 
 /// Player invokes an action
-pub fn player_action(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_player_action(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
     let mut dp:Option<Position> = None;
-    if let Some(p) = &data.instances[instance_index].position {
-        if let Some(action) = &data.instances[instance_index].action {
+
+    {
+        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        if let Some(p) = &data.character_instances[data.curr_index].position {
+            if let Some(action) = &data.character_instances[data.curr_index].action {
+                if action.direction == PlayerDirection::North {
+                    dp = Some(Position::new(p.region, p.x, p.y - 1));
+                    data.action_direction_text = "North".to_string();
+                } else
+                if action.direction == PlayerDirection::South {
+                    dp = Some(Position::new(p.region, p.x, p.y + 1));
+                    data.action_direction_text = "South".to_string();
+                } else
+                if action.direction == PlayerDirection::East {
+                    dp = Some(Position::new(p.region, p.x + 1, p.y));
+                    data.action_direction_text = "East".to_string();
+                } else
+                if action.direction == PlayerDirection::West {
+                    dp = Some(Position::new(p.region, p.x - 1, p.y));
+                    data.action_direction_text = "West".to_string();
+                } else
+                if action.direction == PlayerDirection::Coordinate {
+                    if let Some(coord) = action.coordinate {
+                        dp = Some(Position::new(p.region, coord.0, coord.1));
+                        data.action_direction_text = "".to_string();
+                    }
+                }
+            }
+        }
+        data.character_instances[data.curr_index].action = None;
+    }
+
+    let mut action_name: String = "".to_string();
+
+    if let Some(value) = get_node_string(id, "action", nodes) {
+        action_name = value;
+    }
+
+    execute_targetted_action(action_name, dp)
+}
+
+/// Player move
+pub fn node_player_move(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+
+    let mut delay : i32 = 0;
+    if let Some(d) = eval_script_integer(id, "delay", nodes) {
+        delay = d.clamp(0, 10);
+    }
+
+    let mut position:Option<Position> = None;
+    let mut dp:Option<Position> = None;
+
+    // Apply the speed delay
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
+    data.character_instances[data.curr_index].sleep_cycles = delay as usize;
+
+    if let Some(p) = &data.character_instances[data.curr_index].position {
+        position = Some(p.clone());
+        if let Some(action) = &data.character_instances[data.curr_index].action {
             if action.direction == PlayerDirection::North {
                 dp = Some(Position::new(p.region, p.x, p.y - 1));
                 data.action_direction_text = "North".to_string();
@@ -81,18 +91,15 @@ pub fn player_action(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionI
             }
         }
     }
+    data.character_instances[data.curr_index].action = None;
 
-    let mut action_name = "".to_string();
-
-    if let Some(value) = get_node_value((id.0, id.1, "action"), data, behavior_type) {
-        if let Some(name) = value.to_string() {
-            action_name = name;
-        }
+    let mut rc = walk_towards2(position, dp, false, data);
+    if rc == BehaviorNodeConnector::Right {
+        data.character_instances[data.curr_index].max_transition_time = delay as usize;
+        data.character_instances[data.curr_index].curr_transition_time = 1;
+        rc = BehaviorNodeConnector::Success;
     }
-
-    data.instances[instance_index].action = None;
-
-    execute_region_action(instance_index, action_name, dp, data)
+    rc
 }
 
 /// Player wants to take something
