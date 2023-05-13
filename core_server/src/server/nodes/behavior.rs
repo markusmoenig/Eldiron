@@ -9,20 +9,16 @@ pub fn node_script(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDat
 }
 
 /// expression
-pub fn expression(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-
-    let rc = eval_bool_expression_instance(instance_index, (behavior_type, id.0, id.1, "expression".to_string()), data);
-    if let Some(rc) = rc {
-        if rc == true {
-            return BehaviorNodeConnector::Success;
-        }
+pub fn node_expression(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    if eval_script_bool(id, "expression", nodes) {
+        return BehaviorNodeConnector::Success;
     }
     BehaviorNodeConnector::Fail
 }
 
 pub fn node_message(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let mut message_type : MessageType = MessageType::Status;
-    let text;
+    let mut text;
 
     if let Some(value) = get_node_integer(id, "type", nodes) {
         message_type = match value {
@@ -41,10 +37,11 @@ pub fn node_message(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDa
     } else {
         text = "Message".to_string()
     }
-    /*
+
     if text.contains("${DIRECTION}") {
         text = text.replace("${DIRECTION}", &data.action_direction_text);
     }
+    /*
     if text.contains("${CONTEXT}") {
         text = text.replace("${CONTEXT}", &data.action_subject_text);
     }
@@ -129,7 +126,6 @@ pub fn node_message(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDa
 }
 
 pub fn node_random_walk(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
-
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
     if wait_for(data.curr_index, id, data) {
@@ -194,7 +190,7 @@ pub fn node_random_walk(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
         // Apply the delay
         data.character_instances[data.curr_index].sleep_cycles = delay as usize;
 
-        _ = walk_towards2(p, dp,false, data);
+        _ = walk_towards(p, dp,false, data);
 
         data.character_instances[data.curr_index].max_transition_time = delay as usize + 1;
         data.character_instances[data.curr_index].curr_transition_time = 1;
@@ -211,86 +207,86 @@ pub fn node_random_walk(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
 }
 
 /// Pathfinder
-pub fn pathfinder(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_pathfinder(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
     let mut p : Option<Position> = None;
     let mut dp : Option<Position> = None;
 
-    let mut distance = f32::MAX;
+    let mut distance = i32::MAX;
 
-    if let Some(v) = &mut data.instances[instance_index].position {
+    if let Some(v) = &mut data.character_instances[data.curr_index].position {
         p = Some(v.clone());
     }
 
-    if let Some(behavior) = data.behaviors.get_mut(&id.0) {
-        if let Some(node) = behavior.nodes.get_mut(&id.1) {
-            if let Some(value) = node.values.get("destination") {
-                dp = match value {
-                    Value::Position(v) => {
-                        Some(v.clone())
-                    },
-                    _ => None
-                };
+    if let Some(value) = get_node_value2(id, "destination", nodes) {
+        dp = match value {
+            Value::Position(v) => {
+                Some(v.clone())
+            },
+            _ => None
+        };
 
-                if let Some(dp) = &dp {
-                    if let Some(p) = &p {
-                        distance = compute_distance(p, dp).round();
-                    }
-                }
+        if let Some(dp) = &dp {
+            if let Some(p) = &p {
+                distance = compute_distance(p, dp).round() as i32;
             }
         }
     }
 
-    let mut speed : f32 = 8.0;
-    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
-        speed = rc;
+    let mut delay : i32 = 0;
+    if let Some(d) = eval_script_integer(id, "walk_delay", nodes) {
+        delay = d.clamp(0, i32::MAX);
     }
 
+    // Apply the delay
+    data.character_instances[data.curr_index].sleep_cycles = delay as usize;
+
     // Apply the speed delay
-    let delay = speed.clamp(0.0, f32::MAX);
-    data.instances[instance_index].sleep_cycles = delay as usize;
+    data.character_instances[data.curr_index].sleep_cycles = delay as usize;
 
     // Success if we reached the to_distance already
-    if distance == 0.0 {
+    if distance == 0 {
         return BehaviorNodeConnector::Success;
     }
 
-    let rc  = walk_towards(instance_index, p, dp,false, data);
+    let rc  = walk_towards(p, dp,false, data);
     if  rc == BehaviorNodeConnector::Right {
-        data.instances[instance_index].max_transition_time = delay as usize + 1;
-        data.instances[instance_index].curr_transition_time = 1;
+        data.character_instances[data.curr_index].max_transition_time = delay as usize + 1;
+        data.character_instances[data.curr_index].curr_transition_time = 1;
     }
 
     rc
 }
 
 /// Lookout
-pub fn lookout(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_lookout(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
     let mut state = 0;
-    if let Some(value) = get_node_value((id.0, id.1, "state"), data, behavior_type) {
-        if let Some(s) = value.to_integer() {
-            state = s;
-        }
+    if let Some(value) = get_node_integer(id, "state", nodes) {
+        state = value;
     }
 
-    let mut max_distance : f32 = 7.0;
-    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "max_distance".to_string()), data) {
-        max_distance = rc;
+    let mut max_distance : i32 = 7;
+    if let Some(d) = eval_script_integer(id, "max_distance", nodes) {
+        max_distance = d;
     }
+
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
     // Find the chars within the given distance
 
     let mut chars : Vec<usize> = vec![];
 
-    if let Some(position) = &data.instances[instance_index].position {
-        for inst_index in 0..data.instances.len() {
-            if inst_index != instance_index {
-                if (data.instances[inst_index].state == BehaviorInstanceState::Normal && state == 0) || (data.instances[inst_index].state == BehaviorInstanceState::Killed && state == 1) || (data.instances[inst_index].state == BehaviorInstanceState::Sleeping && state == 3) || (data.instances[inst_index].state == BehaviorInstanceState::Intoxicated && state == 4) {
-                    if let Some(pos) = &data.instances[inst_index].position {
+    if let Some(position) = &data.character_instances[data.curr_index].position {
+        for inst_index in 0..data.character_instances.len() {
+            if inst_index != data.curr_index {
+                if (data.character_instances[inst_index].state == BehaviorInstanceState::Normal && state == 0) || (data.character_instances[inst_index].state == BehaviorInstanceState::Killed && state == 1) || (data.character_instances[inst_index].state == BehaviorInstanceState::Sleeping && state == 3) || (data.character_instances[inst_index].state == BehaviorInstanceState::Intoxicated && state == 4) {
+                    if let Some(pos) = &data.character_instances[inst_index].position {
                         if pos.region == position.region {
                             let dx = position.x - pos.x;
                             let dy = position.y - pos.y;
-                            let d = ((dx * dx + dy * dy) as f32).sqrt();
+                            let d = ((dx * dx + dy * dy) as f32).sqrt() as i32;
                             if d <= max_distance {
                                 chars.push(inst_index);
                             }
@@ -303,64 +299,68 @@ pub fn lookout(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
 
     // Evaluate the expression on the characters who are in range
     for inst_ind in &chars {
-        if let Some(rc) = eval_bool_expression_instance(*inst_ind, (behavior_type, id.0, id.1, "expression".to_string()), data) {
-            if rc {
-                data.instances[instance_index].target_instance_index = Some(*inst_ind);
-                return BehaviorNodeConnector::Success;
-            }
-        }
+        // if let Some(rc) = eval_bool_expression_instance(*inst_ind, (behavior_type, id.0, id.1, "expression".to_string()), data) {
+        //     if rc {
+        //         data.character_instances[instance_index].target_instance_index = Some(*inst_ind);
+        //         return BehaviorNodeConnector::Success;
+        //     }
+        // }
+
+        data.character_instances[data.curr_index].target_instance_index = Some(*inst_ind);
+        return BehaviorNodeConnector::Success;
     }
 
-    data.instances[instance_index].target_instance_index = None;
+    data.character_instances[data.curr_index].target_instance_index = None;
     BehaviorNodeConnector::Fail
 }
 
 /// CloseIn
-pub fn close_in(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_close_in(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
     let mut p : Option<Position> = None;
     let mut dp : Option<Position> = None;
 
-    let mut distance = f32::MAX;
-    let mut to_distance = 1_f32;
+    let mut distance = i32::MAX;
+    let mut to_distance = 1;
 
-    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "to_distance".to_string()), data) {
-        to_distance = rc;
+    if let Some(d) = eval_script_integer(id, "to_distance", nodes) {
+        to_distance = d;
     }
 
-    if let Some(v) = &mut data.instances[instance_index].position {
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
+    if let Some(v) = &mut data.character_instances[data.curr_index].position {
         p = Some(v.clone());
     }
 
-    let target_index = data.instances[instance_index].target_instance_index;
+    let target_index = data.character_instances[data.curr_index].target_instance_index;
 
     if let Some(target_index) = target_index {
-        if let Some(v) = &mut data.instances[target_index].position {
+        if let Some(v) = &mut data.character_instances[target_index].position {
             dp = Some(v.clone());
             if let Some(p) = &p {
-                distance = compute_distance(p, v);
+                distance = compute_distance(p, v) as i32;
             }
         }
     }
 
-    let mut speed : f32 = 8.0;
-    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "speed".to_string()), data) {
-        speed = rc;
+    let mut delay : i32 = 2;
+    if let Some(d) = eval_script_integer(id, "delay", nodes) {
+        delay = d.clamp(0, i32::MAX);
     }
 
     // Apply the speed delay
-    let delay = speed.clamp(0.0, f32::MAX);
-    data.instances[instance_index].sleep_cycles = delay as usize;
+    data.character_instances[data.curr_index].sleep_cycles = delay as usize;
 
     // Success if we reached the to_distance already
     if distance <= to_distance {
         return BehaviorNodeConnector::Success;
     }
 
-    let rc = walk_towards(instance_index, p, dp, true, data);
+    let rc = walk_towards(p, dp, true, data);
     if  rc == BehaviorNodeConnector::Right {
-        data.instances[instance_index].max_transition_time = delay as usize + 1;
-        data.instances[instance_index].curr_transition_time = 1;
+        data.character_instances[data.curr_index].max_transition_time = delay as usize + 1;
+        data.character_instances[data.curr_index].curr_transition_time = 1;
     }
     rc
 }
@@ -866,19 +866,20 @@ pub fn node_has_target(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehav
 }
 
 /// Untarget (based on distance)
-pub fn untarget(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-    if data.instances[instance_index].target_instance_index.is_some() {
+pub fn node_untarget(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
-        let mut distance : f32 = 0.0;
-        if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "distance".to_string()), data) {
-            distance = rc;
+    if data.character_instances[data.curr_index].target_instance_index.is_some() {
+        let mut distance : i32 = 0;
+        if let Some(d) = eval_script_integer(id, "distance", nodes) {
+            distance = d;
         }
 
-        if let Some(p1) = get_instance_position(instance_index, &data.instances) {
-            if let Some(p2) = get_instance_position(data.instances[instance_index].target_instance_index.unwrap(), &data.instances) {
-                let d = compute_distance(&p1, &p2);
+        if let Some(p1) = data.get_instance_position(data.curr_index) {
+            if let Some(p2) = data.get_instance_position(data.character_instances[data.curr_index].target_instance_index.unwrap()) {
+                let d = compute_distance(&p1, &p2) as i32;
                 if d > distance {
-                    data.instances[instance_index].target_instance_index = None;
+                    data.character_instances[data.curr_index].target_instance_index = None;
                     return BehaviorNodeConnector::Success;
                 }
             }
@@ -1317,7 +1318,6 @@ pub fn magic_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIn
 
 /// Drop Inventory :(
 pub fn drop_inventory(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-
     let mut drop_type = 0;
 
     if let Some(value) = get_node_value((id.0, id.1, "drop"), data, behavior_type) {

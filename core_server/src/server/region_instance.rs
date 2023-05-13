@@ -190,15 +190,15 @@ impl RegionInstance<'_> {
 
         let mut nodes : FxHashMap<BehaviorNodeType, NodeCall> = FxHashMap::default();
 
-        nodes.insert(BehaviorNodeType::Expression, expression);
+        //nodes.insert(BehaviorNodeType::Expression, expression);
         //nodes.insert(BehaviorNodeType::Script, script);
-        nodes.insert(BehaviorNodeType::Pathfinder, pathfinder);
-        nodes.insert(BehaviorNodeType::Lookout, lookout);
-        nodes.insert(BehaviorNodeType::CloseIn, close_in);
+        //nodes.insert(BehaviorNodeType::Pathfinder, pathfinder);
+        //nodes.insert(BehaviorNodeType::Lookout, lookout);
+        //nodes.insert(BehaviorNodeType::CloseIn, close_in);
         nodes.insert(BehaviorNodeType::CallSystem, call_system);
         nodes.insert(BehaviorNodeType::CallBehavior, call_behavior);
         //nodes.insert(BehaviorNodeType::HasTarget, has_target);
-        nodes.insert(BehaviorNodeType::Untarget, untarget);
+        //nodes.insert(BehaviorNodeType::Untarget, untarget);
         nodes.insert(BehaviorNodeType::MagicDamage, magic_damage);
         nodes.insert(BehaviorNodeType::DealDamage, deal_damage);
         nodes.insert(BehaviorNodeType::TakeDamage, take_damage);
@@ -375,6 +375,8 @@ impl RegionInstance<'_> {
             let state;
             let instance_type;
 
+            let sleeping;
+
             {
                 let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
                 data.curr_index = inst_index;
@@ -395,13 +397,17 @@ impl RegionInstance<'_> {
                         }
                     }
                 }
+
+                if data.character_instances[inst_index].sleep_cycles > 0 {
+                    data.character_instances[inst_index].sleep_cycles -= 1;
+                    sleeping = true;
+                } else {
+                    sleeping = false;
+                }
             }
 
             // Skip Sleep cycles
-            if self.instances[inst_index].sleep_cycles > 0 {
-                self.instances[inst_index].sleep_cycles -= 1;
-            } else {
-
+            if sleeping == false {
                 // Purged: Skip
                 if state == BehaviorInstanceState::Purged {
                     continue;

@@ -29,8 +29,8 @@ pub struct RegionData {
     pub action_direction_text       : String,
 
 
-    /// During action execution for regions this indicates the calling behavior index
-    pub curr_action_inst_index      : Option<usize>,
+    /// During region area execution this points to the calling behavior index (for sending messages etc)
+    pub curr_action_character_index  : Option<usize>,
 
     /// The current instance index of the current "Player" when executing the Game behavior per player
     pub curr_player_inst_index      : usize,
@@ -73,10 +73,15 @@ impl RegionData {
 
         // BEHAVIOR
         nodes.insert(BehaviorNodeType::Script, node_script);
+        nodes.insert(BehaviorNodeType::Expression, node_expression);
         nodes.insert(BehaviorNodeType::Message, node_message);
         nodes.insert(BehaviorNodeType::Audio, node_audio);
         nodes.insert(BehaviorNodeType::HasTarget, node_has_target);
         nodes.insert(BehaviorNodeType::RandomWalk, node_random_walk);
+        nodes.insert(BehaviorNodeType::Lookout, node_lookout);
+        nodes.insert(BehaviorNodeType::CloseIn, node_close_in);
+        nodes.insert(BehaviorNodeType::Pathfinder, node_pathfinder);
+        nodes.insert(BehaviorNodeType::Untarget, node_untarget);
 
         // PLAYER
         nodes.insert(BehaviorNodeType::Action, node_player_action);
@@ -94,19 +99,19 @@ impl RegionData {
         nodes.insert(BehaviorNodeType::LightArea, node_light_area);
 
         Self {
-            sheets                  : vec![],
-            character_instances     : vec![],
-            region_data             : GameRegionData::new(),
-            region_area_behavior    : vec![],
-            displacements           : FxHashMap::default(),
-            pixel_based_movement    : true,
-            loot                    : FxHashMap::default(),
+            sheets                          : vec![],
+            character_instances             : vec![],
+            region_data                     : GameRegionData::new(),
+            region_area_behavior            : vec![],
+            displacements                   : FxHashMap::default(),
+            pixel_based_movement            : true,
+            loot                            : FxHashMap::default(),
 
             nodes,
 
-            action_direction_text   : "".to_string(),
+            action_direction_text           : "".to_string(),
 
-            curr_action_inst_index          : None,
+            curr_action_character_index     : None,
             curr_player_inst_index          : 0,
             game_instance_index             : None,
             player_uuid_indices             : FxHashMap::default(),
@@ -119,8 +124,8 @@ impl RegionData {
             tick_count                      : 5 * 60 * 4, // 5am
             ticks_per_minute                : 4,
 
-            curr_index              : 0,
-            curr_area_index         : 0,
+            curr_index                      : 0,
+            curr_area_index                 : 0,
         }
     }
 

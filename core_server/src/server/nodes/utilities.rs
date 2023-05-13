@@ -10,7 +10,6 @@ pub fn get_node_value2(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMap
             for (name, value) in &node.values {
                 if *name == value_name {
                     return Some(value.clone());
-                    break;
                 }
             }
         }
@@ -172,7 +171,7 @@ pub fn get_instance_position(inst_index: usize, instances: &Vec<BehaviorInstance
 }
 
 /// Walk towards a destination position
-pub fn walk_towards2( p: Option<Position>, dp: Option<Position>, exclude_dp: bool, data: &mut RegionData) -> BehaviorNodeConnector {
+pub fn walk_towards( p: Option<Position>, dp: Option<Position>, exclude_dp: bool, data: &mut RegionData) -> BehaviorNodeConnector {
 
     // Cache the character positions
     let mut char_positions : Vec<Position> = vec![];
@@ -255,90 +254,6 @@ pub fn walk_towards2( p: Option<Position>, dp: Option<Position>, exclude_dp: boo
     BehaviorNodeConnector::Fail
 }
 
-/// Walk towards a destination position
-pub fn walk_towards(instance_index: usize, p: Option<Position>, dp: Option<Position>, exclude_dp: bool, data: &mut RegionInstance) -> BehaviorNodeConnector {
-
-    // Cache the character positions
-    let mut char_positions : Vec<Position> = vec![];
-
-    if let Some(p) = &p {
-        for inst_index in 0..data.instances.len() {
-            if inst_index != instance_index {
-                // Only track if the state is normal
-                if data.instances[inst_index].state == BehaviorInstanceState::Normal {
-                    if let Some(pos) = &data.instances[inst_index].position {
-                        if p.region == pos.region {
-                            if exclude_dp == false {
-                                char_positions.push(pos.clone());
-                            } else {
-                                // Exclude dp, otherwise the Close In tracking function does not find a route
-                                if let Some(dp) = &dp {
-                                    if *dp != *pos {
-                                        char_positions.push(pos.clone());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if let Some(p) = &p {
-
-        let can_go = |x: isize, y: isize| -> bool {
-
-            // Check tiles
-            let tiles = data.get_tile_at((x, y));
-            if tiles.is_empty() { return false; }
-            for tile in tiles {
-                if tile.usage == TileUsage::EnvBlocking || tile.usage == TileUsage::Water {
-                    return false;
-                }
-            }
-
-            // Check characters
-            for char_p in &char_positions {
-                if char_p.x == x && char_p.y == y {
-                    return false;
-                }
-            }
-
-            true
-        };
-
-        if let Some(dp) = dp {
-
-            let result = bfs(&(p.x, p.y),
-                                |&(x, y)| {
-                                let mut v : Vec<(isize, isize)> = vec![];
-                                if can_go(x + 1, y) { v.push((x + 1, y))};
-                                if can_go(x, y + 1) { v.push((x, y + 1))};
-                                if can_go(x - 1, y) { v.push((x - 1, y))};
-                                if can_go(x, y - 1) { v.push((x, y - 1))};
-                                v
-                                },
-                                |&p| p.0 == dp.x && p.1 == dp.y);
-
-            if let Some(result) = result {
-                if result.len() > 1 {
-                    if data.pixel_based_movement == true {
-                        data.instances[instance_index].old_position = data.instances[instance_index].position.clone();
-                    }
-                    data.instances[instance_index].position = Some(Position::new(p.region, result[1].0, result[1].1));
-                    return BehaviorNodeConnector::Right;
-                } else
-                if result.len() == 1 && dp.x == result[0].0 && dp.y == result[0].1 {
-                    return BehaviorNodeConnector::Success;
-                }
-            }
-        }
-    }
-
-    BehaviorNodeConnector::Fail
-}
-
 /// Executes the given action in the given direction, checking for areas, loot items and NPCs
 pub fn execute_targetted_action(action_name: String, dp: Option<Position>) -> BehaviorNodeConnector {
 
@@ -348,36 +263,60 @@ pub fn execute_targetted_action(action_name: String, dp: Option<Position>) -> Be
 
     if let Some(dp) = &dp {
 
-        /*
-        let mut ids = vec![];
+        let mut area_to_execute: Vec<(Uuid, usize, Uuid)> = vec![];
 
-        for (index, area) in data.region_data.areas.iter().enumerate() {
-            for p in &area.area {
-                if p.0 == dp.x && p.1 == dp.y {
-                    if let Some(behavior) = data.region_behavior.get(index) {
-                        for (id, node) in &behavior.nodes {
-                            if node.behavior_type == BehaviorNodeType::ActionArea {
-                                ids.push((area.behavior, index, *id));
+        // Check areas
+        {
+            let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            let mut ids: Vec<(Uuid, usize, Uuid)> = vec![];
+
+            for (index, area) in data.region_data.areas.iter().enumerate() {
+                for p in &area.area {
+                    if p.0 == dp.x && p.1 == dp.y {
+                        if let Some(behavior) = data.region_area_behavior.get(index) {
+                            for (id, node) in &behavior.nodes {
+                                if node.behavior_type == BehaviorNodeType::ActionArea {
+                                    ids.push((area.behavior, index, *id));
+                                }
                             }
                         }
                     }
                 }
             }
-        }
 
-        for id in ids {
-            if let Some(value) = get_node_value((id.0, id.2, "action"), data, BehaviorType::Regions) {
-                if let Some(name) = value.to_string() {
+            /// Returns a string value for the given node.
+            fn get_node_string(id: Uuid, value_name: &str, nodes: &mut FxHashMap<Uuid, BehaviorNode>) -> Option<String> {
+                if let Some(node) = nodes.get_mut(&id) {
+                    for (name, value) in &node.values {
+                        if *name == value_name {
+                            if let Some(v) = value.to_string() {
+                                return Some(v);
+                            }
+                            break;
+                        }
+                    }
+                }
+                None
+            }
+
+            for id in ids {
+                let nodes: &mut HashMap<Uuid, BehaviorNode, std::hash::BuildHasherDefault<rustc_hash::FxHasher>> = &mut data.region_area_behavior[id.1].nodes;
+                if let Some(name) = get_node_string(id.2, "action", nodes) {
                     if name == action_name {
-                        data.curr_action_inst_index = Some(instance_index);
-                        data.execute_area_node(id.0, id.1, id.2);
-                        data.curr_action_inst_index = None;
-                        return BehaviorNodeConnector::Success;
+                        data.curr_action_character_index = Some(data.curr_index);
+                        area_to_execute.push(id);
                     }
                 }
             }
         }
-        */
+
+        // Need to execute an area node ?
+        for id in area_to_execute {
+            execute_area_node(id.0, id.1, id.2);
+            let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            data.curr_action_character_index = None;
+            return BehaviorNodeConnector::Success;
+        }
 
         // Check loot items
         let mut loot = vec![];

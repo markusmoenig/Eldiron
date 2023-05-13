@@ -1739,10 +1739,10 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            let mut atom2 = AtomWidget::new(vec!["Speed Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("speed", Value::Empty()));
-            atom2.atom_data.text = "Speed Delay".to_string();
-            let id = (behavior_data_id, node_id, "speed".to_string());
+            let mut atom2 = AtomWidget::new(vec!["Walk Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("walk_delay", Value::Empty()));
+            atom2.atom_data.text = "Walk Delay".to_string();
+            let id = (behavior_data_id, node_id, "walk_delay".to_string());
             atom2.behavior_id = Some(id.clone());
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("8".to_string()), self.graph_type);
             node_widget.widgets.push(atom2);
@@ -1793,12 +1793,12 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("1".to_string()), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            let mut atom2 = AtomWidget::new(vec!["Speed Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("speed", Value::Empty()));
-            atom2.atom_data.text = "Speed Delay".to_string();
-            let id = (behavior_data_id, node_id, "speed".to_string());
+            let mut atom2 = AtomWidget::new(vec!["Walk Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("delay", Value::Empty()));
+            atom2.atom_data.text = "Walk Delay".to_string();
+            let id = (behavior_data_id, node_id, "delay".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Integer(2), self.graph_type);
             node_widget.widgets.push(atom2);
 
             node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#close-in".to_string());

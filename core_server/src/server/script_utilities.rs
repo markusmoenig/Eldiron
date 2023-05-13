@@ -62,6 +62,41 @@ pub fn eval_script_integer(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHas
     None
 }
 
+/// Evaluates the script of a node value and expects an bool as return value. Stores the compiled AST inside the node for future reference.
+pub fn eval_script_bool(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> bool {
+    if let Some(item) = nodes.get_mut(&id.0) {
+        if let Some(node) = item.nodes.get_mut(&id.1) {
+            for (name, value) in &node.values {
+                if *name == value_name {
+                    let engine = &ENGINE.borrow();
+                    if let Some(ast) = node.asts.get(value_name) {
+                        let rc = engine.eval_ast::<bool>(ast);
+                        if rc.is_ok() {
+                            if let Some(value) = rc.ok() {
+                                return value;
+                            }
+                        }
+                    } else
+                    if let Some(script) = value.to_string() {
+                        let rc  = engine.compile(script);
+                        if rc.is_ok() {
+                            if let Some(ast) = rc.ok() {
+                                let rc = engine.eval_ast::<bool>(&ast);
+                                node.asts.insert(value_name.to_string(), ast);
+                                if let Some(value) = rc.ok() {
+                                    return value;
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    false
+}
+
 /// Evaluates a boolean expression in the given instance.
 pub fn eval_bool_expression_instance(instance_index: usize, id: (BehaviorType, Uuid, Uuid, String), data: &mut RegionInstance) -> Option<bool> {
     //add_target_to_scope(instance_index, data);

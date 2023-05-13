@@ -93,7 +93,7 @@ pub fn node_player_move(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
     }
     data.character_instances[data.curr_index].action = None;
 
-    let mut rc = walk_towards2(position, dp, false, data);
+    let mut rc = walk_towards(position, dp, false, data);
     if rc == BehaviorNodeConnector::Right {
         data.character_instances[data.curr_index].max_transition_time = delay as usize;
         data.character_instances[data.curr_index].curr_transition_time = 1;

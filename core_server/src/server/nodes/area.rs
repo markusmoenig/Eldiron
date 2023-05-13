@@ -280,7 +280,8 @@ pub fn node_message_area(id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBeha
         }
     }*/
 
-    if let Some(action_index) = data.curr_action_inst_index {
+    // This is called from an user initiated action (Look etc)
+    if let Some(action_index) = data.curr_action_character_index {
         let message_data = MessageData { message_type, message: text.clone(), from: "System".to_string(), buffer: None, right: None, center: None };
         data.character_instances[action_index].messages.push(message_data.clone());
     } else
