@@ -101,7 +101,7 @@ pub fn node_player_move(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
 }
 
 /// Player wants to take something
-pub fn node_player_take(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_player_take(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
     let mut dp:Option<Position> = None;
@@ -144,23 +144,16 @@ pub fn node_player_take(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
                         if loot[index].static_item { continue; }
                         let element = loot.remove(index);
 
-                        // TODO
-                        // if element.name.to_lowercase() == data.primary_currency {
-                        //     add_to_character_currency(instance_index, element.amount as f32, data);
-                        //     data.action_subject_text = element.name;
-                        // } else
-                        // if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
-                        //     if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                        //         if element.name.is_empty() == false {
-                        //             if element.state.is_none() {
-                        //                 inv.add(element.name.as_str(), element.amount);
-                        //             } else {
-                        //                 inv.add_item(element.clone());
-                        //             }
-                        //             data.action_subject_text = element.name;
-                        //         }
-                        //     }
-                        // }
+                        let sheet = &mut data.sheets[data.curr_index];
+                        if element.name.to_lowercase() == "gold" {
+                            //TODO add_to_character_currency(element.amount as f32, data);
+                            data.action_subject_text = element.name;
+                        } else
+                        if element.name.is_empty() == false {
+                            sheet.inventory.add_item(element.clone());
+                            data.action_subject_text = element.name;
+                        }
+
                         rc = BehaviorNodeConnector::Success;
                         break;
                     }
@@ -174,7 +167,7 @@ pub fn node_player_take(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
 }
 
 /// Player wants to drop something
-pub fn node_player_drop(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_player_drop(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
     let mut index: Option<usize> = None;
@@ -184,42 +177,37 @@ pub fn node_player_drop(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
         }
     }
 
-    // TODO
-    // if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
-    //     if let Some(mut inv) = mess.write_lock::<Inventory>() {
+    let sheet = &mut data.sheets[data.curr_index];
+    if let Some(index) = index {
+        if index < sheet.inventory.items.len() {
+            let mut item = sheet.inventory.items[index].clone();
+            sheet.inventory.items.remove(index);
 
-    //         if let Some(index) = index {
-    //             if index < inv.items.len() {
-    //                 let mut item = inv.items[index].clone();
-    //                 inv.items.remove(index);
+            if let Some(p) = &data.character_instances[data.curr_index].position {
 
-    //                 if let Some(p) = &data.instances[instance_index].position {
+                if let Some(mut light) = item.light.clone() {
+                    light.position = (p.x, p.y);
+                    item.light = Some(light);
+                }
 
-    //                     if let Some(mut light) = item.light.clone() {
-    //                         light.position = (p.x, p.y);
-    //                         item.light = Some(light);
-    //                     }
+                let loot = item.clone();
 
-    //                     let loot = item.clone();
+                if let Some(existing_loot) = data.loot.get_mut(&(p.x, p.y)) {
+                    existing_loot.push(loot);
+                } else {
+                    data.loot.insert((p.x, p.y), vec![loot]);
+                }
 
-    //                     if let Some(existing_loot) = data.loot.get_mut(&(p.x, p.y)) {
-    //                         existing_loot.push(loot);
-    //                     } else {
-    //                         data.loot.insert((p.x, p.y), vec![loot]);
-    //                     }
-
-    //                     return BehaviorNodeConnector::Success;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
+                return BehaviorNodeConnector::Success;
+            }
+        }
+    }
 
     BehaviorNodeConnector::Fail
 }
 
 /// Assign target
-pub fn node_player_target(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_player_target(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
     let mut dp:Option<Position> = None;
     if let Some(p) = &data.character_instances[data.curr_index].position {
@@ -257,7 +245,7 @@ pub fn node_player_target(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeha
         if let Some(position) = &data.character_instances[data.curr_index].position {
             // Make sure the target is within weapons range
             let distance = compute_distance(&position, &dp);
-            let weapon_distance = get_weapon_distance(data.curr_index, "main hand".to_string(), data);
+            let weapon_distance = get_weapon_distance("main hand".to_string(), data);
             if  distance as i32 <= weapon_distance {
                 for inst_index in 0..data.character_instances.len() {
                     if inst_index != data.curr_index {
@@ -282,7 +270,7 @@ pub fn node_player_target(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeha
 }
 
 /// Player wants to drop something
-pub fn node_player_equip(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_player_equip(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
     // Get the inventory index of the item to equip
@@ -298,58 +286,43 @@ pub fn node_player_equip(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehav
     let mut to_equip: Option<Item> = None;
     let mut to_add_back_to_inventory: Vec<Item> = vec![];
 
-    // TODO
-    // // Remove the item to equip from the inventory
-    // if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
-    //     if let Some(mut inv) = mess.write_lock::<Inventory>() {
-    //         if let Some(index) = index {
-    //             to_equip = Some(inv.items.remove(index));
-    //         }
-    //     }
-    // }
+    let sheet: &mut Sheet = &mut data.sheets[data.curr_index];
 
-    // if let Some(to_equip) = to_equip {
-    //     let item_type = to_equip.item_type.clone().to_lowercase();
-    //     if let Some(slot) = to_equip.slot.clone() {
-    //         if item_type == "weapon" {
-    //             if let Some(mess) = data.scopes[instance_index].get_mut("weapons") {
-    //                 if let Some(mut weapons) = mess.write_lock::<Weapons>() {
-    //                     // Remove existing item in the slot
-    //                     if let Some(w) = weapons.slots.remove(&slot) {
-    //                         to_add_back_to_inventory.push(w);
-    //                     }
-    //                     // Insert the new weapon into the slot
-    //                     weapons.slots.insert(slot, to_equip);
-    //                     rc = BehaviorNodeConnector::Success;
-    //                 }
-    //             }
-    //         } else
-    //         if item_type == "gear" {
-    //             if let Some(mess) = data.scopes[instance_index].get_mut("gear") {
-    //                 if let Some(mut gear) = mess.write_lock::<Gear>() {
-    //                     // Remove existing item in the slot
-    //                     if let Some(g) = gear.slots.remove(&slot) {
-    //                         to_add_back_to_inventory.push(g);
-    //                     }
-    //                     // Insert the new weapon into the slot
-    //                     gear.slots.insert(slot, to_equip);
-    //                     rc = BehaviorNodeConnector::Success;
-    //                 }
-    //             }
-    //         }
-    //     }
-    //}
+    // Remove the item to equip from the inventory
+
+    if let Some(index) = index {
+        to_equip = Some(sheet.inventory.items.remove(index));
+    }
+
+    if let Some(to_equip) = to_equip {
+        let item_type = to_equip.item_type.clone().to_lowercase();
+        if let Some(slot) = to_equip.slot.clone() {
+            if item_type == "weapon" {
+                // Remove existing item in the slot
+                if let Some(w) = sheet.weapons.slots.remove(&slot) {
+                    to_add_back_to_inventory.push(w);
+                }
+                // Insert the new weapon into the slot
+                sheet.weapons.slots.insert(slot, to_equip);
+                rc = BehaviorNodeConnector::Success;
+            } else
+            if item_type == "gear" {
+                // Remove existing item in the slot
+                if let Some(g) = sheet.gear.slots.remove(&slot) {
+                    to_add_back_to_inventory.push(g);
+                }
+                // Insert the new weapon into the slot
+                sheet.gear.slots.insert(slot, to_equip);
+                rc = BehaviorNodeConnector::Success;
+            }
+        }
+    }
 
     // Add removed items in the equipped slot(s) back into the inventory
     if to_add_back_to_inventory.is_empty() == false {
-        // TODO
-        // if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
-        //     if let Some(mut inv) = mess.write_lock::<Inventory>() {
-        //         for item in to_add_back_to_inventory {
-        //             inv.items.push(item);
-        //         }
-        //     }
-        // }
+        for item in to_add_back_to_inventory {
+            sheet.inventory.items.push(item);
+        }
     }
 
     rc

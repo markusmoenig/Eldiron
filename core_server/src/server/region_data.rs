@@ -25,9 +25,11 @@ pub struct RegionData {
     /// The node functions
     pub nodes                       : FxHashMap<BehaviorNodeType, NodeDataCall>,
 
-    /// The text of the current movement
+    /// The text of the current movement (North, South)
     pub action_direction_text       : String,
 
+    /// The text for the current subject / context
+    pub action_subject_text         : String,
 
     /// During region area execution this points to the calling behavior index (for sending messages etc)
     pub curr_action_character_index  : Option<usize>,
@@ -36,7 +38,7 @@ pub struct RegionData {
     pub curr_player_inst_index      : usize,
 
     /// The index of the game instance
-    pub game_instance_index             : Option<usize>,
+    pub game_instance_index         : Option<usize>,
 
     /// Player uuid => player instance index
     pub player_uuid_indices         : FxHashMap<Uuid, usize>,
@@ -89,7 +91,7 @@ impl RegionData {
         nodes.insert(BehaviorNodeType::Take, node_player_take);
         nodes.insert(BehaviorNodeType::Drop, node_player_drop);
         nodes.insert(BehaviorNodeType::Target, node_player_target);
-        nodes.insert(BehaviorNodeType::Target, node_player_equip);
+        nodes.insert(BehaviorNodeType::Equip, node_player_equip);
 
         nodes.insert(BehaviorNodeType::Screen, node_screen);
         //nodes.insert(BehaviorNodeType::Widget, node_widget);
@@ -124,6 +126,7 @@ impl RegionData {
             nodes,
 
             action_direction_text           : "".to_string(),
+            action_subject_text             : "".to_string(),
 
             curr_action_character_index     : None,
             curr_player_inst_index          : 0,

@@ -58,12 +58,6 @@ pub struct GameUpdate {
     /// Spells
     pub spells                  : Spells,
 
-    /// Gear
-    pub gear                    : Gear,
-
-    /// Weapons
-    pub weapons                 : Weapons,
-
     /// Skills
     pub skills                  : Skills,
 
@@ -106,8 +100,6 @@ impl GameUpdate {
             audio               : vec![],
             scope_buffer        : ScopeBuffer::new(),
             spells              : Spells::new(),
-            gear                : Gear::new(),
-            weapons             : Weapons::new(),
             skills              : Skills::new(),
             experience          : Experience::new(),
             multi_choice_data   : vec![],

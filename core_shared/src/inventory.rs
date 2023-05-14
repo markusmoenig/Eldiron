@@ -127,7 +127,7 @@ impl Inventory {
 
     /// Add an item to the inventory.
     pub fn add_item(&mut self, mut item: Item) {
-        if item.stackable > 1 {
+        if item.stackable > 1 && item.state.is_none() {
             for it in &mut self.items {
                 if it.id == item.id {
                     if it.amount < item.stackable {

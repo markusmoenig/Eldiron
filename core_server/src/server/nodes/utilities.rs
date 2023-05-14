@@ -352,9 +352,6 @@ pub fn execute_targetted_action(action_name: String, dp: Option<Position>) -> Be
                     *STATE.borrow_mut() = state.clone();
                     execute_node(behavior_id, node_id, &mut item_nodes);
                     loot[index].state = Some(STATE.borrow().clone());
-                    // if let Some(light) = &mut loot[index].light {
-                    //     light.position = (dp.x, dp.y);
-                    // }
                     let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
                     data.loot.insert((dp.x, dp.y), loot);
                     return BehaviorNodeConnector::Success;
@@ -806,19 +803,15 @@ pub fn get_weapon_script_id(instance_index: usize, slot: String, data: &mut Regi
 }
 
 /// Returns the weapon distance for the given weapon slot
-pub fn get_weapon_distance(instance_index: usize, slot: String, data: &mut RegionData) -> i32 {
+pub fn get_weapon_distance(slot: String, data: &mut RegionData) -> i32 {
     let mut weapon_distance = 1;
 
-    // TODO
-    // if let Some(v) = data.scopes[instance_index].get("weapons") {
-    //     if let Some(weapons) = v.read_lock::<Weapons>() {
-    //         if let Some(weapon) = weapons.slots.get(&slot) {
-    //             if weapon.weapon_distance > weapon_distance {
-    //                 weapon_distance = weapon.weapon_distance;
-    //             }
-    //         }
-    //     }
-    // }
+    let sheet: &mut Sheet = &mut data.sheets[data.curr_index];
+    if let Some(weapon) = sheet.weapons.slots.get(&slot) {
+        if weapon.weapon_distance > weapon_distance {
+            weapon_distance = weapon.weapon_distance;
+        }
+    }
 
     weapon_distance
 }

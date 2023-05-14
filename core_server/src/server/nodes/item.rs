@@ -15,7 +15,6 @@ pub fn node_light_item(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavio
         state.light = Some(LightData {
                 light_type              : LightType::PointLight,
                 position                : (0, 0),
-
                 intensity               : 255,
         });
     } else {

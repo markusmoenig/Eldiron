@@ -41,7 +41,6 @@ pub fn node_message(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDa
     if text.contains("${DIRECTION}") {
         text = text.replace("${DIRECTION}", &data.action_direction_text);
     }
-    /*
     if text.contains("${CONTEXT}") {
         text = text.replace("${CONTEXT}", &data.action_subject_text);
     }
@@ -52,19 +51,20 @@ pub fn node_message(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDa
     }
     if text.contains("${TARGET}") {
         let mut target_text = "".to_string();
-        if let Some(target_index) = data.instances[instance_index].target_instance_index {
-            target_text = data.instances[target_index].name.clone();
+        if let Some(target_index) = data.character_instances[data.curr_index].target_instance_index {
+            target_text = data.character_instances[target_index].name.clone();
         }
         text = text.replace("${TARGET}", &target_text);
     }
     if text.contains("${DEF_TARGET}") {
         let mut target_text = "".to_string();
-        if let Some(target_index) = data.instances[instance_index].target_instance_index {
+        if let Some(target_index) = data.character_instances[data.curr_index].target_instance_index {
             let def = if text.starts_with("${DEF_TARGET}") { "The ".to_string() } else { "the ".to_string() };
-            target_text = def + data.instances[target_index].name.to_lowercase().as_str();
+            target_text = def + data.character_instances[target_index].name.to_lowercase().as_str();
         }
         text = text.replace("${DEF_TARGET}", &target_text);
     }
+    /*
     if text.contains("${DAMAGE}") {
         let mut damage_text = "".to_string();
         if let Some(target_index) = data.instances[instance_index].target_instance_index {
@@ -90,25 +90,13 @@ pub fn node_message(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDa
         }
 
         text = text.replace("${HEALING}", &healing_text);
-    }
-
-    // Do I need to evaluate the script for variables ?
-    if text.contains("${") {
-        // data.scopes[instance_index].push("Self", data.instances[instance_index].name.clone());
-        // if let Some(target_index) = data.instances[instance_index].target_instance_index {
-        //     data.scopes[instance_index].push("Target", data.instances[target_index].name.clone());
-        // }
-        let r = data.engine.eval_with_scope::<String>(&mut data.scopes[instance_index], format!("`{}`", text).as_str());
-        if let Some(rc) = r.ok() {
-            text = rc;
-        }
-    }
+    }*/
 
     // Formating if needed
     text = match message_type {
-        MessageType::Say => format!("{} says \"{}\".", data.instances[instance_index].name, text),
+        MessageType::Say => format!("{} says \"{}\".", data.character_instances[data.curr_index].name, text),
         _ => text
-    };*/
+    };
 
     let message_data = MessageData {
         message_type,
@@ -741,7 +729,7 @@ pub fn node_lock_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavior
 }
 
 /// Unlock Tree
-pub fn node_unlock_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_unlock_tree(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
     let behavior_instance : Option<usize> = Some(data.curr_index);
 

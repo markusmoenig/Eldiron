@@ -352,8 +352,6 @@ pub struct ScriptInfo {
     pub region              : rhai::Map,
     pub display_mode_3d     : bool,
     pub spells              : Spells,
-    pub weapons             : Weapons,
-    pub gear                : Gear,
     pub skills              : Skills,
     pub experience          : Experience,
     pub date                : Date,
@@ -370,8 +368,6 @@ impl ScriptInfo {
             region          : rhai::Map::new(),
             display_mode_3d : false,
             spells          : Spells::new(),
-            weapons         : Weapons::new(),
-            gear            : Gear::new(),
             skills          : Skills::new(),
             experience      : Experience::new(),
             date            : Date::new(),
@@ -529,11 +525,11 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
     });
 
     engine.register_fn("get_weapons", || -> Weapons {
-        INFOCMD.lock().unwrap().weapons.clone()
+        SHEET.lock().unwrap().weapons.clone()
     });
 
     engine.register_fn("get_gear", || -> Gear {
-        INFOCMD.lock().unwrap().gear.clone()
+        SHEET.lock().unwrap().gear.clone()
     });
 
     engine.register_fn("get_skills", || -> Skills {

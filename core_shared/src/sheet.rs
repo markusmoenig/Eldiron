@@ -19,6 +19,8 @@ pub struct Sheet {
     pub max_hit_points          : i32,
 
     pub inventory               : Inventory,
+    pub weapons                 : Weapons,
+    pub gear                    : Gear,
 }
 
 impl Sheet {
@@ -37,6 +39,8 @@ impl Sheet {
             max_hit_points      : 0,
 
             inventory           : Inventory::new(),
+            weapons             : Weapons::new(),
+            gear                : Gear::new(),
         }
     }
 

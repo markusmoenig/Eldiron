@@ -484,10 +484,10 @@ impl RegionInstance<'_> {
                     {
                         let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
                         action = data.character_instances[inst_index].action.clone();
+                        // DEBUG INCOMING ACTION
+                        // println!("{:?}", action);
                     }
                     if let Some(action) = &action {
-                        // DEBUG INCOMING ACTION
-                        // println!("{:?}", self.instances[inst_index].action);
                         if action.direction != PlayerDirection::None {
 
                             // A directed action ( Move / Look - North etc)
@@ -526,7 +526,6 @@ impl RegionInstance<'_> {
                                 }
 
                                 if let Some(tree_id) = tree_id {
-                                    //self.execute_node(inst_index, tree_id, None);
                                     execute_node(self.instances[inst_index].behavior_id, tree_id, &mut BEHAVIORS.borrow_mut());
                                 } else {
                                     println!("Cannot find valid tree for directed action {}", action.action);
@@ -559,8 +558,29 @@ impl RegionInstance<'_> {
                                     for (behavior_id, node_id) in to_execute {
                                         execute_node(behavior_id, node_id, &mut ITEMS.borrow_mut());
                                     }
+                                    set_inventory_item_state_at(index);
+                                } else {
+                                    // If we cannot find the tree on the item, look for it on the player
+                                    for id in &self.instances[inst_index].tree_ids {
+                                        let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                                        if let Some(behavior) = self.get_behavior(data.character_instances[inst_index].behavior_id, BehaviorType::Behaviors) {
+                                            if let Some(node) = behavior.nodes.get(&id) {
+                                                if node.name == action.action {
+                                                    to_execute.push((data.character_instances[inst_index].behavior_id, *id));
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if to_execute.is_empty() == false {
+                                        for (behavior_id, node_id) in to_execute {
+                                            execute_node(behavior_id, node_id, &mut BEHAVIORS.borrow_mut());
+                                        }
+                                    } else {
+                                        println!("Cannot find valid tree for directed action {}", action.action);
+                                    }
                                 }
-                                set_inventory_item_state_at(index);
                             }
                         } else
                         if let Some(uuid) = &action.multi_choice_uuid {
@@ -914,8 +934,6 @@ impl RegionInstance<'_> {
         for inst_index in 0..character_instances_len {
 
             let mut spells: Spells = Spells::new();
-            let mut gear = Gear::new();
-            let mut weapons = Weapons::new();
             let mut skills = Skills::new();
             let mut experience = Experience::new();
 
@@ -923,20 +941,6 @@ impl RegionInstance<'_> {
             if let Some(s) = self.scopes[inst_index].get("spells") {
                 if let Some(sp) = s.read_lock::<Spells>() {
                     spells = sp.clone();
-                }
-            }
-
-            // Clone the gear for sending it to the client
-            if let Some(g) = self.scopes[inst_index].get("gear") {
-                if let Some(ge) = g.read_lock::<Gear>() {
-                    gear = ge.clone();
-                }
-            }
-
-            // Clone the weapons for sending it to the client
-            if let Some(w) = self.scopes[inst_index].get("weapons") {
-                if let Some(weap) = w.read_lock::<Weapons>() {
-                    weapons = weap.clone();
                 }
             }
 
@@ -1080,8 +1084,6 @@ impl RegionInstance<'_> {
                     audio                   : data.character_instances[inst_index].audio.clone(),
                     scope_buffer            : scope_buffer,
                     spells                  : spells.clone(),
-                    gear                    : gear.clone(),
-                    weapons                 : weapons.clone(),
                     skills                  : skills.clone(),
                     experience              : experience.clone(),
                     multi_choice_data       : data.character_instances[inst_index].multi_choice_data.clone(),
