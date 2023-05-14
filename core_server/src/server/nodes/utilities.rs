@@ -335,7 +335,6 @@ pub fn execute_targetted_action(action_name: String, dp: Option<Position>) -> Be
             }
 
             let mut to_execute = vec![];
-
             let mut item_nodes = ITEMS.borrow_mut();
 
             if let Some(behavior) = item_nodes.get(&loot[index].id) {
@@ -349,38 +348,17 @@ pub fn execute_targetted_action(action_name: String, dp: Option<Position>) -> Be
             }
 
             for (behavior_id, node_id) in to_execute {
-
-                let has_state = loot[index].state.is_some();
-                if has_state {
-                    // let user_scope = data.scopes[instance_index].clone();
-                    // let mut item_scope = rhai::Scope::new();
-                    // if let Some(state) = &loot[index].state {
-                    //     state.write_to_scope(&mut item_scope);
-                    // }
-                    // data.scopes[instance_index] = item_scope;
-                    // data.curr_loot_item = Some((dp.x, dp.y, index));
-                    // data.execute_item_node(instance_index, behavior_id, node_id);
-                    // data.curr_loot_item = None;
-                    // let scope = data.scopes[instance_index].clone();
-                    // data.scopes[instance_index] = user_scope;
-                    // let mut new_buffer = ScopeBuffer::new();
-                    // new_buffer.read_from_scope(&scope);
-                    // loot[index].state = Some(new_buffer);
-                    // rc = BehaviorNodeConnector::Success;
+                if let Some(state) = &loot[index].state {
+                    *STATE.borrow_mut() = state.clone();
+                    execute_node(behavior_id, node_id, &mut item_nodes);
+                    loot[index].state = Some(STATE.borrow().clone());
+                    return BehaviorNodeConnector::Success;
                 } else {
-                    //data.execute_item_node(instance_index, behavior_id, node_id);
                     execute_node(behavior_id, node_id, &mut item_nodes);
                     return BehaviorNodeConnector::Success;
                 }
             }
         }
-
-        // Copy the state back
-        // if let Some(l) = data.loot.get_mut(&(dp.x, dp.y)) {
-        //     for index in 0..l.len() {
-        //         l[index].state = loot[index].state.clone();
-        //     }
-        // }
 
         // Check for characters at the dp
         /*
@@ -469,7 +447,7 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
         for index in 0..loot.len() {
             if loot[index].state.is_none() {
                 // Check if we have to create the item state
-                loot[index].state = check_and_create_item_state(instance_index, loot[index].id, data);
+                //TODO loot[index].state = check_and_create_item_state(instance_index, loot[index].id, data);
             }
 
             let mut to_execute = vec![];
@@ -491,7 +469,7 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
                     let user_scope = data.scopes[instance_index].clone();
                     let mut item_scope = rhai::Scope::new();
                     if let Some(state) = &loot[index].state {
-                        state.write_to_scope(&mut item_scope);
+                        // TODO state.write_to_scope(&mut item_scope);
                     }
                     data.scopes[instance_index] = item_scope;
                     data.curr_loot_item = Some((dp.x, dp.y, index));
@@ -501,7 +479,7 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
                     data.scopes[instance_index] = user_scope;
                     let mut new_buffer = ScopeBuffer::new();
                     new_buffer.read_from_scope(&scope);
-                    loot[index].state = Some(new_buffer);
+                    // TODO loot[index].state = Some(new_buffer);
                     rc = BehaviorNodeConnector::Success;
                 } else {
                     data.execute_item_node(instance_index, behavior_id, node_id);
@@ -513,7 +491,7 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
         // Copy the state back
         if let Some(l) = data.loot.get_mut(&(dp.x, dp.y)) {
             for index in 0..l.len() {
-                l[index].state = loot[index].state.clone();
+                // TODO l[index].state = loot[index].state.clone();
             }
         }
 
@@ -590,11 +568,12 @@ pub fn drop_communication(instance_index: usize, npc_index: usize, data: &mut Re
 }
 
 /// Check if we have to create the state for the given item
-pub fn check_and_create_item_state(instance_index: usize, item_behavior_id: Uuid, data: &mut RegionInstance) -> Option<ScopeBuffer> {
+pub fn check_and_create_item_state2(item_behavior_id: Uuid) -> Option<State> {
 
     let mut states_to_execute = vec![];
+    let mut item_nodes = ITEMS.borrow_mut();
 
-    if let Some(behavior) = data.get_behavior(item_behavior_id, BehaviorType::Items) {
+    if let Some(behavior) = item_nodes.get(&item_behavior_id) {
 
         let mut sink : Option<PropertySink> = None;
 
@@ -637,16 +616,11 @@ pub fn check_and_create_item_state(instance_index: usize, item_behavior_id: Uuid
         }
     }
 
-    // Add new items
-    for (item_id, node_id) in states_to_execute {
-        let curr_scope = data.scopes[instance_index].clone();
-        data.scopes[instance_index] = rhai::Scope::new();
-        data.execute_item_node(instance_index, item_id, node_id);
-        let scope = data.scopes[instance_index].clone();
-        data.scopes[instance_index] = curr_scope;
-        let mut buffer = ScopeBuffer::new();
-        buffer.read_from_scope(&scope);
-        return Some(buffer);
+    // Create the state
+    for (behavior_id, node_id) in states_to_execute {
+        *STATE.borrow_mut() = State::new();
+        execute_node(behavior_id, node_id, &mut item_nodes);
+        return Some(STATE.borrow().clone());
     }
 
     None

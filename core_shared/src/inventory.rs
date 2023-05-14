@@ -9,7 +9,7 @@ pub struct Item {
     pub name                : String,
     pub item_type           : String,
     pub tile                : Option<TileData>,
-    pub state               : Option<ScopeBuffer>,
+    pub state               : Option<State>,
     pub light               : Option<LightData>,
     pub slot                : Option<String>,
     pub amount              : i32,

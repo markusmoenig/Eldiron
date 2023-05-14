@@ -109,6 +109,9 @@ impl RegionData {
         nodes.insert(BehaviorNodeType::AudioArea, node_audio_area);
         nodes.insert(BehaviorNodeType::LightArea, node_light_area);
 
+        // ITEM
+        nodes.insert(BehaviorNodeType::LightItem, node_light_item);
+
         Self {
             sheets                          : vec![],
             character_instances             : vec![],

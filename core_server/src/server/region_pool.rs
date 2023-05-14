@@ -15,6 +15,8 @@ ref_thread_local! {
     pub static managed SPELLS           : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
     pub static managed GAME_BEHAVIOR    : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
 
+    pub static managed STATE            : State = State::new();
+
     pub static managed ENGINE           : rhai::Engine = rhai::Engine::new();
 
     pub static managed CURR_INST        : usize = 0;
@@ -74,6 +76,19 @@ impl RegionPool<'_> {
         engine.register_fn("inventory_add", |mut sheet: Sheet, item_name: &str| -> Sheet {
             inventory_add(&mut sheet, item_name, 1, &mut ITEMS.borrow_mut());
             sheet
+        });
+
+        engine.register_fn("get_state", || -> bool {
+            STATE.borrow().state
+        });
+
+        engine.register_fn("set_state", |state: bool| {
+            STATE.borrow_mut().state = state
+        });
+
+        engine.register_fn("toggle_state", || {
+            let mut state = STATE.borrow_mut();
+            state.state = !state.state;
         });
 
         Sheet::register(&mut engine);

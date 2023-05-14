@@ -5,6 +5,11 @@ use rhai::Engine;
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 /// CharacterSheet
 pub struct Sheet {
+
+    pub name                    : String,
+    pub class                   : String,
+    pub race                    : String,
+
     pub abilities               : FxHashMap<String, i32>,
 
     pub gold                    : i32,
@@ -19,6 +24,10 @@ pub struct Sheet {
 impl Sheet {
     pub fn new() -> Self {
         Self {
+            name                : String::new(),
+            class               : String::new(),
+            race                : String::new(),
+
             abilities           : FxHashMap::default(),
 
             gold                : 0,

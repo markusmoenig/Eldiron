@@ -2,9 +2,19 @@ extern crate ref_thread_local;
 use ref_thread_local::{RefThreadLocal};
 
 use crate::prelude::*;
+// use rhai::Engine;
+
+// pub fn register_additional_sheet_api(engine: &mut Engine) {
+//         engine.register_fn("get_ability", Sheet::get_ability);
+
+//     engine.register_fn("add_item", |name: &str| {
+
+
+
+//     });
+// }
 
 pub fn inventory_add(sheet: &mut Sheet, item_name: &str, amount: i32, item_nodes: &mut FxHashMap<Uuid, GameBehaviorData>) {
-
     for (_id, behavior) in item_nodes.iter() {
         if behavior.name == item_name {
             let mut tile_data : Option<TileData> = None;
@@ -40,7 +50,7 @@ pub fn inventory_add(sheet: &mut Sheet, item_name: &str, amount: i32, item_nodes
                 if let Some(state) = sink.get("state") {
                     if let Some(value) = state.as_bool() {
                         if value == true {
-                            item.state = Some(ScopeBuffer::new());
+                            item.state = Some(State::new());
                             for (node_id, node) in &behavior.nodes {
                                 if node.behavior_type == BehaviorNodeType::BehaviorTree {
                                     for (value_name, value) in &node.values {
@@ -90,6 +100,49 @@ pub fn inventory_add(sheet: &mut Sheet, item_name: &str, amount: i32, item_nodes
             break;
         }
     }
+}
+
+/// Returns the inventory item at the given inventory index for the current player and optionally sets the state.
+pub fn get_inventory_item_at(index: usize, set_state: bool) -> Option<Item> {
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+    let sheet = &mut data.sheets[data.curr_index];
+    if index < sheet.inventory.items.len(){
+        if set_state {
+            if let Some(state) = sheet.inventory.items[index as usize].state.clone() {
+                *STATE.borrow_mut() = state;
+            }
+        }
+        return Some(sheet.inventory.items[index as usize].clone());
+    }
+    None
+}
+
+/// Sets the state for the inventory item at the given index
+pub fn set_inventory_item_state_at(index: usize) {
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+    let sheet = &mut data.sheets[data.curr_index];
+    if index < sheet.inventory.items.len() {
+        if sheet.inventory.items[index as usize].state.is_some() {
+            sheet.inventory.items[index as usize].state = Some(STATE.borrow().clone());
+        }
+    }
+}
+
+/// Get the items creating light in the inventory
+pub fn get_inventory_lights(data: &RegionData) -> Vec<LightData> {
+    let sheet = &data.sheets[data.curr_index];
+
+    let mut lights = vec![];
+
+    for item in &sheet.inventory.items {
+        if let Some(state) = &item.state {
+            if let Some(light) = &state.light {
+                lights.push(light.clone());
+            }
+        }
+    }
+
+    lights
 }
 
 /// Executes the given item node and follows the connection chain

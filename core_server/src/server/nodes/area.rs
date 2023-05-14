@@ -62,7 +62,7 @@ pub fn node_enter_area(id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehavi
     let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
     let nodes = &mut data.region_area_behavior[data.curr_area_index].nodes;
 
-    if let Some(index) = get_node_integer(id.1, "character", nodes) {
+    if let Some(index) = get_node_integer(id.1, "state", nodes) {
         if index == 1 {
             enter_everyone = false;
         }

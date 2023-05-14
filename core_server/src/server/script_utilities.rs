@@ -11,13 +11,19 @@ pub fn eval_script(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMap<Uui
                 if *name == value_name {
                     let engine = &ENGINE.borrow();
                     if let Some(ast) = node.asts.get(value_name) {
-                        let _rc = engine.eval_ast::<Dynamic>(ast);
+                        let rc = engine.eval_ast::<Dynamic>(ast);
+                        if let Some(error) = rc.err() {
+                            println!("Script Error: {}", error.to_string());
+                        }
                     } else
                     if let Some(script) = value.to_string() {
                         let rc  = engine.compile(script);
                         if rc.is_ok() {
                             if let Some(ast) = rc.ok() {
-                                let _rc = engine.eval_ast::<Dynamic>(&ast);
+                                let rc = engine.eval_ast::<Dynamic>(&ast);
+                                if let Some(error) = rc.err() {
+                                    println!("Script Error: {}", error.to_string());
+                                }
                                 node.asts.insert(value_name.to_string(), ast);
                             }
                         }

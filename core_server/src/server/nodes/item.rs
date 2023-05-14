@@ -1,17 +1,19 @@
+extern crate ref_thread_local;
+use ref_thread_local::{RefThreadLocal};
 use crate::prelude::*;
 
 /// Light
-pub fn light_item(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-    let mut state = 0;
-    if let Some(value) = get_node_value((id.0, id.1, "state"), data, behavior_type) {
-        if let Some(index) = value.to_integer() {
-            state = index;
-        }
+pub fn node_light_item(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+
+    let mut state_value = 0;
+    if let Some(value) = get_node_integer(id, "state", nodes) {
+        state_value = value;
     }
 
+    /*
     if let Some(curr_loot_item) = &data.curr_loot_item {
         if let Some(loot) = data.loot.get_mut(&(curr_loot_item.0, curr_loot_item.1)) {
-            if state == 1 {
+            if state_value == 1 {
                 loot[curr_loot_item.2].light = Some(LightData {
                     light_type              : LightType::PointLight,
                     position                : (curr_loot_item.0, curr_loot_item.1),
@@ -21,23 +23,17 @@ pub fn light_item(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInst
                 loot[curr_loot_item.2].light = None;
             }
         }
-    } else
-    if let Some(inventory_index) = &data.curr_inventory_index {
-        if let Some(position) = &data.instances[instance_index].position {
-            if let Some(mess) = data.curr_player_scope.get_mut("inventory") {
-                if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                    if state == 1 {
-                        inv.items[*inventory_index].light = Some(LightData {
-                            light_type              : LightType::PointLight,
-                            position                : (position.x, position.y),
-                            intensity               : 1,
-                        });
-                    } else {
-                        inv.items[*inventory_index].light = None;
-                    }
-                }
-            }
-        }
+    } else {
+    */
+    let mut state = STATE.borrow_mut();
+    if state_value == 1 {
+        state.light = Some(LightData {
+                light_type              : LightType::PointLight,
+                position                : (0, 0),
+                intensity               : 1,
+        });
+    } else {
+        state.light = None;
     }
 
     BehaviorNodeConnector::Bottom

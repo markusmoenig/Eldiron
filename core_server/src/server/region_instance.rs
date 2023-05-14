@@ -60,9 +60,6 @@ pub struct RegionInstance<'a> {
     // The character instances from the previous tick, used to figure out onEnter, onLeave etc events
     pub prev_area_characters        : FxHashMap<usize, Vec<usize>>,
 
-    // Lights for this region
-    pub lights                      : Vec<LightData>,
-
     // The current move direction of the player
     pub action_direction_text       : String,
 
@@ -221,7 +218,7 @@ impl RegionInstance<'_> {
         // nodes.insert(BehaviorNodeType::Target, player_target);
         //nodes.insert(BehaviorNodeType::Equip, player_equip);
         nodes.insert(BehaviorNodeType::MagicTarget, magic_target);
-        nodes.insert(BehaviorNodeType::LightItem, light_item);
+        //nodes.insert(BehaviorNodeType::LightItem, light_item);
         nodes.insert(BehaviorNodeType::SetItemTile, set_item_tile);
         //nodes.insert(BehaviorNodeType::RandomWalk, random_walk);
         nodes.insert(BehaviorNodeType::MultiChoice, multi_choice);
@@ -281,7 +278,6 @@ impl RegionInstance<'_> {
             //characters                      : FxHashMap::default(),
             area_characters                 : FxHashMap::default(),
             prev_area_characters            : FxHashMap::default(),
-            lights                          : vec![],
 
             action_direction_text           : "".to_string(),
             action_subject_text             : "".to_string(),
@@ -330,7 +326,6 @@ impl RegionInstance<'_> {
     pub fn tick(&mut self) -> Vec<Message> {
 
         self.messages = vec![];
-        self.lights = vec![];
         self.prev_area_characters = self.area_characters.clone();
         self.area_characters = FxHashMap::default();
 
@@ -543,24 +538,13 @@ impl RegionInstance<'_> {
                             // An action on an inventory item index
 
                             let index = *inventory_index as usize;
-                            let mut item_id = None;
-                            let mut scope_buffer : Option<ScopeBuffer> = None;
-                            if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
-                                if let Some(inv) = mess.read_lock::<Inventory>() {
 
-                                    if index < inv.items.len() {
-                                        item_id = Some(inv.items[index].id);
-                                        if inv.items[index].state.is_some() {
-                                            scope_buffer = inv.items[index].state.clone();
-                                        }
-                                    }
-                                }
-                            }
+                            // Get the item and set the state if any
+                            if let Some(item) = get_inventory_item_at(index, true) {
+                                let mut to_execute = vec![];
 
-                            let mut to_execute = vec![];
-
-                            if let Some(item_id) = item_id {
-                                if let Some(item_behavior) = self.get_behavior(item_id, BehaviorType::Items) {
+                                // Get the behavior trees to execute
+                                if let Some(item_behavior) = self.get_behavior(item.id, BehaviorType::Items) {
                                     for (id, node) in &item_behavior.nodes {
                                         if node.behavior_type == BehaviorNodeType::BehaviorTree {
                                             if node.name == action.action {
@@ -569,53 +553,14 @@ impl RegionInstance<'_> {
                                         }
                                     }
                                 }
-                            }
 
-                            if to_execute.is_empty() == false {
-                                // Execute the item actions
-                                for (behavior_id, node_id) in to_execute {
-                                    if let Some(scope_buffer) = &scope_buffer {
-                                        // Move the item scope in / out
-                                        self.curr_player_scope = self.scopes[inst_index].clone();
-                                        let mut scope = Scope::new();
-                                        scope_buffer.write_to_scope(&mut scope);
-                                        self.scopes[inst_index] = scope;
-
-                                        self.curr_inventory_index = Some(index);
-                                        self.execute_item_node(inst_index, behavior_id, node_id);
-                                        self.curr_inventory_index = None;
-
-                                        let mut new_buffer = ScopeBuffer::new();
-                                        new_buffer.read_from_scope(&self.scopes[inst_index]);
-
-                                        self.scopes[inst_index] = self.curr_player_scope.clone();
-                                        if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
-                                            if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                                                inv.items[index].state = Some(new_buffer);
-                                            }
-                                        }
-                                    } else {
-                                        self.execute_item_node(inst_index, behavior_id, node_id);
+                                // Execute them
+                                if to_execute.is_empty() == false {
+                                    for (behavior_id, node_id) in to_execute {
+                                        execute_node(behavior_id, node_id, &mut ITEMS.borrow_mut());
                                     }
                                 }
-                            } else {
-                                // If we cannot find the tree on the item, look for it on the player
-                                for id in &self.instances[inst_index].tree_ids {
-                                    if let Some(behavior) = self.get_behavior(self.instances[inst_index].behavior_id, BehaviorType::Behaviors) {
-                                        if let Some(node) = behavior.nodes.get(&id) {
-                                            if node.name == action.action {
-                                                tree_id = Some(*id);
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-
-                                if let Some(tree_id) = tree_id {
-                                    self.execute_node(inst_index, tree_id, None);
-                                } else {
-                                    println!("Cannot find valid tree for directed action {}", action.action);
-                                }
+                                set_inventory_item_state_at(index);
                             }
                         } else
                         if let Some(uuid) = &action.multi_choice_uuid {
@@ -765,7 +710,7 @@ impl RegionInstance<'_> {
                                             if let Some(state) = sink.get("state") {
                                                 if let Some(value) = state.as_bool() {
                                                     if value == true {
-                                                        item.state = Some(ScopeBuffer::new());
+                                                        // TODO item.state = Some(ScopeBuffer::new());
                                                         for (node_id, node) in &behavior.nodes {
                                                             if node.behavior_type == BehaviorNodeType::BehaviorTree {
                                                                 for (value_name, value) in &node.values {
@@ -825,7 +770,7 @@ impl RegionInstance<'_> {
                     self.scopes[inst_index] = curr_scope;
                     let mut buffer = ScopeBuffer::new();
                     buffer.read_from_scope(&scope);
-                    item.state = Some(buffer);
+                    // TODO item.state = Some(buffer);
                 }
                 if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
                     if let Some(mut inv) = mess.write_lock::<Inventory>() {
@@ -894,7 +839,7 @@ impl RegionInstance<'_> {
 
             // Add to the characters
 
-            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
             if let Some(position) = &data.character_instances[data.curr_index].position {
                 if let Some(tile) = self.instances[inst_index].tile.clone() {
@@ -919,26 +864,28 @@ impl RegionInstance<'_> {
             }
 
             // Check the inventory for lights
-            if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
-                if let Some(inv) = mess.read_lock::<Inventory>() {
-                    for item in &inv.items {
-                        if let Some(light) = &item.light {
-                            let mut l = light.clone();
-                            if let Some(position) = &self.instances[inst_index].position {
-                                l.position = (position.x, position.y);
-                            }
-                            self.lights.push(l);
-                        }
-                    }
+            let lights = get_inventory_lights(data);
+
+            for mut light in lights {
+                if let Some(position) = &data.character_instances[inst_index].position {
+                    light.position = (position.x, position.y);
                 }
+                data.lights.push(light);
             }
         }
 
         // Parse the loot and add the lights
-        for (_position, loot) in &self.loot {
-            for item in loot {
-                if let Some(light) = &item.light {
-                    self.lights.push(light.clone());
+        {
+            let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            for (position, loot) in &data.loot {
+                for item in loot {
+                    if let Some(state) = &item.state {
+                        if let Some(light) = &state.light {
+                            let mut light_clone = light.clone();
+                            light_clone.position = *position;
+                            data.lights.push(light_clone);
+                        }
+                    }
                 }
             }
         }
@@ -1825,34 +1772,41 @@ impl RegionInstance<'_> {
         }
         self.game_instance_index = Some(index);
 
+        let mut loot_map;
+
         {
             let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
             data.game_instance_index = Some(index);
+            loot_map = data.loot.clone();
         }
 
         // We iterate over all loot and initialize state if necessary
 
-        let mut loot_map = self.loot.clone();
-
-        for (pos, loot) in &mut loot_map {
+        for (_pos, loot) in &mut loot_map {
             for index in 0..loot.len() {
-                let mut item_behavior_id : Option<Uuid> = None;
-                if let Some(behavior) = self.get_behavior(loot[index].id, BehaviorType::Items) {
-                    item_behavior_id = Some(behavior.id);
-                }
+                //let mut item_behavior_id : Option<Uuid> = None;
 
-                if let Some(item_behavior_id) = item_behavior_id {
-                    self.curr_loot_item = Some((pos.0, pos.1, index));
-                    loot[index].state = check_and_create_item_state(0, item_behavior_id, self);
-                    if let Some(l) = self.loot.get(&pos) {
-                        // Copy light state back
-                        loot[index].light = l[index].light.clone();
-                    }
-                    self.curr_loot_item = None;
-                }
+                //if let Some(behavior) = self.get_behavior(loot[index].id, BehaviorType::Items) {
+                    //item_behavior_id = Some(behavior.id);
+                //}
+
+                //if let Some(item_behavior_id) = item_behavior_id {
+                loot[index].state = check_and_create_item_state2(loot[index].id);
+                //}
+                // if let Some(item_behavior_id) = item_behavior_id {
+                //     self.curr_loot_item = Some((pos.0, pos.1, index));
+                //     //TODO loot[index].state = check_and_create_item_state(0, item_behavior_id, self);
+                //     if let Some(l) = self.loot.get(&pos) {
+                //         // Copy light state back
+                //         loot[index].light = l[index].light.clone();
+                //     }
+                //     self.curr_loot_item = None;
+                // }
             }
         }
-        self.loot = loot_map;
+
+        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        data.loot = loot_map;
     }
 
     /// Creates a new player instance
@@ -1896,6 +1850,7 @@ impl RegionInstance<'_> {
         let mut behavior_name       = "".to_string();
         let mut behavior_id           = Uuid::new_v4();
         let mut class_name                  : Option<String> = None;
+        let mut race_name                   : Option<String> = None;
 
         let mut to_create : Vec<CharacterInstanceData> = vec![];
 
@@ -2007,14 +1962,6 @@ impl RegionInstance<'_> {
             index = self.instances.len();
             self.instances.push(instance.clone());
 
-            // Set the sheet
-            {
-                let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-                data.sheets.push(Sheet::new());
-                data.character_instances.push(instance);
-                data.curr_index = index;
-            }
-
             // Create skills
 
             let mut skills = Skills::new();
@@ -2097,7 +2044,6 @@ impl RegionInstance<'_> {
             scope.set_value("name", behavior_name.clone());
             scope.set_value("alignment", inst.alignment as i32);
             scope.set_value("message", ScriptMessageCmd::new());
-            scope.set_value("inventory", Inventory::new());
             scope.set_value("gear", Gear::new());
             scope.set_value("weapons", Weapons::new());
             scope.set_value("skills", skills);
@@ -2110,15 +2056,30 @@ impl RegionInstance<'_> {
             if let Some(class) = settings_sink.get("class") {
                 if let Some(cl) = class.as_string() {
                     class_name = Some(cl.clone());
-                    scope.set_value("class", cl.clone());
                     system_startup_trees.push(cl);
                 }
             }
             if let Some(race) = settings_sink.get("race") {
                 if let Some(ra) = race.as_string() {
-                    scope.set_value("race", ra.clone());
+                    race_name = Some(ra.clone());
                     system_startup_trees.push(ra);
                 }
+            }
+
+            // Set the sheet
+            {
+                let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                let mut sheet = Sheet::new();
+                sheet.name = behavior_name.clone();
+                if let Some(class_name) = class_name.clone() {
+                    sheet.class = class_name;
+                }
+                if let Some(race_name) = race_name.clone() {
+                    sheet.race = race_name;
+                }
+                data.sheets.push(sheet);
+                data.character_instances.push(instance);
+                data.curr_index = index;
             }
 
             let mut startup_system_trees        : Vec<(Uuid, Uuid)> = vec![];
@@ -2226,7 +2187,10 @@ impl RegionInstance<'_> {
 
                 // Execute the startup only trees
                 for startup_id in &startup_trees {
-                    self.execute_node(index, startup_id.clone(), None);
+                    {
+                        REGION_DATA.borrow_mut()[*CURR_INST.borrow()].curr_index = index;
+                    }
+                    execute_node(behavior_id, startup_id.clone(), &mut BEHAVIORS.borrow_mut());
                 }
             }
         }
