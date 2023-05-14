@@ -1782,26 +1782,14 @@ impl RegionInstance<'_> {
 
         // We iterate over all loot and initialize state if necessary
 
-        for (_pos, loot) in &mut loot_map {
+        for (pos, loot) in &mut loot_map {
             for index in 0..loot.len() {
-                //let mut item_behavior_id : Option<Uuid> = None;
-
-                //if let Some(behavior) = self.get_behavior(loot[index].id, BehaviorType::Items) {
-                    //item_behavior_id = Some(behavior.id);
-                //}
-
-                //if let Some(item_behavior_id) = item_behavior_id {
-                loot[index].state = check_and_create_item_state2(loot[index].id);
-                //}
-                // if let Some(item_behavior_id) = item_behavior_id {
-                //     self.curr_loot_item = Some((pos.0, pos.1, index));
-                //     //TODO loot[index].state = check_and_create_item_state(0, item_behavior_id, self);
-                //     if let Some(l) = self.loot.get(&pos) {
-                //         // Copy light state back
-                //         loot[index].light = l[index].light.clone();
-                //     }
-                //     self.curr_loot_item = None;
-                // }
+                if let Some(mut state) = check_and_create_item_state(loot[index].id) {
+                    if let Some(light) = &mut state.light {
+                        light.position = pos.clone();
+                    }
+                    loot[index].state = Some(state);
+                }
             }
         }
 

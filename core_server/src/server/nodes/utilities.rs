@@ -331,7 +331,7 @@ pub fn execute_targetted_action(action_name: String, dp: Option<Position>) -> Be
         for index in 0..loot.len() {
             if loot[index].state.is_none() {
                 // Check if we have to create the item state
-                //loot[index].state = check_and_create_item_state(instance_index, loot[index].id, data);
+                loot[index].state = check_and_create_item_state(loot[index].id);
             }
 
             let mut to_execute = vec![];
@@ -352,6 +352,11 @@ pub fn execute_targetted_action(action_name: String, dp: Option<Position>) -> Be
                     *STATE.borrow_mut() = state.clone();
                     execute_node(behavior_id, node_id, &mut item_nodes);
                     loot[index].state = Some(STATE.borrow().clone());
+                    // if let Some(light) = &mut loot[index].light {
+                    //     light.position = (dp.x, dp.y);
+                    // }
+                    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                    data.loot.insert((dp.x, dp.y), loot);
                     return BehaviorNodeConnector::Success;
                 } else {
                     execute_node(behavior_id, node_id, &mut item_nodes);
@@ -568,7 +573,7 @@ pub fn drop_communication(instance_index: usize, npc_index: usize, data: &mut Re
 }
 
 /// Check if we have to create the state for the given item
-pub fn check_and_create_item_state2(item_behavior_id: Uuid) -> Option<State> {
+pub fn check_and_create_item_state(item_behavior_id: Uuid) -> Option<State> {
 
     let mut states_to_execute = vec![];
     let mut item_nodes = ITEMS.borrow_mut();
