@@ -17,7 +17,7 @@ directories = "5.0"
 [package.metadata.bundle]
 name = "Eldiron"
 identifier = "com.moenig.eldiron"
-icon = ["../Eldiron.icns"]
+icon = ["../build/Eldiron.icns"]
 resources = ["../assets", "../game", "../resources"]
 copyright = "Copyright (c) Markus Moenig 2022. All rights reserved."
 category = "Game"
