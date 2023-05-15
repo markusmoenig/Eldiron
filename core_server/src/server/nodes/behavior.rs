@@ -359,15 +359,11 @@ pub fn node_close_in(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorD
 pub fn node_multi_choice(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
-    println!("node_multi_choice");
-
     if data.character_instances[data.curr_index].multi_choice_answer.is_some() {
         if Some(id.1) == data.character_instances[data.curr_index].multi_choice_answer {
 
-            let npc_index = data.curr_index;//get_local_instance_index(instance_index, data);
+            let npc_index = data.character_instances[data.curr_index].communication[0].npc_index;
             drop_communication(data.curr_index, npc_index, data);
-
-            println!("bottom");
 
             BehaviorNodeConnector::Bottom
         }
