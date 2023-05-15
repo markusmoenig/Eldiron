@@ -521,7 +521,7 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
     });
 
     engine.register_fn("get_spells", || -> Spells {
-        INFOCMD.lock().unwrap().spells.clone()
+        SHEET.lock().unwrap().spells.clone()
     });
 
     engine.register_fn("get_weapons", || -> Weapons {

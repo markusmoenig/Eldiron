@@ -55,9 +55,6 @@ pub struct RegionData {
     // Lights for this region
     pub lights                      : Vec<LightData>,
 
-    /// Tick count used for timing
-    pub tick_count                  : usize,
-
     /// How many ticks for one minute (gets read from the game settings)
     pub ticks_per_minute            : usize,
 
@@ -92,6 +89,9 @@ impl RegionData {
         nodes.insert(BehaviorNodeType::Drop, node_player_drop);
         nodes.insert(BehaviorNodeType::Target, node_player_target);
         nodes.insert(BehaviorNodeType::Equip, node_player_equip);
+        nodes.insert(BehaviorNodeType::MultiChoice, node_multi_choice);
+
+        nodes.insert(BehaviorNodeType::MagicTarget, node_magic_target);
 
         nodes.insert(BehaviorNodeType::Screen, node_screen);
         //nodes.insert(BehaviorNodeType::Widget, node_widget);
@@ -138,7 +138,6 @@ impl RegionData {
             prev_area_characters            : FxHashMap::default(),
             lights                          : vec![],
 
-            tick_count                      : 5 * 60 * 4, // 5am
             ticks_per_minute                : 4,
 
             curr_index                      : 0,

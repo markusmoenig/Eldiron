@@ -18,6 +18,9 @@ ref_thread_local! {
     pub static managed STATE            : State = State::new();
 
     pub static managed ENGINE           : rhai::Engine = rhai::Engine::new();
+    pub static managed TICK_COUNT       : u128 = 5 * 60 * 4;
+    pub static managed TICKS_PER_MINUTE : usize = 4;
+    pub static managed DATE             : Date = Date::new();
 
     pub static managed CURR_INST        : usize = 0;
 }
@@ -240,6 +243,8 @@ impl RegionPool<'_> {
             *CURR_INST.borrow_mut() = 0;
         }
 
+        DATE.borrow_mut().from_ticks(*TICK_COUNT.borrow(), *TICKS_PER_MINUTE.borrow());
+
         for instance in &mut self.instances {
             let messages = instance.tick();
             for m in messages {
@@ -286,6 +291,10 @@ impl RegionPool<'_> {
                 }
             }
         }
+
+        let mut ticks = *TICK_COUNT.borrow();
+        ticks = ticks.wrapping_add(1);
+        *TICK_COUNT.borrow_mut() = ticks;
 
         // If running none
         if self.threaded == false {

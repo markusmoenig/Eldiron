@@ -255,7 +255,7 @@ pub fn walk_towards(p: Option<Position>, dp: Option<Position>, exclude_dp: bool,
 }
 
 /// Executes the given action in the given direction, checking for areas, loot items and NPCs
-pub fn execute_targetted_action(action_name: String, dp: Option<Position>) -> BehaviorNodeConnector {
+pub fn execute_targeted_action(action_name: String, dp: Option<Position>, nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
     // Find areas which contains the destination position and check if it has a fitting action node
 
@@ -363,39 +363,43 @@ pub fn execute_targetted_action(action_name: String, dp: Option<Position>) -> Be
         }
 
         // Check for characters at the dp
-        /*
-        for inst_index in 0..data.instances.len() {
-            if inst_index != instance_index {
-                // Only track if the state is normal
-                if data.instances[inst_index].state == BehaviorInstanceState::Normal {
-                    if let Some(pos) = &data.instances[inst_index].position {
-                        if *dp == *pos {
 
-                            let mut to_execute = vec![];
+        let mut to_execute = vec![];
 
-                            if let Some(behavior) = data.get_behavior(data.instances[inst_index].behavior_id, BehaviorType::Behaviors) {
-                                for (id, node) in &behavior.nodes {
-                                    if node.behavior_type == BehaviorNodeType::BehaviorTree {
-                                        if node.name == action_name.clone() + " (P)" {
-                                            to_execute.push((inst_index, *id));
+        {
+            let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            for inst_index in 0..data.character_instances.len() {
+                if inst_index != data.curr_index {
+                    // Only track if the state is normal
+                    if data.character_instances[inst_index].state == BehaviorInstanceState::Normal {
+                        if let Some(pos) = &data.character_instances[inst_index].position {
+                            if *dp == *pos {
+                                if let Some(behavior) = nodes.get(&data.character_instances[inst_index].behavior_id) {
+                                    for (id, node) in &behavior.nodes {
+                                        if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                                            if node.name == action_name.clone() + " (P)" {
+                                                // Install the communication partner as the target for the player
+                                                data.character_instances[data.curr_index].target_instance_index = Some(inst_index);
+                                                to_execute.push((inst_index, behavior.id, *id));
+                                            }
                                         }
                                     }
                                 }
+                                break;
                             }
-
-                            for (inst_index, node_id) in to_execute {
-                                data.curr_redirected_inst_index = Some(inst_index);
-                                data.execute_node(inst_index, node_id, Some(instance_index));
-                                data.curr_redirected_inst_index = None;
-                                return BehaviorNodeConnector::Success;
-                            }
-
-                            break;
                         }
                     }
                 }
             }
-        }*/
+        }
+
+        for (_inst_index, behavior_id, node_id) in to_execute {
+            execute_node(behavior_id, node_id, nodes);
+            //data.curr_redirected_inst_index = Some(inst_index);
+            //data.execute_node(inst_index, node_id, Some(instance_index));
+            //data.curr_redirected_inst_index = None;
+            return BehaviorNodeConnector::Success;
+        }
     }
 
     rc
@@ -546,18 +550,18 @@ pub fn get_local_instance_index(instance_index: usize, data: &mut RegionInstance
 }
 
 /// Drops the communication between a player and an NPC
-pub fn drop_communication(instance_index: usize, npc_index: usize, data: &mut RegionInstance) {
+pub fn drop_communication(instance_index: usize, npc_index: usize, data: &mut RegionData) {
     // Drop Communication for the player
 
-    data.instances[instance_index].multi_choice_answer = None;
-    data.instances[instance_index].communication = vec![];
-    data.instances[instance_index].multi_choice_data = vec![];
+    data.character_instances[instance_index].multi_choice_answer = None;
+    data.character_instances[instance_index].communication = vec![];
+    data.character_instances[instance_index].multi_choice_data = vec![];
 
     // Drop comm for the NPC
 
     let mut com_to_drop : Option<usize> = None;
-    for c_index in 0..data.instances[npc_index].communication.len() {
-        if data.instances[npc_index].communication[c_index].player_index == instance_index {
+    for c_index in 0..data.character_instances[npc_index].communication.len() {
+        if data.character_instances[npc_index].communication[c_index].player_index == instance_index {
             // Drop this communication for the NPC
             com_to_drop = Some(c_index);
             break;
@@ -565,7 +569,7 @@ pub fn drop_communication(instance_index: usize, npc_index: usize, data: &mut Re
     }
 
     if let Some(index) = com_to_drop {
-        data.instances[npc_index].communication.remove(index);
+        data.character_instances[npc_index].communication.remove(index);
     }
 }
 
@@ -676,7 +680,7 @@ pub fn remove_from_character_currency(inst_index: usize, amount: f32, data: &mut
 
 /// Starts to wait for the given amount of ticks
 pub fn wait_start(instance_index: usize, ticks: usize, id: (Uuid, Uuid), data: &mut RegionData) {
-    data.character_instances[instance_index].node_values.insert(id, Value::USize(ticks + data.tick_count));
+    data.character_instances[instance_index].node_values.insert(id, Value::USize(ticks + *TICK_COUNT.borrow() as usize));
 }
 
 /// Waits for the given ticks to pass before returning true
@@ -686,7 +690,7 @@ pub fn wait_for(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionData) 
     if let Some(value) = data.character_instances[instance_index].node_values.get(&id) {
         match value {
             Value::USize(until) => {
-                if *until >= data.tick_count {
+                if *until >= *TICK_COUNT.borrow() as usize {
                     rc = false;
                 } else {
                     data.character_instances[instance_index].node_values.clear();
@@ -817,15 +821,13 @@ pub fn get_weapon_distance(slot: String, data: &mut RegionData) -> i32 {
 }
 
 /// Returns the spell distance for the given spell name
-pub fn get_spell_distance(instance_index: usize, name: String, data: &mut RegionInstance) -> i32 {
+pub fn get_spell_distance(instance_index: usize, name: String, data: &mut RegionData) -> i32 {
     let mut spell_distance = 3;
 
-    if let Some(v) = data.scopes[instance_index].get("spells") {
-        if let Some(spells) = v.read_lock::<Spells>() {
-            let spell = spells.get_spell(&name);
-            spell_distance = spell.distance;
-        }
-    }
+    let sheet: &mut Sheet = &mut data.sheets[data.curr_index];
+    let spell = sheet.spells.get_spell(&name);
+    spell_distance = spell.distance;
+
 
     spell_distance
 }

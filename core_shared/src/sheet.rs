@@ -21,6 +21,8 @@ pub struct Sheet {
     pub inventory               : Inventory,
     pub weapons                 : Weapons,
     pub gear                    : Gear,
+
+    pub spells                  : Spells
 }
 
 impl Sheet {
@@ -41,6 +43,8 @@ impl Sheet {
             inventory           : Inventory::new(),
             weapons             : Weapons::new(),
             gear                : Gear::new(),
+
+            spells              : Spells::new(),
         }
     }
 

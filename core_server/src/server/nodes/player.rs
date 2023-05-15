@@ -43,7 +43,7 @@ pub fn node_player_action(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeha
         action_name = value;
     }
 
-    execute_targetted_action(action_name, dp)
+    execute_targeted_action(action_name, dp, nodes)
 }
 
 /// Player move

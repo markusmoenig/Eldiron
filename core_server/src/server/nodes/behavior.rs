@@ -1,4 +1,6 @@
 extern crate ref_thread_local;
+use std::println;
+
 use ref_thread_local::RefThreadLocal;
 use crate::prelude::*;
 
@@ -354,13 +356,18 @@ pub fn node_close_in(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorD
 }
 
 // Multi choice
-pub fn multi_choice(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_multi_choice(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
-    if data.instances[instance_index].multi_choice_answer.is_some() {
-        if Some(id.1) == data.instances[instance_index].multi_choice_answer {
+    println!("node_multi_choice");
 
-            let npc_index = get_local_instance_index(instance_index, data);
-            drop_communication(instance_index, npc_index, data);
+    if data.character_instances[data.curr_index].multi_choice_answer.is_some() {
+        if Some(id.1) == data.character_instances[data.curr_index].multi_choice_answer {
+
+            let npc_index = data.curr_index;//get_local_instance_index(instance_index, data);
+            drop_communication(data.curr_index, npc_index, data);
+
+            println!("bottom");
 
             BehaviorNodeConnector::Bottom
         }
@@ -368,71 +375,64 @@ pub fn multi_choice(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIn
             BehaviorNodeConnector::Right
         }
     } else {
-        let mut header = "".to_string();
-        let mut text = "".to_string();
-        let mut answer = "".to_string();
 
-        if let Some(value) = get_node_value((id.0, id.1, "header"), data, behavior_type) {
-            if let Some(h) = value.to_string() {
-                header = h;
+        // A new communication started
+
+        if let Some(npc_index) = data.character_instances[data.curr_index].target_instance_index {
+
+            let mut header = "".to_string();
+            let mut text = "".to_string();
+            let mut answer = "".to_string();
+
+            if let Some(value) = get_node_string(id, "header", nodes) {
+                header = value;
             }
-        }
 
-        if let Some(value) = get_node_value((id.0, id.1, "text"), data, behavior_type) {
-            if let Some(t) = value.to_string() {
-                text = t;
+            if let Some(value) = get_node_string(id, "text", nodes) {
+                text = value;
             }
-        }
 
-        if let Some(value) = get_node_value((id.0, id.1, "answer"), data, behavior_type) {
-            if let Some(a) = value.to_string() {
-                answer = a;
+            if let Some(value) = get_node_string(id, "answer", nodes) {
+                answer = value;
             }
-        }
 
-        let mcd = MultiChoiceData {
-            id              : id.1,
-            header,
-            text,
-            answer,
-            pos             : None,
-            buffer          : None,
+            let mcd = MultiChoiceData {
+                id              : id.1,
+                header,
+                text,
+                answer,
+                pos             : None,
+                buffer          : None,
 
-            item_amount     : None,
-            item_behavior_id: None,
-            item_price      : None,
-        };
+                item_amount     : None,
+                item_behavior_id: None,
+                item_price      : None,
+            };
 
-        let player_index = instance_index;
-        let npc_index = get_local_instance_index(instance_index, data);
+            let player_index = data.curr_index;
+            data.character_instances[player_index].multi_choice_data.push(mcd);
 
-        data.instances[player_index].multi_choice_data.push(mcd);
+            let com = PlayerCommunication {
+                player_index,
+                npc_index,
+                npc_behavior_id         : id,
+                player_answer           : None,
+                start_time              : DATE.borrow().clone(),
+                end_time                : DATE.borrow().future_time(5),
+            };
 
-        let t = data.get_time();
-
-        let com = PlayerCommunication {
-            player_index,
-            npc_index,
-            npc_behavior_tree       : data.curr_executing_tree,
-            player_answer           : None,
-            start_time              : t,
-            end_time                : t + 1000 * 20, // 20 Secs
-        };
-
-        // TODO: Add one Communication structure per player
-        if data.instances[npc_index].communication.is_empty() {
-            data.instances[npc_index].communication.push(com.clone());
-        }
-
-        if data.instances[player_index].communication.is_empty() {
-            data.instances[player_index].communication.push(com);
+            // Each NPC can only talk to one player at the same time
+            if data.character_instances[npc_index].communication.is_empty() && data.character_instances[player_index].communication.is_empty(){
+                data.character_instances[npc_index].communication.push(com.clone());
+                data.character_instances[player_index].communication.push(com);
+            }
         }
 
         BehaviorNodeConnector::Right
     }
 }
 
-// Multi choice
+// Sell
 pub fn sell(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
     if data.instances[instance_index].multi_choice_answer.is_some() {
@@ -479,7 +479,7 @@ pub fn sell(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, 
                 rc = BehaviorNodeConnector::Bottom;
             }
 
-            drop_communication(instance_index, npc_index, data);
+            //TODO drop_communication(instance_index, npc_index, data);
             rc
         }
         else {
@@ -565,10 +565,10 @@ pub fn sell(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, 
             let com = PlayerCommunication {
                 player_index,
                 npc_index,
-                npc_behavior_tree       : data.curr_executing_tree,
+                npc_behavior_id         : id,
                 player_answer           : None,
-                start_time              : t,
-                end_time                : t + 1000 * 20, // 20 Secs
+                start_time              : DATE.borrow().clone(),
+                end_time                : DATE.borrow().future_time(5),
             };
 
             if data.instances[npc_index].communication.is_empty() {
@@ -1047,15 +1047,17 @@ pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
     rc
 }
 
-/// Assign target
-pub fn magic_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
-    if data.instances[instance_index].instance_type == BehaviorInstanceType::NonPlayerCharacter {
+/// Assign target for magic
+pub fn node_magic_target(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
+    if data.character_instances[data.curr_index].instance_type == BehaviorInstanceType::NonPlayerCharacter {
         return BehaviorNodeConnector::Success;
     }
 
     let mut dp:Option<Position> = None;
-    if let Some(p) = &data.instances[instance_index].position {
-        if let Some(action) = &data.instances[instance_index].action {
+    if let Some(p) = &data.character_instances[data.curr_index].position {
+        if let Some(action) = &data.character_instances[data.curr_index].action {
             if action.direction == PlayerDirection::North {
                 dp = Some(Position::new(p.region, p.x, p.y - 1));
                 data.action_direction_text = "North".to_string();
@@ -1083,22 +1085,22 @@ pub fn magic_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionI
 
     let mut rc = BehaviorNodeConnector::Fail;
 
-    data.scopes[instance_index].set_value("failure", FailureEnum::No);
+    //data.scopes[instance_index].set_value("failure", FailureEnum::No);
 
     if let Some(dp) = &dp {
-        if let Some(position) = &data.instances[instance_index].position {
+        if let Some(position) = &data.character_instances[data.curr_index].position {
             // Make sure the target is within spell range
-            let spell_name = data.instances[instance_index].action.clone().unwrap().spell.unwrap();
+            let spell_name = data.character_instances[data.curr_index].action.clone().unwrap().spell.unwrap();
             let distance = compute_distance(&position, &dp);
-            let spell_distance = get_spell_distance(instance_index, spell_name, data);
+            let spell_distance = get_spell_distance(data.curr_index, spell_name, data);
             if  distance as i32 <= spell_distance {
-                for inst_index in 0..data.instances.len() {
-                    if inst_index != instance_index {
+                for inst_index in 0..data.character_instances.len() {
+                    if inst_index != data.curr_index {
                         // Only track if the state is OK
-                        if data.instances[inst_index].state.is_alive() {
-                            if let Some(pos) = &data.instances[inst_index].position {
+                        if data.character_instances[inst_index].state.is_alive() {
+                            if let Some(pos) = &data.character_instances[inst_index].position {
                                 if *dp == *pos {
-                                    data.instances[instance_index].target_instance_index = Some(inst_index);
+                                    data.character_instances[data.curr_index].target_instance_index = Some(inst_index);
                                     rc = BehaviorNodeConnector::Success;
                                     break;
                                 }
@@ -1107,7 +1109,7 @@ pub fn magic_target(instance_index: usize, _id: (Uuid, Uuid), data: &mut RegionI
                     }
                 }
             } else {
-                data.scopes[instance_index].set_value("failure", FailureEnum::TooFarAway);
+                //data.scopes[instance_index].set_value("failure", FailureEnum::TooFarAway);
             }
         }
     }
@@ -1510,7 +1512,7 @@ pub fn respawn(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
         ticks = rc;
     }
 
-    let mut respawn_tick = data.tick_count;
+    let mut respawn_tick = *TICK_COUNT.borrow_mut() as usize;
     respawn_tick = respawn_tick.wrapping_add(ticks as usize * data.ticks_per_minute);
     if let Some(d) = &data.instances[instance_index].instance_creation_data {
         data.respawn_instance.insert(id.0, (respawn_tick, d.clone()));
@@ -1648,12 +1650,13 @@ pub fn set_level_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
 /// Schedule
 pub fn schedule(_instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
+    let date = DATE.borrow().clone();
     // Get the system name
     if let Some(from) = get_node_value((id.0, id.1, "from"), data, behavior_type) {
         if let Some(to) = get_node_value((id.0, id.1, "to"), data, behavior_type) {
             if let Some(f) = from.to_date() {
                 if let Some(t) = to.to_date() {
-                    if data.date >= f && data.date <= t {
+                    if date >= f && date <= t {
                         return BehaviorNodeConnector::Right;
                     }
                 }

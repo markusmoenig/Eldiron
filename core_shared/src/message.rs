@@ -43,9 +43,9 @@ pub struct MultiChoiceData {
 pub struct PlayerCommunication {
     pub player_index            : usize,
     pub npc_index               : usize,
-    pub npc_behavior_tree       : Uuid,
+    pub npc_behavior_id         : (Uuid, Uuid),
     pub player_answer           : Option<String>,
 
-    pub start_time              : u128,
-    pub end_time                : u128,
+    pub start_time              : Date,
+    pub end_time                : Date,
 }

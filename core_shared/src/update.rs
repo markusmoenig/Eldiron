@@ -55,9 +55,6 @@ pub struct GameUpdate {
     /// Scope
     pub scope_buffer            : ScopeBuffer,
 
-    /// Spells
-    pub spells                  : Spells,
-
     /// Skills
     pub skills                  : Skills,
 
@@ -99,7 +96,6 @@ impl GameUpdate {
             messages            : vec![],
             audio               : vec![],
             scope_buffer        : ScopeBuffer::new(),
-            spells              : Spells::new(),
             skills              : Skills::new(),
             experience          : Experience::new(),
             multi_choice_data   : vec![],

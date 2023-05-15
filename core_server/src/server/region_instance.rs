@@ -95,7 +95,6 @@ pub struct RegionInstance<'a> {
     pub pixel_based_movement        : bool,
 
     /// Tick count used for timing
-    pub tick_count                  : usize,
     pub dealt_damage_success        : bool,
 
     /// Respawns the given chararacter uuid at the given tick count
@@ -118,9 +117,6 @@ pub struct RegionInstance<'a> {
     pub primary_currency            : String,
     pub hitpoints                   : String,
     pub max_hitpoints               : String,
-
-    // Date & Time
-    pub date                        : Date,
 }
 
 impl RegionInstance<'_> {
@@ -217,11 +213,11 @@ impl RegionInstance<'_> {
         // nodes.insert(BehaviorNodeType::Drop, player_drop);
         // nodes.insert(BehaviorNodeType::Target, player_target);
         //nodes.insert(BehaviorNodeType::Equip, player_equip);
-        nodes.insert(BehaviorNodeType::MagicTarget, magic_target);
+        //nodes.insert(BehaviorNodeType::MagicTarget, magic_target);
         //nodes.insert(BehaviorNodeType::LightItem, light_item);
         nodes.insert(BehaviorNodeType::SetItemTile, set_item_tile);
         //nodes.insert(BehaviorNodeType::RandomWalk, random_walk);
-        nodes.insert(BehaviorNodeType::MultiChoice, multi_choice);
+        //nodes.insert(BehaviorNodeType::MultiChoice, multi_choice);
         nodes.insert(BehaviorNodeType::Sell, sell);
         // nodes.insert(BehaviorNodeType::LockTree, lock_tree);
         // nodes.insert(BehaviorNodeType::UnlockTree, unlock_tree);
@@ -297,7 +293,6 @@ impl RegionInstance<'_> {
 
             pixel_based_movement            : true,
 
-            tick_count                      : 5 * 60 * 4, // 5am
             dealt_damage_success            : false,
 
             respawn_instance                : FxHashMap::default(),
@@ -316,9 +311,6 @@ impl RegionInstance<'_> {
             primary_currency                : "".to_string(),
             hitpoints                       : "".to_string(),
             max_hitpoints                   : "".to_string(),
-
-            // Date
-            date                            : Date::new()
         }
     }
 
@@ -348,7 +340,7 @@ impl RegionInstance<'_> {
 
         if self.respawn_instance.is_empty() == false {
             for (id, (tick, data)) in &self.respawn_instance.clone() {
-                if *tick <= self.tick_count {
+                if *tick <= *TICK_COUNT.borrow() as usize {
                     self.create_behavior_instance(*id, false, Some(data.clone()));
                     self.respawn_instance.remove(id);
                 }
@@ -415,31 +407,36 @@ impl RegionInstance<'_> {
 
                     let mut execute_trees = true;
 
-                    // Check if this NPC has active communication
-                    if self.instances[inst_index].communication.is_empty() == false {
-                        let mut com_to_drop : Option<usize> = None;
+                    {
+                        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
-                        for c_index in 0..self.instances[inst_index].communication.len() {
-                            if self.instances[inst_index].communication[c_index].end_time < tick_time {
+                        // Check if this NPC has active communication
+                        if data.character_instances[inst_index].communication.is_empty() == false {
+                            let mut com_to_drop : Option<usize> = None;
 
-                                // Drop this communication for the NPC
-                                com_to_drop = Some(c_index);
+                            for c_index in 0..data.character_instances[inst_index].communication.len() {
+                                if data.character_instances[inst_index].communication[c_index].end_time < *DATE.borrow() {
 
-                                // Remove the communication for the Player
-                                let player_index = self.instances[inst_index].communication[c_index].player_index;
-                                self.instances[player_index].communication = vec![];
-                                self.instances[player_index].multi_choice_data = vec![];
+                                    // Drop this communication for the NPC
+                                    com_to_drop = Some(c_index);
 
-                                break;
+                                    // Remove the communication for the Player
+                                    let player_index = data.character_instances[inst_index].communication[c_index].player_index;
+                                    data.character_instances[player_index].communication = vec![];
+                                    data.character_instances[player_index].multi_choice_data = vec![];
+
+                                    break;
+                                }
                             }
-                        }
 
-                        if let Some(index) = com_to_drop {
-                            self.instances[inst_index].communication.remove(index);
-                        }
+                            if let Some(index) = com_to_drop {
+                                data.character_instances[inst_index].communication.remove(index);
+                            }
 
-                        if self.instances[inst_index].communication.is_empty() == false {
-                            execute_trees = false;
+                            // Communication is ongoing, dont do anything
+                            if data.character_instances[inst_index].communication.is_empty() == false {
+                                execute_trees = false;
+                            }
                         }
                     }
 
@@ -585,34 +582,27 @@ impl RegionInstance<'_> {
                         } else
                         if let Some(uuid) = &action.multi_choice_uuid {
                             // Multi Choice Answer
-                            if self.instances[inst_index].communication.is_empty() == false {
 
-                                let npc_index = self.instances[inst_index].communication[0].npc_index;
-                                let behavior_id = self.instances[inst_index].communication[0].npc_behavior_tree;
+                            let mut communication_id : Option<(Uuid, Uuid)> = None;
 
-                                self.instances[inst_index].multi_choice_answer = Some(*uuid);
-                                self.curr_redirected_inst_index = Some(npc_index);
-                                self.execute_node(npc_index, behavior_id, Some(inst_index));
-                                self.instances[inst_index].multi_choice_answer = None;
-                                self.curr_redirected_inst_index = None;
+                            {
+                                let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                                if data.character_instances[inst_index].communication.is_empty() == false {
 
-                                //self.instances[inst_index].communication = vec![];
-
-                                // Drop comm for the NPC
-                                /*
-                                let mut com_to_drop : Option<usize> = None;
-                                for c_index in 0..self.instances[npc_index].communication.len() {
-                                    if self.instances[npc_index].communication[c_index].player_index == inst_index {
-                                        // Drop this communication for the NPC
-                                        com_to_drop = Some(c_index);
-                                        break;
-                                    }
+                                    //let npc_index = data.character_instances[inst_index].communication[0].npc_index;
+                                    communication_id = Some(data.character_instances[inst_index].communication[0].npc_behavior_id);
+                                    data.character_instances[inst_index].multi_choice_answer = Some(*uuid);
                                 }
-
-                                if let Some(index) = com_to_drop {
-                                    self.instances[npc_index].communication.remove(index);
-                                }*/
                             }
+
+                            if let Some(behavior_id) = communication_id {
+                                execute_node(behavior_id.0, behavior_id.1, &mut BEHAVIORS.borrow_mut());
+                            }
+
+                            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
+                            data.character_instances[inst_index].communication = vec![];
+                            data.character_instances[inst_index].target_instance_index = None;
                         }
 
                         {
@@ -933,16 +923,8 @@ impl RegionInstance<'_> {
 
         for inst_index in 0..character_instances_len {
 
-            let mut spells: Spells = Spells::new();
             let mut skills = Skills::new();
             let mut experience = Experience::new();
-
-            // Clone the spells for sending it to the client
-            if let Some(s) = self.scopes[inst_index].get("spells") {
-                if let Some(sp) = s.read_lock::<Spells>() {
-                    spells = sp.clone();
-                }
-            }
 
             // Clone the skills for sending it to the client
             if let Some(s) = self.scopes[inst_index].get("skills") {
@@ -1083,12 +1065,11 @@ impl RegionInstance<'_> {
                     messages                : data.character_instances[inst_index].messages.clone(),
                     audio                   : data.character_instances[inst_index].audio.clone(),
                     scope_buffer            : scope_buffer,
-                    spells                  : spells.clone(),
                     skills                  : skills.clone(),
                     experience              : experience.clone(),
                     multi_choice_data       : data.character_instances[inst_index].multi_choice_data.clone(),
                     communication           : data.character_instances[inst_index].communication.clone(),
-                    date                    : self.date.clone(),
+                    date                    : DATE.borrow().clone()
                  };
 
                 data.character_instances[inst_index].messages = vec![];
@@ -1123,14 +1104,6 @@ impl RegionInstance<'_> {
                 }
             }
         }
-
-        //println!("tick time {}", self.get_time() - tick_time);
-
-        let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-        data.tick_count = data.tick_count.wrapping_add(1);
-
-        self.tick_count = self.tick_count.wrapping_add(1);
-        self.date.from_ticks(self.tick_count, self.ticks_per_minute);
 
         messages
     }
@@ -1704,6 +1677,7 @@ impl RegionInstance<'_> {
                 if let Some(property) = settings.get("ticks_per_minute") {
                     if let Some(ticks) = property.as_int() {
                         self.ticks_per_minute = ticks as usize;
+                        *TICKS_PER_MINUTE.borrow_mut() = ticks as usize;
                     }
                 }
             }
@@ -2034,11 +2008,9 @@ impl RegionInstance<'_> {
             scope.set_value("name", behavior_name.clone());
             scope.set_value("alignment", inst.alignment as i32);
             scope.set_value("message", ScriptMessageCmd::new());
-            scope.set_value("gear", Gear::new());
-            scope.set_value("weapons", Weapons::new());
             scope.set_value("skills", skills);
             scope.set_value("experience", Experience::new());
-            scope.set_value("date", self.date.clone());
+            scope.set_value("date", DATE.borrow().clone());
             scope.set_value("failure", FailureEnum::No);
 
             let mut system_startup_trees : Vec<String> = vec![];
@@ -2054,22 +2026,6 @@ impl RegionInstance<'_> {
                     race_name = Some(ra.clone());
                     system_startup_trees.push(ra);
                 }
-            }
-
-            // Set the sheet
-            {
-                let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-                let mut sheet = Sheet::new();
-                sheet.name = behavior_name.clone();
-                if let Some(class_name) = class_name.clone() {
-                    sheet.class = class_name;
-                }
-                if let Some(race_name) = race_name.clone() {
-                    sheet.race = race_name;
-                }
-                data.sheets.push(sheet);
-                data.character_instances.push(instance);
-                data.curr_index = index;
             }
 
             let mut startup_system_trees        : Vec<(Uuid, Uuid)> = vec![];
@@ -2156,9 +2112,25 @@ impl RegionInstance<'_> {
                 }
             }
 
-            scope.set_value("spells", spells);
-
             // --- End Spells
+
+            // Set the sheet
+            {
+                let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                let mut sheet = Sheet::new();
+                sheet.name = behavior_name.clone();
+                if let Some(class_name) = class_name.clone() {
+                    sheet.class = class_name;
+                }
+                if let Some(race_name) = race_name.clone() {
+                    sheet.race = race_name;
+                }
+                sheet.spells = spells;
+                data.sheets.push(sheet);
+                data.character_instances.push(instance);
+                data.curr_index = index;
+            }
+
 
             self.scopes.push(scope);
 

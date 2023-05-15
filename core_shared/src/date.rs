@@ -37,14 +37,28 @@ impl Date {
     }
 
     /// Calculate the date and time from server ticks
-    pub fn from_ticks(&mut self, ticks: usize, ticks_per_minute: usize) {
-        let minutes = ticks / ticks_per_minute;
+    pub fn from_ticks(&mut self, ticks: u128, ticks_per_minute: usize) {
+        let minutes = (ticks / ticks_per_minute as u128) as usize;
         self.seconds = (ticks as i32 % 4) * (60 / ticks_per_minute) as i32;
         self.hours = (minutes / 60) as i32;
         self.minutes = (minutes % 60) as i32;
 
         self.total_minutes = minutes;
         self.minutes_in_day = (minutes % 1440) as i32;
+    }
+
+    /// Returns a new future date with the given minutes in the future.
+    pub fn future_time(&self, minutes_in_future: usize) -> Date {
+
+        let mut future_date = Date::new();
+
+        future_date.total_minutes = self.total_minutes + minutes_in_future;
+        future_date.seconds = 0;
+        future_date.minutes = (future_date.total_minutes % 60) as i32;
+        future_date.hours = (future_date.total_minutes / 60) as i32;
+        future_date.minutes_in_day = (future_date.total_minutes % 1440) as i32;
+
+        future_date
     }
 
     /// From Time24
