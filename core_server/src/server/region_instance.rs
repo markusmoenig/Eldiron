@@ -164,6 +164,7 @@ impl RegionInstance<'_> {
         });
 
         Sheet::register(&mut engine);
+        Currency::register(&mut engine);
 
         script_register_message_api(&mut engine);
         script_register_inventory_api(&mut engine);
@@ -185,8 +186,8 @@ impl RegionInstance<'_> {
         //nodes.insert(BehaviorNodeType::Pathfinder, pathfinder);
         //nodes.insert(BehaviorNodeType::Lookout, lookout);
         //nodes.insert(BehaviorNodeType::CloseIn, close_in);
-        nodes.insert(BehaviorNodeType::CallSystem, call_system);
-        nodes.insert(BehaviorNodeType::CallBehavior, call_behavior);
+        //nodes.insert(BehaviorNodeType::CallSystem, call_system);
+        //nodes.insert(BehaviorNodeType::CallBehavior, call_behavior);
         //nodes.insert(BehaviorNodeType::HasTarget, has_target);
         //nodes.insert(BehaviorNodeType::Untarget, untarget);
         nodes.insert(BehaviorNodeType::MagicDamage, magic_damage);
@@ -218,7 +219,7 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::SetItemTile, set_item_tile);
         //nodes.insert(BehaviorNodeType::RandomWalk, random_walk);
         //nodes.insert(BehaviorNodeType::MultiChoice, multi_choice);
-        nodes.insert(BehaviorNodeType::Sell, sell);
+        //nodes.insert(BehaviorNodeType::Sell, sell);
         // nodes.insert(BehaviorNodeType::LockTree, lock_tree);
         // nodes.insert(BehaviorNodeType::UnlockTree, unlock_tree);
         // nodes.insert(BehaviorNodeType::SetState, set_state);
@@ -1023,8 +1024,6 @@ impl RegionInstance<'_> {
                 if let Some(position) = &data.character_instances[inst_index].position.clone() {
 
                     if position.region != data.region_data.id {
-                        println!("transfer region");
-
                         // We need to transfer the character to a new region
                         needs_transfer_to = Some(position.region);
                     } else

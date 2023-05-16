@@ -90,6 +90,9 @@ impl RegionData {
         nodes.insert(BehaviorNodeType::Target, node_player_target);
         nodes.insert(BehaviorNodeType::Equip, node_player_equip);
         nodes.insert(BehaviorNodeType::MultiChoice, node_multi_choice);
+        nodes.insert(BehaviorNodeType::Sell, node_sell);
+        nodes.insert(BehaviorNodeType::CallBehavior, node_call_behavior);
+        nodes.insert(BehaviorNodeType::CallSystem, node_call_system);
 
         nodes.insert(BehaviorNodeType::MagicTarget, node_magic_target);
 

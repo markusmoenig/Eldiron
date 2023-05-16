@@ -532,6 +532,10 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
         SHEET.lock().unwrap().gear.clone()
     });
 
+    engine.register_fn("get_wealth", || -> Currency {
+        SHEET.lock().unwrap().wealth.clone()
+    });
+
     engine.register_fn("get_skills", || -> Skills {
         INFOCMD.lock().unwrap().skills.clone()
     });

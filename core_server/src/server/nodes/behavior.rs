@@ -429,23 +429,20 @@ pub fn node_multi_choice(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehav
 }
 
 // Sell
-pub fn sell(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_sell(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+    let sheet = &mut data.sheets[data.curr_index];
 
-    if data.instances[instance_index].multi_choice_answer.is_some() {
-        if let Some(id) = data.instances[instance_index].multi_choice_answer {
+    if data.character_instances[data.curr_index].multi_choice_answer.is_some() {
+        if let Some(id) = data.character_instances[data.curr_index].multi_choice_answer {
 
             //let curr = character_currency(instance_index, data);
-            let npc_index = get_local_instance_index(instance_index, data);
-
+            let npc_index = data.character_instances[data.curr_index].communication[0].npc_index;
             let mut traded_item : Option<Item> = None;
 
             // Remove the item
-            if let Some(mess) = data.scopes[npc_index].get_mut("inventory") {
-                if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                    if let Some(item) = inv.remove_item(id, 1) {
-                        traded_item = Some(item);
-                    }
-                }
+            if let Some(item) = sheet.inventory.remove_item(id, 1) {
+                traded_item = Some(item);
             }
 
             let mut rc = BehaviorNodeConnector::Success;
@@ -453,29 +450,20 @@ pub fn sell(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, 
             // Add the item to the player
             if let Some(item) = traded_item {
                 let price = item.price;
-                if remove_from_character_currency(instance_index, item.price, data) {
-                    if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
-                        if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                            inv.add_item(item);
-                        }
-                    }
-                    add_to_character_currency(npc_index, price, data);
-                } else {
-                    // Not enough money, add item back to NPC
-
-                    if let Some(mess) = data.scopes[npc_index].get_mut("inventory") {
-                        if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                            inv.add_item(item);
-                        }
-                    }
-                    rc = BehaviorNodeConnector::Fail;
-                }
+                // TODO if remove_from_character_currency(data.curr_index, item.price, data) {
+                //     sheet.inventory.add_item(item);
+                //     add_to_character_currency(npc_index, price, data);
+                // } else {
+                //     // Not enough money, add item back to NPC
+                //     sheet.inventory.add_item(item);
+                //     rc = BehaviorNodeConnector::Fail;
+                // }
             } else {
                 // If the item was no longer available, just quit
                 rc = BehaviorNodeConnector::Bottom;
             }
 
-            //TODO drop_communication(instance_index, npc_index, data);
+            drop_communication(data.curr_index, npc_index, data);
             rc
         }
         else {
@@ -486,93 +474,82 @@ pub fn sell(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, 
         let mut header = "".to_string();
         let mut exit = "Exit".to_string();
 
-        if let Some(value) = get_node_value((id.0, id.1, "header"), data, behavior_type) {
-            if let Some(h) = value.to_string() {
-                header = h;
-            }
+        if let Some(value) = get_node_string(id, "header", nodes) {
+            header = value;
         }
 
-        if let Some(value) = get_node_value((id.0, id.1, "exit"), data, behavior_type) {
-            if let Some(h) = value.to_string() {
-                exit = h;
-            }
+        if let Some(value) = get_node_string(id, "exit", nodes) {
+            exit = value;
         }
 
-        let player_index = instance_index;
-        let npc_index = get_local_instance_index(instance_index, data);
+        if let Some(npc_index) = data.character_instances[data.curr_index].target_instance_index {
+            data.character_instances[data.curr_index].multi_choice_data = vec![];
 
-        data.instances[player_index].multi_choice_data = vec![];
+            let mut index = 1;
+            let mut added_items = vec![];
 
-        if let Some(mess) = data.scopes[npc_index].get_mut("inventory") {
-            if let Some(inv) = mess.read_lock::<Inventory>() {
+            for item in &sheet.inventory.items {
 
-                let mut index = 1;
-                let mut added_items = vec![];
+                if item.price != 0.0 && added_items.contains(&item.id) == false {
 
-                for item in &inv.items {
+                    let amount = 1;
 
-                    if item.price != 0.0 && added_items.contains(&item.id) == false {
+                    let mcd = MultiChoiceData {
+                        id                  : item.id,
+                        header              : if index == 1 { header.clone() } else { "".to_string() },
+                        text                : item.name.clone(),
+                        answer              : index.to_string(),
+                        pos                 : None,
+                        buffer              : None,
 
-                        let amount = 1;
+                        item_behavior_id    : Some(item.id),
+                        item_price          : Some(item.price),
+                        item_amount         : Some(amount),
+                    };
 
-                        let mcd = MultiChoiceData {
-                            id                  : item.id,
-                            header              : if index == 1 { header.clone() } else { "".to_string() },
-                            text                : item.name.clone(),
-                            answer              : index.to_string(),
-                            pos                 : None,
-                            buffer              : None,
-
-                            item_behavior_id    : Some(item.id),
-                            item_price          : Some(item.price),
-                            item_amount         : Some(amount),
-                        };
-
-                        added_items.push(item.id);
-                        data.instances[player_index].multi_choice_data.push(mcd);
-                        index += 1;
-                    }
+                    added_items.push(item.id);
+                    data.character_instances[data.curr_index].multi_choice_data.push(mcd);
+                    index += 1;
                 }
             }
-        }
 
-        if data.instances[player_index].multi_choice_data.is_empty() == false {
+            let player_index = data.curr_index;
+            if data.character_instances[player_index].multi_choice_data.is_empty() == false {
 
-            // Exit Text
+                // Exit Text
 
-            let mcd = MultiChoiceData {
-                id                  : Uuid::new_v4(),
-                header              : "".to_string(),
-                text                : exit,
-                answer              : "0".to_string(),
-                pos                 : None,
-                buffer              : None,
+                let mcd = MultiChoiceData {
+                    id                  : Uuid::new_v4(),
+                    header              : "".to_string(),
+                    text                : exit,
+                    answer              : "0".to_string(),
+                    pos                 : None,
+                    buffer              : None,
 
-                item_behavior_id    : None,
-                item_price          : None,
-                item_amount         : None,
-            };
-            data.instances[player_index].multi_choice_data.push(mcd);
+                    item_behavior_id    : None,
+                    item_price          : None,
+                    item_amount         : None,
+                };
+                data.character_instances[player_index].multi_choice_data.push(mcd);
 
-            //
+                //
 
-            let t = data.get_time();
+                let com = PlayerCommunication {
+                    player_index,
+                    npc_index,
+                    npc_behavior_id         : id,
+                    player_answer           : None,
+                    start_time              : DATE.borrow().clone(),
+                    end_time                : DATE.borrow().future_time(5),
+                };
 
-            let com = PlayerCommunication {
-                player_index,
-                npc_index,
-                npc_behavior_id         : id,
-                player_answer           : None,
-                start_time              : DATE.borrow().clone(),
-                end_time                : DATE.borrow().future_time(5),
-            };
+                if data.character_instances[npc_index].communication.is_empty() {
+                    data.character_instances[npc_index].communication.push(com.clone());
+                }
 
-            if data.instances[npc_index].communication.is_empty() {
-                data.instances[npc_index].communication.push(com.clone());
-            }
-
-            if data.instances[player_index].communication.is_empty() {
-                data.instances[player_index].communication.push(com);
+                if data.character_instances[player_index].communication.is_empty() {
+                    data.character_instances[player_index].communication.push(com);
+                }
             }
         }
 
@@ -581,108 +558,79 @@ pub fn sell(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, 
 }
 
 /// Systems Call
-pub fn call_system(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_call_system(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
     let mut systems_id : Option<Uuid> = None;
     let mut systems_tree_id : Option<Uuid> = None;
 
-    // The id's were not yet computed search the system trees, get the ids and store them.
-    if let Some(value) = get_node_value((id.0, id.1, "system"), data, behavior_type) {
-
-        if let Some(mut system_name) = value.to_string() {
-
-            // Check if this is a variable inside the scope
-            if let Some(var) = data.scopes[instance_index].get_value::<String>(system_name.as_str()) {
-                system_name = var.to_string();
-            }
-
-            for (index, name) in data.system_names.iter().enumerate() {
-                if *name == system_name {
-                    systems_id = Some(data.system_ids[index]);
-                    break
-                }
-            }
-        }
+    if let Some(system_name) = get_node_string(id, "system", nodes) {
+        let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        // TODO for (index, name) in data.system_names.iter().enumerate() {
+        //     if *name == system_name {
+        //         systems_id = Some(data.system_ids[index]);
+        //         break
+        //     }
+        // }
     }
 
-    if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
-        if let Some(systems_id) = systems_id {
-            if let Some(system) = data.systems.get(&systems_id) {
-                for (node_id, node) in &system.nodes {
-                    if let Some(str) = value.to_string() {
-                        if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == str {
-                            systems_tree_id = Some(*node_id);
-                                //data.instances[instance_index].node_values.insert((behavior_type, id.1), (systems_id as f64, *node_id as f64, 0.0, 0.0, "".to_string()));
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
+    //     if let Some(systems_id) = systems_id {
+    //         if let Some(system) = data.systems.get(&systems_id) {
+    //             for (node_id, node) in &system.nodes {
+    //                 if let Some(str) = value.to_string() {
+    //                     if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == str {
+    //                         systems_tree_id = Some(*node_id);
+    //                             //data.instances[instance_index].node_values.insert((behavior_type, id.1), (systems_id as f64, *node_id as f64, 0.0, 0.0, "".to_string()));
+    //                         break;
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
 
     //println!("systems id {:?}", systems_id);
     //println!("systems_tree_id id {:?}", systems_tree_id);
 
-    if let Some(systems_id) = systems_id {
-        if let Some(systems_tree_id) = systems_tree_id {
-            data.instances[instance_index].systems_id = systems_id;
-            data.execute_systems_node(instance_index, systems_tree_id);
-            return BehaviorNodeConnector::Success;
-        }
-    }
+    // if let Some(systems_id) = systems_id {
+    //     if let Some(systems_tree_id) = systems_tree_id {
+    //         data.instances[instance_index].systems_id = systems_id;
+    //         data.execute_systems_node(instance_index, systems_tree_id);
+    //         return BehaviorNodeConnector::Success;
+    //     }
+    // }
 
     BehaviorNodeConnector::Fail
 }
 
 /// Behavior Call
-pub fn call_behavior(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_call_behavior(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
-    let behavior_instance : Option<usize> = Some(get_local_instance_index(instance_index, data));
+    let mut behavior_id : Uuid = Uuid::new_v4();
     let mut behavior_tree_id : Option<Uuid> = None;
-
-    // TODO: Precompute this
-
-    /*
-    // The id's were not yet computed search the system trees, get the ids and store them.
-    if let Some(value) = get_node_value((id.0, id.1, "execute_for"), data, behavior_type) {
-        if value.0 == 0.0 {
-            // Run the behavior on myself
-            behavior_instance = Some(instance_index);
-        } else {
-            // Run the behavior on the target
-            if let Some(target_index) = data.instances[instance_index].target_instance_index {
-                behavior_instance = Some(target_index);
-            }
-        }
-    }
-    */
-
-    if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
-        if let Some(tree_name) = value.to_string() {
-            if let Some(behavior_instance) = behavior_instance {
-                if let Some(behavior) = data.behaviors.get(&data.instances[behavior_instance].behavior_id) {
-                    for (node_id, node) in &behavior.nodes {
-                        if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name {
-                            behavior_tree_id = Some(*node_id);
-                            break;
-                        }
-                    }
+    if let Some(tree_name) = get_node_string(id, "tree", nodes) {
+        let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        if let Some(behavior) = nodes.get(&data.character_instances[data.curr_index].behavior_id) {
+            behavior_id = behavior.id;
+            for (node_id, node) in &behavior.nodes {
+                if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name {
+                    behavior_tree_id = Some(*node_id);
+                    break;
                 }
             }
         }
     }
 
+
     // println!("behavior instance {:?}", behavior_instance);
     // println!("behavior_tree_id id {:?}", behavior_tree_id);
 
-    if let Some(behavior_instance) = behavior_instance {
-        if let Some(behavior_tree_id) = behavior_tree_id {
-            data.execute_node(behavior_instance, behavior_tree_id, Some(instance_index));
-            return BehaviorNodeConnector::Success;
-        }
+    if let Some(behavior_tree_id) = behavior_tree_id {
+        execute_node(behavior_id, behavior_tree_id, nodes);
+        return BehaviorNodeConnector::Success;
     }
+
     BehaviorNodeConnector::Fail
 }
 

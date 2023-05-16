@@ -132,6 +132,9 @@ impl GameRender<'_> {
         script_register_experience_api(&mut engine);
         script_register_date_api(&mut engine);
 
+        Sheet::register(&mut engine);
+        Currency::register(&mut engine);
+
         let this_map = Map::new();
 
         Self {

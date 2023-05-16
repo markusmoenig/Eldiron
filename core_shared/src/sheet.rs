@@ -12,9 +12,6 @@ pub struct Sheet {
 
     pub abilities               : FxHashMap<String, i32>,
 
-    pub gold                    : i32,
-    pub silver                  : i32,
-
     pub hit_points              : i32,
     pub max_hit_points          : i32,
 
@@ -22,7 +19,9 @@ pub struct Sheet {
     pub weapons                 : Weapons,
     pub gear                    : Gear,
 
-    pub spells                  : Spells
+    pub spells                  : Spells,
+
+    pub wealth                  : Currency,
 }
 
 impl Sheet {
@@ -34,9 +33,6 @@ impl Sheet {
 
             abilities           : FxHashMap::default(),
 
-            gold                : 0,
-            silver              : 0,
-
             hit_points          : 0,
             max_hit_points      : 0,
 
@@ -45,6 +41,8 @@ impl Sheet {
             gear                : Gear::new(),
 
             spells              : Spells::new(),
+
+            wealth              : Currency::empty(),
         }
     }
 
@@ -74,24 +72,13 @@ impl Sheet {
     }
 
     /// Get the amount of gold
-    pub fn get_gold(&mut self) -> i32 {
-        self.gold
+    pub fn get_wealth(&mut self) -> Currency {
+        self.wealth.clone()
     }
 
-    /// Set the amount of gold
-    pub fn set_gold(&mut self, value: i32) {
-        self.gold = value
-    }
-
-    /// Get the amount of silver
-    pub fn get_silver(&mut self) -> i32 {
-        self.silver
-    }
-
-    /// Set the amount of silver (overflows go to gold)
-    pub fn set_silver(&mut self, value: i32) {
-        self.gold += value / 100;
-        self.silver = value % 100;
+    /// Get the amount of gold
+    pub fn set_wealth(&mut self, wealth: Currency) {
+        self.wealth = wealth
     }
 
     /// Get the ability of the given name
@@ -107,6 +94,11 @@ impl Sheet {
         self.abilities.insert(name.to_string(), value);
     }
 
+    /// Can the character afford this ?
+    pub fn can_afford(&mut self, value: Currency) -> bool {
+        self.wealth >= value
+    }
+
     /// Register sheet related fns and getter / setter
     pub fn register(engine: &mut Engine) {
         engine.register_type_with_name::<Sheet>("Sheet");
@@ -116,11 +108,12 @@ impl Sheet {
         engine.register_get_set("hit_points", Sheet::get_hit_points, Sheet::set_hit_points);
         engine.register_get_set("max_hit_points", Sheet::get_max_hit_points, Sheet::set_max_hit_points);
 
-        engine.register_get_set("gold", Sheet::get_gold, Sheet::set_gold);
-        engine.register_get_set("silver", Sheet::get_silver, Sheet::set_silver);
+        engine.register_get_set("wealth", Sheet::get_wealth, Sheet::set_wealth);
 
         engine.register_fn("get_ability", Sheet::get_ability);
         engine.register_fn("set_ability", Sheet::set_ability);
+
+        engine.register_fn("can_afford", Sheet::can_afford);
     }
 }
 
