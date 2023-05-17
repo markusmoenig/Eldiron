@@ -58,6 +58,9 @@ pub struct RegionData {
     /// How many ticks for one minute (gets read from the game settings)
     pub ticks_per_minute            : usize,
 
+    /// Node trees which have been marked for execution inside scripts
+    pub to_execute                  : Vec<(usize, String)>,
+
     /// The current character sheet index
     pub curr_index                  : usize,
 
@@ -142,6 +145,8 @@ impl RegionData {
             lights                          : vec![],
 
             ticks_per_minute                : 4,
+
+            to_execute                      : vec![],
 
             curr_index                      : 0,
             curr_area_index                 : 0,

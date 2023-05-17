@@ -2,17 +2,6 @@ extern crate ref_thread_local;
 use ref_thread_local::{RefThreadLocal};
 
 use crate::prelude::*;
-// use rhai::Engine;
-
-// pub fn register_additional_sheet_api(engine: &mut Engine) {
-//         engine.register_fn("get_ability", Sheet::get_ability);
-
-//     engine.register_fn("add_item", |name: &str| {
-
-
-
-//     });
-// }
 
 pub fn inventory_add(sheet: &mut Sheet, item_name: &str, amount: i32, item_nodes: &mut FxHashMap<Uuid, GameBehaviorData>) {
     for (_id, behavior) in item_nodes.iter() {
@@ -145,8 +134,92 @@ pub fn get_inventory_lights(data: &RegionData) -> Vec<LightData> {
     lights
 }
 
+/// Executes the tree (given by its name) inside the character, if no tree is found, check the system class of the
+/// character, after that check the system race of the character.
+pub fn execute_behavior(inst_index: usize, tree_name: &str) -> bool {
+    let behavior_id;
+    let class_name;
+    let race_name;
+
+    // This fill contain the Uuid of the tree we will execute, once we have found it in the behaviors or system class / race.
+    let mut tree_id : Option<Uuid> = None;
+
+    {
+        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        behavior_id = data.character_instances[inst_index].behavior_id;
+        class_name = data.sheets[inst_index].class_name.clone();
+        race_name = data.sheets[inst_index].race_name.clone();
+
+        if let Some(behaviors) = BEHAVIORS.try_borrow().ok() {
+            if let Some(behavior) = behaviors.get(&behavior_id) {
+                for id in &data.character_instances[inst_index].tree_ids {
+                    if let Some(node) = behavior.nodes.get(&id) {
+                        if node.name == tree_name {
+                            tree_id = Some(*id);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Execute the tree inside the characters behavior
+    if let Some(tree_id) = tree_id {
+        if let Some(mut behavior) = BEHAVIORS.try_borrow_mut().ok() {
+            execute_node(behavior_id, tree_id, &mut behavior);
+        }
+        return true;
+    }
+
+    // Try to execute the tree in the system class
+    fn execute_system(system_name: &str, tree_name: &str) -> bool {
+        if system_name.is_empty() == false && tree_name.is_empty() == false {
+            let systems = &mut SYSTEMS.borrow_mut();
+            for (system_id, system) in systems.iter() {
+                if system.name == system_name {
+                    for (id, node) in &system.nodes {
+                        if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name{
+                            for (value_name, value) in &node.values {
+                                if *value_name == "execute".to_string() {
+                                    if let Some(v) = value.to_integer() {
+                                        if v == 0 {
+                                            // "Always execute" only tree
+                                            for c in &system.connections {
+                                                if c.0 == *id {
+                                                    execute_node(*system_id, c.0, systems);
+                                                    return true;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    // Look for tree in character class
+    let mut rc = execute_system(class_name.as_str(), tree_name);
+    if rc {
+        return true;
+    }
+
+    // Look for tree in character race
+    rc = execute_system(race_name.as_str(), tree_name);
+    if rc {
+        return true;
+    }
+
+    false
+}
+
 /// Executes the given item node and follows the connection chain
- pub fn execute_node(behavior_id: Uuid, node_id: Uuid, nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> Option<BehaviorNodeConnector> {
+pub fn execute_node(behavior_id: Uuid, node_id: Uuid, nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> Option<BehaviorNodeConnector> {
 
     let mut connectors : Vec<BehaviorNodeConnector> = vec![];
     let mut connected_node_ids : Vec<Uuid> = vec![];

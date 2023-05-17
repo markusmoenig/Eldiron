@@ -13,6 +13,7 @@ ref_thread_local! {
     pub static managed BEHAVIORS        : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
     pub static managed ITEMS            : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
     pub static managed SPELLS           : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
+    pub static managed SYSTEMS          : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
     pub static managed GAME_BEHAVIOR    : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
 
     pub static managed STATE            : State = State::new();
@@ -71,9 +72,25 @@ impl RegionPool<'_> {
             data.sheets[data.curr_index].clone()
         });
 
+        engine.register_fn("get_target_sheet", || -> Sheet {
+            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            if let Some(target_index) = data.character_instances[data.curr_index].target_instance_index {
+                data.sheets[target_index].clone()
+            } else {
+                Sheet::new()
+            }
+        });
+
         engine.register_fn("set_sheet", |sheet: Sheet| {
             let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
             data.sheets[data.curr_index] = sheet;
+        });
+
+        engine.register_fn("set_target_sheet", |sheet: Sheet| {
+            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            if let Some(target_index) = data.character_instances[data.curr_index].target_instance_index {
+                data.sheets[target_index] = sheet;
+            }
         });
 
         engine.register_fn("inventory_add", |mut sheet: Sheet, item_name: &str| -> Sheet {
@@ -107,6 +124,18 @@ impl RegionPool<'_> {
         engine.register_fn("toggle_state", || {
             let mut state = STATE.borrow_mut();
             state.state = !state.state;
+        });
+
+        engine.register_fn("execute", |tree: &str| {
+            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            data.to_execute.push((data.curr_index, tree.to_string()));
+        });
+
+        engine.register_fn("execute_on_target", |tree: &str| {
+            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            if let Some(target_index) = data.character_instances[data.curr_index].target_instance_index {
+                data.to_execute.push((target_index, tree.to_string()));
+            }
         });
 
         Sheet::register(&mut engine);
@@ -172,6 +201,18 @@ impl RegionPool<'_> {
         {
             let mut static_spells = SPELLS.borrow_mut();
             *static_spells = decoded_spells;
+        }
+
+        // --- Add the systems to the global pool
+        let mut decoded_systems : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
+        for i in &systems {
+            if let Some(behavior_data) = serde_json::from_str::<GameBehaviorData>(&i).ok() {
+                decoded_systems.insert(behavior_data.id, behavior_data);
+            }
+        }
+        {
+            let mut static_systems = SYSTEMS.borrow_mut();
+            *static_systems = decoded_systems;
         }
 
         // --- Add the game behavior

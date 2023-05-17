@@ -477,7 +477,6 @@ impl RegionInstance<'_> {
 
                     // Execute the tree which matches the current action
 
-                    let mut tree_id: Option<Uuid> = None;
                     let action;
                     {
                         let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
@@ -491,12 +490,12 @@ impl RegionInstance<'_> {
                             // A directed action ( Move / Look - North etc)
 
                             if action.action.to_lowercase() == "cast" && action.spell.is_some() {
-                                // Cast spell
 
+                                // Cast spell
                                 let mut to_cast : Option<(Uuid, Uuid)> = None;
                                 if let Some(spell_name) = &action.spell {
                                     let name = spell_name.to_lowercase();
-                                    for (behavior_id, spell) in&self.spells {
+                                    for (behavior_id, spell) in &self.spells {
                                         if spell.name.to_lowercase() == name {
                                             for (node_id, node) in &spell.nodes {
                                                 if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name.to_lowercase() == "cast" {
@@ -512,21 +511,18 @@ impl RegionInstance<'_> {
                                 }
 
                             } else {
-                                for id in &self.instances[inst_index].tree_ids {
-                                    if let Some(behavior) = self.get_behavior(self.instances[inst_index].behavior_id, BehaviorType::Behaviors) {
-                                        if let Some(node) = behavior.nodes.get(&id) {
-                                            if node.name == action.action {
-                                                tree_id = Some(*id);
-                                                break;
-                                            }
-                                        }
-                                    }
+                                if execute_behavior(inst_index, &action.action) == false {
+                                    println!("Cannot find valid tree for directed action {}", action.action);
                                 }
 
-                                if let Some(tree_id) = tree_id {
-                                    execute_node(self.instances[inst_index].behavior_id, tree_id, &mut BEHAVIORS.borrow_mut());
-                                } else {
-                                    println!("Cannot find valid tree for directed action {}", action.action);
+                                let to_execute;
+                                {
+                                    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                                    to_execute = data.to_execute.clone();
+                                    data.to_execute = vec![];
+                                }
+                                for (index, tree_name) in to_execute {
+                                    execute_behavior(index, tree_name.as_str());
                                 }
                             }
                         } else
@@ -2113,10 +2109,10 @@ impl RegionInstance<'_> {
                 let mut sheet = Sheet::new();
                 sheet.name = behavior_name.clone();
                 if let Some(class_name) = class_name.clone() {
-                    sheet.class = class_name;
+                    sheet.class_name = class_name;
                 }
                 if let Some(race_name) = race_name.clone() {
-                    sheet.race = race_name;
+                    sheet.race_name = race_name;
                 }
                 sheet.spells = spells;
                 data.sheets.push(sheet);

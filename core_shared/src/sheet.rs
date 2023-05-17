@@ -7,8 +7,8 @@ use rhai::Engine;
 pub struct Sheet {
 
     pub name                    : String,
-    pub class                   : String,
-    pub race                    : String,
+    pub class_name              : String,
+    pub race_name               : String,
 
     pub abilities               : FxHashMap<String, i32>,
 
@@ -28,8 +28,8 @@ impl Sheet {
     pub fn new() -> Self {
         Self {
             name                : String::new(),
-            class               : String::new(),
-            race                : String::new(),
+            class_name          : String::new(),
+            race_name           : String::new(),
 
             abilities           : FxHashMap::default(),
 
