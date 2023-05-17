@@ -823,8 +823,8 @@ impl Draw2D {
         if let Some(amount) = &mcd.item_amount {
             text += format!(" ({})", amount).as_str();
         }
-        if let Some(price) = &mcd.item_price {
-            text += format!(" : {}G", price).as_str();
+        if let Some(mut price) = &mcd.item_price {
+            text += format!(" : {}", price.to_string()).as_str();
         }
 
         let mut layout = Layout::new(CoordinateSystem::PositiveYDown);

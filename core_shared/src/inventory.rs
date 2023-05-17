@@ -15,7 +15,7 @@ pub struct Item {
     pub amount              : i32,
     pub stackable           : i32,
     pub static_item         : bool,
-    pub price               : f32,
+    pub value               : Currency,
     pub weight              : f32,
     pub weapon_distance     : i32,
 }
@@ -33,7 +33,7 @@ impl Item {
             amount          : 0,
             stackable       : i32::MAX,
             static_item     : false,
-            price           : 0.0,
+            value           : Currency::empty(),
             weight          : 0.0,
             weapon_distance : 1,
         }
@@ -54,10 +54,9 @@ impl Item {
                 }
             }
         }
-        if let Some(price_item) = sink.get("price") {
-            let price = price_item.to_float();
-            if price >= 0.0 {
-                self.price = price;
+        if let Some(v) = sink.get("value") {
+            if let Some(value) = v.to_currency() {
+                self.value = value;
             }
         }
         if let Some(weight_item) = sink.get("weight") {

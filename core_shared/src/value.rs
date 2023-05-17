@@ -51,6 +51,39 @@ impl Value {
         }
     }
 
+    pub fn to_currency(&self ) -> Option<Currency> {
+        match self {
+            Value::String(s) => {
+                use std::str::FromStr;
+
+                let gold_regex = regex::Regex::new(r"(\d+)g").unwrap();
+                let silver_regex = regex::Regex::new(r"(\d+)s").unwrap();
+
+                let gold = gold_regex.find(s)
+                    .map(|mat| i32::from_str(mat.as_str().trim_end_matches('g')).unwrap());
+                let silver = silver_regex.find(s)
+                    .map(|mat| i32::from_str(mat.as_str().trim_end_matches('s')).unwrap());
+
+                if gold.is_some() || silver.is_some() {
+                    let mut g = 0;
+                    let mut s = 0;
+
+                    if let Some(gold) = gold {
+                        g = gold;
+                    }
+                    if let Some(silver) = silver {
+                        s = silver;
+                    }
+
+                    Some(Currency::new(g, s))
+                } else {
+                    None
+                }
+            },
+            _ => None,
+        }
+    }
+
     pub fn to_string_value(&self ) -> String {
         match self {
             Value::Float(value) => format!("{:?}", value),

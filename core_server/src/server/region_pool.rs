@@ -81,6 +81,21 @@ impl RegionPool<'_> {
             sheet
         });
 
+        engine.register_fn("inventory_add_gold", |mut sheet: Sheet, amount: i32| -> Sheet {
+            sheet.wealth.add(Currency::new(amount, 0));
+            sheet
+        });
+
+        engine.register_fn("inventory_add_silver", |mut sheet: Sheet, amount: i32| -> Sheet {
+            sheet.wealth.add(Currency::new(0, amount));
+            sheet
+        });
+
+        engine.register_fn("inventory_add_gold_silver", |mut sheet: Sheet, gold: i32, silver: i32| -> Sheet {
+            sheet.wealth.add(Currency::new(gold, silver));
+            sheet
+        });
+
         engine.register_fn("get_state", || -> bool {
             STATE.borrow().state
         });
@@ -95,6 +110,7 @@ impl RegionPool<'_> {
         });
 
         Sheet::register(&mut engine);
+        Currency::register(&mut engine);
 
         script_register_message_api(&mut engine);
         script_register_inventory_api(&mut engine);

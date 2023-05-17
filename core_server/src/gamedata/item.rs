@@ -21,8 +21,8 @@ pub fn update_item_sink(sink: &mut PropertySink) {
         sink.properties.insert(3,Property::new_bool("static".to_string(), false));
     }
 
-    if sink.contains("price") == false {
-        sink.properties.insert(4,Property::new_float("price".to_string(), 0.0));
+    if sink.contains("value") == false {
+        sink.properties.insert(4,Property::new_string("value".to_string(), "1g 0s".to_string()));
     }
 
     if sink.contains("weight") == false {
@@ -45,7 +45,7 @@ pub fn generate_item_sink_descriptions() -> FxHashMap<String, Vec<String>> {
     map.insert("state".to_string(), vec!["true if the item should have it's own state (variables).".to_string()]);
     map.insert("stackable".to_string(), vec!["Value greater than 1 if item should be stackable. Only for items without state.".to_string()]);
     map.insert("static".to_string(), vec!["True if the item is static, i.e. cannot be picked up (campfire etc.).".to_string()]);
-    map.insert("price".to_string(), vec!["The sales price of the item. 0.0 if the item cannot be sold.".to_string()]);
+    map.insert("value".to_string(), vec!["The value / price of the item in gold and silver.".to_string()]);
     map.insert("weight".to_string(), vec!["The weight of the item.".to_string()]);
     map.insert("slot".to_string(), vec!["If item_type is \"Weapon\" or \"Gear\" the slot it fits in.".to_string()]);
     map.insert("weapon_distance".to_string(), vec!["The maximum distance for a weapon. Default is 1 (Sword etc.).".to_string()]);

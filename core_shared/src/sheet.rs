@@ -51,6 +51,31 @@ impl Sheet {
         self.inventory.clone()
     }
 
+    /// Get the weapons
+    pub fn get_weapons(&mut self) -> Weapons {
+        self.weapons.clone()
+    }
+
+    /// Get the gear
+    pub fn get_gear(&mut self) -> Gear {
+        self.gear.clone()
+    }
+
+    /// Get the spells
+    pub fn get_spells(&mut self) -> Spells {
+        self.spells.clone()
+    }
+
+    /// Get the wealth
+    pub fn get_wealth(&mut self) -> Currency {
+        self.wealth.clone()
+    }
+
+    /// Set the wealth
+    pub fn set_wealth(&mut self, wealth: Currency) {
+        self.wealth = wealth
+    }
+
     /// Get the hit_points
     pub fn get_hit_points(&mut self) -> i32 {
         self.hit_points
@@ -69,16 +94,6 @@ impl Sheet {
     /// Set the maximum amount of hit points
     pub fn set_max_hit_points(&mut self, value: i32) {
         self.max_hit_points = value
-    }
-
-    /// Get the amount of gold
-    pub fn get_wealth(&mut self) -> Currency {
-        self.wealth.clone()
-    }
-
-    /// Get the amount of gold
-    pub fn set_wealth(&mut self, wealth: Currency) {
-        self.wealth = wealth
     }
 
     /// Get the ability of the given name
@@ -104,6 +119,9 @@ impl Sheet {
         engine.register_type_with_name::<Sheet>("Sheet");
 
         engine.register_get("inventory", Sheet::get_inventory);
+        engine.register_get("weapons", Sheet::get_weapons);
+        engine.register_get("gear", Sheet::get_gear);
+        engine.register_get("spells", Sheet::get_spells);
 
         engine.register_get_set("hit_points", Sheet::get_hit_points, Sheet::set_hit_points);
         engine.register_get_set("max_hit_points", Sheet::get_max_hit_points, Sheet::set_max_hit_points);

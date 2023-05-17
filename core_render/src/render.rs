@@ -358,8 +358,8 @@ impl GameRender<'_> {
                         text += format!(" ({})", amount).as_str();
                     }
                 }
-                if let Some(price) = mcd.item_price {
-                    right = Some(format!("{}G", price));
+                if let Some(mut value) = mcd.item_price {
+                    right = Some(value.to_string());
                 }
                 let message = MessageData {
                     message_type        : MessageType::Vendor,
@@ -1210,7 +1210,6 @@ impl GameRender<'_> {
 
         // Check if we have an active multiple choice communication
         if self.multi_choice_data.is_empty() == false {
-
             for mcd in &self.multi_choice_data {
                 if mcd.answer == key.clone() {
                     if let Some(action) = pack_multi_choice_answer_action(player_id, "Answer".to_string(), mcd.id) {

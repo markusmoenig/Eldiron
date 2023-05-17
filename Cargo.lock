@@ -855,6 +855,7 @@ dependencies = [
  "log",
  "png",
  "rand",
+ "regex",
  "rhai 1.14.0",
  "rustc-hash",
  "serde",

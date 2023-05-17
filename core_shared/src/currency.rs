@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 /// Holds the current date and time
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy)]
 pub struct Currency {
     pub gold                    : i32,
     pub silver                  : i32,

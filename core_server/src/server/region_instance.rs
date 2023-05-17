@@ -483,7 +483,7 @@ impl RegionInstance<'_> {
                         let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
                         action = data.character_instances[inst_index].action.clone();
                         // DEBUG INCOMING ACTION
-                        // println!("{:?}", action);
+                        //println!("{:?}", action);
                     }
                     if let Some(action) = &action {
                         if action.direction != PlayerDirection::None {
@@ -585,7 +585,6 @@ impl RegionInstance<'_> {
                             // Multi Choice Answer
 
                             let mut communication_id : Option<(Uuid, Uuid)> = None;
-
                             {
                                 let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
                                 if data.character_instances[inst_index].communication.is_empty() == false {
@@ -599,11 +598,6 @@ impl RegionInstance<'_> {
                             if let Some(behavior_id) = communication_id {
                                 execute_node(behavior_id.0, behavior_id.1, &mut BEHAVIORS.borrow_mut());
                             }
-
-                            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-
-                            data.character_instances[inst_index].communication = vec![];
-                            data.character_instances[inst_index].target_instance_index = None;
                         }
 
                         {

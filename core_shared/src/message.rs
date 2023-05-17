@@ -35,7 +35,7 @@ pub struct MultiChoiceData {
     // For inventory items
     pub item_behavior_id        : Option<Uuid>,
     pub item_amount             : Option<usize>,
-    pub item_price              : Option<f32>,
+    pub item_price              : Option<Currency>,
 }
 
 /// Represents communication between a player and an npc

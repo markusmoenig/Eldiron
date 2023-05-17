@@ -364,6 +364,7 @@ pub fn node_multi_choice(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehav
 
             let npc_index = data.character_instances[data.curr_index].communication[0].npc_index;
             drop_communication(data.curr_index, npc_index, data);
+            data.character_instances[data.curr_index].target_instance_index = Some(npc_index);
 
             BehaviorNodeConnector::Bottom
         }
@@ -414,7 +415,7 @@ pub fn node_multi_choice(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehav
                 npc_behavior_id         : id,
                 player_answer           : None,
                 start_time              : DATE.borrow().clone(),
-                end_time                : DATE.borrow().future_time(5),
+                end_time                : DATE.borrow().future_time(10),
             };
 
             // Each NPC can only talk to one player at the same time
@@ -431,17 +432,16 @@ pub fn node_multi_choice(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehav
 // Sell
 pub fn node_sell(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-    let sheet = &mut data.sheets[data.curr_index];
 
     if data.character_instances[data.curr_index].multi_choice_answer.is_some() {
         if let Some(id) = data.character_instances[data.curr_index].multi_choice_answer {
 
-            //let curr = character_currency(instance_index, data);
             let npc_index = data.character_instances[data.curr_index].communication[0].npc_index;
             let mut traded_item : Option<Item> = None;
 
             // Remove the item
-            if let Some(item) = sheet.inventory.remove_item(id, 1) {
+
+            if let Some(item) = data.sheets[npc_index].inventory.remove_item(id, 1) {
                 traded_item = Some(item);
             }
 
@@ -449,15 +449,20 @@ pub fn node_sell(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>
 
             // Add the item to the player
             if let Some(item) = traded_item {
-                let price = item.price;
-                // TODO if remove_from_character_currency(data.curr_index, item.price, data) {
-                //     sheet.inventory.add_item(item);
-                //     add_to_character_currency(npc_index, price, data);
-                // } else {
-                //     // Not enough money, add item back to NPC
-                //     sheet.inventory.add_item(item);
-                //     rc = BehaviorNodeConnector::Fail;
-                // }
+                let price = item.value;
+
+                let sheet = &mut data.sheets[data.curr_index];
+
+                if sheet.can_afford(price) {
+                    sheet.wealth.remove(price);
+                    sheet.inventory.add_item(item);
+                    let npc_sheet = &mut data.sheets[npc_index];
+                    npc_sheet.wealth.add(price);
+                } else {
+                    // Not enough money add back t the NPC
+                    data.sheets[npc_index].inventory.add_item(item);
+                    rc = BehaviorNodeConnector::Fail;
+                }
             } else {
                 // If the item was no longer available, just quit
                 rc = BehaviorNodeConnector::Bottom;
@@ -488,10 +493,8 @@ pub fn node_sell(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>
             let mut index = 1;
             let mut added_items = vec![];
 
-            for item in &sheet.inventory.items {
-
-                if item.price != 0.0 && added_items.contains(&item.id) == false {
-
+            for item in & data.sheets[npc_index].inventory.items {
+                if item.value.absolute() > 0 && added_items.contains(&item.id) == false {
                     let amount = 1;
 
                     let mcd = MultiChoiceData {
@@ -503,7 +506,7 @@ pub fn node_sell(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>
                         buffer              : None,
 
                         item_behavior_id    : Some(item.id),
-                        item_price          : Some(item.price),
+                        item_price          : Some(item.value),
                         item_amount         : Some(amount),
                     };
 
@@ -540,14 +543,11 @@ pub fn node_sell(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>
                     npc_behavior_id         : id,
                     player_answer           : None,
                     start_time              : DATE.borrow().clone(),
-                    end_time                : DATE.borrow().future_time(5),
+                    end_time                : DATE.borrow().future_time(10),
                 };
 
-                if data.character_instances[npc_index].communication.is_empty() {
+                if data.character_instances[npc_index].communication.is_empty() && data.character_instances[player_index].communication.is_empty() {
                     data.character_instances[npc_index].communication.push(com.clone());
-                }
-
-                if data.character_instances[player_index].communication.is_empty() {
                     data.character_instances[player_index].communication.push(com);
                 }
             }
@@ -606,12 +606,11 @@ pub fn node_call_system(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
 
 /// Behavior Call
 pub fn node_call_behavior(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
-
     let mut behavior_id : Uuid = Uuid::new_v4();
     let mut behavior_tree_id : Option<Uuid> = None;
     if let Some(tree_name) = get_node_string(id, "tree", nodes) {
-        let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-        if let Some(behavior) = nodes.get(&data.character_instances[data.curr_index].behavior_id) {
+        // Get the behavior this node chain is running on
+        if let Some(behavior) = nodes.get(&id.0) {
             behavior_id = behavior.id;
             for (node_id, node) in &behavior.nodes {
                 if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name {
@@ -621,7 +620,6 @@ pub fn node_call_behavior(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeha
             }
         }
     }
-
 
     // println!("behavior instance {:?}", behavior_instance);
     // println!("behavior_tree_id id {:?}", behavior_tree_id);
