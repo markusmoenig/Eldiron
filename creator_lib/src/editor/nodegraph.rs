@@ -180,9 +180,11 @@ impl EditorContent for NodeGraph  {
                             }
                         } else
                         if self.graph_type == BehaviorType::Systems {
-                            // For audio draw an audio icon
-                            if let Some(icon) = context.icons.get(&"skills".to_string()) {
-                                context.draw2d.scale_chunk(&mut preview_buffer[..], &(10, 10, 80, 80), 100, &icon.0[..], &(icon.1 as usize, icon.2 as usize), 0.5);
+                            // Draw the icon tile
+                            if let Some(tile_id) = context.data.get_systems_default_tile(context.data.systems_ids[index]) {
+                                if let Some(map)= asset.tileset.maps.get_mut(&tile_id.tilemap) {
+                                    context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.x_off as usize, tile_id.y_off as usize), 0, 100);
+                                }
                             }
                         } else
                         if self.graph_type == BehaviorType::Regions {
@@ -434,7 +436,7 @@ impl EditorContent for NodeGraph  {
 
                 self.behavior_tree_rects = vec![];
 
-                let left_start = if self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Items || self.graph_type == BehaviorType::GameLogic { 180 } else { 5 };
+                let left_start = if self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Items || self.graph_type == BehaviorType::Systems || self.graph_type == BehaviorType::GameLogic { 180 } else { 5 };
                 let mut total_width = safe_rect.2 - left_start - 5;
                 if let Some(preview) = &mut self.preview {
                     if self.preview_is_visible {
@@ -1434,6 +1436,18 @@ impl EditorContent for NodeGraph  {
                 update_item_sink(&mut sink);
                 item_settings.atom_data.value = context.data.get_behavior_id_value(id, Value::PropertySink(sink), self.graph_type);
                 node_widget.widgets.push(item_settings);
+            } else
+            if self.graph_type == BehaviorType::Systems {
+                node_widget.is_corner_node = true;
+
+                // Icon Tile
+                let mut tile_atom = AtomWidget::new(vec![], AtomWidgetType::NodeIconTileButton,
+                    AtomData::new("tile", Value::Empty()));
+                tile_atom.atom_data.text = "tile".to_string();
+                let id = (behavior_data_id, node_id, "tile".to_string());
+                tile_atom.behavior_id = Some(id.clone());
+                tile_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+                node_widget.widgets.push(tile_atom);
             } else
             if self.graph_type == BehaviorType::GameLogic {
                 node_widget.is_corner_node = true;

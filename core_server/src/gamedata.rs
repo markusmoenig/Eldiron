@@ -199,13 +199,13 @@ impl GameData {
                     if md.is_file() {
                         if let Some(name) = path::Path::new(&path).extension() {
                             if name == "json" || name == "JSON" {
-                                let system = GameBehavior::load_from_path(path, &systems_path);
+                                let mut system = GameBehavior::load_from_path(path, &systems_path);
                                 systems_names.push(system.name.clone());
 
                                 if system.data.nodes.len() == 0 {
-                                    // behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                                    system.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
                                     // behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
-                                    // behavior.save_data();
+                                    system.save_data();
                                 }
                                 systems_ids.push(system.data.id);
                                 systems.insert(system.data.id, system);
@@ -690,6 +690,20 @@ impl GameData {
             }
         }
         0
+    }
+
+    /// Gets the default tile for the given behavior
+    pub fn get_systems_default_tile(&self, id: Uuid) -> Option<TileData> {
+        if let Some(behavior) = self.systems.get(&id) {
+            for (_index, node) in &behavior.data.nodes {
+                if node.behavior_type == BehaviorNodeType::BehaviorType {
+                    if let Some(value) = node.values.get(&"tile".to_string()) {
+                        return value.to_tile_data();
+                    }
+                }
+            }
+        }
+        None
     }
 
     /// Gets the default tile for the given item
