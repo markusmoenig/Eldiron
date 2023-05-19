@@ -54,6 +54,12 @@ impl RegionPool<'_> {
                     let random = util.rng.gen_range(1..=n);
                     return Ok(Some(random.into()));
                 }
+            } else
+            if name.starts_with("r") {
+                let mut util = UTILITY.borrow_mut();
+                if let Some(result) = util.roll(&name[1..name.len()]).ok() {
+                    return Ok(Some(result.into()));
+                }
             }
             Ok(None)
         });
