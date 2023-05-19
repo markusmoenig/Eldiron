@@ -61,6 +61,9 @@ pub struct RegionData {
     /// Node trees which have been marked for execution inside scripts
     pub to_execute                  : Vec<(usize, String)>,
 
+    /// Respawns the given chararacter uuid at the given tick count
+    pub respawn_instance            : FxHashMap<Uuid, (usize, CharacterInstanceData)>,
+
     /// The current character sheet index
     pub curr_index                  : usize,
 
@@ -96,6 +99,11 @@ impl RegionData {
         nodes.insert(BehaviorNodeType::Sell, node_sell);
         nodes.insert(BehaviorNodeType::CallBehavior, node_call_behavior);
         nodes.insert(BehaviorNodeType::CallSystem, node_call_system);
+        nodes.insert(BehaviorNodeType::DropInventory, node_drop_inventory);
+        nodes.insert(BehaviorNodeType::Effect, node_effect);
+        nodes.insert(BehaviorNodeType::Respawn, node_respawn);
+        nodes.insert(BehaviorNodeType::Schedule, node_schedule);
+        nodes.insert(BehaviorNodeType::SetLevelTree, node_set_level_tree);
 
         nodes.insert(BehaviorNodeType::MagicTarget, node_magic_target);
 
@@ -147,6 +155,8 @@ impl RegionData {
             ticks_per_minute                : 4,
 
             to_execute                      : vec![],
+
+            respawn_instance                : FxHashMap::default(),
 
             curr_index                      : 0,
             curr_area_index                 : 0,

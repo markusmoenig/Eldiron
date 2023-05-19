@@ -55,12 +55,6 @@ pub struct GameUpdate {
     /// Scope
     pub scope_buffer            : ScopeBuffer,
 
-    /// Skills
-    pub skills                  : Skills,
-
-    /// Experience
-    pub experience              : Experience,
-
     /// Multiple Choice Data
     pub multi_choice_data       : Vec<MultiChoiceData>,
 
@@ -96,8 +90,6 @@ impl GameUpdate {
             messages            : vec![],
             audio               : vec![],
             scope_buffer        : ScopeBuffer::new(),
-            skills              : Skills::new(),
-            experience          : Experience::new(),
             multi_choice_data   : vec![],
             communication       : vec![],
             date                : Date::new(),

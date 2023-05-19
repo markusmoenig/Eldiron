@@ -412,9 +412,7 @@ impl GameRender<'_> {
 
         INFOCMD.lock().unwrap().player = player_map;
 
-        // Set the inventory / spells / weapons / gear / experience / skills / date
-        INFOCMD.lock().unwrap().skills = update.skills.clone();
-        INFOCMD.lock().unwrap().experience = update.experience.clone();
+        // Set the date
         INFOCMD.lock().unwrap().date = update.date.clone();
 
         None

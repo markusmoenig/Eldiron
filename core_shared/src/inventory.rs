@@ -101,27 +101,13 @@ impl Item {
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Inventory {
     pub items               : Vec<Item>,
-    pub items_to_add        : Vec<(String, u32)>,
-    pub items_to_equip      : Vec<String>
 }
 
 impl Inventory {
     pub fn new() -> Self {
         Self {
             items           : vec![],
-            items_to_add    : vec![],
-            items_to_equip  : vec![],
         }
-    }
-
-    /// Queues an item name to be added to the inventory.
-    pub fn add(&mut self, name: &str, amount: i32) {
-        self.items_to_add.push((name.to_string(), amount as u32));
-    }
-
-    /// Queues an item name to be equipped.
-    pub fn equip(&mut self, name: &str) {
-        self.items_to_equip.push(name.to_string());
     }
 
     /// Add an item to the inventory.
@@ -229,8 +215,6 @@ pub fn script_register_inventory_api(engine: &mut rhai::Engine) {
         .register_fn("len", Inventory::len)
         .register_fn("item_name_at", Inventory::item_name_at)
         .register_fn("item_amount_at", Inventory::item_amount_at)
-        .register_fn("add", Inventory::add)
-        .register_fn("equip", Inventory::equip)
         .register_iterator::<Inventory>();
 
 }

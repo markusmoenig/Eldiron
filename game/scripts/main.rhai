@@ -150,7 +150,7 @@ fn draw() {
 
   let player = get_player();
   draw_text_rect(rect(671, 26, 326, 20), "" + player.name, this.font_name, 19.0, rgb(150, 150, 150), "left");
-  draw_text_rect(rect(671, 26, 326, 20), "" + player.gold + "G", this.font_name, 19.0, rgb(150, 150, 150), "right");
+  draw_text_rect(rect(671, 26, 326, 20), get_wealth().to_string(), this.font_name, 19.0, rgb(150, 150, 150), "right");
   draw_text_rect(rect(671, 50, 326, 20), "HP: " + player.HP + "  STR:" + player.STR, this.font_name, 19.0, rgb(150, 150, 150), "left");
   draw_text_rect(rect(671, 50, 326, 20), "LVL: " + get_experience().level, this.font_name, 19.0, rgb(150, 150, 150), "right");
 

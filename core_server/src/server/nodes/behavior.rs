@@ -561,45 +561,37 @@ pub fn node_sell(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>
 pub fn node_call_system(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
     let mut systems_id : Option<Uuid> = None;
-    let mut systems_tree_id : Option<Uuid> = None;
 
     if let Some(system_name) = get_node_string(id, "system", nodes) {
-        let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-        // TODO for (index, name) in data.system_names.iter().enumerate() {
-        //     if *name == system_name {
-        //         systems_id = Some(data.system_ids[index]);
-        //         break
-        //     }
-        // }
+        for (id, data) in SYSTEMS.borrow().iter() {
+            if data.name == system_name {
+                systems_id = Some(*id);
+                break
+            }
+        }
     }
 
-    // if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
-    //     if let Some(systems_id) = systems_id {
-    //         if let Some(system) = data.systems.get(&systems_id) {
-    //             for (node_id, node) in &system.nodes {
-    //                 if let Some(str) = value.to_string() {
-    //                     if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == str {
-    //                         systems_tree_id = Some(*node_id);
-    //                             //data.instances[instance_index].node_values.insert((behavior_type, id.1), (systems_id as f64, *node_id as f64, 0.0, 0.0, "".to_string()));
-    //                         break;
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
+    let mut behavior_tree_id : Option<Uuid> = None;
+    if let Some(systems_id) = systems_id {
+        if let Some(tree_name) = get_node_string(id, "tree", nodes) {
+            // Get the behavior this node chain is running on
+            if let Some(behavior) = SYSTEMS.borrow().get(&systems_id) {
+                for (node_id, node) in &behavior.nodes {
+                    if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name {
+                        behavior_tree_id = Some(*node_id);
+                        break;
+                    }
+                }
+            }
+        }
+    }
 
-
-    //println!("systems id {:?}", systems_id);
-    //println!("systems_tree_id id {:?}", systems_tree_id);
-
-    // if let Some(systems_id) = systems_id {
-    //     if let Some(systems_tree_id) = systems_tree_id {
-    //         data.instances[instance_index].systems_id = systems_id;
-    //         data.execute_systems_node(instance_index, systems_tree_id);
-    //         return BehaviorNodeConnector::Success;
-    //     }
-    // }
+    if let Some(systems_id) = systems_id {
+        if let Some(behavior_tree_id) = behavior_tree_id {
+            execute_node(systems_id, behavior_tree_id, &mut SYSTEMS.borrow_mut());
+            return BehaviorNodeConnector::Success;
+        }
+    }
 
     BehaviorNodeConnector::Fail
 }
@@ -1208,65 +1200,58 @@ pub fn magic_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIn
 }
 
 /// Drop Inventory :(
-pub fn drop_inventory(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_drop_inventory(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let mut drop_type = 0;
 
-    if let Some(value) = get_node_value((id.0, id.1, "drop"), data, behavior_type) {
-        if let Some(d_type) = value.to_integer() {
-            drop_type = d_type;
-        }
+    if let Some(value) = get_node_integer(id, "drop", nodes) {
+        drop_type = value;
     }
 
-    if let Some(mess) = data.scopes[instance_index].get_mut("inventory") {
-        if let Some(mut inv) = mess.write_lock::<Inventory>() {
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+    let sheet = &mut data.sheets[data.curr_index];
 
-            let total = inv.items.len();
+    let total = sheet.inventory.items.len();
 
-            let mut drop = |index: usize| {
-                if index < inv.items.len() {
-                    let mut item = inv.items[index].clone();
-                    inv.items.remove(index);
+    let mut drop = |index: usize| {
+        if index < sheet.inventory.items.len() {
+            let mut item = sheet.inventory.items[index].clone();
+            sheet.inventory.items.remove(index);
 
-                    if let Some(p) = &data.instances[instance_index].position {
-
-                        if let Some(mut light) = item.light.clone() {
-                            light.position = (p.x, p.y);
-                            item.light = Some(light);
-                        }
-
-                        let loot = item.clone();
-
-                        if let Some(existing_loot) = data.loot.get_mut(&(p.x, p.y)) {
-                            existing_loot.push(loot);
-                        } else {
-                            data.loot.insert((p.x, p.y), vec![loot]);
-                        }
-                    }
+            if let Some(p) = &data.character_instances[data.curr_index].position {
+                if let Some(mut light) = item.light.clone() {
+                    light.position = (p.x, p.y);
+                    item.light = Some(light);
                 }
-            };
 
-            if drop_type == 0 {
-                // Drop items
-                for _ in 0..total {
-                    drop(0);
+                if let Some(existing_loot) = data.loot.get_mut(&(p.x, p.y)) {
+                    existing_loot.push(item);
+                } else {
+                    data.loot.insert((p.x, p.y), vec![item]);
                 }
-            } else {
-                let mut rng = thread_rng();
-                let random = rng.gen_range(0..total);
-                drop(random);
             }
+        }
+    };
 
+    if drop_type == 0 {
+        // Drop items
+        for _ in 0..total {
             drop(0);
         }
+    } else {
+        let mut rng = thread_rng();
+        let random = rng.gen_range(0..total);
+        drop(random);
     }
 
     // Drop gold
-    if let Some(gold) = character_currency(instance_index, data) {
 
-        for (id, behavior) in &data.items {
-            if behavior.name.to_lowercase() == data.primary_currency {
+    if sheet.wealth.gold > 0 {
+        for (id, behavior) in ITEMS.borrow().iter() {
+            if behavior.name.to_lowercase() == "gold" {
                 let mut loot = Item::new(*id, behavior.name.clone());
-                loot.amount = gold;
+                loot.amount = sheet.wealth.gold;
+
+                sheet.wealth.gold = 0;
 
                 for (_index, node) in &behavior.nodes {
                     if node.behavior_type == BehaviorNodeType::BehaviorType {
@@ -1276,7 +1261,7 @@ pub fn drop_inventory(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
                     }
                 }
 
-                if let Some(p) = &data.instances[instance_index].position {
+                if let Some(p) = &data.character_instances[data.curr_index].position {
                     if let Some(existing_loot) = data.loot.get_mut(&(p.x, p.y)) {
                         existing_loot.push(loot);
                     } else {
@@ -1291,31 +1276,29 @@ pub fn drop_inventory(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
 }
 
 /// Teleport
-pub fn teleport(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_teleport(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
-    let value = get_node_value((id.0, id.1, "position"), data, behavior_type);
-
-    if let Some(value) = value {
+    if let Some(value) = get_node_value2(id, "position", nodes) {
         match &value {
             Value::Position(position) => {
-                data.instances[instance_index].position = Some(position.clone());
+                data.character_instances[data.curr_index].position = Some(position.clone());
             }
             _ => {},
         }
-        data.instances[instance_index].old_position = None;
-        data.instances[instance_index].max_transition_time = 0;
-        data.instances[instance_index].curr_transition_time = 0;
+        data.character_instances[data.curr_index].old_position = None;
+        data.character_instances[data.curr_index].max_transition_time = 0;
+        data.character_instances[data.curr_index].curr_transition_time = 0;
     }
     BehaviorNodeConnector::Bottom
 }
 
 /// Play effect for the character
-pub fn effect(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-    let value = get_node_value((id.0, id.1, "effect"), data, behavior_type);
-
-    if let Some(value) = value {
+pub fn node_effect(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+    if let Some(value) = get_node_value2(id, "effect", nodes) {
         if let Some(tile) = value.to_tile_id() {
-            data.instances[instance_index].effects.push(tile);
+            data.character_instances[data.curr_index].effects.push(tile);
         }
     }
     BehaviorNodeConnector::Bottom
@@ -1447,16 +1430,18 @@ pub fn take_heal(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
     rc
 }
 
-pub fn respawn(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_respawn(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
-    let mut ticks : f32 = 0.0;
-    if let Some(rc) = eval_number_expression_instance(instance_index, (behavior_type, id.0, id.1, "minutes".to_string()), data) {
+    let mut ticks : i32 = 0;
+    if let Some(rc) = eval_script_integer(id, "minutes", nodes) {
         ticks = rc;
     }
 
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
     let mut respawn_tick = *TICK_COUNT.borrow_mut() as usize;
     respawn_tick = respawn_tick.wrapping_add(ticks as usize * data.ticks_per_minute);
-    if let Some(d) = &data.instances[instance_index].instance_creation_data {
+    if let Some(d) = &data.character_instances[data.curr_index].instance_creation_data {
         data.respawn_instance.insert(id.0, (respawn_tick, d.clone()));
     }
 
@@ -1464,26 +1449,19 @@ pub fn respawn(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstanc
 }
 
 /// Set Level Tree
-pub fn set_level_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_set_level_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
     let mut system_name : Option<String> = None;
     let mut tree_name : Option<String> = None;
 
     // Get the system name
-    if let Some(value) = get_node_value((id.0, id.1, "system"), data, behavior_type) {
-
+    if let Some(value) = get_node_value2(id, "system", nodes) {
         if let Some(sys_name) = value.to_string() {
-
-            // Check if this is a variable inside the scope
-            if let Some(var) = data.scopes[instance_index].get_value::<String>(sys_name.as_str()) {
-                system_name = Some(var.to_string());
-            } else {
-                system_name = Some(sys_name);
-            }
+            system_name = Some(sys_name);
         }
     }
 
-    if let Some(value) = get_node_value((id.0, id.1, "tree"), data, behavior_type) {
+    if let Some(value) = get_node_value2(id, "tree", nodes) {
         if let Some(str) = value.to_string() {
             tree_name = Some(str);
         }
@@ -1495,9 +1473,7 @@ pub fn set_level_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
 
     if let Some(system_name) = system_name {
         if let Some(tree_name) = tree_name {
-
-
-            for (_id, behavior) in &data.systems {
+            for (_id, behavior) in SYSTEMS.borrow().iter() {
                 if behavior.name == system_name {
                     for (_id, node) in &behavior.nodes {
                         if node.name == tree_name {
@@ -1574,15 +1550,13 @@ pub fn set_level_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
                 }
             }
 
-            if let Some(e) = data.scopes[instance_index].get_mut("experience") {
-                if let Some(mut exp) = e.write_lock::<Experience>() {
-                    exp.system_name = Some(system_name);
-                    exp.tree_name = Some(tree_name);
-                    exp.levels = levels;
-                    exp.experience_msg = experience_msg;
-                    exp.level_tree_id = level_tree_id;
-                }
-            }
+            let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            let mut sheet = &mut data.sheets[data.curr_index];
+            sheet.experience.system_name = Some(system_name);
+            sheet.experience.tree_name = Some(tree_name);
+            sheet.experience.levels = levels;
+            sheet.experience.experience_msg = experience_msg;
+            sheet.experience.level_tree_id = level_tree_id;
         }
     }
 
@@ -1590,12 +1564,11 @@ pub fn set_level_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut Region
 }
 
 /// Schedule
-pub fn schedule(_instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
-
+pub fn node_schedule(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let date = DATE.borrow().clone();
     // Get the system name
-    if let Some(from) = get_node_value((id.0, id.1, "from"), data, behavior_type) {
-        if let Some(to) = get_node_value((id.0, id.1, "to"), data, behavior_type) {
+    if let Some(from) = get_node_value2(id, "from", nodes) {
+        if let Some(to) = get_node_value2(id, "to", nodes) {
             if let Some(f) = from.to_date() {
                 if let Some(t) = to.to_date() {
                     if date >= f && date <= t {

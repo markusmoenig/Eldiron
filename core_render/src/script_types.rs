@@ -351,9 +351,6 @@ pub struct ScriptInfo {
     pub tilemaps            : ScriptTilemaps,
     pub region              : rhai::Map,
     pub display_mode_3d     : bool,
-    pub spells              : Spells,
-    pub skills              : Skills,
-    pub experience          : Experience,
     pub date                : Date,
 }
 
@@ -367,9 +364,6 @@ impl ScriptInfo {
             tilemaps        : ScriptTilemaps::new(),
             region          : rhai::Map::new(),
             display_mode_3d : false,
-            spells          : Spells::new(),
-            skills          : Skills::new(),
-            experience      : Experience::new(),
             date            : Date::new(),
         }
     }
@@ -537,11 +531,11 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
     });
 
     engine.register_fn("get_skills", || -> Skills {
-        INFOCMD.lock().unwrap().skills.clone()
+        SHEET.lock().unwrap().skills.clone()
     });
 
     engine.register_fn("get_experience", || -> Experience {
-        INFOCMD.lock().unwrap().experience.clone()
+        SHEET.lock().unwrap().experience.clone()
     });
 
     engine.register_fn("get_date", || -> Date {

@@ -98,6 +98,11 @@ impl RegionPool<'_> {
             sheet
         });
 
+        engine.register_fn("inventory_equip", |mut sheet: Sheet, item_name: &str| -> Sheet {
+            inventory_equip(&mut sheet, item_name);
+            sheet
+        });
+
         engine.register_fn("inventory_add_gold", |mut sheet: Sheet, amount: i32| -> Sheet {
             sheet.wealth.add(Currency::new(amount, 0));
             sheet
@@ -136,6 +141,19 @@ impl RegionPool<'_> {
             if let Some(target_index) = data.character_instances[data.curr_index].target_instance_index {
                 data.to_execute.push((target_index, tree.to_string()));
             }
+        });
+
+        engine.register_fn("send_status_message", |message: &str| {
+            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            let name = data.character_instances[data.curr_index].name.clone();
+            data.character_instances[data.curr_index].messages.push( MessageData {
+                    message_type        : MessageType::Status,
+                    message             : message.to_string(),
+                    from                : name,
+                    right               : None,
+                    center              : None,
+                    buffer              : None,
+            });
         });
 
         Sheet::register(&mut engine);

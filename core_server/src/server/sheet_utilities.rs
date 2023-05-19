@@ -3,6 +3,7 @@ use ref_thread_local::{RefThreadLocal};
 
 use crate::prelude::*;
 
+/// Add the item identified by its name to the inventory.
 pub fn inventory_add(sheet: &mut Sheet, item_name: &str, amount: i32, item_nodes: &mut FxHashMap<Uuid, GameBehaviorData>) {
     for (_id, behavior) in item_nodes.iter() {
         if behavior.name == item_name {
@@ -63,30 +64,60 @@ pub fn inventory_add(sheet: &mut Sheet, item_name: &str, amount: i32, item_nodes
             sheet.inventory.add_item(item);
 
             for (behavior_id, node_id) in states_to_execute {
-                // let curr_scope = self.scopes[inst_index].clone();
-                // self.scopes[inst_index] = Scope::new();
-
                 execute_node(behavior_id, node_id, item_nodes);
-                // let scope = self.scopes[inst_index].clone();
-                // self.scopes[inst_index] = curr_scope;
-                // let mut buffer = ScopeBuffer::new();
-                // buffer.read_from_scope(&scope);
-                // item.state = Some(buffer);
             }
-            /*
-            if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
-                if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                    // Test if the item is queued to be equipped
-                    if let Some(queued_index) = to_equip_queued.iter().position(|name| *name == item.name) {
-                        to_equip_queued.remove(queued_index);
-                        to_equip.push(item);
-                    } else {
-                        inv.add_item(item);
-                    }
-                }
-            }*/
 
             break;
+        }
+    }
+}
+
+/// Equip an item in the inventory identified by its name
+pub fn inventory_equip(sheet: &mut Sheet, item_name: &str) {
+    // Get the inventory index of the item to equip
+    let mut index: Option<usize> = None;
+    for (i, item) in sheet.inventory.items.iter().enumerate() {
+        if item.name == item_name {
+            index = Some(i);
+            break;
+        }
+    }
+
+    let mut to_equip: Option<Item> = None;
+    let mut to_add_back_to_inventory: Vec<Item> = vec![];
+
+    // Remove the item to equip from the inventory
+
+    if let Some(index) = index {
+        to_equip = Some(sheet.inventory.items.remove(index));
+    }
+
+    if let Some(to_equip) = to_equip {
+        let item_type = to_equip.item_type.clone().to_lowercase();
+        if let Some(slot) = to_equip.slot.clone() {
+            if item_type == "weapon" {
+                // Remove existing item in the slot
+                if let Some(w) = sheet.weapons.slots.remove(&slot) {
+                    to_add_back_to_inventory.push(w);
+                }
+                // Insert the new weapon into the slot
+                sheet.weapons.slots.insert(slot, to_equip);
+            } else
+            if item_type == "gear" {
+                // Remove existing item in the slot
+                if let Some(g) = sheet.gear.slots.remove(&slot) {
+                    to_add_back_to_inventory.push(g);
+                }
+                // Insert the new weapon into the slot
+                sheet.gear.slots.insert(slot, to_equip);
+            }
+        }
+    }
+
+    // Add removed items in the equipped slot(s) back into the inventory
+    if to_add_back_to_inventory.is_empty() == false {
+        for item in to_add_back_to_inventory {
+            sheet.inventory.items.push(item);
         }
     }
 }
@@ -152,8 +183,8 @@ pub fn execute_behavior(inst_index: usize, tree_name: &str) -> bool {
 
         if let Some(behaviors) = BEHAVIORS.try_borrow().ok() {
             if let Some(behavior) = behaviors.get(&behavior_id) {
-                for id in &data.character_instances[inst_index].tree_ids {
-                    if let Some(node) = behavior.nodes.get(&id) {
+                for (id, node) in &behavior.nodes {
+                    if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name {
                         if node.name == tree_name {
                             tree_id = Some(*id);
                             break;

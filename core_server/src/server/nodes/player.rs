@@ -146,7 +146,7 @@ pub fn node_player_take(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBeha
 
                         let sheet = &mut data.sheets[data.curr_index];
                         if element.name.to_lowercase() == "gold" {
-                            //TODO add_to_character_currency(element.amount as f32, data);
+                            sheet.wealth.add(Currency::new(element.amount, 0));
                             data.action_subject_text = element.name;
                         } else
                         if element.name.is_empty() == false {

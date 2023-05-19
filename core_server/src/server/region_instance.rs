@@ -193,14 +193,14 @@ impl RegionInstance<'_> {
         nodes.insert(BehaviorNodeType::MagicDamage, magic_damage);
         nodes.insert(BehaviorNodeType::DealDamage, deal_damage);
         nodes.insert(BehaviorNodeType::TakeDamage, take_damage);
-        nodes.insert(BehaviorNodeType::DropInventory, drop_inventory);
-        nodes.insert(BehaviorNodeType::Effect, effect);
+        //nodes.insert(BehaviorNodeType::DropInventory, drop_inventory);
+        // nodes.insert(BehaviorNodeType::Effect, effect);
         //nodes.insert(BehaviorNodeType::Audio, audio);
         nodes.insert(BehaviorNodeType::Heal, heal);
         nodes.insert(BehaviorNodeType::TakeHeal, take_heal);
-        nodes.insert(BehaviorNodeType::Respawn, respawn);
-        nodes.insert(BehaviorNodeType::SetLevelTree, set_level_tree);
-        nodes.insert(BehaviorNodeType::Schedule, schedule);
+        //nodes.insert(BehaviorNodeType::Respawn, respawn);
+        // nodes.insert(BehaviorNodeType::SetLevelTree, set_level_tree);
+        // nodes.insert(BehaviorNodeType::Schedule, schedule);
         //nodes.insert(BehaviorNodeType::HasState, has_state);
 
         nodes.insert(BehaviorNodeType::OverlayTiles, overlay_tiles);
@@ -223,7 +223,7 @@ impl RegionInstance<'_> {
         // nodes.insert(BehaviorNodeType::LockTree, lock_tree);
         // nodes.insert(BehaviorNodeType::UnlockTree, unlock_tree);
         // nodes.insert(BehaviorNodeType::SetState, set_state);
-        nodes.insert(BehaviorNodeType::Teleport, teleport);
+        // nodes.insert(BehaviorNodeType::Teleport, teleport);
 
         //nodes.insert(BehaviorNodeType::Always, always);
         //nodes.insert(BehaviorNodeType::InsideArea, inside_area);
@@ -325,6 +325,8 @@ impl RegionInstance<'_> {
         let mut messages = vec![];
 
         let character_instances_len;
+        let mut to_respawn : Vec<(Uuid, CharacterInstanceData)> = vec![];
+
         {
             let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
             data.characters.clear();
@@ -333,19 +335,21 @@ impl RegionInstance<'_> {
             data.lights.clear();
 
             character_instances_len = data.character_instances.len();
-        }
 
-        let tick_time = self.get_time();
-
-        // Check if we need to respawn something
-
-        if self.respawn_instance.is_empty() == false {
-            for (id, (tick, data)) in &self.respawn_instance.clone() {
-                if *tick <= *TICK_COUNT.borrow() as usize {
-                    self.create_behavior_instance(*id, false, Some(data.clone()));
-                    self.respawn_instance.remove(id);
+            // Check if we need to respawn something
+            if data.respawn_instance.is_empty() == false {
+                for (id, (tick, char_data)) in &data.respawn_instance.clone() {
+                    if *tick <= *TICK_COUNT.borrow() as usize {
+                        data.respawn_instance.remove(id);
+                        to_respawn.push((*id, char_data.clone()));
+                    }
                 }
             }
+        }
+
+        // Respawn what we must
+        for (id, data) in to_respawn {
+            self.create_behavior_instance(id, false, Some(data));
         }
 
         // Execute behaviors
@@ -515,14 +519,24 @@ impl RegionInstance<'_> {
                                     println!("Cannot find valid tree for directed action {}", action.action);
                                 }
 
+                                let old_index;
                                 let to_execute;
                                 {
                                     let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
                                     to_execute = data.to_execute.clone();
+                                    old_index = data.curr_index;
                                     data.to_execute = vec![];
                                 }
                                 for (index, tree_name) in to_execute {
+                                    {
+                                        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                                        data.curr_index = index;
+                                    }
                                     execute_behavior(index, tree_name.as_str());
+                                    {
+                                        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                                        data.curr_index = old_index;
+                                    }
                                 }
                             }
                         } else
@@ -607,6 +621,7 @@ impl RegionInstance<'_> {
             }
 
             // Extract the script messages for this instance
+            /*
             if let Some(mess) = self.scopes[inst_index].get_mut("message") {
                 if let Some(mut message) = mess.write_lock::<ScriptMessageCmd>() {
                     if message.messages.is_empty() == false {
@@ -648,10 +663,10 @@ impl RegionInstance<'_> {
                     }
                     message.clear();
                 }
-            }
+            }*/
 
             // Inventory Actions
-
+            /*
             let mut to_add = vec![];
             let mut to_equip = vec![];
             let mut to_equip_queued = vec![];
@@ -762,7 +777,7 @@ impl RegionInstance<'_> {
             }
 
             // Add new items
-            for (mut item, states_to_execute) in to_add {
+            for (item, states_to_execute) in to_add {
                 for (item_id, node_id) in states_to_execute {
                     let curr_scope = self.scopes[inst_index].clone();
                     self.scopes[inst_index] = Scope::new();
@@ -827,7 +842,7 @@ impl RegionInstance<'_> {
                         }
                     }
                 }
-            }
+            }*/
 
             // If we are debugging this instance, send the debug data
             if Some(self.instances[inst_index].behavior_id) == self.debug_behavior_id {
@@ -913,23 +928,6 @@ impl RegionInstance<'_> {
         // Parse the player characters and generate updates
 
         for inst_index in 0..character_instances_len {
-
-            let mut skills = Skills::new();
-            let mut experience = Experience::new();
-
-            // Clone the skills for sending it to the client
-            if let Some(s) = self.scopes[inst_index].get("skills") {
-                if let Some(sk) = s.read_lock::<Skills>() {
-                    skills = sk.clone();
-                }
-            }
-
-            // Clone the experience for sending it to the client
-            if let Some(s) = self.scopes[inst_index].get("experience") {
-                if let Some(exp) = s.read_lock::<Experience>() {
-                    experience = exp.clone();
-                }
-            }
 
             // Purge invalid target indices
             if let Some(target_index) = self.instances[inst_index].target_instance_index {
@@ -1054,8 +1052,6 @@ impl RegionInstance<'_> {
                     messages                : data.character_instances[inst_index].messages.clone(),
                     audio                   : data.character_instances[inst_index].audio.clone(),
                     scope_buffer            : scope_buffer,
-                    skills                  : skills.clone(),
-                    experience              : experience.clone(),
                     multi_choice_data       : data.character_instances[inst_index].multi_choice_data.clone(),
                     communication           : data.character_instances[inst_index].communication.clone(),
                     date                    : DATE.borrow().clone()
@@ -1993,14 +1989,11 @@ impl RegionInstance<'_> {
             // println!("{:?}", self.skill_trees);
 
             // Set the default values into the scope
-            let mut scope = default_scope.clone();
-            scope.set_value("name", behavior_name.clone());
-            scope.set_value("alignment", inst.alignment as i32);
-            scope.set_value("message", ScriptMessageCmd::new());
-            scope.set_value("skills", skills);
-            scope.set_value("experience", Experience::new());
-            scope.set_value("date", DATE.borrow().clone());
-            scope.set_value("failure", FailureEnum::No);
+            let scope = default_scope.clone();
+            // scope.set_value("name", behavior_name.clone());
+            // scope.set_value("alignment", inst.alignment as i32);
+            // scope.set_value("date", DATE.borrow().clone());
+            // scope.set_value("failure", FailureEnum::No);
 
             let mut system_startup_trees : Vec<String> = vec![];
 
@@ -2017,7 +2010,7 @@ impl RegionInstance<'_> {
                 }
             }
 
-            let mut startup_system_trees        : Vec<(Uuid, Uuid)> = vec![];
+            let mut startup_system_trees : Vec<(Uuid, Uuid)> = vec![];
 
             // Execute the startup trees in the given systems for execution (for class and race)
             for system_name in system_startup_trees {
@@ -2115,11 +2108,11 @@ impl RegionInstance<'_> {
                     sheet.race_name = race_name;
                 }
                 sheet.spells = spells;
+                sheet.skills = skills;
                 data.sheets.push(sheet);
                 data.character_instances.push(instance);
                 data.curr_index = index;
             }
-
 
             self.scopes.push(scope);
 
