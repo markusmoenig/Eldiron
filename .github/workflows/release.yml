@@ -88,3 +88,47 @@ jobs:
         with:
           files: Eldiron.deb
 
+  windows_release:
+    runs-on: windows-latest
+    needs: windows_build
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: Windows
+
+      - name: Move Artifacts
+        run: |
+          mkdir output
+          mv creator_main.exe eldiron.exe
+          cp -r assets output
+          cp -r game output
+          cp -r resources output
+
+      - name: Install WiX
+        run: nuget install WiX -Version 3.11.2
+
+      - name: Create MSI Installer
+        run: |
+          ./WiX.*/tools/heat.exe dir "output" -dr EldironProgramFiles -ag -cg DynamicFragment \
+            -ke -srd -sfrag -nologo -pog:Binaries -pog:Documents -pog: Satellites \
+            -pog:Sources -pog:Content -out "./resources.wxs"
+          ./WiX.*/tools/candle.exe -arch "x64" -ext WixUIExtension -ext WixUtilExtension \
+            -out "./eldiron.wixobj" "./build/windows/wix/eldiron.wxs"
+          ./WiX.*/tools/candle.exe -arch "x64" -ext WixUIExtension -ext WixUtilExtension \
+            -out "./resources.wixobj" "./resources.wxs"
+          ./WiX.*/tools/light.exe -ext WixUIExtension -ext WixUtilExtension \
+            -out "./Eldiron.msi" -sice:ICE61 -sice:ICE91 "./eldiron.wixobj" "./resources.wixobj"
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: Eldiron.msi
