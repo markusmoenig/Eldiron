@@ -17,6 +17,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Prepare
+        if: runner.os == "Linux"
+        run: |
+          sudo apt-get update
+          sudo apt-get install libasound2-dev
+          pkg-config --libs --cflags alsa
+          sudo apt-get install libgtk-3-dev
+
       - name: Build
         run: |
           cd creator_main
