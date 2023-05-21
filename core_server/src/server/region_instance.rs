@@ -79,8 +79,6 @@ pub struct RegionInstance<'a> {
     pub gear_slots                  : Vec<String>,
     pub weapon_slots                : Vec<String>,
 
-    pub skill_trees                 : FxHashMap<String, Vec<(i32, String, String)>>,
-
     pub ticks_per_minute            : usize,
 
     // Variable names
@@ -146,8 +144,6 @@ impl RegionInstance<'_> {
             gear_slots                      : vec![],
 
             ticks_per_minute                : 4,
-
-            skill_trees                     : FxHashMap::default(),
 
             // Variable names
             primary_currency                : "".to_string(),
@@ -1827,7 +1823,8 @@ impl RegionInstance<'_> {
                                 }
                             }
 
-                            self.skill_trees.insert(node.name.clone(), rc);
+                            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                            data.skill_trees.insert(node.name.clone(), rc);
                         }
                     }
                 }

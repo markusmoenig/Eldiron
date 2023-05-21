@@ -701,6 +701,7 @@ pub fn wait_for(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionData) 
     rc
 }
 
+/*
 /// Increases the weapon skill value in the given slot
 pub fn increase_weapon_skill_value(instance_index: usize, slot: String, data: &mut RegionInstance) {
     if let Some(v) = data.scopes[instance_index].get("weapons") {
@@ -757,7 +758,7 @@ pub fn increase_weapon_skill_value(instance_index: usize, slot: String, data: &m
             }
         }
     }
-}
+}*/
 
 /// Returns the property script for the currently equipped weapon
 pub fn get_weapon_script_id(instance_index: usize, slot: String, data: &mut RegionInstance) -> Option<(BehaviorType, Uuid, Uuid, String)> {

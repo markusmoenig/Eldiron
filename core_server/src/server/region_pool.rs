@@ -124,10 +124,6 @@ impl RegionPool<'_> {
             sheet
         });
 
-        engine.register_fn("weapon_damage", |mut sheet: Sheet| -> i32 {
-            weapon_damage(&mut sheet)
-        });
-
         engine.register_fn("get_state", || -> bool {
             STATE.borrow().state
         });
@@ -164,6 +160,25 @@ impl RegionPool<'_> {
                     center              : None,
                     buffer              : None,
             });
+        });
+
+        // Roll the damage for the main weapon
+        engine.register_fn("roll_weapon_damage", |mut sheet: Sheet| -> i32 {
+            roll_weapon_damage(&mut sheet)
+        });
+
+        // Get the skill name for the given item name
+        engine.register_fn("get_item_skill", |item_name: String| -> String {
+            if let Some(name) = get_item_skill_name(item_name) {
+                name
+            } else {
+                "".to_string()
+            }
+        });
+
+        // Increases the given skill by the given amount
+        engine.register_fn("increase_skill_by", |skill_name: String, amount: i32| {
+            increase_skill_by(skill_name, amount);
         });
 
         Sheet::register(&mut engine);

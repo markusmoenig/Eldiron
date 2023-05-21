@@ -4,7 +4,7 @@ use ref_thread_local::{RefThreadLocal};
 use crate::prelude::*;
 
 /// Returns the damage of the main hand
-pub fn weapon_damage(sheet: &mut Sheet) -> i32 {
+pub fn roll_weapon_damage(sheet: &mut Sheet) -> i32 {
     let weapon = sheet.weapons.slot(&"main hand");
     let mut skill_name = "Unarmed".to_string();
 
@@ -107,6 +107,49 @@ pub fn get_item_skill_level_value_delay(item_name: String, level: i32) -> Option
     }
 
     rc
+}
+
+/// Increases the given skill by the given amount
+pub fn increase_skill_by(skill_name: String, amount: i32) {
+
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+    let sheet = &mut data.sheets[data.curr_index];
+
+    if let Some(skill) = sheet.skills.skills.get_mut(&skill_name) {
+        skill.value += amount;
+        // println!("[{}] Increased skill value {} to {}", data.instances[instance_index].name, skill_name, skill.value);
+
+        // Test if we need to increase the skill level
+
+        if let Some(tree) = data.skill_trees.get(&skill_name) {
+            let mut new_level = 0;
+            for lvl in 0..tree.len() {
+                if skill.value >= tree[lvl].0 {
+                    new_level = lvl as i32;
+
+                    if new_level > skill.level {
+                        // Send message
+                        let message_data = MessageData {
+                            message_type    : MessageType::Status,
+                            message         : tree[lvl].2.clone(),
+                            from            : "System".to_string(),
+                            right           : None,
+                            center          : None,
+                            buffer          : None
+                        };
+
+                        data.character_instances[data.curr_index].messages.push(message_data.clone());
+                    }
+                } else {
+                    break;
+                }
+            }
+            if new_level > skill.level {
+                skill.level = new_level;
+                //println!("[{}] Increased skill {} to level {}", data.character_instances[data.curr_index].name, skill_name, skill.level);
+            }
+        }
+    }
 }
 
 /// Add the item identified by its name to the inventory.

@@ -64,6 +64,8 @@ pub struct RegionData {
     /// Respawns the given chararacter uuid at the given tick count
     pub respawn_instance            : FxHashMap<Uuid, (usize, CharacterInstanceData)>,
 
+    pub skill_trees                 : FxHashMap<String, Vec<(i32, String, String)>>,
+
     /// The current character sheet index
     pub curr_index                  : usize,
 
@@ -159,6 +161,8 @@ impl RegionData {
             to_execute                      : vec![],
 
             respawn_instance                : FxHashMap::default(),
+
+            skill_trees                     : FxHashMap::default(),
 
             curr_index                      : 0,
             curr_area_index                 : 0,
