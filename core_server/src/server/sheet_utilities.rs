@@ -110,10 +110,8 @@ pub fn get_item_skill_level_value_delay(item_name: String, level: i32) -> Option
 }
 
 /// Increases the given skill by the given amount
-pub fn increase_skill_by(skill_name: String, amount: i32) {
-
+pub fn increase_skill_by(sheet: &mut Sheet, skill_name: String, amount: i32) {
     let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-    let sheet = &mut data.sheets[data.curr_index];
 
     if let Some(skill) = sheet.skills.skills.get_mut(&skill_name) {
         skill.value += amount;
@@ -149,6 +147,60 @@ pub fn increase_skill_by(skill_name: String, amount: i32) {
                 //println!("[{}] Increased skill {} to level {}", data.character_instances[data.curr_index].name, skill_name, skill.level);
             }
         }
+    }
+}
+
+/// Increases the experience by the given amount
+pub fn increase_experience_by(sheet: &mut Sheet, amount: i32) {
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
+    // Add the experience
+
+    sheet.experience.experience += amount;
+
+    let mut str = sheet.experience.experience_msg.clone();
+    str = str.replace("{}", &amount.to_string());
+
+    // Send message
+    let message_data = MessageData {
+        message_type    : MessageType::Status,
+        message         : str,
+        from            : "System".to_string(),
+        right           : None,
+        center          : None,
+        buffer          : None
+    };
+
+    data.character_instances[data.curr_index].messages.push(message_data.clone());
+
+    let mut new_level = 0;
+    for lvl in 0..sheet.experience.levels.len() {
+        if sheet.experience.experience >= sheet.experience.levels[lvl].0 {
+            new_level = lvl as i32 + 1;
+
+            if new_level > sheet.experience.level {
+                // Send message
+                let message_data = MessageData {
+                    message_type    : MessageType::Status,
+                    message         : sheet.experience.levels[lvl].1.clone(),
+                    from            : "System".to_string(),
+                    right           : None,
+                    center          : None,
+                    buffer          : None
+                };
+
+                data.character_instances[data.curr_index].messages.push(message_data.clone());
+            }
+        } else {
+            break;
+        }
+    }
+    if new_level > sheet.experience.level {
+        sheet.experience.level = new_level;
+
+        eval_script((sheet.experience.level_behavior_id, sheet.experience.levels[new_level as usize-1].2), "script", &mut SYSTEMS.borrow_mut());
+
+        println!("[{}] Advanced to level {}", data.character_instances[data.curr_index].name, sheet.experience.level);
     }
 }
 

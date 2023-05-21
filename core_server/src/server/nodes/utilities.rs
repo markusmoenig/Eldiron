@@ -393,9 +393,6 @@ pub fn execute_targeted_action(action_name: String, dp: Option<Position>, nodes:
 
         for (_inst_index, behavior_id, node_id) in to_execute {
             execute_node(behavior_id, node_id, nodes);
-            //data.curr_redirected_inst_index = Some(inst_index);
-            //data.execute_node(inst_index, node_id, Some(instance_index));
-            //data.curr_redirected_inst_index = None;
             return BehaviorNodeConnector::Success;
         }
     }
@@ -700,65 +697,6 @@ pub fn wait_for(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionData) 
     }
     rc
 }
-
-/*
-/// Increases the weapon skill value in the given slot
-pub fn increase_weapon_skill_value(instance_index: usize, slot: String, data: &mut RegionInstance) {
-    if let Some(v) = data.scopes[instance_index].get("weapons") {
-
-        // Get the weapon skill
-
-        let mut skill_name : String = "Unarmed".to_string();
-
-        if let Some(weapons) = v.read_lock::<Weapons>() {
-            if let Some(weapon) = weapons.slots.get(&slot) {
-                if let Some(sk) = get_item_skill_tree(data, weapon.id) {
-                    skill_name = sk;
-                }
-            }
-        }
-
-        // Increase the skill value
-
-        if let Some(s) = data.scopes[instance_index].get_mut("skills") {
-            if let Some(mut skills) = s.write_lock::<Skills>() {
-                if let Some(skill) = skills.skills.get_mut(&skill_name) {
-                    skill.value += 1;
-                    // println!("[{}] Increased skill value {} to {}", data.instances[instance_index].name, skill_name, skill.value);
-
-                    // Test if we need to increase the skill level
-
-                    if let Some(tree) = data.skill_trees.get(&skill_name) {
-                        let mut new_level = 0;
-                        for lvl in 0..tree.len() {
-                            if skill.value >= tree[lvl].0 {
-                                new_level = lvl as i32;
-
-                                // Send message
-                                let message_data = MessageData {
-                                    message_type    : MessageType::Status,
-                                    message         : tree[lvl].2.clone(),
-                                    from            : "System".to_string(),
-                                    right           : None,
-                                    center          : None,
-                                    buffer          : None
-                                };
-
-                                data.instances[instance_index].messages.push(message_data.clone());
-                            } else {
-                                break;
-                            }
-                        }
-                        if new_level > skill.level {
-                            skill.level = new_level;
-                            // println!("[{}] Increased skill {} to level {}", data.instances[instance_index].name, skill_name, skill.level);
-                        }
-                    }
-                }
-            }
-        }
-    }
-}*/
 
 /// Returns the property script for the currently equipped weapon
 pub fn get_weapon_script_id(instance_index: usize, slot: String, data: &mut RegionInstance) -> Option<(BehaviorType, Uuid, Uuid, String)> {

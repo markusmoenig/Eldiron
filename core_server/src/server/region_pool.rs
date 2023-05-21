@@ -177,8 +177,15 @@ impl RegionPool<'_> {
         });
 
         // Increases the given skill by the given amount
-        engine.register_fn("increase_skill_by", |skill_name: String, amount: i32| {
-            increase_skill_by(skill_name, amount);
+        engine.register_fn("increase_skill_by", |mut sheet: Sheet, skill_name: String, amount: i32| {
+            increase_skill_by(&mut sheet, skill_name, amount);
+            sheet
+        });
+
+        // Increases the experience by the given amount
+        engine.register_fn("increase_experience_by", |mut sheet: Sheet, amount: i32| {
+            increase_experience_by(&mut sheet, amount);
+            sheet
         });
 
         Sheet::register(&mut engine);

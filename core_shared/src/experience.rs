@@ -4,15 +4,15 @@ use crate::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Experience {
-    pub experience          : i32,
-    pub level               : i32,
+    pub experience              : i32,
+    pub level                   : i32,
 
-    pub system_name         : Option<String>,
-    pub tree_name           : Option<String>,
+    pub system_name             : Option<String>,
+    pub tree_name               : Option<String>,
 
-    pub experience_msg      : String,
+    pub experience_msg          : String,
 
-    pub level_tree_id       : Uuid,
+    pub level_behavior_id       : Uuid,
 
     // Level experience needed, message and tree id
     pub levels              : Vec<(i32, String, Uuid)>
@@ -21,17 +21,17 @@ pub struct Experience {
 impl Experience {
     pub fn new() -> Self {
         Self {
-            experience      : 0,
-            level           : 1,
+            experience          : 0,
+            level               : 1,
 
-            system_name     : None,
-            tree_name       : None,
+            system_name         : None,
+            tree_name           : None,
 
-            level_tree_id   : Uuid::new_v4(),
+            level_behavior_id   : Uuid::new_v4(),
 
-            experience_msg  : "You gain {} experience.".to_string(),
+            experience_msg      : "You gain {} experience.".to_string(),
 
-            levels          : vec![]
+            levels              : vec![]
         }
     }
 

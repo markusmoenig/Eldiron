@@ -1469,12 +1469,12 @@ pub fn node_set_level_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeh
     }
 
     let mut levels : Vec<(i32, String, Uuid)> = vec![];
-    let mut level_tree_id = Uuid::new_v4();
+    let mut level_behavior_id = Uuid::new_v4();
     let mut experience_msg : String = "You gained {} experience.".to_string();
 
     if let Some(system_name) = system_name {
         if let Some(tree_name) = tree_name {
-            for (_id, behavior) in SYSTEMS.borrow().iter() {
+            for (id, behavior) in SYSTEMS.borrow().iter() {
                 if behavior.name == system_name {
                     for (_id, node) in &behavior.nodes {
                         if node.name == tree_name {
@@ -1489,7 +1489,7 @@ pub fn node_set_level_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeh
                             let mut rc : Vec<(i32, String, Uuid)> = vec![];
                             let mut parent_id = node.id;
 
-                            level_tree_id = node.id;
+                            level_behavior_id = *id;
 
                             loop {
                                 let mut found = false;
@@ -1557,7 +1557,7 @@ pub fn node_set_level_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeh
             sheet.experience.tree_name = Some(tree_name);
             sheet.experience.levels = levels;
             sheet.experience.experience_msg = experience_msg;
-            sheet.experience.level_tree_id = level_tree_id;
+            sheet.experience.level_behavior_id = level_behavior_id;
         }
     }
 

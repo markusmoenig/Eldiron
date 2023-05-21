@@ -2226,10 +2226,10 @@ impl RegionInstance<'_> {
         let tree_name = "Level Tree".to_string();
 
         let mut levels : Vec<(i32, String, Uuid)> = vec![];
-        let mut level_tree_id = Uuid::new_v4();
+        let mut level_behavior_id = Uuid::new_v4();
         let mut experience_msg : String = "You gained {} experience.".to_string();
 
-        for (_id, behavior) in &self.systems {
+        for (id, behavior) in &self.systems {
             if behavior.name == system_name {
                 for (_id, node) in &behavior.nodes {
                     if node.name == tree_name {
@@ -2244,7 +2244,7 @@ impl RegionInstance<'_> {
                         let mut rc : Vec<(i32, String, Uuid)> = vec![];
                         let mut parent_id = node.id;
 
-                        level_tree_id = node.id;
+                        level_behavior_id = *id;
 
                         loop {
                             let mut found = false;
@@ -2306,16 +2306,13 @@ impl RegionInstance<'_> {
             }
         }
 
-        if let Some(e) = self.scopes[instance_index].get_mut("experience") {
-            if let Some(mut exp) = e.write_lock::<Experience>() {
-                exp.system_name = Some(system_name);
-                exp.tree_name = Some(tree_name.to_string());
-                exp.levels = levels;
-                exp.experience_msg = experience_msg;
-                exp.level_tree_id = level_tree_id;
-            }
-        }
-
+        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        let mut sheet = &mut data.sheets[instance_index];
+        sheet.experience.system_name = Some(system_name);
+        sheet.experience.tree_name = Some(tree_name.to_string());
+        sheet.experience.levels = levels;
+        sheet.experience.experience_msg = experience_msg;
+        sheet.experience.level_behavior_id = level_behavior_id;
     }
 
 }
