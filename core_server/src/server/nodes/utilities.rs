@@ -180,8 +180,8 @@ pub fn walk_towards(p: Option<Position>, dp: Option<Position>, exclude_dp: bool,
         for inst_index in 0..data.character_instances.len() {
             if inst_index != data.curr_index {
                 // Only track if the state is normal
-                if data.character_instances[data.curr_index].state == BehaviorInstanceState::Normal {
-                    if let Some(pos) = &data.character_instances[data.curr_index].position {
+                if data.character_instances[inst_index].state == BehaviorInstanceState::Normal {
+                    if let Some(pos) = &data.character_instances[inst_index].position {
                         if p.region == pos.region {
                             if exclude_dp == false {
                                 char_positions.push(pos.clone());
@@ -258,8 +258,6 @@ pub fn walk_towards(p: Option<Position>, dp: Option<Position>, exclude_dp: bool,
 pub fn execute_targeted_action(action_name: String, dp: Option<Position>, nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 
     // Find areas which contains the destination position and check if it has a fitting action node
-
-    let mut rc = BehaviorNodeConnector::Fail;
 
     if let Some(dp) = &dp {
 
@@ -401,10 +399,10 @@ pub fn execute_targeted_action(action_name: String, dp: Option<Position>, nodes:
             return BehaviorNodeConnector::Success;
         }
     }
-
-    rc
+    BehaviorNodeConnector::Fail
 }
 
+/*
 /// Executes the given action in the given direction, checking for areas, loot items and NPCs
 pub fn execute_region_action(instance_index: usize, action_name: String, dp: Option<Position>, data: &mut RegionInstance) -> BehaviorNodeConnector {
 
@@ -538,7 +536,7 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
     }
 
     rc
-}
+}*/
 
 /// Get the current local instance
 pub fn get_local_instance_index(instance_index: usize, data: &mut RegionInstance) -> usize {
@@ -821,13 +819,10 @@ pub fn get_weapon_distance(slot: String, data: &mut RegionData) -> i32 {
 }
 
 /// Returns the spell distance for the given spell name
-pub fn get_spell_distance(instance_index: usize, name: String, data: &mut RegionData) -> i32 {
-    let mut spell_distance = 3;
-
+pub fn get_spell_distance(name: String, data: &mut RegionData) -> i32 {
     let sheet: &mut Sheet = &mut data.sheets[data.curr_index];
     let spell = sheet.spells.get_spell(&name);
-    spell_distance = spell.distance;
-
+    let spell_distance = spell.distance;
 
     spell_distance
 }

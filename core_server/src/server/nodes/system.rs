@@ -3,12 +3,12 @@ use core_shared::prelude::*;
 
 /// Skill tree
 #[allow(unused)]
-pub fn skill_tree(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_skill_tree(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     BehaviorNodeConnector::Bottom
 }
 
 /// Skill tree
 #[allow(unused)]
-pub fn skill_level(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_skill_level(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     BehaviorNodeConnector::Bottom
 }

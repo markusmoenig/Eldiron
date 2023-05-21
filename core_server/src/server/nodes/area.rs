@@ -204,9 +204,10 @@ pub fn node_inside_area(id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehav
 }
 
 /// Overlay Tiles
-pub fn overlay_tiles(area_index: usize, _id: (Uuid, Uuid), data: &mut RegionInstance, _behavior_type: BehaviorType) -> BehaviorNodeConnector {
+pub fn node_overlay_tiles(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
     let region = &mut data.region_data;
-    for pos in &region.areas[area_index].area {
+    for pos in &region.areas[data.curr_area_index].area {
         if let Some(t) = region.layer4.get(&pos) {
             data.displacements.insert(*pos, t.clone());
         }

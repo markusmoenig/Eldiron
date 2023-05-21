@@ -1,8 +1,8 @@
 extern crate ref_thread_local;
 use ref_thread_local::{RefThreadLocal};
 
-use crate::{prelude::*};
-use rhai::{Engine, AST, Scope};
+use crate::prelude::*;
+use rhai::Scope;
 
 pub struct RegionInstance<'a> {
     // Game data
@@ -21,20 +21,9 @@ pub struct RegionInstance<'a> {
     pub system_ids                  : Vec<Uuid>,
     pub area_ids                    : Vec<Uuid>,
 
-    // All nodes
-    nodes                           : FxHashMap<BehaviorNodeType, NodeCall>,
-
-    /// The script engine
-    pub engine                      : Engine,
-    /// Script ast's, id is (BehaviorType, BehaviorId, BehaviorNodeID, AtomParameterID)
-    pub ast                         : FxHashMap<(BehaviorType, Uuid, Uuid, String), AST>,
-
     // Character instances
     pub instances                   : Vec<BehaviorInstance>,
     pub scopes                      : Vec<rhai::Scope<'a>>,
-
-    /// The loot in the region
-    pub loot                        : FxHashMap<(isize, isize), Vec<Item>>,
 
     /// During action execution for regions this indicates the calling behavior index
     pub curr_action_inst_index      : Option<usize>,
@@ -47,24 +36,6 @@ pub struct RegionInstance<'a> {
 
     /// The index of the game instance
     game_instance_index             : Option<usize>,
-
-    /// The displacements for this region
-    pub displacements               : HashMap<(isize, isize), TileData>,
-
-    // Used by ticks for state memory
-
-    /// Current characters per region
-    //pub characters                  : FxHashMap<Uuid, Vec<CharacterData>>,
-    // Characters instance indices in a given area
-    pub area_characters             : FxHashMap<usize, Vec<usize>>,
-    // The character instances from the previous tick, used to figure out onEnter, onLeave etc events
-    pub prev_area_characters        : FxHashMap<usize, Vec<usize>>,
-
-    // The current move direction of the player
-    pub action_direction_text       : String,
-
-    // The current subject (inventory item etc.) of the player
-    pub action_subject_text         : String,
 
     // Identifie the currently executing loot item
     pub curr_loot_item              : Option<(isize, isize, usize)>,
@@ -122,121 +93,6 @@ pub struct RegionInstance<'a> {
 impl RegionInstance<'_> {
 
     pub fn new() -> Self {
-        let mut engine = Engine::new();
-
-        // Variable resolver for d??? -> random(???)
-        #[allow(deprecated)]
-        engine.on_var(|name, _index, _context| {
-            if name.starts_with("d") {
-                let mut s = name.to_string();
-                s.remove(0);
-                if let Some(n) = s.parse::<i32>().ok() {
-                    let mut util = UTILITY.borrow_mut();
-                    let random = util.rng.gen_range(1..=n) as f32;
-                    return Ok(Some(random.into()));
-                }
-            }
-            Ok(None)
-        });
-
-        engine.register_fn("roll", |exp: &str| -> i32 {
-            let mut util = UTILITY.borrow_mut();
-            if let Some(rc) = util.roll(exp).ok() {
-                rc
-            } else {
-                1
-            }
-        });
-
-        engine.register_fn("get_sheet", || -> Sheet {
-            let data = &REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-            data.sheets[data.curr_index].clone()
-        });
-
-        engine.register_fn("set_sheet", |sheet: Sheet| {
-            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-            data.sheets[data.curr_index] = sheet;
-        });
-
-        engine.register_fn("inventory_add", |mut sheet: Sheet, item_name: &str| -> Sheet {
-            inventory_add(&mut sheet, item_name, 1, &mut ITEMS.borrow_mut());
-            sheet
-        });
-
-        Sheet::register(&mut engine);
-        Currency::register(&mut engine);
-
-        script_register_message_api(&mut engine);
-        script_register_inventory_api(&mut engine);
-        script_register_spells_api(&mut engine);
-        script_register_gear_api(&mut engine);
-        script_register_weapons_api(&mut engine);
-        script_register_experience_api(&mut engine);
-        script_register_date_api(&mut engine);
-        script_register_failure_enum_api(&mut engine);
-
-        // Display f64 as ints
-        use pathfinding::num_traits::ToPrimitive;
-        engine.register_fn("to_string", |x: f32| format!("{}", x.to_isize().unwrap()));
-
-        let mut nodes : FxHashMap<BehaviorNodeType, NodeCall> = FxHashMap::default();
-
-        //nodes.insert(BehaviorNodeType::Expression, expression);
-        //nodes.insert(BehaviorNodeType::Script, script);
-        //nodes.insert(BehaviorNodeType::Pathfinder, pathfinder);
-        //nodes.insert(BehaviorNodeType::Lookout, lookout);
-        //nodes.insert(BehaviorNodeType::CloseIn, close_in);
-        //nodes.insert(BehaviorNodeType::CallSystem, call_system);
-        //nodes.insert(BehaviorNodeType::CallBehavior, call_behavior);
-        //nodes.insert(BehaviorNodeType::HasTarget, has_target);
-        //nodes.insert(BehaviorNodeType::Untarget, untarget);
-        nodes.insert(BehaviorNodeType::MagicDamage, magic_damage);
-        nodes.insert(BehaviorNodeType::DealDamage, deal_damage);
-        nodes.insert(BehaviorNodeType::TakeDamage, take_damage);
-        //nodes.insert(BehaviorNodeType::DropInventory, drop_inventory);
-        // nodes.insert(BehaviorNodeType::Effect, effect);
-        //nodes.insert(BehaviorNodeType::Audio, audio);
-        nodes.insert(BehaviorNodeType::Heal, heal);
-        nodes.insert(BehaviorNodeType::TakeHeal, take_heal);
-        //nodes.insert(BehaviorNodeType::Respawn, respawn);
-        // nodes.insert(BehaviorNodeType::SetLevelTree, set_level_tree);
-        // nodes.insert(BehaviorNodeType::Schedule, schedule);
-        //nodes.insert(BehaviorNodeType::HasState, has_state);
-
-        nodes.insert(BehaviorNodeType::OverlayTiles, overlay_tiles);
-
-        // nodes.insert(BehaviorNodeType::Move, player_move);
-        // nodes.insert(BehaviorNodeType::Screen, screen);
-        // nodes.insert(BehaviorNodeType::Widget, widget);
-        //nodes.insert(BehaviorNodeType::Message, message);
-        // nodes.insert(BehaviorNodeType::Action, player_action);
-        //nodes.insert(BehaviorNodeType::Take, player_take);
-        // nodes.insert(BehaviorNodeType::Drop, player_drop);
-        // nodes.insert(BehaviorNodeType::Target, player_target);
-        //nodes.insert(BehaviorNodeType::Equip, player_equip);
-        //nodes.insert(BehaviorNodeType::MagicTarget, magic_target);
-        //nodes.insert(BehaviorNodeType::LightItem, light_item);
-        nodes.insert(BehaviorNodeType::SetItemTile, set_item_tile);
-        //nodes.insert(BehaviorNodeType::RandomWalk, random_walk);
-        //nodes.insert(BehaviorNodeType::MultiChoice, multi_choice);
-        //nodes.insert(BehaviorNodeType::Sell, sell);
-        // nodes.insert(BehaviorNodeType::LockTree, lock_tree);
-        // nodes.insert(BehaviorNodeType::UnlockTree, unlock_tree);
-        // nodes.insert(BehaviorNodeType::SetState, set_state);
-        // nodes.insert(BehaviorNodeType::Teleport, teleport);
-
-        //nodes.insert(BehaviorNodeType::Always, always);
-        //nodes.insert(BehaviorNodeType::InsideArea, inside_area);
-        //nodes.insert(BehaviorNodeType::EnterArea, enter_area);
-        //nodes.insert(BehaviorNodeType::LeaveArea, leave_area);
-        //nodes.insert(BehaviorNodeType::TeleportArea, teleport_area);
-        //nodes.insert(BehaviorNodeType::MessageArea, message_area);
-        //nodes.insert(BehaviorNodeType::AudioArea, audio_area);
-        //nodes.insert(BehaviorNodeType::LightArea, light_area);
-        //nodes.insert(BehaviorNodeType::ActionArea, action);
-
-        nodes.insert(BehaviorNodeType::SkillTree, skill_tree);
-        nodes.insert(BehaviorNodeType::SkillLevel, skill_level);
 
         Self {
             region_data                     : GameRegionData::new(),
@@ -253,14 +109,8 @@ impl RegionInstance<'_> {
             system_ids                      : vec![],
             area_ids                        : vec![],
 
-            engine,
-            ast                             : FxHashMap::default(),
-            nodes,
-
             instances                       : vec![],
             scopes                          : vec![],
-
-            loot                            : FxHashMap::default(),
 
             curr_action_inst_index          : None,
 
@@ -269,15 +119,6 @@ impl RegionInstance<'_> {
             game_player_scopes              : FxHashMap::default(),
 
             game_instance_index             : None,
-
-            displacements                   : HashMap::new(),
-
-            //characters                      : FxHashMap::default(),
-            area_characters                 : FxHashMap::default(),
-            prev_area_characters            : FxHashMap::default(),
-
-            action_direction_text           : "".to_string(),
-            action_subject_text             : "".to_string(),
 
             curr_loot_item                  : None,
             curr_inventory_index            : None,
@@ -319,8 +160,6 @@ impl RegionInstance<'_> {
     pub fn tick(&mut self) -> Vec<Message> {
 
         self.messages = vec![];
-        self.prev_area_characters = self.area_characters.clone();
-        self.area_characters = FxHashMap::default();
 
         let mut messages = vec![];
 
@@ -448,17 +287,24 @@ impl RegionInstance<'_> {
                     if execute_trees {
                         // Execute trees of an NPC
 
+                        let locked_tree;
+                        let behavior_id;
+
+                        {
+                            let data = &REGION_DATA.borrow()[*CURR_INST.borrow()];
+                            locked_tree = data.character_instances[data.curr_index].locked_tree;
+                            behavior_id = data.character_instances[inst_index].behavior_id;
+                        }
+
                         // Has a locked tree ?
-                        if let Some(locked_tree) = self.instances[inst_index].locked_tree {
-                                self.execute_node(inst_index, locked_tree, None);
+                        if let Some(locked_tree) = locked_tree {
+                                execute_node(behavior_id, locked_tree, &mut BEHAVIORS.borrow_mut());
                         } else {
                             // Unlocked, execute all valid trees
                             let trees;
-                            let behavior_id;
                             {
                                 let data = &REGION_DATA.borrow()[*CURR_INST.borrow()];
                                 trees = data.character_instances[inst_index].tree_ids.clone();
-                                behavior_id = data.character_instances[inst_index].behavior_id;
                             }
                             for node_id in &trees {
 
@@ -1093,6 +939,7 @@ impl RegionInstance<'_> {
         messages
     }
 
+    /*
     /// Executes the given node and follows the connection chain
     pub fn execute_node(&mut self, instance_index: usize, node_id: Uuid, redirection: Option<usize>) -> Option<BehaviorNodeConnector> {
 
@@ -1532,7 +1379,7 @@ impl RegionInstance<'_> {
             }
         }
         rc
-    }
+    }*/
 
     /// Setup the region instance data by decoding the JSON for all game elements and sets up the npc and game behavior instances.
     pub fn setup(&mut self, region: String, region_behavior: FxHashMap<Uuid, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, spells: Vec<String>, game: String, scripts: FxHashMap<String, String>) {
@@ -1726,7 +1573,7 @@ impl RegionInstance<'_> {
             if let Some(value)= self.get_game_node_value(*tree_id, "execute") {
                 if let Some(value) = value.to_integer() {
                     if value == 1 {
-                        self.execute_game_node(index, tree_id.clone());
+                        //TODO self.execute_game_node(index, tree_id.clone());
                     }
                 }
             }
@@ -2124,10 +1971,10 @@ impl RegionInstance<'_> {
                 }
 
                 // Execute the system startup trees
-                for startup_id in &startup_system_trees {
-                    self.instances[index].systems_id = startup_id.0;
-                    self.execute_systems_node(index, startup_id.1);
-                }
+                //for startup_id in &startup_system_trees {
+                    // TODO self.instances[index].systems_id = startup_id.0;
+                    // self.execute_systems_node(index, startup_id.1);
+                //}
 
                 // Execute the startup only trees
                 for startup_id in &startup_trees {
@@ -2150,28 +1997,6 @@ impl RegionInstance<'_> {
             }
         }
         None
-    }
-
-    /// Returns the layered tiles at the given position and checks for displacements
-    pub fn get_tile_at(&self, pos: (isize, isize)) -> Vec<TileData> {
-        let mut rc = vec![];
-        if let Some(t) = self.displacements.get(&pos) {
-            rc.push(t.clone());
-        } else {
-            if let Some(t) = self.region_data.layer1.get(&pos) {
-                rc.push(t.clone());
-            }
-            if let Some(t) = self.region_data.layer2.get(&pos) {
-                rc.push(t.clone());
-            }
-            if let Some(t) = self.region_data.layer3.get(&pos) {
-                rc.push(t.clone());
-            }
-            if let Some(t) = self.region_data.layer4.get(&pos) {
-                rc.push(t.clone());
-            }
-        }
-        rc
     }
 
     /// Returns the layered tiles at the given position and checks for displacements

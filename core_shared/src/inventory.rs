@@ -12,6 +12,7 @@ pub struct Item {
     pub state               : Option<State>,
     pub light               : Option<LightData>,
     pub slot                : Option<String>,
+    pub use_skill           : Option<String>,
     pub amount              : i32,
     pub stackable           : i32,
     pub static_item         : bool,
@@ -30,6 +31,7 @@ impl Item {
             state           : None,
             light           : None,
             slot            : None,
+            use_skill       : None,
             amount          : 0,
             stackable       : i32::MAX,
             static_item     : false,
@@ -73,6 +75,11 @@ impl Item {
         if let Some(item_slot) = sink.get("slot") {
             if let Some(slot) = item_slot.as_string() {
                 self.slot = Some(slot);
+            }
+        }
+        if let Some(item_use_skill) = sink.get("use_skill") {
+            if let Some(use_skill) = item_use_skill.as_string() {
+                self.use_skill = Some(use_skill);
             }
         }
         if let Some(weapon_distance) = sink.get("weapon_distance") {

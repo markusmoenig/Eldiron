@@ -103,6 +103,7 @@ pub fn eval_script_bool(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMa
     false
 }
 
+/*
 /// Evaluates a boolean expression in the given instance.
 pub fn eval_bool_expression_instance(instance_index: usize, id: (BehaviorType, Uuid, Uuid, String), data: &mut RegionInstance) -> Option<bool> {
     //add_target_to_scope(instance_index, data);
@@ -234,4 +235,4 @@ pub fn eval_dynamic_script_instance_for_game_player_scope(_instance_index: usize
     }
 
     false
-}
+}*/

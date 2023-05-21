@@ -1,5 +1,4 @@
 extern crate ref_thread_local;
-use std::println;
 
 use ref_thread_local::RefThreadLocal;
 use crate::prelude::*;
@@ -768,7 +767,7 @@ pub fn node_untarget(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorD
     }
     BehaviorNodeConnector::Fail
 }
-
+/*
 /// Deal damage :)
 pub fn deal_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
@@ -979,7 +978,7 @@ pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
         }
     }
     rc
-}
+}*/
 
 /// Assign target for magic
 pub fn node_magic_target(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
@@ -1026,7 +1025,7 @@ pub fn node_magic_target(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBeh
             // Make sure the target is within spell range
             let spell_name = data.character_instances[data.curr_index].action.clone().unwrap().spell.unwrap();
             let distance = compute_distance(&position, &dp);
-            let spell_distance = get_spell_distance(data.curr_index, spell_name, data);
+            let spell_distance = get_spell_distance(spell_name, data);
             if  distance as i32 <= spell_distance {
                 for inst_index in 0..data.character_instances.len() {
                     if inst_index != data.curr_index {
@@ -1051,6 +1050,7 @@ pub fn node_magic_target(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBeh
     rc
 }
 
+/*
 /// Deal magic damage
 pub fn magic_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
@@ -1197,7 +1197,7 @@ pub fn magic_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIn
     }
 
     rc
-}
+}*/
 
 /// Drop Inventory :(
 pub fn node_drop_inventory(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
@@ -1313,6 +1313,7 @@ pub fn node_audio(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData
     BehaviorNodeConnector::Bottom
 }
 
+/*
 /// Heal, opposite of deal damage
 pub fn heal(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInstance, behavior_type: BehaviorType) -> BehaviorNodeConnector {
 
@@ -1428,7 +1429,7 @@ pub fn take_heal(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
         }
     }
     rc
-}
+}*/
 
 pub fn node_respawn(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
 

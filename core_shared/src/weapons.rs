@@ -20,16 +20,16 @@ impl Weapons {
     }
 
     /// Returns the item name for the given slot.
-    pub fn item_name_for(&mut self, name: &str) -> String {
+    pub fn slot(&mut self, name: &str) -> Item {
         if let Some(item) = self.slots.get(name) {
-            return item.name.clone();
+            return item.clone();
         }
-        "".to_string()
+        Item::new(Uuid::new_v4(), String::new())
     }
 }
 
 pub fn script_register_weapons_api(engine: &mut rhai::Engine) {
     engine.register_type_with_name::<Weapons>("Weapons")
         .register_fn("stats", Weapons::stats)
-        .register_fn("item_name_for", Weapons::item_name_for);
+        .register_fn("slot", Weapons::slot);
 }
