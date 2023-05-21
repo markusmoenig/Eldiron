@@ -3,6 +3,112 @@ use ref_thread_local::{RefThreadLocal};
 
 use crate::prelude::*;
 
+/// Returns the damage of the main hand
+pub fn weapon_damage(sheet: &mut Sheet) -> i32 {
+    let weapon = sheet.weapons.slot(&"main hand");
+    let mut skill_name = "Unarmed".to_string();
+
+    if let Some(skill) = get_item_skill_name(weapon.name.clone()) {
+        skill_name = skill;
+    }
+
+    let mut level = 0;
+    if let Some(skill) = sheet.skills.skills.get(&skill_name) {
+        level = skill.level;
+    }
+
+    if let Some((value, delay)) = get_item_skill_level_value_delay(weapon.name, level) {
+        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        data.character_instances[data.curr_index].sleep_cycles = delay as usize;
+        value
+    } else {
+        0
+    }
+}
+
+/// Returns the skill name for the given item
+pub fn get_item_skill_name(item_name: String) -> Option<String> {
+    if let Some(items) = &ITEMS.try_borrow().ok() {
+        for (_id, behavior) in items.iter() {
+            if behavior.name == item_name {
+                for (_id, node) in &behavior.nodes {
+                    if node.behavior_type == BehaviorNodeType::SkillTree {
+                        return Some(node.name.clone());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Get the value and delay data for the skill level of the given item.
+pub fn get_item_skill_level_value_delay(item_name: String, level: i32) -> Option<(i32, i32)> {
+
+    let mut skill_level_id : Option<(Uuid, Uuid)> = None;
+
+    if let Some(items) = &ITEMS.try_borrow_mut().ok() {
+        for (_id, behavior) in items.iter() {
+            if  behavior.name == item_name {
+                for (_id, node) in &behavior.nodes {
+                    //println!("{:?}, {}, {}", node.behavior_type, node.name, item_name);
+                    if node.behavior_type == BehaviorNodeType::SkillTree {
+                        let mut parent_id = node.id;
+
+                        for _lvl in 0..=level {
+                            for (id1, c1, id2, c2) in &behavior.connections {
+                                if *id1 == parent_id && *c1 == BehaviorNodeConnector::Bottom {
+                                    for (uuid, node) in &behavior.nodes {
+                                        if *uuid == *id2 {
+                                            skill_level_id = Some((behavior.id, node.id));
+                                            parent_id = node.id;
+                                            break;
+                                        }
+                                    }
+                                    break;
+                                } else
+                                if *id2 == parent_id && *c2 == BehaviorNodeConnector::Bottom {
+                                    for (uuid, node) in &behavior.nodes {
+                                        if *uuid == *id1 {
+                                            skill_level_id = Some((behavior.id, node.id));
+                                            parent_id = node.id;
+                                            break;
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    let mut rc : Option<(i32, i32)> = None;
+
+    if let Some(id) = skill_level_id {
+        let mut value = 0;
+        let mut delay = 0;
+
+        if let Some(items) = &mut ITEMS.try_borrow_mut().ok() {
+            if let Some(v) = eval_script_integer(id, "script", &mut *items) {
+                value = v;
+            }
+
+            if let Some(v) = eval_script_integer(id, "delay", &mut *items) {
+                delay = v;
+            }
+        }
+        rc = Some((value, delay));
+    }
+
+    rc
+}
+
 /// Add the item identified by its name to the inventory.
 pub fn inventory_add(sheet: &mut Sheet, item_name: &str, amount: i32, item_nodes: &mut FxHashMap<Uuid, GameBehaviorData>) {
     for (_id, behavior) in item_nodes.iter() {

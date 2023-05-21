@@ -124,6 +124,10 @@ impl RegionPool<'_> {
             sheet
         });
 
+        engine.register_fn("weapon_damage", |mut sheet: Sheet| -> i32 {
+            weapon_damage(&mut sheet)
+        });
+
         engine.register_fn("get_state", || -> bool {
             STATE.borrow().state
         });

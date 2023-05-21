@@ -2438,10 +2438,10 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            let mut atom1 = AtomWidget::new(vec!["Speed Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("speed", Value::Empty()));
-            atom1.atom_data.text = "Speed Delay".to_string();
-            let id = (behavior_data_id, node_id, "speed".to_string());
+            let mut atom1 = AtomWidget::new(vec!["Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
+            AtomData::new("delay", Value::Empty()));
+            atom1.atom_data.text = "Delay".to_string();
+            let id = (behavior_data_id, node_id, "delay".to_string());
             atom1.behavior_id = Some(id.clone());
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String(4.to_string()), self.graph_type);
             node_widget.widgets.push(atom1);

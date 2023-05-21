@@ -68,3 +68,7 @@ Unless explicitly stated otherwise, any contribution intentionally submitted for
   ## Acknowledgements
 
 * [Aleksandr Makarov](https://twitter.com/iknowkingrabbit) created the tilemaps which are currently shipped with Eldiron, you can see his work on [Twitch](https://iknowkingrabbit.itch.io).
+
+## Sponsor
+
+None yet.

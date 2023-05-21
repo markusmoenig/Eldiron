@@ -36,10 +36,6 @@ pub fn update_item_sink(sink: &mut PropertySink) {
     if sink.contains("weapon_distance") == false {
         sink.properties.push(Property::new_int("weapon_distance".to_string(), 1));
     }
-
-    if sink.contains("use_skill") == false {
-        sink.properties.push(Property::new_string("use_skill".to_string(), "".to_string()));
-    }
 }
 
 pub fn generate_item_sink_descriptions() -> FxHashMap<String, Vec<String>> {
@@ -53,7 +49,6 @@ pub fn generate_item_sink_descriptions() -> FxHashMap<String, Vec<String>> {
     map.insert("weight".to_string(), vec!["The weight of the item.".to_string()]);
     map.insert("slot".to_string(), vec!["If item_type is \"Weapon\" or \"Gear\" the slot it fits in.".to_string()]);
     map.insert("weapon_distance".to_string(), vec!["The maximum distance for a weapon. Default is 1 (Sword etc.).".to_string()]);
-    map.insert("use_skill".to_string(), vec!["The skill (if any) for using this item (for example \"Sword\").".to_string()]);
 
     map
 }

@@ -167,9 +167,9 @@ fn draw() {
     let y = 90;
     let color = rgb(150, 150, 150);
     let weapons = get_weapons();
-    let name = weapons.item_name_for("main hand");
-    if name == "" { name = "<Empty>"; };
-    draw_text(pos(671, y), "Main Hand: " + name, this.font_name, 19.0, color);
+    let item = weapons.slot("main hand");
+    if item.name == "" { item.name = "<Empty>"; };
+    draw_text(pos(671, y), "Main Hand: " + item.name, this.font_name, 19.0, color);
   }
 
   // Action Text

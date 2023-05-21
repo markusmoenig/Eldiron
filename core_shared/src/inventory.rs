@@ -102,6 +102,18 @@ impl Item {
         self.amount
     }
 
+    pub fn get_use_skill(&mut self) -> String {
+        if let Some(use_skill) = &self.use_skill {
+            use_skill.clone()
+        } else {
+            String::new()
+        }
+    }
+
+    pub fn get_value(&mut self) -> Currency {
+        self.value.clone()
+    }
+
 }
 
 /// Inventory
@@ -216,6 +228,8 @@ pub fn script_register_inventory_api(engine: &mut rhai::Engine) {
 
     engine.register_type_with_name::<Item>("Item")
         .register_get("name", Item::get_name)
+        .register_get("use_skill", Item::get_use_skill)
+        .register_get("value", Item::get_value)
         .register_get("amount", Item::get_amount);
 
     engine.register_type_with_name::<Inventory>("Inventory")
@@ -223,5 +237,4 @@ pub fn script_register_inventory_api(engine: &mut rhai::Engine) {
         .register_fn("item_name_at", Inventory::item_name_at)
         .register_fn("item_amount_at", Inventory::item_amount_at)
         .register_iterator::<Inventory>();
-
 }
