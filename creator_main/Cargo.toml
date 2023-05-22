@@ -25,3 +25,6 @@ short_description = "A game creator for classic RPGs."
 long_description = """
 Create classic RPGs with Eldiron.
 """
+
+[features]
+linux_release = ["creator_lib/linux_release"]

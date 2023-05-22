@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product Name="Eldiron" Id="*" UpgradeCode="da44883f-ca50-4b8b-8b3f-0001b8d51f64" Language="1033" Version="0.1.0" Manufacturer="Eldiron">
+        <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine"/>
+        <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of [ProductName] is already installed."/>
+        <Icon Id="Eldiron.exe" SourceFile=".\build\windows\eldiron.ico"/>
+        <WixVariable Id="WixUILicenseRtf" Value=".\build\windows\wix\license.rtf"/>
+        <Property Id="ARPPRODUCTICON" Value=".\eldiron.exe"/>
+        <MediaTemplate EmbedCab="yes"/>
+        <UIRef Id="WixUI_Minimal"/>
+
+        <Feature Id="ProductFeature" Title="Eldiron" Level="1">
+            <ComponentRef Id="EldironExe"/>
+            <ComponentRef Id="EldironShortcut"/>
+            <ComponentRef Id="ModifyPathEnv"/>
+            <ComponentRef Id="ContextMenu"/>
+            <ComponentGroupRef Id="EldironResources"/>
+        </Feature>
+
+        <!-- Create directories -->
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFiles64Folder">
+                <Directory Id="EldironProgramFiles" Name="Eldiron"/>
+            </Directory>
+            <Directory Id="ProgramMenuFolder">
+                <Directory Id="EldironProgramMenu" Name="Eldiron"/>
+            </Directory>
+        </Directory>
+
+        <!-- Application binaries -->
+        <DirectoryRef Id="EldironProgramFiles">
+            <Component Id="EldironExe" Guid="*">
+                <File Id="EldironExeFile" Source=".\eldiron.exe" Name="eldiron.exe" KeyPath="yes" Checksum="yes"/>
+            </Component>
+        </DirectoryRef>
+
+        <DirectoryRef Id="EldironProgramMenu">
+            <!-- Application shortcut -->
+            <Component Id="EldironShortcut" Guid="810fce83-042c-4084-8044-9c90cfecc24c">
+                <Shortcut Id="EldironShortcutFile" Icon="Eldiron.exe" Name="Eldiron" Description="Description" Target="[EldironProgramFiles]eldiron.exe" WorkingDirectory="EldironProgramFiles"/>
+                <RemoveFolder Id="EldironProgramMenu" On="uninstall"/>
+                <RegistryValue Root="HKCU" Key="Software\Microsoft\Eldiron" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+
+        <DirectoryRef Id="EldironProgramFiles">
+            <!-- Add to PATH -->
+            <Component Id="ModifyPathEnv" Guid="b3a054af-f2f6-429f-a0fa-6a8aff07f8e4" KeyPath="yes">
+                <Environment Id="PathEnv" Value="[EldironProgramFiles]" Name="PATH" Permanent="no" Part="first" Action="set" System="yes"/>
+            </Component>
+        </DirectoryRef>
+
+        <DirectoryRef Id="TARGETDIR">
+            <!-- Add context menu -->
+            <Component Id="ContextMenu" Guid="0fc52386-cabe-4b2d-8ea4-eb25b29e7696">
+                <RegistryKey Root="HKCU" Key="Software\Classes\Directory\Background\shell\Open Eldiron here\command">
+                    <RegistryValue Type="string" Value="[EldironProgramFiles]eldiron.exe &quot;%V&quot;" KeyPath="yes"/>
+                </RegistryKey>
+                <RegistryKey Root="HKCU" Key="Software\Classes\Directory\Background\shell\Open Eldiron here">
+                    <RegistryValue Type="string" Name="Icon" Value="[EldironProgramFiles]eldiron.exe"/>
+                </RegistryKey>
+            </Component>
+        </DirectoryRef>
+    </Product>
+
+    <!-- Application resources -->
+    <Fragment>
+        <ComponentGroup Id="EldironResources" Directory="EldironProgramFiles">
+            <ComponentGroupRef Id="DynamicFragment" />
+        </ComponentGroup>
+    </Fragment>
+</Wix>

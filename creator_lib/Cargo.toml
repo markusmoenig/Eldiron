@@ -60,3 +60,6 @@ Create classic RPGs with Eldiron.
 # [lib]
 # name = "rustapi"
 # crate-type = ["staticlib"]
+
+[features]
+linux_release = ["core_shared/linux_release"]
