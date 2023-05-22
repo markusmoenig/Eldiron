@@ -1,5 +1,6 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
+#![windows_subsystem = "windows"]
 
 use creator_lib::prelude::*;
 
