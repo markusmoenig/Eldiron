@@ -108,6 +108,7 @@ impl RegionData {
         nodes.insert(BehaviorNodeType::SetLevelTree, node_set_level_tree);
         nodes.insert(BehaviorNodeType::OverlayTiles, node_overlay_tiles);
         nodes.insert(BehaviorNodeType::SetItemTile, node_set_item_tile);
+        nodes.insert(BehaviorNodeType::Teleport, node_teleport);
 
         nodes.insert(BehaviorNodeType::MagicTarget, node_magic_target);
 

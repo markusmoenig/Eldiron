@@ -360,26 +360,6 @@ impl RegionInstance<'_> {
                                 if execute_behavior(inst_index, &action.action) == false {
                                     println!("Cannot find valid tree for directed action {}", action.action);
                                 }
-
-                                let old_index;
-                                let to_execute;
-                                {
-                                    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-                                    to_execute = data.to_execute.clone();
-                                    old_index = data.curr_index;
-                                    data.to_execute = vec![];
-                                }
-                                for (index, tree_name) in to_execute {
-                                    {
-                                        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-                                        data.curr_index = index;
-                                    }
-                                    execute_behavior(index, tree_name.as_str());
-                                    {
-                                        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-                                        data.curr_index = old_index;
-                                    }
-                                }
                             }
                         } else
                         if let Some(inventory_index) = &action.inventory_index {
@@ -459,6 +439,27 @@ impl RegionInstance<'_> {
                     }
                     // Characters do not lock on targets
                     self.instances[inst_index].target_instance_index = None;
+                }
+
+                // Execute the trees queued for execution by script execute cmds
+                let old_index;
+                let to_execute;
+                {
+                    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                    to_execute = data.to_execute.clone();
+                    old_index = data.curr_index;
+                    data.to_execute = vec![];
+                }
+                for (index, tree_name) in to_execute {
+                    {
+                        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                        data.curr_index = index;
+                    }
+                    execute_behavior(index, tree_name.as_str());
+                    {
+                        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                        data.curr_index = old_index;
+                    }
                 }
             }
 

@@ -693,20 +693,7 @@ pub fn node_has_state(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavior
 /// Set State
 pub fn node_set_state(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-    let mut behavior_instance : Option<usize> = None;
-
-    // The id's were not yet computed search the system trees, get the ids and store them.
-    if let Some(value) = get_node_integer(id, "for", nodes) {
-        if value == 0 {
-            // Run the behavior on myself
-            behavior_instance = Some(data.curr_index);
-        } else {
-            // Run the behavior on the target
-            if let Some(target_index) = data.character_instances[data.curr_index].target_instance_index {
-                behavior_instance = Some(target_index);
-            }
-        }
-    }
+    let behavior_instance : Option<usize> = Some(data.curr_index);
 
     if let Some(value) = get_node_integer(id, "state", nodes) {
         if let Some(behavior_instance) = behavior_instance {

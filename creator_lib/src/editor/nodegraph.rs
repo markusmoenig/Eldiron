@@ -1912,9 +1912,6 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::SetState {
-            let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
-            node_widget.widgets.push(target_menu);
-
             let state_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string(), "Purged".to_string(), "Sleeping".to_string(), "Intoxicated".to_string()], Value::Integer(0));
             node_widget.widgets.push(state_menu);
 
