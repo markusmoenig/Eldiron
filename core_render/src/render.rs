@@ -915,7 +915,7 @@ impl GameRender<'_> {
             let region_width = region.max_pos.0 - region.min_pos.0;
             let region_height = region.max_pos.1 - region.min_pos.1;
 
-            if region_width * tile_size as isize  <= rect.2 as isize {
+            if region_width * tile_size as isize <= rect.2 as isize && center_offset.0 == 0 {
                 offset.0 = region.min_pos.0;
                 gr.0 = 0;
             } else {
@@ -944,7 +944,7 @@ impl GameRender<'_> {
                 }
             }
 
-            if region_height * tile_size as isize  <= rect.3 as isize {
+            if region_height * tile_size as isize  <= rect.3 as isize && center_offset.1 == 0 {
                 gr.1 = 0;
                 offset.1 = region.min_pos.1;
             } else {
