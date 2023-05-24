@@ -498,7 +498,9 @@ pub fn execute_node(behavior_id: Uuid, node_id: Uuid, nodes: &mut FxHashMap<Uuid
             for c in &item.connections {
                 if c.0 == node_id && c.1 == connector {
                     connected_node_ids.push(c.2);
-                    //self.executed_connections.push((BehaviorType::Items, c.0, c.1));
+
+                    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                    data.executed_connections.push((c.0, c.1));
                 }
             }
         }

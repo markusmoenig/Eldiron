@@ -328,8 +328,13 @@ impl RegionPool<'_> {
                                 self.execute_player_action(uuid, region_id, player_action);
                             },
                             Message::SetDebugBehaviorId(id) => {
+                                let mut index = 0;
                                 for inst in &mut self.instances {
+                                    {
+                                        *CURR_INST.borrow_mut() = index;
+                                    }
                                     inst.set_debug_behavior_id(id);
+                                    index += 1;
                                 }
                             }
                             _ => { log::error!("Unhandled message for region pool: {:?}", message); }
@@ -429,7 +434,7 @@ impl RegionPool<'_> {
         }
     }
 
-    /// Create a new player instance
+    /// Destroy the given player instance
     pub fn destroy_player_instance(&mut self, uuid: Uuid) {
         {
             *CURR_INST.borrow_mut() = 0;

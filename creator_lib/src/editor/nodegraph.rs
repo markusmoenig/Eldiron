@@ -355,7 +355,7 @@ impl EditorContent for NodeGraph  {
 
                             let mut connection_drawn = false;
                             if let Some(debug_data) = &self.behavior_debug_data {
-                                if debug_data.executed_connections.contains(&(self.graph_type, *source_node_id, *source_connector)) {
+                                if debug_data.executed_connections.contains(&(*source_node_id, *source_connector)) {
                                     orange_path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
                                     connection_drawn = true;
                                 }
@@ -2842,14 +2842,8 @@ impl EditorContent for NodeGraph  {
     /// A game debug update
     fn debug_update(&mut self, update: GameUpdate, context: &mut ScreenContext) {
 
-        context.debug_log_messages.append(&mut update.messages.clone());
-        context.debug_log_inventory = update.sheet.inventory.clone();
-        context.debug_log_variables.clear();
-
-        for key in update.scope_buffer.values.keys().sorted() {
-            let v = &update.scope_buffer.values[key];
-           context.debug_log_variables.push((key.to_string(), v.clone()));
-        }
+        context.debug_messages.append(&mut update.messages.clone());
+        context.debug_sheet = update.sheet.clone();
 
         // Update property log
         if self.graph_type == BehaviorType::Behaviors {

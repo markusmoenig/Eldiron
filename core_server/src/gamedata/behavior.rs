@@ -324,7 +324,7 @@ impl GameBehaviorData {
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct BehaviorDebugData {
-    pub executed_connections        : Vec<(BehaviorType, Uuid, BehaviorNodeConnector)>,
+    pub executed_connections        : Vec<(Uuid, BehaviorNodeConnector)>,
     pub script_errors               : Vec<((Uuid, Uuid, String), (String, Option<u32>))>
 }
 

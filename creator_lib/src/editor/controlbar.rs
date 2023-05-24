@@ -171,7 +171,7 @@ impl Widget for ControlBar {
 
                         context.is_running = true;
                         context.is_debugging = true;
-                        context.debug_log_messages = vec![];
+                        context.debug_messages = vec![];
 
                         atom_widget.text[0] = "Stop".to_string();
 

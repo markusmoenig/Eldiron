@@ -49,17 +49,7 @@ pub struct RegionInstance<'a> {
     // The currently executing behavior tree id
     pub curr_executing_tree         : Uuid,
 
-    // These are fields which provide debug feedback while running and are only used in the editors debug mode
-
-    // The behavior id to debug, this is send from the server
-    debug_behavior_id               : Option<Uuid>,
-
-    // We are debugging the current tick characters
-    is_debugging                    : bool,
-
     pub messages                    : Vec<(String, MessageType)>,
-    pub executed_connections        : Vec<(BehaviorType, Uuid, BehaviorNodeConnector)>,
-    pub script_errors               : Vec<((Uuid, Uuid, String), (String, Option<u32>))>,
 
     // Region settings
 
@@ -124,12 +114,7 @@ impl RegionInstance<'_> {
 
             curr_executing_tree             : Uuid::new_v4(),
 
-            debug_behavior_id               : None,
-            is_debugging                    : false,
-
             messages                        : vec![],
-            executed_connections            : vec![],
-            script_errors                   : vec![],
 
             pixel_based_movement            : true,
 
@@ -191,8 +176,6 @@ impl RegionInstance<'_> {
         for inst_index in 0..character_instances_len {
 
             self.messages = vec![];
-            self.executed_connections = vec![];
-            self.script_errors = vec![];
 
             let state;
             let instance_type;
@@ -202,6 +185,9 @@ impl RegionInstance<'_> {
             {
                 let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
                 data.curr_index = inst_index;
+
+                data.executed_connections = vec![];
+                data.script_errors = vec![];
 
                 data.character_instances[inst_index].audio = vec![];
                 data.character_instances[inst_index].multi_choice_data = vec![];
@@ -226,6 +212,9 @@ impl RegionInstance<'_> {
                 } else {
                     sleeping = false;
                 }
+
+                // Are we debugging this character ?
+                data.is_debugging = Some(data.character_instances[inst_index].behavior_id) == data.debug_behavior_id;
             }
 
             // Skip Sleep cycles
@@ -239,9 +228,6 @@ impl RegionInstance<'_> {
                 if state == BehaviorInstanceState::Killed && instance_type == BehaviorInstanceType::NonPlayerCharacter {
                     continue;
                 }
-
-                // Are we debugging this character ?
-                self.is_debugging = Some(self.instances[inst_index].behavior_id) == self.debug_behavior_id;
 
                 if instance_type == BehaviorInstanceType::NonPlayerCharacter {
 
@@ -441,7 +427,7 @@ impl RegionInstance<'_> {
                     self.instances[inst_index].target_instance_index = None;
                 }
 
-                // Execute the trees queued for execution by script execute cmds
+                // Execute the trees queued for execution by script "execute" cmds
                 let old_index;
                 let to_execute;
                 {
@@ -687,18 +673,18 @@ impl RegionInstance<'_> {
                 }
             }*/
 
-            // If we are debugging this instance, send the debug data
-            if Some(self.instances[inst_index].behavior_id) == self.debug_behavior_id {
-                let debug = BehaviorDebugData {
-                    executed_connections    : self.executed_connections.clone(),
-                    script_errors           : self.script_errors.clone(),
-                };
-                messages.push(Message::DebugData(debug));
-            }
-
             // Add to the characters
 
             let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
+            // If we are debugging this instance, send the debug data
+            if Some(data.character_instances[inst_index].behavior_id) == data.debug_behavior_id {
+                let debug = BehaviorDebugData {
+                    executed_connections    : data.executed_connections.clone(),
+                    script_errors           : data.script_errors.clone(),
+                };
+                messages.push(Message::DebugData(debug));
+            }
 
             if let Some(position) = &data.character_instances[data.curr_index].position {
                 if let Some(tile) = self.instances[inst_index].tile.clone() {
@@ -781,13 +767,16 @@ impl RegionInstance<'_> {
 
             let mut send_update = false;
 
-            // Send update if this is a player and no editor debugging
-            if self.instances[inst_index].instance_type == BehaviorInstanceType::Player && self.debug_behavior_id.is_none() {
-                send_update = true;
-            } else
-            // Otherwise send this update if this is the current character being debugged in the editor
-            if Some(self.instances[inst_index].behavior_id) == self.debug_behavior_id {
-                send_update = true;
+            {
+                let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                // Send update if this is a player and no editor debugging
+                if self.instances[inst_index].instance_type == BehaviorInstanceType::Player && data.debug_behavior_id.is_none() {
+                    send_update = true;
+                } else
+                // Otherwise send this update if this is the current character being debugged in the editor
+                if Some(self.instances[inst_index].behavior_id) == data.debug_behavior_id {
+                    send_update = true;
+                }
             }
 
             if send_update {
@@ -859,7 +848,7 @@ impl RegionInstance<'_> {
                         needs_transfer_to = Some(position.region);
                     } else
                     // Check if the character is in a region we did not send to the client yet OR if the editor is debugging
-                    if data.character_instances[inst_index].regions_send.contains(&position.region) == false || self.debug_behavior_id.is_some() {
+                    if data.character_instances[inst_index].regions_send.contains(&position.region) == false || data.debug_behavior_id.is_some() {
                         region = Some(data.region_data.clone());
                         data.character_instances[inst_index].regions_send.insert(position.region);
                     }
@@ -2088,7 +2077,8 @@ impl RegionInstance<'_> {
 
     /// Sets the debugging behavior id.
     pub fn set_debug_behavior_id(&mut self, behavior_id: Uuid) {
-        self.debug_behavior_id = Some(behavior_id);
+        let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        data.debug_behavior_id = Some(behavior_id);
     }
 
     /// Serializes the given instance index

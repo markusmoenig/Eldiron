@@ -1,3 +1,5 @@
+use pathfinding::num_traits::ToPrimitive;
+
 use crate::prelude::*;
 
 pub struct GroupedList {
@@ -594,20 +596,23 @@ impl AtomWidget {
                     let y_start = r.1 + 2 * text_size;
 
                     if self.curr_index == 0 {
-                        // Variables
-                        for (index, _v) in context.debug_log_variables.iter().enumerate() {
+                        // Abilities
+                        let mut index = 0;
+                        for (name, value) in context.debug_sheet.abilities.iter() {
                             if index >= max_lines { break; }
 
-                            context.draw2d.draw_text_rect(buffer_frame, &(r.0, y_start + index * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, context.debug_log_variables[index].0.as_str(), color, b, crate::draw2d::TextAlignment::Left);
+                            context.draw2d.draw_text_rect(buffer_frame, &(r.0, y_start + index * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, name.as_str(), color, b, crate::draw2d::TextAlignment::Left);
 
-                            let str = context.debug_log_variables[index].1.to_string_value();
+                            let str : String = value.to_string();
 
                             context.draw2d.draw_text_rect(buffer_frame, &(r.0, y_start + index * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, str.as_str(), color, b, crate::draw2d::TextAlignment::Right);
+
+                            index += 0;
                         }
                     } else
                     if self.curr_index == 2 {
                         // Inventory
-                        for (index, item) in context.debug_log_inventory.items.iter().enumerate() {
+                        for (index, item) in context.debug_sheet.inventory.items.iter().enumerate() {
                             if index >= max_lines { break; }
 
                             context.draw2d.draw_text_rect(buffer_frame, &(r.0, y_start + index * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, item.name.as_str(), color, b, crate::draw2d::TextAlignment::Left);
@@ -619,20 +624,20 @@ impl AtomWidget {
                     } else
                     if self.curr_index == 3 {
                         // Messages
-                        let available_messages = context.debug_log_messages.len();
+                        let available_messages = context.debug_messages.len();
 
                         for l in 0..max_lines {
                             if l >= available_messages {
                                 break;
                             }
 
-                            match &context.debug_log_messages[available_messages - 1 - l].message_type {
+                            match &context.debug_messages[available_messages - 1 - l].message_type {
                                 MessageType::Debug => color = &context.color_light_green,
                                 MessageType::Error => color = &context.color_light_orange,
                                 _ => {},
                             }
 
-                            context.draw2d.draw_text_rect(buffer_frame, &(r.0, r.3 - 10 - (l+1) * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, context.debug_log_messages[available_messages - 1 - l].message.as_str(), color, b, crate::draw2d::TextAlignment::Left);
+                            context.draw2d.draw_text_rect(buffer_frame, &(r.0, r.3 - 10 - (l+1) * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, context.debug_messages[available_messages - 1 - l].message.as_str(), color, b, crate::draw2d::TextAlignment::Left);
                         }
                     }
                 }

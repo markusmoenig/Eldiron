@@ -66,6 +66,17 @@ pub struct RegionData {
 
     pub skill_trees                 : FxHashMap<String, Vec<(i32, String, String)>>,
 
+    // Debug Data which gets displayer in the editor
+
+    /// The behavior id of the character to debug, this is send from the server
+    pub debug_behavior_id           : Option<Uuid>,
+    // We are debugging the current tick characters
+    pub is_debugging                : bool,
+    /// Executed connections for the last tick for the debug character
+    pub executed_connections        : Vec<(Uuid, BehaviorNodeConnector)>,
+    /// Script errors for the debug character
+    pub script_errors               : Vec<((Uuid, Uuid, String), (String, Option<u32>))>,
+
     /// The current character sheet index
     pub curr_index                  : usize,
 
@@ -164,6 +175,12 @@ impl RegionData {
             respawn_instance                : FxHashMap::default(),
 
             skill_trees                     : FxHashMap::default(),
+
+            // Debug
+            debug_behavior_id               : None,
+            is_debugging                    : false,
+            executed_connections            : vec![],
+            script_errors                   : vec![],
 
             curr_index                      : 0,
             curr_area_index                 : 0,
