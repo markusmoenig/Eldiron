@@ -595,6 +595,7 @@ impl AtomWidget {
 
                     if self.curr_index == 0 {
                         // Abilities
+
                         let mut index = 0;
                         for (name, value) in context.debug_sheet.abilities.iter() {
                             if index >= max_lines { break; }
@@ -605,7 +606,7 @@ impl AtomWidget {
 
                             context.draw2d.draw_text_rect(buffer_frame, &(r.0, y_start + index * (text_size as usize), r.2, text_size), rect.2, font, text_size as f32, str.as_str(), color, b, crate::draw2d::TextAlignment::Right);
 
-                            index += 0;
+                            index += 1;
                         }
                     } else
                     if self.curr_index == 2 {

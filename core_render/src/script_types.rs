@@ -334,7 +334,6 @@ pub struct ScriptInfo {
     pub width               : i32,
     pub height              : i32,
     pub tile_size           : i32,
-    pub player              : rhai::Map,
     pub tilemaps            : ScriptTilemaps,
     pub region              : rhai::Map,
     pub display_mode_3d     : bool,
@@ -347,7 +346,6 @@ impl ScriptInfo {
             width           : 0,
             height          : 0,
             tile_size       : 0,
-            player          : rhai::Map::new(),
             tilemaps        : ScriptTilemaps::new(),
             region          : rhai::Map::new(),
             display_mode_3d : false,
@@ -469,10 +467,6 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
         INFOCMD.lock().unwrap().tile_size = size;
     });
 
-    engine.register_fn("get_player", || -> rhai::Map {
-        INFOCMD.lock().unwrap().player.clone()
-    });
-
     engine.register_fn("get_tilemaps", || -> ScriptTilemaps {
         INFOCMD.lock().unwrap().tilemaps.clone()
     });
@@ -495,6 +489,10 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
 
     engine.register_fn("set_display_mode_2d", |display_mode: bool| {
         INFOCMD.lock().unwrap().display_mode_3d = !display_mode;
+    });
+
+    engine.register_fn("get_sheet", || -> Sheet {
+        SHEET.lock().unwrap().clone()
     });
 
     engine.register_fn("get_inventory", || -> Inventory {

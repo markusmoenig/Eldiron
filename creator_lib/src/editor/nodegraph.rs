@@ -1240,8 +1240,8 @@ impl EditorContent for NodeGraph  {
             let node_type = match name.as_str() {
                 "Expression" => BehaviorNodeType::Expression,
                 "Script" => BehaviorNodeType::Script,
-                "Sequence" => BehaviorNodeType::Sequence,
-                "Linear" => BehaviorNodeType::Linear,
+                //"Sequence" => BehaviorNodeType::Sequence,
+                //"Linear" => BehaviorNodeType::Linear,
                 "Move" => BehaviorNodeType::Move,
                 "Screen" => BehaviorNodeType::Screen,
                 "Widget" => BehaviorNodeType::Widget,
@@ -1265,9 +1265,9 @@ impl EditorContent for NodeGraph  {
                 "Has State ?" => BehaviorNodeType::HasState,
                 "Has Target ?" => BehaviorNodeType::HasTarget,
                 "Untarget" => BehaviorNodeType::Untarget,
-                "Deal Damage" => BehaviorNodeType::DealDamage,
-                "Take Damage" => BehaviorNodeType::TakeDamage,
-                "Magic Damage" => BehaviorNodeType::MagicDamage,
+                //"Deal Damage" => BehaviorNodeType::DealDamage,
+                //"Take Damage" => BehaviorNodeType::TakeDamage,
+                //"Magic Damage" => BehaviorNodeType::MagicDamage,
                 "Drop Inv." => BehaviorNodeType::DropInventory,
                 "Target" => BehaviorNodeType::Target,
                 "Magic Target" => BehaviorNodeType::MagicTarget,
@@ -1276,8 +1276,8 @@ impl EditorContent for NodeGraph  {
                 "Audio" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::AudioArea,
                 "Audio" => BehaviorNodeType::Audio,
                 "Effect" => BehaviorNodeType::Effect,
-                "Heal" => BehaviorNodeType::Heal,
-                "Take Heal" => BehaviorNodeType::TakeHeal,
+                //"Heal" => BehaviorNodeType::Heal,
+                //"Take Heal" => BehaviorNodeType::TakeHeal,
                 "Respawn" => BehaviorNodeType::Respawn,
                 "Equip" => BehaviorNodeType::Equip,
                 "Set Level Tree" => BehaviorNodeType::SetLevelTree,
@@ -1499,26 +1499,6 @@ impl EditorContent for NodeGraph  {
             if self.curr_behavior_tree_id == None {
                 self.curr_behavior_tree_id = Some(node_widget.id);
             }
-        } else
-        if node_behavior_type == BehaviorNodeType::Linear {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#linear".to_string());
-            node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom1, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom3, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom4, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Sequence {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#sequence".to_string());
-            node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom1, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom3, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom4, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::Expression {
             let mut atom1 = AtomWidget::new(vec!["Expression".to_string()], AtomWidgetType::NodeExpressionButton,
@@ -2000,59 +1980,6 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
-        if node_behavior_type == BehaviorNodeType::DealDamage {
-            let mut atom2 = AtomWidget::new(vec!["Attack Rating".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("attack_rating", Value::Empty()));
-            atom2.atom_data.text = "Attack Rating".to_string();
-            let id = (behavior_data_id, node_id, "attack_rating".to_string());
-            atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("0".to_string()), self.graph_type);
-            node_widget.widgets.push(atom2);
-
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#deal-damage".to_string());
-
-            node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::TakeDamage {
-            let mut atom2 = AtomWidget::new(vec!["Reduce By".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("reduce by", Value::Empty()));
-            atom2.atom_data.text = "Reduce By".to_string();
-            let id = (behavior_data_id, node_id, "reduce by".to_string());
-            atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("0".to_string()), self.graph_type);
-            node_widget.widgets.push(atom2);
-
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#take-damage".to_string());
-
-            node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::MagicDamage {
-            let mut atom2 = AtomWidget::new(vec!["Damage".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("damage", Value::Empty()));
-            atom2.atom_data.text = "Damage".to_string();
-            let id = (behavior_data_id, node_id, "damage".to_string());
-            atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("0".to_string()), self.graph_type);
-            node_widget.widgets.push(atom2);
-
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#magic-damage".to_string());
-
-            node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
         if node_behavior_type == BehaviorNodeType::DropInventory {
             let type_menu = create_menu_atom("Drop".to_string(), vec!["Everything".to_string(), "Random Item".to_string()], Value::Integer(0));
 
@@ -2113,52 +2040,6 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Heal {
-            let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
-            node_widget.widgets.push(target_menu);
-
-            let mut atom2 = AtomWidget::new(vec!["Amount".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("amount", Value::Empty()));
-            atom2.atom_data.text = "Amount".to_string();
-            let id = (behavior_data_id, node_id, "amount".to_string());
-            atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("0".to_string()), self.graph_type);
-            node_widget.widgets.push(atom2);
-
-            let mut atom1 = AtomWidget::new(vec!["Speed Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("speed", Value::Empty()));
-            atom1.atom_data.text = "Speed Delay".to_string();
-            let id = (behavior_data_id, node_id, "speed".to_string());
-            atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String(7.to_string()), self.graph_type);
-            node_widget.widgets.push(atom1);
-
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#heal".to_string());
-
-            node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::TakeHeal {
-            let mut atom2 = AtomWidget::new(vec!["Increase By".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("increase by", Value::Empty()));
-            atom2.atom_data.text = "Increase By".to_string();
-            let id = (behavior_data_id, node_id, "increase by".to_string());
-            atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("0".to_string()), self.graph_type);
-            node_widget.widgets.push(atom2);
-
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#take-heal".to_string());
-
-            node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::Respawn {
             let mut atom2 = AtomWidget::new(vec!["Minutes to Wait".to_string()], AtomWidgetType::NodeExpressionValueButton,

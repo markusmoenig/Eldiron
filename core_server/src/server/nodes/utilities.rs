@@ -51,6 +51,7 @@ pub fn get_node_string(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMap
     None
 }
 
+/*
 /// Retrieves a number instance value
 pub fn get_number_variable(instance_index: usize, variable: String, data: &mut RegionInstance) -> Option<f32> {
     if let Some(value) = data.scopes[instance_index].get_value::<f32>(&variable) {
@@ -92,7 +93,7 @@ pub fn get_f32_variable(instance_index: usize, variable: String, data: &mut Regi
 /// Sets a number instance value
 pub fn set_number_variable(instance_index: usize, variable: String, value: f32, data: &mut RegionInstance) {
     data.scopes[instance_index].set_value(&variable, value);
-}
+}*/
 
 /// Retrieves a node value
 pub fn get_node_value(id: (Uuid, Uuid, &str), data: &mut RegionInstance, behavior_type: BehaviorType) -> Option<Value> {
@@ -627,6 +628,7 @@ pub fn check_and_create_item_state(item_behavior_id: Uuid) -> Option<State> {
     None
 }
 
+/*
 /// Returns the character currency
 pub fn character_currency(inst_index: usize, data: &mut RegionInstance) -> Option<i32> {
     if let Some(value) = data.scopes[inst_index].get_value::<i32>(&data.primary_currency) {
@@ -671,7 +673,7 @@ pub fn remove_from_character_currency(inst_index: usize, amount: f32, data: &mut
         }
     }
     false
-}
+}*/
 
 /// Starts to wait for the given amount of ticks
 pub fn wait_start(instance_index: usize, ticks: usize, id: (Uuid, Uuid), data: &mut RegionData) {
@@ -698,6 +700,7 @@ pub fn wait_for(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionData) 
     rc
 }
 
+/*
 /// Returns the property script for the currently equipped weapon
 pub fn get_weapon_script_id(instance_index: usize, slot: String, data: &mut RegionInstance) -> Option<(BehaviorType, Uuid, Uuid, String)> {
     if let Some(v) = data.scopes[instance_index].get("weapons") {
@@ -741,7 +744,7 @@ pub fn get_weapon_script_id(instance_index: usize, slot: String, data: &mut Regi
         return skill_script_id;
     }
     None
-}
+}*/
 
 /// Returns the weapon distance for the given weapon slot
 pub fn get_weapon_distance(slot: String, data: &mut RegionData) -> i32 {

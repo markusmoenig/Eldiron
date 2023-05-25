@@ -67,6 +67,9 @@ fn SpellsWidget(rect) {
 }
 
 // The inventory widget
+// It displays the current items in the inventory and handles key and touch events.
+// It executes an action_inventory() cmd when an item is clicked and
+// remembers the selected item.
 
 fn InventoryWidget(rect) {
   let inventory = #{

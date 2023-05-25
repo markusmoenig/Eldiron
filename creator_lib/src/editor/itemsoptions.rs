@@ -17,11 +17,11 @@ impl EditorOptions for ItemsOptions {
     AtomData::new("NodeList", Value::Empty()));
         node_list.drag_enabled = true;
 
-        node_list.add_group_list(context.color_green, context.color_light_green, vec!["Behavior Tree".to_string(), "Expression".to_string(), "Script".to_string(), "Linear".to_string(), "Sequence".to_string()]);
+        node_list.add_group_list(context.color_green, context.color_light_green, vec!["Behavior Tree".to_string(), "Expression".to_string(), "Script".to_string()]);
 
         node_list.add_group_list(context.color_orange, context.color_light_orange, vec!["Skill Tree".to_string(), "Skill Level".to_string()]);
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Effect".to_string(), "Heal".to_string(), "Light".to_string(), "Magic Damage".to_string(), "Magic Target".to_string(), "Message".to_string(), "Set Tile".to_string()]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Effect".to_string(), "Light".to_string(), "Magic Target".to_string(), "Message".to_string(), "Set Tile".to_string()]);
 
         node_list.set_rect(rect, asset, context);
         widgets.push(node_list);

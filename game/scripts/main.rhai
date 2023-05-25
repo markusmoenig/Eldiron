@@ -148,11 +148,12 @@ fn draw() {
     draw_rect(rect(671 - 8, 197 - 8, 326 + 16, 364 + 16), rgba(20, 20, 20, 220));
   }
 
-  let player = get_player();
-  draw_text_rect(rect(671, 26, 326, 20), "" + player.name, this.font_name, 19.0, rgb(150, 150, 150), "left");
-  draw_text_rect(rect(671, 26, 326, 20), get_wealth().to_string(), this.font_name, 19.0, rgb(150, 150, 150), "right");
-  draw_text_rect(rect(671, 50, 326, 20), "HP: " + player.HP + "  STR:" + player.STR, this.font_name, 19.0, rgb(150, 150, 150), "left");
-  draw_text_rect(rect(671, 50, 326, 20), "LVL: " + get_experience().level, this.font_name, 19.0, rgb(150, 150, 150), "right");
+  let sheet = get_sheet();
+  draw_text_rect(rect(671, 26, 326, 20), "" + sheet.name, this.font_name, 19.0, rgb(150, 150, 150), "left");
+  draw_text_rect(rect(671, 26, 326, 20), " LVL: " + get_experience().level + "   " + "HP: " + sheet.hit_points + "/" + sheet.max_hit_points, this.font_name, 19.0, rgb(150, 150, 150), "right");
+  //draw_text_rect(rect(671, 50, 326, 20), "STR" + sheet.get_ability("STR") + " INT" + sheet.get_ability("INT") + " WIS" + sheet.get_ability("WIS") + " DEX" + sheet.get_ability("DEX") + " CON" + sheet.get_ability("CON") + " CHA" + sheet.get_ability("CHA"), this.font_name, 16.0, rgb(150, 150, 150), "left");
+  draw_text_rect(rect(671, 50, 326, 20), sheet.race + " " + sheet.class, this.font_name, 19.0, rgb(150, 150, 150), "left");
+  draw_text_rect(rect(671, 50, 326, 20), get_wealth().to_string(), this.font_name, 19.0, rgb(150, 150, 150), "right");
 
   // Messages
   draw_messages(this.board, this.font_name, 16.0, this.silver);

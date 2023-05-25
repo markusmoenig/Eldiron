@@ -389,27 +389,6 @@ impl GameRender<'_> {
             self.lights.insert(position.region, update.lights.clone());
         }
 
-        // Insert the scope into the player map
-
-        let mut player_map = rhai::Map::new();
-
-        for (n, v) in &update.scope_buffer.values {
-            match v {
-                Value::Integer(value) => {
-                    player_map.insert(n.into(), Dynamic::from(value.clone()));
-                },
-                Value::Float(value) => {
-                    player_map.insert(n.into(), Dynamic::from(value.clone()));
-                },
-                Value::String(value) => {
-                    player_map.insert(n.into(), Dynamic::from(value.clone()));
-                },
-                _ => {},
-            }
-        }
-
-        INFOCMD.lock().unwrap().player = player_map;
-
         // Set the date
         INFOCMD.lock().unwrap().date = update.date.clone();
 

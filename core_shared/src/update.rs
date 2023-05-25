@@ -52,9 +52,6 @@ pub struct GameUpdate {
     /// Audio files to play
     pub audio                   : Vec<String>,
 
-    /// Scope
-    pub scope_buffer            : ScopeBuffer,
-
     /// Multiple Choice Data
     pub multi_choice_data       : Vec<MultiChoiceData>,
 
@@ -89,7 +86,6 @@ impl GameUpdate {
             loot                : FxHashMap::default(),
             messages            : vec![],
             audio               : vec![],
-            scope_buffer        : ScopeBuffer::new(),
             multi_choice_data   : vec![],
             communication       : vec![],
             date                : Date::new(),

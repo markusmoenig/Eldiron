@@ -186,18 +186,6 @@ pub struct BehaviorInstance {
     // The name of the instance
     pub name                    : String,
 
-    // Store all variables in the instances rhai::Scope
-    // This is for serialization only / deserialization only, not used at runtime
-    pub scope_buffer            : Option<ScopeBuffer>,
-
-    // Store the inventory / weapons / gear / skills / experience
-    // This is for serialization / deserialization only, not used at runtime
-    pub inventory_buffer        : Option<String>,
-    pub weapons_buffer          : Option<String>,
-    pub gear_buffer             : Option<String>,
-    pub skills_buffer           : Option<String>,
-    pub experience_buffer       : Option<String>,
-
     // An instance index of the entity we are currently interacting with
     pub target_instance_index   : Option<usize>,
 
@@ -259,12 +247,6 @@ pub struct BehaviorInstance {
 
     /// This character has an ongoing communication
     pub communication           : Vec<PlayerCommunication>,
-
-    /// Damage to be dealt to this character
-    pub damage_to_be_dealt      : Option<i32>,
-
-    /// Healing to be dealt to this character
-    pub healing_to_be_dealt     : Option<i32>,
 
     /// Effects to be played in this tick
     pub effects                 : Vec<TileId>,

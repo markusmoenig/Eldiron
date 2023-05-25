@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::prelude::*;
 
 use rhai::Engine;
@@ -10,7 +12,7 @@ pub struct Sheet {
     pub class_name              : String,
     pub race_name               : String,
 
-    pub abilities               : FxHashMap<String, i32>,
+    pub abilities               : std::collections::BTreeMap<String, i32>,
 
     pub hit_points              : i32,
     pub max_hit_points          : i32,
@@ -34,7 +36,7 @@ impl Sheet {
             class_name          : String::new(),
             race_name           : String::new(),
 
-            abilities           : FxHashMap::default(),
+            abilities           : BTreeMap::default(),
 
             hit_points          : 0,
             max_hit_points      : 0,
@@ -151,7 +153,7 @@ impl Sheet {
 
         engine.register_get("name", Sheet::get_name);
         engine.register_get("class", Sheet::get_class_name);
-        engine.register_get("name", Sheet::get_race_name);
+        engine.register_get("race", Sheet::get_race_name);
 
         engine.register_get("inventory", Sheet::get_inventory);
         engine.register_get("weapons", Sheet::get_weapons);
