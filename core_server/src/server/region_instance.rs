@@ -428,11 +428,6 @@ impl RegionInstance<'_> {
                             data.character_instances[inst_index].action = None;
                         }
                     }
-                    // Characters do not lock on targets
-                    {
-                        let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-                        data.character_instances[inst_index].target_instance_index = None;
-                    }
                 }
 
                 // Execute the trees queued for execution by script "execute" cmds
@@ -454,6 +449,12 @@ impl RegionInstance<'_> {
                         let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
                         data.curr_index = old_index;
                     }
+                }
+
+                // Characters do not lock on target, clear the target index
+                if instance_type == BehaviorInstanceType::Player {
+                    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                    data.character_instances[inst_index].target_instance_index = None;
                 }
             }
 

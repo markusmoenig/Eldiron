@@ -42,7 +42,7 @@ pub struct NodeWidget {
 
     pub clicked_id              : Option<(Uuid, Uuid, String)>,
 
-    pub node_connector          : HashMap<BehaviorNodeConnector, NodeConnector>,
+    pub node_connector          : FxHashMap<BehaviorNodeConnector, NodeConnector>,
 
     pub graph_offset            : (isize, isize),
 
@@ -78,7 +78,7 @@ impl NodeWidget {
 
             clicked_id          : None,
 
-            node_connector      : HashMap::new(),
+            node_connector      : FxHashMap::default(),
 
             graph_offset        : (0,0),
 
@@ -114,7 +114,7 @@ impl NodeWidget {
 
             clicked_id          : None,
 
-            node_connector      : HashMap::new(),
+            node_connector      : FxHashMap::default(),
 
             graph_offset        : (0,0),
 

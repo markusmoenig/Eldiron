@@ -295,73 +295,75 @@ impl EditorContent for NodeGraph  {
                         if self.visible_node_ids.contains(source_node_id) {
                             let source_index = self.node_id_to_widget_index(source_node_id.clone());
                             let source_rect = &self.get_node_rect(source_index, true);
-                            let source_node = &self. nodes[source_index];
+                            let source_node = &self.nodes[source_index];
 
                             let dest_index = self.node_id_to_widget_index(dest_node_id.clone());
                             let dest_rect = &self.get_node_rect(dest_index, true);
-                            let dest_node = &self. nodes[dest_index];
+                            let dest_node = &self.nodes[dest_index];
 
-                            let s_connector = &source_node.node_connector[source_connector];
-                            let d_connector = &dest_node.node_connector[dest_connector];
+                            if let Some(s_connector) = source_node.node_connector.get(source_connector) {
+                                if let Some(d_connector) = dest_node.node_connector.get(dest_connector) {
 
-                            let start_x;
-                            let start_y;
+                                    let start_x;
+                                    let start_y;
 
-                            let control_start_x;
-                            let control_start_y;
+                                    let control_start_x;
+                                    let control_start_y;
 
-                            let control_end_x;
-                            let control_end_y;
+                                    let control_end_x;
+                                    let control_end_y;
 
-                            let end_x;
-                            let end_y;
+                                    let end_x;
+                                    let end_y;
 
-                            let sdx : f64;
-                            let sdy : f64;
-                            let edx : f64;
-                            let edy : f64;
+                                    let sdx : f64;
+                                    let sdy : f64;
+                                    let edx : f64;
+                                    let edy : f64;
 
-                            if *source_connector == BehaviorNodeConnector::Right {
-                                start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize;
-                                start_y = source_rect.1 + s_connector.rect.1 as isize + s_connector.rect.3 as isize / 2;
-                                sdx = 1.0; sdy = 0.0;
-                            } else {
-                                start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize / 2;
-                                start_y = source_rect.1 + s_connector.rect.1 as isize + s_connector.rect.3 as isize;
-                                sdx = 0.0; sdy = 1.0;
-                            }
+                                    if *source_connector == BehaviorNodeConnector::Right {
+                                        start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize;
+                                        start_y = source_rect.1 + s_connector.rect.1 as isize + s_connector.rect.3 as isize / 2;
+                                        sdx = 1.0; sdy = 0.0;
+                                    } else {
+                                        start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize / 2;
+                                        start_y = source_rect.1 + s_connector.rect.1 as isize + s_connector.rect.3 as isize;
+                                        sdx = 0.0; sdy = 1.0;
+                                    }
 
-                            if *dest_connector == BehaviorNodeConnector::Left {
-                                end_x = dest_rect.0 + d_connector.rect.0 as isize + 1;
-                                end_y = dest_rect.1 + d_connector.rect.1 as isize + d_connector.rect.3 as isize / 2;
-                                edx = -1.0; edy = 0.0;
-                            } else {
-                                end_x = dest_rect.0 + d_connector.rect.0 as isize + d_connector.rect.2 as isize / 2;
-                                end_y = dest_rect.1 + d_connector.rect.1 as isize + 1;
-                                edx = 0.0; edy = -1.0;
-                            }
+                                    if *dest_connector == BehaviorNodeConnector::Left {
+                                        end_x = dest_rect.0 + d_connector.rect.0 as isize + 1;
+                                        end_y = dest_rect.1 + d_connector.rect.1 as isize + d_connector.rect.3 as isize / 2;
+                                        edx = -1.0; edy = 0.0;
+                                    } else {
+                                        end_x = dest_rect.0 + d_connector.rect.0 as isize + d_connector.rect.2 as isize / 2;
+                                        end_y = dest_rect.1 + d_connector.rect.1 as isize + 1;
+                                        edx = 0.0; edy = -1.0;
+                                    }
 
-                            let dx = start_x - end_x;
-                            let dy = start_y - end_y;
+                                    let dx = start_x - end_x;
+                                    let dy = start_y - end_y;
 
-                            let d = ((dx * dx + dy * dy) as f64).sqrt().clamp(0.0, 50.0);
+                                    let d = ((dx * dx + dy * dy) as f64).sqrt().clamp(0.0, 50.0);
 
-                            control_start_x = start_x + (sdx * d) as isize;
-                            control_start_y = start_y + (sdy * d) as isize;
+                                    control_start_x = start_x + (sdx * d) as isize;
+                                    control_start_y = start_y + (sdy * d) as isize;
 
-                            control_end_x = end_x + (edx * d) as isize;
-                            control_end_y = end_y + (edy * d) as isize;
+                                    control_end_x = end_x + (edx * d) as isize;
+                                    control_end_y = end_y + (edy * d) as isize;
 
-                            let mut connection_drawn = false;
-                            if let Some(debug_data) = &self.behavior_debug_data {
-                                if debug_data.executed_connections.contains(&(*source_node_id, *source_connector)) {
-                                    orange_path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
-                                    connection_drawn = true;
+                                    let mut connection_drawn = false;
+                                    if let Some(debug_data) = &self.behavior_debug_data {
+                                        if debug_data.executed_connections.contains(&(*source_node_id, *source_connector)) {
+                                            orange_path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
+                                            connection_drawn = true;
+                                        }
+                                    }
+
+                                    if connection_drawn == false {
+                                        path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
+                                    }
                                 }
-                            }
-
-                            if connection_drawn == false {
-                                path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
                             }
                         }
                     }
@@ -1941,8 +1943,6 @@ impl EditorContent for NodeGraph  {
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::HasState {
             let type_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string(), "Sleeping".to_string(), "Intoxicated".to_string()], Value::Integer(0));

@@ -412,10 +412,10 @@ pub fn execute_behavior(inst_index: usize, tree_name: &str) -> bool {
                 if system.name == system_name {
                     for (id, node) in &system.nodes {
                         if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name{
-                            for (value_name, value) in &node.values {
-                                if *value_name == "execute".to_string() {
-                                    if let Some(v) = value.to_integer() {
-                                        if v == 0 {
+                            //for (value_name, value) in &node.values {
+                                //if *value_name == "execute".to_string() {
+                                    //if let Some(v) = value.to_integer() {
+                                        //if v == 0 {
                                             // "Always execute" only tree
                                             for c in &system.connections {
                                                 if c.0 == *id {
@@ -423,10 +423,10 @@ pub fn execute_behavior(inst_index: usize, tree_name: &str) -> bool {
                                                     return true;
                                                 }
                                             }
-                                        }
-                                    }
-                                }
-                            }
+                                        //}
+                                    //}
+                                //}
+                            //}
                         }
                     }
                 }
