@@ -1,7 +1,6 @@
 use crate::prelude::*;
 
 use zeno::{Mask, Stroke};
-use itertools::Itertools;
 
 pub struct NodeGraph  {
     pub rect                    : (usize, usize, usize, usize),

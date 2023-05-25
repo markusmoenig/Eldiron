@@ -1,5 +1,3 @@
-use pathfinding::num_traits::ToPrimitive;
-
 use crate::prelude::*;
 
 pub struct GroupedList {

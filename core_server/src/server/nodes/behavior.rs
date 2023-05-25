@@ -1195,7 +1195,7 @@ pub fn node_drop_inventory(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeh
     }
 
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-    let sheet = &mut data.sheets[data.curr_index];
+    let sheet: &mut Sheet = &mut data.sheets[data.curr_index];
 
     let total = sheet.inventory.items.len();
 

@@ -46,19 +46,6 @@ impl ScriptTilemap {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ScriptTile {
-    pub id              : TileId,
-}
-
-impl ScriptTile {
-    pub fn new(id: TileId) -> Self {
-        Self {
-            id
-        }
-    }
-}
-
 // --- Drawing
 
 // --- ScriptPosition

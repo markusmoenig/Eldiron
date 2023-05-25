@@ -24,7 +24,9 @@ fn SpellsWidget(rect) {
       if this.selected_item == index {
         color = this.highlighted_color;
       }
-      draw_text(pos(x, y), "" + (index + 1) + ". " + spell.name, this.font_name, this.font_size, color);
+
+      draw_tile_sized(pos(x, y - 2), spell.tile, 24);
+      draw_text(pos(x + 26, y), "" + (index + 1) + ". " + spell.name, this.font_name, this.font_size, color);
       y += 20;
       index += 1;
     }
@@ -90,7 +92,9 @@ fn InventoryWidget(rect) {
         color = this.highlighted_color;
         this.highlight_item -= 1;
       }
-      draw_text(pos(x, y), "" + (index + 1) + ". " + item.name, this.font_name, this.font_size, color);
+
+      draw_tile_sized(pos(x, y - 2), item.tile, 24);
+      draw_text(pos(x + 26, y), "" + (index + 1) + ". " + item.name, this.font_name, this.font_size, color);
       draw_text_rect(rect(x, y, this.rect.width - 2 * this.margin, 20), "" + item.amount, this.font_name, this.font_size, color, "right");
       y += 20;
       index += 1;

@@ -77,6 +77,9 @@ pub struct RegionData {
     /// Script errors for the debug character
     pub script_errors               : Vec<((Uuid, Uuid, String), (String, Option<u32>))>,
 
+    // Identify the currently executing inventory item index
+    pub curr_inventory_index        : Option<usize>,
+
     /// The current character sheet index
     pub curr_index                  : usize,
 
@@ -182,6 +185,7 @@ impl RegionData {
             executed_connections            : vec![],
             script_errors                   : vec![],
 
+            curr_inventory_index            : None,
             curr_index                      : 0,
             curr_area_index                 : 0,
         }

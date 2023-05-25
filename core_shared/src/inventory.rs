@@ -2,6 +2,19 @@
 
 use crate::prelude::*;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScriptTile {
+    pub id              : TileId,
+}
+
+impl ScriptTile {
+    pub fn new(id: TileId) -> Self {
+        Self {
+            id
+        }
+    }
+}
+
 /// An inventory item
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Item {
@@ -112,6 +125,16 @@ impl Item {
 
     pub fn get_value(&mut self) -> Currency {
         self.value.clone()
+    }
+
+    pub fn get_tile(&mut self) -> ScriptTile {
+        if let Some(tile) = &self.tile {
+            let tile_id = TileId::new(tile.tilemap, tile.x_off, tile.y_off);
+            ScriptTile::new(tile_id)
+        } else {
+            let tile_id = TileId::new(Uuid::new_v4(), 0, 0);
+            ScriptTile::new(tile_id)
+        }
     }
 
 }
@@ -225,11 +248,13 @@ impl IntoIterator for Inventory {
 }
 
 pub fn script_register_inventory_api(engine: &mut rhai::Engine) {
+    engine.register_type_with_name::<ScriptTile>("Tile");
 
     engine.register_type_with_name::<Item>("Item")
         .register_get("name", Item::get_name)
         .register_get("use_skill", Item::get_use_skill)
         .register_get("value", Item::get_value)
+        .register_get("tile", Item::get_tile)
         .register_get("amount", Item::get_amount);
 
     engine.register_type_with_name::<Inventory>("Inventory")

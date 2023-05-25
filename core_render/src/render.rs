@@ -102,8 +102,6 @@ impl GameRender<'_> {
         engine.register_type_with_name::<ScriptTilemap>("Tilemap")
             .register_fn("get_tile", ScriptTilemap::get_tile);
 
-        engine.register_type_with_name::<ScriptTile>("Tile");
-
         engine.register_type_with_name::<ScriptMessageCmd>("MessageCmd");
 
         ScriptPosition::register(&mut engine);
@@ -449,6 +447,7 @@ impl GameRender<'_> {
                     if let Some(first) = parts.next() {
                         string = first.to_owned();
                     }
+                    println!("{}", string);
                     return Some((string, err.position().line()));
                 }
             }

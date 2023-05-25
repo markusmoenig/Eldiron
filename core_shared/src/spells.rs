@@ -31,6 +31,16 @@ impl Spell {
     pub fn get_name(&mut self) -> String {
         self.name.clone()
     }
+
+    pub fn get_tile(&mut self) -> ScriptTile {
+        if let Some(tile) = &self.tile {
+            let tile_id = TileId::new(tile.tilemap, tile.x_off, tile.y_off);
+            ScriptTile::new(tile_id)
+        } else {
+            let tile_id = TileId::new(Uuid::new_v4(), 0, 0);
+            ScriptTile::new(tile_id)
+        }
+    }
 }
 
 /// Spells
@@ -88,6 +98,7 @@ impl IntoIterator for Spells {
 pub fn script_register_spells_api(engine: &mut rhai::Engine) {
 
     engine.register_type_with_name::<Spell>("Spell")
+        .register_get("tile", Spell::get_tile)
         .register_get("name", Spell::get_name);
 
     engine.register_type_with_name::<Spells>("Spells")
