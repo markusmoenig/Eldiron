@@ -171,9 +171,6 @@ pub struct BehaviorInstance {
     // The instance state
     pub state                   : BehaviorInstanceState,
 
-    // Alignment
-    pub alignment               : i32,
-
     // The behavior id for this instance
     pub behavior_id             : Uuid,
 

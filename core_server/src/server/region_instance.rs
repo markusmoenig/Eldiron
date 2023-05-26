@@ -1546,7 +1546,7 @@ impl RegionInstance<'_> {
 
         let index;
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: 1, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: None, send_screen_scripts: false };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: None, send_screen_scripts: false };
 
         {
             let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
@@ -1737,7 +1737,7 @@ impl RegionInstance<'_> {
 
             //println!("Creating instance {}", inst.name.unwrap());
 
-            let instance: BehaviorInstance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior_name.clone(), behavior_id: behavior_id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, alignment: inst.alignment, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: Some(inst.clone()), send_screen_scripts: false };
+            let instance: BehaviorInstance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior_name.clone(), behavior_id: behavior_id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: Some(inst.clone()), send_screen_scripts: false };
 
             {
                 let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
@@ -1936,6 +1936,7 @@ impl RegionInstance<'_> {
                 if let Some(race_name) = race_name.clone() {
                     sheet.race_name = race_name;
                 }
+                sheet.alignment = inst.alignment;
                 sheet.spells = spells;
                 sheet.skills = skills;
                 data.sheets.push(sheet);
