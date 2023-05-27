@@ -59,6 +59,15 @@ impl Sheet {
     }
 
     /// Get the name
+    pub fn get_name_def(&mut self) -> String {
+        if self.name == self.race_name {
+            return format!("the {}", self.name)
+        } else {
+            return self.name.clone()
+        }
+    }
+
+    /// Get the name
     pub fn get_name(&mut self) -> String {
         self.name.clone()
     }
@@ -164,6 +173,8 @@ impl Sheet {
     /// Register sheet related fns and getter / setter
     pub fn register(engine: &mut Engine) {
         engine.register_type_with_name::<Sheet>("Sheet");
+
+        engine.register_fn("get_name_def", Sheet::get_name_def);
 
         engine.register_get("name", Sheet::get_name);
         engine.register_get("class", Sheet::get_class_name);

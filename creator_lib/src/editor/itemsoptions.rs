@@ -21,7 +21,7 @@ impl EditorOptions for ItemsOptions {
 
         node_list.add_group_list(context.color_orange, context.color_light_orange, vec!["Skill Tree".to_string(), "Skill Level".to_string()]);
 
-        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Effect".to_string(), "Light".to_string(), "Magic Target".to_string(), "Message".to_string(), "Set Tile".to_string()]);
+        node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio".to_string(), "Effect".to_string(), "Light".to_string(), "Magic Target".to_string(), "Message".to_string(), "Set Tile".to_string()]);
 
         node_list.set_rect(rect, asset, context);
         widgets.push(node_list);

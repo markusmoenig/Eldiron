@@ -77,6 +77,9 @@ pub struct RegionData {
     /// Script errors for the debug character
     pub script_errors               : Vec<((Uuid, Uuid, String), (String, Option<u32>))>,
 
+    /// The item effects to the right of the rolled weapon level
+    pub item_effects                : Option<(Uuid, Uuid)>,
+
     // Identify the currently executing inventory item index
     pub curr_inventory_index        : Option<usize>,
 
@@ -184,6 +187,8 @@ impl RegionData {
             is_debugging                    : false,
             executed_connections            : vec![],
             script_errors                   : vec![],
+
+            item_effects                    : None,
 
             curr_inventory_index            : None,
             curr_index                      : 0,

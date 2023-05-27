@@ -226,7 +226,6 @@ pub fn node_teleport_area(id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBeh
     if let Some(area_list) = data.area_characters.get(&data.curr_area_index) {
         if let Some(value) = value {
             for index in area_list {
-                //data.instances[*index].position = Some((value.0 as usize, value.1 as isize, value.2 as isize));
                 match &value {
                     Value::Position(position) => {
                         data.character_instances[*index].position = Some(position.clone());

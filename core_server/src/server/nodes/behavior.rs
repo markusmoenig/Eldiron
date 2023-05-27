@@ -1290,9 +1290,20 @@ pub fn node_teleport(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorD
 /// Play effect for the character
 pub fn node_effect(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
+    let mut index = data.curr_index;
+
+    if let Some(value) = get_node_integer(id, "for", nodes) {
+        if value == 1 {
+            if let Some(target) = data.character_instances[data.curr_index].target_instance_index {
+                index = target;
+            }
+        }
+    }
+
     if let Some(value) = get_node_value2(id, "effect", nodes) {
         if let Some(tile) = value.to_tile_id() {
-            data.character_instances[data.curr_index].effects.push(tile);
+            data.character_instances[index].effects.push(tile);
         }
     }
     BehaviorNodeConnector::Bottom

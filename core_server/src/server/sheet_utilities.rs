@@ -47,8 +47,11 @@ pub fn get_item_skill_level_value_delay(item_name: String, level: i32) -> Option
 
     let mut skill_level_id : Option<(Uuid, Uuid)> = None;
 
+    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+    data.item_effects = None;
+
     if let Some(items) = &ITEMS.try_borrow_mut().ok() {
-        for (_id, behavior) in items.iter() {
+        for (id, behavior) in items.iter() {
             if  behavior.name == item_name {
                 for (_id, node) in &behavior.nodes {
                     //println!("{:?}, {}, {}", node.behavior_type, node.name, item_name);
@@ -62,6 +65,15 @@ pub fn get_item_skill_level_value_delay(item_name: String, level: i32) -> Option
                                         if *uuid == *id2 {
                                             skill_level_id = Some((behavior.id, node.id));
                                             parent_id = node.id;
+
+                                            // Check if there are some effects on the right
+                                            for (id1, c1, id2, _c2) in &behavior.connections {
+                                                if *id1 == *uuid && *c1 == BehaviorNodeConnector::Right {
+                                                    data.item_effects = Some((*id, *id2));
+                                                    break;
+                                                }
+                                            }
+
                                             break;
                                         }
                                     }
@@ -72,6 +84,15 @@ pub fn get_item_skill_level_value_delay(item_name: String, level: i32) -> Option
                                         if *uuid == *id1 {
                                             skill_level_id = Some((behavior.id, node.id));
                                             parent_id = node.id;
+
+                                            // Check if there are some effects on the right
+                                            for (_id1, _c1, id2, c2) in &behavior.connections {
+                                                if *id2 == *uuid && *c2 == BehaviorNodeConnector::Right {
+                                                    data.item_effects = Some((*id, *id2));
+                                                    break;
+                                                }
+                                            }
+
                                             break;
                                         }
                                     }

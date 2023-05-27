@@ -162,9 +162,36 @@ impl RegionPool<'_> {
             });
         });
 
+        engine.register_fn("send_status_message_target", |message: &str| {
+            let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            if let Some(target) = data.character_instances[data.curr_index].target_instance_index {
+                let name = data.character_instances[target].name.clone();
+                data.character_instances[target].messages.push( MessageData {
+                        message_type        : MessageType::Status,
+                        message             : message.to_string(),
+                        from                : name,
+                        right               : None,
+                        center              : None,
+                        buffer              : None,
+                });
+            }
+        });
+
         // Roll the damage for the main weapon
         engine.register_fn("roll_weapon_damage", |mut sheet: Sheet| -> i32 {
             roll_weapon_damage(&mut sheet)
+        });
+
+        // Roll the damage for the main weapon
+        engine.register_fn("execute_weapon_effects", || {
+            let item_effects : Option<(Uuid, Uuid)>;
+            {
+                let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                item_effects = data.item_effects;
+            }
+            if let Some(item_effects) = item_effects {
+                execute_node(item_effects.0, item_effects.1, &mut ITEMS.borrow_mut());
+            }
         });
 
         // Get the skill name for the given item name

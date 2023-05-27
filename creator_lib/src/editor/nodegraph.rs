@@ -1368,7 +1368,7 @@ impl EditorContent for NodeGraph  {
             if self.graph_type == BehaviorType::Behaviors {
                 node_widget.is_corner_node = true;
 
-                let aligh_menu = create_menu_atom("Alignment".to_string(), vec!["Hero".to_string(), "Neutral".to_string(), "Monster".to_string()], Value::Integer(0));
+                let aligh_menu = create_menu_atom("Alignment".to_string(), vec!["Positive".to_string(), "Neutral".to_string(), "Negative".to_string()], Value::Integer(0));
 
                 node_widget.widgets.push(aligh_menu);
                 node_widget.color = context.color_black.clone();
@@ -2010,6 +2010,9 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
        if node_behavior_type == BehaviorNodeType::Effect {
+            let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
+            node_widget.widgets.push(target_menu);
+
             let mut effect_atom = AtomWidget::new(vec![], AtomWidgetType::NodeEffectTileButton,
             AtomData::new("effect", Value::Empty()));
             effect_atom.atom_data.text = "Effect".to_string();
@@ -2327,6 +2330,7 @@ impl EditorContent for NodeGraph  {
 
             node_widget.color = context.color_orange.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
         } else
 
