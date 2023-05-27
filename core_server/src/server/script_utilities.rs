@@ -103,6 +103,19 @@ pub fn eval_script_bool(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMa
     false
 }
 
+/// Evaluates the script and expects a bool as return value.
+pub fn eval_raw_script_bool(script: &str) -> bool {
+    let engine = &ENGINE.borrow();
+    let rc = engine.eval::<bool>(script);
+
+    if rc.is_ok() {
+        if let Some(value) = rc.ok() {
+                return value;
+        }
+    }
+    false
+}
+
 /*
 /// Evaluates a boolean expression in the given instance.
 pub fn eval_bool_expression_instance(instance_index: usize, id: (BehaviorType, Uuid, Uuid, String), data: &mut RegionInstance) -> Option<bool> {

@@ -217,24 +217,62 @@ pub fn node_overlay_tiles(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBe
 
 /// Teleport Area
 pub fn node_teleport_area(id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
-    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-    let nodes = &mut data.region_area_behavior[data.curr_area_index].nodes;
 
-    let value = get_node_value(id.1, "position", nodes);
+    let value;
+    let mut has_filter = false;
+    let mut filter = String::new();
+    let curr_index;
+
+    let mut area_list : Vec<usize> = vec![];
+
+    {
+        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        let area_nodes = &mut data.region_area_behavior[data.curr_area_index].nodes;
+        value = get_node_value(id.1, "position", area_nodes);
+        curr_index = data.curr_index;
+        if let Some(list) = data.area_characters.get(&data.curr_area_index) {
+            area_list = list.clone();
+        }
+
+        if let Some(value) = get_node_string(id.1, "filter", area_nodes) {
+            if value.is_empty() == false {
+                has_filter = true;
+                filter = value;
+            }
+        }
+    }
 
     // Somebody is in the area ?
-    if let Some(area_list) = data.area_characters.get(&data.curr_area_index) {
-        if let Some(value) = value {
-            for index in area_list {
-                match &value {
-                    Value::Position(position) => {
-                        data.character_instances[*index].position = Some(position.clone());
-                    }
-                    _ => {},
+    if let Some(value) = value {
+        for index in area_list {
+
+            if has_filter {
+                {
+                    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                    data.curr_index = index;
                 }
-                data.character_instances[*index].old_position = None;
-                data.character_instances[*index].max_transition_time = 0;
-                data.character_instances[*index].curr_transition_time = 0;
+                if eval_raw_script_bool(filter.as_str()) == false {
+                    continue;
+                }
+            }
+
+            match &value {
+                Value::Position(position) => {
+                    let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                    data.character_instances[index].position = Some(position.clone());
+                }
+                _ => {},
+            }
+            {
+                let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                data.character_instances[index].old_position = None;
+                data.character_instances[index].max_transition_time = 0;
+                data.character_instances[index].curr_transition_time = 0;
+            }
+
+            if has_filter {
+                let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+                data.curr_index = curr_index;
             }
         }
     }

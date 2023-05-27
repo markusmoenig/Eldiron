@@ -2121,6 +2121,15 @@ impl EditorContent for NodeGraph  {
             position_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(position_atom);
 
+            // Filter Expression
+            let mut filter = AtomWidget::new(vec!["".to_string()], AtomWidgetType::NodeExpressionButton,
+            AtomData::new("filter", Value::Empty()));
+            filter.atom_data.text = "Filter Expression".to_string();
+            let id = (behavior_data_id, node_id, "filter".to_string());
+            filter.behavior_id = Some(id.clone());
+            filter.atom_data.value = context.data.get_behavior_id_value(id, Value::String("".to_owned()), self.graph_type);
+            node_widget.widgets.push(filter);
+
             node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#teleport".to_string());
 
             node_widget.color = context.color_blue.clone();
