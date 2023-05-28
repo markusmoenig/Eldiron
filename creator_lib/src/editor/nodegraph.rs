@@ -1681,15 +1681,6 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
        if node_behavior_type == BehaviorNodeType::RandomWalk {
-            // Position
-            let mut position_atom = AtomWidget::new(vec![], AtomWidgetType::NodePositionButton,
-            AtomData::new("position", Value::Empty()));
-            position_atom.atom_data.text = "Position".to_string();
-            let id = (behavior_data_id, node_id, "position".to_string());
-            position_atom.behavior_id = Some(id.clone());
-            position_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
-            node_widget.widgets.push(position_atom);
-
             let mut max_distance = AtomWidget::new(vec!["Max Distance".to_string()], AtomWidgetType::NodeExpressionValueButton,
             AtomData::new("max_distance", Value::Integer(0)));
             max_distance.atom_data.text = "Max Distance".to_string();

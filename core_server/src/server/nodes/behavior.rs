@@ -119,7 +119,6 @@ pub fn node_random_walk(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
 
     if wait_for(data.curr_index, id, data) {
         let mut p : Option<Position> = None;
-        let mut dp : Option<Position> = None;
 
         let mut distance = i32::MAX;
 
@@ -132,42 +131,32 @@ pub fn node_random_walk(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
             max_distance = d;
         }
 
-        if let Some(value) = get_node_value2(id, "position", nodes) {
+        let mut dp = data.sheets[data.curr_index].home_location.clone();
 
-            dp = match value {
-                Value::Position(v) => {
-                    Some(v.clone())
-                },
-                _ => None
-            };
+        if let Some(p) = &p {
+            distance = compute_distance(p, &dp);
+        }
 
-            if let Some(dp) = &mut dp {
-                if let Some(p) = &p {
-                    distance = compute_distance(p, dp);
-                }
+        // If we are within the max distance, do a random walk, otherwise just go back towards the position
+        if distance <= max_distance {
+            if let Some(p) = &p {
+                dp = p.clone();
             }
 
-            // If we are within the max distance, do a random walk, otherwise just go back towards the position
-            if distance <= max_distance {
-                dp = p.clone();
-                if let Some(dp) = &mut dp {
+            let mut rng = thread_rng();
+            let random = rng.gen_range(0..4);
 
-                    let mut rng = thread_rng();
-                    let random = rng.gen_range(0..4);
-
-                    if random == 0 {
-                        dp.y -= 1;
-                    } else
-                    if random == 1 {
-                        dp.x += 1;
-                    } else
-                    if random == 2 {
-                        dp.y += 1;
-                    } else
-                    if random == 3 {
-                        dp.x -= 1;
-                    }
-                }
+            if random == 0 {
+                dp.y -= 1;
+            } else
+            if random == 1 {
+                dp.x += 1;
+            } else
+            if random == 2 {
+                dp.y += 1;
+            } else
+            if random == 3 {
+                dp.x -= 1;
             }
         }
 
@@ -179,7 +168,7 @@ pub fn node_random_walk(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
         // Apply the delay
         data.character_instances[data.curr_index].sleep_cycles = delay as usize;
 
-        _ = walk_towards(p, dp,false, data);
+        _ = walk_towards(p, Some(dp),false, data);
 
         data.character_instances[data.curr_index].max_transition_time = delay as usize + 1;
         data.character_instances[data.curr_index].curr_transition_time = 1;
@@ -236,6 +225,11 @@ pub fn node_pathfinder(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavio
 
     // Success if we reached the to_distance already
     if distance == 0 {
+        if let Some(dp) = &dp {
+            // If we reached the target, set the home location to the target location
+            // So that nodes like Random Walk can walk around this location
+            data.sheets[data.curr_index].home_location = dp.clone();
+        }
         return BehaviorNodeConnector::Success;
     }
 

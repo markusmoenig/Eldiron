@@ -28,6 +28,9 @@ pub struct Sheet {
     pub skills                  : Skills,
     pub experience              : Experience,
 
+    pub position                : Position,
+    pub home_location           : Position,
+
     pub wealth                  : Currency,
 }
 
@@ -53,6 +56,9 @@ impl Sheet {
 
             skills              : Skills::new(),
             experience          : Experience::new(),
+
+            position            : Position::new(Uuid::new_v4(), 0, 0),
+            home_location       : Position::new(Uuid::new_v4(), 0, 0),
 
             wealth              : Currency::empty(),
         }
