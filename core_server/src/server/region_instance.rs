@@ -222,6 +222,7 @@ impl RegionInstance<'_> {
                     continue;
                 }
 
+                // NPC Tick
                 if instance_type == BehaviorInstanceType::NonPlayerCharacter {
 
                     let mut execute_trees = true;
@@ -293,10 +294,23 @@ impl RegionInstance<'_> {
                                 }
                                 execute_node(behavior_id, *node_id, &mut BEHAVIORS.borrow_mut());
                             }
+
+                            // Execute all previously computed Class and Race trees
+                            let system_tree_tick_names;
+                            {
+                                let data = &REGION_DATA.borrow()[*CURR_INST.borrow()];
+                                system_tree_tick_names = data.character_instances[inst_index].system_tree_tick_names.clone();
+                            }
+
+                            for (system_name, tree_name) in system_tree_tick_names {
+                                execute_system(system_name.as_str(), tree_name.as_str());
+                            }
                         }
                     }
                 } else
+                // PC Tick
                 if instance_type == BehaviorInstanceType::Player {
+
                     // Execute the tree which matches the current action
                     let action;
                     {
@@ -453,230 +467,6 @@ impl RegionInstance<'_> {
                     data.character_instances[inst_index].target_instance_index = None;
                 }
             }
-
-            // Extract the script messages for this instance
-            /*
-            if let Some(mess) = self.scopes[inst_index].get_mut("message") {
-                if let Some(mut message) = mess.write_lock::<ScriptMessageCmd>() {
-                    if message.messages.is_empty() == false {
-                        let my_name = self.instances[inst_index].name.clone();
-                        for m in &message.messages {
-                            match m {
-                                ScriptMessage::Status(value) => {
-                                    self.instances[inst_index].messages.push( MessageData {
-                                        message_type        : MessageType::Status,
-                                        message             : value.clone(),
-                                        from                : my_name.clone(),
-                                        right               : None,
-                                        center              : None,
-                                        buffer              : None,
-                                    })
-                                },
-                                ScriptMessage::Debug(value) => {
-                                    self.instances[inst_index].messages.push( MessageData {
-                                        message_type        : MessageType::Debug,
-                                        message             : value.clone(),
-                                        from                : my_name.clone(),
-                                        right               : None,
-                                        center              : None,
-                                        buffer              : None,
-                                    })
-                                },
-                                ScriptMessage::Error(value) => {
-                                    self.instances[inst_index].messages.push( MessageData {
-                                        message_type        : MessageType::Error,
-                                        message             : value.clone(),
-                                        from                : my_name.clone(),
-                                        right               : None,
-                                        center              : None,
-                                        buffer              : None,
-                                    })
-                                }
-                            }
-                        }
-                    }
-                    message.clear();
-                }
-            }*/
-
-            // Inventory Actions
-            /*
-            let mut to_add = vec![];
-            let mut to_equip = vec![];
-            let mut to_equip_queued = vec![];
-
-            // Check if we have to add items to the inventory and clone it for sending to the client
-            if let Some(i) = self.scopes[inst_index].get_mut("inventory") {
-                if let Some(mut inv) = i.write_lock::<Inventory>() {
-
-                    // Add items
-                    if inv.items_to_add.is_empty() == false {
-                        let items_to_add = inv.items_to_add.clone();
-                        for data in &items_to_add {
-                            for (_id, behavior) in &mut self.items {
-
-                                let mut added = false;
-
-                                for item in &mut inv.items {
-                                    if item.name == *data.0 {
-                                        item.amount += data.1 as i32;
-                                        added = true;
-                                        break;
-                                    }
-                                }
-
-                                if added == false {
-                                    let mut tile_data : Option<TileData> = None;
-                                    let mut sink : Option<PropertySink> = None;
-
-                                    // Get the default tile for the item
-                                    for (_index, node) in &behavior.nodes {
-                                        if node.behavior_type == BehaviorNodeType::BehaviorType {
-                                            if let Some(value) = node.values.get(&"tile".to_string()) {
-                                                tile_data = value.to_tile_data();
-                                            }
-                                            if let Some(value) = node.values.get(&"settings".to_string()) {
-                                                if let Some(str) = value.to_string() {
-                                                    let mut s = PropertySink::new();
-                                                    s.load_from_string(str.clone());
-                                                    sink = Some(s);
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    if behavior.name == *data.0 {
-                                        let mut item = Item::new(behavior.id, behavior.name.clone());
-                                        item.item_type = "gear".to_string();
-                                        item.tile = tile_data;
-                                        item.amount = data.1 as i32;
-                                        item.stackable = 1;
-
-                                        // Add state ?
-
-                                        let mut states_to_execute = vec![];
-
-                                        if let Some(sink) = sink {
-                                            if let Some(state) = sink.get("state") {
-                                                if let Some(value) = state.as_bool() {
-                                                    if value == true {
-                                                        // TODO item.state = Some(ScopeBuffer::new());
-                                                        for (node_id, node) in &behavior.nodes {
-                                                            if node.behavior_type == BehaviorNodeType::BehaviorTree {
-                                                                for (value_name, value) in &node.values {
-                                                                    if *value_name == "execute".to_string() {
-                                                                        if let Some(v) = value.to_integer() {
-                                                                            if v == 1 {
-                                                                                // Startup only tree
-                                                                                states_to_execute.push((behavior.id, *node_id));
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            item.read_from_sink(&sink);
-                                        }
-
-                                        to_add.push((item, states_to_execute));
-                                        break;
-                                    }
-                                } else {
-                                    break;
-                                }
-                            }
-                        }
-                        inv.items_to_add = vec![];
-                    }
-
-                    // Equip an item ?
-                    if inv.items_to_equip.is_empty() == false {
-                        for index in 0..inv.items_to_equip.len() {
-                            let name = inv.items_to_equip[index].clone();
-                            // Item is in the inventory ?
-                            let removed_item = inv.remove_item_by_name(name.clone());
-                            if let Some(item) = removed_item {
-                                to_equip.push(item);
-                            } else {
-                                // Not in the inventory, has to be queued
-                                to_equip_queued.push(name);
-                            }
-                        }
-                        inv.items_to_equip = vec![];
-                    }
-                }
-            }
-
-            // Add new items
-            for (item, states_to_execute) in to_add {
-                for (item_id, node_id) in states_to_execute {
-                    let curr_scope = self.scopes[inst_index].clone();
-                    self.scopes[inst_index] = Scope::new();
-                    self.execute_item_node(inst_index, item_id, node_id);
-                    let scope = self.scopes[inst_index].clone();
-                    self.scopes[inst_index] = curr_scope;
-                    let mut buffer = ScopeBuffer::new();
-                    buffer.read_from_scope(&scope);
-                    // TODO item.state = Some(buffer);
-                }
-                if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
-                    if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                        // Test if the item is queued to be equipped
-                        if let Some(queued_index) = to_equip_queued.iter().position(|name| *name == item.name) {
-                            to_equip_queued.remove(queued_index);
-                            to_equip.push(item);
-                        } else {
-                            inv.add_item(item);
-                        }
-                    }
-                }
-            }
-
-            // Equip items
-            let mut to_add_back_to_inventory: Vec<Item> = vec![];
-            for item in to_equip {
-                let item_type = item.item_type.clone().to_lowercase();
-                if let Some(slot) = item.slot.clone() {
-                    if item_type == "weapon" {
-                        if let Some(mess) = self.scopes[inst_index].get_mut("weapons") {
-                            if let Some(mut weapons) = mess.write_lock::<Weapons>() {
-                                // Remove existing item in the slot
-                                if let Some(w) = weapons.slots.remove(&slot) {
-                                    to_add_back_to_inventory.push(w);
-                                }
-                                // Insert the new weapon into the slot
-                                weapons.slots.insert(slot, item);
-                            }
-                        }
-                    } else
-                    if item_type == "gear" {
-                        if let Some(mess) = self.scopes[inst_index].get_mut("gear") {
-                            if let Some(mut gear) = mess.write_lock::<Gear>() {
-                                // Remove existing item in the slot
-                                if let Some(g) = gear.slots.remove(&slot) {
-                                    to_add_back_to_inventory.push(g);
-                                }
-                                // Insert the new gear into the slot
-                                gear.slots.insert(slot, item);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Add removed items in the equipped slot(s) back into the inventory
-            if to_add_back_to_inventory.is_empty() == false {
-                if let Some(mess) = self.scopes[inst_index].get_mut("inventory") {
-                    if let Some(mut inv) = mess.write_lock::<Inventory>() {
-                        for item in to_add_back_to_inventory {
-                            inv.items.push(item);
-                        }
-                    }
-                }
-            }*/
 
             // Add to the characters
 
@@ -1105,7 +895,7 @@ impl RegionInstance<'_> {
 
         let index;
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: None, send_screen_scripts: false };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), system_tree_tick_names: vec![], position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: None, send_screen_scripts: false };
 
         {
             let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
@@ -1296,7 +1086,7 @@ impl RegionInstance<'_> {
 
             //println!("Creating instance {}", inst.name.unwrap());
 
-            let instance: BehaviorInstance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior_name.clone(), behavior_id: behavior_id, tree_ids: to_execute.clone(), position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: Some(inst.clone()), send_screen_scripts: false };
+            let mut instance: BehaviorInstance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior_name.clone(), behavior_id: behavior_id, tree_ids: to_execute.clone(), system_tree_tick_names: vec![], position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), curr_player_widgets: vec![], messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: Some(inst.clone()), send_screen_scripts: false };
 
             {
                 let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
@@ -1396,9 +1186,11 @@ impl RegionInstance<'_> {
                 }
             }
 
+            let mut system_tree_tick_names : Vec<(String, String)> = vec![];
             let mut startup_system_trees : Vec<(Uuid, Uuid)> = vec![];
 
-            // Execute the startup trees in the given systems for execution (for class and race)
+            // Execute the startup trees in the given systems for execution (for class and race) and store
+            // the trees to execute every tick
             for system_name in system_startup_trees {
                 if self.system_names.contains(&system_name) {
                     for (system_id, system) in &self.systems {
@@ -1408,6 +1200,10 @@ impl RegionInstance<'_> {
                                     for (value_name, value) in &node.values {
                                         if *value_name == "execute".to_string() {
                                             if let Some(v) = value.to_integer() {
+                                                if v == 0 {
+                                                    // Always, store it for execution during ticks
+                                                    system_tree_tick_names.push((system_name.clone(), node.name.clone()));
+                                                } else
                                                 if v == 1 {
                                                     // Startup only tree
                                                     for c in &system.connections {
@@ -1425,6 +1221,8 @@ impl RegionInstance<'_> {
                     }
                 }
             }
+
+            instance.system_tree_tick_names = system_tree_tick_names;
 
             // Add Spells appropriate for this character
 

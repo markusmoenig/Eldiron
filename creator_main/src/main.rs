@@ -19,6 +19,7 @@ use std::ffi::CString;
 use directories::{ UserDirs };
 
 fn main() -> Result<(), Error> {
+    //std::env::set_var("RUST_BACKTRACE", "1");
 
     let mut width     : usize = 1300;
     let mut height    : usize = 700;

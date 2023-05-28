@@ -553,6 +553,7 @@ impl GameData {
         self.systems_names.push(system.name.clone());
         self.systems_ids.push(system.data.id);
 
+        system.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
         system.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
         system.save_data();
 

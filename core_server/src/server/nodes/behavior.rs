@@ -1431,18 +1431,16 @@ pub fn take_heal(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
 }*/
 
 pub fn node_respawn(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
-
     let mut ticks : i32 = 0;
     if let Some(rc) = eval_script_integer(id, "minutes", nodes) {
         ticks = rc;
     }
-
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
     let mut respawn_tick = *TICK_COUNT.borrow_mut() as usize;
     respawn_tick = respawn_tick.wrapping_add(ticks as usize * data.ticks_per_minute);
     if let Some(d) = &data.character_instances[data.curr_index].instance_creation_data {
-        data.respawn_instance.insert(id.0, (respawn_tick, d.clone()));
+        data.respawn_instance.insert(data.character_instances[data.curr_index].behavior_id, (respawn_tick, d.clone()));
     }
 
     BehaviorNodeConnector::Right

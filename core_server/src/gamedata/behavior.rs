@@ -177,8 +177,11 @@ pub struct BehaviorInstance {
     // The current systems id
     pub systems_id              : Uuid,
 
-    // The ids of the behavior tree nodes for this instance
+    // The ids of the behavior tree nodes to execute during ticks for this instance
     pub tree_ids                : Vec<Uuid>,
+
+    // The names of the system tree nodes to execute for NPCs for this instance
+    pub system_tree_tick_names  : Vec<(String, String)>,
 
     // The name of the instance
     pub name                    : String,
