@@ -675,8 +675,8 @@ pub fn node_unlock_tree(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBeha
     BehaviorNodeConnector::Bottom
 }
 
-/// Has State ?
-pub fn node_has_state(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+/// Query State
+pub fn node_query_state(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
     let mut state = 0;

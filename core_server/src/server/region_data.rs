@@ -108,7 +108,7 @@ impl RegionData {
         nodes.insert(BehaviorNodeType::Untarget, node_untarget);
         nodes.insert(BehaviorNodeType::LockTree, node_lock_tree);
         nodes.insert(BehaviorNodeType::UnlockTree, node_unlock_tree);
-        nodes.insert(BehaviorNodeType::HasState, node_has_state);
+        nodes.insert(BehaviorNodeType::QueryState, node_query_state);
         nodes.insert(BehaviorNodeType::SetState, node_set_state);
         nodes.insert(BehaviorNodeType::Take, node_player_take);
         nodes.insert(BehaviorNodeType::Drop, node_player_drop);

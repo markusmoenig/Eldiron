@@ -1264,7 +1264,7 @@ impl EditorContent for NodeGraph  {
                 "Set State" => BehaviorNodeType::SetState,
                 "Call System" => BehaviorNodeType::CallSystem,
                 "Call Behavior" => BehaviorNodeType::CallBehavior,
-                "Has State ?" => BehaviorNodeType::HasState,
+                "Query State" => BehaviorNodeType::QueryState,
                 "Has Target ?" => BehaviorNodeType::HasTarget,
                 "Untarget" => BehaviorNodeType::Untarget,
                 "Drop Inv." => BehaviorNodeType::DropInventory,
@@ -1930,7 +1930,7 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
         } else
-        if node_behavior_type == BehaviorNodeType::HasState {
+        if node_behavior_type == BehaviorNodeType::QueryState {
             let type_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string(), "Sleeping".to_string(), "Intoxicated".to_string()], Value::Integer(0));
             node_widget.widgets.push(type_menu);
 

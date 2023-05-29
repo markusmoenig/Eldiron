@@ -79,7 +79,7 @@ pub enum BehaviorNodeType {
     SetLevelTree,
     OverlayTiles,
     Schedule,
-    HasState,
+    QueryState,
     MagicTarget,
 
     Cellular,
