@@ -36,7 +36,7 @@ type UuidPeerMap = FxHashMap<
 
 async fn handle_client_messages(
     ws_stream: Stream,
-    server: Arc<Mutex<Server<'_>>>,
+    server: Arc<Mutex<Server>>,
     uuid_endpoint: Arc<Mutex<UuidPeerMap>>,
 ) {
     let (sink, mut stream) = ws_stream.split();
@@ -74,7 +74,7 @@ async fn handle_client_messages(
                     tungstenite::Message::Binary(bin) => {
                         let cmd : ServerCmd = ServerCmd::from_bin(&bin)
                             .unwrap_or(ServerCmd::NoOp);
-    
+
                         match cmd {
                             ServerCmd::GameCmd(action) => {
                                 server
@@ -84,7 +84,7 @@ async fn handle_client_messages(
                             },
                             _ => {}
                         }
-    
+
                         *last = now;
                     },
                     _ => {}
@@ -97,7 +97,7 @@ async fn handle_client_messages(
 }
 
 async fn handle_server_messages(
-    server: Arc<Mutex<Server<'_>>>,
+    server: Arc<Mutex<Server>>,
     uuid_endpoint: Arc<Mutex<UuidPeerMap>>,
 ) {
     loop {
