@@ -13,8 +13,12 @@ pub fn update_item_sink(sink: &mut PropertySink) {
         sink.properties.insert(1,Property::new_bool("state".to_string(), false));
     }
 
+    if sink.contains("state_blocking") == false {
+        sink.properties.insert(2, Property::new_bool("state_blocking".to_string(), false));
+    }
+
     if sink.contains("stackable") == false {
-        sink.properties.insert(2,Property::new_int("stackable".to_string(), 1));
+        sink.properties.insert(3,Property::new_int("stackable".to_string(), 1));
     }
 
     if sink.contains("static") == false {
@@ -22,7 +26,7 @@ pub fn update_item_sink(sink: &mut PropertySink) {
     }
 
     if sink.contains("value") == false {
-        sink.properties.insert(4,Property::new_string("value".to_string(), "1g 0s".to_string()));
+        sink.properties.push(Property::new_string("value".to_string(), "1g 0s".to_string()));
     }
 
     if sink.contains("weight") == false {
@@ -42,7 +46,8 @@ pub fn generate_item_sink_descriptions() -> FxHashMap<String, Vec<String>> {
     let mut map : FxHashMap<String, Vec<String>> = FxHashMap::default();
 
     map.insert("item_type".to_string(), vec!["Type of the item, either \"Weapon\", \"Gear\" or \"Tool\"".to_string()]);
-    map.insert("state".to_string(), vec!["true if the item should have it's own state (variables).".to_string()]);
+    map.insert("state".to_string(), vec!["True if the item should have it's own state (on / off).".to_string()]);
+    map.insert("state_blocking".to_string(), vec!["True if the item state should represent a blocking state (doors / passages).".to_string()]);
     map.insert("stackable".to_string(), vec!["Value greater than 1 if item should be stackable. Only for items without state.".to_string()]);
     map.insert("static".to_string(), vec!["True if the item is static, i.e. cannot be picked up (campfire etc.).".to_string()]);
     map.insert("value".to_string(), vec!["The value / price of the item in gold and silver.".to_string()]);

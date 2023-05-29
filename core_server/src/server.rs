@@ -18,7 +18,7 @@ pub struct RegionPoolMeta {
     region_ids              : Vec<Uuid>,
 }
 
-pub struct Server<'a> {
+pub struct Server {
 
     to_server_receiver      : Receiver<Message>,
     to_server_sender        : Sender<Message>,
@@ -34,7 +34,7 @@ pub struct Server<'a> {
     pub scripts             : FxHashMap<String, String>,
 
     /// If we don't use threads (for example for the web), all regions are in here.
-    pub pool                : Option<RegionPool<'a>>,
+    pub pool                : Option<RegionPool>,
 
     /// The meta data for all pools
     metas                   : Vec<RegionPoolMeta>,
@@ -49,7 +49,7 @@ pub struct Server<'a> {
     threaded                : bool,
 }
 
-impl Server<'_> {
+impl Server {
 
     pub fn new() -> Self {
 

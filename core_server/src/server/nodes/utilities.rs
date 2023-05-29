@@ -221,6 +221,19 @@ pub fn walk_towards(p: Option<Position>, dp: Option<Position>, exclude_dp: bool,
                 }
             }
 
+            // Check items
+            if let Some(items) = data.loot.get(&(x, y)) {
+                for item in items {
+                    if item.state_blocking {
+                        if let Some(state) = &item.state {
+                            if state.state {
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+
             true
         };
 
@@ -536,6 +549,7 @@ pub fn execute_region_action(instance_index: usize, action_name: String, dp: Opt
     rc
 }*/
 
+/*
 /// Get the current local instance
 pub fn get_local_instance_index(instance_index: usize, data: &mut RegionInstance) -> usize {
     if let Some(redirected) = data.curr_redirected_inst_index {
@@ -543,7 +557,7 @@ pub fn get_local_instance_index(instance_index: usize, data: &mut RegionInstance
     } else {
         instance_index
     }
-}
+}*/
 
 /// Drops the communication between a player and an NPC
 pub fn drop_communication(instance_index: usize, npc_index: usize, data: &mut RegionData) {

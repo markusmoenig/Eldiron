@@ -213,7 +213,7 @@ impl EditorContent for NodeGraph  {
                         if self.graph_type == BehaviorType::Items {
                             if self.sub_type == NodeSubType::Item {
                                 // Draw the item tile
-                                if let Some(tile_id) = context.data.get_item_default_tile(context.data.items_ids[index]) {
+                                if let Some(tile_id) = context.data.get_item_default_tile(context.data.items_ids[active_index]) {
                                     if let Some(map)= asset.tileset.maps.get_mut(&tile_id.tilemap) {
                                         context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.x_off as usize, tile_id.y_off as usize), 0, 100);
                                     }
@@ -1267,9 +1267,6 @@ impl EditorContent for NodeGraph  {
                 "Has State ?" => BehaviorNodeType::HasState,
                 "Has Target ?" => BehaviorNodeType::HasTarget,
                 "Untarget" => BehaviorNodeType::Untarget,
-                //"Deal Damage" => BehaviorNodeType::DealDamage,
-                //"Take Damage" => BehaviorNodeType::TakeDamage,
-                //"Magic Damage" => BehaviorNodeType::MagicDamage,
                 "Drop Inv." => BehaviorNodeType::DropInventory,
                 "Target" => BehaviorNodeType::Target,
                 "Magic Target" => BehaviorNodeType::MagicTarget,
@@ -1278,8 +1275,6 @@ impl EditorContent for NodeGraph  {
                 "Audio" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::AudioArea,
                 "Audio" => BehaviorNodeType::Audio,
                 "Effect" => BehaviorNodeType::Effect,
-                //"Heal" => BehaviorNodeType::Heal,
-                //"Take Heal" => BehaviorNodeType::TakeHeal,
                 "Respawn" => BehaviorNodeType::Respawn,
                 "Equip" => BehaviorNodeType::Equip,
                 "Set Level Tree" => BehaviorNodeType::SetLevelTree,

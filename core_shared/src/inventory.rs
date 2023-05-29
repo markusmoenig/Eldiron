@@ -29,6 +29,7 @@ pub struct Item {
     pub amount              : i32,
     pub stackable           : i32,
     pub static_item         : bool,
+    pub state_blocking      : bool,
     pub value               : Currency,
     pub weight              : f32,
     pub weapon_distance     : i32,
@@ -48,6 +49,7 @@ impl Item {
             amount          : 0,
             stackable       : i32::MAX,
             static_item     : false,
+            state_blocking  : false,
             value           : Currency::empty(),
             weight          : 0.0,
             weapon_distance : 1,
@@ -60,6 +62,11 @@ impl Item {
         if let Some(static_item) = sink.get("static") {
             if let Some(st) = static_item.as_bool() {
                 self.static_item = st;
+            }
+        }
+        if let Some(state_blocking) = sink.get("state_blocking") {
+            if let Some(sb) = state_blocking.as_bool() {
+                self.state_blocking = sb;
             }
         }
         if let Some(stackable_item) = sink.get("stackable") {
@@ -227,12 +234,36 @@ impl Inventory {
         None
     }
 
-
     pub fn get_item_at(&mut self, index: i32) -> Item {
         if index >= 0 && index < self.items.len() as i32 {
             return self.items[index as usize].clone()
         }
         Item::new(Uuid::new_v4(), "".to_string())
+    }
+
+    /// Do we carry this item ?
+    pub fn has_item(&mut self, name: String) -> bool {
+        for item in &self.items {
+            if item.name == name {
+                return true;
+            }
+        }
+        false
+    }
+
+    // Destroy this item
+    pub fn destroy_item(&mut self, name: String) {
+
+        let mut to_destroy : Option<usize> = None;
+        for index in 0..self.items.len() {
+            if self.items[index].name == name {
+                to_destroy = Some(index);
+            }
+        }
+
+        if let Some(item_index) = to_destroy {
+            let _item = self.items.remove(item_index);
+        }
     }
 
 }
@@ -261,5 +292,7 @@ pub fn script_register_inventory_api(engine: &mut rhai::Engine) {
         .register_fn("len", Inventory::len)
         .register_fn("item_name_at", Inventory::item_name_at)
         .register_fn("item_amount_at", Inventory::item_amount_at)
+        .register_fn("has_item", Inventory::has_item)
+        .register_fn("destroy_item", Inventory::destroy_item)
         .register_iterator::<Inventory>();
 }

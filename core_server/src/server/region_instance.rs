@@ -2,9 +2,8 @@ extern crate ref_thread_local;
 use ref_thread_local::{RefThreadLocal};
 
 use crate::prelude::*;
-use rhai::Scope;
 
-pub struct RegionInstance<'a> {
+pub struct RegionInstance {
     // Game data
     pub region_data                 : GameRegionData,
     pub region_behavior             : Vec<GameBehaviorData>,
@@ -21,31 +20,14 @@ pub struct RegionInstance<'a> {
     pub system_ids                  : Vec<Uuid>,
     pub area_ids                    : Vec<Uuid>,
 
-    /// During action execution for regions this indicates the calling behavior index
-    pub curr_action_inst_index      : Option<usize>,
-
-    /// If the execute_node call has indirection, this is set to the original index
-    pub curr_redirected_inst_index  : Option<usize>,
-
-    /// Player game scopes
-    pub game_player_scopes          : FxHashMap<usize, Scope<'a>>,
-
     /// The index of the game instance
     game_instance_index             : Option<usize>,
 
     // Identifie the currently executing loot item
     pub curr_loot_item              : Option<(isize, isize, usize)>,
 
-    // Identify the currently executing inventory item index
-    pub curr_inventory_index        : Option<usize>,
-
-    // The current player scope (if swapped out during item execution)
-    pub curr_player_scope           : Scope<'a>,
-
     // The currently executing behavior tree id
     pub curr_executing_tree         : Uuid,
-
-    pub messages                    : Vec<(String, MessageType)>,
 
     // Region settings
 
@@ -74,7 +56,7 @@ pub struct RegionInstance<'a> {
     pub max_hitpoints               : String,
 }
 
-impl RegionInstance<'_> {
+impl RegionInstance {
 
     pub fn new() -> Self {
 
@@ -93,21 +75,11 @@ impl RegionInstance<'_> {
             system_ids                      : vec![],
             area_ids                        : vec![],
 
-            curr_action_inst_index          : None,
-
-            curr_redirected_inst_index      : None,
-
-            game_player_scopes              : FxHashMap::default(),
-
             game_instance_index             : None,
 
             curr_loot_item                  : None,
-            curr_inventory_index            : None,
-            curr_player_scope               : Scope::new(),
 
             curr_executing_tree             : Uuid::new_v4(),
-
-            messages                        : vec![],
 
             pixel_based_movement            : true,
 
@@ -132,8 +104,6 @@ impl RegionInstance<'_> {
 
     /// Game tick
     pub fn tick(&mut self) -> Vec<Message> {
-
-        self.messages = vec![];
 
         let mut messages = vec![];
 
@@ -167,8 +137,6 @@ impl RegionInstance<'_> {
 
         // Execute behaviors
         for inst_index in 0..character_instances_len {
-
-            self.messages = vec![];
 
             let state;
             let instance_type;

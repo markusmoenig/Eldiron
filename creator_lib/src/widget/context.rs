@@ -123,7 +123,7 @@ pub struct ScreenContext<'a> {
 
     // Server
 
-    pub server                          : Option<core_server::server::Server<'a>>,
+    pub server                          : Option<core_server::server::Server>,
     pub player_uuid                     : uuid::Uuid,
 
     // Masks

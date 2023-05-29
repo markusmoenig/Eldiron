@@ -26,16 +26,16 @@ ref_thread_local! {
     pub static managed CURR_INST        : usize = 0;
 }
 
-pub struct RegionPool<'a> {
+pub struct RegionPool {
 
     sender                  : Sender<Message>,
     receiver                : Receiver<Message>,
 
     threaded                : bool,
-    instances               : Vec<RegionInstance<'a>>,
+    instances               : Vec<RegionInstance>,
 }
 
-impl RegionPool<'_> {
+impl RegionPool {
 
     pub fn new(threaded: bool, sender: Sender<Message>, receiver: Receiver<Message>) -> Self {
 
