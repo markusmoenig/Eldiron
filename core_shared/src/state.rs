@@ -11,6 +11,7 @@ pub struct State {
     pub use_ticks                       : usize,
 
     pub light                           : Option<LightData>,
+    pub tile                            : Option<TileData>,
 }
 
 impl State {
@@ -22,6 +23,7 @@ impl State {
             use_ticks                   : 0,
 
             light                       : None,
+            tile                        : None,
         }
     }
 }

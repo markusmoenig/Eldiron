@@ -28,13 +28,11 @@ pub fn node_light_item(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavio
 pub fn node_set_item_tile(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     if let Some(value) = get_node_value2(id, "tile", nodes) {
         if let Some(tile) = value.to_tile_data() {
-
-            let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-
-            if let Some(inventory_index) = &data.curr_inventory_index {
-                let sheet: &mut Sheet = &mut data.sheets[data.curr_index];
-                sheet.inventory.items[*inventory_index].tile = Some(tile);
-            }
+            let mut state = STATE.borrow_mut();
+            state.tile = Some(tile);
+        } else {
+            let mut state = STATE.borrow_mut();
+            state.tile = None;
         }
     }
     BehaviorNodeConnector::Bottom

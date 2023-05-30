@@ -900,6 +900,8 @@ impl RegionInstance {
                     if let Some(light) = &mut state.light {
                         light.position = pos.clone();
                     }
+                    state.tile = loot[index].tile.clone();
+                    loot[index].tile = None;
                     loot[index].state = Some(state);
                 }
             }

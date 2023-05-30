@@ -1,5 +1,7 @@
 use crate::prelude::*;
 
+const GOLD_IN_SILVER : i32 = 10;
+
 /// Holds the current date and time
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy)]
 pub struct Currency {
@@ -25,7 +27,7 @@ impl Currency {
 
     /// Absolute value in silver, used to compare amounts of money
     pub fn absolute(&self) -> i32 {
-        self.gold * 100 + self.silver
+        self.gold * GOLD_IN_SILVER + self.silver
     }
 
     pub fn get_gold(&mut self) -> i32 {
@@ -41,8 +43,8 @@ impl Currency {
         self.gold += other.gold;
         self.silver += other.silver;
 
-        self.gold += self.silver / 100;
-        self.silver += self.silver % 100;
+        self.gold += self.silver / GOLD_IN_SILVER;
+        self.silver += self.silver % GOLD_IN_SILVER;
     }
 
     /// Remove the given amount of money.
@@ -51,18 +53,18 @@ impl Currency {
         self.silver -= other.silver;
 
         if self.gold < 0 {
-            self.silver -= self.gold.abs() * 100;
+            self.silver -= self.gold.abs() * GOLD_IN_SILVER;
         }
 
         if self.silver < 0 {
-            self.gold -= self.silver.abs() / 100;
+            self.gold -= self.silver.abs() / GOLD_IN_SILVER;
         }
 
         self.gold = self.gold.clamp(0, i32::MAX);
         self.silver = self.silver.clamp(0, i32::MAX);
 
-        self.gold += self.silver / 100;
-        self.silver += self.silver % 100;
+        self.gold += self.silver / GOLD_IN_SILVER;
+        self.silver += self.silver % GOLD_IN_SILVER;
     }
 
     /// For Rhai, need a mut

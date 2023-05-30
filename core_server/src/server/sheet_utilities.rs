@@ -250,7 +250,6 @@ pub fn inventory_add(sheet: &mut Sheet, item_name: &str, amount: i32, item_nodes
 
             let mut item = Item::new(behavior.id, behavior.name.clone());
             item.item_type = "gear".to_string();
-            item.tile = tile_data;
             item.amount = amount;
             item.stackable = 1;
 
@@ -281,6 +280,12 @@ pub fn inventory_add(sheet: &mut Sheet, item_name: &str, amount: i32, item_nodes
                     }
                 }
                 item.read_from_sink(&sink);
+            }
+
+            if let Some(state) = &mut item.state {
+                state.tile = tile_data;
+            } else {
+                item.tile = tile_data;
             }
 
             sheet.inventory.add_item(item);

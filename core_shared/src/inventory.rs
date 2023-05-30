@@ -135,6 +135,15 @@ impl Item {
     }
 
     pub fn get_tile(&mut self) -> ScriptTile {
+        if let Some(state) = &self.state {
+            if let Some(tile) = &state.tile {
+                let tile_id = TileId::new(tile.tilemap, tile.x_off, tile.y_off);
+                ScriptTile::new(tile_id)
+            } else {
+                let tile_id = TileId::new(Uuid::new_v4(), 0, 0);
+                ScriptTile::new(tile_id)
+            }
+        } else
         if let Some(tile) = &self.tile {
             let tile_id = TileId::new(tile.tilemap, tile.x_off, tile.y_off);
             ScriptTile::new(tile_id)

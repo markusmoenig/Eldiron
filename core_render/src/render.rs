@@ -998,6 +998,11 @@ impl GameRender<'_> {
 
                     if let Some(loots) = update.loot.get(&(pos_x, pos_y)) {
                         for loot in loots {
+                            if let Some(state) = &loot.state {
+                                if let Some(tile) = state.tile.clone() {
+                                    values.push(tile);
+                                }
+                            } else
                             if let Some(tile) = loot.tile.clone() {
                                 values.push(tile);
                             }
