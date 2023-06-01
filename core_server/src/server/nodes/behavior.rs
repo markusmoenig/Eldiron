@@ -255,44 +255,51 @@ pub fn node_lookout(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDa
         max_distance = d;
     }
 
-    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-
     // Find the chars within the given distance
 
     let mut chars : Vec<usize> = vec![];
+    let index;
 
-    if let Some(position) = &data.character_instances[data.curr_index].position {
-        for inst_index in 0..data.character_instances.len() {
-            if inst_index != data.curr_index {
-                if (data.character_instances[inst_index].state == BehaviorInstanceState::Normal && state == 0) || (data.character_instances[inst_index].state == BehaviorInstanceState::Killed && state == 1) || (data.character_instances[inst_index].state == BehaviorInstanceState::Sleeping && state == 3) || (data.character_instances[inst_index].state == BehaviorInstanceState::Intoxicated && state == 4) {
-                    if let Some(pos) = &data.character_instances[inst_index].position {
-                        if pos.region == position.region {
-                            let dx = position.x - pos.x;
-                            let dy = position.y - pos.y;
-                            let d = ((dx * dx + dy * dy) as f32).sqrt() as i32;
-                            if d <= max_distance {
-                                chars.push(inst_index);
+    {
+        let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+
+        if let Some(position) = &data.character_instances[data.curr_index].position {
+            for inst_index in 0..data.character_instances.len() {
+                if inst_index != data.curr_index {
+                    if (data.character_instances[inst_index].state == BehaviorInstanceState::Normal && state == 0) || (data.character_instances[inst_index].state == BehaviorInstanceState::Killed && state == 1) || (data.character_instances[inst_index].state == BehaviorInstanceState::Sleeping && state == 3) || (data.character_instances[inst_index].state == BehaviorInstanceState::Intoxicated && state == 4) {
+                        if let Some(pos) = &data.character_instances[inst_index].position {
+                            if pos.region == position.region {
+                                let dx = position.x - pos.x;
+                                let dy = position.y - pos.y;
+                                let d = ((dx * dx + dy * dy) as f32).sqrt() as i32;
+                                if d <= max_distance {
+                                    chars.push(inst_index);
+                                }
                             }
                         }
                     }
                 }
             }
         }
+        index = data.curr_index;
     }
 
     // Evaluate the expression on the characters who are in range
     for inst_ind in &chars {
-        // if let Some(rc) = eval_bool_expression_instance(*inst_ind, (behavior_type, id.0, id.1, "expression".to_string()), data) {
-        //     if rc {
-        //         data.character_instances[instance_index].target_instance_index = Some(*inst_ind);
-        //         return BehaviorNodeConnector::Success;
-        //     }
-        // }
-
-        data.character_instances[data.curr_index].target_instance_index = Some(*inst_ind);
-        return BehaviorNodeConnector::Success;
+        {
+            let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            data.curr_index = *inst_ind;
+        }
+        if eval_script_bool(id, "expression", nodes) {
+            let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+            data.curr_index = index;
+            data.character_instances[data.curr_index].target_instance_index = Some(*inst_ind);
+            return BehaviorNodeConnector::Success;
+        }
     }
 
+    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+    data.curr_index = index;
     data.character_instances[data.curr_index].target_instance_index = None;
     BehaviorNodeConnector::Fail
 }
