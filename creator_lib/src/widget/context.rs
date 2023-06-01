@@ -471,7 +471,7 @@ impl ScreenContext<'_> {
     pub fn copy_demo(&mut self, project_path: PathBuf) -> Result<std::path::PathBuf, String> {
 
         let mut options = fs_extra::dir::CopyOptions::new();
-        //options.overwrite = true;
+        options.overwrite = true;
         options.copy_inside = true;
 
         // Copy asset directory
