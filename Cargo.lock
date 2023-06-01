@@ -965,7 +965,7 @@ dependencies = [
 
 [[package]]
 name = "creator_lib"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "audio-engine",
  "code_editor",
@@ -997,7 +997,7 @@ dependencies = [
 
 [[package]]
 name = "creator_main"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "creator_lib",
  "directories 5.0.0",
