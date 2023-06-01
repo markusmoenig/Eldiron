@@ -82,10 +82,10 @@ pub enum BehaviorNodeType {
     QueryState,
     MagicTarget,
 
+    // Procedural
     Cellular,
     DrunkardsWalk,
-    StartArea,
-    TeleportToArea,
+    Tile,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]

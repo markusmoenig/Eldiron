@@ -324,10 +324,6 @@ impl RegionInstance {
                             // An action on an inventory item index
 
                             let index = *inventory_index as usize;
-                            {
-                                let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-                                data.curr_inventory_index = Some(index);
-                            }
 
                             // Get the item and set the state if any
                             if let Some(item) = get_inventory_item_at(index, true) {
@@ -374,11 +370,6 @@ impl RegionInstance {
                                         println!("Cannot find valid tree for directed action {}", action.action);
                                     }
                                 }
-                            }
-
-                            {
-                                let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-                                data.curr_inventory_index = None;
                             }
                         } else
                         if let Some(uuid) = &action.multi_choice_uuid {

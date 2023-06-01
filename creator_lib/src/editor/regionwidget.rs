@@ -851,10 +851,10 @@ impl EditorContent for RegionWidget {
                             self.layouts[1].widgets[6].dirty = true;
                         } else
                         if id.1 == "Remove".to_string() {
-                            self.layouts[0].widgets[4].checked = false;
-                            self.layouts[0].widgets[4].dirty = true;
-                            self.layouts[0].widgets[5].checked = false;
-                            self.layouts[0].widgets[5].dirty = true;
+                            self.layouts[1].widgets[4].checked = false;
+                            self.layouts[1].widgets[4].dirty = true;
+                            self.layouts[1].widgets[5].checked = false;
+                            self.layouts[1].widgets[5].dirty = true;
                         }
 
                         return true;

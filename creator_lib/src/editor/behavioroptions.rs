@@ -19,7 +19,7 @@ impl EditorOptions for BehaviorOptions {
 
         node_list.add_group_list(context.color_green, context.color_light_green, vec!["Behavior Tree".to_string(), "Expression".to_string(), "Script".to_string(), "Has Target ?".to_string(), "Query State".to_string()]);
 
-        let mut items = vec![ "Call Behavior".to_string(), "Call System".to_string(), "Close In".to_string(), "Lock Tree".to_string(), "Lookout".to_string(), "Message".to_string(), "Pathfinder".to_string(), "Random Walk".to_string(), "Unlock".to_string(), "Set State".to_string(), "Multi Choice".to_string(), "Sell".to_string(), "Untarget".to_string(), "Drop Inv.".to_string(), "Teleport".to_string(), "Audio".to_string(), "Effect".to_string(), "Respawn".to_string(), "Schedule".to_string(), "Set Level Tree".to_string() ];
+        let mut items = vec![ "Call Behavior".to_string(), "Call System".to_string(), "Close In".to_string(), "Lock Tree".to_string(), "Lookout".to_string(), "Message".to_string(), "Pathfinder".to_string(), "Random Walk".to_string(), "Unlock".to_string(), "Set State".to_string(), "Multi Choice".to_string(), "Sell".to_string(), "Untarget".to_string(), "Drop Inv.".to_string(), "Teleport".to_string(), "Audio".to_string(), "Effect".to_string(), "Respawn".to_string(), "Schedule".to_string(), "Set Level Tree".to_string()/*, "Teleport Area".to_string()*/];
         items.sort();
         node_list.add_group_list(context.color_blue, context.color_light_blue, items);
 

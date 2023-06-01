@@ -80,9 +80,6 @@ pub struct RegionData {
     /// The item effects to the right of the rolled weapon level
     pub item_effects                : Option<(Uuid, Uuid)>,
 
-    // Identify the currently executing inventory item index
-    pub curr_inventory_index        : Option<usize>,
-
     /// The current character sheet index
     pub curr_index                  : usize,
 
@@ -190,7 +187,6 @@ impl RegionData {
 
             item_effects                    : None,
 
-            curr_inventory_index            : None,
             curr_index                      : 0,
             curr_area_index                 : 0,
         }

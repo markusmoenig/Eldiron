@@ -67,6 +67,17 @@ fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), chain: 
         size = s;
     }
 
+    let mut scope = Scope::new();
+    scope.set_value("size", size);
+
+    let mut start_area : Option<(isize, isize, String)> = None;
+
+    if let Some(p) = get_node_script_dynamic_value(&mut engine, &mut scope, node.1, "start".to_string()) {
+        if let Some(pos) = p.read_lock::<ScriptPosition>() {
+            start_area = Some((pos.pos_signed.0, pos.pos_signed.1, "Start".to_string()));
+        }
+    }
+
     let mut rng = thread_rng();
 
     let mut layer1 = FxHashMap::default();
@@ -76,124 +87,129 @@ fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), chain: 
 
     let needs_to_cover = (size * size) / 3;
 
-    if let Some(f) = get_node_value(node.1, "floor".into()) {
-        if let Some(w) = get_node_value(node.1, "wall".into()) {
+    // if let Some(f) = get_node_value(node.1, "floor".into()) {
+    //     if let Some(w) = get_node_value(node.1, "wall".into()) {
 
-            region.delete_areas();
+    region.delete_areas();
 
-            if f.to_tile_data().is_none() || w.to_tile_data().is_none() {
-                return;
-            }
+    // if f.to_tile_data().is_none() || w.to_tile_data().is_none() {
+    //     return;
+    // }
 
-            let floor = f.to_tile_data().unwrap();
-            let wall = w.to_tile_data().unwrap();
+    // let floor = f.to_tile_data().unwrap();
+    // let wall = w.to_tile_data().unwrap();
 
-            let range_s = 0_isize;
-            let range_e = size as isize;
+    let range_s = 0_isize;
+    let range_e = size as isize;
 
-            // Fill the area with walls
+    // Fill the area with walls
 
-            for y in range_s..range_e {
-                for x in range_s..range_e {
-                    if wall.usage == TileUsage::EnvBlocking {
-                        layer2.insert((x, y), wall.clone());
-                    } else {
-                        layer1.insert((x, y), wall.clone());
-                    }
-                }
-            }
-
-            fn is_valid(x: isize, y: isize, start: isize, end: isize) -> bool {
-                if x > start && x < end - 1 && y > start && y < end - 1 {
-                    true
+    for y in range_s..range_e {
+        for x in range_s..range_e {
+            if let Some(wall) = get_wall(&engine, size, &chain) {
+                if wall.usage == TileUsage::EnvBlocking {
+                    layer2.insert((x, y), wall.clone());
                 } else {
-                    false
+                    layer1.insert((x, y), wall.clone());
                 }
             }
-
-            let mut i = 0;
-
-            let mut sx = range_e / 2;
-            let mut sy = range_e / 2;
-
-            if let Some(pos) = get_start_area(&engine, size, &chain) {
-                sx = pos.0;
-                sy = pos.1;
-                region.create_area(pos.2);
-                if let Some(area) = region.data.areas.last_mut() {
-                    area.area.push((pos.0, pos.1));
-                    region.save_data();
-                }
-            }
-
-            loop {
-                // Place a miner
-
-                let mut d = 0;
-                let mut x = sx;
-                let mut y = sy;
-
-                layer1.insert((x, y), floor.clone());
-                layer2.remove(&(x,y));
-
-                for _ in 0..distance {
-
-                    match rng.gen_range(0..4) {
-                        0 => { x -= 1; },
-                        1 => { x += 1; },
-                        2 => { y -= 1; },
-                        _ => { y += 1; }
-                    }
-
-                    if is_valid(x, y, range_s,range_e) {
-                        layer1.insert((x, y), floor.clone());
-                        layer2.remove(&(x,y));
-                        d += 1;
-                    } else {
-                        break;
-                    }
-
-                    if d >= distance {
-                        break;
-                    }
-                }
-
-                // Calc how much we cover already
-
-                let mut covers = 0;
-                for y in range_s..range_e {
-                    for x in range_s..range_e {
-                        if layer1.contains_key(&(x, y)) {
-                            covers += 1;
-                        }
-                    }
-                }
-                if covers >= needs_to_cover {
-                    break;
-                }
-
-                // Safeguard
-                i += 1;
-                if i >= 1000 {
-                    break;
-                }
-            }
-
-            /*
-            // Close the edges
-            for y in range_s..range_e {
-                for x in range_s..range_e {
-                    if x == range_s || y == range_s || x == range_e -1 || y == range_e - 1 {
-                        if wall.usage == TileUsage::EnvBlocking {
-                            layer2.insert((x, y), wall.clone());
-                        } else {
-                            layer1.insert((x, y), wall.clone());
-                        }
-                    }
-                }
-            }*/
         }
     }
+
+    fn is_valid(x: isize, y: isize, start: isize, end: isize) -> bool {
+        if x > start && x < end - 1 && y > start && y < end - 1 {
+            true
+        } else {
+            false
+        }
+    }
+
+    let mut i = 0;
+
+    let mut sx = range_e / 2;
+    let mut sy = range_e / 2;
+
+    if let Some(pos) = start_area {
+        sx = pos.0;
+        sy = pos.1;
+        region.create_area(pos.2);
+        if let Some(area) = region.data.areas.last_mut() {
+            area.area.push((pos.0, pos.1));
+            region.save_data();
+        }
+    }
+
+    loop {
+        // Place a miner
+
+        let mut d = 0;
+        let mut x = sx;
+        let mut y = sy;
+
+        if let Some(floor) = get_floor(&engine, size, &chain) {
+            layer1.insert((x, y), floor.clone());
+            layer2.remove(&(x,y));
+        }
+
+        for _ in 0..distance {
+
+            match rng.gen_range(0..4) {
+                0 => { x -= 1; },
+                1 => { x += 1; },
+                2 => { y -= 1; },
+                _ => { y += 1; }
+            }
+
+            if is_valid(x, y, range_s,range_e) {
+                if let Some(floor) = get_floor(&engine, size, &chain) {
+                    layer1.insert((x, y), floor.clone());
+                    layer2.remove(&(x,y));
+                }
+                d += 1;
+            } else {
+                break;
+            }
+
+            if d >= distance {
+                break;
+            }
+        }
+
+        // Calc how much we cover already
+
+        let mut covers = 0;
+        for y in range_s..range_e {
+            for x in range_s..range_e {
+                if layer1.contains_key(&(x, y)) {
+                    covers += 1;
+                }
+            }
+        }
+        if covers >= needs_to_cover {
+            break;
+        }
+
+        // Safeguard
+        i += 1;
+        if i >= 1000 {
+            break;
+        }
+    }
+
+    /*
+    // Close the edges
+    for y in range_s..range_e {
+        for x in range_s..range_e {
+            if x == range_s || y == range_s || x == range_e -1 || y == range_e - 1 {
+                if wall.usage == TileUsage::EnvBlocking {
+                    layer2.insert((x, y), wall.clone());
+                } else {
+                    layer1.insert((x, y), wall.clone());
+                }
+            }
+        }
+    }*/
+
 
     region.data.layer1 = layer1;
     region.data.layer2 = layer2;
@@ -383,20 +399,30 @@ fn setup_engine() -> Engine {
     engine
 }
 
-/// Extract the
-fn get_start_area(engine: &Engine, size: i32, chain: &Vec<BehaviorNode>) -> Option<(isize, isize, String)> {
-
-    let mut scope = Scope::new();
-    scope.set_value("size", size);
-
+/// Get a wall tile in the chain
+fn get_wall(_engine: &Engine, _size: i32, chain: &Vec<BehaviorNode>) -> Option<TileData> {
     for n in chain {
-        if n.behavior_type == BehaviorNodeType::StartArea {
-            if let Some(p) = get_node_script_dynamic_value(engine, &mut scope, &n, "start".to_string()) {
-                if let Some(pos) = p.read_lock::<ScriptPosition>() {
-                    if let Some(name) = get_node_value(&n, "name".to_string()) {
-                        if let Some(name) = name.to_string() {
-                            return Some((pos.pos_signed.0, pos.pos_signed.1, name));
-                        }
+        if n.behavior_type == BehaviorNodeType::Tile {
+            if let Some(w) = get_node_value(&n, "tile".into()) {
+                if let Some(t) = w.to_tile_data() {
+                    if t.usage == TileUsage::EnvBlocking {
+                        return Some(t);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Get a floor tile in the chain
+fn get_floor(_engine: &Engine, _size: i32, chain: &Vec<BehaviorNode>) -> Option<TileData> {
+    for n in chain {
+        if n.behavior_type == BehaviorNodeType::Tile {
+            if let Some(w) = get_node_value(&n, "tile".into()) {
+                if let Some(t) = w.to_tile_data() {
+                    if t.usage == TileUsage::Environment {
+                        return Some(t);
                     }
                 }
             }
