@@ -14,6 +14,9 @@ winit = "0.28.3"
 winit_input_helper = "0.14"
 directories = "5.0"
 
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+image_rs = { version = "0.24.6", package = "image" }
+
 [package.metadata.bundle]
 name = "Eldiron"
 identifier = "com.moenig.eldiron"

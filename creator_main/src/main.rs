@@ -9,7 +9,7 @@ use pixels::{Error, Pixels, SurfaceTexture};
 use winit::dpi::{LogicalSize, PhysicalSize};
 use winit::event::{Event, DeviceEvent, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
-use winit::window::WindowBuilder;
+use winit::window::{Icon, WindowBuilder};
 use winit_input_helper::WinitInputHelper;
 use winit::event::KeyboardInput;
 
@@ -45,6 +45,7 @@ fn main() -> Result<(), Error> {
             .with_title("Eldiron")
             .with_inner_size(size)
             .with_min_inner_size(size)
+            .with_window_icon(window_icon())
 
             .build(&event_loop)
             .unwrap()
@@ -343,4 +344,22 @@ fn get_time() -> u128 {
         .duration_since(std::time::UNIX_EPOCH)
         .expect("Time went backwards");
         stop.as_millis()
+}
+
+#[cfg(target_os = "macos")]
+fn window_icon() -> Option<Icon> {
+    None
+}
+
+#[cfg(not(target_os = "macos"))]
+fn window_icon() -> Option<Icon> {
+    let image = image_rs::load_from_memory(include_bytes!("../../build/windows/Eldiron.ico")).unwrap();
+
+    let image = image.into_rgba8();
+
+    let (width, height) = image.dimensions();
+
+    let icon = Icon::from_rgba(image.into_raw(), width, height).unwrap();
+
+    Some(icon)
 }
