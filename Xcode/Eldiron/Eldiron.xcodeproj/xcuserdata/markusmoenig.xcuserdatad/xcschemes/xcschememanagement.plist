@@ -12,12 +12,12 @@
 		<key>Eldiron macOS.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>2</integer>
+			<integer>0</integer>
 		</dict>
 		<key>Eldiron tvOS.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>0</integer>
+			<integer>2</integer>
 		</dict>
 		<key>Xcode2Rust iOS.xcscheme_^#shared#^_</key>
 		<dict>

@@ -40,6 +40,15 @@ public class RMTKView       : MTKView
         
     override public var acceptsFirstResponder: Bool { return true }
     
+    /// To get continuous mouse events on macOS
+    override public func updateTrackingAreas()
+    {
+        let options : NSTrackingArea.Options = [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow]
+        let trackingArea = NSTrackingArea(rect: self.bounds, options: options,
+                                      owner: self, userInfo: nil)
+        self.addTrackingArea(trackingArea)
+    }
+    
     func platformInit()
     {
     }
@@ -124,6 +133,13 @@ public class RMTKView       : MTKView
     override public func mouseDragged(with event: NSEvent) {
         setMousePos(event)
         if rust_touch_dragged(mousePos.x, mousePos.y) {
+            renderer.needsUpdate()
+        }
+    }
+    
+    override public func mouseMoved(with event: NSEvent) {
+        setMousePos(event)
+        if rust_hover(mousePos.x, mousePos.y) {
             renderer.needsUpdate()
         }
     }

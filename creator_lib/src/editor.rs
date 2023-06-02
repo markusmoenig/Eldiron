@@ -150,6 +150,7 @@ impl Editor<'_> {
         // Create projects if necessary
 
         let demo_path = project_path.join("Demo");
+        _ = std::fs::remove_dir_all(demo_path.clone());
         if fs::metadata(demo_path.clone()).is_ok() == false {
             let _rc = fs::create_dir(demo_path.clone());
         }

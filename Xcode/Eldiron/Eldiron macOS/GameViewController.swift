@@ -34,7 +34,7 @@ class GameViewController: NSViewController {
                                                                  toItem: nil,
                                                                  attribute: .notAnAttribute,
                                                                  multiplier: 1,
-                                                                 constant: 1248)
+                                                                 constant: 1300)
         
         let minimumHeightConstraint = NSLayoutConstraint(item: view,
                                                                  attribute: .height,
