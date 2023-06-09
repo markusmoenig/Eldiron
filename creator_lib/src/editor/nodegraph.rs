@@ -1481,7 +1481,7 @@ impl EditorContent for NodeGraph  {
             node_widget.widgets.push(tree_menu);
             node_widget.color = context.color_green.clone();
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#behavior-tree".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#behavior-tree".to_string());
 
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
             if self.graph_type != BehaviorType::GameLogic {
@@ -1506,7 +1506,7 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("".to_owned()), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#expression".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#expression".to_string());
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1523,7 +1523,7 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("".to_owned()), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#script".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#script".to_string());
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1556,7 +1556,7 @@ impl EditorContent for NodeGraph  {
             edit_atom.atom_data.value = Value::String("Edit".to_string());
             node_widget.widgets.push(edit_atom);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#screen".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#screen".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1575,7 +1575,7 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String(def_text), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#widget".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#widget".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1590,7 +1590,7 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Integer(2), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#move".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#move".to_string());
 
             node_widget.color = context.color_gray.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1598,14 +1598,14 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::Target {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#target".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#target".to_string());
             node_widget.color = context.color_gray.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::MagicTarget {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#magic-target".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#magic-target".to_string());
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
@@ -1624,7 +1624,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("Message".to_string()), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#message".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#message".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1641,7 +1641,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("Action".to_string()), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#action".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#action".to_string());
 
             node_widget.color = context.color_blue.clone();
             if  node_behavior_type == BehaviorNodeType::Action {
@@ -1655,21 +1655,21 @@ impl EditorContent for NodeGraph  {
             }
         } else
         if node_behavior_type == BehaviorNodeType::Take {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#take".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#take".to_string());
             node_widget.color = context.color_gray.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::Drop {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#drop".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#drop".to_string());
             node_widget.color = context.color_gray.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::Equip {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#equip".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#equip".to_string());
             node_widget.color = context.color_gray.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
@@ -1705,7 +1705,7 @@ impl EditorContent for NodeGraph  {
             speed.atom_data.value = context.data.get_behavior_id_value(id, Value::String("10".to_string()), self.graph_type);
             node_widget.widgets.push(speed);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#random-walk".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#random-walk".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1728,7 +1728,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("8".to_string()), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#pathfinder".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#pathfinder".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
@@ -1757,7 +1757,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("7".to_string()), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#lookout".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#lookout".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
@@ -1782,7 +1782,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Integer(2), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#close-in".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#close-in".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1815,7 +1815,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#multi-choice".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#multi-choice".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1840,7 +1840,7 @@ impl EditorContent for NodeGraph  {
             exit.atom_data.value = context.data.get_behavior_id_value(id, Value::String("Exit".to_string()), self.graph_type);
             node_widget.widgets.push(exit);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#sell".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#sell".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1859,7 +1859,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#lock-tree".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#lock-tree".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1871,7 +1871,7 @@ impl EditorContent for NodeGraph  {
             // let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
             // node_widget.widgets.push(target_menu);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#unlock-tree".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#unlock-tree".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1882,7 +1882,7 @@ impl EditorContent for NodeGraph  {
             let state_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string(), "Purged".to_string(), "Sleeping".to_string(), "Intoxicated".to_string()], Value::Integer(0));
             node_widget.widgets.push(state_menu);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#set-state".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#set-state".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1907,7 +1907,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#call-system".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#call-system".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1924,7 +1924,7 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#call-behavior".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#call-behavior".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1934,7 +1934,7 @@ impl EditorContent for NodeGraph  {
             let type_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string(), "Sleeping".to_string(), "Intoxicated".to_string()], Value::Integer(0));
             node_widget.widgets.push(type_menu);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#has-state".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#has-state".to_string());
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
@@ -1942,7 +1942,7 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::HasTarget {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#has-target".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#has-target".to_string());
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
@@ -1958,7 +1958,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("3".to_string()), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#untarget".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#untarget".to_string());
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1971,7 +1971,7 @@ impl EditorContent for NodeGraph  {
 
             node_widget.widgets.push(type_menu);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#drop-inventory".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#drop-inventory".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -1988,7 +1988,7 @@ impl EditorContent for NodeGraph  {
             position_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(position_atom);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#teleport".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#teleport".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -2007,7 +2007,7 @@ impl EditorContent for NodeGraph  {
             effect_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(effect_atom);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#effect".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#effect".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -2023,7 +2023,7 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#audio".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#audio".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -2039,7 +2039,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("30".to_string()), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#respawn".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#respawn".to_string());
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -2062,7 +2062,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Date(Date::new_time(23, 59)), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#schedule".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#schedule".to_string());
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -2072,17 +2072,17 @@ impl EditorContent for NodeGraph  {
 
         // Area
         if node_behavior_type == BehaviorNodeType::InsideArea {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#inside-area".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#inside-area".to_string());
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::Always {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#always".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#always".to_string());
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::EnterArea {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#enter-area".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#enter-area".to_string());
             let menu = create_menu_atom("Character".to_string(), vec!["Everyone".to_string(), "First Only".to_string()], Value::Integer(0));
             node_widget.widgets.push(menu);
 
@@ -2090,7 +2090,7 @@ impl EditorContent for NodeGraph  {
             node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::LeaveArea {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#leave-area".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#leave-area".to_string());
             let menu = create_menu_atom("Character".to_string(), vec!["Everyone".to_string(), "Last Only".to_string()], Value::Integer(0));
             node_widget.widgets.push(menu);
 
@@ -2116,7 +2116,7 @@ impl EditorContent for NodeGraph  {
             filter.atom_data.value = context.data.get_behavior_id_value(id, Value::String("".to_owned()), self.graph_type);
             node_widget.widgets.push(filter);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#teleport".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#teleport".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
@@ -2130,18 +2130,18 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#audio".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#audio".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::LightArea {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#light".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#light".to_string());
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
         } else
         if node_behavior_type == BehaviorNodeType::OverlayTiles {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#overlay-tiles".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#overlay-tiles".to_string());
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
         } else
@@ -2151,7 +2151,7 @@ impl EditorContent for NodeGraph  {
             let menu = create_menu_atom("State".to_string(), vec!["Off".to_string(), "On".to_string()], Value::Integer(0));
             node_widget.widgets.push(menu);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#light".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#light".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -2168,7 +2168,7 @@ impl EditorContent for NodeGraph  {
             tile_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(tile_atom);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#set-tile".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#set-tile".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -2192,7 +2192,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#level-tree".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#level-tree".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -2202,7 +2202,7 @@ impl EditorContent for NodeGraph  {
         // System
 
         if node_behavior_type == BehaviorNodeType::SkillTree {
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#skill-tree".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#skill-tree".to_string());
 
             node_widget.color = context.color_orange.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
@@ -2230,7 +2230,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#skill-level".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#skill-level".to_string());
 
             node_widget.color = context.color_orange.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -2259,7 +2259,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("You gained {} experience.".to_string()), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#level-tree".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#level-tree".to_string());
 
             node_widget.color = context.color_orange.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
@@ -2295,7 +2295,7 @@ impl EditorContent for NodeGraph  {
             atom3.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom3);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#level-tree".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#level-tree".to_string());
 
             node_widget.color = context.color_orange.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -2321,7 +2321,7 @@ impl EditorContent for NodeGraph  {
             atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String(4.to_string()), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#skill-level".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#skill-level".to_string());
 
             node_widget.color = context.color_orange.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -2364,7 +2364,7 @@ impl EditorContent for NodeGraph  {
             atom3.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom3);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#cellular".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#cellular".to_string());
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
@@ -2394,7 +2394,7 @@ impl EditorContent for NodeGraph  {
             start.atom_data.value = context.data.get_behavior_id_value(id, Value::String("pos(size / 2, size / 2)".into()), self.graph_type);
             node_widget.widgets.push(start);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#drunkardswalk".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#drunkardswalk".to_string());
 
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
@@ -2409,7 +2409,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/reference/nodes/index.html#tile".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#tile".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
