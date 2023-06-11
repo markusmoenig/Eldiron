@@ -178,8 +178,13 @@ impl RegionPool {
         });
 
         // Roll the damage for the main weapon
-        engine.register_fn("roll_weapon_damage", |mut sheet: Sheet| -> i32 {
-            roll_weapon_damage(&mut sheet)
+        engine.register_fn("roll_weapon_damage", |mut sheet: Sheet, slot_name: String| -> i32 {
+            roll_weapon_damage(&mut sheet, slot_name)
+        });
+
+        engine.register_fn("increase_weapon_skill_by", |mut sheet: Sheet, slot_name: String, amount: i32| -> Sheet {
+            inc_weapon_skill_by(&mut sheet, slot_name, amount);
+            sheet
         });
 
         // Roll the damage for the main weapon
@@ -204,13 +209,13 @@ impl RegionPool {
         });
 
         // Increases the given skill by the given amount
-        engine.register_fn("increase_skill_by", |mut sheet: Sheet, skill_name: String, amount: i32| {
+        engine.register_fn("increase_skill_by", |mut sheet: Sheet, skill_name: String, amount: i32| -> Sheet {
             increase_skill_by(&mut sheet, skill_name, amount);
             sheet
         });
 
         // Increases the experience by the given amount
-        engine.register_fn("increase_experience_by", |mut sheet: Sheet, amount: i32| {
+        engine.register_fn("increase_experience_by", |mut sheet: Sheet, amount: i32| -> Sheet {
             increase_experience_by(&mut sheet, amount);
             sheet
         });

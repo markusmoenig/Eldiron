@@ -193,20 +193,11 @@ impl Inventory {
         self.items.len() as i32
     }
 
-    /// Returns the item name at the given index.
-    pub fn item_name_at(&mut self, index: i32) -> String {
+    pub fn get_item_at(&mut self, index: i32) -> Item {
         if index >= 0 && index < self.items.len() as i32 {
-            return self.items[index as usize].name.clone();
+            return self.items[index as usize].clone()
         }
-        "".to_string()
-    }
-
-    /// Returns the item amount at the given index.
-    pub fn item_amount_at(&mut self, index: i32) -> i32 {
-        if index >= 0 && index < self.items.len() as i32 {
-            return self.items[index as usize].amount as i32;
-        }
-        0
+        Item::new(Uuid::new_v4(), "".to_string())
     }
 
     // Removes the item of the given name
@@ -241,13 +232,6 @@ impl Inventory {
         }
 
         None
-    }
-
-    pub fn get_item_at(&mut self, index: i32) -> Item {
-        if index >= 0 && index < self.items.len() as i32 {
-            return self.items[index as usize].clone()
-        }
-        Item::new(Uuid::new_v4(), "".to_string())
     }
 
     /// Do we carry this item ?
@@ -299,9 +283,8 @@ pub fn script_register_inventory_api(engine: &mut rhai::Engine) {
 
     engine.register_type_with_name::<Inventory>("Inventory")
         .register_fn("len", Inventory::len)
-        .register_fn("item_name_at", Inventory::item_name_at)
-        .register_fn("item_amount_at", Inventory::item_amount_at)
-        .register_fn("has_item", Inventory::has_item)
+        .register_fn("item_at", Inventory::get_item_at)
+         .register_fn("has_item", Inventory::has_item)
         .register_fn("destroy_item", Inventory::destroy_item)
         .register_iterator::<Inventory>();
 }

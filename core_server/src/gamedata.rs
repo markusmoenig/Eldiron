@@ -939,28 +939,30 @@ impl GameData {
         }
     }
 
-    #[cfg(not(feature = "embed_binaries"))]
     pub fn update_scripts(&mut self) {
-        let mut scripts : FxHashMap<String, String> = FxHashMap::default();
-        let scripts_path: PathBuf = self.path.join("game").join("scripts");
-        if let Some(paths) = fs::read_dir(scripts_path.clone()).ok() {
+        #[cfg(not(feature = "embed_binaries"))]
+        {
+            let mut scripts : FxHashMap<String, String> = FxHashMap::default();
+            let scripts_path: PathBuf = self.path.join("game").join("scripts");
+            if let Some(paths) = fs::read_dir(scripts_path.clone()).ok() {
 
-            for path in paths {
-                let path = &path.unwrap().path();
-                let md = metadata(path).unwrap();
-                if md.is_file() {
-                    if let Some(name) = path::Path::new(&path).extension() {
-                        if name == "rhai" {
-                            if let Some(script) = std::fs::read_to_string(path).ok() {
-                                let name = path::Path::new(path).file_stem().unwrap().to_str().unwrap().to_string();
-                                scripts.insert(name + ".rhai", script);
+                for path in paths {
+                    let path = &path.unwrap().path();
+                    let md = metadata(path).unwrap();
+                    if md.is_file() {
+                        if let Some(name) = path::Path::new(&path).extension() {
+                            if name == "rhai" {
+                                if let Some(script) = std::fs::read_to_string(path).ok() {
+                                    let name = path::Path::new(path).file_stem().unwrap().to_str().unwrap().to_string();
+                                    scripts.insert(name + ".rhai", script);
+                                }
                             }
                         }
                     }
                 }
             }
+            self.scripts = scripts;
         }
-        self.scripts = scripts;
     }
 
 }

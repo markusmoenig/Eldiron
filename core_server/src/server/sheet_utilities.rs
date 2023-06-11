@@ -4,8 +4,8 @@ use ref_thread_local::{RefThreadLocal};
 use crate::prelude::*;
 
 /// Returns the damage of the main hand
-pub fn roll_weapon_damage(sheet: &mut Sheet) -> i32 {
-    let weapon = sheet.weapons.slot(&"main hand");
+pub fn roll_weapon_damage(sheet: &mut Sheet, slot_name: String) -> i32 {
+    let weapon = sheet.weapons.slot(&slot_name);
     let mut skill_name = "Unarmed".to_string();
 
     if let Some(skill) = get_item_skill_name(weapon.name.clone()) {
@@ -23,6 +23,15 @@ pub fn roll_weapon_damage(sheet: &mut Sheet) -> i32 {
         value
     } else {
         0
+    }
+}
+
+/// Returns the damage of the main hand
+pub fn inc_weapon_skill_by(sheet: &mut Sheet, slot_name: String, amount: i32) {
+    let weapon = sheet.weapons.slot(&slot_name);
+
+    if let Some(skill_name) = get_item_skill_name(weapon.name.clone()) {
+        increase_skill_by(sheet, skill_name, amount);
     }
 }
 
