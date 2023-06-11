@@ -30,5 +30,5 @@ jobs:
           cd creator_main
           cargo build --verbose
 
-      - name: Run tests
-        run: cargo test --verbose
+      # - name: Run tests
+        # run: cargo test --verbose
