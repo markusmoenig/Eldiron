@@ -1934,7 +1934,7 @@ impl EditorContent for NodeGraph  {
             let type_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string(), "Sleeping".to_string(), "Intoxicated".to_string()], Value::Integer(0));
             node_widget.widgets.push(type_menu);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#has-state".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#query-state".to_string());
             node_widget.color = context.color_green.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );

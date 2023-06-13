@@ -598,7 +598,7 @@ pub fn node_call_system(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
 
 /// Behavior Call
 pub fn node_call_behavior(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
-    /*
+
     let mut behavior_id : Uuid = Uuid::new_v4();
     let mut behavior_tree_id : Option<Uuid> = None;
     if let Some(tree_name) = get_node_string(id, "tree", nodes) {
@@ -620,13 +620,15 @@ pub fn node_call_behavior(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeha
     if let Some(behavior_tree_id) = behavior_tree_id {
         execute_node(behavior_id, behavior_tree_id, nodes);
         return BehaviorNodeConnector::Success;
-    }*/
+    }
 
+    /*
     if let Some(tree_name) = get_node_string(id, "tree", nodes) {
         let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        println!("call {}", data.curr_index);
         data.to_execute.push((data.curr_index, tree_name));
         return BehaviorNodeConnector::Success;
-    }
+    }*/
 
     BehaviorNodeConnector::Fail
 }
