@@ -2413,4 +2413,47 @@ impl Editor<'_> {
         }
     }
 
+    // These functions handle events coming from Xcode
+
+    // Cut / Copy / Paste
+
+    pub fn cut(&mut self) -> String {
+        if self.context.code_editor_is_active {
+            self.code_editor.cut()
+        } else {
+            "".to_string()
+        }
+    }
+
+    pub fn copy(&mut self) -> String {
+        if self.context.code_editor_is_active {
+            self.code_editor.copy()
+        } else {
+            "".to_string()
+        }
+    }
+
+    pub fn paste(&mut self, text: String) {
+        if self.context.code_editor_is_active {
+            self.code_editor.paste(text);
+        }
+    }
+
+    // Undo / Redo
+
+    pub fn undo(&mut self) {
+        if self.context.code_editor_is_active {
+            self.code_editor.undo(&mut self.context);
+        } else {
+            self.content[self.state as usize].1.as_mut().unwrap().undo(&mut self.context);
+        }
+    }
+
+    pub fn redo(&mut self) {
+        if self.context.code_editor_is_active {
+            self.code_editor.redo(&mut self.context);
+        } else {
+            self.content[self.state as usize].1.as_mut().unwrap().redo(&mut self.context);
+        }
+    }
 }

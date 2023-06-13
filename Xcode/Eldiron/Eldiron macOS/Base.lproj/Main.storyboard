@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="21507" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" initialViewController="B8D-0N-5wS">
+<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="21701" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" initialViewController="B8D-0N-5wS">
     <dependencies>
         <deployment identifier="macosx"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="21507"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="21701"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
@@ -125,28 +125,28 @@
                                     <items>
                                         <menuItem title="Undo" keyEquivalent="z" id="dRJ-4n-Yzg">
                                             <connections>
-                                                <action selector="undo:" target="Ady-hI-5gd" id="M6e-cu-g7V"/>
+                                                <action selector="undo_menu:" target="Ady-hI-5gd" id="Guq-jW-pMQ"/>
                                             </connections>
                                         </menuItem>
                                         <menuItem title="Redo" keyEquivalent="Z" id="6dh-zS-Vam">
                                             <connections>
-                                                <action selector="redo:" target="Ady-hI-5gd" id="oIA-Rs-6OD"/>
+                                                <action selector="redo_menu:" target="Ady-hI-5gd" id="ip6-vr-AHQ"/>
                                             </connections>
                                         </menuItem>
                                         <menuItem isSeparatorItem="YES" id="WRV-NI-Exz"/>
                                         <menuItem title="Cut" keyEquivalent="x" id="uRl-iY-unG">
                                             <connections>
-                                                <action selector="cut:" target="Ady-hI-5gd" id="YJe-68-I9s"/>
+                                                <action selector="cut_menu:" target="Ady-hI-5gd" id="o81-ni-TZh"/>
                                             </connections>
                                         </menuItem>
                                         <menuItem title="Copy" keyEquivalent="c" id="x3v-GG-iWU">
                                             <connections>
-                                                <action selector="copy:" target="Ady-hI-5gd" id="G1f-GL-Joy"/>
+                                                <action selector="copy_menu:" target="Ady-hI-5gd" id="G4R-U6-lC2"/>
                                             </connections>
                                         </menuItem>
                                         <menuItem title="Paste" keyEquivalent="v" id="gVA-U4-sdL">
                                             <connections>
-                                                <action selector="paste:" target="Ady-hI-5gd" id="UvS-8e-Qdg"/>
+                                                <action selector="paste_menu:" target="Ady-hI-5gd" id="3oT-g1-aWk"/>
                                             </connections>
                                         </menuItem>
                                         <menuItem title="Paste and Match Style" keyEquivalent="V" id="WeT-3V-zwk">

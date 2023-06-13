@@ -163,7 +163,7 @@ class Renderer: NSObject, MTKViewDelegate {
     
     /// Checks the framerate and applies it
     func checkFramerate() {
-        let fps = UInt32(16);//rust_target_fps()
+        let fps = UInt32(30);//rust_target_fps()
         
         if fps > 0 {
             view.enableSetNeedsDisplay = false

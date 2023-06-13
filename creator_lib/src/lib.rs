@@ -67,7 +67,7 @@ use lazy_static::lazy_static;
 use std::sync::Mutex;
 
 use std::os::raw::{c_char};
-use std::ffi::{CStr};
+use std::ffi::{CStr, CString};
 
 lazy_static! {
     static ref EDITOR : Mutex<Editor<'static>> = Mutex::new(Editor::new(1248, 700));
@@ -188,4 +188,34 @@ fn _get_time() -> u128 {
         .duration_since(std::time::UNIX_EPOCH)
         .expect("Time went backwards");
         stop.as_millis()
+}
+
+#[no_mangle]
+pub extern "C" fn rust_cut() -> *mut c_char{
+    let text = EDITOR.lock().unwrap().cut();
+    CString::new(text).unwrap().into_raw()
+}
+
+#[no_mangle]
+pub extern "C" fn rust_copy() -> *mut c_char{
+    let text = EDITOR.lock().unwrap().copy();
+    CString::new(text).unwrap().into_raw()
+}
+
+#[no_mangle]
+pub extern "C" fn rust_paste(p: *const c_char) {
+    let text_str = unsafe { CStr::from_ptr(p) };
+    if let Some(text) = text_str.to_str().ok() {
+        EDITOR.lock().unwrap().paste(text.to_string());
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn rust_undo() {
+    EDITOR.lock().unwrap().undo();
+}
+
+#[no_mangle]
+pub extern "C" fn rust_redo() {
+    EDITOR.lock().unwrap().redo();
 }

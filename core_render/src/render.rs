@@ -79,6 +79,10 @@ pub struct GameRender<'a> {
 
     // Screen scripts and their utility scripts
     scripts                     : FxHashMap<String, String>,
+
+    // We limit redraws to anim_counter updates, otherwise it flickers too much
+    last_anim_counter           : usize,
+    last_light_map              : FxHashMap<(isize, isize), f64>
 }
 
 impl GameRender<'_> {
@@ -186,6 +190,9 @@ impl GameRender<'_> {
             screen_rect_2d      : (0, 0, 0, 0),
 
             scripts             : FxHashMap::default(),
+
+            last_anim_counter   : 0,
+            last_light_map      : FxHashMap::default(),
         }
     }
 
@@ -837,8 +844,13 @@ impl GameRender<'_> {
 
             // Compute the light_map
             let mut light_map : FxHashMap<(isize, isize), f64> = FxHashMap::default();
-            if let Some(lights) = self.lights.get(&region.id) {
-                light_map = compute_lighting(&region, lights);
+            if anim_counter != self.last_anim_counter {
+                if let Some(lights) = self.lights.get(&region.id) {
+                    light_map = compute_lighting(&region, lights);
+                    self.last_light_map = light_map.clone();
+                }
+            } else {
+                light_map = self.last_light_map.clone();
             }
 
             // Get base lighting
@@ -1162,6 +1174,7 @@ impl GameRender<'_> {
         }
 
         self.draw2d.scissor = None;
+        self.last_anim_counter = anim_counter;
     }
 
     /// Gets the given region value

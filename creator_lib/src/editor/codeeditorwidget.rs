@@ -90,6 +90,20 @@ impl CodeEditorWidget {
         context.code_editor_update_node = true;
     }
 
+    pub fn cut(&mut self) -> String {
+        self.dirty = true;
+        self.editor.cut()
+    }
+
+    pub fn copy(&mut self) -> String {
+        self.editor.copy()
+    }
+
+    pub fn paste(&mut self, text:String) {
+        self.dirty = true;
+        self.editor.paste(text);
+    }
+
     pub fn draw(&mut self, frame: &mut [u8], rect: (usize, usize, usize, usize), _anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
 
         self.rect = rect.clone();

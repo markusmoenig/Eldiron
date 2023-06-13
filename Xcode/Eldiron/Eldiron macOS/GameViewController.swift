@@ -57,4 +57,41 @@ class GameViewController: NSViewController {
 
         mtkView.delegate = renderer        
     }
+    
+    @IBAction func undo_menu(_ sender: NSMenuItem) {
+        rust_undo()
+    }
+    
+    @IBAction func redo_menu(_ sender: NSMenuItem) {
+        rust_redo()
+    }
+    
+    @IBAction func cut_menu(_ sender: NSMenuItem) {
+        if let text = rust_cut() {
+            let str = String(cString: text)
+            let pasteboard = NSPasteboard.general
+            pasteboard.declareTypes([.string], owner: nil)
+            pasteboard.setString(str, forType: .string)
+            renderer.updateOnce()
+        }
+    }
+    
+    @IBAction func copy_menu(_ sender: NSMenuItem) {
+        if let text = rust_copy() {
+            let str = String(cString: text)
+            let pasteboard = NSPasteboard.general
+            pasteboard.declareTypes([.string], owner: nil)
+            pasteboard.setString(str, forType: .string)
+        }
+    }
+    
+    @IBAction func paste_menu(_ sender: NSMenuItem) {
+        let item = NSPasteboard.general.pasteboardItems?.first
+        if let item = item {
+            if let str = item.string(forType: NSPasteboard.PasteboardType.string) {
+                rust_paste(str)
+                renderer.updateOnce()
+            }
+        }
+    }
 }
