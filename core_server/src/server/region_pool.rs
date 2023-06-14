@@ -187,6 +187,11 @@ impl RegionPool {
             sheet
         });
 
+        // Roll the skill for a given item
+        engine.register_fn("roll_item_skill", |mut sheet: Sheet, item_name: String| -> i32 {
+            roll_item_skill(&mut sheet, item_name)
+        });
+
         // Roll the damage for the main weapon
         engine.register_fn("execute_weapon_effects", || {
             let item_effects : Option<(Uuid, Uuid)>;

@@ -26,6 +26,30 @@ pub fn roll_weapon_damage(sheet: &mut Sheet, slot_name: String) -> i32 {
     }
 }
 
+/// Roll the skill for the given item
+pub fn roll_item_skill(sheet: &mut Sheet, item_name: String) -> i32 {
+    let skill_name;
+
+    if let Some(skill) = get_item_skill_name(item_name.clone()) {
+        skill_name = skill;
+    } else {
+        return 0;
+    }
+
+    let mut level = 0;
+    if let Some(skill) = sheet.skills.skills.get(&skill_name) {
+        level = skill.level;
+    }
+
+    if let Some((value, delay)) = get_item_skill_level_value_delay(item_name, level) {
+        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        data.character_instances[data.curr_index].sleep_cycles = delay as usize;
+        value
+    } else {
+        0
+    }
+}
+
 /// Returns the damage of the main hand
 pub fn inc_weapon_skill_by(sheet: &mut Sheet, slot_name: String, amount: i32) {
     let weapon = sheet.weapons.slot(&slot_name);

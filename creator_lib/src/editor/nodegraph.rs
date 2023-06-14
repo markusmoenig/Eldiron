@@ -2192,7 +2192,7 @@ impl EditorContent for NodeGraph  {
             atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#level-tree".to_string());
+            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#set-level-tree".to_string());
 
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
@@ -2238,18 +2238,6 @@ impl EditorContent for NodeGraph  {
         } else
 
         if node_behavior_type == BehaviorNodeType::LevelTree {
-
-            let mut atom1 = AtomWidget::new(vec!["Experience for Kill".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("experience_kill", Value::Empty()));
-            atom1.atom_data.text = "Experience for Kill".to_string();
-            let id = (behavior_data_id, node_id, "experience_kill".to_string());
-            atom1.behavior_id = Some(id.clone());
-            let mut def_text = "".to_string();
-            if let Some(txt) = context.scripts.get("level_tree_kill") {
-                def_text = txt.clone();
-            }
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String(def_text), self.graph_type);
-            node_widget.widgets.push(atom1);
 
             let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
             AtomData::new("message", Value::Empty()));
