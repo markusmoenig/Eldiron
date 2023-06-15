@@ -857,7 +857,7 @@ dependencies = [
 
 [[package]]
 name = "core_shared"
-version = "0.1.0"
+version = "0.8.1"
 dependencies = [
  "bincode",
  "colors-transform",
@@ -977,7 +977,7 @@ dependencies = [
 
 [[package]]
 name = "creator_lib"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "audio-engine",
  "code_editor",
