@@ -78,6 +78,12 @@ impl DialogPositionWidget {
                 context.target_fps = context.default_fps;
 
                 self.widgets[0].text = context.data.regions_names.clone();
+
+                // Check if the region index is out of bounds (regions got deleted)
+                if self.widgets[0].curr_index >= context.data.regions_ids.len() {
+                    self.widgets[0].curr_index = 0;
+                }
+
                 self.widgets[0].dirty = true;
 
                 self.widgets[1].state = WidgetState::Normal;
