@@ -602,6 +602,10 @@ impl EditorContent for NodeGraph  {
                     if self.graph_type == BehaviorType::Behaviors {
                         if context.curr_behavior_index != index {
 
+                            if context.curr_behavior_index >= self.nodes.len() {
+                                context.curr_behavior_index = 0;
+                            }
+
                             self.nodes[context.curr_behavior_index].dirty = true;
                             context.curr_behavior_index = index;
                             self.nodes[index].dirty = true;

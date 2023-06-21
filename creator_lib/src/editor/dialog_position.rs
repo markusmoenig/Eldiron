@@ -16,6 +16,13 @@ pub struct DialogPositionWidget {
     region_offset               : (isize, isize),
     region_scroll_offset        : (isize, isize),
 
+    overview_rect               : (usize, usize, usize, usize),
+    visible_rect                : (usize, usize, usize, usize),
+    visible_drag                : bool,
+    overview_tile_size          : usize,
+
+    has_position                : bool,
+
     pub new_value               : bool
 }
 
@@ -56,6 +63,13 @@ impl DialogPositionWidget {
             region_rect             : (0,0,0,0),
             region_offset           : (0,0),
             region_scroll_offset    : (0,0),
+
+            overview_rect           : (0, 0, 0, 0),
+            visible_rect            : (0, 0, 0, 0),
+            visible_drag            : false,
+            overview_tile_size      : 1,
+
+            has_position            : false,
 
             new_value               : false,
         }
@@ -119,16 +133,13 @@ impl DialogPositionWidget {
                 if context.data.regions_ids.is_empty() == false {
                     let region_id = context.data.regions_ids[self.widgets[0].curr_index];
                     if let Some(region) = context.data.regions.get(&region_id) {
-                        self.region_scroll_offset = match &context.dialog_value {
-                            // Value::Area(region_id, area_id) => {
-                            // },
-                            Value::Position(position) => {
-                                let x = position.x as isize - ((self.rect.2 as isize / 32) / 2);
-                                let y = position.y as isize - ((self.rect.3 as isize / 32) / 2);
-                                ( - x / 2, - y / 2)
+                        match &context.dialog_value {
+                            Value::Position(_position) => {
+                                self.has_position = true;
                             },
                             _ => {
-                                (-region.data.min_pos.0 / 2,  -region.data.min_pos.1 / 2)
+                                self.has_position = false;
+                                self.region_scroll_offset = (-region.data.min_pos.0,  -region.data.min_pos.1);
                             }
                         }
                     }
@@ -183,7 +194,7 @@ impl DialogPositionWidget {
                     let region_id = context.data.regions_ids[self.widgets[0].curr_index];
                     if let Some(region) = context.data.regions.get(&region_id) {
 
-                        let mut position = (0,0);
+                        let mut position = (0, 0);
 
                         match &context.dialog_value {
                             Value::Position(pos) => {
@@ -199,8 +210,6 @@ impl DialogPositionWidget {
                         context.draw2d.mask_size = (rect.2, rect.3);
 
                         self.region_offset = context.draw2d.draw_region_centered_with_behavior(buffer_frame, region, &region_rect, &position, &self.region_scroll_offset, rect.2, 32, 0, asset, context);
-
-                        context.draw2d.mask = None;
 
                         // Draw areas
                         if area_mode {
@@ -238,6 +247,55 @@ impl DialogPositionWidget {
                                 }
                             }
                         }
+
+                        // Overview
+                        //context.draw2d.draw_rect_outline(frame, &o_rect, context.width, context.color_white);
+
+                        let mut size = 1;
+                        let max_size = 200;
+
+                        let mut ox = (region.data.max_pos.0 - region.data.min_pos.0) as usize;
+                        let mut oy: usize = (region.data.max_pos.1 - region.data.min_pos.1) as usize;
+
+                        while ox * 2 <= max_size && oy * 2 <= max_size {
+                            ox *= 2;
+                            oy *= 2;
+
+                            size *= 2;
+                        }
+
+                        //let rect = region_rect;
+                        let o_rect = (region_rect.0 + region_rect.2 - ox, region_rect.1 + region_rect.3 - oy, ox, oy);
+                        context.draw2d.draw_rect(buffer_frame, &o_rect, rect.2, &context.color_toolbar);
+                        context.draw2d.draw_region(buffer_frame, region, &o_rect, &(region.data.min_pos.0, region.data.min_pos.1), rect.2, size, 0, asset, false);
+
+                        self.overview_rect = o_rect.clone();
+                        self.overview_tile_size = size;
+
+                        // Draw current visible editor rect
+
+                        let dx;
+                        let dy;
+
+                        if self.has_position {
+                            dx = -(region.data.min_pos.0 + self.region_scroll_offset.0 - (region.data.min_pos.0 + position.0) / 2) as isize * size as isize;
+                            dy = -(region.data.min_pos.1 + self.region_scroll_offset.1 - (region.data.min_pos.0 + position.1) / 2) as isize * size as isize;
+                        } else {
+                            dx = -(region.data.min_pos.0 + self.region_scroll_offset.0) / 2 as isize * size as isize;
+                            dy = -(region.data.min_pos.1 + self.region_scroll_offset.1) / 2 as isize * size as isize;
+                        }
+
+                        let width = ((region_rect.2 as f32 / 32 as f32) * size as f32) as usize;
+                        let height = ((region_rect.3 as f32 / 32 as f32) * size as f32) as usize;
+                        let v_rect = (o_rect.0 + dx as usize, o_rect.1 + dy as usize, width, height);
+
+                        self.visible_rect = v_rect;
+
+                        context.draw2d.scissor = Some(o_rect);
+                        context.draw2d.draw_rect_outline_safe(buffer_frame, &v_rect, rect.2, context.color_red);
+                        context.draw2d.scissor = None;
+
+                        context.draw2d.mask = None;
                     }
                 }
 
@@ -295,10 +353,39 @@ impl DialogPositionWidget {
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
-        self.clicked_id = "".to_string();
 
         if pos.0 < self.rect.0 || pos.1 < self.rect.1 { return false; }
         let local = (pos.0 - self.rect.0, pos.1 - self.rect.1);
+
+        self.visible_drag = false;
+
+        // Test for overview click
+        if context.contains_pos_for(local, self.overview_rect) {
+            let dx: usize = local.0 - self.overview_rect.0;
+            let dy: usize = local.1 - self.overview_rect.1;
+
+            let region_id = context.data.regions_ids[self.widgets[0].curr_index];
+            if let Some(region) = context.data.regions.get(&region_id) {
+
+                //println!("1 {:?} {:?}", region.data.min_pos, self.region_scroll_offset);
+
+                self.region_scroll_offset.0 = -region.data.min_pos.0 - dx as isize / self.overview_tile_size as isize + (self.visible_rect.2 / 2) as isize / self.overview_tile_size as isize ;
+                self.region_scroll_offset.1 = -region.data.min_pos.1 - dy as isize / self.overview_tile_size as isize + (self.visible_rect.3 / 2) as isize / self.overview_tile_size as isize ;
+
+                if self.has_position == true {
+                    self.region_scroll_offset.0 = region.data.min_pos.0 + self.region_scroll_offset.0;
+                    self.region_scroll_offset.1 = region.data.min_pos.1 + self.region_scroll_offset.1;
+                }
+
+                //println!("2 {:?} {:?}", region.data.min_pos, self.region_scroll_offset);
+            }
+
+            self.dirty = true;
+            self.visible_drag = true;
+            return true;
+        }
+
+        self.clicked_id = "".to_string();
         for atom in &mut self.widgets {
 
             if atom.mouse_down(local, asset, context) {
@@ -328,8 +415,8 @@ impl DialogPositionWidget {
 
             let region_tile_size = 32;
 
-            let left_offset = (self.region_rect.2 % region_tile_size) / 2;
-            let top_offset = (self.region_rect.3 % region_tile_size) / 2;
+            let left_offset = 0;//(self.region_rect.2 % region_tile_size) / 2;
+            let top_offset = 0;//(self.region_rect.3 % region_tile_size) / 2;
 
             let x = self.region_offset.0 + ((cpos.0 - self.region_rect.0 - left_offset) / region_tile_size) as isize;
             let y = self.region_offset.1 + ((cpos.1 - self.region_rect.1 - top_offset) / region_tile_size) as isize;
@@ -416,6 +503,26 @@ impl DialogPositionWidget {
     pub fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
         if pos.0 < self.rect.0 || pos.1 < self.rect.1 { return false; }
         let local = (pos.0 - self.rect.0, pos.1 - self.rect.1);
+
+        // Test for overview drag
+        if self.visible_drag == true {
+            let dx: usize = local.0 - self.overview_rect.0;
+            let dy: usize = local.1 - self.overview_rect.1;
+
+            let region_id = context.data.regions_ids[self.widgets[0].curr_index];
+            if let Some(region) = context.data.regions.get(&region_id) {
+                self.region_scroll_offset.0 = -region.data.min_pos.0 - dx as isize / self.overview_tile_size as isize + (self.visible_rect.2 / 2) as isize / self.overview_tile_size as isize ;
+                self.region_scroll_offset.1 = -region.data.min_pos.1 - dy as isize / self.overview_tile_size as isize + (self.visible_rect.3 / 2) as isize / self.overview_tile_size as isize ;
+
+                if self.has_position == true {
+                    self.region_scroll_offset.0 = region.data.min_pos.0 + self.region_scroll_offset.0;
+                    self.region_scroll_offset.1 = region.data.min_pos.1 + self.region_scroll_offset.1;
+                }
+            }
+            self.dirty = true;
+            return true;
+        }
+
         for atom in &mut self.widgets {
             if atom.mouse_dragged(local, asset, context) {
                 self.dirty = true;

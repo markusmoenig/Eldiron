@@ -244,16 +244,16 @@ impl AtomWidget {
                     border_color = custom_color;
                 }
 
-                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_toolbar);
+                context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &[0, 0, 0, 0]);//context.color_toolbar);
 
                 let fill_color;
                 if self.atom_widget_type == AtomWidgetType::ToolBarButton {
-                    fill_color = if self.state != WidgetState::Clicked { &context.color_toolbar } else { &context.color_light_gray };
+                    fill_color = if self.state != WidgetState::Clicked { &[0, 0, 0, 0]/*context.color_toolbar*/ } else { &context.color_light_gray };
                 } else {
                     if self.state == WidgetState::Hover {
                         fill_color = &context.color_light_gray;
                     } else {
-                        fill_color = if self.checked == false { &context.color_toolbar } else { &context.color_gray };
+                        fill_color = if self.checked == false { &[0, 0, 0, 0]/*context.color_toolbar*/ } else { &context.color_gray };
                     }
                 }
 
