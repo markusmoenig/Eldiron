@@ -7,7 +7,7 @@ pub struct TileMapOptions {
 
 impl EditorOptions for TileMapOptions {
 
-    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self where Self: Sized {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, context: &ScreenContext) -> Self where Self: Sized {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
@@ -17,31 +17,31 @@ impl EditorOptions for TileMapOptions {
         group_list.state = WidgetState::Disabled;
 
         group_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Unused".to_string(), "Environment".to_string(), "Road".to_string(), "Blocking".to_string(), "Character".to_string(), "Utility".to_string(), "Water".to_string(), "Effect".to_string(), "Icon".to_string(), "UI Element".to_string()]);
-        group_list.set_rect(rect, asset, context);
+        group_list.set_rect(rect);
         widgets.push(group_list);
 
         let mut settings_button = AtomWidget::new(vec!["Settings".to_string()], AtomWidgetType::Button,
             AtomData::new("Settings", Value::Empty()));
         settings_button.state = WidgetState::Disabled;
-        settings_button.set_rect((rect.0 + 10, rect.1 + 310 + 30, rect.2 - 20, 40), asset, context);
+        settings_button.set_rect((rect.0 + 10, rect.1 + 310 + 30, rect.2 - 20, 40));
         widgets.push(settings_button);
 
         let mut set_anim_button = AtomWidget::new(vec!["Set Anim".to_string()], AtomWidgetType::Button,
             AtomData::new("Set Anim", Value::Empty()));
         set_anim_button.state = WidgetState::Disabled;
-        set_anim_button.set_rect((rect.0 + 10, rect.1 + 305 + 80, rect.2 - 20, 40), asset, context);
+        set_anim_button.set_rect((rect.0 + 10, rect.1 + 305 + 80, rect.2 - 20, 40));
         widgets.push(set_anim_button);
 
         let mut clear_anim_button = AtomWidget::new(vec!["Clear Anim".to_string()], AtomWidgetType::Button,
         AtomData::new("Clear Anim", Value::Empty()));
         clear_anim_button.state = WidgetState::Disabled;
-        clear_anim_button.set_rect((rect.0 + 10, rect.1 + 340 + 80, rect.2 - 20, 40), asset, context);
+        clear_anim_button.set_rect((rect.0 + 10, rect.1 + 340 + 80, rect.2 - 20, 40));
         widgets.push(clear_anim_button);
 
         let mut set_default_button = AtomWidget::new(vec!["Set Default".to_string()], AtomWidgetType::Button,
         AtomData::new("Set Default", Value::Empty()));
         set_default_button.state = WidgetState::Disabled;
-        set_default_button.set_rect((rect.0 + 10, rect.1 + 15 + 370 + 80, rect.2 - 20, 40), asset, context);
+        set_default_button.set_rect((rect.0 + 10, rect.1 + 15 + 370 + 80, rect.2 - 20, 40));
         widgets.push(set_default_button);
 
         Self {

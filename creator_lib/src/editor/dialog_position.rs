@@ -130,6 +130,8 @@ impl DialogPositionWidget {
                     _ => {}
                 }
 
+                self.has_position = false;
+
                 if context.data.regions_ids.is_empty() == false {
                     let region_id = context.data.regions_ids[self.widgets[0].curr_index];
                     if let Some(region) = context.data.regions.get(&region_id) {
@@ -304,10 +306,10 @@ impl DialogPositionWidget {
                 // Draw Cancel / Accept buttons
                 self.widgets[0].emb_offset.0 = self.rect.0 as isize;
                 self.widgets[0].emb_offset.1 = 0;
-                self.widgets[0].set_rect((20, rect.3 - 60, 800 - 320 - 140, 40), asset, context);
-                self.widgets[3].set_rect((rect.2 - 280, rect.3 - 60, 120, 40), asset, context);
-                self.widgets[2].set_rect((rect.2 - 140, rect.3 - 60, 120, 40), asset, context);
-                self.widgets[1].set_rect((rect.2 - 280 - 140, rect.3 - 60, 120, 40), asset, context);
+                self.widgets[0].set_rect((20, rect.3 - 60, 800 - 320 - 140, 40));
+                self.widgets[3].set_rect((rect.2 - 280, rect.3 - 60, 120, 40));
+                self.widgets[2].set_rect((rect.2 - 140, rect.3 - 60, 120, 40));
+                self.widgets[1].set_rect((rect.2 - 280 - 140, rect.3 - 60, 120, 40));
 
                 for atom in &mut self.widgets {
                     atom.draw(buffer_frame, rect.2, anim_counter, asset, context);

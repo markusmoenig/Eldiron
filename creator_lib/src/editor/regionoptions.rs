@@ -36,27 +36,27 @@ impl EditorOptions for RegionOptions {
         let mut tilemaps_button = AtomWidget::new(tilemap_names, AtomWidgetType::SliderButton,
         AtomData::new("Tilemaps", Value::Empty()));
         tilemaps_button.atom_data.text = "Tilemaps".to_string();
-        tilemaps_button.set_rect((0, 0, rect.2 - 20, 40), asset, context);
+        tilemaps_button.set_rect((0, 0, rect.2 - 20, 40));
         tile_layout.add(tilemaps_button, 0);
 
         let mut tags_button = AtomWidget::new(vec!["".to_string()], AtomWidgetType::TagsButton,
             AtomData::new("Tags", Value::Empty()));
-        tags_button.set_rect((0, 0, rect.2 - 20, 40), asset, context);
+        tags_button.set_rect((0, 0, rect.2 - 20, 40));
         tile_layout.add(tags_button, 0);
 
         let mut usage_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new("UsageList", Value::Empty()));
         usage_list.add_group_list(context.color_blue, context.color_light_blue, vec!["All".to_string(), "Environment".to_string(), "Road".to_string(), "Blocking".to_string(), "Water".to_string(), "UI Element".to_string()]);
-        usage_list.set_rect((0, 0, rect.2 - 20, 210), asset, context);
+        usage_list.set_rect((0, 0, rect.2 - 20, 210));
         tile_layout.add(usage_list, 3);
 
         let mut layer_button = AtomWidget::new(vec!["F".to_string(), "W".to_string(), "C".to_string(), "O".to_string()], AtomWidgetType::LayerNumberRow, AtomData::new("Layer", Value::Empty()));
-        layer_button.set_rect((0, 0, rect.2 - 20, 30), asset, context);
+        layer_button.set_rect((0, 0, rect.2 - 20, 30));
         tile_layout.add(layer_button, 3);
 
         let mut remap_button = AtomWidget::new(vec!["Remap".to_string()], AtomWidgetType::Button,
         AtomData::new("Remap", Value::Empty()));
-        remap_button.set_rect((0, 0, rect.2 - 20, 40), asset, context);
+        remap_button.set_rect((0, 0, rect.2 - 20, 40));
         tile_layout.add(remap_button, 5);
 
         tile_layout.layout();
@@ -76,7 +76,7 @@ impl EditorOptions for RegionOptions {
 
         node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio".to_string(), "Light".to_string(), "Message".to_string(), "Overlay Tiles".to_string(), "Spawn".to_string(), "Teleport".to_string()]);
 
-        node_list.set_rect((0, 0, rect.2 - 20, rect.3 - 200), asset, context);
+        node_list.set_rect((0, 0, rect.2 - 20, rect.3 - 200));
         area_layout.add(node_list, 0);
 
         area_layout.layout();
@@ -95,7 +95,7 @@ impl EditorOptions for RegionOptions {
 
         procedural_node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Tile".to_string()]);
 
-        procedural_node_list.set_rect((0, 0, rect.2 - 20, rect.3 - 200), asset, context);
+        procedural_node_list.set_rect((0, 0, rect.2 - 20, rect.3 - 200));
         procedural_layout.layout();
         procedural_layout.add(procedural_node_list, 0);
 

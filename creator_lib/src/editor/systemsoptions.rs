@@ -9,7 +9,7 @@ pub struct SystemsOptions {
 
 impl EditorOptions for SystemsOptions {
 
-    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, context: &ScreenContext) -> Self {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
@@ -25,7 +25,7 @@ impl EditorOptions for SystemsOptions {
         items.sort();
         node_list.add_group_list(context.color_blue, context.color_light_blue, items);
 
-        node_list.set_rect(rect, asset, context);
+        node_list.set_rect(rect);
         widgets.push(node_list);
 
         Self {
@@ -38,6 +38,7 @@ impl EditorOptions for SystemsOptions {
     fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
         self.rect.3 = height;
+        self.widgets[0].set_rect(self.rect);
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) {
@@ -72,7 +73,14 @@ impl EditorOptions for SystemsOptions {
         consumed
     }
 
-    fn mouse_dragged(&mut self, _pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) -> bool {
+
+        for atom in &mut self.widgets {
+            if atom.mouse_dragged(pos, asset, context) {
+                return true;
+            }
+        }
+
         if let Some(drag_context) = &self.widgets[0].drag_context {
             if context.drag_context == None {
 

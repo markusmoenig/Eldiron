@@ -9,7 +9,7 @@ pub struct ItemsOptions {
 
 impl EditorOptions for ItemsOptions {
 
-    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, context: &ScreenContext) -> Self {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
@@ -23,7 +23,7 @@ impl EditorOptions for ItemsOptions {
 
         node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Audio".to_string(), "Effect".to_string(), "Light".to_string(), "Magic Target".to_string(), "Message".to_string(), "Set Tile".to_string()]);
 
-        node_list.set_rect(rect, asset, context);
+        node_list.set_rect(rect);
         widgets.push(node_list);
 
         Self {
@@ -36,6 +36,7 @@ impl EditorOptions for ItemsOptions {
     fn resize(&mut self, width: usize, height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
         self.rect.3 = height;
+        self.widgets[0].set_rect(self.rect);
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _content: &mut Option<Box<dyn EditorContent>>) {

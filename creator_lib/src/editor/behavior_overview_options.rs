@@ -9,7 +9,7 @@ pub struct BehaviorOverviewOptions {
 
 impl EditorOptions for BehaviorOverviewOptions {
 
-    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, context: &ScreenContext) -> Self {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
@@ -19,7 +19,7 @@ impl EditorOptions for BehaviorOverviewOptions {
 
         node_list.add_group_list(context.color_blue, context.color_light_blue, vec!["Character".to_string()]);
 
-        node_list.set_rect(rect, asset, context);
+        node_list.set_rect(rect);
         widgets.push(node_list);
 
         Self {

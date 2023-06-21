@@ -1,5 +1,7 @@
 use crate::prelude::*;
 
+const SCROLLBAR_WIDTH : usize = 18;
+
 pub struct GroupedList {
     color                       : [u8;4],
     selected_color              : [u8;4],
@@ -135,6 +137,9 @@ pub struct AtomWidget {
     grouped_list_height         : isize,
     scroll_offset               : isize,
     scroll_distance             : isize,
+    scroll_thumb_rect           : Option<(usize, usize, usize, usize)>,
+    scroll_click                : Option<(usize, usize)>,
+    scroll_offset_start         : isize,
 }
 
 impl AtomWidget {
@@ -190,27 +195,13 @@ impl AtomWidget {
             scroll_offset       : 0,
             grouped_list_height : 0,
             scroll_distance     : 0,
+            scroll_thumb_rect   : None,
+            scroll_click        : None,
+            scroll_offset_start : 0,
         }
     }
 
-    pub fn set_rect(&mut self, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &ScreenContext) {
-        self.rect = rect;
-        let mut height = rect.3;
-        if self.atom_widget_type == AtomWidgetType::GroupedList {
-            self.scroll_distance = 0;
-            let h = self.grouped_list_height();
-            if h > height {
-                self.scroll_distance = h as isize - height as isize;
-            }
-            height = height.max(h);
-            self.grouped_list_height = height as isize;
-        }
-        if self.buffer.len() != rect.2 * height * 4 {
-            self.buffer = vec![0;rect.2 * height * 4];
-        }
-    }
-
-    pub fn set_rect2(&mut self, rect: (usize, usize, usize, usize)) {
+    pub fn set_rect(&mut self, rect: (usize, usize, usize, usize)) {
         self.rect = rect;
         let mut height = rect.3;
         if self.atom_widget_type == AtomWidgetType::GroupedList {
@@ -723,11 +714,16 @@ impl AtomWidget {
 
                 self.content_rect = (self.rect.0, self.rect.1, self.rect.2, self.rect.3);
 
+                let mut width = rect.2;
+                if self.grouped_list_height > rect.3 as isize {
+                    width -= SCROLLBAR_WIDTH;
+                }
+
                 let mut y = 2;
                 for g_index in 0..self.groups.len() {
                     for i_index in 0..self.groups[g_index].items.len() {
 
-                        let r = (rect.0, y, rect.2, 32);
+                        let r = (rect.0, y, width, 32);
 
                         let mut rounding = context.button_rounding;
 
@@ -757,7 +753,7 @@ impl AtomWidget {
                             }
                         }
 
-                        context.draw2d.draw_rounded_rect(buffer_frame, &r, rect.2, &(self.rect.2 as f64, 32.0), &color, &rounding);
+                        context.draw2d.draw_rounded_rect(buffer_frame, &r, rect.2, &(width as f64, 32.0), &color, &rounding);
                         if self.centered_text == false {
                             context.draw2d.draw_text(buffer_frame, &(r.0 + 15, r.1 + 4), rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.groups[g_index].items[i_index].text, &text_color, &color);
                         } else {
@@ -897,10 +893,41 @@ impl AtomWidget {
         }
         self.dirty = false;
         self.dirty_scroll = false;
+        self.scroll_thumb_rect = None;
+
         if self.atom_widget_type != AtomWidgetType::GroupedList {
             context.draw2d.blend_slice(frame, buffer_frame, &self.rect, stride);
         } else {
             context.draw2d.blend_slice_offset(frame, buffer_frame, &self.rect, self.scroll_offset as usize, stride);
+
+            if self.grouped_list_height > rect.3 as isize {
+                // Draw scrollbar
+                let height = rect.3;
+
+                let total_height = self.grouped_list_height as usize;
+
+                let mut sbr = (self.rect.0 + self.rect.2 - SCROLLBAR_WIDTH, self.rect.1, SCROLLBAR_WIDTH, rect.3);
+                context.draw2d.draw_rect(frame, &sbr, stride, &context.color_toolbar);
+
+                let ratio = height as f32 / total_height as f32;
+                let theight = (height as f32 * ratio) as usize;
+
+                let offset = (self.scroll_offset as f32 * ratio) as usize;
+
+                sbr.1 += offset;
+                sbr.3 = theight;
+
+                if offset + theight > height {
+                    sbr.3 -= (offset + theight)- height;
+                }
+
+                if self.scroll_click.is_some() {
+                    context.draw2d.draw_rect(frame, &sbr, stride, &context.color_gray);
+                } else {
+                    context.draw2d.draw_rect(frame, &sbr, stride, &context.color_node_dark_gray);
+                }
+                self.scroll_thumb_rect = Some(sbr);
+            }
         }
     }
 
@@ -1035,6 +1062,16 @@ impl AtomWidget {
         if self.state == WidgetState::Disabled {
             return false;
         }
+
+        self.scroll_click = None;
+        if let Some(scroll_rect) = &self.scroll_thumb_rect {
+            if context.contains_pos_for(pos, *scroll_rect) {
+                self.scroll_click = Some(pos);
+                self.scroll_offset_start = self.scroll_offset;
+                return true;
+            }
+        }
+
         if self.contains_pos(pos) {
             if self.atom_widget_type == AtomWidgetType::ToolBarButton || self.atom_widget_type == AtomWidgetType::Button || self.atom_widget_type == AtomWidgetType::TagsButton || self.atom_widget_type == AtomWidgetType::LargeButton || self.atom_widget_type == AtomWidgetType::NodeNumberButton || self.atom_widget_type == AtomWidgetType::NodeTimeButton || self.atom_widget_type == AtomWidgetType::NodeSize2DButton || self.atom_widget_type == AtomWidgetType::NodeExpressionButton || self.atom_widget_type == AtomWidgetType::NodeExpressionValueButton || self.atom_widget_type == AtomWidgetType::NodeScriptButton || self.atom_widget_type == AtomWidgetType::NodeTextButton || self.atom_widget_type == AtomWidgetType::NodeCharTileButton || self.atom_widget_type == AtomWidgetType::NodeEnvTileButton || self.atom_widget_type == AtomWidgetType::NodeIconTileButton || self.atom_widget_type == AtomWidgetType::NodeGridSizeButton || self.atom_widget_type == AtomWidgetType::NodeScreenButton || self.atom_widget_type == AtomWidgetType::NodeItemSettingsButton || self.atom_widget_type == AtomWidgetType::NodeSpellSettingsButton || self.atom_widget_type == AtomWidgetType::NodeEffectTileButton || self.atom_widget_type == AtomWidgetType::NodeCharacterSettingsButton || self.atom_widget_type == AtomWidgetType::NodeRevealScriptsButton {
                 self.clicked = true;
@@ -1210,6 +1247,12 @@ impl AtomWidget {
     pub fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
 
         self.drag_context = None;
+        self.scroll_thumb_rect = None;
+
+        if self.scroll_click.is_some() {
+            self.scroll_click = None;
+            return true;
+        }
 
         if self.clicked || self.state == WidgetState::Clicked {
             self.clicked = false;
@@ -1391,6 +1434,17 @@ impl AtomWidget {
     }
 
     pub fn mouse_dragged(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+
+        if let Some(scroll_click) = &self.scroll_click {
+
+            let mut y: isize = pos.1 as isize - scroll_click.1 as isize;
+            y = (y as f32 * self.grouped_list_height as f32 / self.rect.3 as f32 ) as isize;
+
+            self.scroll_offset = self.scroll_offset_start + y;
+            self.scroll_offset = self.scroll_offset.clamp(0, self.scroll_distance);
+
+            return true;
+        }
 
         if self.atom_widget_type == AtomWidgetType::ToolBarMenuButton && self.state == WidgetState::Clicked {
 

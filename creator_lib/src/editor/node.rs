@@ -171,7 +171,7 @@ impl NodeWidget {
                 let mut y = 18_usize;
                 for atom_widget in &mut self.widgets {
                     let height = atom_widget.get_height(context);
-                    atom_widget.set_rect((18, y, self.size.0 - 30, height), asset, context);
+                    atom_widget.set_rect((18, y, self.size.0 - 30, height));
                     atom_widget.draw(buffer_frame, stride, anim_counter, asset, context);
                     y += height + 6;
                 }
@@ -200,7 +200,7 @@ impl NodeWidget {
                 // Draw menu
 
                 if let Some(menu) = &mut self.menu {
-                    menu.set_rect((self.size.0 - 37, 12, 20, 20), asset, context);
+                    menu.set_rect((self.size.0 - 37, 12, 20, 20));
                     menu.draw(buffer_frame, stride, anim_counter, asset, context);
                 }
 
@@ -213,7 +213,7 @@ impl NodeWidget {
                     let height = atom_widget.get_height(context);
 
                     y += context.node_button_header_text_size as usize;
-                    atom_widget.set_rect((18, y, self.size.0 - 35, height), asset, context);
+                    atom_widget.set_rect((18, y, self.size.0 - 35, height));
                     atom_widget.draw(buffer_frame, stride, anim_counter, asset, context);
 
                     y += height + 10;
@@ -319,7 +319,7 @@ impl NodeWidget {
 
                 let height = atom_widget.get_height(context) + 4;
                 y += context.node_button_header_text_size as usize;
-                atom_widget.set_rect((133, y, self.size.0 - 146, height), asset, context);
+                atom_widget.set_rect((133, y, self.size.0 - 146, height));
                 atom_widget.draw(buffer_frame, rect.2, anim_counter, asset, context);
 
                 y += height + 5;
@@ -332,7 +332,7 @@ impl NodeWidget {
             // Draw menu
 
             if let Some(menu) = &mut self.menu {
-                menu.set_rect((self.size.0 - 37, 12, 20, 20), asset, context);
+                menu.set_rect((self.size.0 - 37, 12, 20, 20));
                 menu.draw(buffer_frame, rect.2, anim_counter, asset, context);
             }
 

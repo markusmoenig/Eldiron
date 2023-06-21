@@ -9,7 +9,7 @@ pub struct AssetsOverviewOptions {
 
 impl EditorOptions for AssetsOverviewOptions {
 
-    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, context: &ScreenContext) -> Self {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
@@ -21,7 +21,7 @@ impl EditorOptions for AssetsOverviewOptions {
 
         node_list.curr_item_index = 2;
 
-        node_list.set_rect(rect, asset, context);
+        node_list.set_rect(rect);
         widgets.push(node_list);
 
         Self {

@@ -16,7 +16,7 @@ pub struct ScreenEditorOptions {
 
 impl EditorOptions for ScreenEditorOptions {
 
-    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &ScreenContext) -> Self {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, context: &ScreenContext) -> Self {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
@@ -25,14 +25,14 @@ impl EditorOptions for ScreenEditorOptions {
         mode_list.centered_text = true;
 
         mode_list.add_group_list([50, 50, 50, 255], [80, 80, 80, 255], vec!["None".to_string(), "Scripts".to_string(),  "Tiles".to_string()]);
-        mode_list.set_rect((rect.0, rect.1 + 10, rect.2, 120), asset, context);
+        mode_list.set_rect((rect.0, rect.1 + 10, rect.2, 120));
         mode_list.curr_item_index = 1;
         widgets.push(mode_list);
 
         let mut scripts_list = AtomWidget::new(vec![], AtomWidgetType::GroupedList,
     AtomData::new("Scripts", Value::Empty()));
         scripts_list.add_group_list(context.color_green, context.color_light_green, vec![]);
-        scripts_list.set_rect((rect.0, rect.1 + 340, rect.2, rect.3 - 340), asset, context);
+        scripts_list.set_rect((rect.0, rect.1 + 340, rect.2, rect.3 - 340));
         scripts_list.curr_item_index = 1;
         widgets.push(scripts_list);
 

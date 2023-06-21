@@ -2288,6 +2288,15 @@ impl Editor<'_> {
 
         //
 
+        self.context.curr_tileset_index = 0;
+        self.context.curr_region_index = 0;
+        self.context.curr_region_area_index = 0;
+        self.context.curr_behavior_index = 0;
+        self.context.curr_systems_index = 0;
+        self.context.curr_items_index = 0;
+
+        //
+
         self.state = EditorState::TilesOverview;
         self.controlbar.widgets[2].state = WidgetState::Normal;
         self.controlbar.widgets[2].dirty = true;

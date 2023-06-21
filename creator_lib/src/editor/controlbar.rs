@@ -22,7 +22,7 @@ pub struct ControlBar {
 
 impl Widget for ControlBar {
 
-    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &mut ScreenContext) -> Self where Self: Sized {
+    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _asset: &Asset, _context: &mut ScreenContext) -> Self where Self: Sized {
 
         let mut widgets : Vec<AtomWidget> = vec![];
 
@@ -30,14 +30,14 @@ impl Widget for ControlBar {
             AtomData::new("Undo", Value::Empty()));
         undo_button.no_border = true;
         undo_button.state = WidgetState::Disabled;
-        undo_button.set_rect((rect.0 + 10, rect.1, 80, rect.3), asset, context);
+        undo_button.set_rect((rect.0 + 10, rect.1, 80, rect.3));
         widgets.push(undo_button);
 
         let mut redo_button = AtomWidget::new(vec!["Redo".to_string()], AtomWidgetType::ToolBarButton,
             AtomData::new("Redo", Value::Empty()));
         redo_button.no_border = true;
         redo_button.state = WidgetState::Disabled;
-        redo_button.set_rect((rect.0 + 100, rect.1, 80, rect.3), asset, context);
+        redo_button.set_rect((rect.0 + 100, rect.1, 80, rect.3));
         widgets.push(redo_button);
 
         let mut demo_button = AtomWidget::new(vec!["Demo".to_string()], AtomWidgetType::ToolBarCheckButton,
@@ -45,53 +45,53 @@ impl Widget for ControlBar {
         demo_button.no_border = true;
         demo_button.checked = true;
         demo_button.status_help_text = Some("Switch to the Demo project.".to_string());
-        demo_button.set_rect((rect.0 + 200, rect.1, 80, rect.3), asset, context);
+        demo_button.set_rect((rect.0 + 200, rect.1, 80, rect.3));
         widgets.push(demo_button);
 
         let mut game1_button = AtomWidget::new(vec!["G1".to_string()], AtomWidgetType::ToolBarCheckButton,
             AtomData::new("Game1", Value::Empty()));
         game1_button.status_help_text = Some("Switch to Game 1.".to_string());
         game1_button.no_border = true;
-        game1_button.set_rect((rect.0 + 290, rect.1, 60, rect.3), asset, context);
+        game1_button.set_rect((rect.0 + 290, rect.1, 60, rect.3));
         widgets.push(game1_button);
 
         let mut game2_button = AtomWidget::new(vec!["G2".to_string()], AtomWidgetType::ToolBarCheckButton,
             AtomData::new("Game2", Value::Empty()));
         game2_button.no_border = true;
         game2_button.status_help_text = Some("Switch to Game 2.".to_string());
-        game2_button.set_rect((rect.0 + 360, rect.1, 60, rect.3), asset, context);
+        game2_button.set_rect((rect.0 + 360, rect.1, 60, rect.3));
         widgets.push(game2_button);
 
         let mut game3_button = AtomWidget::new(vec!["G3".to_string()], AtomWidgetType::ToolBarCheckButton,
             AtomData::new("Game3", Value::Empty()));
         game3_button.no_border = true;
         game3_button.status_help_text = Some("Switch to Game 3.".to_string());
-        game3_button.set_rect((rect.0 + 430, rect.1, 60, rect.3), asset, context);
+        game3_button.set_rect((rect.0 + 430, rect.1, 60, rect.3));
         widgets.push(game3_button);
 
         let mut game4_button = AtomWidget::new(vec!["G4".to_string()], AtomWidgetType::ToolBarCheckButton,
             AtomData::new("Game4", Value::Empty()));
         game4_button.no_border = true;
         game4_button.status_help_text = Some("Switch to Game 4.".to_string());
-        game4_button.set_rect((rect.0 + 500, rect.1, 60, rect.3), asset, context);
+        game4_button.set_rect((rect.0 + 500, rect.1, 60, rect.3));
         widgets.push(game4_button);
 
         let mut help_button = AtomWidget::new(vec!["Help".to_string()], AtomWidgetType::ToolBarButton,
             AtomData::new("Help", Value::Empty()));
         help_button.no_border = true;
-        help_button.set_rect((rect.2 - 100 - 200, rect.1, 80, rect.3), asset, context);
+        help_button.set_rect((rect.2 - 100 - 200, rect.1, 80, rect.3));
         widgets.push(help_button);
 
         let mut play_button = AtomWidget::new(vec!["Play".to_string()], AtomWidgetType::ToolBarButton,
             AtomData::new("Play", Value::Empty()));
         play_button.no_border = true;
-        play_button.set_rect((rect.2 - 100 - 100, rect.1, 80, rect.3), asset, context);
+        play_button.set_rect((rect.2 - 100 - 100, rect.1, 80, rect.3));
         widgets.push(play_button);
 
         let mut debug_button = AtomWidget::new(vec!["Debug".to_string()], AtomWidgetType::ToolBarButton,
             AtomData::new("Debug", Value::Empty()));
         debug_button.no_border = true;
-        debug_button.set_rect((rect.2 - 110, rect.1, 100, rect.3), asset, context);
+        debug_button.set_rect((rect.2 - 110, rect.1, 100, rect.3));
         widgets.push(debug_button);
 
         Self {

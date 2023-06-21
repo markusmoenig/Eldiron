@@ -273,8 +273,8 @@ impl DialogWidget {
                 }
 
                 // Draw Cancel / Accept buttons
-                self.widgets[0].set_rect((rect.2 - 280, rect.3 - 60, 120, 40), asset, context);
-                self.widgets[1].set_rect((rect.2 - 140, rect.3 - 60, 120, 40), asset, context);
+                self.widgets[0].set_rect((rect.2 - 280, rect.3 - 60, 120, 40));
+                self.widgets[1].set_rect((rect.2 - 140, rect.3 - 60, 120, 40));
 
                 for atom in &mut self.widgets {
                     if context.dialog_entry == DialogEntry::NewProjectName && atom.text[0] == "Cancel" {
