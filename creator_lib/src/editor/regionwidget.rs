@@ -1708,6 +1708,7 @@ impl EditorContent for RegionWidget {
         {
             let x = ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
             let y = ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;
+
             return Some((x, y));
         }
         None
@@ -1745,9 +1746,6 @@ impl EditorContent for RegionWidget {
 
     /// Update based on changes
     fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
-
-        //println!("{:?} {:?}", id, value);
-
         if id.2 == "region_settings" {
             let mut sink = PropertySink::new();
             if sink.load_from_string(context.code_editor_value.clone()) {

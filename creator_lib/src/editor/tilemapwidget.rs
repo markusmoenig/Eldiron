@@ -325,6 +325,7 @@ impl EditorContent for TileMapWidget {
     /// Converts a screen position to a map grid position
     fn screen_to_map(&self, asset: &Asset, screen_pos: (usize, usize)) -> Option<(usize, usize)> {
         let scale = self.scale;
+        let width = self.rect.2 - SCROLLBAR_WIDTH;
 
         if let Some(map) = asset.get_map_of_id(self.tilemap_id) {
             let scaled_grid_size = (map.settings.grid_size as f32 * scale) as usize;
@@ -334,7 +335,7 @@ impl EditorContent for TileMapWidget {
 
             let total_tiles = (x_tiles * y_tiles) as usize;
 
-            let screen_x = self.rect.2 / scaled_grid_size;
+            let screen_x = width / scaled_grid_size;
 
             if screen_pos.0 > self.rect.0 + self.screen_offset.0 && screen_pos.1 > self.rect.1 + self.screen_offset.0 {
 

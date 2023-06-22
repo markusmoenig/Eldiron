@@ -171,7 +171,8 @@ impl TileSelectorWidget {
         if context.contains_pos_for(pos, self.rect) {
             let grid_size = self.grid_size;
 
-            let screen_x = self.rect.2 / grid_size;
+            let width = self.rect.2 - SCROLLBAR_WIDTH;
+            let screen_x = width / grid_size;
 
             if pos.0 >= self.rect.0 + self.screen_offset.0 && pos.1 > self.rect.1 + self.screen_offset.1 {
 
