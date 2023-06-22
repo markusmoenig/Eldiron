@@ -152,7 +152,6 @@ impl TileSelectorWidget {
                 context.draw2d.draw_rect(frame, &sbr, stride, &context.color_node_dark_gray);
             }
             self.scroll_thumb_rect = Some(sbr);
-
         }
     }
 

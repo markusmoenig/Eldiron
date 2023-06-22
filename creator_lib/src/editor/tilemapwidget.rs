@@ -1,4 +1,5 @@
 use crate::prelude::*;
+const SCROLLBAR_WIDTH : usize = 18;
 
 pub struct TileMapWidget {
     rect                    : (usize, usize, usize, usize),
@@ -9,6 +10,12 @@ pub struct TileMapWidget {
 
     line_offset             : isize,
     max_line_offset         : usize,
+    total_lines             : usize,
+    visible_lines           : usize,
+
+    scroll_thumb_rect       : Option<(usize, usize, usize, usize)>,
+    scroll_click            : Option<(usize, usize)>,
+    scroll_offset_start     : isize,
 
     image_offset            : (isize, isize),
 
@@ -30,6 +37,12 @@ impl EditorContent for TileMapWidget {
 
             line_offset             : 0,
             max_line_offset         : 0,
+            total_lines                 : 0,
+            visible_lines               : 0,
+
+            scroll_thumb_rect           : None,
+            scroll_click                : None,
+            scroll_offset_start         : 0,
 
             image_offset            : (0, 0),
 
@@ -66,8 +79,6 @@ impl EditorContent for TileMapWidget {
                 let d = rect.0 * 4 + (y + rect.1) * dest_stride_isize * 4;
                 let s = y * (rect.2 as isize) * 4;
 
-                // TODO: Make this faster
-
                 if (y + rect.1 as isize) >= safe_rect.1 as isize && (y + rect.1 as isize) < (safe_rect.1 + safe_rect.3) as isize {
                     for x in 0..rect.2 as isize {
 
@@ -96,23 +107,28 @@ impl EditorContent for TileMapWidget {
 
                 let total_tiles = (x_tiles * y_tiles) as usize;
 
-                let screen_x = self.rect.2 / scaled_grid_size;
+                let width = self.rect.2 - SCROLLBAR_WIDTH;
+
+                let screen_x = width / scaled_grid_size;
                 let screen_y = self.rect.3 / scaled_grid_size;
 
-                let left_offset = (self.rect.2 % scaled_grid_size) / 2;
+                let left_offset = (width % scaled_grid_size) / 2;
                 let top_offset = (self.rect.3 % scaled_grid_size) / 2;
+                self.visible_lines = self.rect.3 / scaled_grid_size;
 
                 self.screen_offset = (left_offset, top_offset);
 
                 let tiles_per_page = screen_x * screen_y;
 
                 self.max_line_offset = 0;
+                self.total_lines = 0;
 
                 if total_tiles > tiles_per_page {
                     self.max_line_offset = (total_tiles - tiles_per_page) / screen_x;
                     if (total_tiles - tiles_per_page) % screen_x != 0 {
                         self.max_line_offset += 1;
                     }
+                    self.total_lines = total_tiles / screen_x;
                 }
 
                 let mut x_off = 0_usize;
@@ -174,11 +190,50 @@ impl EditorContent for TileMapWidget {
                         }
                     }
                 }
+
+                self.scroll_thumb_rect = None;
+
+                // Draw scrollbar
+                let height = self.visible_lines * scaled_grid_size;
+                let total_height = self.total_lines * scaled_grid_size;
+
+                let mut sbr = (self.rect.0 + self.rect.2 - SCROLLBAR_WIDTH, self.rect.1, SCROLLBAR_WIDTH, self.rect.3);
+                context.draw2d.draw_rect(frame, &sbr, context.width, &context.color_black);
+
+                let ratio = height as f32 / total_height as f32;
+                let theight = (height as f32 * ratio) as usize;
+
+                let offset = (self.line_offset as f32 * scaled_grid_size as f32 * ratio) as usize;
+
+                sbr.1 += offset;
+                sbr.3 = theight;
+
+                if offset + theight > height {
+                    sbr.3 -= (offset + theight)- height;
+                }
+
+                if self.scroll_click.is_some() {
+                    context.draw2d.draw_rect(frame, &sbr, context.width, &[60, 60, 60, 255]);
+                } else {
+                    context.draw2d.draw_rect(frame, &sbr, context.width, &context.color_node_dark_gray);
+                }
+                self.scroll_thumb_rect = Some(sbr);
             }
         }
     }
 
     fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+
+        self.scroll_click = None;
+        if pos.0 > self.rect.0 + self.rect.2 - SCROLLBAR_WIDTH {
+            if let Some(scroll_rect) = &self.scroll_thumb_rect {
+                if context.contains_pos_for(pos, *scroll_rect) {
+                    self.scroll_click = Some(pos);
+                    self.scroll_offset_start = self.line_offset;
+                }
+            }
+            return true;
+        }
 
         if let Some(tile) = self.screen_to_map(asset, pos) {
             context.curr_tile = Some(tile);
@@ -202,10 +257,25 @@ impl EditorContent for TileMapWidget {
 
     fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
         let consumed = false;
+        self.scroll_click = None;
         consumed
     }
 
     fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+
+        if let Some(scroll_click) = &self.scroll_click {
+            let mut y: isize = pos.1 as isize - scroll_click.1 as isize;
+            y = (y as f32 * self.total_lines as f32 / self.visible_lines as f32) as isize;
+
+            let scale = self.scale;
+            if let Some(map) = &asset.tileset.maps.get_mut(&self.tilemap_id) {
+                let scaled_grid_size = (map.settings.grid_size as f32 * scale) as usize;
+                self.line_offset = self.scroll_offset_start + y / scaled_grid_size as isize;
+                self.line_offset = self.line_offset.clamp(0, self.max_line_offset as isize);
+            }
+
+            return true;
+        }
 
         if let Some(curr_id) = context.curr_tile {
             if let Some(end_pos) = self.screen_to_map(asset, pos) {
