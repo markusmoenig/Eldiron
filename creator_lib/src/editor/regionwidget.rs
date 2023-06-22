@@ -1105,8 +1105,6 @@ impl EditorContent for RegionWidget {
                                             behavior.data.loot = Some(vec![]);
                                         }
 
-
-
                                         let index = behavior.data.loot.as_ref().unwrap().iter().position(|r| r.position == Position::new(self.region_id, id.0, id.1));
 
                                             if index.is_none() {
@@ -1349,7 +1347,7 @@ impl EditorContent for RegionWidget {
         true
     }
 
-    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool {
 
         // Test for overview drag
         if self.visible_drag == true {
@@ -1364,6 +1362,10 @@ impl EditorContent for RegionWidget {
         }
 
         if self.scale_button.mouse_dragged(pos, asset, context) {
+            return true;
+        }
+
+        if self.tile_selector.mouse_dragged(pos, asset, context, options, toolbar) {
             return true;
         }
 

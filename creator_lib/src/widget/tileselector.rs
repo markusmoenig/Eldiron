@@ -1,20 +1,26 @@
 use crate::widget::*;
-
 use itertools::Itertools;
 
+const SCROLLBAR_WIDTH : usize = 18;
 pub struct TileSelectorWidget {
-    pub rect                : (usize, usize, usize, usize),
-    screen_offset           : (usize, usize),
+    pub rect                    : (usize, usize, usize, usize),
+    screen_offset               : (usize, usize),
 
-    tiles                   : Option<Vec<TileData>>,
+    tiles                       : Option<Vec<TileData>>,
 
-    pub grid_size           : usize,
-    pub selected            : Option<TileData>,
+    pub grid_size               : usize,
+    pub selected                : Option<TileData>,
 
-    mouse_wheel_delta       : isize,
+    mouse_wheel_delta           : isize,
 
-    line_offset             : isize,
-    max_line_offset         : usize,
+    line_offset                 : isize,
+    max_line_offset             : usize,
+    total_lines                 : usize,
+    visible_lines               : usize,
+
+    scroll_thumb_rect           : Option<(usize, usize, usize, usize)>,
+    scroll_click                : Option<(usize, usize)>,
+    scroll_offset_start         : isize,
 }
 
 impl TileSelectorWidget {
@@ -34,6 +40,12 @@ impl TileSelectorWidget {
 
             line_offset                 : 0,
             max_line_offset             : 0,
+            total_lines                 : 0,
+            visible_lines               : 0,
+
+            scroll_thumb_rect           : None,
+            scroll_click                : None,
+            scroll_offset_start         : 0,
         }
     }
 
@@ -47,16 +59,20 @@ impl TileSelectorWidget {
 
         context.draw2d.draw_rect(frame, &self.rect, stride, &context.color_black);
 
+        let width = self.rect.2 - SCROLLBAR_WIDTH;
+
         let grid_size = self.grid_size;
-        let left_offset = (self.rect.2 % grid_size) / 2;
+        let left_offset = (width % grid_size) / 2;
         let top_offset = (self.rect.3 % grid_size) / 2;
 
         self.screen_offset = (left_offset, top_offset);
 
-        let grid = (self.rect.2 / self.grid_size, self.rect.3 / self.grid_size);
+        let grid = (width / self.grid_size, self.rect.3 / self.grid_size);
         let max_tiles = grid.0 * grid.1;
 
         self.max_line_offset = 0;
+        self.visible_lines = self.rect.3 / grid_size;
+        self.total_lines = 0;
 
         if let Some(tiles) = &self.tiles {
 
@@ -65,6 +81,7 @@ impl TileSelectorWidget {
                 if (tiles.len() - max_tiles) % grid_size != 0 {
                     self.max_line_offset += 1;
                 }
+                self.total_lines = tiles.len() / grid_size;
             }
 
             let mut x = self.rect.0 + left_offset;
@@ -103,15 +120,54 @@ impl TileSelectorWidget {
                 }
 
                 x += self.grid_size;
-                if x + self.grid_size > self.rect.0 + self.rect.2 {
+                if x + self.grid_size > self.rect.0 + width {
                     x = self.rect.0 + left_offset;
                     y += self.grid_size;
                 }
             }
+
+            // Draw scrollbar
+            let height = self.visible_lines * self.grid_size;
+
+            let total_height = self.total_lines * self.grid_size;
+
+            let mut sbr = (self.rect.0 + self.rect.2 - SCROLLBAR_WIDTH, self.rect.1, SCROLLBAR_WIDTH, self.rect.3);
+            context.draw2d.draw_rect(frame, &sbr, stride, &context.color_black);
+
+            let ratio = height as f32 / total_height as f32;
+            let theight = (height as f32 * ratio) as usize;
+
+            let offset = (self.line_offset as f32 * self.grid_size as f32 * ratio) as usize;
+
+            sbr.1 += offset;
+            sbr.3 = theight;
+
+            if offset + theight > height {
+                sbr.3 -= (offset + theight)- height;
+            }
+
+            if self.scroll_click.is_some() {
+                context.draw2d.draw_rect(frame, &sbr, stride, &[60, 60, 60, 255]);
+            } else {
+                context.draw2d.draw_rect(frame, &sbr, stride, &context.color_node_dark_gray);
+            }
+            self.scroll_thumb_rect = Some(sbr);
+
         }
     }
 
     pub fn mouse_down(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+
+        self.scroll_click = None;
+        if pos.0 > self.rect.0 + self.rect.2 - SCROLLBAR_WIDTH {
+            if let Some(scroll_rect) = &self.scroll_thumb_rect {
+                if context.contains_pos_for(pos, *scroll_rect) {
+                    self.scroll_click = Some(pos);
+                    self.scroll_offset_start = self.line_offset;
+                }
+            }
+            return true;
+        }
 
         if context.contains_pos_for(pos, self.rect) {
             let grid_size = self.grid_size;
@@ -137,9 +193,26 @@ impl TileSelectorWidget {
     }
 
     pub fn _mouse_up(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext) -> bool {
+        self.scroll_click = None;
+
         if context.contains_pos_for(pos, self.rect) {
             return true;
         }
+        false
+    }
+
+    pub fn mouse_dragged(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+
+        if let Some(scroll_click) = &self.scroll_click {
+            let mut y: isize = pos.1 as isize - scroll_click.1 as isize;
+            y = (y as f32 * self.total_lines as f32 / self.visible_lines as f32) as isize;
+
+            self.line_offset = self.scroll_offset_start + y / self.grid_size as isize;
+            self.line_offset = self.line_offset.clamp(0, self.max_line_offset as isize);
+
+            return true;
+        }
+
         false
     }
 

@@ -907,7 +907,7 @@ impl AtomWidget {
                 let total_height = self.grouped_list_height as usize;
 
                 let mut sbr = (self.rect.0 + self.rect.2 - SCROLLBAR_WIDTH, self.rect.1, SCROLLBAR_WIDTH, rect.3);
-                context.draw2d.draw_rect(frame, &sbr, stride, &context.color_toolbar);
+                context.draw2d.draw_rect(frame, &sbr, stride, &context.color_black);
 
                 let ratio = height as f32 / total_height as f32;
                 let theight = (height as f32 * ratio) as usize;
@@ -922,7 +922,7 @@ impl AtomWidget {
                 }
 
                 if self.scroll_click.is_some() {
-                    context.draw2d.draw_rect(frame, &sbr, stride, &context.color_gray);
+                    context.draw2d.draw_rect(frame, &sbr, stride, &[60, 60, 60, 255]);
                 } else {
                     context.draw2d.draw_rect(frame, &sbr, stride, &context.color_node_dark_gray);
                 }
