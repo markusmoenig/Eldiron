@@ -1366,11 +1366,11 @@ impl EditorContent for NodeGraph  {
         if node_behavior_type == BehaviorNodeType::BehaviorType {
             if self.graph_type == BehaviorType::Behaviors {
                 node_widget.is_corner_node = true;
+                node_widget.color = context.color_black.clone();
 
                 let aligh_menu = create_menu_atom("Alignment".to_string(), vec!["Positive".to_string(), "Neutral".to_string(), "Negative".to_string()], Value::Integer(0));
 
                 node_widget.widgets.push(aligh_menu);
-                node_widget.color = context.color_black.clone();
 
                 // Position
                 let mut position_atom = AtomWidget::new(vec![], AtomWidgetType::NodePositionButton,
@@ -1412,6 +1412,7 @@ impl EditorContent for NodeGraph  {
             } else
             if self.graph_type == BehaviorType::Items {
                 node_widget.is_corner_node = true;
+                node_widget.color = context.color_black.clone();
 
                 // Default Character Tile
                 let mut tile_atom = AtomWidget::new(vec![], AtomWidgetType::NodeIconTileButton,
@@ -1439,6 +1440,7 @@ impl EditorContent for NodeGraph  {
             } else
             if self.graph_type == BehaviorType::Systems {
                 node_widget.is_corner_node = true;
+                node_widget.color = context.color_black.clone();
 
                 // Icon Tile
                 let mut tile_atom = AtomWidget::new(vec![], AtomWidgetType::NodeIconTileButton,
@@ -1451,6 +1453,7 @@ impl EditorContent for NodeGraph  {
             } else
             if self.graph_type == BehaviorType::GameLogic {
                 node_widget.is_corner_node = true;
+                node_widget.color = context.color_black.clone();
 
                 // Name of the startup tree
                 let mut startup_atom = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
