@@ -71,4 +71,4 @@ Unless explicitly stated otherwise, any contribution intentionally submitted for
 
 ## Sponsors
 
-None yet.
+[![Digital Ocean](sponsors/DO_Logo_Horizontal_Blue.png)](https://www.digitalocean.com/?utm_medium=opensource&utm_source=Eldiron)
