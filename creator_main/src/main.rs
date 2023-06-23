@@ -254,45 +254,49 @@ fn main() -> Result<(), Error> {
             }
 
             if input.mouse_pressed(0) {
-                let coords =  input.mouse().unwrap();
-                let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
-                    .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+                if let Some(coords) =  input.mouse() {
+                    let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
+                        .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                if creator_lib::rust_touch_down(pixel_pos.0 as f32, pixel_pos.1 as f32) {
-                    window.request_redraw();
+                    if creator_lib::rust_touch_down(pixel_pos.0 as f32, pixel_pos.1 as f32) {
+                        window.request_redraw();
+                    }
                 }
             }
 
             if input.mouse_released(0) {
-                let coords =  input.mouse().unwrap();
-                let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
-                    .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+                if let Some(coords) =  input.mouse() {
+                    let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
+                        .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                if creator_lib::rust_touch_up(pixel_pos.0 as f32, pixel_pos.1 as f32) {
-                    window.request_redraw();
+                    if creator_lib::rust_touch_up(pixel_pos.0 as f32, pixel_pos.1 as f32) {
+                        window.request_redraw();
+                    }
                 }
             }
 
             if input.mouse_held(0) {
                 let diff =  input.mouse_diff();
                 if diff.0 != 0.0 || diff.1 != 0.0 {
-                    let coords =  input.mouse().unwrap();
-                    let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
-                        .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+                    if let Some(coords) =  input.mouse() {
+                        let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
+                            .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                    if creator_lib::rust_touch_dragged(pixel_pos.0 as f32, pixel_pos.1 as f32) {
-                        window.request_redraw();
+                        if creator_lib::rust_touch_dragged(pixel_pos.0 as f32, pixel_pos.1 as f32) {
+                            window.request_redraw();
+                        }
                     }
                 }
             } else {
                 let diff =  input.mouse_diff();
                 if diff.0 != 0.0 || diff.1 != 0.0 {
-                    let coords =  input.mouse().unwrap();
-                    let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
-                        .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+                    if let Some(coords) =  input.mouse() {
+                        let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
+                            .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
-                    if creator_lib::rust_hover(pixel_pos.0 as f32, pixel_pos.1 as f32) {
-                        window.request_redraw();
+                        if creator_lib::rust_hover(pixel_pos.0 as f32, pixel_pos.1 as f32) {
+                            window.request_redraw();
+                        }
                     }
                 }
             }
