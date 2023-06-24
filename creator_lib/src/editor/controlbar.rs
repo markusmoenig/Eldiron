@@ -103,6 +103,11 @@ impl Widget for ControlBar {
 
     fn resize(&mut self, width: usize, _height: usize, _context: &ScreenContext) {
         self.rect.2 = width;
+
+        let rect = self.rect;
+        self.widgets[7].set_rect((rect.2 - 100 - 200, rect.1, 80, rect.3));
+        self.widgets[8].set_rect((rect.2 - 100 - 100, rect.1, 80, rect.3));
+        self.widgets[9].set_rect((rect.2 - 110, rect.1, 80, rect.3));
     }
 
     fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext) {
@@ -226,6 +231,8 @@ impl Widget for ControlBar {
                         if let Some(server) = &mut context.server {
                             _ = server.shutdown();
                         }
+
+                        context.server = None;
 
                         for index in 0..self.widgets.len() {
                             if index != ControlWidgets::Play as usize {

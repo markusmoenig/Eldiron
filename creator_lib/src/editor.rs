@@ -2309,6 +2309,8 @@ impl Editor<'_> {
 
         self.toolbar.widgets[0].text = self.asset.tileset.maps_names.clone();
         self.toolbar.widgets[1].selected = true;
+
+        self.game_render = None;
     }
 
     /// Switches the asset view to the current asset index

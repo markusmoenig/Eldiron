@@ -1568,6 +1568,18 @@ impl EditorContent for NodeGraph  {
             node_widget.color = context.color_blue.clone();
             node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
             node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+
+            // Check if the scripts and main.rai script exist and if not create it
+            let game_path = context.curr_project_path.join("game");
+            let scripts_path = game_path.join("scripts");
+            if fs::metadata(scripts_path.clone()).is_ok() == false {
+                if fs::create_dir(scripts_path.clone()).ok().is_some() {
+                    if let Some(main) = context.scripts.get("screen") {
+                        let path = scripts_path.join("main.rhai");
+                        _ = fs::write(path, main);
+                    }
+                }
+            }
         } else
         if node_behavior_type == BehaviorNodeType::Widget {
             let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScreenButton,
