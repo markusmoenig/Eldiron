@@ -17,7 +17,7 @@ pub struct GroupItem {
 pub struct AtomData {
     pub text                    : String,
     pub id                      : String,
-    pub data                    : (f64, f64, f64, f64, String),
+    pub data                    : (f32, f32, f32, f32, String),
     pub value                   : Value,
 }
 
@@ -249,9 +249,9 @@ impl AtomWidget {
                 }
 
                 if self.no_border == false {
-                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
                 } else {
-                    context.draw2d.draw_rounded_rect(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding);
+                    context.draw2d.draw_rounded_rect(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32), &fill_color, &context.toolbar_button_rounding);
                 }
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.toolbar_button_text_size, &self.text[0], &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_white}, &fill_color, draw2d::TextAlignment::Center);
             }  else
@@ -267,9 +267,9 @@ impl AtomWidget {
                 let fill_color = &context.color_toolbar;//if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
 
                 if self.no_border == false {
-                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
                 } else {
-                    context.draw2d.draw_rounded_rect(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding);
+                    context.draw2d.draw_rounded_rect(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32), &fill_color, &context.toolbar_button_rounding);
                 }
 
                 if self.text.len() > 0 && self.curr_index < self.text.len() {
@@ -305,7 +305,7 @@ impl AtomWidget {
                 let mut fill_color = context.color_black;
                 if self.right_has_hover  { fill_color = context.color_light_gray } if self.right_selected { fill_color = context.color_gray };
 
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
 
                 let mut y_pos = rect.3 / 2 - 7;
                 for y in 0_usize..3_usize {
@@ -321,7 +321,7 @@ impl AtomWidget {
                 fill_color = context.color_black;
                 if self.has_hover  { fill_color = context.color_light_gray } if self.selected { fill_color = context.color_gray };
 
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &left_rect, rect.2, &((div - 1) as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &left_rect, rect.2, &((div - 1) as f32, self.content_rect.3 as f32), &fill_color, &context.toolbar_button_rounding, &border_color, 1.5);
                 left_rect.0 += 5;
                 context.draw2d.draw_text_rect(buffer_frame, &left_rect, rect.2, &asset.get_editor_font("OpenSans"), context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
 
@@ -339,7 +339,7 @@ impl AtomWidget {
 
                     context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                     let fill_color = &context.color_black;
-                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32), &fill_color, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
                     if self.text.len() > 0 {
                         context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.toolbar_button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
                     }
@@ -358,7 +358,7 @@ impl AtomWidget {
 
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                 let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.node_button_rounding, &context.color_light_gray, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32), &fill_color, &context.node_button_rounding, &context.color_light_gray, 1.5);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &self.text[self.curr_index], &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
             if self.atom_widget_type == AtomWidgetType::NodeMenuButton || self.atom_widget_type == AtomWidgetType::SmallMenuButton {
@@ -395,13 +395,13 @@ impl AtomWidget {
                 let v = self.atom_data.data.0.round();
 
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &border_color, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32 - 1.0), &fill_color, &context.node_button_rounding, &border_color, 1.5);
 
                 let min = self.atom_data.data.1;
 
                 if v > min {
                     let max = self.atom_data.data.2;
-                    let pp = self.content_rect.2 as f64 / (max - min);
+                    let pp = self.content_rect.2 as f32 / (max - min);
 
                     let mut r = rect.clone();
                     let left_off = ((v - 1.0) * pp).round() as usize;
@@ -416,7 +416,7 @@ impl AtomWidget {
                             r.2 = rect.2;
                         }
 
-                        context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &(r.2 as f64, r.3 as f64 - 1.0), &context.color_node_light_gray, &round, &&context.color_node_light_gray, 1.5);
+                        context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &(r.2 as f32, r.3 as f32 - 1.0), &context.color_node_light_gray, &round, &&context.color_node_light_gray, 1.5);
                     }
                 }
 
@@ -433,7 +433,7 @@ impl AtomWidget {
                     v = value;
                 }
 
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &fill_color, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32 - 1.0), &fill_color, &context.node_button_rounding, &fill_color, 1.5);
 
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &format!("{}", v), &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
@@ -448,7 +448,7 @@ impl AtomWidget {
                     v = value.to_time24();
                 }
 
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &fill_color, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32 - 1.0), &fill_color, &context.node_button_rounding, &fill_color, 1.5);
 
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &format!("{}", v), &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
@@ -461,7 +461,7 @@ impl AtomWidget {
                 let v1 = self.atom_data.data.0.round();
                 let v2 = self.atom_data.data.0.round();
 
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &fill_color, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32 - 1.0), &fill_color, &context.node_button_rounding, &fill_color, 1.5);
 
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.node_button_text_size, &format!("{} x {}", v1, v2), &context.color_light_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
@@ -476,7 +476,7 @@ impl AtomWidget {
                 }
 
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), fill_color, &context.node_button_rounding, fill_color, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32 - 1.0), fill_color, &context.node_button_rounding, fill_color, 1.5);
 
                 let t = self.atom_data.value.to_string_value();
                 let chars = t.chars();
@@ -521,7 +521,7 @@ impl AtomWidget {
                 }
 
                 if self.clicked {
-                    context.draw2d.blend_rounded_rect(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &context.color_light_gray, &context.node_button_rounding);
+                    context.draw2d.blend_rounded_rect(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32 - 1.0), &context.color_light_gray, &context.node_button_rounding);
                 }
 
             } else
@@ -639,7 +639,7 @@ impl AtomWidget {
 
                 context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
                 let fill_color = if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.large_button_rounding, &context.color_light_gray, 1.3);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32), &fill_color, &context.large_button_rounding, &context.color_light_gray, 1.3);
                 context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.large_button_text_size, &self.text[0], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
             }  else
 
@@ -658,7 +658,7 @@ impl AtomWidget {
                     }
                 }
 
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.button_rounding, &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_light_gray}, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32), &fill_color, &context.button_rounding, &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_light_gray}, 1.5);
 
                 if self.text[0].is_empty() == false {
                     context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[0], &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_white}, &fill_color, draw2d::TextAlignment::Center);
@@ -682,7 +682,7 @@ impl AtomWidget {
                     }
                 }
 
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.button_rounding, &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_light_gray}, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32), &fill_color, &context.button_rounding, &if self.state == WidgetState::Disabled {context.color_gray} else {context.color_light_gray}, 1.5);
 
                 let text = self.atom_data.value.to_integer().unwrap().to_string();
 
@@ -698,7 +698,7 @@ impl AtomWidget {
                     let border_color = if self.state != WidgetState::Disabled { context.color_light_gray } else { context.color_node_light_gray };
 
                     context.draw2d.draw_rect(buffer_frame, &rect, rect.2, &context.color_black);
-                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64 - 1.0), &fill_color, &context.node_button_rounding, &border_color, 1.5);
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32 - 1.0), &fill_color, &context.node_button_rounding, &border_color, 1.5);
 
                     if self.text.len() > 0 {
                         context.draw2d.draw_text_rect(buffer_frame, &rect, rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
@@ -753,7 +753,7 @@ impl AtomWidget {
                             }
                         }
 
-                        context.draw2d.draw_rounded_rect(buffer_frame, &r, rect.2, &(width as f64, 32.0), &color, &rounding);
+                        context.draw2d.draw_rounded_rect(buffer_frame, &r, rect.2, &(width as f32, 32.0), &color, &rounding);
                         if self.centered_text == false {
                             context.draw2d.draw_text(buffer_frame, &(r.0 + 15, r.1 + 4), rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.groups[g_index].items[i_index].text, &text_color, &color);
                         } else {
@@ -792,7 +792,7 @@ impl AtomWidget {
                     if let Some(mask) = &self.button_mask {
                         if let Some(t) = &mask[index] {
 
-                            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &((cell_size - 2) as f64, (cell_size - 2) as f64), &context.color_black , &(0.0, 0.0, 0.0, 0.0), &border_color, 1.5);
+                            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &((cell_size - 2) as f32, (cell_size - 2) as f32), &context.color_black , &(0.0, 0.0, 0.0, 0.0), &border_color, 1.5);
 
                             drawn = true;
 
@@ -803,7 +803,7 @@ impl AtomWidget {
                     }
 
                     if drawn == false {
-                        context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &((cell_size - 2) as f64, (cell_size - 2) as f64), &fill_color, &(0.0, 0.0, 0.0, 0.0), border_color, 1.5);
+                        context.draw2d.draw_rounded_rect_with_border(buffer_frame, &r, rect.2, &((cell_size - 2) as f32, (cell_size - 2) as f32), &fill_color, &(0.0, 0.0, 0.0, 0.0), border_color, 1.5);
 
                         context.draw2d.draw_text_rect(buffer_frame, &r, rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
                     }
@@ -820,7 +820,7 @@ impl AtomWidget {
                 }
 
                 let fill_color = &context.color_black;//if self.state == WidgetState::Normal { &context.color_black } else { &context.color_light_gray };
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f64, self.content_rect.3 as f64), &fill_color, &context.button_rounding, &border_color, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(self.content_rect.2 as f32, self.content_rect.3 as f32), &fill_color, &context.button_rounding, &border_color, 1.5);
 
                 if self.text.is_empty() == false {
                     context.draw2d.draw_text_rect(buffer_frame, &(rect.0 + 30, rect.1, rect.2 - 60, rect.3), rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.text[self.curr_index], &context.color_white, &fill_color, draw2d::TextAlignment::Center);
@@ -939,7 +939,7 @@ impl AtomWidget {
             // Draw Open Menu
             self.content_rect = (self.rect.0 + self.emb_offset.0 as usize, self.rect.1 + self.emb_offset.1 as usize + (self.rect.3 - context.toolbar_button_height) / 2, self.rect.2, context.toolbar_button_height * self.text.len());
 
-            context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, context.width, &(self.content_rect.2 as f64 - 1.0, self.content_rect.3 as f64 - 1.0), &context.color_black, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
+            context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, context.width, &(self.content_rect.2 as f32 - 1.0, self.content_rect.3 as f32 - 1.0), &context.color_black, &context.toolbar_button_rounding, &context.color_light_gray, 1.5);
 
             let mut r = self.content_rect.clone();
             r.3 = context.toolbar_button_height;
@@ -961,7 +961,7 @@ impl AtomWidget {
                             rounding.2 =  context.toolbar_button_rounding.2;
                         }
 
-                        context.draw2d.draw_rounded_rect_with_border(frame, &r, context.width, &(r.2 as f64 - 1.0, r.3 as f64 - 1.0), &fill_color, &rounding, &context.color_light_gray, 1.5);
+                        context.draw2d.draw_rounded_rect_with_border(frame, &r, context.width, &(r.2 as f32 - 1.0, r.3 as f32 - 1.0), &fill_color, &rounding, &context.color_light_gray, 1.5);
                     }
                 }
 
@@ -982,7 +982,7 @@ impl AtomWidget {
                 self.content_rect.1 -= (self.content_rect.1 + self.content_rect.3) - context.height;
             }
 
-            context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, context.width, &(self.content_rect.2 as f64 - 1.0, self.content_rect.3 as f64 - 1.0), &context.color_black, &context.node_button_rounding, &context.color_light_gray, 1.5);
+            context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, context.width, &(self.content_rect.2 as f32 - 1.0, self.content_rect.3 as f32 - 1.0), &context.color_black, &context.node_button_rounding, &context.color_light_gray, 1.5);
 
             let mut r = self.content_rect.clone();
             r.3 = context.node_button_height;
@@ -1004,7 +1004,7 @@ impl AtomWidget {
                             rounding.2 =  context.node_button_rounding.2;
                         }
 
-                        context.draw2d.draw_rounded_rect_with_border(frame, &r, context.width, &(r.2 as f64 - 1.0, r.3 as f64 - 1.0), &fill_color, &rounding, &context.color_light_gray, 1.5);
+                        context.draw2d.draw_rounded_rect_with_border(frame, &r, context.width, &(r.2 as f32 - 1.0, r.3 as f32 - 1.0), &fill_color, &rounding, &context.color_light_gray, 1.5);
                     }
                 }
 
@@ -1025,7 +1025,7 @@ impl AtomWidget {
                 self.content_rect.1 -= (self.content_rect.1 + self.content_rect.3) - context.height;
             }
 
-            context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, context.width, &(self.content_rect.2 as f64 - 1.0, self.content_rect.3 as f64 - 1.0), & &context.color_black, &context.node_button_rounding, &context.color_light_gray, 1.5);
+            context.draw2d.draw_rounded_rect_with_border(frame, &self.content_rect, context.width, &(self.content_rect.2 as f32 - 1.0, self.content_rect.3 as f32 - 1.0), & &context.color_black, &context.node_button_rounding, &context.color_light_gray, 1.5);
 
             let mut r = self.content_rect.clone();
             r.3 = context.node_button_height;
@@ -1047,7 +1047,7 @@ impl AtomWidget {
                             rounding.2 =  context.node_button_rounding.2;
                         }
 
-                        context.draw2d.draw_rounded_rect_with_border(frame, &r, context.width, &(r.2 as f64 - 1.0, r.3 as f64 - 1.0), &fill_color, &rounding, &context.color_light_gray, 1.5);
+                        context.draw2d.draw_rounded_rect_with_border(frame, &r, context.width, &(r.2 as f32 - 1.0, r.3 as f32 - 1.0), &fill_color, &rounding, &context.color_light_gray, 1.5);
                     }
                 }
 
@@ -1144,9 +1144,9 @@ impl AtomWidget {
                 //let step = self.atom_data.data.3;
 
                 if  pos.0 >= self.content_rect.0 {
-                    let offset = (pos.0 - self.content_rect.0) as f64;
+                    let offset = (pos.0 - self.content_rect.0) as f32;
 
-                    let pp = (max - min) / self.content_rect.2 as f64;
+                    let pp = (max - min) / self.content_rect.2 as f32;
                     let v = (min + offset * pp).round().clamp(min, max);
 
                     self.atom_data.data.0 = v;
@@ -1276,7 +1276,7 @@ impl AtomWidget {
                         self.new_selection = Some(self.curr_index);
                     }
                 }
-                self.atom_data.data.0 = self.curr_index as f64;
+                self.atom_data.data.0 = self.curr_index as f32;
             } else
             if self.atom_widget_type == AtomWidgetType::NodeScreenButton {
                 context.switch_editor_state = Some(crate::editor::EditorState::ScreenDetail);
@@ -1423,7 +1423,7 @@ impl AtomWidget {
 
             if let Some(selection) = self.new_selection {
                 self.curr_index = selection;
-                self.atom_data.data.0 = self.curr_index as f64;
+                self.atom_data.data.0 = self.curr_index as f32;
                 self.atom_data.value = Value::Integer(selection as i32);
             }
 
@@ -1485,9 +1485,9 @@ impl AtomWidget {
             //let step = self.atom_data.data.3;
 
             if  pos.0 >= self.content_rect.0 {
-                let offset = (pos.0 - self.content_rect.0) as f64;
+                let offset = (pos.0 - self.content_rect.0) as f32;
 
-                let pp = (max - min) / self.content_rect.2 as f64;
+                let pp = (max - min) / self.content_rect.2 as f32;
                 let v = (min + offset * pp).round().clamp(min, max);
                 self.atom_data.data.0 = v;
 

@@ -82,7 +82,7 @@ pub struct GameRender<'a> {
 
     // We limit redraws to anim_counter updates, otherwise it flickers too much
     last_anim_counter           : usize,
-    last_light_map              : FxHashMap<(isize, isize), f64>
+    last_light_map              : FxHashMap<(isize, isize), f32>
 }
 
 impl GameRender<'_> {
@@ -801,7 +801,7 @@ impl GameRender<'_> {
             // Get base lighting
             let mut base_light = 1.0;
             if let Some(property) = region.settings.get(&"base_lighting") {
-                base_light = property.to_float() as f64;
+                base_light = property.to_float() as f32;
             }
 
             if let Some(property) = region.settings.get(&"lighting") {
@@ -836,14 +836,14 @@ impl GameRender<'_> {
 
                 if let Some(v) = property.as_string() {
                     if v == "timeofday" {
-                        let daylight = get_brightness(update.date.minutes_in_day) as f64;
+                        let daylight = get_brightness(update.date.minutes_in_day) as f32;
                         base_light = base_light.max(daylight);
                     }
                 }
             }
 
             // Compute the light_map
-            let mut light_map : FxHashMap<(isize, isize), f64> = FxHashMap::default();
+            let mut light_map : FxHashMap<(isize, isize), f32> = FxHashMap::default();
             if anim_counter != self.last_anim_counter {
                 if let Some(lights) = self.lights.get(&region.id) {
                     light_map = compute_lighting(&region, lights);
@@ -881,7 +881,7 @@ impl GameRender<'_> {
 
             if let Some(old_position) = &update.old_position {
 
-                let t = (update.curr_transition_time as f64 * (self.tile_size as f64 / (update.max_transition_time as f64 + 1.0))) as isize;
+                let t = (update.curr_transition_time as f32 * (self.tile_size as f32 / (update.max_transition_time as f32 + 1.0))) as isize;
 
                 if position.x > old_position.x {
                     gr.0 = t;
@@ -1090,7 +1090,7 @@ impl GameRender<'_> {
                 if let Some(old_position) = &character.old_position {
 
                     if character.id != update.id || (character.id == update.id && gr.0 == 0 && gr.1 == 0) {
-                        let t = (character.curr_transition_time as f64 * (self.tile_size as f64 / (character.max_transition_time as f64 + 1.0))) as isize;
+                        let t = (character.curr_transition_time as f32 * (self.tile_size as f32 / (character.max_transition_time as f32 + 1.0))) as isize;
 
                         if position.x > old_position.x {
                             tr.0 = t;

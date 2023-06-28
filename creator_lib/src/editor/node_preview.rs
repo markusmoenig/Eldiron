@@ -117,7 +117,7 @@ impl NodePreviewWidget {
             let buffer_frame = &mut self.buffer[..];
             let stride = self.size.0;
 
-            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3 - 2) as f64), &context.color_black, &(0.0, 0.0, 20.0, 0.0), &context.color_gray, 1.5);
+            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f32, (rect.3 - 2) as f32), &context.color_black, &(0.0, 0.0, 20.0, 0.0), &context.color_gray, 1.5);
             context.draw2d.draw_rect(buffer_frame, &(2, 0, rect.2 - 4, 4), stride, &context.color_black);
             context.draw2d.draw_rect(buffer_frame, &(rect.2-2, 0, 2, rect.3 - 1), stride, &context.color_black);
             context.draw2d.draw_rect(buffer_frame, &(1, 1, 1, 1), stride, &[65, 65, 65, 255]);
@@ -166,8 +166,8 @@ impl NodePreviewWidget {
 
                     let mut fit_rect = self.region_rect.clone();
 
-                    let ratio = (fit_rect.2 as f64 / source_size.0 as f64).min(fit_rect.3 as f64 / source_size.1 as f64);
-                    let fit_size = ((source_size.0 as f64 * ratio) as usize, (source_size.1 as f64 * ratio) as usize);
+                    let ratio = (fit_rect.2 as f32 / source_size.0 as f32).min(fit_rect.3 as f32 / source_size.1 as f32);
+                    let fit_size = ((source_size.0 as f32 * ratio) as usize, (source_size.1 as f32 * ratio) as usize);
 
                     if fit_size.0 < fit_rect.2 {
                         fit_rect.0 += (fit_rect.2 - fit_size.0) / 2;

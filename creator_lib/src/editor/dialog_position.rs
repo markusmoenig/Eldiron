@@ -173,7 +173,7 @@ impl DialogPositionWidget {
 
             buffer_frame.iter_mut().map(|x| *x = 0).count();
 
-            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(rect.2 as f64 - 1.0, rect.3 as f64 - 1.0), &context.color_black, &(20.0, 0.0, 20.0, 0.0), &context.color_light_gray, 1.5);
+            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(rect.2 as f32 - 1.0, rect.3 as f32 - 1.0), &context.color_black, &(20.0, 0.0, 20.0, 0.0), &context.color_light_gray, 1.5);
 
             if context.dialog_position_state == DialogState::Open {
 
@@ -189,7 +189,7 @@ impl DialogPositionWidget {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Select Position".to_string(), &context.color_white, &context.color_black);
                 }
 
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &region_rect, rect.2, &(region_rect.2 as f64 - 1.0, region_rect.3 as f64 - 1.0), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &border_color, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &region_rect, rect.2, &(region_rect.2 as f32 - 1.0, region_rect.3 as f32 - 1.0), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &border_color, 1.5);
 
                 if context.data.regions_ids.is_empty() == false {
 
@@ -431,7 +431,7 @@ impl DialogPositionWidget {
                 let region_id = context.data.regions_ids[self.widgets[0].curr_index];
                 context.dialog_value = Value::Position(Position::new(region_id, x, y));
 
-                //context.dialog_node_behavior_value = (context.data.regions_ids[self.widgets[0].curr_index] as f64, x as f64, y as f64, -1.0, "".to_string());
+                //context.dialog_node_behavior_value = (context.data.regions_ids[self.widgets[0].curr_index] as f32, x as f32, y as f32, -1.0, "".to_string());
             } else {
                 let region_id = context.data.regions_ids[self.widgets[0].curr_index];
                 if let Some(region) = context.data.regions.get(&region_id) {
@@ -444,8 +444,8 @@ impl DialogPositionWidget {
                             let area_id = region.data.areas[area_index].id;
 
                             context.dialog_value = Value::Area(region_id, area_id);
-                            //let id = region.data.areas[area_index].id as f64;
-                            //context.dialog_node_behavior_value = (context.data.regions_ids[self.widgets[0].curr_index] as f64, x as f64, y as f64, id, "".to_string());
+                            //let id = region.data.areas[area_index].id as f32;
+                            //context.dialog_node_behavior_value = (context.data.regions_ids[self.widgets[0].curr_index] as f32, x as f32, y as f32, id, "".to_string());
                         }
                     }
                 }

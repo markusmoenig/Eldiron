@@ -316,10 +316,10 @@ impl EditorContent for NodeGraph  {
                                     let end_x;
                                     let end_y;
 
-                                    let sdx : f64;
-                                    let sdy : f64;
-                                    let edx : f64;
-                                    let edy : f64;
+                                    let sdx : f32;
+                                    let sdy : f32;
+                                    let edx : f32;
+                                    let edy : f32;
 
                                     if *source_connector == BehaviorNodeConnector::Right {
                                         start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize;
@@ -344,7 +344,7 @@ impl EditorContent for NodeGraph  {
                                     let dx = start_x - end_x;
                                     let dy = start_y - end_y;
 
-                                    let d = ((dx * dx + dy * dy) as f64).sqrt().clamp(0.0, 50.0);
+                                    let d = ((dx * dx + dy * dy) as f32).sqrt().clamp(0.0, 50.0);
 
                                     control_start_x = start_x + (sdx * d) as isize;
                                     control_start_y = start_y + (sdy * d) as isize;
@@ -455,7 +455,7 @@ impl EditorContent for NodeGraph  {
                     }
 
                     let color = if selected { context.color_gray } else {context.color_black };
-                    context.draw2d.draw_rounded_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &((bt_rect.2) as f64, (bt_rect.3) as f64), &color, &(0.0, 0.0, 0.0, 0.0));
+                    context.draw2d.draw_rounded_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &((bt_rect.2) as f32, (bt_rect.3) as f32), &color, &(0.0, 0.0, 0.0, 0.0));
 
                     self.behavior_tree_rects.push(bt_rect.clone());
 

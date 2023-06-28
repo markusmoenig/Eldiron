@@ -154,7 +154,7 @@ impl DialogWidget {
 
             buffer_frame.iter_mut().map(|x| *x = 0).count();
 
-            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(rect.2 as f64 - 1.0, rect.3 as f64 - 1.0), &context.color_black, &(20.0, 0.0, 20.0, 0.0), &context.color_light_gray, 1.5);
+            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &(rect.2 as f32 - 1.0, rect.3 as f32 - 1.0), &context.color_black, &(20.0, 0.0, 20.0, 0.0), &context.color_light_gray, 1.5);
 
             if context.dialog_state == DialogState::Open {
 
@@ -167,7 +167,7 @@ impl DialogWidget {
                 if context.dialog_entry == DialogEntry::NodeNumber {
                     context.draw2d.draw_text(buffer_frame, &(40, 10), rect.2, &asset.get_editor_font("OpenSans"), title_text_size, &"Number".to_string(), &context.color_white, &context.color_black);
 
-                    if self.text.parse::<f64>().is_err() {
+                    if self.text.parse::<f32>().is_err() {
                         border_color = context.color_red;
                         self.widgets[1].state = WidgetState::Disabled;
                     } else
@@ -192,7 +192,7 @@ impl DialogWidget {
                     let mut valid = false;
                     let txt = self.text.split("x").collect::<Vec<&str>>();
                     if txt.len() == 2 {
-                        if txt[0].parse::<f64>().is_ok() && txt[1].parse::<f64>().is_ok() {
+                        if txt[0].parse::<f32>().is_ok() && txt[1].parse::<f32>().is_ok() {
                             valid = true;
                         }
                     }
@@ -265,7 +265,7 @@ impl DialogWidget {
                 }
 
                 if context.dialog_entry != DialogEntry::NodeTile {
-                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &input_rect, rect.2, &(input_rect.2 as f64 - 1.0, input_rect.3 as f64 - 1.0), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &border_color, 1.5);
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &input_rect, rect.2, &(input_rect.2 as f32 - 1.0, input_rect.3 as f32 - 1.0), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &border_color, 1.5);
                 }
 
                 if !self.text.is_empty() {
@@ -301,7 +301,7 @@ impl DialogWidget {
                 context.dialog_value = Value::Float(v);
                 return true;
             }
-            let float_value = self.text.parse::<f64>();
+            let float_value = self.text.parse::<f32>();
             if float_value.is_ok() {
                 context.dialog_node_behavior_value.0 = float_value.unwrap();
                 return true;

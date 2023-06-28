@@ -164,7 +164,7 @@ impl NodeWidget {
 
                 let rounding = &(15.0, 0.0, 0.0, 0.0);
 
-                context.draw2d.draw_rounded_rect(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3 - 2) as f64), &self.color, rounding);
+                context.draw2d.draw_rounded_rect(buffer_frame, &rect, stride, &((rect.2 - 1) as f32, (rect.3 - 2) as f32), &self.color, rounding);
 
                 // Draw atoms
 
@@ -183,16 +183,16 @@ impl NodeWidget {
 
                 let rounding = &(20.0, 20.0, 20.0, 20.0);
 
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), title_color, rounding, &context.color_gray, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f32, (rect.3 - 1) as f32), title_color, rounding, &context.color_gray, 1.5);
 
                 if self.widgets.is_empty() == false {
-                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(rect.0, rect.1 + title_size, rect.2, rect.3 - title_size), stride, &((rect.2 - 1) as f64, (rect.3 - title_size ) as f64 - 2.5), back_color, rounding, &context.color_gray, 0.0);
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(rect.0, rect.1 + title_size, rect.2, rect.3 - title_size), stride, &((rect.2 - 1) as f32, (rect.3 - title_size ) as f32 - 2.5), back_color, rounding, &context.color_gray, 0.0);
                 }
 
                 if selected {
-                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3) as f64 - 2.5), &[0,0,0,0], rounding, &context.color_light_white, 1.5);
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f32, (rect.3) as f32 - 2.5), &[0,0,0,0], rounding, &context.color_light_white, 1.5);
                 } else {
-                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f64, (rect.3) as f64 - 2.5), &[0,0,0,0], rounding, &context.color_gray, 1.5);
+                    context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, stride, &((rect.2 - 1) as f32, (rect.3) as f32 - 2.5), &[0,0,0,0], rounding, &context.color_gray, 1.5);
                 }
 
                 context.draw2d.draw_text(buffer_frame, &(23, 10), stride, &asset.get_editor_font("OpenSans"), context.node_title_text_size, &self.name, &context.color_white, title_color);
@@ -305,8 +305,8 @@ impl NodeWidget {
             for i in &mut self.buffer[..] { *i = 0 }
             let buffer_frame = &mut self.buffer[..];
 
-            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
-            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(0, 0, self.size.1, self.size.1), rect.2, &((self.size.1 - 1) as f64, (self.size.1 - 1) as f64), &[0,0,0,255], &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
+            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f32, (rect.3 - 1) as f32), &context.color_black, &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
+            context.draw2d.draw_rounded_rect_with_border(buffer_frame, &(0, 0, self.size.1, self.size.1), rect.2, &((self.size.1 - 1) as f32, (self.size.1 - 1) as f32), &[0,0,0,255], &(20.0, 20.0, 20.0, 20.0), &context.color_gray, 1.5);
 
             context.draw2d.draw_text_rect(buffer_frame, &(133, 80, self.size.0 - 146, 40), rect.2, &asset.get_editor_font("OpenSans"), context.button_text_size, &self.name, &context.color_white, &context.color_black, crate::draw2d::TextAlignment::Left);
 
@@ -326,7 +326,7 @@ impl NodeWidget {
             }
 
             if selected {
-                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f64, (rect.3 - 1) as f64), &[0,0,0,0], &(20.0, 20.0, 20.0, 20.0), &context.color_light_white, 1.5);
+                context.draw2d.draw_rounded_rect_with_border(buffer_frame, &rect, rect.2, &((rect.2 - 1) as f32, (rect.3 - 1) as f32), &[0,0,0,0], &(20.0, 20.0, 20.0, 20.0), &context.color_light_white, 1.5);
             }
 
             // Draw menu
@@ -339,7 +339,7 @@ impl NodeWidget {
             context.draw2d.blend_slice(buffer_frame, preview_buffer, &(10, 10, 100, 100), rect.2);
 
             if preview_clicked {
-                context.draw2d.blend_rounded_rect(buffer_frame, &(0, 0, self.size.1, self.size.1), rect.2, &((self.size.1 - 1) as f64, (self.size.1 - 1) as f64), &context.color_light_gray, &(20.0, 20.0, 20.0, 20.0));
+                context.draw2d.blend_rounded_rect(buffer_frame, &(0, 0, self.size.1, self.size.1), rect.2, &((self.size.1 - 1) as f32, (self.size.1 - 1) as f32), &context.color_light_gray, &(20.0, 20.0, 20.0, 20.0));
             }
         }
         self.dirty = false;

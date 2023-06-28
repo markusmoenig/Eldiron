@@ -29,23 +29,23 @@ pub struct ScreenContext<'a> {
 
     pub toolbar_height                  : usize,
     pub toolbar_button_height           : usize,
-    pub toolbar_button_rounding         : (f64, f64, f64, f64),
+    pub toolbar_button_rounding         : (f32, f32, f32, f32),
     pub toolbar_button_text_size        : f32,
 
     pub button_height                   : usize,
     pub button_text_size                : f32,
-    pub button_rounding                 : (f64, f64, f64, f64),
+    pub button_rounding                 : (f32, f32, f32, f32),
 
     pub node_title_text_size            : f32,
     pub node_button_height              : usize,
     pub node_button_text_size           : f32,
     pub node_button_header_text_size    : f32,
-    pub node_button_rounding            : (f64, f64, f64, f64),
+    pub node_button_rounding            : (f32, f32, f32, f32),
     pub node_connector_color            : [u8;4],
 
     pub large_button_height             : usize,
     pub large_button_text_size          : f32,
-    pub large_button_rounding           : (f64, f64, f64, f64),
+    pub large_button_rounding           : (f32, f32, f32, f32),
 
     pub color_black                     : [u8;4],
     pub color_toolbar                   : [u8;4],
@@ -87,7 +87,7 @@ pub struct ScreenContext<'a> {
     pub dialog_height                   : usize,
     pub dialog_entry                    : DialogEntry,
     pub dialog_node_behavior_id         : (Uuid, Uuid, String),
-    pub dialog_node_behavior_value      : (f64, f64, f64, f64, String),
+    pub dialog_node_behavior_value      : (f32, f32, f32, f32, String),
     pub dialog_value                    : Value,
     pub dialog_new_name_type            : String,
     pub dialog_new_name                 : String,
