@@ -9,6 +9,7 @@ optimize = ["log/release_max_level_warn"]
 web = ["wgpu/webgl"]
 default = ["optimize", "embed_binaries"]
 embed_binaries = ["dep:core_embed_binaries", "core_render/embed_binaries",  "core_shared/embed_binaries",  "core_server/embed_binaries"]
+tls = []
 
 [dependencies]
 core_server = { path = "../core_server", features = ["data_editing"] }

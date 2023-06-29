@@ -50,10 +50,15 @@ fn main() {
 }
 
 async fn run() {
+    let url = if cfg!(feature = "tls") {
+        "wss://24.199.125.6:3042/socket"
+    } else {
+        "ws://24.199.125.6:3042/socket"
+    };
 
     // Client is wrapped in an Rc<RefCell<>> so it can be used within setInterval
     // This isn't required when being used within a game engine
-    let mut client = wasm_sockets::PollingClient::new("ws://24.199.125.6:3042/socket");//.ok().unwrap();
+    let mut client = wasm_sockets::PollingClient::new(url);//.ok().unwrap();
 
     //client.send_string("Hello, World!").unwrap();
 
