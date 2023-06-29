@@ -50,15 +50,11 @@ fn main() {
 }
 
 async fn run() {
-    let url = if cfg!(feature = "tls") {
-        "wss://24.199.125.6:3042/socket"
-    } else {
-        "ws://24.199.125.6:3042/socket"
-    };
+    let protocol = decide_ws_protocol();
 
     // Client is wrapped in an Rc<RefCell<>> so it can be used within setInterval
     // This isn't required when being used within a game engine
-    let mut client = wasm_sockets::PollingClient::new(url);//.ok().unwrap();
+    let mut client = wasm_sockets::PollingClient::new(&format!("{}://24.199.125.6:3042/socket", protocol));//.ok().unwrap();
 
     //client.send_string("Hello, World!").unwrap();
 
@@ -449,5 +445,30 @@ pub fn contains_pos_for(pos: (usize, usize), rect: (usize, usize, usize, usize))
         true
     } else {
         false
+    }
+}
+
+fn decide_ws_protocol() -> &'static str {
+    #[cfg(feature = "tls")]
+    return "wss";
+
+    #[cfg(not(feature = "tls"))]
+    {
+        #[cfg(target_arch = "wasm32")]
+        {
+            let client_window = web_sys::window().unwrap();
+            let location = client_window.location();
+            
+            if let Ok(protocol) = location.protocol() {
+                if protocol.starts_with("https") {
+                    return "wss";
+                }
+            }
+
+            "ws"
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        "ws"
     }
 }
