@@ -24,6 +24,8 @@ pub mod prelude {
     pub use crate::server::script_utilities::*;
     pub use crate::server::sheet_utilities::*;
     pub use crate::server::region_data::*;
+    pub use crate::server::lobby::*;
+    pub use crate::server::user::*;
 
     pub use core_shared::prelude::*;
 

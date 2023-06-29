@@ -1072,11 +1072,14 @@ impl EditorContent for RegionWidget {
                                         let index = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == Position::new(self.region_id, id.0, id.1));
 
                                         if index.is_none() {
-                                            let instance     = CharacterInstanceData {
+                                            let instance = CharacterInstanceData {
                                                 position    : Position::new(self.region_id, id.0, id.1),
                                                 name        : None,
                                                 tile        : None,
-                                                alignment   : alignment };
+                                                alignment   : alignment,
+                                                class       : None,
+                                                race        : None,
+                                            };
                                             behavior.data.instances.as_mut().unwrap().push(instance);
                                         }
                                     } else {

@@ -8,6 +8,8 @@ pub mod script_utilities;
 pub mod region_utlity;
 pub mod sheet_utilities;
 pub mod region_data;
+pub mod lobby;
+pub mod user;
 
 use crossbeam_channel::{ Sender, Receiver, unbounded };
 
@@ -36,6 +38,10 @@ pub struct Server {
     /// If we don't use threads (for example for the web), all regions are in here.
     pub pool                : Option<RegionPool>,
 
+    /// If we don't use threads (for example for the web), the player lobby is here.
+    lobby                   : Option<Lobby>,
+    lobby_sender            : Option<Sender<Message>>,
+
     /// The meta data for all pools
     metas                   : Vec<RegionPoolMeta>,
 
@@ -59,6 +65,9 @@ impl Server {
 
             to_server_receiver          : receiver,
             to_server_sender            : sender,
+
+            lobby                       : None,
+            lobby_sender                : None,
 
             regions                     : FxHashMap::default(),
             region_behavior             : FxHashMap::default(),
@@ -194,6 +203,18 @@ impl Server {
             if regions.is_empty() == false {
                 start_thread(region_ids, regions.clone());
             }
+
+            // Start the lobby thread
+
+            let (sender, receiver) = unbounded();
+            let to_server_sender = self.to_server_sender.clone();
+
+            let _handle = std::thread::spawn( move || {
+                let mut lobby = Lobby::new(true, to_server_sender, receiver);
+                lobby.run();
+            });
+
+            self.lobby_sender = Some(sender);
         } else {
             let (sender, receiver) = unbounded::<Message>();
 
@@ -203,6 +224,11 @@ impl Server {
             let mut pool = RegionPool::new(false, to_server_sender, receiver);
             pool.add_regions(self.regions.values().cloned().collect(), self.region_behavior.clone(), self.behavior.clone(), self.systems.clone(), self.items.clone(), self.items.clone(), self.game.clone(), self.scripts.clone());
             self.pool = Some(pool);
+
+            let (sender, receiver) = unbounded::<Message>();
+            sender.send(Message::Status("Startup".to_string())).unwrap();
+
+            self.lobby = Some(Lobby::new(false, self.to_server_sender.clone(), receiver));
         }
 
         log::info!("Server started successfully!");
@@ -215,6 +241,10 @@ impl Server {
 
         for meta in &self.metas {
             meta.sender.send(Message::Quit()).unwrap();
+        }
+
+        if let Some(lobby_sender) = &self.lobby_sender {
+            lobby_sender.send(Message::Quit()).unwrap();
         }
 
         Ok(())
@@ -233,6 +263,16 @@ impl Server {
                         },
                         _ => messages.push(m.clone())
                     }
+                }
+            }
+        }
+
+        // Handle lobby players
+        if let Some(lobby) = &mut self.lobby {
+            let msg = lobby.tick();
+            for m in msg {
+                match m {
+                    _ => messages.push(m.clone())
                 }
             }
         }
@@ -321,4 +361,20 @@ impl Server {
         }
     }
 
+    /// Creates a User struct for a local user and puts him in the lobby. Do not call on a server based
+    /// game as this would allow a user to login to the server without password verification.
+    /// This is strictly intended for local, standalone games.
+    pub fn create_local_user(&mut self) {
+        let user = User::new();
+
+        if self.threaded == false {
+            if let Some(lobby) = &mut self.lobby {
+                lobby.add_user(user);
+            }
+        } else {
+            if let Some(lobby_sender) = &self.lobby_sender {
+                _ = lobby_sender.send(Message::AddUserToLobby(user));
+            }
+        }
+    }
 }

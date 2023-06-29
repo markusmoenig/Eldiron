@@ -12,4 +12,7 @@ pub enum Message {
     CharacterHasBeenTransferredInsidePool(Uuid, Uuid),
     SetDebugBehaviorId(Uuid),
     DebugData(BehaviorDebugData),
+
+    // User Management
+    AddUserToLobby(User),
 }

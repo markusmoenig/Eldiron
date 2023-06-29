@@ -256,6 +256,8 @@ pub struct CharacterInstanceData {
     pub name                    : Option<String>,
     pub tile                    : Option<TileId>,
     pub alignment               : i32,
+    pub class                   : Option<String>,
+    pub race                    : Option<String>
 }
 
 /// Represents loot instance

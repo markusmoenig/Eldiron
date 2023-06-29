@@ -177,7 +177,7 @@ async fn main() {
     let mut server = Server::new();
     server.collect_data(&game_data);
 
-    // Start the server with a maximum of 10 thread pools
+    // Start the server with a maximum of 10 region threads per pool
     _ = server.start( Some(10) );
 
     let server = Arc::new(Mutex::new(server));

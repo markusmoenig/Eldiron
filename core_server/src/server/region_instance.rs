@@ -1,5 +1,5 @@
 extern crate ref_thread_local;
-use ref_thread_local::{RefThreadLocal};
+use ref_thread_local::RefThreadLocal;
 
 use crate::prelude::*;
 
@@ -1013,7 +1013,9 @@ impl RegionInstance {
                     position    : default_position.unwrap().clone(),
                     tile        : default_tile.clone(),
                     name        : Some(behavior.name.clone()),
-                    alignment   : default_alignment
+                    alignment   : default_alignment,
+                    class       : None,
+                    race        : None,
                 };
                 to_create.push(main)
             }

@@ -211,7 +211,11 @@ impl Widget for ControlBar {
                         // Start server
                         let mut server = core_server::server::Server::new();
                         server.collect_data(&context.data);
+                        server.create_local_user();
+
                         _ = server.start(Some(10));
+                        // _ = server.start(None);
+
                         context.player_uuid = server.create_player_instance();
 
                         context.server = Some(server);
