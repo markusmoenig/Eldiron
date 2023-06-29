@@ -46,7 +46,7 @@ async fn handle_client_messages(
     }
 
     let uuid = server.lock().await.create_player_instance();
-    println!("logged in anonymous {:?}", uuid);
+    log::info!("logged in anonymous {:?}", uuid);
     uuid_endpoint.lock().await.insert(uuid, (sink, Instant::now()));
 
     loop {
@@ -54,7 +54,7 @@ async fn handle_client_messages(
         if msg.is_err() {
             server.lock().await.destroy_player_instance(uuid);
             uuid_endpoint.lock().await.remove(&uuid);
-            println!("Client disconnected: stream error: {:?}", msg.err().unwrap());
+            log::error!("Client disconnected: stream error: {:?}", msg.err().unwrap());
             break;
         }
 
@@ -65,7 +65,7 @@ async fn handle_client_messages(
             if now.duration_since(*last) > Duration::from_secs(60 * 5) {
                 server.lock().await.destroy_player_instance(uuid);
                 uuid_endpoint.remove(&uuid);
-                println!("Client disconnected: timeout");
+                log::warn!("Client disconnected: timeout");
                 break;
             }
 
@@ -143,7 +143,7 @@ async fn wait_for_login(stream: &mut SplitStream<Stream>) -> bool {
     let msg = stream.try_next().await;
 
     if msg.is_err() {
-        println!("Client disconnected: not logged in");
+        log::warn!("Client disconnected: not logged in");
         return false;
     }
 
