@@ -54,7 +54,7 @@ async fn run() {
 
     // Client is wrapped in an Rc<RefCell<>> so it can be used within setInterval
     // This isn't required when being used within a game engine
-    let mut client = wasm_sockets::PollingClient::new(&format!("{}://24.199.125.6:3042/socket", protocol));//.ok().unwrap();
+    let mut client = wasm_sockets::PollingClient::new(&format!("{}://ws.eldiron.com/socket", protocol));//.ok().unwrap();
 
     //client.send_string("Hello, World!").unwrap();
 
