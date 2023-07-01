@@ -119,7 +119,7 @@ async fn run() {
     let mut server = core_server::server::Server::new();
     server.collect_data(&game_data);
     _ = server.start(None);
-    let player_uuid = server.create_player_instance();
+    let player_uuid = server.create_local_user();
 
     let mut game_rect = (0, 0, 0, 0);
 
@@ -130,7 +130,7 @@ async fn run() {
     let mut timer : u128 = 0;
     let mut game_tick_timer : u128 = 0;
 
-    let curr_time = 0;
+    let mut curr_time = 0;
 
     let mut messages : Vec<Message> = vec![];
 

@@ -225,7 +225,6 @@ pub struct BehaviorInstance {
 
     /// Current screen content
     pub curr_player_screen      : String,
-    pub curr_player_widgets     : Vec<String>,
 
     /// Did we send the screen scripts to the client already ?
     pub send_screen_scripts     : bool,
@@ -255,9 +254,10 @@ pub struct CharacterInstanceData {
     pub position                : Position,
     pub name                    : Option<String>,
     pub tile                    : Option<TileId>,
-    pub alignment               : i32,
+    pub alignment               : Option<i32>,
     pub class                   : Option<String>,
-    pub race                    : Option<String>
+    pub race                    : Option<String>,
+    pub screen                  : Option<String>
 }
 
 /// Represents loot instance
@@ -370,7 +370,7 @@ impl GameBehavior {
 
     /// Save the GameBehaviorData to file
     pub fn save_data(&self) {
-        let json = serde_json::to_string(&self.data).unwrap();
+        let json = serde_json::to_string_pretty(&self.data).unwrap();
         fs::write(self.path.clone(), json)
             .expect("Unable to write behavior file");
     }

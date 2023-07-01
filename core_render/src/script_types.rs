@@ -202,6 +202,7 @@ pub enum ScriptServerCmd {
     ActionInventory(String, i32),
     ActionGear(String, i32),
     ActionValidMouseRect(ScriptRect),
+    EnterGameAndCreateCharacter(String, String, String, String)
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -218,7 +219,13 @@ impl ScriptCmd {
         }
     }
 
-    // Action
+    // Game Control Workflow
+
+    pub fn enter_game_and_create_character(&mut self, name: &str, class: &str, race: &str, screen: &str) {
+        self.action_commands.push(ScriptServerCmd::EnterGameAndCreateCharacter(name.to_owned(), class.to_owned(), race.to_owned(), screen.to_owned()));
+    }
+
+    // Game Actions
 
     pub fn action(&mut self, action: &str, direction: &str) {
         self.action_commands.push(ScriptServerCmd::Action(action.to_owned(), direction.to_owned().to_lowercase(), None));
@@ -368,6 +375,13 @@ lazy_static! {
 
 /// Register the global cmd functions for drawing etc.
 pub fn register_global_cmd_functions(engine: &mut Engine) {
+
+
+    // Game Workflow Cmds
+
+    engine.register_fn("enter_game_and_create_character", |name: &str, class: &str, race: &str, screen: &str| {
+        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::EnterGameAndCreateCharacter(name.to_owned(), class.to_owned(), race.to_owned(), screen.to_owned()));
+    });
 
     // Action Cmds
 

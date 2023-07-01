@@ -26,9 +26,6 @@ pub struct GameUpdate {
     /// The screen scripts and their utility scripts, will be send only once
     pub screen_scripts          : Option<FxHashMap<String, String>>,
 
-    /// The widget scripts for the current screen
-    pub widgets                 : Vec<String>,
-
     /// A region
     pub region                  : Option<GameRegionData>,
 
@@ -78,7 +75,6 @@ impl GameUpdate {
             sheet               : Sheet::new(),
             screen_script_name  : None,
             screen_scripts      : None,
-            widgets             : vec![],
             region              : None,
             lights              : vec![],
             displacements       : FxHashMap::default(),

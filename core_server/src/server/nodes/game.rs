@@ -6,8 +6,6 @@ use crate::prelude::*;
 pub fn node_screen(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
-    data.character_instances[data.curr_player_inst_index].curr_player_widgets = vec![];
-
     if let Some(curr_screen_id) = &data.character_instances[data.curr_player_inst_index].curr_player_screen_id {
         if *curr_screen_id == id.1 {
             return BehaviorNodeConnector::Bottom;
@@ -23,13 +21,3 @@ pub fn node_screen(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDat
     BehaviorNodeConnector::Bottom
 }
 
-/// Widget
-pub fn node_widget(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
-    let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-
-    if let Some(value) = get_node_string(id, "script", nodes) {
-        data.character_instances[data.curr_player_inst_index].curr_player_widgets.push(value);
-    }
-
-    BehaviorNodeConnector::Bottom
-}

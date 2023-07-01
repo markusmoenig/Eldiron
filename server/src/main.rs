@@ -45,7 +45,9 @@ async fn handle_client_messages(
         return;
     }
 
-    let uuid = server.lock().await.create_player_instance();
+    // Temporary to make things work, need to implement user handling
+    let uuid = server.lock().await.create_local_user();
+
     log::info!("logged in anonymous {:?}", uuid);
     uuid_endpoint.lock().await.insert(uuid, (sink, Instant::now()));
 

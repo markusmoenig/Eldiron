@@ -4,6 +4,7 @@ use crate::prelude::*;
 pub enum Message {
     Quit(),
     Status(String),
+    CreatePlayer(Uuid, CharacterInstanceData),
     CreatePlayerInstance(Uuid, Position),
     DestroyPlayerInstance(Uuid),
     ExecutePlayerAction(Uuid, Uuid, PlayerAction),
@@ -15,4 +16,5 @@ pub enum Message {
 
     // User Management
     AddUserToLobby(User),
+    RemoveUserFromLobby(Uuid),
 }

@@ -186,8 +186,8 @@ impl GameRender<'_> {
 
             valid_mouse_rect    : None,
 
-            region_rect_2d      : (0, 0, 0, 0),
-            screen_rect_2d      : (0, 0, 0, 0),
+            region_rect_2d      : (0, 0, 1, 1),
+            screen_rect_2d      : (0, 0, 1, 1),
 
             scripts             : FxHashMap::default(),
 
@@ -404,6 +404,8 @@ impl GameRender<'_> {
 
     /// Draw the server response
     pub fn draw(&mut self, anim_counter: usize, update: Option<&GameUpdate>) -> Option<(String, Option<usize>)> {
+
+        self.frame.fill(0);
 
         if let Some(update) = update {
             let error = self.process_update(update);
@@ -1325,6 +1327,12 @@ impl GameRender<'_> {
         for cmd in action_commands {
 
             match cmd {
+
+                ScriptServerCmd::EnterGameAndCreateCharacter(name, class, race, screen) => {
+                    if let Some(json) = pack_enter_game_and_create(name, class, race, screen) {
+                        commands.push(json);
+                    }
+                },
                 ScriptServerCmd::Action(action, direction, spell) => {
                     let mut dir : Option<PlayerDirection>;
 

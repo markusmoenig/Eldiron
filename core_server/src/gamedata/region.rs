@@ -498,7 +498,7 @@ pub fn update_region_sink(sink: &mut PropertySink) {
     }
 
     if sink.contains("movement") == false {
-        sink.properties.insert(1,Property::new_string("movement".to_string(), "pixel".to_string()));
+        sink.properties.insert(1,Property::new_string("movement".to_string(), "tile".to_string()));
     }
 
     if sink.contains("lighting") == false {

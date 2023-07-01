@@ -1,6 +1,21 @@
 use crate::prelude::*;
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct UserEnterGameAndCreateCharacter {
+    pub name                    : String,
+    pub class                   : String,
+    pub race                    : String,
+    pub screen                  : String,
+}
+
+
+/// Packs the given enter game cmd into JSON
+pub fn pack_enter_game_and_create(name: String, class: String, race: String, screen: String) -> Option<String> {
+    let action = UserEnterGameAndCreateCharacter{ name, class, race, screen };
+    return serde_json::to_string(&action).ok()
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum PlayerDirection {
     None,

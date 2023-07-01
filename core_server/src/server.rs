@@ -209,8 +209,12 @@ impl Server {
             let (sender, receiver) = unbounded();
             let to_server_sender = self.to_server_sender.clone();
 
+            let game = self.game.clone();
+            let scripts = self.scripts.clone();
+
             let _handle = std::thread::spawn( move || {
                 let mut lobby = Lobby::new(true, to_server_sender, receiver);
+                lobby.setup(game, scripts);
                 lobby.run();
             });
 
@@ -228,7 +232,9 @@ impl Server {
             let (sender, receiver) = unbounded::<Message>();
             sender.send(Message::Status("Startup".to_string())).unwrap();
 
-            self.lobby = Some(Lobby::new(false, self.to_server_sender.clone(), receiver));
+            let mut lobby = Lobby::new(false, self.to_server_sender.clone(), receiver);
+            lobby.setup(self.game.clone(), self.scripts.clone());
+            self.lobby = Some(lobby);
         }
 
         log::info!("Server started successfully!");
@@ -299,6 +305,31 @@ impl Server {
         messages
     }
 
+    /// Create a new player
+    pub fn create_player(&mut self, id: Uuid, name: String, class: String, race: String, screen: String) {
+        if let Some(position) = &self.player_default_position {
+
+            let data = CharacterInstanceData {
+                position            : position.clone(),
+                name                : Some(name),
+                tile                : None,
+                alignment           : None,
+                class               : if class.is_empty() { None } else { Some(class) },
+                race                : if race.is_empty() { None } else { Some(race) },
+                screen              : Some(screen)
+            };
+
+            if self.threaded {
+                self.send_message_to_region(position.region, Message::CreatePlayer(id, data));
+            } else {
+                if let Some(pool) = &mut self.pool {
+                    pool.create_player(id, data);
+                }
+            }
+            self.players_region_ids.insert(id, position.region);
+        }
+    }
+
     /// Create a new player instance
     pub fn create_player_instance(&mut self) -> Uuid {
         let uuid = uuid::Uuid::new_v4();
@@ -326,6 +357,8 @@ impl Server {
                 pool.destroy_player_instance(uuid);
             }
         }
+
+        self.remove_from_lobby(uuid);
     }
 
     /// Send the behavior id to debug to all pools.
@@ -348,6 +381,17 @@ impl Server {
                     }
                 }
             }
+        } else
+        // In the Lobby ?
+        {
+            if let Some(action) = serde_json::from_str::<UserEnterGameAndCreateCharacter>(&action).ok() {
+
+                // Remove from the lobby
+                self.remove_from_lobby(player_uuid);
+
+                // Enter Game
+                self.create_player(player_uuid, action.name, action.class, action.race, action.screen)
+            }
         }
     }
 
@@ -364,8 +408,9 @@ impl Server {
     /// Creates a User struct for a local user and puts him in the lobby. Do not call on a server based
     /// game as this would allow a user to login to the server without password verification.
     /// This is strictly intended for local, standalone games.
-    pub fn create_local_user(&mut self) {
+    pub fn create_local_user(&mut self) -> Uuid {
         let user = User::new();
+        let id = user.id;
 
         if self.threaded == false {
             if let Some(lobby) = &mut self.lobby {
@@ -374,6 +419,22 @@ impl Server {
         } else {
             if let Some(lobby_sender) = &self.lobby_sender {
                 _ = lobby_sender.send(Message::AddUserToLobby(user));
+            }
+        }
+
+        id
+    }
+
+    pub fn remove_from_lobby(&mut self, player_uuid: Uuid) {
+        // Remove from Lobby
+        if self.threaded {
+            let message = Message::RemoveUserFromLobby(player_uuid);
+            if let Some(lobby_sender) = &self.lobby_sender {
+                lobby_sender.send(message).unwrap();
+            }
+        } else {
+            if let Some(lobby) = &mut self.lobby {
+                lobby.remove_user(player_uuid);
             }
         }
     }

@@ -42,7 +42,7 @@ fn main() -> Result<(), Error> {
     let mut server = core_server::server::Server::new();
     server.collect_data(&game_data);
     _ = server.start(if mt == false { None } else { Some(10) } );
-    let player_uuid = server.create_player_instance();
+    let player_uuid = server.create_local_user();
 
     let mut game_rect = (0, 0, 0, 0);
 

@@ -355,6 +355,9 @@ impl RegionPool {
                                 println!{"Pool received status {}", status};
                                 log::error!("{:?}", status);
                             },
+                            Message::CreatePlayer(uuid, data) => {
+                                self.create_player(uuid, data);
+                            },
                             Message::CreatePlayerInstance(uuid, position) => {
                                 self.create_player_instance(uuid, position);
                             },
@@ -452,6 +455,23 @@ impl RegionPool {
 
         None
 
+    }
+
+    /// Create a new player
+    pub fn create_player(&mut self, uuid: Uuid, data: CharacterInstanceData) {
+        {
+            *CURR_INST.borrow_mut() = 0;
+        }
+        for inst in &mut self.instances {
+            if inst.region_data.id == data.position.region {
+                inst.create_player(uuid, data.clone());
+            }
+            {
+                let mut index = *CURR_INST.borrow();
+                index += 1;
+                *CURR_INST.borrow_mut() = index;
+            }
+        }
     }
 
     /// Create a new player instance

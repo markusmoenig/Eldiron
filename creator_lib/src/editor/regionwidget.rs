@@ -1076,9 +1076,10 @@ impl EditorContent for RegionWidget {
                                                 position    : Position::new(self.region_id, id.0, id.1),
                                                 name        : None,
                                                 tile        : None,
-                                                alignment   : alignment,
+                                                alignment   : Some(alignment),
                                                 class       : None,
                                                 race        : None,
+                                                screen      : None,
                                             };
                                             behavior.data.instances.as_mut().unwrap().push(instance);
                                         }
