@@ -128,7 +128,7 @@ async fn main() -> Result<(), Error> {
 
     let player_uuid = Uuid::new_v4();
     // Init renderer
-    let mut render = GameRender::new(PathBuf::from(".."), player_uuid);
+    let mut render = GameRender::new(PathBuf::from(""), player_uuid);
 
     /*
     if let Some(screen_size) = settings.get("screen_size") {

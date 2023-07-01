@@ -60,5 +60,20 @@
             "isDefault": true
         }
     },
+    {
+        "label": "(client) cargo run release",
+        "type": "shell",
+        "command": "cargo",
+        "args": [
+            "run",
+            "--release",
+            "-p",
+            "client"
+        ],
+        "group": {
+            "kind": "build",
+            "isDefault": true
+        }
+    },
     ]
 }
