@@ -1,4 +1,4 @@
-![screenshot](images/eldiron_logo.png)
+![screenshot](images/eldiron_header.png)
 
 Classic RPG Creation
 
