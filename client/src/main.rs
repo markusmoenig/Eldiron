@@ -101,8 +101,8 @@ async fn main() -> Result<(), Error> {
         "ws"
     };
 
-    let server_address = "localhost:3042/socket";
-    // let server_address = "24.199.125.6:3042/socket";
+    // let server_address = "localhost:3042/socket";
+    let server_address = "24.199.125.6:3042/socket";
 
     let (mut stream, _) = tokio_tungstenite::connect_async(
         format!("{}://{}", protocol, server_address)
