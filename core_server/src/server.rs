@@ -10,6 +10,7 @@ pub mod sheet_utilities;
 pub mod region_data;
 pub mod lobby;
 pub mod user;
+pub mod io;
 
 use crossbeam_channel::{ Sender, Receiver, unbounded };
 
@@ -53,6 +54,8 @@ pub struct Server {
 
     /// We are multi-threaded
     threaded                : bool,
+
+    server_io               : Option<Box<dyn ServerIO>>,
 }
 
 impl Server {
@@ -86,7 +89,14 @@ impl Server {
             players_region_ids          : HashMap::new(),
 
             threaded                    : false,
+
+            server_io                   : None,
         }
+    }
+
+    /// Set the server io class.
+    pub fn set_io(&mut self, io: Box<dyn ServerIO>) {
+        self.server_io = Some(io);
     }
 
     /// Collects all data (assets, regions, behaviors etc.) and store them as JSON so that we can distribute them to threads as needed.

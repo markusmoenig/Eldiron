@@ -26,6 +26,7 @@ pub mod prelude {
     pub use crate::server::region_data::*;
     pub use crate::server::lobby::*;
     pub use crate::server::user::*;
+    pub use crate::server::io::*;
 
     pub use core_shared::prelude::*;
 
