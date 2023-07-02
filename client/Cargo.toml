@@ -23,12 +23,11 @@ crossbeam-channel = "0.5.6"
 futures-util = "0.3.27"
 tokio = { version = "1.26.0", features = ["macros", "rt-multi-thread", "sync", "time"] }
 tokio-tungstenite = "0.18.0"
-tokio-native-tls = { version = "0.3.1", optional = true }
 
 [features]
 default = []
 embed_binaries = ["dep:core_embed_binaries", "core_render/embed_binaries",  "core_shared/embed_binaries"]
-tls = ["dep:tokio-native-tls", "tokio-tungstenite/native-tls"]
+tls = ["tokio-tungstenite/native-tls"]
 
 [dependencies.uuid]
 version = "1.1.2"

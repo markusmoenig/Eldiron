@@ -11,8 +11,6 @@ use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
-#[cfg(feature = "tls")]
-use tokio_native_tls::{native_tls, TlsConnector};
 use tokio_tungstenite::{WebSocketStream, MaybeTlsStream};
 use tokio_tungstenite::{tungstenite::Message};
 use winit::dpi::LogicalSize;
