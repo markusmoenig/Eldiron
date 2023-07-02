@@ -183,7 +183,13 @@ async fn run() {
 
                                     match cmd {
                                         ServerCmd::GameUpdate(update) => {
-                                            game_update = Some(update);
+
+                                            if update.screen_scripts.is_some() || update.region.is_some() || update.screen_script_name.is_some() {
+                                                render.player_id = update.id;
+                                                render.draw(anim_counter, Some(&update));
+                                            } else {
+                                                game_update = Some(update);
+                                            }
                                         },
                                         _ => {
                                         }
@@ -458,7 +464,7 @@ fn decide_ws_protocol() -> &'static str {
         {
             let client_window = web_sys::window().unwrap();
             let location = client_window.location();
-            
+
             if let Ok(protocol) = location.protocol() {
                 if protocol.starts_with("https") {
                     return "wss";
