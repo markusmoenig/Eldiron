@@ -10,7 +10,7 @@ use IOError::*;
 
 /// This trait defines all IO for the server, like creating or listing users and their characters. Implementations can do this locally in the filesytem or access databases etc.
 #[allow(unused)]
-pub trait ServerIO {
+pub trait ServerIO : Sync + Send {
 
     /// Create a new IO for the server.
     fn new() -> Self where Self: Sized;
