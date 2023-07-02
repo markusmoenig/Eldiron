@@ -477,7 +477,6 @@ dependencies = [
  "rand",
  "rhai 1.12.0",
  "tokio",
- "tokio-native-tls",
  "tokio-tungstenite",
  "uuid",
  "vectorize",
