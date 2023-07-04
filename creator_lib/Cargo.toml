@@ -24,7 +24,7 @@ pathfinding = "4.1.1"
 #rhai = { version = "1.11.0", default-features = true, features = ["only_i32", "f32_float", "sync"] }
 rhai = { git = "https://github.com/rhaiscript/rhai/", default-features = true, features = ["only_i32", "f32_float", "sync"] }
 #rhai = { git = "https://github.com/rhaiscript/rhai/" }
-regex = "1.5"
+regex = "1.8.3"
 fs_extra = "1.3.0"
 open = "4.0.0"
 copypasta = "0.8.2"

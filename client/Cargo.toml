@@ -9,8 +9,8 @@ core_render = { path = "../core_render" }
 core_embed_binaries = { path = "../core_embed_binaries", optional = true }
 env_logger = "0.10"
 log = "0.4"
-pixels = "0.12.0"
-winit = "0.28.3"
+pixels = "0.13.0"
+winit = "0.28.6"
 winit_input_helper = "0.14"
 png = "0.17.5"
 fontdue = "0.7.2"
@@ -22,7 +22,7 @@ rhai = { version = "1.12.0", default-features = false, features = ["only_i32", "
 crossbeam-channel = "0.5.6"
 futures-util = "0.3.27"
 tokio = { version = "1.26.0", features = ["macros", "rt-multi-thread", "sync", "time"] }
-tokio-tungstenite = "0.18.0"
+tokio-tungstenite = "0.19.0"
 
 [features]
 default = []

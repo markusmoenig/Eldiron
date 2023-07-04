@@ -21,7 +21,6 @@ itertools = "0.10.2"
 rand = "0.8.5"
 #rhai = { version = "1.12.0", default-features = true, features = ["only_i32", "f32_float", "sync"] }
 rhai = { git = "https://github.com/rhaiscript/rhai/", default-features = true, features = ["only_i32", "f32_float", "sync"] }
-regex = "1.7.1"
 colori = "0.1.1"
 #audio-engine = "0.4.5" #{ git = "https://github.com/Rodrigodd/audio-engine" }
 audio-engine = { git = "https://github.com/Rodrigodd/audio-engine" }

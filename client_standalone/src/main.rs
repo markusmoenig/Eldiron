@@ -136,7 +136,7 @@ fn main() -> Result<(), Error> {
             let mut cx : usize = 0;
             let mut cy : usize = 0;
 
-            let frame = pixels.get_frame_mut();
+            let frame = pixels.frame_mut();
 
             if render.width < width {
                 cx = (width - render.width) / 2;
@@ -249,7 +249,7 @@ fn main() -> Result<(), Error> {
         // Handle input events
         if input.update(&event) {
             // Close events
-            if /*input.key_pressed(VirtualKeyCode::Escape) ||*/ input.quit() {
+            if /*input.key_pressed(VirtualKeyCode::Escape) ||*/ input.close_requested() {
                 *control_flow = ControlFlow::Exit;
                 _ = server.shutdown();
                 return;

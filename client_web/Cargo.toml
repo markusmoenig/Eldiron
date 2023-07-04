@@ -17,8 +17,8 @@ core_shared = { path = "../core_shared" }
 core_render = { path = "../core_render" }
 core_embed_binaries = { path = "../core_embed_binaries", optional = true }
 log = "0.4"
-pixels = "0.12.0"
-wgpu = "0.15.1"
+pixels = "0.13.0"
+wgpu = "0.16.1"
 winit = "0.28.3"
 winit_input_helper = "0.14"
 png = "0.17.5"
