@@ -244,6 +244,7 @@ fn main() -> Result<(), Error> {
             for cmd in rc.0 {
                 server.execute_packed_player_action(player_uuid, cmd);
             }
+            window.request_redraw();
         }
 
         // Handle input events
@@ -265,6 +266,7 @@ fn main() -> Result<(), Error> {
                     for cmd in rc.0 {
                         server.execute_packed_player_action(player_uuid, cmd);
                     }
+                    window.request_redraw();
                 }
             }
 

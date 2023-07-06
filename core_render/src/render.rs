@@ -1,7 +1,6 @@
 
-use std::{path::PathBuf};
-
 use crate::prelude::*;
+use std::path::PathBuf;
 use crate::draw2d::Draw2D;
 use rhai::{ Engine, Scope, AST, Dynamic, Map, Module, module_resolvers::StaticModuleResolver };
 
@@ -1204,6 +1203,16 @@ impl GameRender<'_> {
 
     pub fn key_down(&mut self, key: String, player_id: Uuid) -> (Vec<String>, Option<(String, Option<usize>)>) {
 
+            let mut key_string = key.clone();
+
+            for c in key.chars() {
+                if c.is_ascii() {
+                    if c as u16 == 127 {
+                        key_string = "DEL".into();
+                    }
+                }
+            }
+
         // Check if we have an active multiple choice communication
         if self.multi_choice_data.is_empty() == false {
             for mcd in &self.multi_choice_data {
@@ -1226,7 +1235,7 @@ impl GameRender<'_> {
                             true,
                             "key_down",
                             Some(&mut self.this_map),
-                            [key.into()]
+                            [key_string.into()]
                         );
 
             if result.is_err() {
@@ -1239,6 +1248,8 @@ impl GameRender<'_> {
                     }
                     return (vec![], Some((string, err.position().line())));
                 }
+            } else {
+                self.draw(self.last_anim_counter, None);
             }
         }
 
@@ -1296,7 +1307,9 @@ impl GameRender<'_> {
                     }
                     return (vec![], Some((string, err.position().line())));
                 }
-            }
+            } //else {
+            //    self.draw(self.last_anim_counter, None);
+            //}
         }
 
         (self.process_cmds(player_id), None)
