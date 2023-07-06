@@ -858,4 +858,24 @@ impl Draw2D {
         }
         (width, height, buffer)
     }
+
+    /// Scale a chunk to the destination size
+    pub fn scale_chunk(&self, frame: &mut [u8], rect: &(usize, usize, usize, usize), stride: usize, source_frame: &[u8], source_size: &(usize, usize), blend_factor: f32) {
+
+        let x_ratio = source_size.0 as f32 / rect.2 as f32;
+        let y_ratio = source_size.1 as f32 / rect.3 as f32;
+
+        for sy in 0..rect.3 {
+            let y = (sy as f32 * y_ratio) as usize;
+
+            for sx in 0..rect.2 {
+                let x = (sx as f32 * x_ratio) as usize;
+
+                let d = (rect.0 + sx) * 4 + (sy + rect.1) * stride * 4;
+                let s = x * 4 + y * source_size.0 * 4;
+
+                frame[d..d + 4].copy_from_slice(&[source_frame[s], source_frame[s+1], source_frame[s+2], ((source_frame[s+3] as f32) * blend_factor) as u8 ]);
+            }
+        }
+    }
 }

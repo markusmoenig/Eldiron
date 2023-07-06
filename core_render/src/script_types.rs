@@ -2,19 +2,19 @@
 // data structures which can be accessed from both Rust and scripts.
 
 use crate::prelude::*;
-use rhai::{ Engine };
+use rhai::Engine;
 
 // --- Tilemaps
 
 #[derive(Debug, Clone)]
 pub struct ScriptTilemaps {
-    pub maps            : HashMap<String, Uuid>
+    pub maps            : FxHashMap<String, Uuid>
 }
 
 impl ScriptTilemaps {
     pub fn new() -> Self {
         Self {
-            maps: HashMap::new()
+            maps: FxHashMap::default()
         }
     }
 
@@ -25,6 +25,43 @@ impl ScriptTilemaps {
             rc = *id;
         }
         ScriptTilemap { id: rc }
+    }
+}
+
+// --- Images
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScriptImage {
+    pub id              : Uuid,
+}
+
+impl ScriptImage {
+    pub fn new(id: Uuid) -> Self {
+        Self {
+            id
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ScriptImages {
+    pub maps            : FxHashMap<String, Uuid>
+}
+
+impl ScriptImages {
+    pub fn new() -> Self {
+        Self {
+            maps: FxHashMap::default()
+        }
+    }
+
+    /// Returns the tilemap
+    pub fn get(&mut self, name: &str) -> ScriptImage {
+        let mut rc = Uuid::new_v4();
+        if let Some(id) = self.maps.get(&name.to_owned()) {
+            rc = *id;
+        }
+        ScriptImage { id: rc }
     }
 }
 
@@ -50,7 +87,7 @@ impl ScriptTilemap {
 
 // --- ScriptPosition
 
-use std::{cmp::max, collections::HashMap};
+use std::cmp::max;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScriptPosition {
@@ -191,6 +228,7 @@ pub enum ScriptDrawCmd {
     DrawTextRect(ScriptRect, String, String, f32, ScriptRGB, String),
     DrawMessages(ScriptRect, String, f32, ScriptRGB),
     DrawShape(ScriptShape),
+    DrawImage(ScriptPosition, ScriptImage, i32, i32, f32),
 }
 
 // --- ScriptCommand
@@ -335,6 +373,10 @@ impl ScriptCmd {
         self.draw_commands.clear();
         self.action_commands.clear();
     }
+
+    pub fn draw_image(&mut self, pos: ScriptPosition, image: ScriptImage, width: i32, height: i32, blend: f32) {
+        self.draw_commands.push(ScriptDrawCmd::DrawImage(pos, image, width, height, blend));
+    }
 }
 
 pub struct ScriptInfo {
@@ -342,6 +384,7 @@ pub struct ScriptInfo {
     pub height              : i32,
     pub tile_size           : i32,
     pub tilemaps            : ScriptTilemaps,
+    pub images              : ScriptImages,
     pub region              : rhai::Map,
     pub display_mode_3d     : bool,
     pub date                : Date,
@@ -354,6 +397,7 @@ impl ScriptInfo {
             height          : 0,
             tile_size       : 0,
             tilemaps        : ScriptTilemaps::new(),
+            images          : ScriptImages::new(),
             region          : rhai::Map::new(),
             display_mode_3d : false,
             date            : Date::new(),
@@ -416,6 +460,9 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
     });
     engine.register_fn("draw_rect", |rect: ScriptRect, rgb: ScriptRGB| {
         SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawRect(rect, rgb));
+    });
+    engine.register_fn("draw_image", |pos: ScriptPosition, image: ScriptImage, width: i32, height: i32, blend: f32| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawImage(pos, image, width, height, blend));
     });
     engine.register_fn("draw_tile", |pos: ScriptPosition, tile: ScriptTile| {
         SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawTile(pos, tile));
@@ -483,6 +530,10 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
 
     engine.register_fn("get_tilemaps", || -> ScriptTilemaps {
         INFOCMD.lock().unwrap().tilemaps.clone()
+    });
+
+    engine.register_fn("get_images", || -> ScriptImages {
+        INFOCMD.lock().unwrap().images.clone()
     });
 
     engine.register_fn("get_region", || -> rhai::Map {

@@ -172,6 +172,12 @@ impl EditorContent for NodeGraph  {
                                 }
                             }
                         } else
+                        if self.graph_type == BehaviorType::Tiles && self.sub_type == NodeSubType::Image {
+                            // For images draw it
+                            if let Some(image)= asset.tileset.images.get_mut(&asset.tileset.images_ids[active_index]) {
+                                context.draw2d.scale_chunk(&mut preview_buffer[..], &(0, 0, 100, 100), 100, &image.pixels, &(image.width, image.height), 1.0);
+                            }
+                        } else
                         if self.graph_type == BehaviorType::Tiles && self.sub_type == NodeSubType::Audio {
                             // For audio draw an audio icon
                             if let Some(icon) = context.icons.get(&"audio".to_string()) {

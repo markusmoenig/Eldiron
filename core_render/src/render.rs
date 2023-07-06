@@ -102,6 +102,9 @@ impl GameRender<'_> {
         engine.register_type_with_name::<ScriptTilemaps>("Tilemaps")
             .register_fn("get", ScriptTilemaps::get);
 
+        engine.register_type_with_name::<ScriptImages>("Images")
+            .register_fn("get", ScriptImages::get);
+
         engine.register_type_with_name::<ScriptTilemap>("Tilemap")
             .register_fn("get_tile", ScriptTilemap::get_tile);
 
@@ -259,6 +262,13 @@ impl GameRender<'_> {
                         }
 
                         INFOCMD.lock().unwrap().tilemaps = tilemaps;
+
+                        let mut images = ScriptImages::new();
+                        for index in 0..self.asset.tileset.images_names.len() {
+                            images.maps.insert(self.asset.tileset.images_names[index].clone(), self.asset.tileset.images_ids[index]);
+                        }
+
+                        INFOCMD.lock().unwrap().images = images;
 
                         self.this_map = this_map.into();
 
@@ -471,6 +481,15 @@ impl GameRender<'_> {
                 },
                 ScriptDrawCmd::DrawShape(shape) => {
                     shape.draw(&mut self.frame[..], (self.width, self.height));
+                },
+                ScriptDrawCmd::DrawImage(pos, image, width, height, blend) => {
+                    if is_safe((pos.pos.0, pos.pos.1, width as usize, height as usize), self.width, self.height) {
+                        if let Some(image) = self.asset.tileset.images.get(&image.id) {
+                            //self.draw2d.draw_animated_tile( &mut self.frame[..], &(pos.pos.0, pos.pos.1), &map, stride, &(tile.id.x_off as usize, tile.id.y_off as usize), anim_counter, self.tile_size);
+                            self.draw2d.scale_chunk(&mut self.frame[..], &(pos.pos.0, pos.pos.1, width as usize, height as usize), stride, &image.pixels, &(image.width, image.height), blend);
+
+                        }
+                    }
                 },
                 ScriptDrawCmd::DrawTile(pos, tile) => {
                     if is_safe((pos.pos.0, pos.pos.1, self.tile_size, self.tile_size), self.width, self.height) {
@@ -1240,7 +1259,6 @@ impl GameRender<'_> {
 
             if result.is_err() {
                 if let Some(err) = result.err() {
-                    //println!("{:?}", err.,t);
                     let mut string = err.to_string();
                     let mut parts = string.split("(");
                     if let Some(first) = parts.next() {
@@ -1299,7 +1317,6 @@ impl GameRender<'_> {
 
             if result.is_err() {
                 if let Some(err) = result.err() {
-                    //println!("{:?}", err.,t);
                     let mut string = err.to_string();
                     let mut parts = string.split("(");
                     if let Some(first) = parts.next() {
@@ -1307,9 +1324,7 @@ impl GameRender<'_> {
                     }
                     return (vec![], Some((string, err.position().line())));
                 }
-            } //else {
-            //    self.draw(self.last_anim_counter, None);
-            //}
+            }
         }
 
         (self.process_cmds(player_id), None)
