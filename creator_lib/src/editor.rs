@@ -671,6 +671,7 @@ impl Editor<'_> {
                         content = element.1;
 
                         if let Some(mut el_content) = content {
+                            self.context.curr_tileset_id = tile_data.tilemap;
                             el_content.set_tilemap_id(tile_data.tilemap, &mut self.asset);
                             content = Some(el_content);
                         }
@@ -2321,6 +2322,7 @@ impl Editor<'_> {
             let sub_type = self.content[EditorState::TilesOverview as usize].1.as_mut().unwrap().get_sub_node_type();
 
             if sub_type == NodeSubType::Tilemap {
+                self.context.curr_tileset_id = self.asset.tileset.maps_ids[index];
                 self.content[EditorState::TilesDetail as usize].1.as_mut().unwrap().set_tilemap_id(self.asset.tileset.maps_ids[index], &mut self.asset);
             } else
             if sub_type == NodeSubType::Image {

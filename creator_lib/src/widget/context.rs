@@ -68,6 +68,7 @@ pub struct ScreenContext<'a> {
     pub color_green_conn                : [u8;4],
 
     pub curr_tileset_index              : usize,
+    pub curr_tileset_id                 : Uuid,
     pub curr_tile                       : Option<(usize, usize)>,
     pub selection_end                   : Option<(usize, usize)>,
 
@@ -304,6 +305,7 @@ impl ScreenContext<'_> {
 
             // Tiles
             curr_tileset_index          : 0,
+            curr_tileset_id             : Uuid::new_v4(),
             curr_tile                   : None,
             selection_end               : None,
 
