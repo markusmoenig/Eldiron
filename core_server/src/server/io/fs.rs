@@ -3,12 +3,12 @@ use IOError::*;
 
 // This implementation is for local games with a single user. No login required.
 
-pub struct LocalUserFS {
+pub struct UserFS {
 
     path                : PathBuf,
 }
 
-impl ServerIO for LocalUserFS {
+impl ServerIO for UserFS {
 
     fn new() -> Self where Self: Sized {
         Self {
@@ -20,7 +20,11 @@ impl ServerIO for LocalUserFS {
         self.path = path;
     }
 
-    fn create_user(&mut self, _user_name: String, _password: String) -> Result<(), IOError> {
-        Ok(())
+    fn create_user(&mut self, user_name: String, password: String) -> Result<(), IOError> {
+
+        println!("local create {} {}", user_name, password);
+
+        Err(UserNotFound)
     }
+
 }

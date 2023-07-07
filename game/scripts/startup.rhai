@@ -93,7 +93,7 @@ fn touch_down(x, y) {
     if this.login_password_entry.text.len() == 0 {
       this.error_text.text = "PASSWORD IS EMPTY";
     } else {
-
+      login_user(this.login_user_entry.text, this.login_password_entry.text, "Game");
     }
   }
 
@@ -108,7 +108,7 @@ fn touch_down(x, y) {
     if this.register_password_entry.text != this.register_password_entry2.text {
       this.error_text.text = "PASSWORDS DO NOT MATCH";
     } else {
-
+      register_user(this.register_user_entry.text, this.register_password_entry.text, "Game");
     }
   }
 

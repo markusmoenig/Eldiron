@@ -401,6 +401,15 @@ impl Server {
 
                 // Enter Game
                 self.create_player(player_uuid, action.name, action.class, action.race, action.screen)
+            } else
+            if let Some(action) = serde_json::from_str::<LoginRegisterUser>(&action).ok() {
+                println!("{:?}", action);
+
+                if let Some(io) = &mut self.server_io {
+                    if action.register {
+                        _ = io.create_user(action.user, action.password);
+                    }
+                }
             }
         }
     }

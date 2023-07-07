@@ -1,9 +1,11 @@
 use crate::prelude::*;
 
+pub mod fs;
 pub mod local_fs;
 
 pub enum IOError {
     NotImplemented,
+    UserNotFound,
 }
 
 use IOError::*;
@@ -28,7 +30,7 @@ pub trait ServerIO : Sync + Send {
     fn does_user_exist(&mut self, user_name: String) -> Result<bool, IOError> { Err(NotImplemented) }
 
     /// Create a new user
-    fn create_user(&mut self, user_name: String, password: String) -> Result<bool, IOError> { Err(NotImplemented) }
+    fn create_user(&mut self, user_name: String, password: String) -> Result<(), IOError> { Err(NotImplemented) }
 
     /// Create a character
     fn save_user_character(&mut self, user_name: String, character: Sheet) -> Result<bool, IOError> { Err(NotImplemented) }

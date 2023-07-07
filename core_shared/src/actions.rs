@@ -16,6 +16,27 @@ pub fn pack_enter_game_and_create(name: String, class: String, race: String, scr
     return serde_json::to_string(&action).ok()
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct LoginRegisterUser {
+    pub register                : bool,
+    pub user                    : String,
+    pub password                : String,
+    pub screen                  : String,
+}
+
+
+/// Packs login requests
+pub fn pack_login_user(user: String, password: String, screen: String) -> Option<String> {
+    let action = LoginRegisterUser{ register: false, user, password, screen };
+    return serde_json::to_string(&action).ok()
+}
+
+/// Packs register requests
+pub fn pack_register_user(user: String, password: String, screen: String) -> Option<String> {
+    let action = LoginRegisterUser{ register: true, user, password, screen };
+    return serde_json::to_string(&action).ok()
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum PlayerDirection {
     None,

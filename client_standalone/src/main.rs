@@ -39,8 +39,12 @@ fn main() -> Result<(), Error> {
     // Init server
     let mut game_data = GameData::load_from_path(PathBuf::new());
 
+    let mut local_io = Box::new(UserFS::new());
+    local_io.set_local_path(PathBuf::new());
+
     let mut server = core_server::server::Server::new();
     server.collect_data(&game_data);
+    server.set_io(local_io);
     _ = server.start(if mt == false { None } else { Some(10) } );
     let player_uuid = server.create_local_user();
 

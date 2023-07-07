@@ -1361,6 +1361,16 @@ impl GameRender<'_> {
                         commands.push(json);
                     }
                 },
+                ScriptServerCmd::LoginUser(user, password, screen) => {
+                    if let Some(json) = pack_login_user(user, password, screen) {
+                        commands.push(json);
+                    }
+                },
+                ScriptServerCmd::RegisterUser(user, password, screen) => {
+                    if let Some(json) = pack_register_user(user, password, screen) {
+                        commands.push(json);
+                    }
+                },
                 ScriptServerCmd::Action(action, direction, spell) => {
                     let mut dir : Option<PlayerDirection>;
 

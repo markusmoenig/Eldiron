@@ -240,7 +240,9 @@ pub enum ScriptServerCmd {
     ActionInventory(String, i32),
     ActionGear(String, i32),
     ActionValidMouseRect(ScriptRect),
-    EnterGameAndCreateCharacter(String, String, String, String)
+    EnterGameAndCreateCharacter(String, String, String, String),
+    LoginUser(String, String, String),
+    RegisterUser(String, String, String)
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -261,6 +263,14 @@ impl ScriptCmd {
 
     pub fn enter_game_and_create_character(&mut self, name: &str, class: &str, race: &str, screen: &str) {
         self.action_commands.push(ScriptServerCmd::EnterGameAndCreateCharacter(name.to_owned(), class.to_owned(), race.to_owned(), screen.to_owned()));
+    }
+
+    pub fn login_user(&mut self, user: &str, password: &str, screen: &str) {
+        self.action_commands.push(ScriptServerCmd::LoginUser(user.to_owned(), password.to_owned(), screen.to_owned()));
+    }
+
+    pub fn register_user(&mut self, user: &str, password: &str, screen: &str) {
+        self.action_commands.push(ScriptServerCmd::RegisterUser(user.to_owned(), password.to_owned(), screen.to_owned()));
     }
 
     // Game Actions
@@ -420,11 +430,18 @@ lazy_static! {
 /// Register the global cmd functions for drawing etc.
 pub fn register_global_cmd_functions(engine: &mut Engine) {
 
-
     // Game Workflow Cmds
 
     engine.register_fn("enter_game_and_create_character", |name: &str, class: &str, race: &str, screen: &str| {
         SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::EnterGameAndCreateCharacter(name.to_owned(), class.to_owned(), race.to_owned(), screen.to_owned()));
+    });
+
+    engine.register_fn("login_user", |user: &str, password: &str, screen: &str| {
+        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::LoginUser(user.trim().to_owned(), password.trim().to_owned(), screen.to_owned()));
+    });
+
+    engine.register_fn("register_user", |user: &str, password: &str, screen: &str| {
+        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::RegisterUser(user.trim().to_owned(), password.trim().to_owned(), screen.to_owned()));
     });
 
     // Action Cmds
