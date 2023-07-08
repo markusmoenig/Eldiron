@@ -17,4 +17,6 @@ pub enum Message {
     // User Management
     AddUserToLobby(User),
     RemoveUserFromLobby(Uuid),
+    SetUserName(Uuid, String),
+    SetUserScreenName(Uuid, String),
 }

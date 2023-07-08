@@ -51,34 +51,13 @@ impl Lobby {
                 }
             }
 
+            self.game_behavior = game_behavior;
 
             if let Some(startup_name) = startup_name {
-                let mut screen_node_id : Option<Uuid> = None;
-
-                for (id, node) in &game_behavior.nodes {
-                    if node.behavior_type == BehaviorNodeType::BehaviorTree {
-                        if node.name == startup_name {
-                            for c in &game_behavior.connections {
-                                if c.0 == *id {
-                                    screen_node_id = Some(c.2);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if let Some(screen_node_id) = screen_node_id {
-                    if let Some(screen_node) = game_behavior.nodes.get(&screen_node_id) {
-                        if let Some(value) = screen_node.values.get("script_name") {
-                            if let Some(script_name) = value.to_string() {
-                                self.startup_script_name = script_name;
-                            }
-                        }
-                    }
+                if let Some(script_name) = self.get_script_name_for_screen(startup_name) {
+                    self.startup_script_name = script_name;
                 }
             }
-
-            self.game_behavior = game_behavior;
         }
     }
 
@@ -101,10 +80,16 @@ impl Lobby {
                             },
                             Message::AddUserToLobby(user) => {
                                 self.add_user(user);
-                            }
+                            },
                             Message::RemoveUserFromLobby(id) => {
                                 self.remove_user(id);
-                            }
+                            },
+                            Message::SetUserName(id, name) => {
+                                self.set_user_name(id, name);
+                            },
+                            Message::SetUserScreenName(id, name) => {
+                                self.set_user_screen_name(id, name);
+                            },
                             _ => { log::error!("Unhandled message for region pool: {:?}", message); }
                         }
                     }
@@ -115,14 +100,28 @@ impl Lobby {
 
     /// Adds a user struct to the lobby
     pub fn add_user(&mut self, user: User) {
-        println!("add user {:?}", user);
         self.users.insert(user.id, user);
     }
 
     /// Adds a user struct to the lobby
     pub fn remove_user(&mut self, user_id: Uuid) {
-        if let Some(user) = self.users.remove(&user_id) {
-            println!("remove user {:?}", user);
+        if let Some(_user) = self.users.remove(&user_id) {
+        }
+    }
+
+    /// Sets the name of the user
+    pub fn set_user_name(&mut self, user_id: Uuid, name: String) {
+        if let Some(user) = self.users.get_mut(&user_id) {
+            user.name = name;
+        }
+    }
+
+    /// Sets the screen name of the user
+    pub fn set_user_screen_name(&mut self, user_id: Uuid, name: String) {
+        if let Some(script_name) = self.get_script_name_for_screen(name) {
+            if let Some(user) = self.users.get_mut(&user_id) {
+                user.new_screen_script = Some(script_name);
+            }
         }
     }
 
@@ -134,10 +133,16 @@ impl Lobby {
             let mut update = GameUpdate::new();
             update.id = *id;
 
-            if user.initialized == false {
+            if user.screen_script.is_none() {
                 update.screen_scripts = Some(self.scripts.clone());
                 update.screen_script_name = Some(self.startup_script_name.clone());
-                user.initialized = true;
+                user.screen_script = Some(self.startup_script_name.clone());
+            }
+
+            if let Some(new_screen_name) = &user.new_screen_script {
+                update.screen_script_name = Some(new_screen_name.clone());
+                user.screen_script = user.new_screen_script.clone();
+                user.new_screen_script = None;
             }
 
             let m = Message::PlayerUpdate(*id, update);
@@ -158,4 +163,33 @@ impl Lobby {
 
         ret_messages
     }
+
+    /// Returns the script name for a given game behavior tree
+    fn get_script_name_for_screen(&self, screen_name: String) -> Option<String> {
+        let mut screen_node_id : Option<Uuid> = None;
+
+        for (id, node) in &self.game_behavior.nodes {
+            if node.behavior_type == BehaviorNodeType::BehaviorTree {
+                if node.name == screen_name {
+                    for c in &self.game_behavior.connections {
+                        if c.0 == *id {
+                            screen_node_id = Some(c.2);
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(screen_node_id) = screen_node_id {
+            if let Some(screen_node) = self.game_behavior.nodes.get(&screen_node_id) {
+                if let Some(value) = screen_node.values.get("script_name") {
+                    if let Some(script_name) = value.to_string() {
+                        return Some(script_name);
+                    }
+                }
+            }
+        }
+        None
+    }
+
 }

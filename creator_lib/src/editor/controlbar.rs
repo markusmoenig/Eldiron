@@ -215,7 +215,7 @@ impl Widget for ControlBar {
                         _ = server.start(Some(10));
                         // _ = server.start(None);
 
-                        context.player_uuid = server.create_local_user();
+                        context.player_uuid = server.create_user();
                         //context.player_uuid = server.create_player_instance();
 
                         context.server = Some(server);

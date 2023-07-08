@@ -46,7 +46,7 @@ fn main() -> Result<(), Error> {
     server.collect_data(&game_data);
     server.set_io(local_io);
     _ = server.start(if mt == false { None } else { Some(10) } );
-    let player_uuid = server.create_local_user();
+    let player_uuid = server.create_user();
 
     let mut game_rect = (0, 0, 0, 0);
 

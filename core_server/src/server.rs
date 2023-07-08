@@ -405,9 +405,17 @@ impl Server {
             if let Some(action) = serde_json::from_str::<LoginRegisterUser>(&action).ok() {
                 if let Some(io) = &mut self.server_io {
                     if action.register {
-                        _ = io.create_user(action.user, action.password);
+                        let rc = io.create_user(action.user.clone(), action.password);
+                        if rc.is_ok() {
+                            self.set_user_name(player_uuid, action.user);
+                            self.set_user_screen_name(player_uuid, action.screen);
+                        }
                     } else {
-                        _ = io.login_user(action.user, action.password);
+                        let rc = io.login_user(action.user.clone(), action.password);
+                        if rc.is_ok() {
+                            self.set_user_name(player_uuid, action.user);
+                            self.set_user_screen_name(player_uuid, action.screen);
+                        }
                     }
                 }
             }
@@ -424,10 +432,8 @@ impl Server {
         }
     }
 
-    /// Creates a User struct for a local user and puts him in the lobby. Do not call on a server based
-    /// game as this would allow a user to login to the server without password verification.
-    /// This is strictly intended for local, standalone games.
-    pub fn create_local_user(&mut self) -> Uuid {
+    /// Creates a User struct for a user and puts him in the lobby.
+    pub fn create_user(&mut self) -> Uuid {
         let user = User::new();
         let id = user.id;
 
@@ -444,8 +450,8 @@ impl Server {
         id
     }
 
+    /// Removes a user from the lobby
     pub fn remove_from_lobby(&mut self, player_uuid: Uuid) {
-        // Remove from Lobby
         if self.threaded {
             let message = Message::RemoveUserFromLobby(player_uuid);
             if let Some(lobby_sender) = &self.lobby_sender {
@@ -454,6 +460,34 @@ impl Server {
         } else {
             if let Some(lobby) = &mut self.lobby {
                 lobby.remove_user(player_uuid);
+            }
+        }
+    }
+
+    /// Sets the user name
+    fn set_user_name(&mut self, player_uuid: Uuid, name: String) {
+        if self.threaded {
+            let message = Message::SetUserName(player_uuid, name);
+            if let Some(lobby_sender) = &self.lobby_sender {
+                lobby_sender.send(message).unwrap();
+            }
+        } else {
+            if let Some(lobby) = &mut self.lobby {
+                lobby.set_user_name(player_uuid, name);
+            }
+        }
+    }
+
+    /// Sets the users screen name
+    fn set_user_screen_name(&mut self, player_uuid: Uuid, name: String) {
+        if self.threaded {
+            let message = Message::SetUserScreenName(player_uuid, name);
+            if let Some(lobby_sender) = &self.lobby_sender {
+                lobby_sender.send(message).unwrap();
+            }
+        } else {
+            if let Some(lobby) = &mut self.lobby {
+                lobby.set_user_screen_name(player_uuid, name);
             }
         }
     }

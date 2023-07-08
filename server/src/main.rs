@@ -46,7 +46,7 @@ async fn handle_client_messages(
     }
 
     // Temporary to make things work, need to implement user handling
-    let uuid = server.lock().await.create_local_user();
+    let uuid = server.lock().await.create_user();
 
     log::info!("logged in anonymous {:?}", uuid);
     uuid_endpoint.lock().await.insert(uuid, (sink, Instant::now()));

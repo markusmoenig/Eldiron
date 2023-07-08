@@ -119,7 +119,7 @@ async fn run() {
     let mut server = core_server::server::Server::new();
     server.collect_data(&game_data);
     _ = server.start(None);
-    let player_uuid = server.create_local_user();
+    let player_uuid = server.create_user();
 
     let mut game_rect = (0, 0, 0, 0);
 
