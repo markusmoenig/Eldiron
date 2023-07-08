@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use IOError::*;
+//use IOError::*;
 
 // This implementation is for local games with a single user. No login required.
 

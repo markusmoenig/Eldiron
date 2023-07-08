@@ -6,6 +6,8 @@ pub mod local_fs;
 pub enum IOError {
     NotImplemented,
     UserNotFound,
+    UserAlreadyExists,
+    WrongPassword
 }
 
 use IOError::*;
@@ -24,7 +26,7 @@ pub trait ServerIO : Sync + Send {
     fn system_login(&mut self, url: String, password: String) -> Result<bool, IOError> { Err(NotImplemented) }
 
     /// Login the given user
-    fn login_user(&mut self, user_name: String, password: String) -> Result<bool, IOError> { Err(NotImplemented) }
+    fn login_user(&mut self, user_name: String, password: String) -> Result<(), IOError> { Err(NotImplemented) }
 
     /// Does the user exist ?
     fn does_user_exist(&mut self, user_name: String) -> Result<bool, IOError> { Err(NotImplemented) }

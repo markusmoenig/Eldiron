@@ -26,6 +26,8 @@ console_log = "1.0.0"
 crossbeam-channel = "0.5.6"
 rustc-hash = "1.1.0"
 ref_thread_local = "0.1.1"
+pbkdf2 = { version = "0.12.1", features = ["simple"] }
+rand_core = { version = "0.6.4", features = ["std"] }
 
 [features]
 default = []
