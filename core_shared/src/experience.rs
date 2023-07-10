@@ -10,12 +10,17 @@ pub struct Experience {
     pub system_name             : Option<String>,
     pub tree_name               : Option<String>,
 
+    // These next fields will get created dynamically on character loading
+
+    #[serde(skip)]
     pub experience_msg          : String,
 
+    #[serde(skip)]
     pub level_behavior_id       : Uuid,
 
     // Level experience needed, message and tree id
-    pub levels              : Vec<(i32, String, Uuid)>
+    #[serde(skip)]
+    pub levels                  : Vec<(i32, String, Uuid)>
 }
 
 impl Experience {

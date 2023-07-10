@@ -20,7 +20,7 @@ impl ServerIO for LocalUserFS {
         self.path = path;
     }
 
-    fn create_user(&mut self, _user_name: String, _password: String) -> Result<(), IOError> {
+    fn create_user(&self, _user_name: String, _password: String) -> Result<(), IOError> {
         Ok(())
     }
 }

@@ -6,6 +6,7 @@ pub struct User {
     pub name                    : String,
     pub screen_script           : Option<String>,
     pub new_screen_script       : Option<String>,
+    pub characters              : Vec<CharacterData>
 }
 
 impl User {
@@ -17,6 +18,7 @@ impl User {
             name                : String::new(),
             screen_script       : None,
             new_screen_script   : None,
+            characters          : vec![],
         }
     }
 }

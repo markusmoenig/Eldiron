@@ -26,17 +26,17 @@ pub trait ServerIO : Sync + Send {
     fn system_login(&mut self, url: String, password: String) -> Result<bool, IOError> { Err(NotImplemented) }
 
     /// Login the given user
-    fn login_user(&mut self, user_name: String, password: String) -> Result<(), IOError> { Err(NotImplemented) }
+    fn login_user(&self, user_name: String, password: String) -> Result<(), IOError> { Err(NotImplemented) }
 
     /// Does the user exist ?
     fn does_user_exist(&mut self, user_name: String) -> Result<bool, IOError> { Err(NotImplemented) }
 
     /// Create a new user
-    fn create_user(&mut self, user_name: String, password: String) -> Result<(), IOError> { Err(NotImplemented) }
+    fn create_user(&self, user_name: String, password: String) -> Result<(), IOError> { Err(NotImplemented) }
 
     /// Create a character
     fn save_user_character(&self, user_name: String, sheet: Sheet) -> Result<(), IOError> { Err(NotImplemented) }
 
     /// Create a character
-    fn list_user_characters(&mut self, user_name: String) -> Result<Vec<Sheet>, IOError> { Err(NotImplemented) }
+    fn list_user_characters(&self, user_name: String) -> Result<Vec<CharacterData>, IOError> { Err(NotImplemented) }
 }

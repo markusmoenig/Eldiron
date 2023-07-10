@@ -37,7 +37,7 @@ impl ServerIO for UserFS {
         self.users_path = users_path;
     }
 
-    fn login_user(&mut self, user_name: String, password: String) -> Result<(), IOError> {
+    fn login_user(&self, user_name: String, password: String) -> Result<(), IOError> {
         let user_path = self.users_path.join(user_name);
         if fs::metadata(user_path.clone()).is_ok() == true {
             if let Some(password_hash) = fs::read_to_string(user_path.join("password")).ok() {
@@ -62,7 +62,7 @@ impl ServerIO for UserFS {
         Err(UserNotFound)
     }
 
-    fn create_user(&mut self, user_name: String, password: String) -> Result<(), IOError> {
+    fn create_user(&self, user_name: String, password: String) -> Result<(), IOError> {
         let user_path = self.users_path.join(user_name);
         if fs::metadata(user_path.clone()).is_ok() == false {
             if fs::create_dir(user_path.clone()).is_ok() {
@@ -95,5 +95,39 @@ impl ServerIO for UserFS {
         }
         Err(UserNotFound)
     }
+
+    fn list_user_characters(&self, user_name: String) -> Result<Vec<CharacterData>, IOError> {
+        let character_path = self.users_path.join(user_name).join("characters");
+
+        let mut characters = vec![];
+        let mut paths: Vec<_> = fs::read_dir(character_path.clone()).unwrap()
+                                                .map(|r| r.unwrap())
+                                                .collect();
+        paths.sort_by_key(|dir| dir.path());
+
+        for path in paths {
+            let path = &path.path();
+
+            if let Some(sheet_str) = fs::read_to_string(path).ok() {
+                if let Some(sheet) = serde_json::from_str::<Sheet>(&sheet_str).ok() {
+                    let char_data = CharacterData {
+                        id                      : Uuid::new_v4(),
+                        name                    : sheet.name,
+                        tile                    : TileId { tilemap: Uuid::new_v4(), x_off: 0, y_off: 0, size: None },
+                        index                   : 0,
+                        position                : Position::new(Uuid::new_v4(), 0, 0),
+                        old_position            : None,
+                        max_transition_time     : 0,
+                        curr_transition_time    : 0,
+                        effects                 : vec![]
+                    };
+                    characters.push(char_data);
+                }
+            }
+        }
+
+        Ok(characters)
+    }
+
 
 }

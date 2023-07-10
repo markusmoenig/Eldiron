@@ -90,6 +90,9 @@ impl Lobby {
                             Message::SetUserScreenName(id, name) => {
                                 self.set_user_screen_name(id, name);
                             },
+                            Message::SetUserCharacters(id, list) => {
+                                self.set_user_characters(id, list);
+                            },
                             _ => { log::error!("Unhandled message for region pool: {:?}", message); }
                         }
                     }
@@ -125,6 +128,13 @@ impl Lobby {
         }
     }
 
+    /// Sets the user characters
+    pub fn set_user_characters(&mut self, user_id: Uuid, list: Vec<CharacterData>) {
+        if let Some(user) = self.users.get_mut(&user_id) {
+            user.characters = list;
+        }
+    }
+
     pub fn tick(&mut self) -> Vec<Message> {
         let mut ret_messages : Vec<Message> = vec![];
 
@@ -144,6 +154,8 @@ impl Lobby {
                 user.screen_script = user.new_screen_script.clone();
                 user.new_screen_script = None;
             }
+
+            update.characters = user.characters.clone();
 
             let m = Message::PlayerUpdate(*id, update);
 

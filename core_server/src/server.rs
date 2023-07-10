@@ -419,20 +419,36 @@ impl Server {
                 self.create_player(player_uuid, action.name, action.class, action.race, action.screen)
             } else
             if let Some(action) = serde_json::from_str::<LoginRegisterUser>(&action).ok() {
-                if let Some(io) = &mut self.server_io {
-                    if action.register {
+
+                let mut valid_user = false;
+
+                if action.register {
+                    if let Some(io) = &mut self.server_io {
+
                         let rc = io.create_user(action.user.clone(), action.password);
                         if rc.is_ok() {
                             self.user_names.insert(player_uuid, action.user.clone());
-                            self.set_user_name(player_uuid, action.user);
+                            self.set_user_name(player_uuid, action.user.clone());
                             self.set_user_screen_name(player_uuid, action.screen);
+                            valid_user = true;
                         }
-                    } else {
+                    }
+                } else {
+                    if let Some(io) = &mut self.server_io {
                         let rc = io.login_user(action.user.clone(), action.password);
                         if rc.is_ok() {
                             self.user_names.insert(player_uuid, action.user.clone());
-                            self.set_user_name(player_uuid, action.user);
+                            self.set_user_name(player_uuid, action.user.clone());
                             self.set_user_screen_name(player_uuid, action.screen);
+                            valid_user = true;
+                        }
+                    }
+                }
+
+                if valid_user {
+                    if let Some(io) = &mut self.server_io {
+                        if let Some(characters) = io.list_user_characters(action.user.clone()).ok() {
+                            self.set_user_characters(player_uuid, characters);
                         }
                     }
                 }
@@ -506,6 +522,20 @@ impl Server {
         } else {
             if let Some(lobby) = &mut self.lobby {
                 lobby.set_user_screen_name(player_uuid, name);
+            }
+        }
+    }
+
+    /// Sets the users characters
+    fn set_user_characters(&mut self, player_uuid: Uuid, list: Vec<CharacterData>) {
+        if self.threaded {
+            let message = Message::SetUserCharacters(player_uuid, list);
+            if let Some(lobby_sender) = &self.lobby_sender {
+                lobby_sender.send(message).unwrap();
+            }
+        } else {
+            if let Some(lobby) = &mut self.lobby {
+                lobby.set_user_characters(player_uuid, list);
             }
         }
     }
