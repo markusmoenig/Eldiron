@@ -56,6 +56,9 @@ pub struct Server {
     threaded                : bool,
 
     server_io               : Option<Box<dyn ServerIO>>,
+
+    // Lookup table for users who have a valid username
+    user_names              : FxHashMap<Uuid, String>,
 }
 
 impl Server {
@@ -91,6 +94,8 @@ impl Server {
             threaded                    : false,
 
             server_io                   : None,
+
+            user_names                  : FxHashMap::default(),
         }
     }
 
@@ -305,7 +310,12 @@ impl Server {
                 match message {
                     Message::CharacterHasBeenTransferredInsidePool(uuid, region_id) => {
                         self.players_region_ids.insert(uuid, region_id);
-                    }
+                    },
+                    Message::SaveCharacter(_id, user_name, sheet) => {
+                        if let Some(io) = &self.server_io {
+                            let _rc = io.save_user_character(user_name.clone(), sheet);
+                        }
+                    },
                     _ => messages.push(message),
                 }
             } else {
@@ -329,11 +339,16 @@ impl Server {
                 screen              : Some(screen)
             };
 
+            let mut user_name: Option<String> = None;
+            if let Some(name) = self.user_names.get(&id) {
+                user_name = Some(name.clone());
+            }
+
             if self.threaded {
-                self.send_message_to_region(position.region, Message::CreatePlayer(id, data));
+                self.send_message_to_region(position.region, Message::CreatePlayer(id, user_name, data));
             } else {
                 if let Some(pool) = &mut self.pool {
-                    pool.create_player(id, data);
+                    pool.create_player(id, user_name, data);
                 }
             }
             self.players_region_ids.insert(id, position.region);
@@ -369,6 +384,7 @@ impl Server {
         }
 
         self.remove_from_lobby(uuid);
+        self.user_names.remove(&uuid);
     }
 
     /// Send the behavior id to debug to all pools.
@@ -407,12 +423,14 @@ impl Server {
                     if action.register {
                         let rc = io.create_user(action.user.clone(), action.password);
                         if rc.is_ok() {
+                            self.user_names.insert(player_uuid, action.user.clone());
                             self.set_user_name(player_uuid, action.user);
                             self.set_user_screen_name(player_uuid, action.screen);
                         }
                     } else {
                         let rc = io.login_user(action.user.clone(), action.password);
                         if rc.is_ok() {
+                            self.user_names.insert(player_uuid, action.user.clone());
                             self.set_user_name(player_uuid, action.user);
                             self.set_user_screen_name(player_uuid, action.screen);
                         }

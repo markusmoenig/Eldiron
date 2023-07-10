@@ -159,6 +159,16 @@ pub struct BehaviorInstance {
     // The instance id (unique)
     pub id                      : Uuid,
 
+    // The user_name, if playing as anonymous = None
+
+    pub user_name               : Option<String>,
+
+    // Save the character (only for logged in users)
+    pub save                    : bool,
+
+    // Log off user
+    pub logoff                  : bool,
+
     // The instance state
     pub instance_type           : BehaviorInstanceType,
 

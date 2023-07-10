@@ -81,4 +81,19 @@ impl ServerIO for UserFS {
         Err(UserNotFound)
     }
 
+    fn save_user_character(&self, user_name: String, sheet: Sheet) -> Result<(), IOError> {
+        let character_path = self.users_path.join(user_name).join("characters");
+        if fs::metadata(character_path.clone()).is_ok() == true {
+            let sheet_path = character_path.join(sheet.name.clone());
+            if let Some(json) = serde_json::to_string_pretty(&sheet).ok() {
+                if  fs::write(sheet_path, json.to_string()).is_ok() {
+                    return Ok(());
+                }
+            }
+        } else {
+            return Err(UserNotFound);
+        }
+        Err(UserNotFound)
+    }
+
 }

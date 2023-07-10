@@ -653,6 +653,15 @@ impl RegionInstance {
                     data.character_instances[inst_index].state = BehaviorInstanceState::Purged;
                     data.player_uuid_indices.remove(&data.character_instances[inst_index].id);
                 }
+
+                if data.character_instances[inst_index].save {
+                    if let Some(user_name) = &data.character_instances[inst_index].user_name {
+                        messages.push(Message::SaveCharacter(update.id, user_name.clone(), data.sheets[inst_index].clone()));
+                    }
+                    data.character_instances[inst_index].save = false;
+                }
+
+                //
                 messages.push(Message::PlayerUpdate(update.id, update));
             } else {
                 let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
@@ -855,7 +864,7 @@ impl RegionInstance {
 
         let index;
 
-        let instance = BehaviorInstance {id: Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), system_tree_tick_names: vec![], position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: None, send_screen_scripts: false };
+        let instance = BehaviorInstance {id: Uuid::new_v4(), user_name: None, save: false, logoff: false, state: BehaviorInstanceState::Normal, name: behavior.name.clone(), behavior_id: behavior.id, tree_ids: to_execute.clone(), system_tree_tick_names: vec![], position: None, tile: None, target_instance_index: None, locked_tree, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::GameLogic, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: None, send_screen_scripts: false };
 
         {
             let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
@@ -919,7 +928,7 @@ impl RegionInstance {
     }
 
     /// Creates a new player instance
-    pub fn create_player(&mut self, uuid: Uuid, char_data: CharacterInstanceData) {
+    pub fn create_player(&mut self, uuid: Uuid, user_name: Option<String>, char_data: CharacterInstanceData) {
         let mut player_id : Option<Uuid> = None;
         for b in &self.behaviors {
             if b.1.name == "Player" {
@@ -931,6 +940,8 @@ impl RegionInstance {
             let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
             data.character_instances[index].instance_type = BehaviorInstanceType::Player;
             data.character_instances[index].id = uuid;
+            data.character_instances[index].user_name = user_name;
+            data.character_instances[index].save = true; // Save the character after being created
             data.character_instances[index].position = Some(char_data.position);
             data.player_uuid_indices.insert(uuid, index);
             log::info!("Player {:?} created.", char_data.name);
@@ -1085,7 +1096,7 @@ impl RegionInstance {
 
             //println!("Creating instance {}", inst.name.unwrap());
 
-            let mut instance: BehaviorInstance = BehaviorInstance {id: uuid::Uuid::new_v4(), state: BehaviorInstanceState::Normal, name: behavior_name.clone(), behavior_id: behavior_id, tree_ids: to_execute.clone(), system_tree_tick_names: vec![], position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: Some(inst.clone()), send_screen_scripts: false };
+            let mut instance: BehaviorInstance = BehaviorInstance {id: uuid::Uuid::new_v4(), user_name: None, save: false, logoff: false, state: BehaviorInstanceState::Normal, name: behavior_name.clone(), behavior_id: behavior_id, tree_ids: to_execute.clone(), system_tree_tick_names: vec![], position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen_id: None, game_locked_tree: None, curr_player_screen: "".to_string(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: Some(inst.clone()), send_screen_scripts: false };
 
             {
                 let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
