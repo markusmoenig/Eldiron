@@ -267,7 +267,7 @@ impl ScriptCmd {
         self.action_commands.push(ScriptServerCmd::EnterGameAndCreateCharacter(name.to_owned(), class.to_owned(), race.to_owned(), screen.to_owned()));
     }
 
-    pub fn enter_game_with_character(&mut self, name: &str, screen: &str) {
+    pub fn enter_game_with_character(&mut self, name: &str) {
         self.action_commands.push(ScriptServerCmd::EnterGameWithCharacter(name.to_owned()));
     }
 

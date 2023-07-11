@@ -12,6 +12,8 @@ pub struct Sheet {
     pub class_name              : String,
     pub race_name               : String,
 
+    pub tile                    : TileId,
+
     pub alignment               : i32,
 
     pub abilities               : std::collections::BTreeMap<String, i32>,
@@ -32,6 +34,12 @@ pub struct Sheet {
     pub home_location           : Position,
 
     pub wealth                  : Currency,
+
+    // The following fields are not character but rather server state specific
+    // and only needed for saving the character state.
+
+    pub behavior_id             : Option<Uuid>,
+    pub screen                  : Option<String>,
 }
 
 impl Sheet {
@@ -40,6 +48,8 @@ impl Sheet {
             name                : String::new(),
             class_name          : String::new(),
             race_name           : String::new(),
+
+            tile                : TileId::empty(),
 
             alignment           : 0,
 
@@ -61,6 +71,9 @@ impl Sheet {
             home_location       : Position::new(Uuid::new_v4(), 0, 0),
 
             wealth              : Currency::empty(),
+
+            behavior_id         : None,
+            screen              : None,
         }
     }
 

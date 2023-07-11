@@ -45,6 +45,15 @@ impl TileId {
             size                : None,
         }
     }
+
+    pub fn empty() -> Self {
+        Self {
+            tilemap             : Uuid::new_v4(),
+            x_off               : 0,
+            y_off               : 0,
+            size                : None,
+        }
+    }
 }
 
 // References a tile in a region

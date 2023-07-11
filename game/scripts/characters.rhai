@@ -58,13 +58,14 @@ fn touch_down(x, y) {
   }
 
   let characters = get_characters();
-  let y = 100;
+  let char_y = 100;
   for c in characters {
-    let rect = rect(700, y, 200, 20);
+    let rect = rect(700, char_y, 200, 20);
     if rect.is_inside(pos(x, y)) {
       this.char_selection = c.name;
+      break;
     }
-    y += 20;
+    char_y += 20;
   }
 }
 

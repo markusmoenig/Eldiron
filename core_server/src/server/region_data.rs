@@ -37,9 +37,6 @@ pub struct RegionData {
     /// The current instance index of the current "Player" when executing the Game behavior per player
     pub curr_player_inst_index      : usize,
 
-    /// The index of the game instance
-    pub game_instance_index         : Option<usize>,
-
     /// Player uuid => player instance index
     pub player_uuid_indices         : FxHashMap<Uuid, usize>,
 
@@ -163,7 +160,6 @@ impl RegionData {
 
             curr_action_character_index     : None,
             curr_player_inst_index          : 0,
-            game_instance_index             : None,
             player_uuid_indices             : FxHashMap::default(),
 
             characters                      : FxHashMap::default(),

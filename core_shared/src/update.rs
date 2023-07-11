@@ -15,8 +15,6 @@ pub struct GameUpdate {
     pub max_transition_time     : usize,
     pub curr_transition_time    : usize,
 
-    pub tile                    : Option<TileId>,
-
     /// The character sheet of the clients character
     pub sheet                   : Sheet,
 
@@ -71,7 +69,6 @@ impl GameUpdate {
             old_position        : None,
             max_transition_time : 0,
             curr_transition_time: 0,
-            tile                : None,
             sheet               : Sheet::new(),
             screen_script_name  : None,
             screen_scripts      : None,
