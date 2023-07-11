@@ -555,15 +555,15 @@ impl RegionInstance {
                     data.character_instances[inst_index].send_screen_scripts =  true;
                 }
 
-                if let Some(new_script_name) = &data.character_instances[inst_index].new_player_screen {
-                    if *new_script_name != data.character_instances[inst_index].curr_player_screen {
+                if let Some(new_script_name) = &data.character_instances[inst_index].new_player_script {
+                    if *new_script_name != data.character_instances[inst_index].curr_player_script {
                         screen_script_name = Some(new_script_name.clone());
                     }
                 }
 
                 if let Some(screen_script_name) = &screen_script_name {
-                    data.character_instances[inst_index].curr_player_screen = screen_script_name.clone();
-                    data.character_instances[inst_index].new_player_screen = None;
+                    data.character_instances[inst_index].curr_player_script = screen_script_name.clone();
+                    data.character_instances[inst_index].new_player_script = None;
                 }
 
                 let mut region        : Option<GameRegionData> = None;
@@ -639,7 +639,7 @@ impl RegionInstance {
                     if let Some(user_name) = &data.character_instances[inst_index].user_name {
                         let mut sheet = data.sheets[inst_index].clone();
                         sheet.behavior_id = Some(data.character_instances[inst_index].behavior_id.clone());
-                        sheet.screen = Some(data.character_instances[inst_index].curr_player_screen.clone());
+                        sheet.screen = Some(data.character_instances[inst_index].curr_player_script.clone());
                         messages.push(Message::SaveCharacter(update.id, user_name.clone(), sheet));
                     }
                     data.character_instances[inst_index].save = false;
@@ -899,7 +899,7 @@ impl RegionInstance {
                 }
             }
 
-            let instance = BehaviorInstance {id: uuid, user_name: Some(user_name), save: false, logoff: false, state: BehaviorInstanceState::Normal, name: sheet.name.clone(), behavior_id: sheet.behavior_id.clone().unwrap(), tree_ids: to_execute, system_tree_tick_names: vec![], position: Some(sheet.position.clone()), tile: Some(sheet.tile.clone()), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::Player, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen: "".to_string(), game_locked_tree: None, new_player_screen: sheet.screen.clone(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: None, send_screen_scripts: false };
+            let instance = BehaviorInstance {id: uuid, user_name: Some(user_name), save: false, logoff: false, state: BehaviorInstanceState::Normal, name: sheet.name.clone(), behavior_id: sheet.behavior_id.clone().unwrap(), tree_ids: to_execute, system_tree_tick_names: vec![], position: Some(sheet.position.clone()), tile: Some(sheet.tile.clone()), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::Player, update: None, regions_send: std::collections::HashSet::new(), curr_player_script: "".to_string(), game_locked_tree: None, new_player_script: sheet.screen.clone(), messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: None, send_screen_scripts: false };
 
             sheet.screen = None;
             sheet.behavior_id = None;
@@ -1058,7 +1058,7 @@ impl RegionInstance {
                 continue;
             }
 
-            let mut instance: BehaviorInstance = BehaviorInstance {id: uuid::Uuid::new_v4(), user_name: None, save: false, logoff: false, state: BehaviorInstanceState::Normal, name: behavior_name.clone(), behavior_id: behavior_id, tree_ids: to_execute.clone(), system_tree_tick_names: vec![], position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_screen: String::new(), game_locked_tree: None, new_player_screen: None, messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: Some(inst.clone()), send_screen_scripts: false };
+            let mut instance: BehaviorInstance = BehaviorInstance {id: uuid::Uuid::new_v4(), user_name: None, save: false, logoff: false, state: BehaviorInstanceState::Normal, name: behavior_name.clone(), behavior_id: behavior_id, tree_ids: to_execute.clone(), system_tree_tick_names: vec![], position: Some(inst.position.clone()), tile: inst.tile.clone(), target_instance_index: None, locked_tree: None, party: vec![], node_values: FxHashMap::default(), sleep_cycles: 0, systems_id: Uuid::new_v4(), action: None, instance_type: BehaviorInstanceType::NonPlayerCharacter, update: None, regions_send: std::collections::HashSet::new(), curr_player_script: String::new(), game_locked_tree: None, new_player_script: None, messages: vec![], audio: vec![], old_position: None, max_transition_time: 0, curr_transition_time: 0, multi_choice_data: vec![], communication: vec![], multi_choice_answer: None, effects: vec![], instance_creation_data: Some(inst.clone()), send_screen_scripts: false };
 
             {
                 let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
@@ -1072,7 +1072,7 @@ impl RegionInstance {
                     instance.tile = default_tile.clone();
                 }
 
-                instance.new_player_screen = self.get_script_name_for_screen(screen);
+                instance.new_player_script = self.get_script_name_for_screen(screen);
             }
 
             // Create skills

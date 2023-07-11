@@ -230,11 +230,11 @@ pub struct BehaviorInstance {
     /// The regions we send to the player client already
     pub regions_send            : HashSet<Uuid>,
 
-    /// Current screen id
-    pub curr_player_screen      : String,
+    /// Current screen script
+    pub curr_player_script      : String,
 
-    /// Current screen content
-    pub new_player_screen       : Option<String>,
+    /// New screen script (we should switch to for this player)
+    pub new_player_script       : Option<String>,
 
     /// Did we send the screen scripts to the client already ?
     pub send_screen_scripts     : bool,
