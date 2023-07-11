@@ -138,6 +138,8 @@ impl GameRender<'_> {
 
         Sheet::register(&mut engine);
         Currency::register(&mut engine);
+        CharacterData::register(&mut engine);
+        CharacterList::register(&mut engine);
 
         let this_map = Map::new();
 
@@ -388,6 +390,9 @@ impl GameRender<'_> {
             }
         }
 
+        // Copy the characters
+        INFOCMD.lock().unwrap().characters = CharacterList::new(update.characters.clone());
+
         // Clear the multi choice data if we have no ongoing communication
         if update.communication.is_empty() {
             self.multi_choice_data.clear();
@@ -477,6 +482,11 @@ impl GameRender<'_> {
                         } else {
                             self.draw2d.blend_rect( &mut self.frame[..], &rect.rect, stride, &rgb.value);
                         }
+                    }
+                },
+                ScriptDrawCmd::DrawRectOutline(rect, rgb) => {
+                    if rect.is_safe(self.width, self.height) {
+                        self.draw2d.draw_rect_outline( &mut self.frame[..], &rect.rect, stride, &rgb.value);
                     }
                 },
                 ScriptDrawCmd::DrawShape(shape) => {
@@ -1086,7 +1096,7 @@ impl GameRender<'_> {
                     if self.mouse_region_pos.is_some() { continue; }
                     if let Some(mouse_pos) = &self.mouse_pos {
                         if pos.0 <= mouse_pos.0 && pos.1 <= mouse_pos.1 && pos.0 + tile_size > mouse_pos.0 && pos.1 + tile_size > mouse_pos.1 {
-                            self.draw2d.draw_rect_outline(frame, &(pos.0, pos.1, tile_size, tile_size), stride, [128, 128, 128, 255]);
+                            self.draw2d.draw_rect_outline(frame, &(pos.0, pos.1, tile_size, tile_size), stride, &[128, 128, 128, 255]);
 
                             if self.draw_mouse_pos_once {
                                 self.mouse_pos = None;
@@ -1358,6 +1368,11 @@ impl GameRender<'_> {
 
                 ScriptServerCmd::EnterGameAndCreateCharacter(name, class, race, screen) => {
                     if let Some(json) = pack_enter_game_and_create(name, class, race, screen) {
+                        commands.push(json);
+                    }
+                },
+                ScriptServerCmd::EnterGameWithCharacter(name ) => {
+                    if let Some(json) = pack_enter_game_with(name) {
                         commands.push(json);
                     }
                 },

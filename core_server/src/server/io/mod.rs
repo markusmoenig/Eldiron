@@ -34,9 +34,12 @@ pub trait ServerIO : Sync + Send {
     /// Create a new user
     fn create_user(&self, user_name: String, password: String) -> Result<(), IOError> { Err(NotImplemented) }
 
-    /// Create a character
+    /// Save a user character
     fn save_user_character(&self, user_name: String, sheet: Sheet) -> Result<(), IOError> { Err(NotImplemented) }
 
-    /// Create a character
+    /// Get a user character
+    fn get_user_character(&self, user_name: String, character_name: String) -> Result<Sheet, IOError> { Err(NotImplemented) }
+
+    /// List all user characters
     fn list_user_characters(&self, user_name: String) -> Result<Vec<CharacterData>, IOError> { Err(NotImplemented) }
 }

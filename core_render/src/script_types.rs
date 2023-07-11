@@ -214,6 +214,7 @@ impl ScriptRGB {
 #[derive(PartialEq, Clone, Debug)]
 pub enum ScriptDrawCmd {
     DrawRect(ScriptRect, ScriptRGB),
+    DrawRectOutline(ScriptRect, ScriptRGB),
     DrawTile(ScriptPosition, ScriptTile),
     DrawTileSat(ScriptPosition, ScriptTile, ScriptRGB),
     DrawTileMult(ScriptPosition, ScriptTile, ScriptRGB),
@@ -241,6 +242,7 @@ pub enum ScriptServerCmd {
     ActionGear(String, i32),
     ActionValidMouseRect(ScriptRect),
     EnterGameAndCreateCharacter(String, String, String, String),
+    EnterGameWithCharacter(String),
     LoginUser(String, String, String),
     RegisterUser(String, String, String)
 }
@@ -263,6 +265,10 @@ impl ScriptCmd {
 
     pub fn enter_game_and_create_character(&mut self, name: &str, class: &str, race: &str, screen: &str) {
         self.action_commands.push(ScriptServerCmd::EnterGameAndCreateCharacter(name.to_owned(), class.to_owned(), race.to_owned(), screen.to_owned()));
+    }
+
+    pub fn enter_game_with_character(&mut self, name: &str, screen: &str) {
+        self.action_commands.push(ScriptServerCmd::EnterGameWithCharacter(name.to_owned()));
     }
 
     pub fn login_user(&mut self, user: &str, password: &str, screen: &str) {
@@ -317,6 +323,10 @@ impl ScriptCmd {
 
     pub fn draw_rect(&mut self, rect: ScriptRect, rgb: ScriptRGB) {
         self.draw_commands.push(ScriptDrawCmd::DrawRect(rect, rgb));
+    }
+
+    pub fn draw_rect_outline(&mut self, rect: ScriptRect, rgb: ScriptRGB) {
+        self.draw_commands.push(ScriptDrawCmd::DrawRectOutline(rect, rgb));
     }
 
     pub fn draw_tile(&mut self, pos: ScriptPosition, tile: ScriptTile) {
@@ -398,6 +408,7 @@ pub struct ScriptInfo {
     pub region              : rhai::Map,
     pub display_mode_3d     : bool,
     pub date                : Date,
+    pub characters          : CharacterList,
 }
 
 impl ScriptInfo {
@@ -411,6 +422,7 @@ impl ScriptInfo {
             region          : rhai::Map::new(),
             display_mode_3d : false,
             date            : Date::new(),
+            characters      : CharacterList::new(vec![]),
         }
     }
 }
@@ -434,6 +446,10 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
 
     engine.register_fn("enter_game_and_create_character", |name: &str, class: &str, race: &str, screen: &str| {
         SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::EnterGameAndCreateCharacter(name.to_owned(), class.to_owned(), race.to_owned(), screen.to_owned()));
+    });
+
+    engine.register_fn("enter_game_with_character", |name: &str| {
+        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::EnterGameWithCharacter(name.to_owned()));
     });
 
     engine.register_fn("login_user", |user: &str, password: &str, screen: &str| {
@@ -477,6 +493,9 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
     });
     engine.register_fn("draw_rect", |rect: ScriptRect, rgb: ScriptRGB| {
         SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawRect(rect, rgb));
+    });
+    engine.register_fn("draw_rect_outline", |rect: ScriptRect, rgb: ScriptRGB| {
+        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawRectOutline(rect, rgb));
     });
     engine.register_fn("draw_image", |pos: ScriptPosition, image: ScriptImage, width: i32, height: i32, blend: f32| {
         SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawImage(pos, image, width, height, blend));
@@ -607,6 +626,10 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
 
     engine.register_fn("get_date", || -> Date {
         INFOCMD.lock().unwrap().date.clone()
+    });
+
+    engine.register_fn("get_characters", || -> CharacterList {
+        INFOCMD.lock().unwrap().characters.clone()
     });
 
 }

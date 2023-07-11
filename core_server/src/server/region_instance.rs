@@ -927,8 +927,8 @@ impl RegionInstance {
         data.loot = loot_map;
     }
 
-    /// Creates a new player instance
-    pub fn create_player(&mut self, uuid: Uuid, user_name: Option<String>, char_data: CharacterInstanceData) {
+    /// Creates a new player character
+    pub fn create_character(&mut self, uuid: Uuid, user_name: Option<String>, char_data: CharacterInstanceData) {
         let mut player_id : Option<Uuid> = None;
         for b in &self.behaviors {
             if b.1.name == "Player" {
@@ -946,6 +946,11 @@ impl RegionInstance {
             data.player_uuid_indices.insert(uuid, index);
             log::info!("Player {:?} created.", char_data.name);
         }
+    }
+
+    /// Login a user character
+    pub fn login_character(&mut self, _uuid: Uuid, user_name: String, sheet: Sheet) {
+        println!("login {} {:?}", user_name, sheet);
     }
 
     /// Creates a new player instance

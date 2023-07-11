@@ -355,8 +355,11 @@ impl RegionPool {
                                 println!{"Pool received status {}", status};
                                 log::error!("{:?}", status);
                             },
-                            Message::CreatePlayer(uuid, user_name, data) => {
-                                self.create_player(uuid, user_name, data);
+                            Message::CreateCharacter(uuid, user_name, data) => {
+                                self.create_character(uuid, user_name, data);
+                            },
+                            Message::LoginCharacter(uuid, user_name, sheet) => {
+                                self.login_character(uuid, user_name, sheet);
                             },
                             Message::CreatePlayerInstance(uuid, position) => {
                                 self.create_player_instance(uuid, position);
@@ -457,14 +460,31 @@ impl RegionPool {
 
     }
 
-    /// Create a new player
-    pub fn create_player(&mut self, uuid: Uuid, user_name: Option<String>, data: CharacterInstanceData) {
+    /// Create a new character
+    pub fn create_character(&mut self, uuid: Uuid, user_name: Option<String>, data: CharacterInstanceData) {
         {
             *CURR_INST.borrow_mut() = 0;
         }
         for inst in &mut self.instances {
             if inst.region_data.id == data.position.region {
-                inst.create_player(uuid, user_name.clone(), data.clone());
+                inst.create_character(uuid, user_name.clone(), data.clone());
+            }
+            {
+                let mut index = *CURR_INST.borrow();
+                index += 1;
+                *CURR_INST.borrow_mut() = index;
+            }
+        }
+    }
+
+    /// Create a new player
+    pub fn login_character(&mut self, uuid: Uuid, user_name: String, sheet: Sheet) {
+        {
+            *CURR_INST.borrow_mut() = 0;
+        }
+        for inst in &mut self.instances {
+            if inst.region_data.id == sheet.position.region {
+                inst.login_character(uuid, user_name.clone(), sheet.clone());
             }
             {
                 let mut index = *CURR_INST.borrow();

@@ -17,6 +17,18 @@ pub fn pack_enter_game_and_create(name: String, class: String, race: String, scr
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct UserEnterGameWithCharacter {
+    pub name                    : String,
+}
+
+
+/// Packs the given enter game cmd into JSON
+pub fn pack_enter_game_with(name: String) -> Option<String> {
+    let action = UserEnterGameWithCharacter{ name };
+    return serde_json::to_string(&action).ok()
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct LoginRegisterUser {
     pub register                : bool,
     pub user                    : String,

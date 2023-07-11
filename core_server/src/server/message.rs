@@ -4,7 +4,8 @@ use crate::prelude::*;
 pub enum Message {
     Quit(),
     Status(String),
-    CreatePlayer(Uuid, Option<String>, CharacterInstanceData),
+    CreateCharacter(Uuid, Option<String>, CharacterInstanceData),
+    LoginCharacter(Uuid, String, Sheet),
     CreatePlayerInstance(Uuid, Position),
     DestroyPlayerInstance(Uuid),
     ExecutePlayerAction(Uuid, Uuid, PlayerAction),

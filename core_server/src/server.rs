@@ -325,8 +325,8 @@ impl Server {
         messages
     }
 
-    /// Create a new player
-    pub fn create_player(&mut self, id: Uuid, name: String, class: String, race: String, screen: String) {
+    /// Create a new player character
+    pub fn create_character(&mut self, id: Uuid, name: String, class: String, race: String, screen: String) {
         if let Some(position) = &self.player_default_position {
 
             let data = CharacterInstanceData {
@@ -345,14 +345,39 @@ impl Server {
             }
 
             if self.threaded {
-                self.send_message_to_region(position.region, Message::CreatePlayer(id, user_name, data));
+                self.send_message_to_region(position.region, Message::CreateCharacter(id, user_name, data));
             } else {
                 if let Some(pool) = &mut self.pool {
-                    pool.create_player(id, user_name, data);
+                    pool.create_character(id, user_name, data);
                 }
             }
             self.players_region_ids.insert(id, position.region);
         }
+    }
+
+    /// Login a player character
+    pub fn login_character(&mut self, id: Uuid, name: String) {
+
+        let mut user_name: Option<String> = None;
+        if let Some(name) = self.user_names.get(&id) {
+            user_name = Some(name.clone());
+        }
+
+        if let Some(user_name) = user_name {
+            if let Some(io) = &mut self.server_io {
+                if let Some(sheet) = io.get_user_character(user_name.clone(), name.clone()).ok() {
+                    if self.threaded {
+                        self.send_message_to_region(sheet.position.region, Message::LoginCharacter(id, user_name, sheet.clone()));
+                    } else {
+                        if let Some(pool) = &mut self.pool {
+                            pool.login_character(id, user_name, sheet.clone());
+                        }
+                    }
+                    self.players_region_ids.insert(id, sheet.position.region);
+                }
+            }
+        }
+
     }
 
     /// Create a new player instance
@@ -416,7 +441,15 @@ impl Server {
                 self.remove_from_lobby(player_uuid);
 
                 // Enter Game
-                self.create_player(player_uuid, action.name, action.class, action.race, action.screen)
+                self.create_character(player_uuid, action.name, action.class, action.race, action.screen)
+            } else
+            if let Some(action) = serde_json::from_str::<UserEnterGameWithCharacter>(&action).ok() {
+
+                // Remove from the lobby
+                self.remove_from_lobby(player_uuid);
+
+                // Enter Game
+                self.login_character(player_uuid, action.name)
             } else
             if let Some(action) = serde_json::from_str::<LoginRegisterUser>(&action).ok() {
 
