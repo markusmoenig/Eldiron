@@ -21,5 +21,7 @@ pub enum Message {
     RemoveUserFromLobby(Uuid),
     SetUserName(Uuid, String),
     SetUserScreenName(Uuid, String),
-    SetUserCharacters(Uuid, Vec<CharacterData>)
+    SetUserCharacters(Uuid, Vec<CharacterData>),
+    SetUserError(Uuid, Option<String>)
+
 }

@@ -42,4 +42,22 @@ pub trait ServerIO : Sync + Send {
 
     /// List all user characters
     fn list_user_characters(&self, user_name: String) -> Result<Vec<CharacterData>, IOError> { Err(NotImplemented) }
+
+    /// Returns a human readable error message
+    fn error_message(&self, err: IOError) -> Option<String> {
+        match err {
+            UserNotFound => {
+                Some("User not found.".into())
+            },
+            UserAlreadyExists => {
+                Some("User already exsits.".into())
+            },
+            WrongPassword => {
+                Some("Wrong password.".into())
+            },
+            _ => {
+                None
+            }
+        }
+    }
 }

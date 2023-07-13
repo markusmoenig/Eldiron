@@ -18,9 +18,25 @@ pub struct MessageData {
     pub message_type        : MessageType,
     pub message             : String,
     pub from                : String,
+    #[serde(skip)]
     pub right               : Option<String>,
+    #[serde(skip)]
     pub center              : Option<String>,
+    #[serde(skip)]
     pub buffer              : Option<(usize, usize, Vec<u8>)>
+}
+
+impl MessageData {
+    pub fn new(message_type: MessageType, message: String, from: String) -> Self {
+        Self {
+            message_type,
+            message,
+            from,
+            right           : None,
+            center          : None,
+            buffer          : None
+        }
+    }
 }
 
 /// Represents a multi choice item

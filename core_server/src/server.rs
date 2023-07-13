@@ -454,6 +454,7 @@ impl Server {
             if let Some(action) = serde_json::from_str::<LoginRegisterUser>(&action).ok() {
 
                 let mut valid_user = false;
+                let mut error : Option<IOError> = None;
 
                 if action.register {
                     if let Some(io) = &mut self.server_io {
@@ -463,7 +464,11 @@ impl Server {
                             self.user_names.insert(player_uuid, action.user.clone());
                             self.set_user_name(player_uuid, action.user.clone());
                             self.set_user_screen_name(player_uuid, action.screen);
+                            self.set_user_error(player_uuid, None);
                             valid_user = true;
+                        } else
+                        if let Some(err) = rc.err() {
+                            error = Some(err);
                         }
                     }
                 } else {
@@ -473,9 +478,21 @@ impl Server {
                             self.user_names.insert(player_uuid, action.user.clone());
                             self.set_user_name(player_uuid, action.user.clone());
                             self.set_user_screen_name(player_uuid, action.screen);
+                            self.set_user_error(player_uuid, None);
                             valid_user = true;
+                        } else
+                        if let Some(err) = rc.err() {
+                            error = Some(err);
                         }
                     }
+                }
+
+                if let Some(error) = error {
+                    let mut error_string : Option<String> = None;
+                    if let Some(io) = &mut self.server_io {
+                        error_string = io.error_message(error);
+                    }
+                    self.set_user_error(player_uuid, error_string);
                 }
 
                 if valid_user {
@@ -555,6 +572,20 @@ impl Server {
         } else {
             if let Some(lobby) = &mut self.lobby {
                 lobby.set_user_screen_name(player_uuid, name);
+            }
+        }
+    }
+
+    /// Sets the users screen name
+    fn set_user_error(&mut self, player_uuid: Uuid, error: Option<String>) {
+        if self.threaded {
+            let message = Message::SetUserError(player_uuid, error);
+            if let Some(lobby_sender) = &self.lobby_sender {
+                lobby_sender.send(message).unwrap();
+            }
+        } else {
+            if let Some(lobby) = &mut self.lobby {
+                lobby.set_user_error(player_uuid, error);
             }
         }
     }

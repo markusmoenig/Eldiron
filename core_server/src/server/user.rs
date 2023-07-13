@@ -6,7 +6,9 @@ pub struct User {
     pub name                    : String,
     pub screen_script           : Option<String>,
     pub new_screen_script       : Option<String>,
-    pub characters              : Vec<CharacterData>
+    pub characters              : Vec<CharacterData>,
+    pub error                   : Option<String>,
+
 }
 
 impl User {
@@ -19,6 +21,7 @@ impl User {
             screen_script       : None,
             new_screen_script   : None,
             characters          : vec![],
+            error               : None
         }
     }
 }

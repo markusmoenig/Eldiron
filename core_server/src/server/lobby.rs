@@ -90,6 +90,9 @@ impl Lobby {
                             Message::SetUserScreenName(id, name) => {
                                 self.set_user_screen_name(id, name);
                             },
+                            Message::SetUserError(id, error) => {
+                                self.set_user_error(id, error);
+                            },
                             Message::SetUserCharacters(id, list) => {
                                 self.set_user_characters(id, list);
                             },
@@ -135,6 +138,13 @@ impl Lobby {
         }
     }
 
+    /// Set user error
+    pub fn set_user_error(&mut self, user_id: Uuid, error: Option<String>) {
+        if let Some(user) = self.users.get_mut(&user_id) {
+            user.error = error;
+        }
+    }
+
     pub fn tick(&mut self) -> Vec<Message> {
         let mut ret_messages : Vec<Message> = vec![];
 
@@ -153,6 +163,11 @@ impl Lobby {
                 update.screen_script_name = Some(new_screen_name.clone());
                 user.screen_script = user.new_screen_script.clone();
                 user.new_screen_script = None;
+            }
+
+            if let Some(error) = &user.error {
+                let msg = MessageData::new(MessageType::Error, error.clone(), "System".into());
+                update.messages.push(msg);
             }
 
             update.characters = user.characters.clone();
