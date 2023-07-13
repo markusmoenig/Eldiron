@@ -47,13 +47,13 @@ pub trait ServerIO : Sync + Send {
     fn error_message(&self, err: IOError) -> Option<String> {
         match err {
             UserNotFound => {
-                Some("User not found.".into())
+                Some("User not found".into())
             },
             UserAlreadyExists => {
-                Some("User already exsits.".into())
+                Some("User already exists".into())
             },
             WrongPassword => {
-                Some("Wrong password.".into())
+                Some("Wrong password".into())
             },
             _ => {
                 None

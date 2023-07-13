@@ -29,6 +29,11 @@ fn draw() {
   draw_text_rect(rect(540, 125, 100, 20), "PASSWORD", "Roboto-Medium", 15.0, rgb(180, 180, 180), "right");
   draw_text_rect(rect(540, 150, 100, 20), "VERIFY", "Roboto-Medium", 15.0, rgb(180, 180, 180), "right");
 
+  let error_text = get_error_message().to_upper();
+  if error_text.is_empty() == false {
+    this.error_text.text = error_text;
+  }
+
   this.login_user_entry.draw();
   this.login_password_entry.draw();
   this.login_button.draw();

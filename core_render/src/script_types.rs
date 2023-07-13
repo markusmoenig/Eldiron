@@ -409,6 +409,7 @@ pub struct ScriptInfo {
     pub display_mode_3d     : bool,
     pub date                : Date,
     pub characters          : CharacterList,
+    pub messages            : Vec<MessageData>,
 }
 
 impl ScriptInfo {
@@ -423,6 +424,7 @@ impl ScriptInfo {
             display_mode_3d : false,
             date            : Date::new(),
             characters      : CharacterList::new(vec![]),
+            messages        : vec![],
         }
     }
 }
@@ -562,6 +564,16 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
 
     engine.register_fn("set_tile_size", |size: i32| {
         INFOCMD.lock().unwrap().tile_size = size;
+    });
+
+    engine.register_fn("get_error_message", || -> String {
+        let info = INFOCMD.lock().unwrap();
+        for m in &info.messages {
+            if m.message_type == MessageType::Error {
+                return m.message.clone();
+            }
+        }
+        "".into()
     });
 
     engine.register_fn("get_tilemaps", || -> ScriptTilemaps {

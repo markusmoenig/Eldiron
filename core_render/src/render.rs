@@ -349,6 +349,8 @@ impl GameRender<'_> {
             }
         }
 
+        INFOCMD.lock().unwrap().messages = update.messages.clone();
+
         // Get new multi_choice_data
         if update.multi_choice_data.is_empty() == false {
             self.multi_choice_data.clear();
