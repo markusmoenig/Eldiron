@@ -9,7 +9,7 @@ use pbkdf2::{
     Pbkdf2
 };
 
-// This implementation is for local games with a single user. No login required.
+// This implementation is for server based games with multiple users and login.
 
 pub struct UserFS {
 
