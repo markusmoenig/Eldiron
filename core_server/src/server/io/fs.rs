@@ -62,6 +62,28 @@ impl ServerIO for UserFS {
         Err(UserNotFound)
     }
 
+    fn login_local_user(&self, user_name: String) -> Result<(), IOError> {
+        let user_path = self.users_path.join(user_name);
+        if fs::metadata(user_path.clone()).is_ok() == false {
+            _ = fs::create_dir(user_path.clone());
+        }
+
+        if fs::metadata(user_path.clone()).is_ok() == true {
+
+            // If not already exist, create the users characters directory
+            let characters_path = user_path.join("characters");
+            if fs::metadata(characters_path.clone()).is_ok() == false {
+                _ = fs::create_dir(characters_path.clone());
+            }
+
+            if fs::metadata(characters_path.clone()).is_ok() == true {
+                return Ok(());
+            }
+        }
+
+        Err(UserNotFound)
+    }
+
     fn create_user(&self, user_name: String, password: String) -> Result<(), IOError> {
         let user_path = self.users_path.join(user_name);
         if fs::metadata(user_path.clone()).is_ok() == false {

@@ -244,6 +244,7 @@ pub enum ScriptServerCmd {
     EnterGameAndCreateCharacter(String, String, String, String),
     EnterGameWithCharacter(String),
     LoginUser(String, String, String),
+    LoginLocalUser(String, String),
     RegisterUser(String, String, String)
 }
 
@@ -452,6 +453,10 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
 
     engine.register_fn("enter_game_with_character", |name: &str| {
         SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::EnterGameWithCharacter(name.to_owned()));
+    });
+
+    engine.register_fn("login_local_user", |user: &str, screen: &str| {
+        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::LoginLocalUser(user.trim().to_owned(), screen.to_owned()));
     });
 
     engine.register_fn("login_user", |user: &str, password: &str, screen: &str| {

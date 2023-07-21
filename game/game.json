@@ -1,5 +1,22 @@
 {
   "nodes": {
+    "3f22cf39-1cff-4408-b08d-2aac047d8c36": {
+      "behavior_type": "Screen",
+      "name": "Screen",
+      "values": {
+        "reveal_scripts": {
+          "String": "Reveal"
+        },
+        "script_name": {
+          "String": "local_login.rhai"
+        }
+      },
+      "id": "3f22cf39-1cff-4408-b08d-2aac047d8c36",
+      "position": [
+        353,
+        239
+      ]
+    },
     "2b962655-d12d-4f18-9dfc-f380219a3921": {
       "behavior_type": "BehaviorTree",
       "name": "Game",
@@ -16,7 +33,7 @@
     },
     "6b1ba4b4-59f2-46b6-87b5-19c4f2e21fd2": {
       "behavior_type": "BehaviorTree",
-      "name": "Login",
+      "name": "Server_Login",
       "values": {
         "execute": {
           "Integer": 0
@@ -33,27 +50,13 @@
       "name": "Behavior Type",
       "values": {
         "startup": {
-          "String": "Login"
+          "String": "Local_Login"
         }
       },
       "id": "affd5d73-d981-4792-9a10-7ade9485d214",
       "position": [
         0,
         0
-      ]
-    },
-    "e8b8512f-a091-4bbe-bcee-0f3a2cb4f902": {
-      "behavior_type": "BehaviorTree",
-      "name": "Characters",
-      "values": {
-        "execute": {
-          "Integer": 0
-        }
-      },
-      "id": "e8b8512f-a091-4bbe-bcee-0f3a2cb4f902",
-      "position": [
-        337,
-        104
       ]
     },
     "3ffc63c7-997d-445e-9081-9af754bb396c": {
@@ -96,6 +99,34 @@
         232
       ]
     },
+    "8b8b1db9-e911-46b5-b8c2-4e123689bae4": {
+      "behavior_type": "BehaviorTree",
+      "name": "Local_Login",
+      "values": {
+        "execute": {
+          "Integer": 0
+        }
+      },
+      "id": "8b8b1db9-e911-46b5-b8c2-4e123689bae4",
+      "position": [
+        350,
+        91
+      ]
+    },
+    "e8b8512f-a091-4bbe-bcee-0f3a2cb4f902": {
+      "behavior_type": "BehaviorTree",
+      "name": "Characters",
+      "values": {
+        "execute": {
+          "Integer": 0
+        }
+      },
+      "id": "e8b8512f-a091-4bbe-bcee-0f3a2cb4f902",
+      "position": [
+        337,
+        104
+      ]
+    },
     "5749eb18-1842-4844-b545-09a7997e3136": {
       "behavior_type": "Screen",
       "name": "Screen",
@@ -104,7 +135,7 @@
           "String": "Reveal"
         },
         "script_name": {
-          "String": "login.rhai"
+          "String": "server_login.rhai"
         }
       },
       "id": "5749eb18-1842-4844-b545-09a7997e3136",
@@ -132,11 +163,17 @@
       "Bottom",
       "53ab0e2d-20a5-46de-8e5e-f669dfe27b26",
       "Top"
+    ],
+    [
+      "8b8b1db9-e911-46b5-b8c2-4e123689bae4",
+      "Bottom",
+      "3f22cf39-1cff-4408-b08d-2aac047d8c36",
+      "Top"
     ]
   ],
   "id": "ad56f52c-4c6b-4bfb-85db-dca8d12292d7",
   "name": "game",
-  "curr_node_id": "53ab0e2d-20a5-46de-8e5e-f669dfe27b26",
+  "curr_node_id": "3f22cf39-1cff-4408-b08d-2aac047d8c36",
   "instances": [],
   "loot": null,
   "settings": {

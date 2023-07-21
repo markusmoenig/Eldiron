@@ -208,9 +208,13 @@ impl Widget for ControlBar {
                         context.is_debugging = false;
                         atom_widget.text[0] = "Stop".to_string();
 
+                        let mut local_io = Box::new(UserFS::new());
+                        local_io.set_local_path(context.curr_project_path.clone());
+
                         // Start server
                         let mut server = core_server::server::Server::new();
                         server.collect_data(&context.data);
+                        server.set_io(local_io);
 
                         _ = server.start(Some(10));
                         // _ = server.start(None);

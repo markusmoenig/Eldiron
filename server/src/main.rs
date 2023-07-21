@@ -177,6 +177,7 @@ async fn main() {
     let game_data = GameData::load_from_path(PathBuf::from(".."));
 
     let mut server = Server::new();
+    server.allow_local_users = false;
     server.collect_data(&game_data);
 
     // Start the server with a maximum of 10 region threads per pool

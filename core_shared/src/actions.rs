@@ -36,7 +36,6 @@ pub struct LoginRegisterUser {
     pub screen                  : String,
 }
 
-
 /// Packs login requests
 pub fn pack_login_user(user: String, password: String, screen: String) -> Option<String> {
     let action = LoginRegisterUser{ register: false, user, password, screen };
@@ -46,6 +45,18 @@ pub fn pack_login_user(user: String, password: String, screen: String) -> Option
 /// Packs register requests
 pub fn pack_register_user(user: String, password: String, screen: String) -> Option<String> {
     let action = LoginRegisterUser{ register: true, user, password, screen };
+    return serde_json::to_string(&action).ok()
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct LoginLocalUser {
+    pub user                    : String,
+    pub screen                  : String,
+}
+
+/// Packs local login requests
+pub fn pack_login_local_user(user: String, screen: String) -> Option<String> {
+    let action = LoginLocalUser{ user, screen };
     return serde_json::to_string(&action).ok()
 }
 

@@ -199,8 +199,6 @@ impl Editor<'_> {
                 if key == Some(WidgetKey::Escape) {
                     self.controlbar.stop_debugging(&mut self.context);
                 }
-            } else {
-                key_string = "escape";
             }
 
             if key == Some(WidgetKey::Up) {

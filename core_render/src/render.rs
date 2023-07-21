@@ -81,7 +81,7 @@ pub struct GameRender<'a> {
 
     // We limit redraws to anim_counter updates, otherwise it flickers too much
     last_anim_counter           : usize,
-    last_light_map              : FxHashMap<(isize, isize), f32>
+    last_light_map              : FxHashMap<(isize, isize), f32>,
 }
 
 impl GameRender<'_> {
@@ -310,7 +310,7 @@ impl GameRender<'_> {
 
                         self.ast = Some(ast);
 
-                        self.process_cmds(self.player_id);
+                        _ = self.process_cmds(self.player_id);
                     }
                 } else
                 if let Some(err) = result.err() {
@@ -1234,15 +1234,15 @@ impl GameRender<'_> {
 
     pub fn key_down(&mut self, key: String, player_id: Uuid) -> (Vec<String>, Option<(String, Option<usize>)>) {
 
-            let mut key_string = key.clone();
+        let mut key_string = key.clone();
 
-            for c in key.chars() {
-                if c.is_ascii() {
-                    if c as u16 == 127 {
-                        key_string = "DEL".into();
-                    }
+        for c in key.chars() {
+            if c.is_ascii() {
+                if c as u16 == 127 {
+                    key_string = "DEL".into();
                 }
             }
+        }
 
         // Check if we have an active multiple choice communication
         if self.multi_choice_data.is_empty() == false {
@@ -1380,6 +1380,11 @@ impl GameRender<'_> {
                 },
                 ScriptServerCmd::LoginUser(user, password, screen) => {
                     if let Some(json) = pack_login_user(user, password, screen) {
+                        commands.push(json);
+                    }
+                },
+                ScriptServerCmd::LoginLocalUser(user, screen) => {
+                    if let Some(json) = pack_login_local_user(user, screen) {
                         commands.push(json);
                     }
                 },

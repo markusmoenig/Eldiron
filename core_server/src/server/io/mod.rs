@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 pub mod fs;
-pub mod local_fs;
+//pub mod local_fs;
 
 pub enum IOError {
     NotImplemented,
@@ -27,6 +27,9 @@ pub trait ServerIO : Sync + Send {
 
     /// Login the given user
     fn login_user(&self, user_name: String, password: String) -> Result<(), IOError> { Err(NotImplemented) }
+
+    /// Login a local user (if allowed)
+    fn login_local_user(&self, user_name: String) -> Result<(), IOError> { Err(NotImplemented) }
 
     /// Does the user exist ?
     fn does_user_exist(&mut self, user_name: String) -> Result<bool, IOError> { Err(NotImplemented) }

@@ -59,6 +59,9 @@ pub struct Server {
 
     // Lookup table for users who have a valid username
     user_names              : FxHashMap<Uuid, String>,
+
+    // Allow local users, disable for server based games
+    pub allow_local_users   : bool,
 }
 
 impl Server {
@@ -96,6 +99,8 @@ impl Server {
             server_io                   : None,
 
             user_names                  : FxHashMap::default(),
+
+            allow_local_users           : true,
         }
     }
 
@@ -499,6 +504,43 @@ impl Server {
                     if let Some(io) = &mut self.server_io {
                         if let Some(characters) = io.list_user_characters(action.user.clone()).ok() {
                             self.set_user_characters(player_uuid, characters);
+                        }
+                    }
+                }
+            } else
+            // Local users for non distributed games
+            if self.allow_local_users {
+                if let Some(action) = serde_json::from_str::<LoginLocalUser>(&action).ok() {
+                    let mut valid_user = false;
+                    let mut error : Option<IOError> = None;
+
+                    if let Some(io) = &mut self.server_io {
+                        let rc = io.login_local_user(action.user.clone());
+                        if rc.is_ok() {
+                            self.user_names.insert(player_uuid, action.user.clone());
+                            self.set_user_name(player_uuid, action.user.clone());
+                            self.set_user_screen_name(player_uuid, action.screen);
+                            self.set_user_error(player_uuid, None);
+                            valid_user = true;
+                        } else
+                        if let Some(err) = rc.err() {
+                            error = Some(err);
+                        }
+                    }
+
+                    if let Some(error) = error {
+                        let mut error_string : Option<String> = None;
+                        if let Some(io) = &mut self.server_io {
+                            error_string = io.error_message(error);
+                        }
+                        self.set_user_error(player_uuid, error_string);
+                    }
+
+                    if valid_user {
+                        if let Some(io) = &mut self.server_io {
+                            if let Some(characters) = io.list_user_characters(action.user.clone()).ok() {
+                                self.set_user_characters(player_uuid, characters);
+                            }
                         }
                     }
                 }
