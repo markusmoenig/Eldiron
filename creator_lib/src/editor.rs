@@ -539,7 +539,14 @@ impl Editor<'_> {
             }
 
             if let Some(render) = &mut self.game_render {
+
                 if let Some(server) = &mut self.context.server {
+
+                    for cmd in &render.indie_messages {
+                        server.execute_packed_player_action(self.context.player_uuid, cmd.clone());
+                    }
+                    render.indie_messages = vec![];
+
                     let messages = server.check_for_messages();
                     let mut handled_update = false;
                     for message in messages {

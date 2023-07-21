@@ -82,6 +82,8 @@ pub struct GameRender<'a> {
     // We limit redraws to anim_counter updates, otherwise it flickers too much
     last_anim_counter           : usize,
     last_light_map              : FxHashMap<(isize, isize), f32>,
+
+    pub indie_messages          : Vec<String>,
 }
 
 impl GameRender<'_> {
@@ -197,6 +199,8 @@ impl GameRender<'_> {
 
             last_anim_counter   : 0,
             last_light_map      : FxHashMap::default(),
+
+            indie_messages      : vec![],
         }
     }
 
@@ -310,7 +314,7 @@ impl GameRender<'_> {
 
                         self.ast = Some(ast);
 
-                        _ = self.process_cmds(self.player_id);
+                        self.indie_messages = self.process_cmds(self.player_id);
                     }
                 } else
                 if let Some(err) = result.err() {

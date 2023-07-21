@@ -155,8 +155,12 @@ async fn run() {
     event_loop.run(move |event, _, control_flow| {
         use winit::event::{ElementState, VirtualKeyCode};
 
-        let mut key_string = "";
+        for cmd in &render.indie_messages {
+            server.execute_packed_player_action(player_uuid, cmd.clone());
+        }
+        render.indie_messages = vec![];
 
+        let mut key_string = "";
         if let Event::RedrawRequested(_) = event {
 
             if let Some(mut client) = client.as_mut().ok() {

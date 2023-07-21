@@ -92,6 +92,11 @@ fn main() -> Result<(), Error> {
     event_loop.run(move |event, _, control_flow| {
         use winit::event::{ElementState, VirtualKeyCode};
 
+        for cmd in &render.indie_messages {
+            server.execute_packed_player_action(player_uuid, cmd.clone());
+        }
+        render.indie_messages = vec![];
+
         let mut key_string = "";
         let str_c;
 
