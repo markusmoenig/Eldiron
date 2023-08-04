@@ -118,7 +118,7 @@ jobs:
 
       - name: Create MSI Installer
         run: |
-          ./WiX.*/tools/heat.exe dir "output" -dr EldironProgramFiles -ag -cg DynamicFragment \
+          ./WiX.*/tools/heat.exe dir "output" -dr INSTALLDIR -ag -cg DynamicFragment \
             -ke -srd -sfrag -nologo -pog:Binaries -pog:Documents -pog: Satellites \
             -pog:Sources -pog:Content -out "./resources.wxs"
           ./WiX.*/tools/candle.exe -arch "x64" -ext WixUIExtension -ext WixUtilExtension \
