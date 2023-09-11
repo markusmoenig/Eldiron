@@ -5,6 +5,8 @@ fn init() {
     this.logo = get_images().get("eldiron_logo");
 
     this.login_user_entry = button::TextEntry("", rect(250, 100, 200, 20));
+    this.login_user_entry.has_focus = true;
+
     this.login_password_entry = button::TextEntry("", rect(250, 125, 200, 20));
     this.login_button = button::TextButton("LOGIN", rect(250, 160, 50, 20));
 

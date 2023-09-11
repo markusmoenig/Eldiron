@@ -41,6 +41,10 @@ pub struct RegionWidget {
 
     preview_button          : AtomWidget,
     scale_button            : AtomWidget,
+
+    selected_tile           : Option<(isize, isize)>,
+    selected_character      : Option<Uuid>,
+    selected_item           : Option<Uuid>
 }
 
 impl EditorContent for RegionWidget {
@@ -310,6 +314,10 @@ impl EditorContent for RegionWidget {
 
             preview_button,
             scale_button,
+
+            selected_tile           : None,
+            selected_character      : None,
+            selected_item           : None,
         }
     }
 
@@ -359,6 +367,7 @@ impl EditorContent for RegionWidget {
 
             self.screen_offset = (left_offset, top_offset);
 
+            // Draw Basic Region
             if let Some(region) = context.data.regions.get(&self.region_id) {
 
                 if context.is_running == false {
@@ -387,7 +396,7 @@ impl EditorContent for RegionWidget {
                     }
                 }
 
-                // Preview
+                // Draw Optional Preview
 
                 if self.preview_button.curr_index == 1 || self.preview_button.curr_index == 2 {
 
@@ -519,7 +528,9 @@ impl EditorContent for RegionWidget {
                         }
                     }
                 }
+                // End Optional Preview
             }
+            // End Basic Region
 
             context.draw2d.draw_rect(frame, &(rect.0, rect.1 + rect.3, self.rect.2, self.toolbar_size), context.width, &context.color_black);
 
@@ -527,6 +538,8 @@ impl EditorContent for RegionWidget {
 
             self.layouts[0].draw(frame, anim_counter, asset, context);
 
+
+            // Draw Tiles Mode
             if editor_mode == RegionEditorMode::Tiles {
                 self.tile_selector.draw(frame, context.width, anim_counter, asset, context);
 
@@ -608,6 +621,7 @@ impl EditorContent for RegionWidget {
                     }
                 }
             } else
+            // Draw Areas
             if editor_mode == RegionEditorMode::Areas {
 
                 self.layouts[1].draw(frame, anim_counter, asset, context);
@@ -659,15 +673,24 @@ impl EditorContent for RegionWidget {
                 self.behavior_graph.draw(frame, anim_counter, asset, context, &mut None);
             }
 
+            let mut draw_tile_outline = |id: (isize, isize)| {
+                let pos = (rect.0 + left_offset + ((id.0 + self.offset.0) as usize) * grid_size, rect.1 + top_offset + ((id.1 + self.offset.1) as usize) * grid_size);
+                if  pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.0 + grid_size < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3 && pos.1 + grid_size < rect.1 + rect.3 {
+                    context.draw2d.draw_rect_outline(frame, &(pos.0, pos.1, grid_size, grid_size), context.width, context.color_light_white);
+                    context.draw2d.draw_rect_outline(frame, &(pos.0 + 1, pos.1 + 1, grid_size - 2, grid_size - 2), context.width, context.color_black);
+                }
+            };
+
             // Draw a white border around the tile under the mouse cursor
             if self.mouse_hover_pos != (0,0) && context.is_running == false {
                 if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
-                    let pos = (rect.0 + left_offset + ((id.0 + self.offset.0) as usize) * grid_size, rect.1 + top_offset + ((id.1 + self.offset.1) as usize) * grid_size);
-                    if  pos.0 + grid_size < rect.0 + rect.2 && pos.1 + grid_size < rect.1 + rect.3 {
-                        context.draw2d.draw_rect_outline(frame, &(pos.0, pos.1, grid_size, grid_size), context.width, context.color_light_white);
-                        context.draw2d.draw_rect_outline(frame, &(pos.0 + 1, pos.1 + 1, grid_size - 2, grid_size - 2), context.width, context.color_black);
-                    }
+                    draw_tile_outline(id);
                 }
+            }
+
+            // Draw a border around the currently selected tile
+            if let Some(id) = self.selected_tile {
+                draw_tile_outline(id);
             }
         }
 
@@ -1056,6 +1079,22 @@ impl EditorContent for RegionWidget {
                     } else
                     if editor_mode == RegionEditorMode::Characters {
                         if let Some(id) = self.get_tile_id(pos) {
+
+                            self.selected_tile = Some(id);
+                            for (_id, behavior) in &mut context.data.behaviors {
+
+                                if let Some(instances) = &behavior.data.instances {
+                                    for instance in instances {
+                                        if self.region_id == instance.position.region {
+                                            if instance.position.x == id.0 && instance.position.y == id.1 {
+                                                self.selected_character = Some(behavior.data.id);
+                                                println!("name {:?}", instance.name);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            /*
                             if let Some(meta) = self.character_selector.selected.clone() {
 
                                 let alignment = context.data.get_behavior_default_alignment(meta.id);
@@ -1067,7 +1106,7 @@ impl EditorContent for RegionWidget {
 
                                     let mode = self.layouts[2].widgets[0].checked;
 
-                                    if mode{
+                                    if mode {
                                         // Add
                                         let index = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == Position::new(self.region_id, id.0, id.1));
 
@@ -1091,7 +1130,7 @@ impl EditorContent for RegionWidget {
                                     }
                                     behavior.save_data();
                                 }
-                            }
+                            }*/
                         }
                     } else
                     if editor_mode == RegionEditorMode::Loot {

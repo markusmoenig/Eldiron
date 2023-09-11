@@ -2,23 +2,6 @@
     "version": "2.0.0",
     "tasks": [
     {
-        "label": "(creator) cargo run",
-        "type": "shell",
-        "command": "cargo",
-        "args": [
-            "run",
-            "-p",
-            "creator_main"
-            // "--release",
-            // "--",
-            // "arg1"
-        ],
-        "group": {
-            "kind": "build",
-            "isDefault": true
-        }
-    },
-    {
         "label": "(creator) cargo run release",
         "type": "shell",
         "command": "cargo",
