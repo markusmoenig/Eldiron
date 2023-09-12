@@ -892,10 +892,58 @@ impl EditorContent for RegionWidget {
                         if id.1 == "Add".to_string() {
                             self.layouts[2].widgets[1].checked = false;
                             self.layouts[2].widgets[1].dirty = true;
+
+                            if let Some(tile_id) = self.selected_tile {
+                                if self.selected_character.is_none() {
+
+                                    if let Some(meta) = self.character_selector.selected.clone() {
+
+                                        let alignment = context.data.get_behavior_default_alignment(meta.id);
+
+                                        if let Some(behavior) = context.data.get_mut_behavior(meta.id, BehaviorType::Behaviors) {
+                                            if behavior.data.instances.is_none() {
+                                                behavior.data.instances = Some(vec![]);
+                                            }
+
+                                            let index = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == Position::new(self.region_id, tile_id.0, tile_id.1));
+
+                                            if index.is_none() {
+                                                let instance = CharacterInstanceData {
+                                                    position    : Position::new(self.region_id, tile_id.0,  tile_id.1),
+                                                    name        : None,
+                                                    tile        : None,
+                                                    alignment   : Some(alignment),
+                                                    class       : None,
+                                                    race        : None,
+                                                    screen      : None,
+                                                };
+                                                behavior.data.instances.as_mut().unwrap().push(instance);
+                                                self.selected_character = Some(behavior.data.id);
+                                            }
+                                            behavior.save_data();
+                                        }
+                                    }
+                                }
+                            }
                         } else
                         if id.1 == "Remove".to_string() {
                             self.layouts[2].widgets[0].checked = false;
                             self.layouts[2].widgets[0].dirty = true;
+
+                            if let Some(tile_id) = self.selected_tile {
+                                if let Some(character_id) = self.selected_character {
+
+                                    if let Some(behavior) = context.data.get_mut_behavior(character_id, BehaviorType::Behaviors) {
+
+                                        if let Some(index) = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == Position::new(self.region_id, tile_id.0, tile_id.1)) {
+                                            behavior.data.instances.as_mut().unwrap().remove(index);
+                                        }
+
+                                        self.selected_character = None;
+                                        behavior.save_data();
+                                    }
+                                }
+                            }
                         }
                         return true;
                     }
@@ -909,10 +957,62 @@ impl EditorContent for RegionWidget {
                         if id.1 == "Add".to_string() {
                             self.layouts[3].widgets[1].checked = false;
                             self.layouts[3].widgets[1].dirty = true;
+
+                            if let Some(id) = self.selected_tile {
+                                if self.selected_item.is_none() {
+                                    if let Some(meta) = self.loot_selector.selected.clone() {
+
+                                        let amount = 1;
+
+                                        if let Some(behavior) = context.data.get_mut_behavior(meta.id, BehaviorType::Items) {
+
+                                            if behavior.data.loot.is_none() {
+                                                behavior.data.loot = Some(vec![]);
+                                            }
+
+                                            let index = behavior.data.loot.as_ref().unwrap().iter().position(|r| r.position == Position::new(self.region_id, id.0, id.1));
+
+                                            if index.is_none() {
+                                                let loot = LootInstanceData {
+                                                    position    : Position::new(self.region_id, id.0, id.1),
+                                                    name        : None,
+                                                    tile        : None,
+                                                    amount      : amount };
+                                                behavior.data.loot.as_mut().unwrap().push(loot);
+                                                behavior.save_data();
+                                                self.selected_item = Some(behavior.data.id);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         } else
                         if id.1 == "Remove".to_string() {
                             self.layouts[3].widgets[0].checked = false;
                             self.layouts[3].widgets[0].dirty = true;
+
+                            if let Some(id) = self.selected_tile {
+                                if self.selected_item.is_some() {
+                                    // Remove loot from all items at the given position
+                                    for (_id, behavior) in &mut context.data.items {
+
+                                        let mut to_remove = vec![];
+                                        if let Some(loot) = &behavior.data.loot {
+                                            for (index, l) in loot.iter().enumerate() {
+                                                if l.position.region == self.region_id && l.position.x == id.0 && l.position.y == id.1 {
+                                                    to_remove.push(index);
+                                                }
+                                            }
+                                        }
+
+                                        for index in to_remove {
+                                            behavior.data.loot.as_mut().unwrap().remove(index);
+                                            behavior.save_data();
+                                            self.selected_item = None;
+                                        }
+                                    }
+                                }
+                            }
                         }
                         return true;
                     }
@@ -1079,7 +1179,7 @@ impl EditorContent for RegionWidget {
                     } else
                     if editor_mode == RegionEditorMode::Characters {
                         if let Some(id) = self.get_tile_id(pos) {
-
+                            self.selected_character = None;
                             self.selected_tile = Some(id);
                             for (_id, behavior) in &mut context.data.behaviors {
 
@@ -1088,52 +1188,45 @@ impl EditorContent for RegionWidget {
                                         if self.region_id == instance.position.region {
                                             if instance.position.x == id.0 && instance.position.y == id.1 {
                                                 self.selected_character = Some(behavior.data.id);
-                                                println!("name {:?}", instance.name);
                                             }
                                         }
                                     }
                                 }
                             }
-                            /*
-                            if let Some(meta) = self.character_selector.selected.clone() {
-
-                                let alignment = context.data.get_behavior_default_alignment(meta.id);
-
-                                if let Some(behavior) = context.data.get_mut_behavior(meta.id, BehaviorType::Behaviors) {
-                                    if behavior.data.instances.is_none() {
-                                        behavior.data.instances = Some(vec![]);
-                                    }
-
-                                    let mode = self.layouts[2].widgets[0].checked;
-
-                                    if mode {
-                                        // Add
-                                        let index = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == Position::new(self.region_id, id.0, id.1));
-
-                                        if index.is_none() {
-                                            let instance = CharacterInstanceData {
-                                                position    : Position::new(self.region_id, id.0, id.1),
-                                                name        : None,
-                                                tile        : None,
-                                                alignment   : Some(alignment),
-                                                class       : None,
-                                                race        : None,
-                                                screen      : None,
-                                            };
-                                            behavior.data.instances.as_mut().unwrap().push(instance);
-                                        }
-                                    } else {
-                                        // Remove
-                                        if let Some(index) = behavior.data.instances.as_ref().unwrap().iter().position(|r| r.position == Position::new(self.region_id, id.0, id.1)) {
-                                            behavior.data.instances.as_mut().unwrap().remove(index);
-                                        }
-                                    }
-                                    behavior.save_data();
-                                }
-                            }*/
                         }
                     } else
                     if editor_mode == RegionEditorMode::Loot {
+
+                        if let Some(id) = self.get_tile_id(pos) {
+                            self.selected_item = None;
+                            self.selected_tile = Some(id);
+                            for (_id, behavior) in &mut context.data.behaviors {
+
+                                if let Some(instances) = &behavior.data.instances {
+                                    for instance in instances {
+                                        if self.region_id == instance.position.region {
+                                            if instance.position.x == id.0 && instance.position.y == id.1 {
+                                                self.selected_character = Some(behavior.data.id);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(id) = self.get_tile_id(pos) {
+                            self.selected_item = None;
+                            self.selected_tile = Some(id);
+                            for (_id, behavior) in &mut context.data.items {
+                                if let Some(loot) = &behavior.data.loot {
+                                    for l in loot {
+                                        if l.position.region == self.region_id && l.position.x == id.0 && l.position.y == id.1 {
+                                            self.selected_item = Some(behavior.data.id);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        /*
                         if let Some(id) = self.get_tile_id(pos) {
                             if let Some(meta) = self.loot_selector.selected.clone() {
 
@@ -1180,7 +1273,7 @@ impl EditorContent for RegionWidget {
                                     }
                                 }
                             }
-                        }
+                        }*/
                     }
                 }
                 consumed = true;

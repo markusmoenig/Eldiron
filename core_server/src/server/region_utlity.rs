@@ -43,7 +43,7 @@ pub fn execute_area_node(region_id: Uuid, area_index: usize, node_id: Uuid) -> O
     let mut node_call: Option<NodeDataCall> = None;
 
     {
-        let mut data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
+        let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
         data.curr_area_index = area_index;
         if let Some(node) = data.region_area_behavior[area_index].nodes.get(&node_id) {
             if let Some(nc) = data.nodes.get(&node.behavior_type) {

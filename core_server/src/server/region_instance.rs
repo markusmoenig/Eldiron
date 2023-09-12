@@ -1523,7 +1523,7 @@ impl RegionInstance {
         }
 
         let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-        let mut sheet = &mut data.sheets[instance_index];
+        let sheet = &mut data.sheets[instance_index];
         sheet.experience.system_name = Some(system_name);
         sheet.experience.tree_name = Some(tree_name.to_string());
         sheet.experience.levels = levels;
@@ -1531,7 +1531,7 @@ impl RegionInstance {
         sheet.experience.level_behavior_id = level_behavior_id;
     }
 
-        /// Returns the script name for a given game behavior tree
+    /// Returns the script name for a given game behavior tree
     fn get_script_name_for_screen(&self, screen_name: String) -> Option<String> {
         let mut screen_node_id : Option<Uuid> = None;
 

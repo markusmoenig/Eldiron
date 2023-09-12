@@ -1558,7 +1558,7 @@ pub fn node_set_level_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeh
             }
 
             let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-            let mut sheet = &mut data.sheets[data.curr_index];
+            let sheet = &mut data.sheets[data.curr_index];
             sheet.experience.system_name = Some(system_name);
             sheet.experience.tree_name = Some(tree_name);
             sheet.experience.levels = levels;
