@@ -81,7 +81,6 @@ pub trait EditorOptions : Sync + Send  {
     fn get_screen_editor_mode(&self) -> super::screeneditor_options::ScreenEditorMode { super::screeneditor_options::ScreenEditorMode::Scripts }
 
     fn set_script_names(&mut self, scripts: Vec<&String>, index: usize) {}
-
 }
 
 #[derive(PartialEq)]
@@ -131,7 +130,6 @@ pub trait EditorContent : Sync + Send {
 
     // For RegionWidget
 
-
     /// Sets a region id
     fn set_region_id(&mut self, id: Uuid, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {}
 
@@ -146,6 +144,15 @@ pub trait EditorContent : Sync + Send {
 
     /// Returns the region_id
     fn get_region_id(&self) -> Uuid { Uuid::new_v4() }
+
+    /// Returns the currently selected tile id in the editor
+    fn get_selected_editor_tile(&self) -> Option<(isize, isize)> { None }
+
+    /// Returns the currently selected character Uuid in the editor
+    fn get_selected_editor_character(&self) -> Option<Uuid> { None }
+
+    /// Returns the currently selected loot Uuid in the editor
+    fn get_selected_editor_loot(&self) -> Option<Uuid> { None }
 
     /// Return the behavior graph
     fn get_behavior_graph(&mut self) -> Option<&mut NodeGraph> { None }

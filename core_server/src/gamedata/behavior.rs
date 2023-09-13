@@ -276,6 +276,7 @@ pub struct LootInstanceData {
     pub position                : Position,
     pub name                    : Option<String>,
     pub tile                    : Option<TileId>,
+    pub execute_on_startup      : Option<String>,
     pub amount                  : i32,
 }
 

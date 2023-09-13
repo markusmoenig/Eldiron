@@ -343,7 +343,7 @@ pub fn execute_targeted_action(action_name: String, dp: Option<Position>, nodes:
         for index in 0..loot.len() {
             if loot[index].state.is_none() {
                 // Check if we have to create the item state
-                loot[index].state = check_and_create_item_state(loot[index].id);
+                loot[index].state = check_and_create_item_state(loot[index].id, loot[index].exectute_on_startup.clone());
             }
 
             let mut to_execute = vec![];
@@ -438,7 +438,7 @@ pub fn drop_communication(instance_index: usize, npc_index: usize, data: &mut Re
 }
 
 /// Check if we have to create the state for the given item
-pub fn check_and_create_item_state(item_behavior_id: Uuid) -> Option<State> {
+pub fn check_and_create_item_state(item_behavior_id: Uuid, execute_on_startup: Option<String>) -> Option<State> {
 
     let mut states_to_execute = vec![];
     let mut item_nodes = ITEMS.borrow_mut();
@@ -466,6 +466,7 @@ pub fn check_and_create_item_state(item_behavior_id: Uuid) -> Option<State> {
             if let Some(state) = sink.get("state") {
                 if let Some(value) = state.as_bool() {
                     if value == true {
+                        // Pass One, add the startup tree
                         for (node_id, node) in &behavior.nodes {
                             if node.behavior_type == BehaviorNodeType::BehaviorTree {
                                 for (value_name, value) in &node.values {
@@ -480,6 +481,12 @@ pub fn check_and_create_item_state(item_behavior_id: Uuid) -> Option<State> {
                                 }
                             }
                         }
+                        // Pass two, add the execute_on_startup tree
+                        for (node_id, node) in &behavior.nodes {
+                            if Some(node.name.clone()) == execute_on_startup{
+                                states_to_execute.push((behavior.id, *node_id));
+                            }
+                        }
                     }
                 }
             }
@@ -487,9 +494,11 @@ pub fn check_and_create_item_state(item_behavior_id: Uuid) -> Option<State> {
     }
 
     // Create the state
-    for (behavior_id, node_id) in states_to_execute {
+    if states_to_execute.is_empty() == false {
         *STATE.borrow_mut() = State::new();
-        execute_node(behavior_id, node_id, &mut item_nodes);
+        for (behavior_id, node_id) in states_to_execute {
+            execute_node(behavior_id, node_id, &mut item_nodes);
+        }
         return Some(STATE.borrow().clone());
     }
 

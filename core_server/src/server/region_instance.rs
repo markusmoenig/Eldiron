@@ -734,6 +734,8 @@ impl RegionInstance {
                             }
                         }
 
+                        loot.exectute_on_startup = instance.execute_on_startup.clone();
+
                         let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
                         if let Some(v) = data.loot.get_mut(&(instance.position.x, instance.position.y)) {
                             v.push(loot);
@@ -826,11 +828,13 @@ impl RegionInstance {
 
         for (pos, loot) in &mut loot_map {
             for index in 0..loot.len() {
-                if let Some(mut state) = check_and_create_item_state(loot[index].id) {
+                if let Some(mut state) = check_and_create_item_state(loot[index].id, loot[index].exectute_on_startup.clone()) {
                     if let Some(light) = &mut state.light {
                         light.position = pos.clone();
                     }
-                    state.tile = loot[index].tile.clone();
+                    if state.tile.is_none() {
+                        state.tile = loot[index].tile.clone();
+                    }
                     loot[index].tile = None;
                     loot[index].state = Some(state);
                 }

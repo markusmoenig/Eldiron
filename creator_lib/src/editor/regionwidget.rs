@@ -974,10 +974,11 @@ impl EditorContent for RegionWidget {
 
                                             if index.is_none() {
                                                 let loot = LootInstanceData {
-                                                    position    : Position::new(self.region_id, id.0, id.1),
-                                                    name        : None,
-                                                    tile        : None,
-                                                    amount      : amount };
+                                                    position                : Position::new(self.region_id, id.0, id.1),
+                                                    name                    : None,
+                                                    tile                    : None,
+                                                    execute_on_startup      : None,
+                                                    amount                  : amount };
                                                 behavior.data.loot.as_mut().unwrap().push(loot);
                                                 behavior.save_data();
                                                 self.selected_item = Some(behavior.data.id);
@@ -1939,6 +1940,21 @@ impl EditorContent for RegionWidget {
             self.update_area_ui(context);
         }
     }
+
+    /// Returns the currently selected tile id in the editor
+    fn get_selected_editor_tile(&self) -> Option<(isize, isize)> {
+        self.selected_tile
+    }
+
+    /// Returns the currently selected character Uuid in the editor
+    fn get_selected_editor_character(&self) -> Option<Uuid> {
+        self.selected_character
+    }
+
+    /// Returns the currently selected loot Uuid in the editor
+    fn get_selected_editor_loot(&self) -> Option<Uuid> {
+        self.selected_item
+     }
 
     // Undo / Redo
 

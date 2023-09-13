@@ -1,5 +1,5 @@
 extern crate ref_thread_local;
-use ref_thread_local::{RefThreadLocal};
+use ref_thread_local::RefThreadLocal;
 use crate::prelude::*;
 
 /// Light

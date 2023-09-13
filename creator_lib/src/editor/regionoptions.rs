@@ -83,8 +83,25 @@ impl EditorOptions for RegionOptions {
         layouts.push(area_layout);
 
         layouts.push(VLayout::new(rect));
+
+        // Item
+
+        let mut item_layout = VLayout::new(rect);
+        item_layout.margin.1 = 70;
+
+        let mut item_state_button = AtomWidget::new(vec!["None".to_string(), "Use".to_string()], AtomWidgetType::SliderButton,
+        AtomData::new("Item State", Value::Empty()));
+        item_state_button.atom_data.text = "Item State".to_string();
+        item_state_button.set_rect((0, 0, rect.2, 40));
+        item_state_button.status_help_text = Some("Set the item startup state.".to_string());
+        item_layout.add(item_state_button, 0);
+
+        item_layout.layout();
+        layouts.push(item_layout);
+
         layouts.push(VLayout::new(rect));
-        layouts.push(VLayout::new(rect));
+
+        // Procedural
 
         let mut procedural_layout = VLayout::new(rect);
 
@@ -163,6 +180,34 @@ impl EditorOptions for RegionOptions {
                     context.draw2d.draw_text_rect(frame, &(0, y, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("{}: {}, {}", name, tile.x_off, tile.y_off), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
                 }
             }
+        } else
+        if mode == RegionEditorMode::Characters {
+            if let Some(content) = content {
+                if let Some(_tile_id) =  content.get_selected_editor_tile() {
+                    if let Some(character) = content.get_selected_editor_character() {
+                        if let Some(behavior) = context.data.get_mut_behavior(character, BehaviorType::Behaviors) {
+                            context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + 20, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("Instance of:"), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
+
+                            context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + 45, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 15.0, &format!("{:?}", behavior.name), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
+                        }
+                    }
+                }
+            }
+        } else
+        if mode == RegionEditorMode::Loot {
+            if let Some(content) = content {
+                if let Some(_tile_id) =  content.get_selected_editor_tile() {
+                    if let Some(loot) = content.get_selected_editor_loot() {
+                        if let Some(behavior) = context.data.get_mut_behavior(loot, BehaviorType::Items) {
+                            context.draw2d.draw_text_rect(frame, &(0, self.rect.1 + 20, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 20.0, &behavior.name.to_string(), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Center);
+
+                            context.draw2d.draw_text_rect(frame, &(15, self.rect.1 + 55, self.rect.2, 20), context.width, &asset.get_editor_font("OpenSans"), 13.0, &"Execute on Startup".to_string(), &context.color_white, &[0,0,0,255], crate::draw2d::TextAlignment::Left);
+
+                            self.layouts[self.mode as usize].draw(frame, anim_counter, asset, context);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -208,6 +253,11 @@ impl EditorOptions for RegionOptions {
             if let Some(_id) = self.layouts[self.mode as usize].mouse_down(pos, asset, context) {
                 return true;
             }
+        } else
+        if mode == RegionEditorMode::Loot {
+            if let Some(_id) = self.layouts[self.mode as usize].mouse_down(pos, asset, context) {
+                return true;
+            }
         }
 
         false
@@ -248,6 +298,71 @@ impl EditorOptions for RegionOptions {
             if let Some(_id) = self.layouts[self.mode as usize].mouse_up(pos, asset, context) {
                 return true;
             }
+        } else
+        if mode == RegionEditorMode::Loot {
+            if let Some(id) = self.layouts[self.mode as usize].mouse_up(pos, asset, context) {
+                if id.1 == "Item State".to_string() {
+                    let v =  self.layouts[self.mode as usize].widgets[id.0].curr_index;
+
+                    if let Some(content) = content {
+                        if let Some(tile_id) =  content.get_selected_editor_tile() {
+                            if let Some(loot) = content.get_selected_editor_loot() {
+                                if let Some(behavior) = context.data.get_mut_behavior(loot, BehaviorType::Items) {
+
+                                    let mut to_change = vec![];
+
+                                    let region_id = content.get_region_id();
+
+                                    if let Some(loot) = &behavior.data.loot {
+                                        for (index, l) in loot.iter().enumerate() {
+                                            if l.position.region == region_id && l.position.x == tile_id.0 && l.position.y == tile_id.1 {
+                                                to_change.push(index);
+                                            }
+                                        }
+                                    }
+
+                                    for index in to_change {
+                                        if let Some(loots) = behavior.data.loot.as_mut() {
+
+                                            match v {
+                                                0 => {
+                                                    loots[index].execute_on_startup = None;
+                                                },
+                                                _ => {
+                                                    loots[index].execute_on_startup = Some("Use".to_string());
+                                                }
+                                            }
+                                        }
+                                        behavior.save_data();
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    /*
+                    // Set the state for all items at the position
+                    for (_id, behavior) in &mut context.data.items {
+
+                        let mut to_remove = vec![];
+                        if let Some(loot) = &behavior.data.loot {
+                            for (index, l) in loot.iter().enumerate() {
+                                if l.position.region == self.region_id && l.position.x == id.0 && l.position.y == id.1 {
+                                    to_remove.push(index);
+                                }
+                            }
+                        }
+
+                        for index in to_remove {
+                            behavior.data.loot.as_mut().unwrap().remove(index);
+                            behavior.save_data();
+                            self.selected_item = None;
+                        }
+                    }*/
+
+                }
+                return true;
+            }
         }
 
         false
@@ -257,7 +372,7 @@ impl EditorOptions for RegionOptions {
 
         let mode = self.get_editor_mode();
 
-        if mode == RegionEditorMode::Tiles || mode == RegionEditorMode::Areas || mode == RegionEditorMode::Procedural  {
+        if mode == RegionEditorMode::Tiles || mode == RegionEditorMode::Areas || mode == RegionEditorMode::Procedural || mode == RegionEditorMode::Loot  {
             if let Some(_id) = self.layouts[self.mode as usize].mouse_hover(pos, asset, context) {
                 return true;
             }
