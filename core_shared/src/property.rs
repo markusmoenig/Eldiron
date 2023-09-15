@@ -1,54 +1,53 @@
 use crate::prelude::*;
-use colors_transform::{Rgb, Color, AlphaColor};
+use colors_transform::{AlphaColor, Color, Rgb};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct Property {
-    pub name                    : String,
-    pub value                   : PropertyValue,
+    pub name: String,
+    pub value: PropertyValue,
 }
 
 impl Property {
-
     pub fn new_int(name: String, value: i32) -> Self {
         Self {
             name,
-            value               : PropertyValue::Int(value),
+            value: PropertyValue::Int(value),
         }
     }
 
     pub fn new_intx(name: String, value: Vec<i32>) -> Self {
         Self {
             name,
-            value               : PropertyValue::IntX(value),
+            value: PropertyValue::IntX(value),
         }
     }
 
     pub fn new_float(name: String, value: f32) -> Self {
         Self {
             name,
-            value               : PropertyValue::Float(value),
+            value: PropertyValue::Float(value),
         }
     }
 
     pub fn new_string(name: String, value: String) -> Self {
         Self {
             name,
-            value               : PropertyValue::String(value.clone()),
+            value: PropertyValue::String(value.clone()),
         }
     }
 
     pub fn new_bool(name: String, value: bool) -> Self {
         Self {
             name,
-            value               : PropertyValue::Bool(value),
+            value: PropertyValue::Bool(value),
         }
     }
 
     pub fn new_color(name: String, value: String) -> Self {
         Self {
             name,
-            value               : PropertyValue::Color(value.clone()),
+            value: PropertyValue::Color(value.clone()),
         }
     }
 
@@ -79,9 +78,7 @@ impl Property {
             PropertyValue::Int(_value) => None,
             PropertyValue::IntX(_value) => None,
             PropertyValue::Float(_value) => None,
-            PropertyValue::String(value) => {
-                Some(value.clone())
-            }
+            PropertyValue::String(value) => Some(value.clone()),
             PropertyValue::Bool(_value) => None,
             PropertyValue::Color(_value) => None,
         }
@@ -114,7 +111,7 @@ impl Property {
             PropertyValue::Int(value) => *value as f32,
             PropertyValue::IntX(value) => value[0] as f32,
             PropertyValue::Float(value) => *value,
-            _ => { 0.0 }
+            _ => 0.0,
         }
     }
 
@@ -122,7 +119,7 @@ impl Property {
         match &self.value {
             PropertyValue::Int(value) => *value,
             PropertyValue::Float(value) => *value as i32,
-            _ => { 0 }
+            _ => 0,
         }
     }
 
@@ -135,7 +132,12 @@ impl Property {
             PropertyValue::Bool(_value) => None,
             PropertyValue::Color(value) => {
                 if let Some(rgb) = Rgb::from_hex_str(value).ok() {
-                    return Some([rgb.get_red() as u8, rgb.get_green() as u8, rgb.get_blue() as u8, rgb.get_alpha() as u8]);
+                    return Some([
+                        rgb.get_red() as u8,
+                        rgb.get_green() as u8,
+                        rgb.get_blue() as u8,
+                        rgb.get_alpha() as u8,
+                    ]);
                 }
                 None
             }
@@ -152,13 +154,13 @@ impl Property {
                 let mut string = "".to_string();
                 for i in 0..value.len() {
                     string += value[i].to_string().as_str();
-                    if i < value.len() - 1  {
+                    if i < value.len() - 1 {
                         string += ", ";
                     }
                 }
                 string
             }
-            PropertyValue::Float(value) =>  value.to_string(),
+            PropertyValue::Float(value) => value.to_string(),
             PropertyValue::String(value) => "\"".to_string() + (value.clone() + "\"").as_str(),
             PropertyValue::Bool(value) => value.to_string(),
             PropertyValue::Color(value) => value.to_string(),
@@ -167,7 +169,7 @@ impl Property {
         return string;
     }
 
-    pub fn to_currency(&self ) -> Option<Currency> {
+    pub fn to_currency(&self) -> Option<Currency> {
         match &self.value {
             PropertyValue::String(s) => {
                 use std::str::FromStr;
@@ -175,9 +177,11 @@ impl Property {
                 let gold_regex = regex::Regex::new(r"(\d+)g").unwrap();
                 let silver_regex = regex::Regex::new(r"(\d+)s").unwrap();
 
-                let gold = gold_regex.find(s)
+                let gold = gold_regex
+                    .find(s)
                     .map(|mat| i32::from_str(mat.as_str().trim_end_matches('g')).unwrap());
-                let silver = silver_regex.find(s)
+                let silver = silver_regex
+                    .find(s)
                     .map(|mat| i32::from_str(mat.as_str().trim_end_matches('s')).unwrap());
 
                 if gold.is_some() || silver.is_some() {
@@ -195,11 +199,10 @@ impl Property {
                 } else {
                     None
                 }
-            },
+            }
             _ => None,
         }
     }
-
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -209,23 +212,22 @@ pub enum PropertyValue {
     Float(f32),
     String(String),
     Bool(bool),
-    Color(String)
+    Color(String),
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct PropertySink {
-    pub properties              : Vec<Property>,
+    pub properties: Vec<Property>,
 
-    pub error                   : Option<(usize, String)>
+    pub error: Option<(usize, String)>,
 }
 
 impl PropertySink {
-
     pub fn new() -> Self {
         Self {
-            properties          : vec![],
+            properties: vec![],
 
-            error               : None
+            error: None,
         }
     }
 
@@ -239,28 +241,30 @@ impl PropertySink {
         let mut line_counter = 1_usize;
 
         while let Some(line) = lines.next() {
-
             let mut split_comment = line.split("//");
 
             if let Some(left_of_comment) = split_comment.next() {
                 if left_of_comment.is_empty() == false {
-
                     let mut split_equal = left_of_comment.split("=");
 
                     if let Some(mut left) = split_equal.next() {
                         if let Some(mut right) = split_equal.next() {
-
                             left = left.trim();
                             right = right.trim();
 
-                            if left.is_empty() == false && right.is_empty() == false && split_equal.next().is_none() {
+                            if left.is_empty() == false
+                                && right.is_empty() == false
+                                && split_equal.next().is_none()
+                            {
                                 //println!("{} = {}", left, right);
 
                                 if right == "false" || right == "true" {
                                     if right == "false" {
-                                        self.properties.push(Property::new_bool(left.to_string(), false));
+                                        self.properties
+                                            .push(Property::new_bool(left.to_string(), false));
                                     } else {
-                                        self.properties.push(Property::new_bool(left.to_string(), true));
+                                        self.properties
+                                            .push(Property::new_bool(left.to_string(), true));
                                     }
                                 } else
                                 // String ?
@@ -268,23 +272,32 @@ impl PropertySink {
                                     let mut chars = right.chars();
                                     chars.next();
                                     chars.next_back();
-                                    self.properties.push(Property::new_string(left.to_string(),  chars.as_str().to_string()));
-                                } else
-                                if right.starts_with("#") && Rgb::from_hex_str(right).is_ok() {
-                                    self.properties.push(Property::new_color(left.to_string(), right.to_string()));
+                                    self.properties.push(Property::new_string(
+                                        left.to_string(),
+                                        chars.as_str().to_string(),
+                                    ));
+                                } else if right.starts_with("#") && Rgb::from_hex_str(right).is_ok()
+                                {
+                                    self.properties.push(Property::new_color(
+                                        left.to_string(),
+                                        right.to_string(),
+                                    ));
                                 } else
                                 // Int2 ?
                                 if let Some(value) = self.string_to_int2(right.to_string()) {
-                                    self.properties.push(Property::new_intx(left.to_string(), value));
+                                    self.properties
+                                        .push(Property::new_intx(left.to_string(), value));
                                 } else
                                 // Int ?
                                 if let Some(value) = right.parse::<i32>().ok() {
-                                    self.properties.push(Property::new_int(left.to_string(), value));
+                                    self.properties
+                                        .push(Property::new_int(left.to_string(), value));
                                 } else
                                 // Float ?
                                 if let Some(value) = right.parse::<f32>().ok() {
-                                    self.properties.push(Property::new_float(left.to_string(), value));
-                                } else{
+                                    self.properties
+                                        .push(Property::new_float(left.to_string(), value));
+                                } else {
                                     self.error = Some((line_counter, "Unknown Type".to_string()));
                                     return false;
                                 }
@@ -292,7 +305,7 @@ impl PropertySink {
                                 self.error = Some((line_counter, "Syntax Error".to_string()));
                                 return false;
                             }
-                        }  else {
+                        } else {
                             self.error = Some((line_counter, "Syntax Error".to_string()));
                             return false;
                         }
@@ -312,7 +325,6 @@ impl PropertySink {
 
     /// Returns true if a property by the given name exists in the sink
     pub fn contains(&self, name: &str) -> bool {
-
         for p in &self.properties {
             if p.name == *name {
                 return true;
@@ -323,7 +335,6 @@ impl PropertySink {
 
     /// Get a clone of the given property name, if any
     pub fn get(&self, name: &str) -> Option<Property> {
-
         for p in &self.properties {
             if p.name == *name {
                 return Some(p.clone());
@@ -341,7 +352,7 @@ impl PropertySink {
     pub fn to_string(&self, descriptions: FxHashMap<String, Vec<String>>) -> String {
         let mut string = "".to_string();
 
-        for p in & self.properties {
+        for p in &self.properties {
             if let Some(desc) = descriptions.get(&p.name) {
                 for s in desc {
                     let add = "// ".to_string() + s.as_str() + "\n";
@@ -365,7 +376,6 @@ impl PropertySink {
                 let mut array = vec![];
 
                 for i in 0..vec.len() {
-
                     if let Some(v) = vec[i].trim().parse::<i32>().ok() {
                         array.push(v);
                     } else {
@@ -382,7 +392,7 @@ impl PropertySink {
     pub fn get_as_string(&self, name: &str) -> Option<String> {
         if let Some(v) = self.get(name) {
             if let Some(s) = v.as_string() {
-                return Some(s)
+                return Some(s);
             }
         }
         None
@@ -392,7 +402,6 @@ impl PropertySink {
     pub fn get_as_string_array(&self, name: &str) -> Option<Vec<String>> {
         if let Some(v) = self.get(name) {
             if let Some(s) = v.as_string() {
-
                 let split = s.split(",");
                 let vec: Vec<&str> = split.collect();
 
@@ -408,5 +417,4 @@ impl PropertySink {
         }
         None
     }
-
 }

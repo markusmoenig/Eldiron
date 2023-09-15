@@ -1,10 +1,14 @@
 extern crate ref_thread_local;
-use ref_thread_local::{RefThreadLocal};
 use crate::prelude::*;
+use ref_thread_local::RefThreadLocal;
 use rhai::Dynamic;
 
 /// Evaluates the script of a node value. Stores the compiled AST inside the node for future reference.
-pub fn eval_script(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMap<Uuid, GameBehaviorData>) {
+pub fn eval_script(
+    id: (Uuid, Uuid),
+    value_name: &str,
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) {
     if let Some(item) = nodes.get_mut(&id.0) {
         if let Some(node) = item.nodes.get_mut(&id.1) {
             for (name, value) in &node.values {
@@ -15,9 +19,8 @@ pub fn eval_script(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMap<Uui
                         if let Some(error) = rc.err() {
                             println!("Script Error: {}", error.to_string());
                         }
-                    } else
-                    if let Some(script) = value.to_string() {
-                        let rc  = engine.compile(script);
+                    } else if let Some(script) = value.to_string() {
+                        let rc = engine.compile(script);
                         if rc.is_ok() {
                             if let Some(ast) = rc.ok() {
                                 let rc = engine.eval_ast::<Dynamic>(&ast);
@@ -36,7 +39,11 @@ pub fn eval_script(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMap<Uui
 }
 
 /// Evaluates the script of a node value and expects an i32 as return value. Stores the compiled AST inside the node for future reference.
-pub fn eval_script_integer(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> Option<i32> {
+pub fn eval_script_integer(
+    id: (Uuid, Uuid),
+    value_name: &str,
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> Option<i32> {
     if let Some(item) = nodes.get_mut(&id.0) {
         if let Some(node) = item.nodes.get_mut(&id.1) {
             for (name, value) in &node.values {
@@ -47,9 +54,8 @@ pub fn eval_script_integer(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHas
                         if rc.is_ok() {
                             return rc.ok();
                         }
-                    } else
-                    if let Some(script) = value.to_string() {
-                        let rc  = engine.compile(script);
+                    } else if let Some(script) = value.to_string() {
+                        let rc = engine.compile(script);
                         if rc.is_ok() {
                             if let Some(ast) = rc.ok() {
                                 let rc = engine.eval_ast::<i32>(&ast);
@@ -69,7 +75,11 @@ pub fn eval_script_integer(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHas
 }
 
 /// Evaluates the script of a node value and expects an bool as return value. Stores the compiled AST inside the node for future reference.
-pub fn eval_script_bool(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> bool {
+pub fn eval_script_bool(
+    id: (Uuid, Uuid),
+    value_name: &str,
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> bool {
     if let Some(item) = nodes.get_mut(&id.0) {
         if let Some(node) = item.nodes.get_mut(&id.1) {
             for (name, value) in &node.values {
@@ -82,9 +92,8 @@ pub fn eval_script_bool(id: (Uuid, Uuid), value_name: &str, nodes: &mut FxHashMa
                                 return value;
                             }
                         }
-                    } else
-                    if let Some(script) = value.to_string() {
-                        let rc  = engine.compile(script);
+                    } else if let Some(script) = value.to_string() {
+                        let rc = engine.compile(script);
                         if rc.is_ok() {
                             if let Some(ast) = rc.ok() {
                                 let rc = engine.eval_ast::<bool>(&ast);
@@ -110,7 +119,7 @@ pub fn eval_raw_script_bool(script: &str) -> bool {
 
     if rc.is_ok() {
         if let Some(value) = rc.ok() {
-                return value;
+            return value;
         }
     }
     false

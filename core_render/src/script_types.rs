@@ -8,13 +8,13 @@ use rhai::Engine;
 
 #[derive(Debug, Clone)]
 pub struct ScriptTilemaps {
-    pub maps            : FxHashMap<String, Uuid>
+    pub maps: FxHashMap<String, Uuid>,
 }
 
 impl ScriptTilemaps {
     pub fn new() -> Self {
         Self {
-            maps: FxHashMap::default()
+            maps: FxHashMap::default(),
         }
     }
 
@@ -32,26 +32,24 @@ impl ScriptTilemaps {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScriptImage {
-    pub id              : Uuid,
+    pub id: Uuid,
 }
 
 impl ScriptImage {
     pub fn new(id: Uuid) -> Self {
-        Self {
-            id
-        }
+        Self { id }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct ScriptImages {
-    pub maps            : FxHashMap<String, Uuid>
+    pub maps: FxHashMap<String, Uuid>,
 }
 
 impl ScriptImages {
     pub fn new() -> Self {
         Self {
-            maps: FxHashMap::default()
+            maps: FxHashMap::default(),
         }
     }
 
@@ -67,19 +65,19 @@ impl ScriptImages {
 
 #[derive(Debug, Clone)]
 pub struct ScriptTilemap {
-    pub         id : Uuid,
+    pub id: Uuid,
 }
 
 impl ScriptTilemap {
     pub fn new(id: Uuid) -> Self {
-        Self {
-            id
-        }
+        Self { id }
     }
 
     /// Returns the tile
     pub fn get_tile(&mut self, x: i32, y: i32) -> ScriptTile {
-        ScriptTile { id: TileId::new(self.id, x as u16, y as u16) }
+        ScriptTile {
+            id: TileId::new(self.id, x as u16, y as u16),
+        }
     }
 }
 
@@ -91,15 +89,15 @@ use std::cmp::max;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScriptPosition {
-    pub pos             : (usize, usize),
-    pub pos_signed      : (isize, isize)
+    pub pos: (usize, usize),
+    pub pos_signed: (isize, isize),
 }
 
 impl ScriptPosition {
     pub fn new(x: i32, y: i32) -> Self {
         Self {
-            pos         : (x as usize, y as usize),
-            pos_signed  : (x as isize, y as isize),
+            pos: (x as usize, y as usize),
+            pos_signed: (x as isize, y as isize),
         }
     }
 
@@ -112,7 +110,8 @@ impl ScriptPosition {
     }
 
     pub fn register(engine: &mut Engine) {
-        engine.register_type_with_name::<ScriptPosition>("Position")
+        engine
+            .register_type_with_name::<ScriptPosition>("Position")
             .register_get("x", ScriptPosition::x)
             .register_get("y", ScriptPosition::y)
             .register_fn("pos", ScriptPosition::new);
@@ -123,13 +122,18 @@ impl ScriptPosition {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScriptRect {
-    pub rect            : (usize, usize, usize, usize)
+    pub rect: (usize, usize, usize, usize),
 }
 
 impl ScriptRect {
     pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
         Self {
-            rect : (max(x, 0) as usize, max(y, 0) as usize, max(width, 0) as usize, max(height, 0) as usize)
+            rect: (
+                max(x, 0) as usize,
+                max(y, 0) as usize,
+                max(width, 0) as usize,
+                max(height, 0) as usize,
+            ),
         }
     }
 
@@ -161,21 +165,30 @@ impl ScriptRect {
     }
 
     pub fn pos(&mut self) -> ScriptPosition {
-        ScriptPosition { pos: (self.rect.0, self.rect.1), pos_signed: (self.rect.0 as isize, self.rect.1 as isize) }
+        ScriptPosition {
+            pos: (self.rect.0, self.rect.1),
+            pos_signed: (self.rect.0 as isize, self.rect.1 as isize),
+        }
     }
 
     pub fn is_inside(&mut self, pos: ScriptPosition) -> bool {
-        pos.pos.0 >= self.rect.0 && pos.pos.1 >= self.rect.1 && pos.pos.0 < self.rect.0 + self.rect.2 && pos.pos.1 < self.rect.1 + self.rect.3
+        pos.pos.0 >= self.rect.0
+            && pos.pos.1 >= self.rect.1
+            && pos.pos.0 < self.rect.0 + self.rect.2
+            && pos.pos.1 < self.rect.1 + self.rect.3
     }
 
     // Rust side only
     pub fn contains(&self, pos: (usize, usize)) -> bool {
-        pos.0 >= self.rect.0 && pos.1 >= self.rect.1 && pos.0 < self.rect.0 + self.rect.2 && pos.1 < self.rect.1 + self.rect.3
-
+        pos.0 >= self.rect.0
+            && pos.1 >= self.rect.1
+            && pos.0 < self.rect.0 + self.rect.2
+            && pos.1 < self.rect.1 + self.rect.3
     }
 
     pub fn register(engine: &mut Engine) {
-        engine.register_type_with_name::<ScriptRect>("Rect")
+        engine
+            .register_type_with_name::<ScriptRect>("Rect")
             .register_fn("rect", ScriptRect::new)
             .register_fn("is_inside", ScriptRect::is_inside)
             .register_get("x", ScriptRect::x)
@@ -188,7 +201,7 @@ impl ScriptRect {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScriptRGB {
-    pub value            : [u8;4]
+    pub value: [u8; 4],
 }
 
 // --- ScriptRGB
@@ -196,18 +209,23 @@ pub struct ScriptRGB {
 impl ScriptRGB {
     pub fn new(r: i32, g: i32, b: i32) -> Self {
         Self {
-            value       : [r as u8, g as u8, b as u8, 255],
+            value: [r as u8, g as u8, b as u8, 255],
         }
     }
 
     pub fn new_with_alpha(r: i32, g: i32, b: i32, a: i32) -> Self {
         Self {
-            value       : [r as u8, g as u8, b as u8, a as u8],
+            value: [r as u8, g as u8, b as u8, a as u8],
         }
     }
 
     pub fn to_normalized(&self) -> [f32; 4] {
-        [(self.value[0] as f32) / 255.0, (self.value[1] as f32) / 255.0, (self.value[2] as f32) / 255.0, (self.value[3] as f32) / 255.0]
+        [
+            (self.value[0] as f32) / 255.0,
+            (self.value[1] as f32) / 255.0,
+            (self.value[2] as f32) / 255.0,
+            (self.value[3] as f32) / 255.0,
+        ]
     }
 }
 
@@ -245,75 +263,113 @@ pub enum ScriptServerCmd {
     EnterGameWithCharacter(String),
     LoginUser(String, String, String),
     LoginLocalUser(String, String),
-    RegisterUser(String, String, String)
+    RegisterUser(String, String, String),
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScriptCmd {
-    pub draw_commands           : Vec<ScriptDrawCmd>,
-    pub action_commands         : Vec<ScriptServerCmd>
+    pub draw_commands: Vec<ScriptDrawCmd>,
+    pub action_commands: Vec<ScriptServerCmd>,
 }
 
 impl ScriptCmd {
     pub fn new() -> Self {
         Self {
-            draw_commands       : vec![],
-            action_commands     : vec![],
+            draw_commands: vec![],
+            action_commands: vec![],
         }
     }
 
     // Game Control Workflow
 
-    pub fn enter_game_and_create_character(&mut self, name: &str, class: &str, race: &str, screen: &str) {
-        self.action_commands.push(ScriptServerCmd::EnterGameAndCreateCharacter(name.to_owned(), class.to_owned(), race.to_owned(), screen.to_owned()));
+    pub fn enter_game_and_create_character(
+        &mut self,
+        name: &str,
+        class: &str,
+        race: &str,
+        screen: &str,
+    ) {
+        self.action_commands
+            .push(ScriptServerCmd::EnterGameAndCreateCharacter(
+                name.to_owned(),
+                class.to_owned(),
+                race.to_owned(),
+                screen.to_owned(),
+            ));
     }
 
     pub fn enter_game_with_character(&mut self, name: &str) {
-        self.action_commands.push(ScriptServerCmd::EnterGameWithCharacter(name.to_owned()));
+        self.action_commands
+            .push(ScriptServerCmd::EnterGameWithCharacter(name.to_owned()));
     }
 
     pub fn login_user(&mut self, user: &str, password: &str, screen: &str) {
-        self.action_commands.push(ScriptServerCmd::LoginUser(user.to_owned(), password.to_owned(), screen.to_owned()));
+        self.action_commands.push(ScriptServerCmd::LoginUser(
+            user.to_owned(),
+            password.to_owned(),
+            screen.to_owned(),
+        ));
     }
 
     pub fn register_user(&mut self, user: &str, password: &str, screen: &str) {
-        self.action_commands.push(ScriptServerCmd::RegisterUser(user.to_owned(), password.to_owned(), screen.to_owned()));
+        self.action_commands.push(ScriptServerCmd::RegisterUser(
+            user.to_owned(),
+            password.to_owned(),
+            screen.to_owned(),
+        ));
     }
 
     // Game Actions
 
     pub fn action(&mut self, action: &str, direction: &str) {
-        self.action_commands.push(ScriptServerCmd::Action(action.to_owned(), direction.to_owned().to_lowercase(), None));
+        self.action_commands.push(ScriptServerCmd::Action(
+            action.to_owned(),
+            direction.to_owned().to_lowercase(),
+            None,
+        ));
     }
 
     pub fn action_coordinate(&mut self, action: &str) {
-        self.action_commands.push(ScriptServerCmd::ActionCoordinate(action.to_owned(), None));
+        self.action_commands
+            .push(ScriptServerCmd::ActionCoordinate(action.to_owned(), None));
     }
 
     pub fn action_spell(&mut self, action: &str, direction: &str, spell: &str) {
-        self.action_commands.push(ScriptServerCmd::Action(action.to_owned(), direction.to_owned().to_lowercase(), Some(spell.to_string())));
+        self.action_commands.push(ScriptServerCmd::Action(
+            action.to_owned(),
+            direction.to_owned().to_lowercase(),
+            Some(spell.to_string()),
+        ));
     }
 
     pub fn action_spell_coordinate(&mut self, action: &str, spell: &str) {
-        self.action_commands.push(ScriptServerCmd::ActionCoordinate(action.to_owned(), Some(spell.to_string())));
+        self.action_commands.push(ScriptServerCmd::ActionCoordinate(
+            action.to_owned(),
+            Some(spell.to_string()),
+        ));
     }
 
     // Valid Mouse Rect
 
-    pub fn action_set_valid_mouse_rect(&mut self, rect: ScriptRect ) {
-        self.action_commands.push(ScriptServerCmd::ActionValidMouseRect(rect));
+    pub fn action_set_valid_mouse_rect(&mut self, rect: ScriptRect) {
+        self.action_commands
+            .push(ScriptServerCmd::ActionValidMouseRect(rect));
     }
 
     // Gear Action
 
-    pub fn action_gear(&mut self, action: &str, gear_index: i32 ) {
-        self.action_commands.push(ScriptServerCmd::ActionGear(action.to_owned(), gear_index));
+    pub fn action_gear(&mut self, action: &str, gear_index: i32) {
+        self.action_commands
+            .push(ScriptServerCmd::ActionGear(action.to_owned(), gear_index));
     }
 
     // Inventory Action
 
-    pub fn action_inventory(&mut self, action: &str, inventory_index: i32 ) {
-        self.action_commands.push(ScriptServerCmd::ActionInventory(action.to_owned(), inventory_index));
+    pub fn action_inventory(&mut self, action: &str, inventory_index: i32) {
+        self.action_commands.push(ScriptServerCmd::ActionInventory(
+            action.to_owned(),
+            inventory_index,
+        ));
     }
 
     // Draw
@@ -327,7 +383,8 @@ impl ScriptCmd {
     }
 
     pub fn draw_rect_outline(&mut self, rect: ScriptRect, rgb: ScriptRGB) {
-        self.draw_commands.push(ScriptDrawCmd::DrawRectOutline(rect, rgb));
+        self.draw_commands
+            .push(ScriptDrawCmd::DrawRectOutline(rect, rgb));
     }
 
     pub fn draw_tile(&mut self, pos: ScriptPosition, tile: ScriptTile) {
@@ -335,35 +392,73 @@ impl ScriptCmd {
     }
 
     pub fn draw_tile_sat(&mut self, pos: ScriptPosition, tile: ScriptTile, rgb: ScriptRGB) {
-        self.draw_commands.push(ScriptDrawCmd::DrawTileSat(pos, tile, rgb));
+        self.draw_commands
+            .push(ScriptDrawCmd::DrawTileSat(pos, tile, rgb));
     }
 
     pub fn draw_tile_mult(&mut self, pos: ScriptPosition, tile: ScriptTile, rgb: ScriptRGB) {
-        self.draw_commands.push(ScriptDrawCmd::DrawTileMult(pos, tile, rgb));
+        self.draw_commands
+            .push(ScriptDrawCmd::DrawTileMult(pos, tile, rgb));
     }
 
     pub fn draw_tile_sized(&mut self, pos: ScriptPosition, tile: ScriptTile, size: i32) {
-        self.draw_commands.push(ScriptDrawCmd::DrawTileSized(pos, tile, size));
+        self.draw_commands
+            .push(ScriptDrawCmd::DrawTileSized(pos, tile, size));
     }
 
     pub fn draw_frame(&mut self, rect: ScriptRect, tile: ScriptTile) {
-        self.draw_commands.push(ScriptDrawCmd::DrawFrame(rect, tile));
+        self.draw_commands
+            .push(ScriptDrawCmd::DrawFrame(rect, tile));
     }
 
     pub fn draw_frame_sat(&mut self, rect: ScriptRect, rgb: ScriptRGB, tile: ScriptTile) {
-        self.draw_commands.push(ScriptDrawCmd::DrawFrameSat(rect, rgb, tile));
+        self.draw_commands
+            .push(ScriptDrawCmd::DrawFrameSat(rect, rgb, tile));
     }
 
-    pub fn draw_text(&mut self, pos: ScriptPosition, text: &str, font_name: &str, size: f32, rgb: ScriptRGB) {
-        self.draw_commands.push(ScriptDrawCmd::DrawText(pos, text.to_owned(), font_name.to_owned(), size as f32, rgb));
+    pub fn draw_text(
+        &mut self,
+        pos: ScriptPosition,
+        text: &str,
+        font_name: &str,
+        size: f32,
+        rgb: ScriptRGB,
+    ) {
+        self.draw_commands.push(ScriptDrawCmd::DrawText(
+            pos,
+            text.to_owned(),
+            font_name.to_owned(),
+            size as f32,
+            rgb,
+        ));
     }
 
-    pub fn draw_text_rect(&mut self, rect: ScriptRect, text: &str, font_name: &str, size: f32, rgb: ScriptRGB, align: String) {
-        self.draw_commands.push(ScriptDrawCmd::DrawTextRect(rect, text.to_owned(), font_name.to_owned(), size as f32, rgb, align));
+    pub fn draw_text_rect(
+        &mut self,
+        rect: ScriptRect,
+        text: &str,
+        font_name: &str,
+        size: f32,
+        rgb: ScriptRGB,
+        align: String,
+    ) {
+        self.draw_commands.push(ScriptDrawCmd::DrawTextRect(
+            rect,
+            text.to_owned(),
+            font_name.to_owned(),
+            size as f32,
+            rgb,
+            align,
+        ));
     }
 
     pub fn draw_messages(&mut self, rect: ScriptRect, font_name: &str, size: f32, rgb: ScriptRGB) {
-        self.draw_commands.push(ScriptDrawCmd::DrawMessages(rect, font_name.to_owned(), size as f32, rgb));
+        self.draw_commands.push(ScriptDrawCmd::DrawMessages(
+            rect,
+            font_name.to_owned(),
+            size as f32,
+            rgb,
+        ));
     }
 
     pub fn draw_game_2d(&mut self, rect: ScriptRect) {
@@ -371,7 +466,8 @@ impl ScriptCmd {
     }
 
     pub fn draw_game_offset_2d(&mut self, rect: ScriptRect, offset: ScriptPosition) {
-        self.draw_commands.push(ScriptDrawCmd::DrawGameOffset2D(rect, offset));
+        self.draw_commands
+            .push(ScriptDrawCmd::DrawGameOffset2D(rect, offset));
     }
 
     pub fn draw_game_3d(&mut self, rect: ScriptRect) {
@@ -379,7 +475,8 @@ impl ScriptCmd {
     }
 
     pub fn draw_region(&mut self, name: &str, rect: ScriptRect, size: i32) {
-        self.draw_commands.push(ScriptDrawCmd::DrawRegion(name.to_owned(), rect, size));
+        self.draw_commands
+            .push(ScriptDrawCmd::DrawRegion(name.to_owned(), rect, size));
     }
 
     pub fn clear_draw(&mut self) {
@@ -395,37 +492,45 @@ impl ScriptCmd {
         self.action_commands.clear();
     }
 
-    pub fn draw_image(&mut self, pos: ScriptPosition, image: ScriptImage, width: i32, height: i32, blend: f32) {
-        self.draw_commands.push(ScriptDrawCmd::DrawImage(pos, image, width, height, blend));
+    pub fn draw_image(
+        &mut self,
+        pos: ScriptPosition,
+        image: ScriptImage,
+        width: i32,
+        height: i32,
+        blend: f32,
+    ) {
+        self.draw_commands
+            .push(ScriptDrawCmd::DrawImage(pos, image, width, height, blend));
     }
 }
 
 pub struct ScriptInfo {
-    pub width               : i32,
-    pub height              : i32,
-    pub tile_size           : i32,
-    pub tilemaps            : ScriptTilemaps,
-    pub images              : ScriptImages,
-    pub region              : rhai::Map,
-    pub display_mode_3d     : bool,
-    pub date                : Date,
-    pub characters          : CharacterList,
-    pub messages            : Vec<MessageData>,
+    pub width: i32,
+    pub height: i32,
+    pub tile_size: i32,
+    pub tilemaps: ScriptTilemaps,
+    pub images: ScriptImages,
+    pub region: rhai::Map,
+    pub display_mode_3d: bool,
+    pub date: Date,
+    pub characters: CharacterList,
+    pub messages: Vec<MessageData>,
 }
 
 impl ScriptInfo {
     pub fn new() -> Self {
         Self {
-            width           : 0,
-            height          : 0,
-            tile_size       : 0,
-            tilemaps        : ScriptTilemaps::new(),
-            images          : ScriptImages::new(),
-            region          : rhai::Map::new(),
-            display_mode_3d : false,
-            date            : Date::new(),
-            characters      : CharacterList::new(vec![]),
-            messages        : vec![],
+            width: 0,
+            height: 0,
+            tile_size: 0,
+            tilemaps: ScriptTilemaps::new(),
+            images: ScriptImages::new(),
+            region: rhai::Map::new(),
+            display_mode_3d: false,
+            date: Date::new(),
+            characters: CharacterList::new(vec![]),
+            messages: vec![],
         }
     }
 }
@@ -436,115 +541,306 @@ use lazy_static::lazy_static;
 use std::sync::Mutex;
 
 lazy_static! {
-    pub static ref SHEET : Mutex<Sheet> = Mutex::new(Sheet::new());
-    pub static ref SCRIPTCMD : Mutex<ScriptCmd> = Mutex::new(ScriptCmd::new());
-    pub static ref MESSAGECMD : Mutex<ScriptMessageCmd> = Mutex::new(ScriptMessageCmd::new());
-    pub static ref INFOCMD : Mutex<ScriptInfo> = Mutex::new(ScriptInfo::new());
+    pub static ref SHEET: Mutex<Sheet> = Mutex::new(Sheet::new());
+    pub static ref SCRIPTCMD: Mutex<ScriptCmd> = Mutex::new(ScriptCmd::new());
+    pub static ref MESSAGECMD: Mutex<ScriptMessageCmd> = Mutex::new(ScriptMessageCmd::new());
+    pub static ref INFOCMD: Mutex<ScriptInfo> = Mutex::new(ScriptInfo::new());
 }
 
 /// Register the global cmd functions for drawing etc.
 pub fn register_global_cmd_functions(engine: &mut Engine) {
-
     // Game Workflow Cmds
 
-    engine.register_fn("enter_game_and_create_character", |name: &str, class: &str, race: &str, screen: &str| {
-        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::EnterGameAndCreateCharacter(name.to_owned(), class.to_owned(), race.to_owned(), screen.to_owned()));
-    });
+    engine.register_fn(
+        "enter_game_and_create_character",
+        |name: &str, class: &str, race: &str, screen: &str| {
+            SCRIPTCMD.lock().unwrap().action_commands.push(
+                ScriptServerCmd::EnterGameAndCreateCharacter(
+                    name.to_owned(),
+                    class.to_owned(),
+                    race.to_owned(),
+                    screen.to_owned(),
+                ),
+            );
+        },
+    );
 
     engine.register_fn("enter_game_with_character", |name: &str| {
-        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::EnterGameWithCharacter(name.to_owned()));
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .action_commands
+            .push(ScriptServerCmd::EnterGameWithCharacter(name.to_owned()));
     });
 
     engine.register_fn("login_local_user", |user: &str, screen: &str| {
-        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::LoginLocalUser(user.trim().to_owned(), screen.to_owned()));
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .action_commands
+            .push(ScriptServerCmd::LoginLocalUser(
+                user.trim().to_owned(),
+                screen.to_owned(),
+            ));
     });
 
     engine.register_fn("login_user", |user: &str, password: &str, screen: &str| {
-        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::LoginUser(user.trim().to_owned(), password.trim().to_owned(), screen.to_owned()));
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .action_commands
+            .push(ScriptServerCmd::LoginUser(
+                user.trim().to_owned(),
+                password.trim().to_owned(),
+                screen.to_owned(),
+            ));
     });
 
-    engine.register_fn("register_user", |user: &str, password: &str, screen: &str| {
-        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::RegisterUser(user.trim().to_owned(), password.trim().to_owned(), screen.to_owned()));
-    });
+    engine.register_fn(
+        "register_user",
+        |user: &str, password: &str, screen: &str| {
+            SCRIPTCMD
+                .lock()
+                .unwrap()
+                .action_commands
+                .push(ScriptServerCmd::RegisterUser(
+                    user.trim().to_owned(),
+                    password.trim().to_owned(),
+                    screen.to_owned(),
+                ));
+        },
+    );
 
     // Action Cmds
 
     engine.register_fn("action", |action: &str, direction: &str| {
-        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::Action(action.to_owned(), direction.to_owned().to_lowercase(), None));
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .action_commands
+            .push(ScriptServerCmd::Action(
+                action.to_owned(),
+                direction.to_owned().to_lowercase(),
+                None,
+            ));
     });
 
     engine.register_fn("action_at_coordinate", |action: &str| {
-        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::ActionCoordinate(action.to_owned(), None));
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .action_commands
+            .push(ScriptServerCmd::ActionCoordinate(action.to_owned(), None));
     });
 
     engine.register_fn("spell_at_coordinate", |spell: &str| {
-        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::ActionCoordinate("Cast".to_owned(), Some(spell.to_owned())));
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .action_commands
+            .push(ScriptServerCmd::ActionCoordinate(
+                "Cast".to_owned(),
+                Some(spell.to_owned()),
+            ));
     });
 
-    engine.register_fn("action_gear", |action: &str,  gear_index: i32| {
-        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::ActionGear(action.to_owned(), gear_index));
+    engine.register_fn("action_gear", |action: &str, gear_index: i32| {
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .action_commands
+            .push(ScriptServerCmd::ActionGear(action.to_owned(), gear_index));
     });
 
-    engine.register_fn("action_inventory", |action: &str,  inventory_index: i32| {
-        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::ActionInventory(action.to_owned(), inventory_index));
+    engine.register_fn("action_inventory", |action: &str, inventory_index: i32| {
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .action_commands
+            .push(ScriptServerCmd::ActionInventory(
+                action.to_owned(),
+                inventory_index,
+            ));
     });
 
     engine.register_fn("set_valid_mouse_rect", |rect: ScriptRect| {
-        SCRIPTCMD.lock().unwrap().action_commands.push(ScriptServerCmd::ActionValidMouseRect(rect));
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .action_commands
+            .push(ScriptServerCmd::ActionValidMouseRect(rect));
     });
 
     // Draw Cmds
 
-    engine.register_fn("draw_shape", |shape: ScriptShape | {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawShape(shape));
+    engine.register_fn("draw_shape", |shape: ScriptShape| {
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .draw_commands
+            .push(ScriptDrawCmd::DrawShape(shape));
     });
     engine.register_fn("draw_rect", |rect: ScriptRect, rgb: ScriptRGB| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawRect(rect, rgb));
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .draw_commands
+            .push(ScriptDrawCmd::DrawRect(rect, rgb));
     });
     engine.register_fn("draw_rect_outline", |rect: ScriptRect, rgb: ScriptRGB| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawRectOutline(rect, rgb));
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .draw_commands
+            .push(ScriptDrawCmd::DrawRectOutline(rect, rgb));
     });
-    engine.register_fn("draw_image", |pos: ScriptPosition, image: ScriptImage, width: i32, height: i32, blend: f32| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawImage(pos, image, width, height, blend));
-    });
+    engine.register_fn(
+        "draw_image",
+        |pos: ScriptPosition, image: ScriptImage, width: i32, height: i32, blend: f32| {
+            SCRIPTCMD
+                .lock()
+                .unwrap()
+                .draw_commands
+                .push(ScriptDrawCmd::DrawImage(pos, image, width, height, blend));
+        },
+    );
     engine.register_fn("draw_tile", |pos: ScriptPosition, tile: ScriptTile| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawTile(pos, tile));
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .draw_commands
+            .push(ScriptDrawCmd::DrawTile(pos, tile));
     });
-    engine.register_fn("draw_tile_sat", |pos: ScriptPosition, tile: ScriptTile, rgb: ScriptRGB| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawTileSat(pos, tile, rgb));
-    });
-    engine.register_fn("draw_tile_mult", |pos: ScriptPosition, tile: ScriptTile, rgb: ScriptRGB| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawTileMult(pos, tile, rgb));
-    });
-    engine.register_fn("draw_tile_sized", |pos: ScriptPosition, tile: ScriptTile, size: i32| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawTileSized(pos, tile, size));
-    });
+    engine.register_fn(
+        "draw_tile_sat",
+        |pos: ScriptPosition, tile: ScriptTile, rgb: ScriptRGB| {
+            SCRIPTCMD
+                .lock()
+                .unwrap()
+                .draw_commands
+                .push(ScriptDrawCmd::DrawTileSat(pos, tile, rgb));
+        },
+    );
+    engine.register_fn(
+        "draw_tile_mult",
+        |pos: ScriptPosition, tile: ScriptTile, rgb: ScriptRGB| {
+            SCRIPTCMD
+                .lock()
+                .unwrap()
+                .draw_commands
+                .push(ScriptDrawCmd::DrawTileMult(pos, tile, rgb));
+        },
+    );
+    engine.register_fn(
+        "draw_tile_sized",
+        |pos: ScriptPosition, tile: ScriptTile, size: i32| {
+            SCRIPTCMD
+                .lock()
+                .unwrap()
+                .draw_commands
+                .push(ScriptDrawCmd::DrawTileSized(pos, tile, size));
+        },
+    );
     engine.register_fn("draw_frame", |rect: ScriptRect, tile: ScriptTile| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawFrame(rect, tile));
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .draw_commands
+            .push(ScriptDrawCmd::DrawFrame(rect, tile));
     });
-    engine.register_fn("draw_frame_sat", |rect: ScriptRect, rgb: ScriptRGB, tile: ScriptTile| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawFrameSat(rect, rgb, tile));
-    });
-    engine.register_fn("draw_text", |pos: ScriptPosition, text: &str, font_name: &str, size: f32, rgb: ScriptRGB| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawText(pos, text.to_owned(), font_name.to_owned(), size as f32, rgb));
-    });
-    engine.register_fn("draw_text_rect", |rect: ScriptRect, text: &str, font_name: &str, size: f32, rgb: ScriptRGB, align: String| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawTextRect(rect, text.to_owned(), font_name.to_owned(), size as f32, rgb, align));
-    });
-    engine.register_fn("draw_messages", | rect: ScriptRect, font_name: &str, size: f32, rgb: ScriptRGB| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawMessages(rect, font_name.to_owned(), size as f32, rgb));
-    });
+    engine.register_fn(
+        "draw_frame_sat",
+        |rect: ScriptRect, rgb: ScriptRGB, tile: ScriptTile| {
+            SCRIPTCMD
+                .lock()
+                .unwrap()
+                .draw_commands
+                .push(ScriptDrawCmd::DrawFrameSat(rect, rgb, tile));
+        },
+    );
+    engine.register_fn(
+        "draw_text",
+        |pos: ScriptPosition, text: &str, font_name: &str, size: f32, rgb: ScriptRGB| {
+            SCRIPTCMD
+                .lock()
+                .unwrap()
+                .draw_commands
+                .push(ScriptDrawCmd::DrawText(
+                    pos,
+                    text.to_owned(),
+                    font_name.to_owned(),
+                    size as f32,
+                    rgb,
+                ));
+        },
+    );
+    engine.register_fn(
+        "draw_text_rect",
+        |rect: ScriptRect,
+         text: &str,
+         font_name: &str,
+         size: f32,
+         rgb: ScriptRGB,
+         align: String| {
+            SCRIPTCMD
+                .lock()
+                .unwrap()
+                .draw_commands
+                .push(ScriptDrawCmd::DrawTextRect(
+                    rect,
+                    text.to_owned(),
+                    font_name.to_owned(),
+                    size as f32,
+                    rgb,
+                    align,
+                ));
+        },
+    );
+    engine.register_fn(
+        "draw_messages",
+        |rect: ScriptRect, font_name: &str, size: f32, rgb: ScriptRGB| {
+            SCRIPTCMD
+                .lock()
+                .unwrap()
+                .draw_commands
+                .push(ScriptDrawCmd::DrawMessages(
+                    rect,
+                    font_name.to_owned(),
+                    size as f32,
+                    rgb,
+                ));
+        },
+    );
     engine.register_fn("draw_game_2d", |rect: ScriptRect| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawGame2D(rect));
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .draw_commands
+            .push(ScriptDrawCmd::DrawGame2D(rect));
     });
-    engine.register_fn("draw_game_offset_2d", |rect: ScriptRect, offset: ScriptPosition| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawGameOffset2D(rect, offset));
-    });
+    engine.register_fn(
+        "draw_game_offset_2d",
+        |rect: ScriptRect, offset: ScriptPosition| {
+            SCRIPTCMD
+                .lock()
+                .unwrap()
+                .draw_commands
+                .push(ScriptDrawCmd::DrawGameOffset2D(rect, offset));
+        },
+    );
     engine.register_fn("draw_game_3d", |rect: ScriptRect| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawGame3D(rect));
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .draw_commands
+            .push(ScriptDrawCmd::DrawGame3D(rect));
     });
     engine.register_fn("draw_region", |name: &str, rect: ScriptRect, size: i32| {
-        SCRIPTCMD.lock().unwrap().draw_commands.push(ScriptDrawCmd::DrawRegion(name.to_owned(), rect, size));
+        SCRIPTCMD
+            .lock()
+            .unwrap()
+            .draw_commands
+            .push(ScriptDrawCmd::DrawRegion(name.to_owned(), rect, size));
     });
 
     // Message Cmds
@@ -555,13 +851,9 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
 
     // Info Cmds
 
-    engine.register_fn("get_width", || -> i32 {
-        INFOCMD.lock().unwrap().width
-    });
+    engine.register_fn("get_width", || -> i32 { INFOCMD.lock().unwrap().width });
 
-    engine.register_fn("get_height", || -> i32 {
-        INFOCMD.lock().unwrap().height
-    });
+    engine.register_fn("get_height", || -> i32 { INFOCMD.lock().unwrap().height });
 
     engine.register_fn("get_tile_size", || -> i32 {
         INFOCMD.lock().unwrap().tile_size
@@ -609,9 +901,7 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
         INFOCMD.lock().unwrap().display_mode_3d = !display_mode;
     });
 
-    engine.register_fn("get_sheet", || -> Sheet {
-        SHEET.lock().unwrap().clone()
-    });
+    engine.register_fn("get_sheet", || -> Sheet { SHEET.lock().unwrap().clone() });
 
     engine.register_fn("get_inventory", || -> Inventory {
         SHEET.lock().unwrap().inventory.clone()
@@ -648,5 +938,4 @@ pub fn register_global_cmd_functions(engine: &mut Engine) {
     engine.register_fn("get_characters", || -> CharacterList {
         INFOCMD.lock().unwrap().characters.clone()
     });
-
 }

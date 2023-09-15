@@ -1,7 +1,7 @@
-pub mod region;
 pub mod behavior;
 pub mod game;
 pub mod item;
+pub mod region;
 pub mod spell;
 
 use core_shared::prelude::*;
@@ -21,48 +21,45 @@ use crate::gamedata::prelude::*;
 #[cfg(not(feature = "embed_binaries"))]
 use itertools::Itertools;
 
-use std::path::{self, PathBuf};
 use std::fs;
+use std::path::{self, PathBuf};
 
 #[cfg(feature = "embed_binaries")]
 use core_embed_binaries::Embedded;
 
 pub struct GameData {
+    pub asset: Option<Asset>,
 
-    pub asset                   : Option<Asset>,
+    pub path: PathBuf,
 
-    pub path                    : PathBuf,
+    pub regions: FxHashMap<Uuid, GameRegion>,
+    pub regions_names: Vec<String>,
+    pub regions_ids: Vec<Uuid>,
 
-    pub regions                 : FxHashMap<Uuid, GameRegion>,
-    pub regions_names           : Vec<String>,
-    pub regions_ids             : Vec<Uuid>,
+    pub behaviors: FxHashMap<Uuid, GameBehavior>,
+    pub behaviors_names: Vec<String>,
+    pub behaviors_ids: Vec<Uuid>,
 
-    pub behaviors               : FxHashMap<Uuid, GameBehavior>,
-    pub behaviors_names         : Vec<String>,
-    pub behaviors_ids           : Vec<Uuid>,
+    pub systems: FxHashMap<Uuid, GameBehavior>,
+    pub systems_names: Vec<String>,
+    pub systems_ids: Vec<Uuid>,
 
-    pub systems                 : FxHashMap<Uuid, GameBehavior>,
-    pub systems_names           : Vec<String>,
-    pub systems_ids             : Vec<Uuid>,
+    pub items: FxHashMap<Uuid, GameBehavior>,
+    pub items_names: Vec<String>,
+    pub items_ids: Vec<Uuid>,
 
-    pub items                   : FxHashMap<Uuid, GameBehavior>,
-    pub items_names             : Vec<String>,
-    pub items_ids               : Vec<Uuid>,
+    pub spells: FxHashMap<Uuid, GameBehavior>,
+    pub spells_names: Vec<String>,
+    pub spells_ids: Vec<Uuid>,
 
-    pub spells                  : FxHashMap<Uuid, GameBehavior>,
-    pub spells_names            : Vec<String>,
-    pub spells_ids              : Vec<Uuid>,
+    pub game: Game,
 
-    pub game                    : Game,
-
-    pub scripts                 : FxHashMap<String, String>,
+    pub scripts: FxHashMap<String, String>,
 }
 
 impl GameData {
-
     // Load the game data from the given path
     pub fn load_from_path(path: path::PathBuf) -> Self {
-
         // Create the tile regions
         let mut regions: FxHashMap<Uuid, GameRegion> = FxHashMap::default();
         let mut regions_names = vec![];
@@ -71,9 +68,10 @@ impl GameData {
         #[cfg(not(feature = "embed_binaries"))]
         {
             let region_path = path.join("game").join("regions");
-            let mut paths: Vec<_> = fs::read_dir(region_path.clone()).unwrap()
-                                                    .map(|r| r.unwrap())
-                                                    .collect();
+            let mut paths: Vec<_> = fs::read_dir(region_path.clone())
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect();
             paths.sort_by_key(|dir| dir.path());
 
             for path in paths {
@@ -91,7 +89,7 @@ impl GameData {
                 }
             }
 
-            let sorted_keys= regions.keys().sorted();
+            let sorted_keys = regions.keys().sorted();
             for key in sorted_keys {
                 let region = &regions[key];
 
@@ -127,7 +125,6 @@ impl GameData {
         {
             let behavior_path = path.join("game").join("characters");
             if let Some(paths) = fs::read_dir(behavior_path.clone()).ok() {
-
                 for path in paths {
                     let path = &path.unwrap().path();
                     let md = metadata(path).unwrap();
@@ -135,12 +132,19 @@ impl GameData {
                     if md.is_file() {
                         if let Some(name) = path::Path::new(&path).extension() {
                             if name == "json" || name == "JSON" {
-                                let mut behavior = GameBehavior::load_from_path(path, &behavior_path);
+                                let mut behavior =
+                                    GameBehavior::load_from_path(path, &behavior_path);
                                 behaviors_names.push(behavior.name.clone());
 
                                 if behavior.data.nodes.len() == 0 {
-                                    behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
-                                    behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                                    behavior.add_node(
+                                        BehaviorNodeType::BehaviorType,
+                                        "Behavior Type".to_string(),
+                                    );
+                                    behavior.add_node(
+                                        BehaviorNodeType::BehaviorTree,
+                                        "Behavior Tree".to_string(),
+                                    );
                                     behavior.save_data();
                                 }
                                 behaviors_ids.push(behavior.data.id);
@@ -167,7 +171,7 @@ impl GameData {
         }
 
         // Make sure the Player character is always first in the list
-        let mut player_index : Option<usize> = None;
+        let mut player_index: Option<usize> = None;
         for (index, b) in behaviors_names.iter().enumerate() {
             if b == "Player" {
                 player_index = Some(index);
@@ -191,7 +195,6 @@ impl GameData {
         {
             let systems_path = path.join("game").join("systems");
             if let Some(paths) = fs::read_dir(systems_path.clone()).ok() {
-
                 for path in paths {
                     let path = &path.unwrap().path();
                     let md = metadata(path).unwrap();
@@ -203,7 +206,10 @@ impl GameData {
                                 systems_names.push(system.name.clone());
 
                                 if system.data.nodes.len() == 0 {
-                                    system.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                                    system.add_node(
+                                        BehaviorNodeType::BehaviorType,
+                                        "Behavior Type".to_string(),
+                                    );
                                     // behavior.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
                                     system.save_data();
                                 }
@@ -240,7 +246,6 @@ impl GameData {
         {
             let item_path = path.join("game").join("items");
             if let Some(paths) = fs::read_dir(item_path.clone()).ok() {
-
                 for path in paths {
                     let path = &path.unwrap().path();
                     let md = metadata(path).unwrap();
@@ -252,8 +257,14 @@ impl GameData {
                                 items_names.push(item.name.clone());
 
                                 if item.data.nodes.len() == 0 {
-                                    item.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
-                                    item.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                                    item.add_node(
+                                        BehaviorNodeType::BehaviorType,
+                                        "Behavior Type".to_string(),
+                                    );
+                                    item.add_node(
+                                        BehaviorNodeType::BehaviorTree,
+                                        "Behavior Tree".to_string(),
+                                    );
                                     item.save_data();
                                 }
                                 items_ids.push(item.data.id);
@@ -289,7 +300,6 @@ impl GameData {
         {
             let spell_path = path.join("game").join("spells");
             if let Some(paths) = fs::read_dir(spell_path.clone()).ok() {
-
                 for path in paths {
                     let path = &path.unwrap().path();
                     let md = metadata(path).unwrap();
@@ -300,8 +310,14 @@ impl GameData {
                                 spells_names.push(spell.name.clone());
 
                                 if spell.data.nodes.len() == 0 {
-                                    spell.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
-                                    spell.add_node(BehaviorNodeType::BehaviorTree, "Behavior Tree".to_string());
+                                    spell.add_node(
+                                        BehaviorNodeType::BehaviorType,
+                                        "Behavior Type".to_string(),
+                                    );
+                                    spell.add_node(
+                                        BehaviorNodeType::BehaviorTree,
+                                        "Behavior Tree".to_string(),
+                                    );
                                     spell.save_data();
                                 }
                                 spells_ids.push(spell.data.id);
@@ -335,9 +351,10 @@ impl GameData {
         {
             game = Game::load_from_path(&path.clone());
             if game.behavior.data.nodes.is_empty() {
-
-                game.behavior.add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
-                game.behavior.add_node(BehaviorNodeType::BehaviorTree, "Game".to_string());
+                game.behavior
+                    .add_node(BehaviorNodeType::BehaviorType, "Behavior Type".to_string());
+                game.behavior
+                    .add_node(BehaviorNodeType::BehaviorTree, "Game".to_string());
 
                 game.save_data();
             }
@@ -350,13 +367,12 @@ impl GameData {
 
         // Scripts
 
-        let mut scripts : FxHashMap<String, String> = FxHashMap::default();
+        let mut scripts: FxHashMap<String, String> = FxHashMap::default();
 
         #[cfg(not(feature = "embed_binaries"))]
         {
             let scripts_path: PathBuf = path.join("game").join("scripts");
             if let Some(paths) = fs::read_dir(scripts_path.clone()).ok() {
-
                 for path in paths {
                     let path = &path.unwrap().path();
                     let md = metadata(path).unwrap();
@@ -364,7 +380,12 @@ impl GameData {
                         if let Some(name) = path::Path::new(&path).extension() {
                             if name == "rhai" {
                                 if let Some(script) = std::fs::read_to_string(path).ok() {
-                                    let name = path::Path::new(path).file_stem().unwrap().to_str().unwrap().to_string();
+                                    let name = path::Path::new(path)
+                                        .file_stem()
+                                        .unwrap()
+                                        .to_str()
+                                        .unwrap()
+                                        .to_string();
                                     scripts.insert(name + ".rhai", script);
                                 }
                             }
@@ -380,7 +401,11 @@ impl GameData {
                 let file_name = file.as_ref();
 
                 if file_name.starts_with("game/scripts/") {
-                    let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
+                    let name = path::Path::new(&file_name)
+                        .file_stem()
+                        .unwrap()
+                        .to_str()
+                        .unwrap();
                     if let Some(bytes) = Embedded::get(file_name) {
                         if let Some(script) = std::str::from_utf8(bytes.data.as_ref()).ok() {
                             scripts.insert(name.to_string() + ".rhai", script.to_string());
@@ -391,9 +416,8 @@ impl GameData {
         }
 
         Self {
-
-            path                    : path.clone(),
-            asset                   : None,
+            path: path.clone(),
+            asset: None,
 
             regions,
             regions_names,
@@ -422,7 +446,6 @@ impl GameData {
 
     // Create an empty structure
     pub fn new() -> Self {
-
         let regions: FxHashMap<Uuid, GameRegion> = FxHashMap::default();
         let regions_names = vec![];
         let regions_ids = vec![];
@@ -457,9 +480,8 @@ impl GameData {
         let scripts: FxHashMap<String, String> = FxHashMap::default();
 
         Self {
-
-            path                    : PathBuf::new(),
-            asset                   : None,
+            path: PathBuf::new(),
+            asset: None,
 
             regions,
             regions_names,
@@ -496,7 +518,13 @@ impl GameData {
 
     #[cfg(feature = "data_editing")]
     /// Sets a value in the region
-    pub fn set_region_value(&mut self, layer: usize, id: Uuid, pos: (isize, isize), value: TileData) {
+    pub fn set_region_value(
+        &mut self,
+        layer: usize,
+        id: Uuid,
+        pos: (isize, isize),
+        value: TileData,
+    ) {
         let region = &mut self.regions.get_mut(&id).unwrap();
         region.set_value(layer, pos, value);
     }
@@ -504,10 +532,14 @@ impl GameData {
     #[cfg(feature = "data_editing")]
     /// Create a new behavior
     pub fn create_behavior(&mut self, name: String, _behavior_type: usize) {
+        let path = self
+            .path
+            .join("game")
+            .join("characters")
+            .join(name.clone() + ".json");
 
-        let path = self.path.join("game").join("characters").join(name.clone() + ".json");
-
-        let mut behavior = GameBehavior::load_from_path(&path, &self.path.join("game").join("characters"));
+        let mut behavior =
+            GameBehavior::load_from_path(&path, &self.path.join("game").join("characters"));
         behavior.data.name = name.clone();
 
         self.behaviors_names.push(behavior.name.clone());
@@ -544,10 +576,14 @@ impl GameData {
     #[cfg(feature = "data_editing")]
     /// Create a new system
     pub fn create_system(&mut self, name: String, _behavior_type: usize) {
+        let path = self
+            .path
+            .join("game")
+            .join("systems")
+            .join(name.clone() + ".json");
 
-        let path = self.path.join("game").join("systems").join(name.clone() + ".json");
-
-        let mut system = GameBehavior::load_from_path(&path, &self.path.join("game").join("systems"));
+        let mut system =
+            GameBehavior::load_from_path(&path, &self.path.join("game").join("systems"));
         system.data.name = name.clone();
 
         self.systems_names.push(system.name.clone());
@@ -563,8 +599,11 @@ impl GameData {
     #[cfg(feature = "data_editing")]
     /// Create a new item
     pub fn create_item(&mut self, name: String, _behavior_type: usize) {
-
-        let path = self.path.join("game").join("items").join(name.clone() + ".json");
+        let path = self
+            .path
+            .join("game")
+            .join("items")
+            .join(name.clone() + ".json");
 
         let mut item = GameBehavior::load_from_path(&path, &self.path.join("game").join("items"));
         item.data.name = name.clone();
@@ -582,8 +621,11 @@ impl GameData {
     #[cfg(feature = "data_editing")]
     /// Create a new spell
     pub fn create_spell(&mut self, name: String, _behavior_type: usize) {
-
-        let path = self.path.join("game").join("spells").join(name.clone() + ".json");
+        let path = self
+            .path
+            .join("game")
+            .join("spells")
+            .join(name.clone() + ".json");
 
         let mut spell = GameBehavior::load_from_path(&path, &self.path.join("game").join("spells"));
         spell.data.name = name.clone();
@@ -600,7 +642,12 @@ impl GameData {
 
     #[cfg(feature = "data_editing")]
     /// Sets the value for the given behavior id
-    pub fn set_behavior_id_value(&mut self, id: (Uuid, Uuid, String), value: Value, behavior_type: BehaviorType) {
+    pub fn set_behavior_id_value(
+        &mut self,
+        id: (Uuid, Uuid, String),
+        value: Value,
+        behavior_type: BehaviorType,
+    ) {
         if let Some(behavior) = self.get_mut_behavior(id.0, behavior_type) {
             if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
                 node.values.insert(id.2.clone(), value);
@@ -611,7 +658,12 @@ impl GameData {
 
     #[cfg(feature = "data_editing")]
     /// Sets the name for the given node
-    pub fn set_behavior_node_name(&mut self, id: (Uuid, Uuid), value: String, behavior_type: BehaviorType) {
+    pub fn set_behavior_node_name(
+        &mut self,
+        id: (Uuid, Uuid),
+        value: String,
+        behavior_type: BehaviorType,
+    ) {
         if let Some(behavior) = self.get_mut_behavior(id.0, behavior_type) {
             if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
                 node.name = value;
@@ -622,8 +674,12 @@ impl GameData {
 
     #[cfg(feature = "data_editing")]
     /// Gets the value of the behavior id
-    pub fn get_behavior_id_value(&mut self, id: (Uuid, Uuid, String), def: Value, behavior_type: BehaviorType) -> Value {
-
+    pub fn get_behavior_id_value(
+        &mut self,
+        id: (Uuid, Uuid, String),
+        def: Value,
+        behavior_type: BehaviorType,
+    ) -> Value {
         if let Some(behavior) = self.get_mut_behavior(id.0, behavior_type) {
             if let Some(node) = behavior.data.nodes.get_mut(&id.1) {
                 if let Some(v) = node.values.get(&id.2) {
@@ -638,8 +694,11 @@ impl GameData {
     }
 
     /// Gets the value of the behavior id
-    pub fn get_behavior_id_value_raw(&self, id: (Uuid, Uuid, String), behavior_type: BehaviorType) -> Option<Value> {
-
+    pub fn get_behavior_id_value_raw(
+        &self,
+        id: (Uuid, Uuid, String),
+        behavior_type: BehaviorType,
+    ) -> Option<Value> {
         if let Some(behavior) = self.get_behavior(id.0, behavior_type) {
             if let Some(node) = behavior.data.nodes.get(&id.1) {
                 return node.values.get(&id.2).cloned();
@@ -684,7 +743,7 @@ impl GameData {
                     if let Some(value) = node.values.get(&"alignment".to_string()) {
                         match value {
                             Value::Integer(v) => return 2 - *v as i32 - 1,
-                            _ => {},
+                            _ => {}
                         }
                     }
                 }
@@ -829,29 +888,29 @@ impl GameData {
                     }
                 }
             }
-        } else
-        if behavior_type == BehaviorType::Behaviors {
+        } else if behavior_type == BehaviorType::Behaviors {
             return self.behaviors.get(&id);
-        } else
-        if behavior_type == BehaviorType::Systems {
+        } else if behavior_type == BehaviorType::Systems {
             return self.systems.get(&id);
-        } else
-        if behavior_type == BehaviorType::Items {
+        } else if behavior_type == BehaviorType::Items {
             let item = self.items.get(&id);
             if item.is_none() {
                 return self.spells.get(&id);
             } else {
                 return item;
             }
-        } else
-        if behavior_type == BehaviorType::GameLogic {
+        } else if behavior_type == BehaviorType::GameLogic {
             return Some(&self.game.behavior);
         }
         None
     }
 
     /// Gets the mutable behavior for the given behavior type
-    pub fn get_mut_behavior(&mut self, id: Uuid, behavior_type: BehaviorType) -> Option<&mut GameBehavior> {
+    pub fn get_mut_behavior(
+        &mut self,
+        id: Uuid,
+        behavior_type: BehaviorType,
+    ) -> Option<&mut GameBehavior> {
         if behavior_type == BehaviorType::Regions {
             for (_index, region) in &mut self.regions {
                 for index in 0..region.behaviors.len() {
@@ -865,22 +924,18 @@ impl GameData {
                     }
                 }
             }
-        } else
-        if behavior_type == BehaviorType::Behaviors {
+        } else if behavior_type == BehaviorType::Behaviors {
             return self.behaviors.get_mut(&id);
-        } else
-        if behavior_type == BehaviorType::Systems {
+        } else if behavior_type == BehaviorType::Systems {
             return self.systems.get_mut(&id);
-        } else
-        if behavior_type == BehaviorType::Items {
+        } else if behavior_type == BehaviorType::Items {
             let item = self.items.get_mut(&id);
             if item.is_none() {
                 return self.spells.get_mut(&id);
             } else {
                 return item;
             }
-        } else
-        if behavior_type == BehaviorType::GameLogic {
+        } else if behavior_type == BehaviorType::GameLogic {
             return Some(&mut self.game.behavior);
         }
         None
@@ -911,7 +966,7 @@ impl GameData {
         let settings = self.get_game_settings();
         if let Some(attr) = settings.get("character_attributes") {
             if let Some(attr_string) = attr.as_string() {
-                let mut attributes : Vec<&str> = attr_string.split(',').collect();
+                let mut attributes: Vec<&str> = attr_string.split(',').collect();
 
                 for a in attributes.iter_mut() {
                     *a = a.trim();
@@ -942,10 +997,9 @@ impl GameData {
     pub fn update_scripts(&mut self) {
         #[cfg(not(feature = "embed_binaries"))]
         {
-            let mut scripts : FxHashMap<String, String> = FxHashMap::default();
+            let mut scripts: FxHashMap<String, String> = FxHashMap::default();
             let scripts_path: PathBuf = self.path.join("game").join("scripts");
             if let Some(paths) = fs::read_dir(scripts_path.clone()).ok() {
-
                 for path in paths {
                     let path = &path.unwrap().path();
                     let md = metadata(path).unwrap();
@@ -953,7 +1007,12 @@ impl GameData {
                         if let Some(name) = path::Path::new(&path).extension() {
                             if name == "rhai" {
                                 if let Some(script) = std::fs::read_to_string(path).ok() {
-                                    let name = path::Path::new(path).file_stem().unwrap().to_str().unwrap().to_string();
+                                    let name = path::Path::new(path)
+                                        .file_stem()
+                                        .unwrap()
+                                        .to_str()
+                                        .unwrap()
+                                        .to_string();
                                     scripts.insert(name + ".rhai", script);
                                 }
                             }
@@ -964,5 +1023,4 @@ impl GameData {
             self.scripts = scripts;
         }
     }
-
 }

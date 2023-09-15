@@ -2,7 +2,7 @@ extern crate ref_thread_local;
 use ref_thread_local::{ref_thread_local, RefThreadLocal};
 
 use crate::prelude::*;
-use crossbeam_channel::{ Sender, Receiver, tick, select };
+use crossbeam_channel::{select, tick, Receiver, Sender};
 
 // Local thread globals which can be accessed from both Rust and Rhai
 ref_thread_local! {
@@ -27,18 +27,15 @@ ref_thread_local! {
 }
 
 pub struct RegionPool {
+    sender: Sender<Message>,
+    receiver: Receiver<Message>,
 
-    sender                  : Sender<Message>,
-    receiver                : Receiver<Message>,
-
-    threaded                : bool,
-    instances               : Vec<RegionInstance>,
+    threaded: bool,
+    instances: Vec<RegionInstance>,
 }
 
 impl RegionPool {
-
     pub fn new(threaded: bool, sender: Sender<Message>, receiver: Receiver<Message>) -> Self {
-
         // Create the Engine for the pool
 
         let mut engine = rhai::Engine::new();
@@ -54,8 +51,7 @@ impl RegionPool {
                     let random = util.rng.gen_range(1..=n);
                     return Ok(Some(random.into()));
                 }
-            } else
-            if name.starts_with("r") {
+            } else if name.starts_with("r") {
                 let mut util = UTILITY.borrow_mut();
                 if let Some(result) = util.roll(&name[1..name.len()]).ok() {
                     return Ok(Some(result.into()));
@@ -80,7 +76,9 @@ impl RegionPool {
 
         engine.register_fn("get_target_sheet", || -> Sheet {
             let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-            if let Some(target_index) = data.character_instances[data.curr_index].target_instance_index {
+            if let Some(target_index) =
+                data.character_instances[data.curr_index].target_instance_index
+            {
                 data.sheets[target_index].clone()
             } else {
                 Sheet::new()
@@ -94,43 +92,56 @@ impl RegionPool {
 
         engine.register_fn("set_target_sheet", |sheet: Sheet| {
             let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-            if let Some(target_index) = data.character_instances[data.curr_index].target_instance_index {
+            if let Some(target_index) =
+                data.character_instances[data.curr_index].target_instance_index
+            {
                 data.sheets[target_index] = sheet;
             }
         });
 
-        engine.register_fn("inventory_add", |mut sheet: Sheet, item_name: &str| -> Sheet {
-            inventory_add(&mut sheet, item_name, 1, &mut ITEMS.borrow_mut());
-            sheet
-        });
+        engine.register_fn(
+            "inventory_add",
+            |mut sheet: Sheet, item_name: &str| -> Sheet {
+                inventory_add(&mut sheet, item_name, 1, &mut ITEMS.borrow_mut());
+                sheet
+            },
+        );
 
-        engine.register_fn("inventory_equip", |mut sheet: Sheet, item_name: &str| -> Sheet {
-            inventory_equip(&mut sheet, item_name);
-            sheet
-        });
+        engine.register_fn(
+            "inventory_equip",
+            |mut sheet: Sheet, item_name: &str| -> Sheet {
+                inventory_equip(&mut sheet, item_name);
+                sheet
+            },
+        );
 
-        engine.register_fn("inventory_add_gold", |mut sheet: Sheet, amount: i32| -> Sheet {
-            sheet.wealth.add(Currency::new(amount, 0));
-            sheet
-        });
+        engine.register_fn(
+            "inventory_add_gold",
+            |mut sheet: Sheet, amount: i32| -> Sheet {
+                sheet.wealth.add(Currency::new(amount, 0));
+                sheet
+            },
+        );
 
-        engine.register_fn("inventory_add_silver", |mut sheet: Sheet, amount: i32| -> Sheet {
-            sheet.wealth.add(Currency::new(0, amount));
-            sheet
-        });
+        engine.register_fn(
+            "inventory_add_silver",
+            |mut sheet: Sheet, amount: i32| -> Sheet {
+                sheet.wealth.add(Currency::new(0, amount));
+                sheet
+            },
+        );
 
-        engine.register_fn("inventory_add_gold_silver", |mut sheet: Sheet, gold: i32, silver: i32| -> Sheet {
-            sheet.wealth.add(Currency::new(gold, silver));
-            sheet
-        });
+        engine.register_fn(
+            "inventory_add_gold_silver",
+            |mut sheet: Sheet, gold: i32, silver: i32| -> Sheet {
+                sheet.wealth.add(Currency::new(gold, silver));
+                sheet
+            },
+        );
 
-        engine.register_fn("get_state", || -> bool {
-            STATE.borrow().state
-        });
+        engine.register_fn("get_state", || -> bool { STATE.borrow().state });
 
-        engine.register_fn("set_state", |state: bool| {
-            STATE.borrow_mut().state = state
-        });
+        engine.register_fn("set_state", |state: bool| STATE.borrow_mut().state = state);
 
         engine.register_fn("toggle_state", || {
             let mut state = STATE.borrow_mut();
@@ -144,7 +155,9 @@ impl RegionPool {
 
         engine.register_fn("execute_on_target", |tree: &str| {
             let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-            if let Some(target_index) = data.character_instances[data.curr_index].target_instance_index {
+            if let Some(target_index) =
+                data.character_instances[data.curr_index].target_instance_index
+            {
                 data.to_execute.push((target_index, tree.to_string()));
             }
         });
@@ -152,49 +165,58 @@ impl RegionPool {
         engine.register_fn("send_status_message", |message: &str| {
             let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
             let name = data.character_instances[data.curr_index].name.clone();
-            data.character_instances[data.curr_index].messages.push( MessageData {
-                    message_type        : MessageType::Status,
-                    message             : message.to_string(),
-                    from                : name,
-                    right               : None,
-                    center              : None,
-                    buffer              : None,
-            });
+            data.character_instances[data.curr_index]
+                .messages
+                .push(MessageData {
+                    message_type: MessageType::Status,
+                    message: message.to_string(),
+                    from: name,
+                    right: None,
+                    center: None,
+                    buffer: None,
+                });
         });
 
         engine.register_fn("send_status_message_target", |message: &str| {
             let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
             if let Some(target) = data.character_instances[data.curr_index].target_instance_index {
                 let name = data.character_instances[target].name.clone();
-                data.character_instances[target].messages.push( MessageData {
-                        message_type        : MessageType::Status,
-                        message             : message.to_string(),
-                        from                : name,
-                        right               : None,
-                        center              : None,
-                        buffer              : None,
+                data.character_instances[target].messages.push(MessageData {
+                    message_type: MessageType::Status,
+                    message: message.to_string(),
+                    from: name,
+                    right: None,
+                    center: None,
+                    buffer: None,
                 });
             }
         });
 
         // Roll the damage for the main weapon
-        engine.register_fn("roll_weapon_damage", |mut sheet: Sheet, slot_name: String| -> i32 {
-            roll_weapon_damage(&mut sheet, slot_name)
-        });
+        engine.register_fn(
+            "roll_weapon_damage",
+            |mut sheet: Sheet, slot_name: String| -> i32 {
+                roll_weapon_damage(&mut sheet, slot_name)
+            },
+        );
 
-        engine.register_fn("increase_weapon_skill_by", |mut sheet: Sheet, slot_name: String, amount: i32| -> Sheet {
-            inc_weapon_skill_by(&mut sheet, slot_name, amount);
-            sheet
-        });
+        engine.register_fn(
+            "increase_weapon_skill_by",
+            |mut sheet: Sheet, slot_name: String, amount: i32| -> Sheet {
+                inc_weapon_skill_by(&mut sheet, slot_name, amount);
+                sheet
+            },
+        );
 
         // Roll the skill for a given item
-        engine.register_fn("roll_item_skill", |mut sheet: Sheet, item_name: String| -> i32 {
-            roll_item_skill(&mut sheet, item_name)
-        });
+        engine.register_fn(
+            "roll_item_skill",
+            |mut sheet: Sheet, item_name: String| -> i32 { roll_item_skill(&mut sheet, item_name) },
+        );
 
         // Roll the damage for the main weapon
         engine.register_fn("execute_weapon_effects", || {
-            let item_effects : Option<(Uuid, Uuid)>;
+            let item_effects: Option<(Uuid, Uuid)>;
             {
                 let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
                 item_effects = data.item_effects;
@@ -214,16 +236,22 @@ impl RegionPool {
         });
 
         // Increases the given skill by the given amount
-        engine.register_fn("increase_skill_by", |mut sheet: Sheet, skill_name: String, amount: i32| -> Sheet {
-            increase_skill_by(&mut sheet, skill_name, amount);
-            sheet
-        });
+        engine.register_fn(
+            "increase_skill_by",
+            |mut sheet: Sheet, skill_name: String, amount: i32| -> Sheet {
+                increase_skill_by(&mut sheet, skill_name, amount);
+                sheet
+            },
+        );
 
         // Increases the experience by the given amount
-        engine.register_fn("increase_experience_by", |mut sheet: Sheet, amount: i32| -> Sheet {
-            increase_experience_by(&mut sheet, amount);
-            sheet
-        });
+        engine.register_fn(
+            "increase_experience_by",
+            |mut sheet: Sheet, amount: i32| -> Sheet {
+                increase_experience_by(&mut sheet, amount);
+                sheet
+            },
+        );
 
         Sheet::register(&mut engine);
         Currency::register(&mut engine);
@@ -248,14 +276,23 @@ impl RegionPool {
             receiver,
 
             threaded,
-            instances       : vec![],
+            instances: vec![],
         }
     }
 
-    pub fn add_regions(&mut self, regions: Vec<String>, regions_behavior: FxHashMap<Uuid, Vec<String>>, behaviors: Vec<String>, systems: Vec<String>, items: Vec<String>, spells: Vec<String>, game: String, scripts: FxHashMap<String, String>) {
-
+    pub fn add_regions(
+        &mut self,
+        regions: Vec<String>,
+        regions_behavior: FxHashMap<Uuid, Vec<String>>,
+        behaviors: Vec<String>,
+        systems: Vec<String>,
+        items: Vec<String>,
+        spells: Vec<String>,
+        game: String,
+        scripts: FxHashMap<String, String>,
+    ) {
         // --- Add the behaviors to the global pool
-        let mut decoded_behaviors : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
+        let mut decoded_behaviors: FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
         for i in &behaviors {
             if let Some(behavior_data) = serde_json::from_str::<GameBehaviorData>(&i).ok() {
                 decoded_behaviors.insert(behavior_data.id, behavior_data);
@@ -267,7 +304,7 @@ impl RegionPool {
         }
 
         // --- Add the items to the global pool
-        let mut decoded_items : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
+        let mut decoded_items: FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
         for i in &items {
             if let Some(behavior_data) = serde_json::from_str::<GameBehaviorData>(&i).ok() {
                 decoded_items.insert(behavior_data.id, behavior_data);
@@ -279,7 +316,7 @@ impl RegionPool {
         }
 
         // --- Add the spells to the global pool
-        let mut decoded_spells : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
+        let mut decoded_spells: FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
         for i in &spells {
             if let Some(behavior_data) = serde_json::from_str::<GameBehaviorData>(&i).ok() {
                 decoded_spells.insert(behavior_data.id, behavior_data);
@@ -291,7 +328,7 @@ impl RegionPool {
         }
 
         // --- Add the systems to the global pool
-        let mut decoded_systems : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
+        let mut decoded_systems: FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
         for i in &systems {
             if let Some(behavior_data) = serde_json::from_str::<GameBehaviorData>(&i).ok() {
                 decoded_systems.insert(behavior_data.id, behavior_data);
@@ -303,7 +340,7 @@ impl RegionPool {
         }
 
         // --- Add the game behavior
-        let mut decoded_game : FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
+        let mut decoded_game: FxHashMap<Uuid, GameBehaviorData> = FxHashMap::default();
         if let Some(behavior_data) = serde_json::from_str::<GameBehaviorData>(&game).ok() {
             decoded_game.insert(behavior_data.id, behavior_data);
         }
@@ -320,7 +357,16 @@ impl RegionPool {
                 let data = RegionData::new();
                 REGION_DATA.borrow_mut().push(data);
             }
-            instance.setup(region, regions_behavior.clone(), behaviors.clone(), systems.clone(), items.clone(), spells.clone(), game.clone(), scripts.clone());
+            instance.setup(
+                region,
+                regions_behavior.clone(),
+                behaviors.clone(),
+                systems.clone(),
+                items.clone(),
+                spells.clone(),
+                game.clone(),
+                scripts.clone(),
+            );
             self.instances.push(instance);
             {
                 let mut index = *CURR_INST.borrow();
@@ -336,11 +382,9 @@ impl RegionPool {
 
     /// The game loop for these regions. Only called when mt is available. Otherwise server calls tick() directly.
     pub fn run(&mut self) {
-
         let ticker = tick(std::time::Duration::from_millis(250));
 
         loop {
-
             select! {
                 recv(ticker) -> _ => {
                     _ = self.tick()
@@ -390,15 +434,15 @@ impl RegionPool {
 
     /// Game tick, uses messages when running multi-threaded, otherwise returns the messages back to the server.
     pub fn tick(&mut self) -> Option<Vec<Message>> {
-
-        let mut ret_messages : Vec<Message> = vec![];
-        let mut characters_to_transfer : Vec<(Uuid, BehaviorInstance, Sheet)> = vec![];
+        let mut ret_messages: Vec<Message> = vec![];
+        let mut characters_to_transfer: Vec<(Uuid, BehaviorInstance, Sheet)> = vec![];
 
         {
             *CURR_INST.borrow_mut() = 0;
         }
 
-        DATE.borrow_mut().from_ticks(*TICK_COUNT.borrow(), *TICKS_PER_MINUTE.borrow());
+        DATE.borrow_mut()
+            .from_ticks(*TICK_COUNT.borrow(), *TICKS_PER_MINUTE.borrow());
 
         for instance in &mut self.instances {
             let messages = instance.tick();
@@ -406,7 +450,7 @@ impl RegionPool {
                 match m {
                     Message::TransferCharacter(region_id, instance, sheet) => {
                         characters_to_transfer.push((region_id, instance, sheet));
-                    },
+                    }
                     _ => {
                         if self.threaded {
                             self.sender.send(m).unwrap()
@@ -431,7 +475,8 @@ impl RegionPool {
                 if i.region_data.id == transfer.0 {
                     let uuid = transfer.1.id;
                     i.transfer_character_into(transfer.1, transfer.2);
-                    let message = Message::CharacterHasBeenTransferredInsidePool(uuid, i.region_data.id);
+                    let message =
+                        Message::CharacterHasBeenTransferredInsidePool(uuid, i.region_data.id);
                     if self.threaded {
                         self.sender.send(message).unwrap();
                     } else {
@@ -457,11 +502,15 @@ impl RegionPool {
         }
 
         None
-
     }
 
     /// Create a new character
-    pub fn create_character(&mut self, uuid: Uuid, user_name: Option<String>, data: CharacterInstanceData) {
+    pub fn create_character(
+        &mut self,
+        uuid: Uuid,
+        user_name: Option<String>,
+        data: CharacterInstanceData,
+    ) {
         {
             *CURR_INST.borrow_mut() = 0;
         }
@@ -527,7 +576,12 @@ impl RegionPool {
     }
 
     /// Executes the given player action
-    pub fn execute_player_action(&mut self, uuid: Uuid, region_id: Uuid, player_action: PlayerAction) {
+    pub fn execute_player_action(
+        &mut self,
+        uuid: Uuid,
+        region_id: Uuid,
+        player_action: PlayerAction,
+    ) {
         {
             *CURR_INST.borrow_mut() = 0;
         }

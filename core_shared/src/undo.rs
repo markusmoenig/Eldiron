@@ -1,19 +1,19 @@
 pub struct Undo {
-    pub undo_data           : String,
-    pub redo_data           : String,
+    pub undo_data: String,
+    pub redo_data: String,
 }
 
 pub struct UndoStack {
-    pub stack               : Vec<Undo>,
+    pub stack: Vec<Undo>,
 
-    pub index               : isize,
+    pub index: isize,
 }
 
 impl UndoStack {
     pub fn new() -> Self {
         Self {
-            stack           : vec![],
-            index           : -1,
+            stack: vec![],
+            index: -1,
         }
     }
 
@@ -45,7 +45,10 @@ impl UndoStack {
         for _i in 0..to_remove {
             self.stack.pop();
         }
-        self.stack.push(Undo { undo_data: undo, redo_data: redo});
+        self.stack.push(Undo {
+            undo_data: undo,
+            redo_data: redo,
+        });
         self.index += 1;
     }
 }

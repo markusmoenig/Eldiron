@@ -1,50 +1,47 @@
 use crate::prelude::*;
-use crossbeam_channel::{ Sender, Receiver, tick, select };
+use crossbeam_channel::{select, tick, Receiver, Sender};
 
 pub struct Lobby {
-    sender                          : Sender<Message>,
-    receiver                        : Receiver<Message>,
+    sender: Sender<Message>,
+    receiver: Receiver<Message>,
 
-    threaded                        : bool,
+    threaded: bool,
 
-    pub game_behavior               : GameBehaviorData,
-    pub scripts                     : FxHashMap<String, String>,
-    pub users                       : FxHashMap<Uuid, User>,
+    pub game_behavior: GameBehaviorData,
+    pub scripts: FxHashMap<String, String>,
+    pub users: FxHashMap<Uuid, User>,
 
-    startup_tree_name               : String,
-    startup_script_name             : String,
+    startup_tree_name: String,
+    startup_script_name: String,
 }
 
 impl Lobby {
-
     pub fn new(threaded: bool, sender: Sender<Message>, receiver: Receiver<Message>) -> Self {
-
         Self {
             sender,
             receiver,
 
             threaded,
 
-            game_behavior           : GameBehaviorData::new(),
-            scripts                 : FxHashMap::default(),
-            users                   : FxHashMap::default(),
+            game_behavior: GameBehaviorData::new(),
+            scripts: FxHashMap::default(),
+            users: FxHashMap::default(),
 
-            startup_tree_name       : "".to_string(),
-            startup_script_name     : "".to_string(),
+            startup_tree_name: "".to_string(),
+            startup_script_name: "".to_string(),
         }
     }
 
     pub fn setup(&mut self, game: String, scripts: FxHashMap<String, String>) {
         self.scripts = scripts;
         if let Some(game_behavior) = serde_json::from_str::<GameBehaviorData>(&game).ok() {
-
-            let mut startup_name : Option<String> = None;
+            let mut startup_name: Option<String> = None;
 
             // Get the name of the startup game tree and its script name
 
             for (_id, node) in &game_behavior.nodes {
                 if node.behavior_type == BehaviorNodeType::BehaviorType {
-                    if let Some(value )= node.values.get(&"startup".to_string()) {
+                    if let Some(value) = node.values.get(&"startup".to_string()) {
                         startup_name = Some(value.to_string_value());
                         self.startup_tree_name = value.to_string_value();
                     }
@@ -63,11 +60,9 @@ impl Lobby {
 
     /// The game loop for these regions. Only called when mt is available. Otherwise server calls tick() directly.
     pub fn run(&mut self) {
-
         let ticker = tick(std::time::Duration::from_millis(250));
 
         loop {
-
             select! {
                 recv(ticker) -> _ => {
                     _ = self.tick();
@@ -111,8 +106,7 @@ impl Lobby {
 
     /// Adds a user struct to the lobby
     pub fn remove_user(&mut self, user_id: Uuid) {
-        if let Some(_user) = self.users.remove(&user_id) {
-        }
+        if let Some(_user) = self.users.remove(&user_id) {}
     }
 
     /// Sets the name of the user
@@ -146,10 +140,9 @@ impl Lobby {
     }
 
     pub fn tick(&mut self) -> Vec<Message> {
-        let mut ret_messages : Vec<Message> = vec![];
+        let mut ret_messages: Vec<Message> = vec![];
 
         for (id, user) in &mut self.users {
-
             let mut update = GameUpdate::new();
             update.id = *id;
 
@@ -193,7 +186,7 @@ impl Lobby {
 
     /// Returns the script name for a given game behavior tree
     fn get_script_name_for_screen(&self, screen_name: String) -> Option<String> {
-        let mut screen_node_id : Option<Uuid> = None;
+        let mut screen_node_id: Option<Uuid> = None;
 
         for (id, node) in &self.game_behavior.nodes {
             if node.behavior_type == BehaviorNodeType::BehaviorTree {
@@ -218,5 +211,4 @@ impl Lobby {
         }
         None
     }
-
 }

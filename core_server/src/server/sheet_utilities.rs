@@ -1,5 +1,5 @@
 extern crate ref_thread_local;
-use ref_thread_local::{RefThreadLocal};
+use ref_thread_local::RefThreadLocal;
 
 use crate::prelude::*;
 
@@ -77,15 +77,14 @@ pub fn get_item_skill_name(item_name: String) -> Option<String> {
 
 /// Get the value and delay data for the skill level of the given item.
 pub fn get_item_skill_level_value_delay(item_name: String, level: i32) -> Option<(i32, i32)> {
-
-    let mut skill_level_id : Option<(Uuid, Uuid)> = None;
+    let mut skill_level_id: Option<(Uuid, Uuid)> = None;
 
     let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
     data.item_effects = None;
 
     if let Some(items) = &ITEMS.try_borrow_mut().ok() {
         for (id, behavior) in items.iter() {
-            if  behavior.name == item_name {
+            if behavior.name == item_name {
                 for (_id, node) in &behavior.nodes {
                     //println!("{:?}, {}, {}", node.behavior_type, node.name, item_name);
                     if node.behavior_type == BehaviorNodeType::SkillTree {
@@ -101,7 +100,9 @@ pub fn get_item_skill_level_value_delay(item_name: String, level: i32) -> Option
 
                                             // Check if there are some effects on the right
                                             for (id1, c1, id2, _c2) in &behavior.connections {
-                                                if *id1 == *uuid && *c1 == BehaviorNodeConnector::Right {
+                                                if *id1 == *uuid
+                                                    && *c1 == BehaviorNodeConnector::Right
+                                                {
                                                     data.item_effects = Some((*id, *id2));
                                                     break;
                                                 }
@@ -111,8 +112,8 @@ pub fn get_item_skill_level_value_delay(item_name: String, level: i32) -> Option
                                         }
                                     }
                                     break;
-                                } else
-                                if *id2 == parent_id && *c2 == BehaviorNodeConnector::Bottom {
+                                } else if *id2 == parent_id && *c2 == BehaviorNodeConnector::Bottom
+                                {
                                     for (uuid, node) in &behavior.nodes {
                                         if *uuid == *id1 {
                                             skill_level_id = Some((behavior.id, node.id));
@@ -120,7 +121,9 @@ pub fn get_item_skill_level_value_delay(item_name: String, level: i32) -> Option
 
                                             // Check if there are some effects on the right
                                             for (_id1, _c1, id2, c2) in &behavior.connections {
-                                                if *id2 == *uuid && *c2 == BehaviorNodeConnector::Right {
+                                                if *id2 == *uuid
+                                                    && *c2 == BehaviorNodeConnector::Right
+                                                {
                                                     data.item_effects = Some((*id, *id2));
                                                     break;
                                                 }
@@ -142,7 +145,7 @@ pub fn get_item_skill_level_value_delay(item_name: String, level: i32) -> Option
         }
     }
 
-    let mut rc : Option<(i32, i32)> = None;
+    let mut rc: Option<(i32, i32)> = None;
 
     if let Some(id) = skill_level_id {
         let mut value = 0;
@@ -182,15 +185,17 @@ pub fn increase_skill_by(sheet: &mut Sheet, skill_name: String, amount: i32) {
                     if new_level > skill.level {
                         // Send message
                         let message_data = MessageData {
-                            message_type    : MessageType::Status,
-                            message         : tree[lvl].2.clone(),
-                            from            : "System".to_string(),
-                            right           : None,
-                            center          : None,
-                            buffer          : None
+                            message_type: MessageType::Status,
+                            message: tree[lvl].2.clone(),
+                            from: "System".to_string(),
+                            right: None,
+                            center: None,
+                            buffer: None,
                         };
 
-                        data.character_instances[data.curr_index].messages.push(message_data.clone());
+                        data.character_instances[data.curr_index]
+                            .messages
+                            .push(message_data.clone());
                     }
                 } else {
                     break;
@@ -217,15 +222,17 @@ pub fn increase_experience_by(sheet: &mut Sheet, amount: i32) {
 
     // Send message
     let message_data = MessageData {
-        message_type    : MessageType::Status,
-        message         : str,
-        from            : "System".to_string(),
-        right           : None,
-        center          : None,
-        buffer          : None
+        message_type: MessageType::Status,
+        message: str,
+        from: "System".to_string(),
+        right: None,
+        center: None,
+        buffer: None,
     };
 
-    data.character_instances[data.curr_index].messages.push(message_data.clone());
+    data.character_instances[data.curr_index]
+        .messages
+        .push(message_data.clone());
 
     let mut new_level = 0;
     for lvl in 0..sheet.experience.levels.len() {
@@ -235,15 +242,17 @@ pub fn increase_experience_by(sheet: &mut Sheet, amount: i32) {
             if new_level > sheet.experience.level {
                 // Send message
                 let message_data = MessageData {
-                    message_type    : MessageType::Status,
-                    message         : sheet.experience.levels[lvl].1.clone(),
-                    from            : "System".to_string(),
-                    right           : None,
-                    center          : None,
-                    buffer          : None
+                    message_type: MessageType::Status,
+                    message: sheet.experience.levels[lvl].1.clone(),
+                    from: "System".to_string(),
+                    right: None,
+                    center: None,
+                    buffer: None,
                 };
 
-                data.character_instances[data.curr_index].messages.push(message_data.clone());
+                data.character_instances[data.curr_index]
+                    .messages
+                    .push(message_data.clone());
             }
         } else {
             break;
@@ -252,18 +261,33 @@ pub fn increase_experience_by(sheet: &mut Sheet, amount: i32) {
     if new_level > sheet.experience.level {
         sheet.experience.level = new_level;
 
-        eval_script((sheet.experience.level_behavior_id, sheet.experience.levels[new_level as usize-1].2), "script", &mut SYSTEMS.borrow_mut());
+        eval_script(
+            (
+                sheet.experience.level_behavior_id,
+                sheet.experience.levels[new_level as usize - 1].2,
+            ),
+            "script",
+            &mut SYSTEMS.borrow_mut(),
+        );
 
-        println!("[{}] Advanced to level {}", data.character_instances[data.curr_index].name, sheet.experience.level);
+        println!(
+            "[{}] Advanced to level {}",
+            data.character_instances[data.curr_index].name, sheet.experience.level
+        );
     }
 }
 
 /// Add the item identified by its name to the inventory.
-pub fn inventory_add(sheet: &mut Sheet, item_name: &str, amount: i32, item_nodes: &mut FxHashMap<Uuid, GameBehaviorData>) {
+pub fn inventory_add(
+    sheet: &mut Sheet,
+    item_name: &str,
+    amount: i32,
+    item_nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) {
     for (_id, behavior) in item_nodes.iter() {
         if behavior.name == item_name {
-            let mut tile_data : Option<TileData> = None;
-            let mut sink : Option<PropertySink> = None;
+            let mut tile_data: Option<TileData> = None;
+            let mut sink: Option<PropertySink> = None;
 
             // Get the default tile for the item
             for (_index, node) in &behavior.nodes {
@@ -362,8 +386,7 @@ pub fn inventory_equip(sheet: &mut Sheet, item_name: &str) {
                 }
                 // Insert the new weapon into the slot
                 sheet.weapons.slots.insert(slot, to_equip);
-            } else
-            if item_type == "gear" {
+            } else if item_type == "gear" {
                 // Remove existing item in the slot
                 if let Some(g) = sheet.gear.slots.remove(&slot) {
                     to_add_back_to_inventory.push(g);
@@ -386,7 +409,7 @@ pub fn inventory_equip(sheet: &mut Sheet, item_name: &str) {
 pub fn get_inventory_item_at(index: usize, set_state: bool) -> Option<Item> {
     let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
     let sheet = &mut data.sheets[data.curr_index];
-    if index < sheet.inventory.items.len(){
+    if index < sheet.inventory.items.len() {
         if set_state {
             if let Some(state) = sheet.inventory.items[index as usize].state.clone() {
                 *STATE.borrow_mut() = state;
@@ -433,7 +456,7 @@ pub fn execute_behavior(inst_index: usize, tree_name: &str) -> bool {
     let race_name;
 
     // This fill contain the Uuid of the tree we will execute, once we have found it in the behaviors or system class / race.
-    let mut tree_id : Option<Uuid> = None;
+    let mut tree_id: Option<Uuid> = None;
 
     {
         let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
@@ -444,7 +467,9 @@ pub fn execute_behavior(inst_index: usize, tree_name: &str) -> bool {
         if let Some(behaviors) = BEHAVIORS.try_borrow().ok() {
             if let Some(behavior) = behaviors.get(&behavior_id) {
                 for (id, node) in &behavior.nodes {
-                    if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name {
+                    if node.behavior_type == BehaviorNodeType::BehaviorTree
+                        && node.name == tree_name
+                    {
                         if node.name == tree_name {
                             tree_id = Some(*id);
                             break;
@@ -487,21 +512,23 @@ pub fn execute_system(system_name: &str, tree_name: &str) -> bool {
         for (system_id, system) in systems.iter() {
             if system.name == system_name {
                 for (id, node) in &system.nodes {
-                    if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name{
+                    if node.behavior_type == BehaviorNodeType::BehaviorTree
+                        && node.name == tree_name
+                    {
                         //for (value_name, value) in &node.values {
-                            //if *value_name == "execute".to_string() {
-                                //if let Some(v) = value.to_integer() {
-                                    //if v == 0 {
-                                        // "Always execute" only tree
-                                        for c in &system.connections {
-                                            if c.0 == *id {
-                                                execute_node(*system_id, c.0, systems);
-                                                return true;
-                                            }
-                                        }
-                                    //}
-                                //}
-                            //}
+                        //if *value_name == "execute".to_string() {
+                        //if let Some(v) = value.to_integer() {
+                        //if v == 0 {
+                        // "Always execute" only tree
+                        for c in &system.connections {
+                            if c.0 == *id {
+                                execute_node(*system_id, c.0, systems);
+                                return true;
+                            }
+                        }
+                        //}
+                        //}
+                        //}
                         //}
                     }
                 }
@@ -512,14 +539,17 @@ pub fn execute_system(system_name: &str, tree_name: &str) -> bool {
 }
 
 /// Executes the given item node and follows the connection chain
-pub fn execute_node(behavior_id: Uuid, node_id: Uuid, nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> Option<BehaviorNodeConnector> {
+pub fn execute_node(
+    behavior_id: Uuid,
+    node_id: Uuid,
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> Option<BehaviorNodeConnector> {
+    let mut connectors: Vec<BehaviorNodeConnector> = vec![];
+    let mut connected_node_ids: Vec<Uuid> = vec![];
 
-    let mut connectors : Vec<BehaviorNodeConnector> = vec![];
-    let mut connected_node_ids : Vec<Uuid> = vec![];
+    let mut rc: Option<BehaviorNodeConnector> = None;
 
-    let mut rc : Option<BehaviorNodeConnector> = None;
-
-    let mut behavior_type : Option<BehaviorNodeType> = None;
+    let mut behavior_type: Option<BehaviorNodeType> = None;
     if let Some(item) = nodes.get(&behavior_id) {
         if let Some(node) = item.nodes.get(&node_id) {
             behavior_type = Some(node.behavior_type);
@@ -555,7 +585,6 @@ pub fn execute_node(behavior_id: Uuid, node_id: Uuid, nodes: &mut FxHashMap<Uuid
     // Search the connections to check if we can find an ongoing node connection
     for connector in connectors {
         if let Some(item) = nodes.get(&behavior_id) {
-
             for c in &item.connections {
                 if c.0 == node_id && c.1 == connector {
                     connected_node_ids.push(c.2);
@@ -569,8 +598,7 @@ pub fn execute_node(behavior_id: Uuid, node_id: Uuid, nodes: &mut FxHashMap<Uuid
 
     // And if yes execute it
     for (_index, connected_node_id) in connected_node_ids.iter().enumerate() {
-        if let Some(_connector) = execute_node(behavior_id, *connected_node_id, nodes) {
-        }
+        if let Some(_connector) = execute_node(behavior_id, *connected_node_id, nodes) {}
     }
 
     /*

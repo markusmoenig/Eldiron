@@ -1,24 +1,32 @@
 extern crate ref_thread_local;
 
-use ref_thread_local::RefThreadLocal;
 use crate::prelude::*;
+use ref_thread_local::RefThreadLocal;
 
-
-pub fn node_script(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_script(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     eval_script(id, "script", nodes);
     BehaviorNodeConnector::Bottom
 }
 
 /// expression
-pub fn node_expression(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_expression(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     if eval_script_bool(id, "expression", nodes) {
         return BehaviorNodeConnector::Success;
     }
     BehaviorNodeConnector::Fail
 }
 
-pub fn node_message(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
-    let mut message_type : MessageType = MessageType::Status;
+pub fn node_message(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
+    let mut message_type: MessageType = MessageType::Status;
     let mut text;
 
     if let Some(value) = get_node_integer(id, "type", nodes) {
@@ -27,7 +35,7 @@ pub fn node_message(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDa
             2 => MessageType::Yell,
             3 => MessageType::Tell,
             4 => MessageType::Debug,
-            _ => MessageType::Status
+            _ => MessageType::Status,
         }
     }
 
@@ -46,22 +54,36 @@ pub fn node_message(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDa
         text = text.replace("${CONTEXT}", &data.action_subject_text);
     }
     if text.contains("${DEF_CONTEXT}") {
-        let def = if text.starts_with("${DEF_CONTEXT}") { "The ".to_string() } else { "the ".to_string() };
+        let def = if text.starts_with("${DEF_CONTEXT}") {
+            "The ".to_string()
+        } else {
+            "the ".to_string()
+        };
         let string = def + data.action_subject_text.to_lowercase().as_str();
         text = text.replace("${DEF_CONTEXT}", &string);
     }
     if text.contains("${TARGET}") {
         let mut target_text = "".to_string();
-        if let Some(target_index) = data.character_instances[data.curr_index].target_instance_index {
+        if let Some(target_index) = data.character_instances[data.curr_index].target_instance_index
+        {
             target_text = data.character_instances[target_index].name.clone();
         }
         text = text.replace("${TARGET}", &target_text);
     }
     if text.contains("${DEF_TARGET}") {
         let mut target_text = "".to_string();
-        if let Some(target_index) = data.character_instances[data.curr_index].target_instance_index {
-            let def = if text.starts_with("${DEF_TARGET}") { "The ".to_string() } else { "the ".to_string() };
-            target_text = def + data.character_instances[target_index].name.to_lowercase().as_str();
+        if let Some(target_index) = data.character_instances[data.curr_index].target_instance_index
+        {
+            let def = if text.starts_with("${DEF_TARGET}") {
+                "The ".to_string()
+            } else {
+                "the ".to_string()
+            };
+            target_text = def
+                + data.character_instances[target_index]
+                    .name
+                    .to_lowercase()
+                    .as_str();
         }
         text = text.replace("${DEF_TARGET}", &target_text);
     }
@@ -95,30 +117,37 @@ pub fn node_message(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDa
 
     // Formating if needed
     text = match message_type {
-        MessageType::Say => format!("{} says \"{}\".", data.character_instances[data.curr_index].name, text),
-        _ => text
+        MessageType::Say => format!(
+            "{} says \"{}\".",
+            data.character_instances[data.curr_index].name, text
+        ),
+        _ => text,
     };
 
     let message_data = MessageData {
         message_type,
-        message         : text,
-        from            : data.character_instances[data.curr_index].name.clone(),
-        right           : None,
-        center          : None,
-        buffer          : None
+        message: text,
+        from: data.character_instances[data.curr_index].name.clone(),
+        right: None,
+        center: None,
+        buffer: None,
     };
 
-
-    data.character_instances[data.curr_index].messages.push(message_data);
+    data.character_instances[data.curr_index]
+        .messages
+        .push(message_data);
 
     BehaviorNodeConnector::Bottom
 }
 
-pub fn node_random_walk(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_random_walk(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
     if wait_for(data.curr_index, id, data) {
-        let mut p : Option<Position> = None;
+        let mut p: Option<Position> = None;
 
         let mut distance = i32::MAX;
 
@@ -126,7 +155,7 @@ pub fn node_random_walk(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
             p = Some(v.clone());
         }
 
-        let mut max_distance : i32 = 0;
+        let mut max_distance: i32 = 0;
         if let Some(d) = eval_script_integer(id, "max_distance", nodes) {
             max_distance = d;
         }
@@ -148,19 +177,16 @@ pub fn node_random_walk(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
 
             if random == 0 {
                 dp.y -= 1;
-            } else
-            if random == 1 {
+            } else if random == 1 {
                 dp.x += 1;
-            } else
-            if random == 2 {
+            } else if random == 2 {
                 dp.y += 1;
-            } else
-            if random == 3 {
+            } else if random == 3 {
                 dp.x -= 1;
             }
         }
 
-        let mut delay : i32 = 0;
+        let mut delay: i32 = 0;
         if let Some(d) = eval_script_integer(id, "walk_delay", nodes) {
             delay = d.clamp(0, i32::MAX);
         }
@@ -168,12 +194,12 @@ pub fn node_random_walk(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
         // Apply the delay
         data.character_instances[data.curr_index].sleep_cycles = delay as usize;
 
-        _ = walk_towards(p, Some(dp),false, data);
+        _ = walk_towards(p, Some(dp), false, data);
 
         data.character_instances[data.curr_index].max_transition_time = delay as usize + 1;
         data.character_instances[data.curr_index].curr_transition_time = 1;
 
-        let mut delay_between_movement : i32 = 10;
+        let mut delay_between_movement: i32 = 10;
         if let Some(d) = eval_script_integer(id, "delay", nodes) {
             delay_between_movement = d;
         }
@@ -185,11 +211,14 @@ pub fn node_random_walk(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
 }
 
 /// Pathfinder
-pub fn node_pathfinder(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_pathfinder(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
-    let mut p : Option<Position> = None;
-    let mut dp : Option<Position> = None;
+    let mut p: Option<Position> = None;
+    let mut dp: Option<Position> = None;
 
     let mut distance = i32::MAX;
 
@@ -199,10 +228,8 @@ pub fn node_pathfinder(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavio
 
     if let Some(value) = get_node_value2(id, "destination", nodes) {
         dp = match value {
-            Value::Position(v) => {
-                Some(v.clone())
-            },
-            _ => None
+            Value::Position(v) => Some(v.clone()),
+            _ => None,
         };
 
         if let Some(dp) = &dp {
@@ -212,7 +239,7 @@ pub fn node_pathfinder(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavio
         }
     }
 
-    let mut delay : i32 = 0;
+    let mut delay: i32 = 0;
     if let Some(d) = eval_script_integer(id, "walk_delay", nodes) {
         delay = d.clamp(0, i32::MAX);
     }
@@ -233,8 +260,8 @@ pub fn node_pathfinder(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavio
         return BehaviorNodeConnector::Success;
     }
 
-    let rc  = walk_towards(p, dp,false, data);
-    if  rc == BehaviorNodeConnector::Right {
+    let rc = walk_towards(p, dp, false, data);
+    if rc == BehaviorNodeConnector::Right {
         data.character_instances[data.curr_index].max_transition_time = delay as usize + 1;
         data.character_instances[data.curr_index].curr_transition_time = 1;
     }
@@ -243,21 +270,23 @@ pub fn node_pathfinder(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavio
 }
 
 /// Lookout
-pub fn node_lookout(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
-
+pub fn node_lookout(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let mut state = 0;
     if let Some(value) = get_node_integer(id, "state", nodes) {
         state = value;
     }
 
-    let mut max_distance : i32 = 7;
+    let mut max_distance: i32 = 7;
     if let Some(d) = eval_script_integer(id, "max_distance", nodes) {
         max_distance = d;
     }
 
     // Find the chars within the given distance
 
-    let mut chars : Vec<usize> = vec![];
+    let mut chars: Vec<usize> = vec![];
     let index;
 
     {
@@ -266,7 +295,18 @@ pub fn node_lookout(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDa
         if let Some(position) = &data.character_instances[data.curr_index].position {
             for inst_index in 0..data.character_instances.len() {
                 if inst_index != data.curr_index {
-                    if (data.character_instances[inst_index].state == BehaviorInstanceState::Normal && state == 0) || (data.character_instances[inst_index].state == BehaviorInstanceState::Killed && state == 1) || (data.character_instances[inst_index].state == BehaviorInstanceState::Sleeping && state == 3) || (data.character_instances[inst_index].state == BehaviorInstanceState::Intoxicated && state == 4) {
+                    if (data.character_instances[inst_index].state == BehaviorInstanceState::Normal
+                        && state == 0)
+                        || (data.character_instances[inst_index].state
+                            == BehaviorInstanceState::Killed
+                            && state == 1)
+                        || (data.character_instances[inst_index].state
+                            == BehaviorInstanceState::Sleeping
+                            && state == 3)
+                        || (data.character_instances[inst_index].state
+                            == BehaviorInstanceState::Intoxicated
+                            && state == 4)
+                    {
                         if let Some(pos) = &data.character_instances[inst_index].position {
                             if pos.region == position.region {
                                 let dx = position.x - pos.x;
@@ -305,10 +345,12 @@ pub fn node_lookout(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDa
 }
 
 /// CloseIn
-pub fn node_close_in(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
-
-    let mut p : Option<Position> = None;
-    let mut dp : Option<Position> = None;
+pub fn node_close_in(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
+    let mut p: Option<Position> = None;
+    let mut dp: Option<Position> = None;
 
     let mut distance = i32::MAX;
     let mut to_distance = 1;
@@ -334,7 +376,7 @@ pub fn node_close_in(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorD
         }
     }
 
-    let mut delay : i32 = 2;
+    let mut delay: i32 = 2;
     if let Some(d) = eval_script_integer(id, "delay", nodes) {
         delay = d.clamp(0, i32::MAX);
     }
@@ -348,7 +390,7 @@ pub fn node_close_in(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorD
     }
 
     let rc = walk_towards(p, dp, true, data);
-    if  rc == BehaviorNodeConnector::Right {
+    if rc == BehaviorNodeConnector::Right {
         data.character_instances[data.curr_index].max_transition_time = delay as usize + 1;
         data.character_instances[data.curr_index].curr_transition_time = 1;
     }
@@ -356,27 +398,29 @@ pub fn node_close_in(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorD
 }
 
 // Multi choice
-pub fn node_multi_choice(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_multi_choice(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
-    if data.character_instances[data.curr_index].multi_choice_answer.is_some() {
+    if data.character_instances[data.curr_index]
+        .multi_choice_answer
+        .is_some()
+    {
         if Some(id.1) == data.character_instances[data.curr_index].multi_choice_answer {
-
             let npc_index = data.character_instances[data.curr_index].communication[0].npc_index;
             drop_communication(data.curr_index, npc_index, data);
             data.character_instances[data.curr_index].target_instance_index = Some(npc_index);
 
             BehaviorNodeConnector::Bottom
-        }
-        else {
+        } else {
             BehaviorNodeConnector::Right
         }
     } else {
-
         // A new communication started
 
         if let Some(npc_index) = data.character_instances[data.curr_index].target_instance_index {
-
             let mut header = "".to_string();
             let mut text = "".to_string();
             let mut answer = "".to_string();
@@ -394,34 +438,44 @@ pub fn node_multi_choice(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehav
             }
 
             let mcd = MultiChoiceData {
-                id              : id.1,
+                id: id.1,
                 header,
                 text,
                 answer,
-                pos             : None,
-                buffer          : None,
+                pos: None,
+                buffer: None,
 
-                item_amount     : None,
+                item_amount: None,
                 item_behavior_id: None,
-                item_price      : None,
+                item_price: None,
             };
 
             let player_index = data.curr_index;
-            data.character_instances[player_index].multi_choice_data.push(mcd);
+            data.character_instances[player_index]
+                .multi_choice_data
+                .push(mcd);
 
             let com = PlayerCommunication {
                 player_index,
                 npc_index,
-                npc_behavior_id         : id,
-                player_answer           : None,
-                start_time              : DATE.borrow().clone(),
-                end_time                : DATE.borrow().future_time(10),
+                npc_behavior_id: id,
+                player_answer: None,
+                start_time: DATE.borrow().clone(),
+                end_time: DATE.borrow().future_time(10),
             };
 
             // Each NPC can only talk to one player at the same time
-            if data.character_instances[npc_index].communication.is_empty() && data.character_instances[player_index].communication.is_empty(){
-                data.character_instances[npc_index].communication.push(com.clone());
-                data.character_instances[player_index].communication.push(com);
+            if data.character_instances[npc_index].communication.is_empty()
+                && data.character_instances[player_index]
+                    .communication
+                    .is_empty()
+            {
+                data.character_instances[npc_index]
+                    .communication
+                    .push(com.clone());
+                data.character_instances[player_index]
+                    .communication
+                    .push(com);
             }
         }
 
@@ -430,14 +484,19 @@ pub fn node_multi_choice(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehav
 }
 
 // Sell
-pub fn node_sell(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_sell(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
-    if data.character_instances[data.curr_index].multi_choice_answer.is_some() {
+    if data.character_instances[data.curr_index]
+        .multi_choice_answer
+        .is_some()
+    {
         if let Some(id) = data.character_instances[data.curr_index].multi_choice_answer {
-
             let npc_index = data.character_instances[data.curr_index].communication[0].npc_index;
-            let mut traded_item : Option<Item> = None;
+            let mut traded_item: Option<Item> = None;
 
             // Remove the item
 
@@ -470,12 +529,10 @@ pub fn node_sell(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>
 
             drop_communication(data.curr_index, npc_index, data);
             rc
-        }
-        else {
-           BehaviorNodeConnector::Right
+        } else {
+            BehaviorNodeConnector::Right
         }
     } else {
-
         let mut header = "".to_string();
         let mut exit = "Exit".to_string();
 
@@ -493,62 +550,81 @@ pub fn node_sell(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>
             let mut index = 1;
             let mut added_items = vec![];
 
-            for item in & data.sheets[npc_index].inventory.items {
+            for item in &data.sheets[npc_index].inventory.items {
                 if item.value.absolute() > 0 && added_items.contains(&item.id) == false {
                     let amount = 1;
 
                     let mcd = MultiChoiceData {
-                        id                  : item.id,
-                        header              : if index == 1 { header.clone() } else { "".to_string() },
-                        text                : item.name.clone(),
-                        answer              : index.to_string(),
-                        pos                 : None,
-                        buffer              : None,
+                        id: item.id,
+                        header: if index == 1 {
+                            header.clone()
+                        } else {
+                            "".to_string()
+                        },
+                        text: item.name.clone(),
+                        answer: index.to_string(),
+                        pos: None,
+                        buffer: None,
 
-                        item_behavior_id    : Some(item.id),
-                        item_price          : Some(item.value),
-                        item_amount         : Some(amount),
+                        item_behavior_id: Some(item.id),
+                        item_price: Some(item.value),
+                        item_amount: Some(amount),
                     };
 
                     added_items.push(item.id);
-                    data.character_instances[data.curr_index].multi_choice_data.push(mcd);
+                    data.character_instances[data.curr_index]
+                        .multi_choice_data
+                        .push(mcd);
                     index += 1;
                 }
             }
 
             let player_index = data.curr_index;
-            if data.character_instances[player_index].multi_choice_data.is_empty() == false {
-
+            if data.character_instances[player_index]
+                .multi_choice_data
+                .is_empty()
+                == false
+            {
                 // Exit Text
 
                 let mcd = MultiChoiceData {
-                    id                  : Uuid::new_v4(),
-                    header              : "".to_string(),
-                    text                : exit,
-                    answer              : "0".to_string(),
-                    pos                 : None,
-                    buffer              : None,
+                    id: Uuid::new_v4(),
+                    header: "".to_string(),
+                    text: exit,
+                    answer: "0".to_string(),
+                    pos: None,
+                    buffer: None,
 
-                    item_behavior_id    : None,
-                    item_price          : None,
-                    item_amount         : None,
+                    item_behavior_id: None,
+                    item_price: None,
+                    item_amount: None,
                 };
-                data.character_instances[player_index].multi_choice_data.push(mcd);
+                data.character_instances[player_index]
+                    .multi_choice_data
+                    .push(mcd);
 
                 //
 
                 let com = PlayerCommunication {
                     player_index,
                     npc_index,
-                    npc_behavior_id         : id,
-                    player_answer           : None,
-                    start_time              : DATE.borrow().clone(),
-                    end_time                : DATE.borrow().future_time(10),
+                    npc_behavior_id: id,
+                    player_answer: None,
+                    start_time: DATE.borrow().clone(),
+                    end_time: DATE.borrow().future_time(10),
                 };
 
-                if data.character_instances[npc_index].communication.is_empty() && data.character_instances[player_index].communication.is_empty() {
-                    data.character_instances[npc_index].communication.push(com.clone());
-                    data.character_instances[player_index].communication.push(com);
+                if data.character_instances[npc_index].communication.is_empty()
+                    && data.character_instances[player_index]
+                        .communication
+                        .is_empty()
+                {
+                    data.character_instances[npc_index]
+                        .communication
+                        .push(com.clone());
+                    data.character_instances[player_index]
+                        .communication
+                        .push(com);
                 }
             }
         }
@@ -558,26 +634,30 @@ pub fn node_sell(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>
 }
 
 /// Systems Call
-pub fn node_call_system(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
-
-    let mut systems_id : Option<Uuid> = None;
+pub fn node_call_system(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
+    let mut systems_id: Option<Uuid> = None;
 
     if let Some(system_name) = get_node_string(id, "system", nodes) {
         for (id, data) in SYSTEMS.borrow().iter() {
             if data.name == system_name {
                 systems_id = Some(*id);
-                break
+                break;
             }
         }
     }
 
-    let mut behavior_tree_id : Option<Uuid> = None;
+    let mut behavior_tree_id: Option<Uuid> = None;
     if let Some(systems_id) = systems_id {
         if let Some(tree_name) = get_node_string(id, "tree", nodes) {
             // Get the behavior this node chain is running on
             if let Some(behavior) = SYSTEMS.borrow().get(&systems_id) {
                 for (node_id, node) in &behavior.nodes {
-                    if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == tree_name {
+                    if node.behavior_type == BehaviorNodeType::BehaviorTree
+                        && node.name == tree_name
+                    {
                         behavior_tree_id = Some(*node_id);
                         break;
                     }
@@ -597,10 +677,12 @@ pub fn node_call_system(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
 }
 
 /// Behavior Call
-pub fn node_call_behavior(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
-
-    let mut behavior_id : Uuid = Uuid::new_v4();
-    let mut behavior_tree_id : Option<Uuid> = None;
+pub fn node_call_behavior(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
+    let mut behavior_id: Uuid = Uuid::new_v4();
+    let mut behavior_tree_id: Option<Uuid> = None;
     if let Some(tree_name) = get_node_string(id, "tree", nodes) {
         // Get the behavior this node chain is running on
         if let Some(behavior) = nodes.get(&id.0) {
@@ -634,16 +716,22 @@ pub fn node_call_behavior(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeha
 }
 
 /// Lock Tree
-pub fn node_lock_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_lock_tree(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
-    let behavior_instance : Option<usize> = Some(data.curr_index);
-    let mut behavior_tree_id : Option<Uuid> = None;
+    let behavior_instance: Option<usize> = Some(data.curr_index);
+    let mut behavior_tree_id: Option<Uuid> = None;
     let is_target = false;
 
     if let Some(value) = get_node_string(id, "tree", nodes) {
         if let Some(behavior_instance) = behavior_instance {
-            if let Some(behavior) = BEHAVIORS.borrow().get(&data.character_instances[behavior_instance].behavior_id) {
+            if let Some(behavior) = BEHAVIORS
+                .borrow()
+                .get(&data.character_instances[behavior_instance].behavior_id)
+            {
                 for (node_id, node) in &behavior.nodes {
                     if node.behavior_type == BehaviorNodeType::BehaviorTree && node.name == value {
                         behavior_tree_id = Some(*node_id);
@@ -663,7 +751,8 @@ pub fn node_lock_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavior
             data.character_instances[behavior_instance].locked_tree = Some(behavior_tree_id);
             if is_target {
                 // If we call lock on a target, we target ourself for the target
-                data.character_instances[behavior_instance].target_instance_index = Some(data.curr_index);
+                data.character_instances[behavior_instance].target_instance_index =
+                    Some(data.curr_index);
             }
             return BehaviorNodeConnector::Success;
         }
@@ -672,9 +761,12 @@ pub fn node_lock_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavior
 }
 
 /// Unlock Tree
-pub fn node_unlock_tree(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_unlock_tree(
+    _id: (Uuid, Uuid),
+    _nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-    let behavior_instance : Option<usize> = Some(data.curr_index);
+    let behavior_instance: Option<usize> = Some(data.curr_index);
 
     if let Some(behavior_instance) = behavior_instance {
         // Unlock the tree
@@ -685,7 +777,10 @@ pub fn node_unlock_tree(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBeha
 }
 
 /// Query State
-pub fn node_query_state(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_query_state(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
     let mut state = 0;
@@ -693,7 +788,15 @@ pub fn node_query_state(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
         state = value;
     }
 
-    if (data.character_instances[data.curr_index].state == BehaviorInstanceState::Normal && state == 0) || (data.character_instances[data.curr_index].state == BehaviorInstanceState::Killed && state == 1) || (data.character_instances[data.curr_index].state == BehaviorInstanceState::Sleeping && state == 3) || (data.character_instances[data.curr_index].state == BehaviorInstanceState::Intoxicated && state == 4) {
+    if (data.character_instances[data.curr_index].state == BehaviorInstanceState::Normal
+        && state == 0)
+        || (data.character_instances[data.curr_index].state == BehaviorInstanceState::Killed
+            && state == 1)
+        || (data.character_instances[data.curr_index].state == BehaviorInstanceState::Sleeping
+            && state == 3)
+        || (data.character_instances[data.curr_index].state == BehaviorInstanceState::Intoxicated
+            && state == 4)
+    {
         BehaviorNodeConnector::Success
     } else {
         BehaviorNodeConnector::Fail
@@ -701,9 +804,12 @@ pub fn node_query_state(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavi
 }
 
 /// Set State
-pub fn node_set_state(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_set_state(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-    let behavior_instance : Option<usize> = Some(data.curr_index);
+    let behavior_instance: Option<usize> = Some(data.curr_index);
 
     if let Some(value) = get_node_integer(id, "state", nodes) {
         if let Some(behavior_instance) = behavior_instance {
@@ -717,11 +823,11 @@ pub fn node_set_state(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavior
                 _ => BehaviorInstanceState::Normal,
             };
 
-
             // If target is dead, clean this instance from all targets
             if data.character_instances[behavior_instance].state.is_dead() {
                 for i in 0..data.character_instances.len() {
-                    if data.character_instances[i].target_instance_index == Some(behavior_instance) {
+                    if data.character_instances[i].target_instance_index == Some(behavior_instance)
+                    {
                         data.character_instances[i].locked_tree = None;
                     }
                 }
@@ -733,9 +839,15 @@ pub fn node_set_state(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehavior
 }
 
 /// Has Target ?
-pub fn node_has_target(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_has_target(
+    _id: (Uuid, Uuid),
+    _nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let data = &REGION_DATA.borrow()[*CURR_INST.borrow()];
-    if data.character_instances[data.curr_index].target_instance_index.is_some() {
+    if data.character_instances[data.curr_index]
+        .target_instance_index
+        .is_some()
+    {
         BehaviorNodeConnector::Success
     } else {
         BehaviorNodeConnector::Fail
@@ -743,17 +855,27 @@ pub fn node_has_target(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehav
 }
 
 /// Untarget (based on distance)
-pub fn node_untarget(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_untarget(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
-    if data.character_instances[data.curr_index].target_instance_index.is_some() {
-        let mut distance : i32 = 0;
+    if data.character_instances[data.curr_index]
+        .target_instance_index
+        .is_some()
+    {
+        let mut distance: i32 = 0;
         if let Some(d) = eval_script_integer(id, "distance", nodes) {
             distance = d;
         }
 
         if let Some(p1) = data.get_instance_position(data.curr_index) {
-            if let Some(p2) = data.get_instance_position(data.character_instances[data.curr_index].target_instance_index.unwrap()) {
+            if let Some(p2) = data.get_instance_position(
+                data.character_instances[data.curr_index]
+                    .target_instance_index
+                    .unwrap(),
+            ) {
                 let d = compute_distance(&p1, &p2) as i32;
                 if d > distance {
                     data.character_instances[data.curr_index].target_instance_index = None;
@@ -978,33 +1100,34 @@ pub fn take_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIns
 }*/
 
 /// Assign target for magic
-pub fn node_magic_target(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_magic_target(
+    _id: (Uuid, Uuid),
+    _nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
-    if data.character_instances[data.curr_index].instance_type == BehaviorInstanceType::NonPlayerCharacter {
+    if data.character_instances[data.curr_index].instance_type
+        == BehaviorInstanceType::NonPlayerCharacter
+    {
         return BehaviorNodeConnector::Success;
     }
 
-    let mut dp:Option<Position> = None;
+    let mut dp: Option<Position> = None;
     if let Some(p) = &data.character_instances[data.curr_index].position {
         if let Some(action) = &data.character_instances[data.curr_index].action {
             if action.direction == PlayerDirection::North {
                 dp = Some(Position::new(p.region, p.x, p.y - 1));
                 data.action_direction_text = "North".to_string();
-            } else
-            if action.direction == PlayerDirection::South {
+            } else if action.direction == PlayerDirection::South {
                 dp = Some(Position::new(p.region, p.x, p.y + 1));
                 data.action_direction_text = "South".to_string();
-            } else
-            if action.direction == PlayerDirection::East {
+            } else if action.direction == PlayerDirection::East {
                 dp = Some(Position::new(p.region, p.x + 1, p.y));
                 data.action_direction_text = "East".to_string();
-            } else
-            if action.direction == PlayerDirection::West {
+            } else if action.direction == PlayerDirection::West {
                 dp = Some(Position::new(p.region, p.x - 1, p.y));
                 data.action_direction_text = "West".to_string();
-            } else
-            if action.direction == PlayerDirection::Coordinate {
+            } else if action.direction == PlayerDirection::Coordinate {
                 if let Some(coord) = action.coordinate {
                     dp = Some(Position::new(p.region, coord.0, coord.1));
                     data.action_direction_text = "".to_string();
@@ -1020,17 +1143,23 @@ pub fn node_magic_target(_id: (Uuid, Uuid), _nodes: &mut FxHashMap<Uuid, GameBeh
     if let Some(dp) = &dp {
         if let Some(position) = &data.character_instances[data.curr_index].position {
             // Make sure the target is within spell range
-            let spell_name = data.character_instances[data.curr_index].action.clone().unwrap().spell.unwrap();
+            let spell_name = data.character_instances[data.curr_index]
+                .action
+                .clone()
+                .unwrap()
+                .spell
+                .unwrap();
             let distance = compute_distance(&position, &dp);
             let spell_distance = get_spell_distance(spell_name, data);
-            if  distance as i32 <= spell_distance {
+            if distance as i32 <= spell_distance {
                 for inst_index in 0..data.character_instances.len() {
                     if inst_index != data.curr_index {
                         // Only track if the state is OK
                         if data.character_instances[inst_index].state.is_alive() {
                             if let Some(pos) = &data.character_instances[inst_index].position {
                                 if *dp == *pos {
-                                    data.character_instances[data.curr_index].target_instance_index = Some(inst_index);
+                                    data.character_instances[data.curr_index]
+                                        .target_instance_index = Some(inst_index);
                                     rc = BehaviorNodeConnector::Success;
                                     break;
                                 }
@@ -1197,7 +1326,10 @@ pub fn magic_damage(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionIn
 }*/
 
 /// Drop Inventory :(
-pub fn node_drop_inventory(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_drop_inventory(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let mut drop_type = 0;
 
     if let Some(value) = get_node_integer(id, "drop", nodes) {
@@ -1273,7 +1405,10 @@ pub fn node_drop_inventory(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeh
 }
 
 /// Teleport
-pub fn node_teleport(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_teleport(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
     if let Some(value) = get_node_value2(id, "position", nodes) {
@@ -1281,7 +1416,7 @@ pub fn node_teleport(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorD
             Value::Position(position) => {
                 data.character_instances[data.curr_index].position = Some(position.clone());
             }
-            _ => {},
+            _ => {}
         }
         data.character_instances[data.curr_index].old_position = None;
         data.character_instances[data.curr_index].max_transition_time = 0;
@@ -1291,7 +1426,10 @@ pub fn node_teleport(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorD
 }
 
 /// Play effect for the character
-pub fn node_effect(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_effect(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let data: &mut RegionData = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
 
     let mut index = data.curr_index;
@@ -1313,10 +1451,15 @@ pub fn node_effect(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDat
 }
 
 /// Play audio
-pub fn node_audio(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_audio(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     if let Some(audio_name) = get_node_string(id, "audio", nodes) {
         let data = &mut REGION_DATA.borrow_mut()[*CURR_INST.borrow()];
-        data.character_instances[data.curr_index].audio.push(audio_name.clone());
+        data.character_instances[data.curr_index]
+            .audio
+            .push(audio_name.clone());
     }
     BehaviorNodeConnector::Bottom
 }
@@ -1439,8 +1582,11 @@ pub fn take_heal(instance_index: usize, id: (Uuid, Uuid), data: &mut RegionInsta
     rc
 }*/
 
-pub fn node_respawn(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
-    let mut ticks : i32 = 0;
+pub fn node_respawn(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
+    let mut ticks: i32 = 0;
     if let Some(rc) = eval_script_integer(id, "minutes", nodes) {
         ticks = rc;
     }
@@ -1449,17 +1595,22 @@ pub fn node_respawn(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorDa
     let mut respawn_tick = *TICK_COUNT.borrow_mut() as usize;
     respawn_tick = respawn_tick.wrapping_add(ticks as usize * data.ticks_per_minute);
     if let Some(d) = &data.character_instances[data.curr_index].instance_creation_data {
-        data.respawn_instance.insert(data.character_instances[data.curr_index].behavior_id, (respawn_tick, d.clone()));
+        data.respawn_instance.insert(
+            data.character_instances[data.curr_index].behavior_id,
+            (respawn_tick, d.clone()),
+        );
     }
 
     BehaviorNodeConnector::Right
 }
 
 /// Set Level Tree
-pub fn node_set_level_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
-
-    let mut system_name : Option<String> = None;
-    let mut tree_name : Option<String> = None;
+pub fn node_set_level_tree(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
+    let mut system_name: Option<String> = None;
+    let mut tree_name: Option<String> = None;
 
     // Get the system name
     if let Some(value) = get_node_value2(id, "system", nodes) {
@@ -1474,9 +1625,9 @@ pub fn node_set_level_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeh
         }
     }
 
-    let mut levels : Vec<(i32, String, Uuid)> = vec![];
+    let mut levels: Vec<(i32, String, Uuid)> = vec![];
     let mut level_behavior_id = Uuid::new_v4();
-    let mut experience_msg : String = "You gained {} experience.".to_string();
+    let mut experience_msg: String = "You gained {} experience.".to_string();
 
     if let Some(system_name) = system_name {
         if let Some(tree_name) = tree_name {
@@ -1484,7 +1635,6 @@ pub fn node_set_level_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeh
                 if behavior.name == system_name {
                     for (_id, node) in &behavior.nodes {
                         if node.name == tree_name {
-
                             if let Some(value) = node.values.get(&"message".to_string()) {
                                 if let Some(m) = value.to_string() {
                                     experience_msg = m;
@@ -1492,7 +1642,7 @@ pub fn node_set_level_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeh
                             }
                             // Store the levels
 
-                            let mut rc : Vec<(i32, String, Uuid)> = vec![];
+                            let mut rc: Vec<(i32, String, Uuid)> = vec![];
                             let mut parent_id = node.id;
 
                             level_behavior_id = *id;
@@ -1504,13 +1654,17 @@ pub fn node_set_level_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeh
                                         for (uuid, node) in &behavior.nodes {
                                             if *uuid == *id2 {
                                                 let mut start = 0;
-                                                if let Some(value) = node.values.get(&"start".to_string()) {
+                                                if let Some(value) =
+                                                    node.values.get(&"start".to_string())
+                                                {
                                                     if let Some(i) = value.to_integer() {
                                                         start = i;
                                                     }
                                                 }
                                                 let mut message = "".to_string();
-                                                if let Some(value) = node.values.get(&"message".to_string()) {
+                                                if let Some(value) =
+                                                    node.values.get(&"message".to_string())
+                                                {
                                                     if let Some(m) = value.to_string() {
                                                         message = m;
                                                     }
@@ -1522,18 +1676,23 @@ pub fn node_set_level_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeh
                                                 rc.push((start, message, parent_id));
                                             }
                                         }
-                                    } else
-                                    if *id2 == parent_id && *c2 == BehaviorNodeConnector::Bottom {
+                                    } else if *id2 == parent_id
+                                        && *c2 == BehaviorNodeConnector::Bottom
+                                    {
                                         for (uuid, node) in &behavior.nodes {
                                             if *uuid == *id1 {
                                                 let mut start = 0;
-                                                if let Some(value) = node.values.get(&"start".to_string()) {
+                                                if let Some(value) =
+                                                    node.values.get(&"start".to_string())
+                                                {
                                                     if let Some(i) = value.to_integer() {
                                                         start = i;
                                                     }
                                                 }
                                                 let mut message = "".to_string();
-                                                if let Some(value) = node.values.get(&"message".to_string()) {
+                                                if let Some(value) =
+                                                    node.values.get(&"message".to_string())
+                                                {
                                                     if let Some(m) = value.to_string() {
                                                         message = m;
                                                     }
@@ -1571,7 +1730,10 @@ pub fn node_set_level_tree(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBeh
 }
 
 /// Schedule
-pub fn node_schedule(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorData>) -> BehaviorNodeConnector {
+pub fn node_schedule(
+    id: (Uuid, Uuid),
+    nodes: &mut FxHashMap<Uuid, GameBehaviorData>,
+) -> BehaviorNodeConnector {
     let date = DATE.borrow().clone();
     // Get the system name
     if let Some(from) = get_node_value2(id, "from", nodes) {
@@ -1583,7 +1745,6 @@ pub fn node_schedule(id: (Uuid, Uuid), nodes: &mut FxHashMap<Uuid, GameBehaviorD
                     }
                 }
             }
-
         }
     }
 

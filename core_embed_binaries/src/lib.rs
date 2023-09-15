@@ -1,4 +1,3 @@
-
 use rust_embed::RustEmbed;
 
 #[derive(RustEmbed)]

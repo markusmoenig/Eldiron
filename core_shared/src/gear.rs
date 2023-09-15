@@ -4,13 +4,13 @@ use crate::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Gear {
-    pub slots               : FxHashMap<String, Item>,
+    pub slots: FxHashMap<String, Item>,
 }
 
 impl Gear {
     pub fn new() -> Self {
         Self {
-            slots           : FxHashMap::default(),
+            slots: FxHashMap::default(),
         }
     }
 
@@ -29,8 +29,8 @@ impl Gear {
 }
 
 pub fn script_register_gear_api(engine: &mut rhai::Engine) {
-    engine.register_type_with_name::<Gear>("Gear")
+    engine
+        .register_type_with_name::<Gear>("Gear")
         .register_fn("stats", Gear::stats)
         .register_fn("slot", Gear::slot);
-
 }

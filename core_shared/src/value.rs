@@ -23,12 +23,11 @@ pub enum Value {
     PropertySink(PropertySink),
     Bool(bool),
     USize(usize),
-    Date(Date)
+    Date(Date),
 }
 
 impl Value {
-
-    pub fn to_float(&self ) -> Option<f32> {
+    pub fn to_float(&self) -> Option<f32> {
         match self {
             Value::Integer(value) => return Some(*value as f32),
             Value::Float(value) => return Some(*value),
@@ -36,7 +35,7 @@ impl Value {
         }
     }
 
-    pub fn to_integer(&self ) -> Option<i32> {
+    pub fn to_integer(&self) -> Option<i32> {
         match self {
             Value::Float(value) => return Some(*value as i32),
             Value::Integer(value) => return Some(*value),
@@ -44,14 +43,14 @@ impl Value {
         }
     }
 
-    pub fn to_string(&self ) -> Option<String> {
+    pub fn to_string(&self) -> Option<String> {
         match self {
             Value::String(value) => return Some(value.clone()),
             _ => None,
         }
     }
 
-    pub fn to_currency(&self ) -> Option<Currency> {
+    pub fn to_currency(&self) -> Option<Currency> {
         match self {
             Value::String(s) => {
                 use std::str::FromStr;
@@ -59,9 +58,11 @@ impl Value {
                 let gold_regex = regex::Regex::new(r"(\d+)g").unwrap();
                 let silver_regex = regex::Regex::new(r"(\d+)s").unwrap();
 
-                let gold = gold_regex.find(s)
+                let gold = gold_regex
+                    .find(s)
                     .map(|mat| i32::from_str(mat.as_str().trim_end_matches('g')).unwrap());
-                let silver = silver_regex.find(s)
+                let silver = silver_regex
+                    .find(s)
                     .map(|mat| i32::from_str(mat.as_str().trim_end_matches('s')).unwrap());
 
                 if gold.is_some() || silver.is_some() {
@@ -79,12 +80,12 @@ impl Value {
                 } else {
                     None
                 }
-            },
+            }
             _ => None,
         }
     }
 
-    pub fn to_string_value(&self ) -> String {
+    pub fn to_string_value(&self) -> String {
         match self {
             Value::Float(value) => format!("{:?}", value),
             Value::Integer(value) => format!("{:?}", value),
@@ -93,36 +94,33 @@ impl Value {
         }
     }
 
-    pub fn to_position(&self ) -> Option<Position> {
+    pub fn to_position(&self) -> Option<Position> {
         match self {
             Value::Position(value) => return Some(value.clone()),
             _ => None,
         }
     }
 
-    pub fn to_tile_data(&self ) -> Option<TileData> {
+    pub fn to_tile_data(&self) -> Option<TileData> {
         match self {
             Value::TileData(value) => return Some(value.clone()),
             _ => None,
         }
     }
 
-    pub fn to_tile_id(&self ) -> Option<TileId> {
+    pub fn to_tile_id(&self) -> Option<TileId> {
         match self {
-            Value::Tile(value, x, y) => {
-                Some(TileId::new(*value, *x, *y))
-            },
+            Value::Tile(value, x, y) => Some(TileId::new(*value, *x, *y)),
             Value::TileId(value) => Some(value.clone()),
             Value::TileData(value) => Some(TileId::new(value.tilemap, value.x_off, value.y_off)),
             _ => None,
         }
     }
 
-    pub fn to_date(&self ) -> Option<Date> {
+    pub fn to_date(&self) -> Option<Date> {
         match self {
             Value::Date(value) => return Some(value.clone()),
             _ => None,
         }
     }
-
 }

@@ -8,8 +8,11 @@ pub struct TileLighting {
     pub dynamic                 : f32,
 }*/
 
-pub fn compute_lighting(_region: &GameRegionData, lights: &Vec<LightData>) -> FxHashMap<(isize, isize), f32> {
-    let mut map : FxHashMap<(isize, isize), f32> = HashMap::default();
+pub fn compute_lighting(
+    _region: &GameRegionData,
+    lights: &Vec<LightData>,
+) -> FxHashMap<(isize, isize), f32> {
+    let mut map: FxHashMap<(isize, isize), f32> = HashMap::default();
 
     let mut rng = thread_rng();
 
@@ -22,13 +25,14 @@ pub fn compute_lighting(_region: &GameRegionData, lights: &Vec<LightData>) -> Fx
 
             let mut d = 1;
 
-            let mut random : f32 = rng.gen();
+            let mut random: f32 = rng.gen();
             random -= 0.5;
             random *= 0.2;
 
-            while d <= 3 { //l.intensity {
+            while d <= 3 {
+                //l.intensity {
 
-                let i = 1.0 / (d*2) as f32 + random / d as f32;
+                let i = 1.0 / (d * 2) as f32 + random / d as f32;
                 for x in tl.0..tl.0 + length {
                     if let Some(value) = map.get_mut(&(x, tl.1)) {
                         *value += i;
@@ -43,7 +47,7 @@ pub fn compute_lighting(_region: &GameRegionData, lights: &Vec<LightData>) -> Fx
                     }
                 }
 
-                for y in tl.1+1..tl.1 + length - 1 {
+                for y in tl.1 + 1..tl.1 + length - 1 {
                     if let Some(value) = map.get_mut(&(tl.0, y)) {
                         *value += i;
                     } else {

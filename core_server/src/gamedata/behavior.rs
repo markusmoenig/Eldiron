@@ -39,22 +39,22 @@ pub enum BehaviorNodeType {
     EnterArea,
     LeaveArea,
     Always,
-    TeleportArea,                                           // Teleport characters when inside an area
-    MessageArea,                                            // Send a message to a character when in an area
-    AudioArea,                                              // Play audio when in an area
-    LightArea,                                              // Light when in an area
+    TeleportArea, // Teleport characters when inside an area
+    MessageArea,  // Send a message to a character when in an area
+    AudioArea,    // Play audio when in an area
+    LightArea,    // Light when in an area
     Message,
-    Action,                                                 // Player Action
-    ActionArea,                                             // Define Action for an Area
-    Take,                                                   // Take loot
-    Drop,                                                   // Drop gear or item
-    LightItem,                                              // Creates a light source for an inventory item
-    SetItemTile,                                            // Sets the tile of the item
-    RandomWalk,                                             // Random walk for NPCs
-    Pathfinder,                                             // Go somewhere
-    CloseIn,                                                // Close In on another character
-    Lookout,                                                // Look out for another character
-    MultiChoice,                                            // Multi Choice
+    Action,      // Player Action
+    ActionArea,  // Define Action for an Area
+    Take,        // Take loot
+    Drop,        // Drop gear or item
+    LightItem,   // Creates a light source for an inventory item
+    SetItemTile, // Sets the tile of the item
+    RandomWalk,  // Random walk for NPCs
+    Pathfinder,  // Go somewhere
+    CloseIn,     // Close In on another character
+    Lookout,     // Look out for another character
+    MultiChoice, // Multi Choice
     LockTree,
     UnlockTree,
     SetState,
@@ -104,16 +104,16 @@ pub enum BehaviorNodeConnector {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BehaviorNode {
-    pub behavior_type           : BehaviorNodeType,
-    pub name                    : String,
+    pub behavior_type: BehaviorNodeType,
+    pub name: String,
 
     #[serde(skip)]
-    pub asts                    : FxHashMap<String, rhai::AST>,
+    pub asts: FxHashMap<String, rhai::AST>,
 
-    pub values                  : FxHashMap<String, Value>,
-    pub id                      : Uuid,
+    pub values: FxHashMap<String, Value>,
+    pub id: Uuid,
 
-    pub position                : (isize, isize),
+    pub position: (isize, isize),
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Copy, Clone)]
@@ -122,7 +122,7 @@ pub enum BehaviorInstanceState {
     Killed,
     Purged,
     Sleeping,
-    Intoxicated
+    Intoxicated,
 }
 
 impl BehaviorInstanceState {
@@ -131,7 +131,7 @@ impl BehaviorInstanceState {
         match self {
             Self::Killed => true,
             Self::Purged => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -140,7 +140,7 @@ impl BehaviorInstanceState {
         match self {
             Self::Killed => false,
             Self::Purged => false,
-            _ => true
+            _ => true,
         }
     }
 }
@@ -149,211 +149,230 @@ impl BehaviorInstanceState {
 pub enum BehaviorInstanceType {
     NonPlayerCharacter,
     Player,
-    GameLogic
+    GameLogic,
 }
 
 // Server instance of a behavior
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct BehaviorInstance {
-
     // The instance id (unique)
-    pub id                      : Uuid,
+    pub id: Uuid,
 
     // The user_name, if playing as anonymous = None
-
-    pub user_name               : Option<String>,
+    pub user_name: Option<String>,
 
     // Save the character (only for logged in users)
-    pub save                    : bool,
+    pub save: bool,
 
     // Log off user
-    pub logoff                  : bool,
+    pub logoff: bool,
 
     // The instance state
-    pub instance_type           : BehaviorInstanceType,
+    pub instance_type: BehaviorInstanceType,
 
     // The instance state
-    pub state                   : BehaviorInstanceState,
+    pub state: BehaviorInstanceState,
 
     // The behavior id for this instance
-    pub behavior_id             : Uuid,
+    pub behavior_id: Uuid,
 
     // The current systems id
-    pub systems_id              : Uuid,
+    pub systems_id: Uuid,
 
     // The ids of the behavior tree nodes to execute during ticks for this instance
-    pub tree_ids                : Vec<Uuid>,
+    pub tree_ids: Vec<Uuid>,
 
     // The names of the system tree nodes to execute for NPCs for this instance
-    pub system_tree_tick_names  : Vec<(String, String)>,
+    pub system_tree_tick_names: Vec<(String, String)>,
 
     // The name of the instance
-    pub name                    : String,
+    pub name: String,
 
     // An instance index of the entity we are currently interacting with
-    pub target_instance_index   : Option<usize>,
+    pub target_instance_index: Option<usize>,
 
     // The number of ticks this instance is skipping
-    pub sleep_cycles            : usize,
+    pub sleep_cycles: usize,
 
     // The locked tree, only this tree will be executed.
-    pub locked_tree             : Option<Uuid>,
+    pub locked_tree: Option<Uuid>,
 
     // Instance ids of the entities in our party (including self)
-    pub party                   : Vec<Uuid>,
+    pub party: Vec<Uuid>,
 
     // The key is the behavior id and node id.
-    pub node_values             : FxHashMap<(Uuid, Uuid), Value>,
+    pub node_values: FxHashMap<(Uuid, Uuid), Value>,
 
     // For characters, the 2D position id and the currently displayed tile id.
-    pub position                : Option<Position>,
-    pub old_position            : Option<Position>,
-    pub max_transition_time     : usize,
-    pub curr_transition_time    : usize,
+    pub position: Option<Position>,
+    pub old_position: Option<Position>,
+    pub max_transition_time: usize,
+    pub curr_transition_time: usize,
 
-    pub tile                    : Option<TileId>,
+    pub tile: Option<TileId>,
 
     // Messages for this player in the current tick
-    pub messages                : Vec<MessageData>,
+    pub messages: Vec<MessageData>,
 
     // Audio files to play for this player in the current tick
-    pub audio                   : Vec<String>,
+    pub audio: Vec<String>,
 
     /// The current player action
-    pub action                  : Option<PlayerAction>,
+    pub action: Option<PlayerAction>,
 
     // Server side handling of the "Player" character
-
     /// The current player update
-    pub update                  : Option<String>,
+    pub update: Option<String>,
 
     /// The regions we send to the player client already
-    pub regions_send            : HashSet<Uuid>,
+    pub regions_send: HashSet<Uuid>,
 
     /// Current screen script
-    pub curr_player_script      : String,
+    pub curr_player_script: String,
 
     /// New screen script (we should switch to for this player)
-    pub new_player_script       : Option<String>,
+    pub new_player_script: Option<String>,
 
     /// Did we send the screen scripts to the client already ?
-    pub send_screen_scripts     : bool,
+    pub send_screen_scripts: bool,
 
     /// The locked tree for the game behavior for this player
-    pub game_locked_tree        : Option<Uuid>,
+    pub game_locked_tree: Option<Uuid>,
 
     /// Multi choice data for the player character
-    pub multi_choice_data       : Vec<MultiChoiceData>,
+    pub multi_choice_data: Vec<MultiChoiceData>,
 
     /// Answer
-    pub multi_choice_answer     : Option<Uuid>,
+    pub multi_choice_answer: Option<Uuid>,
 
     /// This character has an ongoing communication
-    pub communication           : Vec<PlayerCommunication>,
+    pub communication: Vec<PlayerCommunication>,
 
     /// Effects to be played in this tick
-    pub effects                 : Vec<TileId>,
+    pub effects: Vec<TileId>,
 
     /// The instance data at creation time, needed for the respawn node
-    pub instance_creation_data  : Option<CharacterInstanceData>,
+    pub instance_creation_data: Option<CharacterInstanceData>,
 }
 
 /// Represents a character behavior instance
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct CharacterInstanceData {
-    pub position                : Position,
-    pub name                    : Option<String>,
-    pub tile                    : Option<TileId>,
-    pub alignment               : Option<i32>,
-    pub class                   : Option<String>,
-    pub race                    : Option<String>,
-    pub screen                  : Option<String>
+    pub position: Position,
+    pub name: Option<String>,
+    pub tile: Option<TileId>,
+    pub alignment: Option<i32>,
+    pub class: Option<String>,
+    pub race: Option<String>,
+    pub screen: Option<String>,
 }
 
 /// Represents loot instance
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LootInstanceData {
-    pub position                : Position,
-    pub name                    : Option<String>,
-    pub tile                    : Option<TileId>,
-    pub execute_on_startup      : Option<String>,
-    pub amount                  : i32,
+    pub position: Position,
+    pub name: Option<String>,
+    pub tile: Option<TileId>,
+    pub execute_on_startup: Option<String>,
+    pub amount: i32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GameBehaviorData {
-    pub nodes                   : FxHashMap<Uuid, BehaviorNode>,
-    pub connections             : Vec<(Uuid, BehaviorNodeConnector, Uuid, BehaviorNodeConnector)>,
-    pub id                      : Uuid,
+    pub nodes: FxHashMap<Uuid, BehaviorNode>,
+    pub connections: Vec<(Uuid, BehaviorNodeConnector, Uuid, BehaviorNodeConnector)>,
+    pub id: Uuid,
 
-    pub name                    : String,
+    pub name: String,
 
-    pub curr_node_id            : Option<Uuid>,
+    pub curr_node_id: Option<Uuid>,
 
-    pub instances               : Option<Vec<CharacterInstanceData>>,
-    pub loot                    : Option<Vec<LootInstanceData>>,
+    pub instances: Option<Vec<CharacterInstanceData>>,
+    pub loot: Option<Vec<LootInstanceData>>,
 
-    pub settings                : Option<PropertySink>
+    pub settings: Option<PropertySink>,
 }
 
 impl GameBehaviorData {
     pub fn new() -> Self {
         Self {
-            nodes                   : FxHashMap::default(),
-            connections             : vec![],
-            id                      : Uuid::new_v4(),
-            name                    : "".to_string(),
-            curr_node_id            : None,
-            instances               : Some(vec![]),
-            loot                    : Some(vec![]),
-            settings                : None,
+            nodes: FxHashMap::default(),
+            connections: vec![],
+            id: Uuid::new_v4(),
+            name: "".to_string(),
+            curr_node_id: None,
+            instances: Some(vec![]),
+            loot: Some(vec![]),
+            settings: None,
         }
     }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct BehaviorDebugData {
-    pub executed_connections        : Vec<(Uuid, BehaviorNodeConnector)>,
-    pub script_errors               : Vec<((Uuid, Uuid, String), (String, Option<u32>))>
+    pub executed_connections: Vec<(Uuid, BehaviorNodeConnector)>,
+    pub script_errors: Vec<((Uuid, Uuid, String), (String, Option<u32>))>,
 }
 
 pub struct GameBehavior {
-    pub name                    : String,
-    pub path                    : PathBuf,
-    pub behavior_path           : PathBuf,
-    pub data                    : GameBehaviorData,
+    pub name: String,
+    pub path: PathBuf,
+    pub behavior_path: PathBuf,
+    pub data: GameBehaviorData,
 }
 
 impl GameBehavior {
     pub fn load_from_path(path: &PathBuf, behavior_path: &PathBuf) -> Self {
-
-        let name = path::Path::new(&path).file_stem().unwrap().to_str().unwrap();
+        let name = path::Path::new(&path)
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap();
 
         // Gets the content of the settings file
-        let contents = fs::read_to_string( path )
-            .unwrap_or("".to_string());
+        let contents = fs::read_to_string(path).unwrap_or("".to_string());
 
         // Construct the json settings
-        let mut data = serde_json::from_str(&contents)
-            .unwrap_or(GameBehaviorData { nodes: FxHashMap::default(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), loot: Some(vec![]), settings: None });
+        let mut data = serde_json::from_str(&contents).unwrap_or(GameBehaviorData {
+            nodes: FxHashMap::default(),
+            connections: vec![],
+            id: Uuid::new_v4(),
+            name: "New Behavior".to_string(),
+            curr_node_id: None,
+            instances: Some(vec![]),
+            loot: Some(vec![]),
+            settings: None,
+        });
 
         data.name = name.to_owned();
 
         Self {
-            name            : name.to_string(),
-            path            : path.clone(),
-            behavior_path   : behavior_path.clone(),
+            name: name.to_string(),
+            path: path.clone(),
+            behavior_path: behavior_path.clone(),
             data,
         }
     }
 
     #[cfg(feature = "embed_binaries")]
     pub fn load_from_embedded(file_name: &str) -> Self {
-
-        let name = path::Path::new(&file_name).file_stem().unwrap().to_str().unwrap();
+        let name = path::Path::new(&file_name)
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap();
 
         // Construct the json settings
-        let mut data = GameBehaviorData { nodes: FxHashMap::default(), connections: vec![], id: Uuid::new_v4(), name: "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), loot: Some(vec![]), settings: None };
+        let mut data = GameBehaviorData {
+            nodes: FxHashMap::default(),
+            connections: vec![],
+            id: Uuid::new_v4(),
+            name: "New Behavior".to_string(),
+            curr_node_id: None,
+            instances: Some(vec![]),
+            loot: Some(vec![]),
+            settings: None,
+        };
 
         if let Some(bytes) = Embedded::get(file_name) {
             if let Some(string) = std::str::from_utf8(bytes.data.as_ref()).ok() {
@@ -362,40 +381,46 @@ impl GameBehavior {
         }
 
         Self {
-            name            : name.to_string(),
-            path            : PathBuf::new(),
-            behavior_path   : PathBuf::new(),
+            name: name.to_string(),
+            path: PathBuf::new(),
+            behavior_path: PathBuf::new(),
             data,
         }
     }
 
     pub fn new() -> Self {
-
         Self {
-            name            : "name".to_string(),
-            path            : std::path::Path::new("").to_path_buf(),
-            behavior_path   : std::path::Path::new("").to_path_buf(),
-            data            : GameBehaviorData { nodes: FxHashMap::default(), connections: vec![], id: Uuid::new_v4(), name            : "New Behavior".to_string(), curr_node_id: None, instances: Some(vec![]), loot: Some(vec![]), settings: None }
+            name: "name".to_string(),
+            path: std::path::Path::new("").to_path_buf(),
+            behavior_path: std::path::Path::new("").to_path_buf(),
+            data: GameBehaviorData {
+                nodes: FxHashMap::default(),
+                connections: vec![],
+                id: Uuid::new_v4(),
+                name: "New Behavior".to_string(),
+                curr_node_id: None,
+                instances: Some(vec![]),
+                loot: Some(vec![]),
+                settings: None,
+            },
         }
     }
 
     /// Save the GameBehaviorData to file
     pub fn save_data(&self) {
         let json = serde_json::to_string_pretty(&self.data).unwrap();
-        fs::write(self.path.clone(), json)
-            .expect("Unable to write behavior file");
+        fs::write(self.path.clone(), json).expect("Unable to write behavior file");
     }
 
     /// Add a new node of the given type and name
     pub fn add_node(&mut self, behavior_type: BehaviorNodeType, name: String) -> Uuid {
-
         let mut node = BehaviorNode {
             behavior_type: behavior_type.clone(),
             name,
-            values      : FxHashMap::default(),
-            id          : Uuid::new_v4(),
-            position    : (250, 50),
-            asts        : FxHashMap::default(),
+            values: FxHashMap::default(),
+            id: Uuid::new_v4(),
+            position: (250, 50),
+            asts: FxHashMap::default(),
         };
 
         if behavior_type == BehaviorNodeType::BehaviorType {
@@ -411,7 +436,12 @@ impl GameBehavior {
     /// Rename the behavior
     pub fn rename(&mut self, name: String) {
         self.name = name.clone();
-        if std::fs::rename(self.path.clone(), self.behavior_path.join(name.clone() + ".json")).is_ok() {
+        if std::fs::rename(
+            self.path.clone(),
+            self.behavior_path.join(name.clone() + ".json"),
+        )
+        .is_ok()
+        {
             _ = std::fs::remove_file(self.path.clone());
             self.path = self.behavior_path.join(name + ".json");
         }
@@ -419,40 +449,48 @@ impl GameBehavior {
 
     /// Get the names of the behavior tree nodes.
     pub fn get_behavior_tree_names(&self) -> Vec<String> {
-        let mut names : Vec<String> = vec![];
+        let mut names: Vec<String> = vec![];
 
         let sorted_keys = self.data.nodes.keys().sorted();
 
         for i in sorted_keys {
-            if self.data.nodes[i].behavior_type == BehaviorNodeType:: BehaviorTree {
-                names.push( self.data.nodes[i].name.clone() );
+            if self.data.nodes[i].behavior_type == BehaviorNodeType::BehaviorTree {
+                names.push(self.data.nodes[i].name.clone());
             }
-
         }
         names
     }
-
 }
 
 // Settings
 
 pub fn update_behavior_sink(sink: &mut PropertySink) {
-
     if sink.contains("race") == false {
-        sink.properties.push(Property::new_string("race".to_string(), "human".to_string()));
+        sink.properties.push(Property::new_string(
+            "race".to_string(),
+            "human".to_string(),
+        ));
     }
 
     if sink.contains("class") == false {
-        sink.properties.push(Property::new_string("class".to_string(), "paladin".to_string()));
+        sink.properties.push(Property::new_string(
+            "class".to_string(),
+            "paladin".to_string(),
+        ));
     }
-
 }
 
 pub fn generate_behavior_sink_descriptions() -> FxHashMap<String, Vec<String>> {
-    let mut map : FxHashMap<String, Vec<String>> = FxHashMap::default();
+    let mut map: FxHashMap<String, Vec<String>> = FxHashMap::default();
 
-    map.insert("race".to_string(), vec!["The race of the character.".to_string()]);
-    map.insert("class".to_string(), vec!["The class of the character.".to_string()]);
+    map.insert(
+        "race".to_string(),
+        vec!["The race of the character.".to_string()],
+    );
+    map.insert(
+        "class".to_string(),
+        vec!["The class of the character.".to_string()],
+    );
 
     map
 }

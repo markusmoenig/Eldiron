@@ -1,44 +1,55 @@
 extern crate ref_thread_local;
-use ref_thread_local::RefThreadLocal;
 use crate::prelude::*;
+use ref_thread_local::RefThreadLocal;
 
 pub struct RegionUtility {
-    pub rng                 : ThreadRng,
+    pub rng: ThreadRng,
 
-    pub roll_regex          : regex::Regex
+    pub roll_regex: regex::Regex,
 }
 
 impl RegionUtility {
     pub fn new() -> Self {
-
         Self {
-            rng             : rand::thread_rng(),
+            rng: rand::thread_rng(),
 
-            roll_regex      : regex::Regex::new(r"^(\d+)?d(\d+)([+-]\d+)?$").unwrap()
+            roll_regex: regex::Regex::new(r"^(\d+)?d(\d+)([+-]\d+)?$").unwrap(),
         }
     }
 
     pub fn roll(&mut self, dice_expression: &str) -> Result<i32, Box<dyn std::error::Error>> {
-        let caps = self.roll_regex.captures(dice_expression).ok_or("Invalid dice expression")?;
+        let caps = self
+            .roll_regex
+            .captures(dice_expression)
+            .ok_or("Invalid dice expression")?;
 
-        let num_dice = caps.get(1).map_or(1, |m| m.as_str().parse::<u32>().unwrap());
+        let num_dice = caps
+            .get(1)
+            .map_or(1, |m| m.as_str().parse::<u32>().unwrap());
         let num_sides = caps.get(2).unwrap().as_str().parse::<u32>()?;
-        let modifier = caps.get(3).map_or(0, |m| m.as_str().parse::<i32>().unwrap());
+        let modifier = caps
+            .get(3)
+            .map_or(0, |m| m.as_str().parse::<i32>().unwrap());
 
         if num_sides <= 0 {
             return Err("Number of sides must be at least 1".into());
         }
 
-        let total: u32 = (0..num_dice).map(|_| self.rng.gen_range(1..=num_sides)).sum();
+        let total: u32 = (0..num_dice)
+            .map(|_| self.rng.gen_range(1..=num_sides))
+            .sum();
         Ok(total as i32 + modifier)
     }
 }
 
 /// Executes the given node and follows the connection chain
-pub fn execute_area_node(region_id: Uuid, area_index: usize, node_id: Uuid) -> Option<BehaviorNodeConnector> {
-
-    let mut connectors : Vec<BehaviorNodeConnector> = vec![];
-    let mut connected_node_ids : Vec<Uuid> = vec![];
+pub fn execute_area_node(
+    region_id: Uuid,
+    area_index: usize,
+    node_id: Uuid,
+) -> Option<BehaviorNodeConnector> {
+    let mut connectors: Vec<BehaviorNodeConnector> = vec![];
+    let mut connected_node_ids: Vec<Uuid> = vec![];
 
     let mut node_call: Option<NodeDataCall> = None;
 
@@ -52,9 +63,10 @@ pub fn execute_area_node(region_id: Uuid, area_index: usize, node_id: Uuid) -> O
         }
     }
 
-    let mut rc : Option<BehaviorNodeConnector> = None;
+    let mut rc: Option<BehaviorNodeConnector> = None;
     if let Some(node_call) = node_call {
-        let connector: BehaviorNodeConnector = node_call((region_id, node_id), &mut FxHashMap::default());
+        let connector: BehaviorNodeConnector =
+            node_call((region_id, node_id), &mut FxHashMap::default());
         rc = Some(connector);
         connectors.push(connector);
     } else {

@@ -1,54 +1,58 @@
 use crate::prelude::*;
-const SCROLLBAR_WIDTH : usize = 18;
+const SCROLLBAR_WIDTH: usize = 18;
 
 pub struct TileMapWidget {
-    rect                    : (usize, usize, usize, usize),
-    tilemap_id              : Uuid,
-    scale                   : f32,
+    rect: (usize, usize, usize, usize),
+    tilemap_id: Uuid,
+    scale: f32,
 
-    screen_offset           : (usize, usize),
+    screen_offset: (usize, usize),
 
-    line_offset             : isize,
-    max_line_offset         : usize,
-    total_lines             : usize,
-    visible_lines           : usize,
+    line_offset: isize,
+    max_line_offset: usize,
+    total_lines: usize,
+    visible_lines: usize,
 
-    scroll_thumb_rect       : Option<(usize, usize, usize, usize)>,
-    scroll_click            : Option<(usize, usize)>,
-    scroll_offset_start     : isize,
+    scroll_thumb_rect: Option<(usize, usize, usize, usize)>,
+    scroll_click: Option<(usize, usize)>,
+    scroll_offset_start: isize,
 
-    image_offset            : (isize, isize),
+    image_offset: (isize, isize),
 
-    mouse_wheel_delta       : (isize, isize),
+    mouse_wheel_delta: (isize, isize),
 
-    is_image                : bool,
+    is_image: bool,
 }
 
 impl EditorContent for TileMapWidget {
-
-    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _behavior_type: BehaviorType, _asset: &Asset, _context: &ScreenContext) -> Self {
-
+    fn new(
+        _text: Vec<String>,
+        rect: (usize, usize, usize, usize),
+        _behavior_type: BehaviorType,
+        _asset: &Asset,
+        _context: &ScreenContext,
+    ) -> Self {
         Self {
             rect,
-            tilemap_id              : Uuid::new_v4(),
-            scale                   : 2.0,
+            tilemap_id: Uuid::new_v4(),
+            scale: 2.0,
 
-            screen_offset           : (0, 0),
+            screen_offset: (0, 0),
 
-            line_offset             : 0,
-            max_line_offset         : 0,
-            total_lines                 : 0,
-            visible_lines               : 0,
+            line_offset: 0,
+            max_line_offset: 0,
+            total_lines: 0,
+            visible_lines: 0,
 
-            scroll_thumb_rect           : None,
-            scroll_click                : None,
-            scroll_offset_start         : 0,
+            scroll_thumb_rect: None,
+            scroll_click: None,
+            scroll_offset_start: 0,
 
-            image_offset            : (0, 0),
+            image_offset: (0, 0),
 
-            mouse_wheel_delta       : (0, 0),
+            mouse_wheel_delta: (0, 0),
 
-            is_image                : false,
+            is_image: false,
         }
     }
 
@@ -57,12 +61,22 @@ impl EditorContent for TileMapWidget {
         self.rect.3 = height;
     }
 
-    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
-
-        context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
+    fn draw(
+        &mut self,
+        frame: &mut [u8],
+        anim_counter: usize,
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+    ) {
+        context
+            .draw2d
+            .draw_rect(frame, &self.rect, context.width, &context.color_black);
 
         if self.is_image {
-            if asset.tileset.images.is_empty() { return }
+            if asset.tileset.images.is_empty() {
+                return;
+            }
 
             let image = &asset.tileset.images[&self.tilemap_id];
             let source = &image.pixels[..];
@@ -71,7 +85,12 @@ impl EditorContent for TileMapWidget {
 
             //context.draw2d.blend_slice_safe(frame, &image.pixels[..], &(self.rect.0 as isize + self.image_offset.0, self.rect.1 as isize - self.image_offset.1, image.width, image.height), context.width, &(self.rect.0, self.rect.1, self.rect.2, self.rect.3));
 
-            let rect = (self.rect.0 as isize + self.image_offset.0, self.rect.1 as isize - self.image_offset.1, image.width, image.height);
+            let rect = (
+                self.rect.0 as isize + self.image_offset.0,
+                self.rect.1 as isize - self.image_offset.1,
+                image.width,
+                image.height,
+            );
             let safe_rect = (self.rect.0, self.rect.1, self.rect.2, self.rect.3);
 
             let dest_stride_isize = context.width as isize;
@@ -79,24 +98,29 @@ impl EditorContent for TileMapWidget {
                 let d = rect.0 * 4 + (y + rect.1) * dest_stride_isize * 4;
                 let s = y * (rect.2 as isize) * 4;
 
-                if (y + rect.1 as isize) >= safe_rect.1 as isize && (y + rect.1 as isize) < (safe_rect.1 + safe_rect.3) as isize {
+                if (y + rect.1 as isize) >= safe_rect.1 as isize
+                    && (y + rect.1 as isize) < (safe_rect.1 + safe_rect.3) as isize
+                {
                     for x in 0..rect.2 as isize {
-
-                        if (x + rect.0 as isize) >= safe_rect.0 as isize && (x + rect.0 as isize) < (safe_rect.0 + safe_rect.2) as isize {
+                        if (x + rect.0 as isize) >= safe_rect.0 as isize
+                            && (x + rect.0 as isize) < (safe_rect.0 + safe_rect.2) as isize
+                        {
                             let dd = (d + x * 4) as usize;
                             let ss = (s + x * 4) as usize;
 
                             //let background = &[frame[dd], frame[dd+1], frame[dd+2], frame[dd+3]];
-                            let color = &[source[ss], source[ss+1], source[ss+2], source[ss+3]];
+                            let color =
+                                &[source[ss], source[ss + 1], source[ss + 2], source[ss + 3]];
                             //frame[dd..dd + 4].copy_from_slice(&self.mix_color(&background, &color, (color[3] as f64) / 255.0));
                             frame[dd..dd + 4].copy_from_slice(color);
                         }
                     }
                 }
             }
-
         } else {
-            if asset.tileset.maps.is_empty() { return }
+            if asset.tileset.maps.is_empty() {
+                return;
+            }
 
             let scale = self.scale;
             if let Some(map) = &asset.tileset.maps.get_mut(&self.tilemap_id) {
@@ -138,7 +162,6 @@ impl EditorContent for TileMapWidget {
 
                 // Draw the tiles
                 for tile in 0..tiles_per_page {
-
                     if tile + offset >= total_tiles {
                         break;
                     }
@@ -146,34 +169,68 @@ impl EditorContent for TileMapWidget {
                     let x_step = (x_off as f32 * map.settings.grid_size as f32 * scale) as usize;
                     let y_step = (y_off as f32 * map.settings.grid_size as f32 * scale) as usize;
 
-                    let x = (tile+offset) % x_tiles as usize;
-                    let y = (tile+offset) / x_tiles as usize;
+                    let x = (tile + offset) % x_tiles as usize;
+                    let y = (tile + offset) / x_tiles as usize;
 
-                    let pp = &(x_step + self.rect.0 + left_offset, y_step + self.rect.1 + top_offset);
+                    let pp = &(
+                        x_step + self.rect.0 + left_offset,
+                        y_step + self.rect.1 + top_offset,
+                    );
 
                     if let Some(tile) = map.get_tile(&(x, y)) {
-
                         if tile.anim_tiles.len() > 0 {
                             let index = anim_counter % tile.anim_tiles.len() as usize;
-                            context.draw2d.draw_tile(frame, pp, map, context.width, &tile.anim_tiles[index], scale);
-                        } else
-                        if tile.usage == TileUsage::Unused {
-                            context.draw2d.draw_tile_mixed(frame, pp, map, context.width, &(x, y), [128, 128, 128, 255], scale);
+                            context.draw2d.draw_tile(
+                                frame,
+                                pp,
+                                map,
+                                context.width,
+                                &tile.anim_tiles[index],
+                                scale,
+                            );
+                        } else if tile.usage == TileUsage::Unused {
+                            context.draw2d.draw_tile_mixed(
+                                frame,
+                                pp,
+                                map,
+                                context.width,
+                                &(x, y),
+                                [128, 128, 128, 255],
+                                scale,
+                            );
                         } else {
-                            context.draw2d.draw_tile(frame, pp, map, context.width, &(x, y), scale);
+                            context
+                                .draw2d
+                                .draw_tile(frame, pp, map, context.width, &(x, y), scale);
                         }
                     } else {
-                        context.draw2d.draw_tile(frame, pp, map, context.width, &(x, y), scale);
+                        context
+                            .draw2d
+                            .draw_tile(frame, pp, map, context.width, &(x, y), scale);
                     }
 
                     if let Some(selection) = context.curr_tile {
                         if x == selection.0 && y == selection.1 {
-                            context.draw2d.draw_rect_outline(frame, &(pp.0, pp.1, scaled_grid_size, scaled_grid_size), context.width, context.color_white);
+                            context.draw2d.draw_rect_outline(
+                                frame,
+                                &(pp.0, pp.1, scaled_grid_size, scaled_grid_size),
+                                context.width,
+                                context.color_white,
+                            );
                         } else {
                             if let Some(selection_end) = context.selection_end {
-                                if  y > selection.1 || y == selection.1 && x >= selection.0 { // >=
-                                    if  y < selection_end.1 || y == selection_end.1 && x <= selection_end.0 { // <=
-                                        context.draw2d.draw_rect_outline(frame, &(pp.0, pp.1, scaled_grid_size, scaled_grid_size), context.width, context.color_white);
+                                if y > selection.1 || y == selection.1 && x >= selection.0 {
+                                    // >=
+                                    if y < selection_end.1
+                                        || y == selection_end.1 && x <= selection_end.0
+                                    {
+                                        // <=
+                                        context.draw2d.draw_rect_outline(
+                                            frame,
+                                            &(pp.0, pp.1, scaled_grid_size, scaled_grid_size),
+                                            context.width,
+                                            context.color_white,
+                                        );
                                     }
                                 }
                             }
@@ -197,8 +254,15 @@ impl EditorContent for TileMapWidget {
                 let height = self.visible_lines * scaled_grid_size;
                 let total_height = self.total_lines * scaled_grid_size;
 
-                let mut sbr = (self.rect.0 + self.rect.2 - SCROLLBAR_WIDTH, self.rect.1, SCROLLBAR_WIDTH, self.rect.3);
-                context.draw2d.draw_rect(frame, &sbr, context.width, &context.color_black);
+                let mut sbr = (
+                    self.rect.0 + self.rect.2 - SCROLLBAR_WIDTH,
+                    self.rect.1,
+                    SCROLLBAR_WIDTH,
+                    self.rect.3,
+                );
+                context
+                    .draw2d
+                    .draw_rect(frame, &sbr, context.width, &context.color_black);
 
                 let ratio = height as f32 / total_height as f32;
                 let theight = (height as f32 * ratio) as usize;
@@ -209,21 +273,34 @@ impl EditorContent for TileMapWidget {
                 sbr.3 = theight;
 
                 if offset + theight > height {
-                    sbr.3 -= (offset + theight)- height;
+                    sbr.3 -= (offset + theight) - height;
                 }
 
                 if self.scroll_click.is_some() {
-                    context.draw2d.draw_rect(frame, &sbr, context.width, &[60, 60, 60, 255]);
+                    context
+                        .draw2d
+                        .draw_rect(frame, &sbr, context.width, &[60, 60, 60, 255]);
                 } else {
-                    context.draw2d.draw_rect(frame, &sbr, context.width, &context.color_node_dark_gray);
+                    context.draw2d.draw_rect(
+                        frame,
+                        &sbr,
+                        context.width,
+                        &context.color_node_dark_gray,
+                    );
                 }
                 self.scroll_thumb_rect = Some(sbr);
             }
         }
     }
 
-    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
-
+    fn mouse_down(
+        &mut self,
+        pos: (usize, usize),
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+        options: &mut Option<Box<dyn EditorOptions>>,
+        _toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
         self.scroll_click = None;
         if pos.0 > self.rect.0 + self.rect.2 - SCROLLBAR_WIDTH {
             if let Some(scroll_rect) = &self.scroll_thumb_rect {
@@ -255,14 +332,27 @@ impl EditorContent for TileMapWidget {
         }
     }
 
-    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_up(
+        &mut self,
+        _pos: (usize, usize),
+        _asset: &mut Asset,
+        _context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+        _toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
         let consumed = false;
         self.scroll_click = None;
         consumed
     }
 
-    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
-
+    fn mouse_dragged(
+        &mut self,
+        pos: (usize, usize),
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+        _toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
         if let Some(scroll_click) = &self.scroll_click {
             let mut y: isize = pos.1 as isize - scroll_click.1 as isize;
             y = (y as f32 * self.total_lines as f32 / self.visible_lines as f32) as isize;
@@ -288,7 +378,14 @@ impl EditorContent for TileMapWidget {
         false
     }
 
-    fn mouse_wheel(&mut self, delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_wheel(
+        &mut self,
+        delta: (isize, isize),
+        _asset: &mut Asset,
+        _context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+        _toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
         if self.is_image {
             let grid_size = 32_isize;
             self.mouse_wheel_delta.0 += delta.0;
@@ -337,10 +434,12 @@ impl EditorContent for TileMapWidget {
 
             let screen_x = width / scaled_grid_size;
 
-            if screen_pos.0 > self.rect.0 + self.screen_offset.0 && screen_pos.1 > self.rect.1 + self.screen_offset.0 {
-
+            if screen_pos.0 > self.rect.0 + self.screen_offset.0
+                && screen_pos.1 > self.rect.1 + self.screen_offset.0
+            {
                 let x = (screen_pos.0 - self.rect.0 - self.screen_offset.0) / scaled_grid_size;
-                let y = (screen_pos.1 - self.rect.1 - self.screen_offset.1) / scaled_grid_size + self.line_offset as usize;
+                let y = (screen_pos.1 - self.rect.1 - self.screen_offset.1) / scaled_grid_size
+                    + self.line_offset as usize;
 
                 let tile_offset = x + y * screen_x;
 

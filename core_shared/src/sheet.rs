@@ -7,82 +7,80 @@ use rhai::Engine;
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 /// CharacterSheet
 pub struct Sheet {
+    pub name: String,
+    pub class_name: String,
+    pub race_name: String,
 
-    pub name                    : String,
-    pub class_name              : String,
-    pub race_name               : String,
+    pub tile: TileId,
 
-    pub tile                    : TileId,
+    pub alignment: i32,
 
-    pub alignment               : i32,
+    pub abilities: std::collections::BTreeMap<String, i32>,
 
-    pub abilities               : std::collections::BTreeMap<String, i32>,
+    pub hit_points: i32,
+    pub max_hit_points: i32,
 
-    pub hit_points              : i32,
-    pub max_hit_points          : i32,
+    pub inventory: Inventory,
+    pub weapons: Weapons,
+    pub gear: Gear,
 
-    pub inventory               : Inventory,
-    pub weapons                 : Weapons,
-    pub gear                    : Gear,
+    pub spells: Spells,
 
-    pub spells                  : Spells,
+    pub skills: Skills,
+    pub experience: Experience,
 
-    pub skills                  : Skills,
-    pub experience              : Experience,
+    pub position: Position,
+    pub home_location: Position,
 
-    pub position                : Position,
-    pub home_location           : Position,
-
-    pub wealth                  : Currency,
+    pub wealth: Currency,
 
     // The following fields are not character but rather server state specific
     // and only needed for saving the character state.
-
-    pub behavior_id             : Option<Uuid>,
-    pub screen                  : Option<String>,
+    pub behavior_id: Option<Uuid>,
+    pub screen: Option<String>,
 }
 
 impl Sheet {
     pub fn new() -> Self {
         Self {
-            name                : String::new(),
-            class_name          : String::new(),
-            race_name           : String::new(),
+            name: String::new(),
+            class_name: String::new(),
+            race_name: String::new(),
 
-            tile                : TileId::empty(),
+            tile: TileId::empty(),
 
-            alignment           : 0,
+            alignment: 0,
 
-            abilities           : BTreeMap::default(),
+            abilities: BTreeMap::default(),
 
-            hit_points          : 0,
-            max_hit_points      : 0,
+            hit_points: 0,
+            max_hit_points: 0,
 
-            inventory           : Inventory::new(),
-            weapons             : Weapons::new(),
-            gear                : Gear::new(),
+            inventory: Inventory::new(),
+            weapons: Weapons::new(),
+            gear: Gear::new(),
 
-            spells              : Spells::new(),
+            spells: Spells::new(),
 
-            skills              : Skills::new(),
-            experience          : Experience::new(),
+            skills: Skills::new(),
+            experience: Experience::new(),
 
-            position            : Position::new(Uuid::new_v4(), 0, 0),
-            home_location       : Position::new(Uuid::new_v4(), 0, 0),
+            position: Position::new(Uuid::new_v4(), 0, 0),
+            home_location: Position::new(Uuid::new_v4(), 0, 0),
 
-            wealth              : Currency::empty(),
+            wealth: Currency::empty(),
 
-            behavior_id         : None,
-            screen              : None,
+            behavior_id: None,
+            screen: None,
         }
     }
 
     /// Get the name
     pub fn get_name_def(&mut self) -> String {
         if self.name == self.race_name {
-            return format!("the {}", self.name)
+            return format!("the {}", self.name);
         } else {
-            return self.name.clone()
+            return self.name.clone();
         }
     }
 
@@ -209,7 +207,11 @@ impl Sheet {
         engine.register_get("experience", Sheet::get_experience);
 
         engine.register_get_set("hit_points", Sheet::get_hit_points, Sheet::set_hit_points);
-        engine.register_get_set("max_hit_points", Sheet::get_max_hit_points, Sheet::set_max_hit_points);
+        engine.register_get_set(
+            "max_hit_points",
+            Sheet::get_max_hit_points,
+            Sheet::set_max_hit_points,
+        );
 
         engine.register_get_set("wealth", Sheet::get_wealth, Sheet::set_wealth);
 
@@ -223,15 +225,15 @@ impl Sheet {
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 /// CharacterSheet
 pub struct Ability {
-    pub value                   : i32,
-    pub roll                    : String,
+    pub value: i32,
+    pub roll: String,
 }
 
 impl Ability {
     pub fn new() -> Self {
         Self {
-            value               : -1,
-            roll                : "".to_string(),
+            value: -1,
+            roll: "".to_string(),
         }
     }
 }

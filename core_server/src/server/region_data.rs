@@ -2,92 +2,90 @@ use crate::prelude::*;
 
 pub struct RegionData {
     /// The character sheets in the region
-    pub sheets                      : Vec<Sheet>,
+    pub sheets: Vec<Sheet>,
 
     /// Behavior Instance Data
-    pub character_instances         : Vec<BehaviorInstance>,
+    pub character_instances: Vec<BehaviorInstance>,
 
     /// Holds the tile data and areas for the region
-    pub region_data                 : GameRegionData,
+    pub region_data: GameRegionData,
 
     /// The behavior graphs for the regions area
-    pub region_area_behavior        : Vec<GameBehaviorData>,
+    pub region_area_behavior: Vec<GameBehaviorData>,
 
     /// The displacements for this region
-    pub displacements               : FxHashMap<(isize, isize), TileData>,
+    pub displacements: FxHashMap<(isize, isize), TileData>,
 
     /// Do characters move per tile or per pixel ?
-    pub pixel_based_movement        : bool,
+    pub pixel_based_movement: bool,
 
     /// The loot in the region
-    pub loot                        : FxHashMap<(isize, isize), Vec<Item>>,
+    pub loot: FxHashMap<(isize, isize), Vec<Item>>,
 
     /// The node functions
-    pub nodes                       : FxHashMap<BehaviorNodeType, NodeDataCall>,
+    pub nodes: FxHashMap<BehaviorNodeType, NodeDataCall>,
 
     /// The text of the current movement (North, South)
-    pub action_direction_text       : String,
+    pub action_direction_text: String,
 
     /// The text for the current subject / context
-    pub action_subject_text         : String,
+    pub action_subject_text: String,
 
     /// During region area execution this points to the calling behavior index (for sending messages etc)
-    pub curr_action_character_index  : Option<usize>,
+    pub curr_action_character_index: Option<usize>,
 
     /// The current instance index of the current "Player" when executing the Game behavior per player
-    pub curr_player_inst_index      : usize,
+    pub curr_player_inst_index: usize,
 
     /// Player uuid => player instance index
-    pub player_uuid_indices         : FxHashMap<Uuid, usize>,
+    pub player_uuid_indices: FxHashMap<Uuid, usize>,
 
     /// Current characters per region
-    pub characters                  : FxHashMap<Uuid, Vec<CharacterData>>,
+    pub characters: FxHashMap<Uuid, Vec<CharacterData>>,
 
     // Characters instance indices in a given area
-    pub area_characters             : FxHashMap<usize, Vec<usize>>,
+    pub area_characters: FxHashMap<usize, Vec<usize>>,
 
     // The character instances from the previous tick, used to figure out onEnter, onLeave etc events
-    pub prev_area_characters        : FxHashMap<usize, Vec<usize>>,
+    pub prev_area_characters: FxHashMap<usize, Vec<usize>>,
 
     // Lights for this region
-    pub lights                      : Vec<LightData>,
+    pub lights: Vec<LightData>,
 
     /// How many ticks for one minute (gets read from the game settings)
-    pub ticks_per_minute            : usize,
+    pub ticks_per_minute: usize,
 
     /// Node trees which have been marked for execution inside scripts
-    pub to_execute                  : Vec<(usize, String)>,
+    pub to_execute: Vec<(usize, String)>,
 
     /// Respawns the given chararacter uuid at the given tick count
-    pub respawn_instance            : FxHashMap<Uuid, (usize, CharacterInstanceData)>,
+    pub respawn_instance: FxHashMap<Uuid, (usize, CharacterInstanceData)>,
 
-    pub skill_trees                 : FxHashMap<String, Vec<(i32, String, String)>>,
+    pub skill_trees: FxHashMap<String, Vec<(i32, String, String)>>,
 
     // Debug Data which gets displayer in the editor
-
     /// The behavior id of the character to debug, this is send from the server
-    pub debug_behavior_id           : Option<Uuid>,
+    pub debug_behavior_id: Option<Uuid>,
     // We are debugging the current tick characters
-    pub is_debugging                : bool,
+    pub is_debugging: bool,
     /// Executed connections for the last tick for the debug character
-    pub executed_connections        : Vec<(Uuid, BehaviorNodeConnector)>,
+    pub executed_connections: Vec<(Uuid, BehaviorNodeConnector)>,
     /// Script errors for the debug character
-    pub script_errors               : Vec<((Uuid, Uuid, String), (String, Option<u32>))>,
+    pub script_errors: Vec<((Uuid, Uuid, String), (String, Option<u32>))>,
 
     /// The item effects to the right of the rolled weapon level
-    pub item_effects                : Option<(Uuid, Uuid)>,
+    pub item_effects: Option<(Uuid, Uuid)>,
 
     /// The current character sheet index
-    pub curr_index                  : usize,
+    pub curr_index: usize,
 
     /// The current area behavior index sheet index
-    pub curr_area_index             : usize,
+    pub curr_area_index: usize,
 }
 
 impl RegionData {
     pub fn new() -> Self {
-
-        let mut nodes : FxHashMap<BehaviorNodeType, NodeDataCall> = FxHashMap::default();
+        let mut nodes: FxHashMap<BehaviorNodeType, NodeDataCall> = FxHashMap::default();
 
         // BEHAVIOR
         nodes.insert(BehaviorNodeType::Script, node_script);
@@ -145,46 +143,46 @@ impl RegionData {
         nodes.insert(BehaviorNodeType::LightItem, node_light_item);
 
         Self {
-            sheets                          : vec![],
-            character_instances             : vec![],
-            region_data                     : GameRegionData::new(),
-            region_area_behavior            : vec![],
-            displacements                   : FxHashMap::default(),
-            pixel_based_movement            : true,
-            loot                            : FxHashMap::default(),
+            sheets: vec![],
+            character_instances: vec![],
+            region_data: GameRegionData::new(),
+            region_area_behavior: vec![],
+            displacements: FxHashMap::default(),
+            pixel_based_movement: true,
+            loot: FxHashMap::default(),
 
             nodes,
 
-            action_direction_text           : "".to_string(),
-            action_subject_text             : "".to_string(),
+            action_direction_text: "".to_string(),
+            action_subject_text: "".to_string(),
 
-            curr_action_character_index     : None,
-            curr_player_inst_index          : 0,
-            player_uuid_indices             : FxHashMap::default(),
+            curr_action_character_index: None,
+            curr_player_inst_index: 0,
+            player_uuid_indices: FxHashMap::default(),
 
-            characters                      : FxHashMap::default(),
-            area_characters                 : FxHashMap::default(),
-            prev_area_characters            : FxHashMap::default(),
-            lights                          : vec![],
+            characters: FxHashMap::default(),
+            area_characters: FxHashMap::default(),
+            prev_area_characters: FxHashMap::default(),
+            lights: vec![],
 
-            ticks_per_minute                : 4,
+            ticks_per_minute: 4,
 
-            to_execute                      : vec![],
+            to_execute: vec![],
 
-            respawn_instance                : FxHashMap::default(),
+            respawn_instance: FxHashMap::default(),
 
-            skill_trees                     : FxHashMap::default(),
+            skill_trees: FxHashMap::default(),
 
             // Debug
-            debug_behavior_id               : None,
-            is_debugging                    : false,
-            executed_connections            : vec![],
-            script_errors                   : vec![],
+            debug_behavior_id: None,
+            is_debugging: false,
+            executed_connections: vec![],
+            script_errors: vec![],
 
-            item_effects                    : None,
+            item_effects: None,
 
-            curr_index                      : 0,
-            curr_area_index                 : 0,
+            curr_index: 0,
+            curr_area_index: 0,
         }
     }
 

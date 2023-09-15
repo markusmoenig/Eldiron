@@ -22,6 +22,5 @@ pub enum Message {
     SetUserName(Uuid, String),
     SetUserScreenName(Uuid, String),
     SetUserCharacters(Uuid, Vec<CharacterData>),
-    SetUserError(Uuid, Option<String>)
-
+    SetUserError(Uuid, Option<String>),
 }

@@ -5,9 +5,9 @@ pub mod draw2d;
 
 // General purpose widgets
 pub mod atom;
-pub mod tileselector;
 pub mod characterselector;
 pub mod lootselector;
+pub mod tileselector;
 
 // Layouts
 
@@ -26,37 +26,88 @@ pub enum WidgetState {
 
 #[allow(unused)]
 pub trait Widget {
-
-    fn new(text: Vec<String>, rect: (usize, usize, usize, usize), asset: &Asset, context: &mut ScreenContext) -> Self where Self: Sized;
+    fn new(
+        text: Vec<String>,
+        rect: (usize, usize, usize, usize),
+        asset: &Asset,
+        context: &mut ScreenContext,
+    ) -> Self
+    where
+        Self: Sized;
 
     fn update(&mut self) {}
-    fn resize(&mut self, width: usize, height: usize, context: &ScreenContext) {
-    }
+    fn resize(&mut self, width: usize, height: usize, context: &ScreenContext) {}
 
-    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext);
-    fn draw_overlay(&mut self, frame: &mut [u8], rect: &(usize, usize, usize, usize), anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext);
+    fn draw(
+        &mut self,
+        frame: &mut [u8],
+        anim_counter: usize,
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+    );
+    fn draw_overlay(
+        &mut self,
+        frame: &mut [u8],
+        rect: &(usize, usize, usize, usize),
+        anim_counter: usize,
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+    );
 
-    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_down(
+        &mut self,
+        pos: (usize, usize),
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+    ) -> bool {
         false
     }
 
-    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_up(
+        &mut self,
+        pos: (usize, usize),
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+    ) -> bool {
         false
     }
 
-    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_dragged(
+        &mut self,
+        pos: (usize, usize),
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+    ) -> bool {
         false
     }
 
-    fn mouse_hover(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_hover(
+        &mut self,
+        pos: (usize, usize),
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+    ) -> bool {
         false
     }
 
-    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn mouse_wheel(
+        &mut self,
+        delta: (isize, isize),
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+    ) -> bool {
         false
     }
 
-    fn modifier_changed(&mut self, shift: bool, ctrl: bool, alt: bool, logo: bool, asset: &mut Asset, context: &mut ScreenContext) -> bool {
+    fn modifier_changed(
+        &mut self,
+        shift: bool,
+        ctrl: bool,
+        alt: bool,
+        logo: bool,
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+    ) -> bool {
         false
     }
 
@@ -67,7 +118,8 @@ pub trait Widget {
     fn contains_pos(&self, pos: (usize, usize)) -> bool {
         let rect = self.get_rect();
 
-        if pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3 {
+        if pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3
+        {
             true
         } else {
             false
@@ -75,7 +127,8 @@ pub trait Widget {
     }
 
     fn contains_pos_for(&self, pos: (usize, usize), rect: (usize, usize, usize, usize)) -> bool {
-        if pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3 {
+        if pos.0 >= rect.0 && pos.0 < rect.0 + rect.2 && pos.1 >= rect.1 && pos.1 < rect.1 + rect.3
+        {
             true
         } else {
             false
@@ -90,8 +143,7 @@ pub trait Widget {
     }
 
     /// Set the current state of the widget
-    fn set_state(&self, _state: u32) {
-    }
+    fn set_state(&self, _state: u32) {}
 
     // Default colors
 

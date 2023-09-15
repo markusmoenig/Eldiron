@@ -1,7 +1,5 @@
-
 /// Returns the resource directory
 pub fn get_resource_dir() -> std::path::PathBuf {
-
     // Uncomment this for macOS bundle, what a pain
 
     // if let Some(mut curr_exe) = std::env::current_exe().ok() {

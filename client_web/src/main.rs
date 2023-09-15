@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 mod prelude {
-    pub const GAME_TICK_IN_MS : u128 = 250;
+    pub const GAME_TICK_IN_MS: u128 = 250;
 }
 
 use core_render::render::GameRender;
@@ -15,11 +15,11 @@ use std::rc::Rc;
 use log::error;
 use pixels::{Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
+use winit::event::KeyboardInput;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
-use winit::event::KeyboardInput;
 
 use std::path::PathBuf;
 
@@ -29,10 +29,9 @@ use std::cell::RefCell;
 use std::panic;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-use wasm_sockets::{self, ConnectionStatus, WebSocketError, Message};
+use wasm_sockets::{self, ConnectionStatus, Message, WebSocketError};
 
 fn main() {
-
     #[cfg(target_arch = "wasm32")]
     {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -54,7 +53,8 @@ async fn run() {
 
     // Client is wrapped in an Rc<RefCell<>> so it can be used within setInterval
     // This isn't required when being used within a game engine
-    let mut client = wasm_sockets::PollingClient::new(&format!("{}://ws.eldiron.com/socket", protocol));//.ok().unwrap();
+    let mut client =
+        wasm_sockets::PollingClient::new(&format!("{}://ws.eldiron.com/socket", protocol)); //.ok().unwrap();
 
     //client.send_string("Hello, World!").unwrap();
 
@@ -69,8 +69,8 @@ async fn run() {
         //info!("New messages: {:#?}", client.borrow_mut().receive());
     }) as Box<dyn Fn()>);*/
 
-    let width     : usize = 1024;
-    let height    : usize = 608;
+    let width: usize = 1024;
+    let height: usize = 608;
 
     let event_loop = EventLoop::new();
     let window = {
@@ -144,9 +144,9 @@ async fn run() {
     let player_uuid = Uuid::new_v4();
     let mut render = GameRender::new(PathBuf::new(), player_uuid);
 
-    let mut anim_counter : usize = 0;
-    let mut timer : u128 = 0;
-    let mut game_tick_timer : u128 = 0;
+    let mut anim_counter: usize = 0;
+    let mut timer: u128 = 0;
+    let mut game_tick_timer: u128 = 0;
 
     let mut curr_time = 0;
 
@@ -162,11 +162,8 @@ async fn run() {
 
         let mut key_string = "";
         if let Event::RedrawRequested(_) = event {
-
             if let Some(mut client) = client.as_mut().ok() {
-
                 if client.status() == ConnectionStatus::Connected {
-
                     if logged_in_send == false {
                         let cmd = ServerCmd::LoginAnonymous;
                         if let Some(bin) = cmd.to_bin() {
@@ -182,28 +179,26 @@ async fn run() {
                         for m in messages {
                             match m {
                                 Message::Binary(binary) => {
-                                    let cmd : ServerCmd = ServerCmd::from_bin(&binary)
-                                        .unwrap_or(ServerCmd::NoOp);
+                                    let cmd: ServerCmd =
+                                        ServerCmd::from_bin(&binary).unwrap_or(ServerCmd::NoOp);
 
                                     match cmd {
                                         ServerCmd::GameUpdate(update) => {
-
-                                            if update.screen_scripts.is_some() || update.region.is_some() || update.screen_script_name.is_some() {
+                                            if update.screen_scripts.is_some()
+                                                || update.region.is_some()
+                                                || update.screen_script_name.is_some()
+                                            {
                                                 render.player_id = update.id;
                                                 render.draw(anim_counter, Some(&update));
                                             } else {
                                                 game_update = Some(update);
                                             }
-                                        },
-                                        _ => {
                                         }
+                                        _ => {}
                                     }
-                                },
-                                _ => {
-
                                 }
+                                _ => {}
                             }
-
                         }
 
                         if let Some(update) = game_update {
@@ -228,8 +223,8 @@ async fn run() {
 
             // Draw current screen
 
-            let mut cx : usize = 0;
-            let mut cy : usize = 0;
+            let mut cx: usize = 0;
+            let mut cy: usize = 0;
 
             let frame = pixels.frame_mut();
 
@@ -243,7 +238,12 @@ async fn run() {
 
             game_rect = (cx, cy, render.width, render.height);
 
-            fn copy_slice(dest: &mut [u8], source: &[u8], rect: &(usize, usize, usize, usize), dest_stride: usize) {
+            fn copy_slice(
+                dest: &mut [u8],
+                source: &[u8],
+                rect: &(usize, usize, usize, usize),
+                dest_stride: usize,
+            ) {
                 for y in 0..rect.3 {
                     let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
                     let s = y * rect.2 * 4;
@@ -264,9 +264,8 @@ async fn run() {
         }
 
         match &event {
-
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::ReceivedCharacter(char ) => match char {
+                WindowEvent::ReceivedCharacter(char) => match char {
                     _ => {
                         let rc = render.key_down(char.to_string(), player_uuid);
                         for cmd in rc.0 {
@@ -297,19 +296,18 @@ async fn run() {
                         },
                     ..
                 } => match virtual_code {
-
                     VirtualKeyCode::Up => {
                         key_string = "up";
-                    },
+                    }
                     VirtualKeyCode::Right => {
                         key_string = "right";
-                    },
+                    }
                     VirtualKeyCode::Down => {
                         key_string = "down";
-                    },
+                    }
                     VirtualKeyCode::Left => {
                         key_string = "left";
-                    },
+                    }
                     _ => (),
                 },
                 _ => (),
@@ -356,19 +354,25 @@ async fn run() {
         // Handle input events
         if input.update(&event) {
             // Close events
-            if /*input.key_pressed(VirtualKeyCode::Escape) ||*/ input.quit() {
+            if
+            /*input.key_pressed(VirtualKeyCode::Escape) ||*/
+            input.quit() {
                 *control_flow = ControlFlow::Exit;
                 //_ = server.shutdown();
                 return;
             }
 
             if input.mouse_pressed(0) {
-                let coords =  input.mouse().unwrap();
-                let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
-                   .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+                let coords = input.mouse().unwrap();
+                let pixel_pos: (usize, usize) = pixels
+                    .window_pos_to_pixel(coords)
+                    .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
                 if contains_pos_for(pixel_pos, game_rect) {
-                    let rc = render.mouse_down((pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1), player_uuid);
+                    let rc = render.mouse_down(
+                        (pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1),
+                        player_uuid,
+                    );
                     for cmd in rc.0 {
                         let cmd = ServerCmd::GameCmd(cmd);
                         if let Some(cmd) = cmd.to_bin() {
@@ -391,7 +395,7 @@ async fn run() {
             }
 
             if input.mouse_held(0) {
-                let diff =  input.mouse_diff();
+                let diff = input.mouse_diff();
                 if diff.0 != 0.0 || diff.1 != 0.0 {
                     //let coords =  input.mouse().unwrap();
                     //let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
@@ -402,11 +406,12 @@ async fn run() {
                     // }
                 }
             } else {
-                let diff =  input.mouse_diff();
+                let diff = input.mouse_diff();
                 if diff.0 != 0.0 || diff.1 != 0.0 {
-                    let coords =  input.mouse().unwrap();
-                    let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
-                       .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+                    let coords = input.mouse().unwrap();
+                    let pixel_pos: (usize, usize) = pixels
+                        .window_pos_to_pixel(coords)
+                        .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
                     render.mouse_hover((pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1));
                     window.request_redraw();
@@ -429,11 +434,10 @@ async fn run() {
                 game_tick_timer = curr_time;
                 anim_counter = anim_counter.wrapping_add(1);
             } else {
-
                 // If not, lets see if we need to redraw for the target fps
                 // 4 is the target fps here, for now hardcoded
 
-                let tick_in_ms =  (1000.0 / 4 as f32) as u128;
+                let tick_in_ms = (1000.0 / 4 as f32) as u128;
 
                 if curr_time > timer + tick_in_ms {
                     window.request_redraw();

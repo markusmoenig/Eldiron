@@ -3,36 +3,35 @@ use crate::prelude::*;
 /// Holds the current date and time
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Date {
-    pub total_minutes           : usize,
+    pub total_minutes: usize,
 
-    pub hours                   : i32,
-    pub minutes                 : i32,
-    pub seconds                 : i32,
-    pub minutes_in_day          : i32,
+    pub hours: i32,
+    pub minutes: i32,
+    pub seconds: i32,
+    pub minutes_in_day: i32,
 }
 
 impl Date {
-
     pub fn new() -> Self {
         Self {
-            total_minutes       : 0,
+            total_minutes: 0,
 
-            hours               : 0,
-            minutes             : 0,
-            seconds             : 0,
-            minutes_in_day      : 0,
+            hours: 0,
+            minutes: 0,
+            seconds: 0,
+            minutes_in_day: 0,
         }
     }
 
     /// New time from hours and minutes
     pub fn new_time(hours: i32, minutes: i32) -> Self {
         Self {
-            total_minutes       : hours as usize * 60 + minutes as usize,
+            total_minutes: hours as usize * 60 + minutes as usize,
 
             hours,
             minutes,
-            seconds             : 0,
-            minutes_in_day      : hours * 60 + minutes,
+            seconds: 0,
+            minutes_in_day: hours * 60 + minutes,
         }
     }
 
@@ -49,7 +48,6 @@ impl Date {
 
     /// Returns a new future date with the given minutes in the future.
     pub fn future_time(&self, minutes_in_future: usize) -> Date {
-
         let mut future_date = Date::new();
 
         future_date.total_minutes = self.total_minutes + minutes_in_future;
@@ -63,11 +61,10 @@ impl Date {
 
     /// From Time24
     pub fn from_time24(string: String) -> Self {
-
         let mut hours = 0;
         let mut minutes = 0;
 
-        let a : Vec<&str> = string.split(":").collect();
+        let a: Vec<&str> = string.split(":").collect();
         if a.len() == 2 {
             if let Some(h) = a[0].parse::<i32>().ok() {
                 if h >= 0 && h <= 23 {
@@ -82,12 +79,12 @@ impl Date {
         }
 
         Self {
-            total_minutes       : hours as usize * 60 + minutes as usize,
+            total_minutes: hours as usize * 60 + minutes as usize,
 
             hours,
             minutes,
-            seconds             : 0,
-            minutes_in_day      : hours * 60 + minutes,
+            seconds: 0,
+            minutes_in_day: hours * 60 + minutes,
         }
     }
 
@@ -109,7 +106,11 @@ impl Date {
     }
 
     pub fn time12(&mut self) -> String {
-        format!("{}{}", self.hours % 12, if self.hours > 12 { "pm" } else { "am" })
+        format!(
+            "{}{}",
+            self.hours % 12,
+            if self.hours > 12 { "pm" } else { "am" }
+        )
     }
 
     pub fn to_time24(&self) -> String {
@@ -118,7 +119,7 @@ impl Date {
 
     /// Verify if the given string is a valid time24
     pub fn verify_time24(string: String) -> bool {
-        let a : Vec<&str> = string.split(":").collect();
+        let a: Vec<&str> = string.split(":").collect();
         if a.len() == 2 {
             if let Some(h) = a[0].parse::<i32>().ok() {
                 if h >= 0 && h <= 23 {
@@ -140,24 +141,24 @@ use std::cmp::*;
 impl PartialOrd for Date {
     fn partial_cmp(&self, other: &Date) -> Option<Ordering> {
         if self.total_minutes == other.total_minutes {
-            return  Some(Ordering::Equal);
+            return Some(Ordering::Equal);
         }
         if self.total_minutes < other.total_minutes {
-            return  Some(Ordering::Less);
+            return Some(Ordering::Less);
         }
         if self.total_minutes > other.total_minutes {
-            return  Some(Ordering::Greater);
+            return Some(Ordering::Greater);
         }
         None
     }
 }
 
 pub fn script_register_date_api(engine: &mut rhai::Engine) {
-    engine.register_type_with_name::<Date>("Date")
+    engine
+        .register_type_with_name::<Date>("Date")
         .register_get("hours", Date::get_hours)
         .register_get("minutes", Date::get_minutes)
         .register_get("seconds", Date::get_seconds)
-
         .register_fn("time12", Date::time12)
         .register_fn("time24", Date::time24);
 }

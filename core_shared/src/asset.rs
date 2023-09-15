@@ -1,44 +1,51 @@
-pub mod tilemap;
 pub mod image;
+pub mod tilemap;
 pub mod tileset;
 
 use crate::prelude::*;
 
-use std::{path::PathBuf, collections::HashMap};
 use fontdue::Font;
+use std::{collections::HashMap, path::PathBuf};
 
 #[cfg(feature = "embed_binaries")]
 use core_embed_binaries::Embedded;
 
 pub struct Asset {
-    pub tileset                 : TileSet,
+    pub tileset: TileSet,
 
-    pub game_fonts              : HashMap<String, Font>,
-    pub editor_fonts            : HashMap<String, Font>,
+    pub game_fonts: HashMap<String, Font>,
+    pub editor_fonts: HashMap<String, Font>,
 
-    pub audio_names             : Vec<String>,
-    pub audio_paths             : Vec<PathBuf>,
+    pub audio_names: Vec<String>,
+    pub audio_paths: Vec<PathBuf>,
 }
 
-impl Asset  {
-
-    pub fn new() -> Self where Self: Sized {
-
+impl Asset {
+    pub fn new() -> Self
+    where
+        Self: Sized,
+    {
         Self {
-            tileset             : tileset::TileSet::new(),
-            game_fonts          : HashMap::new(),
-            editor_fonts        : HashMap::new(),
-            audio_names         : vec![],
-            audio_paths         : vec![],
+            tileset: tileset::TileSet::new(),
+            game_fonts: HashMap::new(),
+            editor_fonts: HashMap::new(),
+            audio_names: vec![],
+            audio_paths: vec![],
         }
     }
 
     /// Load editor font
-    pub fn load_editor_font<'a>(&mut self, resoure_path: PathBuf, name: String, resource_name: String) {
+    pub fn load_editor_font<'a>(
+        &mut self,
+        resoure_path: PathBuf,
+        name: String,
+        resource_name: String,
+    ) {
         let path = resoure_path.join("resources").join(resource_name);
 
         if let Some(font_bytes) = std::fs::read(path).ok() {
-            if let Some(font) = Font::from_bytes(font_bytes, fontdue::FontSettings::default()).ok() {
+            if let Some(font) = Font::from_bytes(font_bytes, fontdue::FontSettings::default()).ok()
+            {
                 self.editor_fonts.insert(name, font);
             }
         }
@@ -61,11 +68,21 @@ impl Asset  {
             // Generate the tile map for this dir element
             let path = &path.unwrap().path();
 
-            if path.is_file() {//&& path.extension().map(|s| s == "ttf").unwrap_or(false) {
+            if path.is_file() {
+                //&& path.extension().map(|s| s == "ttf").unwrap_or(false) {
 
                 if let Some(font_bytes) = std::fs::read(path).ok() {
-                if let Some(font) = Font::from_bytes(font_bytes, fontdue::FontSettings::default()).ok() {
-                        self.game_fonts.insert(path.file_stem().unwrap().to_os_string().into_string().unwrap(), font);
+                    if let Some(font) =
+                        Font::from_bytes(font_bytes, fontdue::FontSettings::default()).ok()
+                    {
+                        self.game_fonts.insert(
+                            path.file_stem()
+                                .unwrap()
+                                .to_os_string()
+                                .into_string()
+                                .unwrap(),
+                            font,
+                        );
                     }
                 }
             }
@@ -80,9 +97,28 @@ impl Asset  {
             // Generate the tile map for this dir element
             let path = &path.unwrap().path();
 
-            if path.is_file() && path.extension().map(|s| s == "wav" || s == "ogg").unwrap_or(false) {
-                let mut name = std::path::Path::new(&path).file_stem().unwrap().to_str().unwrap().to_string();
-                name = format!("{}.{}", name, std::path::Path::new(&path).extension().unwrap().to_str().unwrap().to_lowercase());
+            if path.is_file()
+                && path
+                    .extension()
+                    .map(|s| s == "wav" || s == "ogg")
+                    .unwrap_or(false)
+            {
+                let mut name = std::path::Path::new(&path)
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string();
+                name = format!(
+                    "{}.{}",
+                    name,
+                    std::path::Path::new(&path)
+                        .extension()
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .to_lowercase()
+                );
                 self.audio_names.push(name.to_string());
                 self.audio_paths.push(path.clone());
             }
@@ -98,13 +134,21 @@ impl Asset  {
             let name = file.as_ref();
             if name.starts_with("assets/fonts/") {
                 if let Some(font_bytes) = Embedded::get(name) {
-                    if let Some(font) = Font::from_bytes(font_bytes.data, fontdue::FontSettings::default()).ok() {
+                    if let Some(font) =
+                        Font::from_bytes(font_bytes.data, fontdue::FontSettings::default()).ok()
+                    {
                         let buf = std::path::Path::new(name);
-                        self.game_fonts.insert(buf.file_stem().unwrap().to_os_string().into_string().unwrap(), font);
+                        self.game_fonts.insert(
+                            buf.file_stem()
+                                .unwrap()
+                                .to_os_string()
+                                .into_string()
+                                .unwrap(),
+                            font,
+                        );
                     }
                 }
-            } else
-            if name.starts_with("assets/audio/") {
+            } else if name.starts_with("assets/audio/") {
                 let buf = std::path::Path::new(name);
                 let mut cut_out = name.clone().to_string();
                 cut_out.replace_range(0..13, "");
@@ -139,9 +183,28 @@ impl Asset  {
 
     /// Add a tilemap from the given path
     pub fn add_audio(&mut self, path: PathBuf) -> bool {
-        if path.is_file() && path.extension().map(|s| s == "wav" || s == "ogg").unwrap_or(false) {
-            let mut name = std::path::Path::new(&path).file_stem().unwrap().to_str().unwrap().to_string();
-            name = format!("{}.{}", name, std::path::Path::new(&path).extension().unwrap().to_str().unwrap().to_lowercase());
+        if path.is_file()
+            && path
+                .extension()
+                .map(|s| s == "wav" || s == "ogg")
+                .unwrap_or(false)
+        {
+            let mut name = std::path::Path::new(&path)
+                .file_stem()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string();
+            name = format!(
+                "{}.{}",
+                name,
+                std::path::Path::new(&path)
+                    .extension()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_lowercase()
+            );
             self.audio_names.push(name.to_string());
             self.audio_paths.push(path.clone());
             return true;

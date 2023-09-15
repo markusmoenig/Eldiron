@@ -1,5 +1,5 @@
 mod prelude {
-    pub const GAME_TICK_IN_MS : u128 = 250;
+    pub const GAME_TICK_IN_MS: u128 = 250;
 }
 
 use core_render::render::GameRender;
@@ -9,11 +9,11 @@ use prelude::*;
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
+use winit::event::KeyboardInput;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
-use winit::event::KeyboardInput;
 
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -23,13 +23,12 @@ fn get_time() -> u128 {
     let stop = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards");
-        stop.as_millis()
+    stop.as_millis()
 }
 
 fn main() -> Result<(), Error> {
-
-    let mut width     : usize = 1024;
-    let mut height    : usize = 608;
+    let mut width: usize = 1024;
+    let mut height: usize = 608;
 
     env_logger::init();
 
@@ -45,7 +44,7 @@ fn main() -> Result<(), Error> {
     let mut server = core_server::server::Server::new();
     server.collect_data(&game_data);
     server.set_io(local_io);
-    _ = server.start(if mt == false { None } else { Some(10) } );
+    _ = server.start(if mt == false { None } else { Some(10) });
     let player_uuid = server.create_user();
 
     let mut game_rect = (0, 0, 0, 0);
@@ -58,7 +57,7 @@ fn main() -> Result<(), Error> {
             PropertyValue::IntX(value) => {
                 width = value[0] as usize;
                 height = value[1] as usize;
-            },
+            }
             _ => {}
         }
     }
@@ -74,7 +73,6 @@ fn main() -> Result<(), Error> {
             .with_title("Eldiron Client")
             .with_inner_size(size)
             .with_min_inner_size(size)
-
             .build(&event_loop)
             .unwrap()
     };
@@ -85,9 +83,9 @@ fn main() -> Result<(), Error> {
         Pixels::new(width as u32, height as u32, surface_texture)?
     };
 
-    let mut anim_counter : usize = 0;
-    let mut timer : u128 = 0;
-    let mut game_tick_timer : u128 = 0;
+    let mut anim_counter: usize = 0;
+    let mut timer: u128 = 0;
+    let mut game_tick_timer: u128 = 0;
 
     event_loop.run(move |event, _, control_flow| {
         use winit::event::{ElementState, VirtualKeyCode};
@@ -101,7 +99,6 @@ fn main() -> Result<(), Error> {
         let str_c;
 
         if let Event::RedrawRequested(_) = event {
-
             let curr_time = get_time();
 
             let mut messages = vec![];
@@ -131,7 +128,7 @@ fn main() -> Result<(), Error> {
                     Message::PlayerUpdate(_uuid, update) => {
                         render.draw(anim_counter, Some(&update));
                         handled_update = true;
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -142,8 +139,8 @@ fn main() -> Result<(), Error> {
 
             // Draw the frame
 
-            let mut cx : usize = 0;
-            let mut cy : usize = 0;
+            let mut cx: usize = 0;
+            let mut cy: usize = 0;
 
             let frame = pixels.frame_mut();
 
@@ -157,7 +154,12 @@ fn main() -> Result<(), Error> {
 
             game_rect = (cx, cy, render.width, render.height);
 
-            fn copy_slice(dest: &mut [u8], source: &[u8], rect: &(usize, usize, usize, usize), dest_stride: usize) {
+            fn copy_slice(
+                dest: &mut [u8],
+                source: &[u8],
+                rect: &(usize, usize, usize, usize),
+                dest_stride: usize,
+            ) {
                 for y in 0..rect.3 {
                     let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
                     let s = y * rect.2 * 4;
@@ -178,9 +180,8 @@ fn main() -> Result<(), Error> {
         }
 
         match &event {
-
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::ReceivedCharacter(char ) => match char {
+                WindowEvent::ReceivedCharacter(char) => match char {
                     _ => {
                         str_c = char.to_string();
                         key_string = str_c.as_str();
@@ -204,19 +205,18 @@ fn main() -> Result<(), Error> {
                         },
                     ..
                 } => match virtual_code {
-
                     VirtualKeyCode::Up => {
                         key_string = "up";
-                    },
+                    }
                     VirtualKeyCode::Right => {
                         key_string = "right";
-                    },
+                    }
                     VirtualKeyCode::Down => {
                         key_string = "down";
-                    },
+                    }
                     VirtualKeyCode::Left => {
                         key_string = "left";
-                    },
+                    }
                     _ => (),
                 },
                 _ => (),
@@ -259,19 +259,25 @@ fn main() -> Result<(), Error> {
         // Handle input events
         if input.update(&event) {
             // Close events
-            if /*input.key_pressed(VirtualKeyCode::Escape) ||*/ input.close_requested() {
+            if
+            /*input.key_pressed(VirtualKeyCode::Escape) ||*/
+            input.close_requested() {
                 *control_flow = ControlFlow::Exit;
                 _ = server.shutdown();
                 return;
             }
 
             if input.mouse_pressed(0) {
-                let coords =  input.mouse().unwrap();
-                let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
-                   .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+                let coords = input.mouse().unwrap();
+                let pixel_pos: (usize, usize) = pixels
+                    .window_pos_to_pixel(coords)
+                    .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
                 if contains_pos_for(pixel_pos, game_rect) {
-                    let rc = render.mouse_down((pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1), player_uuid);
+                    let rc = render.mouse_down(
+                        (pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1),
+                        player_uuid,
+                    );
                     for cmd in rc.0 {
                         server.execute_packed_player_action(player_uuid, cmd);
                     }
@@ -290,7 +296,7 @@ fn main() -> Result<(), Error> {
             }
 
             if input.mouse_held(0) {
-                let diff =  input.mouse_diff();
+                let diff = input.mouse_diff();
                 if diff.0 != 0.0 || diff.1 != 0.0 {
                     //let coords =  input.mouse().unwrap();
                     //let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
@@ -301,11 +307,12 @@ fn main() -> Result<(), Error> {
                     // }
                 }
             } else {
-                let diff =  input.mouse_diff();
+                let diff = input.mouse_diff();
                 if diff.0 != 0.0 || diff.1 != 0.0 {
-                    let coords =  input.mouse().unwrap();
-                    let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
-                       .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+                    let coords = input.mouse().unwrap();
+                    let pixel_pos: (usize, usize) = pixels
+                        .window_pos_to_pixel(coords)
+                        .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
                     render.mouse_hover((pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1));
                     window.request_redraw();
@@ -338,11 +345,10 @@ fn main() -> Result<(), Error> {
             //     anim_counter = anim_counter.wrapping_add(1);
             // } else
             {
-
                 // If not, lets see if we need to redraw for the target fps
                 // 4 is the target fps here, for now hardcoded
 
-                let tick_in_ms =  (1000.0 / 4 as f32) as u128;
+                let tick_in_ms = (1000.0 / 4 as f32) as u128;
 
                 if curr_time > timer + tick_in_ms {
                     //curr_screen.update();

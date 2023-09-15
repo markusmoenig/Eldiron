@@ -1,73 +1,87 @@
 use crate::prelude::*;
 
 pub struct ScreenEditor<'a> {
-    pub rect                : (usize, usize, usize, usize),
-    pub region_id           : usize,
+    pub rect: (usize, usize, usize, usize),
+    pub region_id: usize,
 
-    grid_size               : usize,
+    grid_size: usize,
 
-    offset                  : (isize, isize),
-    screen_offset           : (usize, usize),
+    offset: (isize, isize),
+    screen_offset: (usize, usize),
 
-    pub tile_selector       : TileSelectorWidget,
+    pub tile_selector: TileSelectorWidget,
 
-    mouse_wheel_delta       : (isize, isize),
+    mouse_wheel_delta: (isize, isize),
 
-    mouse_hover_pos         : (usize, usize),
-    pub clicked             : Option<(isize, isize)>,
+    mouse_hover_pos: (usize, usize),
+    pub clicked: Option<(isize, isize)>,
 
-    widget_start            : Option<(isize, isize)>,
-    widget_end              : Option<(isize, isize)>,
+    widget_start: Option<(isize, isize)>,
+    widget_end: Option<(isize, isize)>,
 
-    selector_size           : usize,
+    selector_size: usize,
 
-    game_render             : Option<GameRender<'a>>,
+    game_render: Option<GameRender<'a>>,
 
-    player_position         : Option<Position>,
-    player_tile             : Option<TileId>,
+    player_position: Option<Position>,
+    player_tile: Option<TileId>,
 
-    hover_rect              : Option<(usize, usize, usize, usize)>,
+    hover_rect: Option<(usize, usize, usize, usize)>,
 
-    screen_script_name      : String,
+    screen_script_name: String,
 }
 
 impl EditorContent for ScreenEditor<'_> {
-
-    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), _behavior_type: BehaviorType, asset: &Asset, context: &ScreenContext) -> Self {
-
+    fn new(
+        _text: Vec<String>,
+        rect: (usize, usize, usize, usize),
+        _behavior_type: BehaviorType,
+        asset: &Asset,
+        context: &ScreenContext,
+    ) -> Self {
         let bottom_size = 250;
 
         // Tile Selector
-        let mut tile_selector = TileSelectorWidget::new(vec!(), (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size), asset, &context);
-        tile_selector.set_tile_type(vec![TileUsage::UIElement, TileUsage::Icon], None, None, &asset);
+        let mut tile_selector = TileSelectorWidget::new(
+            vec![],
+            (rect.0, rect.1 + rect.3 - bottom_size, rect.2, bottom_size),
+            asset,
+            &context,
+        );
+        tile_selector.set_tile_type(
+            vec![TileUsage::UIElement, TileUsage::Icon],
+            None,
+            None,
+            &asset,
+        );
 
         Self {
             rect,
-            region_id               : 0,
-            grid_size               : 32,
+            region_id: 0,
+            grid_size: 32,
 
-            offset                  : (0, 0),
-            screen_offset           : (0, 0),
+            offset: (0, 0),
+            screen_offset: (0, 0),
 
             tile_selector,
 
-            mouse_wheel_delta       : (0, 0),
-            mouse_hover_pos         : (0, 0),
-            clicked                 : None,
+            mouse_wheel_delta: (0, 0),
+            mouse_hover_pos: (0, 0),
+            clicked: None,
 
-            widget_start            : None,
-            widget_end              : None,
+            widget_start: None,
+            widget_end: None,
 
-            selector_size           : 250,
+            selector_size: 250,
 
-            game_render             : None,
+            game_render: None,
 
-            player_position         : None,
-            player_tile             : None,
+            player_position: None,
+            player_tile: None,
 
-            hover_rect              : None,
+            hover_rect: None,
 
-            screen_script_name      : "main.rhai".to_string(),
+            screen_script_name: "main.rhai".to_string(),
         }
     }
 
@@ -75,24 +89,40 @@ impl EditorContent for ScreenEditor<'_> {
         self.rect.2 = width;
         self.rect.3 = height;
 
-        self.tile_selector.rect = (self.rect.0, self.rect.1 + self.rect.3 - self.selector_size, width, self.selector_size);
+        self.tile_selector.rect = (
+            self.rect.0,
+            self.rect.1 + self.rect.3 - self.selector_size,
+            width,
+            self.selector_size,
+        );
         self.tile_selector.resize(width, self.selector_size);
     }
 
-    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
-        context.draw2d.draw_rect(frame, &self.rect, context.width, &context.color_black);
+    fn draw(
+        &mut self,
+        frame: &mut [u8],
+        anim_counter: usize,
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+        options: &mut Option<Box<dyn EditorOptions>>,
+    ) {
+        context
+            .draw2d
+            .draw_rect(frame, &self.rect, context.width, &context.color_black);
 
         let mut tile_size = 32;
 
         if let Some(render) = &mut self.game_render {
-
             tile_size = render.tile_size;
 
             let mut update = GameUpdate::new();
 
             // If the screen script was changed, update the script in memory
             if context.code_editor_update_from_file {
-                context.data.scripts.insert(self.screen_script_name.clone(), context.code_editor_value.clone());
+                context.data.scripts.insert(
+                    self.screen_script_name.clone(),
+                    context.code_editor_value.clone(),
+                );
 
                 update.screen_scripts = Some(context.data.scripts.clone());
                 update.screen_script_name = Some(self.screen_script_name.clone());
@@ -105,39 +135,79 @@ impl EditorContent for ScreenEditor<'_> {
             let left_offset = 0;
             let top_offset = 0;
 
-            context.draw2d.blend_slice_safe(frame, &mut render.frame[..], &(self.rect.0 as isize + left_offset as isize + self.offset.0 * render.tile_size as isize, self.rect.1 as isize + top_offset as isize + self.offset.1 * render.tile_size as isize, render.width, render.height), context.width, &self.rect);
+            context.draw2d.blend_slice_safe(
+                frame,
+                &mut render.frame[..],
+                &(
+                    self.rect.0 as isize
+                        + left_offset as isize
+                        + self.offset.0 * render.tile_size as isize,
+                    self.rect.1 as isize
+                        + top_offset as isize
+                        + self.offset.1 * render.tile_size as isize,
+                    render.width,
+                    render.height,
+                ),
+                context.width,
+                &self.rect,
+            );
         }
 
-        if self.mouse_hover_pos != (0,0) {
+        if self.mouse_hover_pos != (0, 0) {
             if let Some(id) = self.get_tile_id(self.mouse_hover_pos) {
-                let pos = (self.rect.0 + ((id.0 + self.offset.0) as usize) * tile_size, self.rect.1 + ((id.1 + self.offset.1) as usize) * tile_size);
+                let pos = (
+                    self.rect.0 + ((id.0 + self.offset.0) as usize) * tile_size,
+                    self.rect.1 + ((id.1 + self.offset.1) as usize) * tile_size,
+                );
 
                 if id.0 >= 0 && id.1 >= 0 {
-                    self.hover_rect = Some((id.0 as usize * tile_size, id.1 as usize * tile_size, tile_size, tile_size));
+                    self.hover_rect = Some((
+                        id.0 as usize * tile_size,
+                        id.1 as usize * tile_size,
+                        tile_size,
+                        tile_size,
+                    ));
                 } else {
                     self.hover_rect = None;
                 }
 
-                if  pos.0 + tile_size < self.rect.0 + self.rect.2 && pos.1 + tile_size < self.rect.1 + self.rect.3 {
-                    context.draw2d.draw_rect_outline(frame, &(pos.0, pos.1, tile_size, tile_size), context.width, context.color_light_white);
-                    context.draw2d.draw_rect_outline(frame, &(pos.0 + 1, pos.1 + 1, tile_size - 2, tile_size - 2), context.width, context.color_black);
+                if pos.0 + tile_size < self.rect.0 + self.rect.2
+                    && pos.1 + tile_size < self.rect.1 + self.rect.3
+                {
+                    context.draw2d.draw_rect_outline(
+                        frame,
+                        &(pos.0, pos.1, tile_size, tile_size),
+                        context.width,
+                        context.color_light_white,
+                    );
+                    context.draw2d.draw_rect_outline(
+                        frame,
+                        &(pos.0 + 1, pos.1 + 1, tile_size - 2, tile_size - 2),
+                        context.width,
+                        context.color_black,
+                    );
                 }
             }
         }
 
         if let Some(options) = options {
-
             let mode = options.get_screen_editor_mode();
 
             if mode == ScreenEditorMode::Tiles {
-                self.tile_selector.draw(frame, context.width, anim_counter, asset, context);
+                self.tile_selector
+                    .draw(frame, context.width, anim_counter, asset, context);
             }
         }
-
     }
 
-    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
-
+    fn mouse_down(
+        &mut self,
+        pos: (usize, usize),
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+        options: &mut Option<Box<dyn EditorOptions>>,
+        _toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
         let mut consumed = false;
 
         self.widget_start = None;
@@ -157,7 +227,6 @@ impl EditorContent for ScreenEditor<'_> {
                 }
             }
 
-
             if consumed == false && context.contains_pos_for(pos, self.rect) {
                 if let Some(id) = self.get_tile_id(pos) {
                     self.clicked = Some(id);
@@ -168,7 +237,14 @@ impl EditorContent for ScreenEditor<'_> {
         consumed
     }
 
-    fn mouse_up(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_up(
+        &mut self,
+        _pos: (usize, usize),
+        _asset: &mut Asset,
+        _context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+        _toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
         self.clicked = None;
 
         let consumed = false;
@@ -179,8 +255,14 @@ impl EditorContent for ScreenEditor<'_> {
         consumed
     }
 
-    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
-
+    fn mouse_hover(
+        &mut self,
+        pos: (usize, usize),
+        _asset: &mut Asset,
+        context: &mut ScreenContext,
+        options: &mut Option<Box<dyn EditorOptions>>,
+        _toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
         let mut rect = self.rect.clone();
 
         if let Some(options) = options {
@@ -198,19 +280,34 @@ impl EditorContent for ScreenEditor<'_> {
         false
     }
 
-    fn mouse_dragged(&mut self, _pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_dragged(
+        &mut self,
+        _pos: (usize, usize),
+        _asset: &mut Asset,
+        _context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+        _toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
         let consumed = false;
         consumed
     }
 
-    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
-
+    fn mouse_wheel(
+        &mut self,
+        delta: (isize, isize),
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+        options: &mut Option<Box<dyn EditorOptions>>,
+        _toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
         let mut consumed = false;
         if let Some(options) = options {
             let editor_mode = options.get_editor_mode();
 
             if editor_mode == RegionEditorMode::Tiles {
-                if context.contains_pos_for(self.mouse_hover_pos, self.tile_selector.rect) && self.tile_selector.mouse_wheel(delta, asset, context) {
+                if context.contains_pos_for(self.mouse_hover_pos, self.tile_selector.rect)
+                    && self.tile_selector.mouse_wheel(delta, asset, context)
+                {
                     consumed = true;
                 }
             }
@@ -222,8 +319,10 @@ impl EditorContent for ScreenEditor<'_> {
                 self.offset.0 += self.mouse_wheel_delta.0 / self.grid_size as isize;
                 self.offset.1 += self.mouse_wheel_delta.1 / self.grid_size as isize;
 
-                self.mouse_wheel_delta.0 -= (self.mouse_wheel_delta.0 / self.grid_size as isize) * self.grid_size as isize;
-                self.mouse_wheel_delta.1 -= (self.mouse_wheel_delta.1 / self.grid_size as isize) * self.grid_size as isize;
+                self.mouse_wheel_delta.0 -=
+                    (self.mouse_wheel_delta.0 / self.grid_size as isize) * self.grid_size as isize;
+                self.mouse_wheel_delta.1 -=
+                    (self.mouse_wheel_delta.1 / self.grid_size as isize) * self.grid_size as isize;
             }
         }
         true
@@ -232,11 +331,16 @@ impl EditorContent for ScreenEditor<'_> {
     /// Get the tile id
     fn get_tile_id(&self, pos: (usize, usize)) -> Option<(isize, isize)> {
         let grid_size = self.grid_size;
-        if pos.0 > self.rect.0 + self.screen_offset.0 && pos.1 > self.rect.1 + self.screen_offset.1
-        && pos.0 < self.rect.0 + self.rect.2 - self.screen_offset.0  && pos.1 < self.rect.1 + self.rect.3 - self.screen_offset.1 //} - self.selector_size
+        if pos.0 > self.rect.0 + self.screen_offset.0
+            && pos.1 > self.rect.1 + self.screen_offset.1
+            && pos.0 < self.rect.0 + self.rect.2 - self.screen_offset.0
+            && pos.1 < self.rect.1 + self.rect.3 - self.screen_offset.1
+        //} - self.selector_size
         {
-            let x = ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
-            let y = ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;
+            let x =
+                ((pos.0 - self.rect.0 - self.screen_offset.0) / grid_size) as isize - self.offset.0;
+            let y =
+                ((pos.1 - self.rect.1 - self.screen_offset.0) / grid_size) as isize - self.offset.1;
             return Some((x, y));
         }
         None
@@ -258,11 +362,18 @@ impl EditorContent for ScreenEditor<'_> {
     }
 
     /// Screen is opening
-    fn opening(&mut self, _asset: &mut Asset, context: &mut ScreenContext, options: &mut Option<Box<dyn EditorOptions>>) {
-
+    fn opening(
+        &mut self,
+        _asset: &mut Asset,
+        context: &mut ScreenContext,
+        options: &mut Option<Box<dyn EditorOptions>>,
+    ) {
         self.screen_script_name = "main.rhai".into();
 
-        self.game_render = Some(GameRender::new(context.curr_project_path.clone(), context.player_id));
+        self.game_render = Some(GameRender::new(
+            context.curr_project_path.clone(),
+            context.player_id,
+        ));
 
         if let Some(render) = &mut self.game_render {
             let mut update = GameUpdate::new();
@@ -271,13 +382,17 @@ impl EditorContent for ScreenEditor<'_> {
             // Get the region the player is in
 
             if context.data.behaviors_ids.len() > 0 {
-                if let Some(behavior) = context.data.behaviors.get_mut(&context.data.behaviors_ids[0]) {
+                if let Some(behavior) = context
+                    .data
+                    .behaviors
+                    .get_mut(&context.data.behaviors_ids[0])
+                {
                     for (_id, node) in &behavior.data.nodes {
                         if node.behavior_type == BehaviorNodeType::BehaviorType {
-                            if let Some(value )= node.values.get(&"position".to_string()) {
+                            if let Some(value) = node.values.get(&"position".to_string()) {
                                 self.player_position = value.to_position();
                             }
-                            if let Some(value )= node.values.get(&"tile".to_string()) {
+                            if let Some(value) = node.values.get(&"tile".to_string()) {
                                 self.player_tile = value.to_tile_id();
                             }
                             break;
@@ -293,10 +408,13 @@ impl EditorContent for ScreenEditor<'_> {
                 }
             }
 
-            let mut id  = context.code_editor_node_behavior_id.clone();
+            let mut id = context.code_editor_node_behavior_id.clone();
             id.2 = "script_name".into();
 
-            if let Some(name) = context.data.get_behavior_id_value_raw(id, BehaviorType::GameLogic) {
+            if let Some(name) = context
+                .data
+                .get_behavior_id_value_raw(id, BehaviorType::GameLogic)
+            {
                 if let Some(script_name) = name.to_string() {
                     update.screen_script_name = Some(script_name.clone());
                     self.screen_script_name = script_name;
@@ -310,7 +428,7 @@ impl EditorContent for ScreenEditor<'_> {
 
         context.data.update_scripts();
 
-        let keys : Vec<&String> = context.data.scripts.keys().collect();
+        let keys: Vec<&String> = context.data.scripts.keys().collect();
 
         let mut index = 0;
 
@@ -328,16 +446,28 @@ impl EditorContent for ScreenEditor<'_> {
 
         if keys.is_empty() == false {
             if let Some(script) = context.data.scripts.get(&self.screen_script_name.clone()) {
-
-                let path = context.curr_project_path.join("game").join("scripts").join(self.screen_script_name.clone());
+                let path = context
+                    .curr_project_path
+                    .join("game")
+                    .join("scripts")
+                    .join(self.screen_script_name.clone());
                 context.code_editor_file_path = Some(path);
-                context.open_code_editor(context.code_editor_node_behavior_id.clone(), Value::String(script.clone()), true);
+                context.open_code_editor(
+                    context.code_editor_node_behavior_id.clone(),
+                    Value::String(script.clone()),
+                    true,
+                );
             }
         }
     }
 
     /// Screen is closing
-    fn closing(&mut self, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
+    fn closing(
+        &mut self,
+        _asset: &mut Asset,
+        context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+    ) {
         self.game_render = None;
 
         if let Some(path) = &context.code_editor_file_path {
@@ -346,12 +476,10 @@ impl EditorContent for ScreenEditor<'_> {
         }
 
         context.code_editor_file_path = None;
-
     }
 
     /// Set the current script
     fn set_current_script(&mut self, script: String, context: &mut ScreenContext) {
-
         let script_name = script + ".rhai";
 
         // Save the current one
@@ -361,12 +489,19 @@ impl EditorContent for ScreenEditor<'_> {
         }
 
         // Load the new one
-        let path = context.curr_project_path.join("game").join("scripts").join(script_name);
+        let path = context
+            .curr_project_path
+            .join("game")
+            .join("scripts")
+            .join(script_name);
         context.code_editor_file_path = Some(path.clone());
 
         if let Some(script) = std::fs::read_to_string(path).ok() {
-            context.open_code_editor(context.code_editor_node_behavior_id.clone(), Value::String(script.clone()), true);
+            context.open_code_editor(
+                context.code_editor_node_behavior_id.clone(),
+                Value::String(script.clone()),
+                true,
+            );
         }
     }
-
 }

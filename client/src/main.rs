@@ -1,5 +1,5 @@
 mod prelude {
-    pub const GAME_TICK_IN_MS : u128 = 250;
+    pub const GAME_TICK_IN_MS: u128 = 250;
 }
 
 use core_render::render::GameRender;
@@ -11,21 +11,21 @@ use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
-use tokio_tungstenite::{WebSocketStream, MaybeTlsStream};
-use tokio_tungstenite::{tungstenite::Message};
+use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use winit::dpi::LogicalSize;
+use winit::event::KeyboardInput;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
-use winit::event::KeyboardInput;
 
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use uuid::Uuid;
-use crossbeam_channel::{ unbounded, Sender, Receiver };
 
 type Stream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
@@ -34,30 +34,29 @@ fn get_time() -> u128 {
     let stop = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards");
-        stop.as_millis()
+    stop.as_millis()
 }
 
-async fn handle_client_commands(
-    stream: Arc<Mutex<Stream>>,
-    receiver: Receiver<String>
-) {
+async fn handle_client_commands(stream: Arc<Mutex<Stream>>, receiver: Receiver<String>) {
     loop {
         tokio::time::sleep(Duration::from_millis(10)).await;
 
-        let t : Option<String> = receiver.try_recv().ok();
+        let t: Option<String> = receiver.try_recv().ok();
         if t.is_some() {
             let cmd = ServerCmd::GameCmd(t.unwrap());
             if let Some(bin) = cmd.to_bin() {
-                stream.lock().await.send(Message::binary(bin)).await.unwrap();
+                stream
+                    .lock()
+                    .await
+                    .send(Message::binary(bin))
+                    .await
+                    .unwrap();
             }
         }
     }
 }
 
-async fn handle_server_messages(
-    stream: Arc<Mutex<Stream>>,
-    sender: Sender<GameUpdate>
-) {
+async fn handle_server_messages(stream: Arc<Mutex<Stream>>, sender: Sender<GameUpdate>) {
     loop {
         let mut stream = stream.lock().await;
 
@@ -69,16 +68,15 @@ async fn handle_server_messages(
         if let Some(msg) = msg.unwrap() {
             match msg {
                 Message::Binary(bin) => {
-                    let cmd : ServerCmd = ServerCmd::from_bin(&bin)
-                        .unwrap_or(ServerCmd::NoOp);
+                    let cmd: ServerCmd = ServerCmd::from_bin(&bin).unwrap_or(ServerCmd::NoOp);
 
                     match cmd {
                         ServerCmd::GameUpdate(update) => {
                             sender.send(update).unwrap();
-                        },
+                        }
                         _ => {}
                     }
-                },
+                }
                 _ => {}
             }
         }
@@ -87,26 +85,20 @@ async fn handle_server_messages(
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-
     env_logger::init();
 
     let (sender, receiver) = unbounded();
     let (cmd_sender, cmd_receiver) = unbounded();
 
-    let protocol = if cfg!(feature = "tls") {
-        "wss"
-    } else {
-        "ws"
-    };
+    let protocol = if cfg!(feature = "tls") { "wss" } else { "ws" };
 
     // let server_address = "localhost:3042/socket";
     let server_address = "ws.eldiron.com/socket";
 
-    let (mut stream, _) = tokio_tungstenite::connect_async(
-        format!("{}://{}", protocol, server_address)
-    )
-        .await
-        .unwrap();
+    let (mut stream, _) =
+        tokio_tungstenite::connect_async(format!("{}://{}", protocol, server_address))
+            .await
+            .unwrap();
 
     let cmd = ServerCmd::LoginAnonymous;
     if let Some(bin) = cmd.to_bin() {
@@ -119,8 +111,8 @@ async fn main() -> Result<(), Error> {
 
     tokio::spawn(handle_client_commands(stream.clone(), cmd_receiver));
 
-    let width     : usize = 1024;
-    let height    : usize = 608;
+    let width: usize = 1024;
+    let height: usize = 608;
 
     let mut game_rect = (0, 0, 0, 0);
 
@@ -150,7 +142,6 @@ async fn main() -> Result<(), Error> {
             .with_title("Eldiron Client")
             .with_inner_size(size)
             .with_min_inner_size(size)
-
             .build(&event_loop)
             .unwrap()
     };
@@ -161,9 +152,9 @@ async fn main() -> Result<(), Error> {
         Pixels::new(width as u32, height as u32, surface_texture)?
     };
 
-    let mut anim_counter : usize = 0;
-    let mut timer : u128 = 0;
-    let mut game_tick_timer : u128 = 0;
+    let mut anim_counter: usize = 0;
+    let mut timer: u128 = 0;
+    let mut game_tick_timer: u128 = 0;
 
     event_loop.run(move |event, _, control_flow| {
         use winit::event::{ElementState, VirtualKeyCode};
@@ -172,7 +163,6 @@ async fn main() -> Result<(), Error> {
         let str_c;
 
         if let Event::RedrawRequested(_) = event {
-
             let curr_time = get_time();
 
             // Game tick ?
@@ -197,7 +187,7 @@ async fn main() -> Result<(), Error> {
             //if let Some(update) = received_update.take() {
 
             //}
-                    //render.draw(anim_counter, Some(&received_update.as_ref().unwrap()));
+            //render.draw(anim_counter, Some(&received_update.as_ref().unwrap()));
 
             //} else {
             //    render.draw(anim_counter, None);
@@ -207,8 +197,8 @@ async fn main() -> Result<(), Error> {
 
             // Draw the frame
 
-            let mut cx : usize = 0;
-            let mut cy : usize = 0;
+            let mut cx: usize = 0;
+            let mut cy: usize = 0;
 
             let frame = pixels.frame_mut();
 
@@ -222,7 +212,12 @@ async fn main() -> Result<(), Error> {
 
             game_rect = (cx, cy, render.width, render.height);
 
-            fn copy_slice(dest: &mut [u8], source: &[u8], rect: &(usize, usize, usize, usize), dest_stride: usize) {
+            fn copy_slice(
+                dest: &mut [u8],
+                source: &[u8],
+                rect: &(usize, usize, usize, usize),
+                dest_stride: usize,
+            ) {
                 for y in 0..rect.3 {
                     let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
                     let s = y * rect.2 * 4;
@@ -243,9 +238,8 @@ async fn main() -> Result<(), Error> {
         }
 
         match &event {
-
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::ReceivedCharacter(char ) => match char {
+                WindowEvent::ReceivedCharacter(char) => match char {
                     _ => {
                         str_c = char.to_string();
                         key_string = str_c.as_str();
@@ -269,19 +263,18 @@ async fn main() -> Result<(), Error> {
                         },
                     ..
                 } => match virtual_code {
-
                     VirtualKeyCode::Up => {
                         key_string = "up";
-                    },
+                    }
                     VirtualKeyCode::Right => {
                         key_string = "right";
-                    },
+                    }
                     VirtualKeyCode::Down => {
                         key_string = "down";
-                    },
+                    }
                     VirtualKeyCode::Left => {
                         key_string = "left";
-                    },
+                    }
                     _ => (),
                 },
                 _ => (),
@@ -324,19 +317,25 @@ async fn main() -> Result<(), Error> {
         // Handle input events
         if input.update(&event) {
             // Close events
-            if /*input.key_pressed(VirtualKeyCode::Escape) ||*/ input.close_requested() {
+            if
+            /*input.key_pressed(VirtualKeyCode::Escape) ||*/
+            input.close_requested() {
                 *control_flow = ControlFlow::Exit;
                 // todo _ = server.shutdown();
                 return;
             }
 
             if input.mouse_pressed(0) {
-                let coords =  input.mouse().unwrap();
-                let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
-                .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+                let coords = input.mouse().unwrap();
+                let pixel_pos: (usize, usize) = pixels
+                    .window_pos_to_pixel(coords)
+                    .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
                 if contains_pos_for(pixel_pos, game_rect) {
-                    let rc = render.mouse_down((pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1), player_uuid);
+                    let rc = render.mouse_down(
+                        (pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1),
+                        player_uuid,
+                    );
                     for cmd in rc.0 {
                         // todo server.execute_packed_player_action(player_uuid, cmd);
                         cmd_sender.send(cmd).unwrap();
@@ -355,7 +354,7 @@ async fn main() -> Result<(), Error> {
             }
 
             if input.mouse_held(0) {
-                let diff =  input.mouse_diff();
+                let diff = input.mouse_diff();
                 if diff.0 != 0.0 || diff.1 != 0.0 {
                     //let coords =  input.mouse().unwrap();
                     //let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
@@ -366,11 +365,12 @@ async fn main() -> Result<(), Error> {
                     // }
                 }
             } else {
-                let diff =  input.mouse_diff();
+                let diff = input.mouse_diff();
                 if diff.0 != 0.0 || diff.1 != 0.0 {
-                    let coords =  input.mouse().unwrap();
-                    let pixel_pos: (usize, usize) = pixels.window_pos_to_pixel(coords)
-                    .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+                    let coords = input.mouse().unwrap();
+                    let pixel_pos: (usize, usize) = pixels
+                        .window_pos_to_pixel(coords)
+                        .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
 
                     render.mouse_hover((pixel_pos.0 - game_rect.0, pixel_pos.1 - game_rect.1));
                     window.request_redraw();
@@ -403,11 +403,10 @@ async fn main() -> Result<(), Error> {
             //     anim_counter = anim_counter.wrapping_add(1);
             // } else
             {
-
                 // If not, lets see if we need to redraw for the target fps
                 // 4 is the target fps here, for now hardcoded
 
-                let tick_in_ms =  (1000.0 / 4 as f32) as u128;
+                let tick_in_ms = (1000.0 / 4 as f32) as u128;
 
                 if curr_time > timer + tick_in_ms {
                     //curr_screen.update();
@@ -423,7 +422,6 @@ async fn main() -> Result<(), Error> {
         }
     });
 }
-
 
 /// Returns true if the given rect contains the given position
 pub fn contains_pos_for(pos: (usize, usize), rect: (usize, usize, usize, usize)) -> bool {

@@ -6,11 +6,10 @@ pub enum ServerCmd {
     NoOp,
     LoginAnonymous,
     GameUpdate(GameUpdate),
-    GameCmd(String)
+    GameCmd(String),
 }
 
 impl ServerCmd {
-
     pub fn to_json(&self) -> Option<String> {
         if let Some(json) = serde_json::to_string(self).ok() {
             Some(json)

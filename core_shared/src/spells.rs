@@ -5,10 +5,10 @@ use crate::prelude::*;
 /// An inventory item
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Spell {
-    pub id                  : Uuid,
-    pub name                : String,
-    pub distance            : i32,
-    pub tile                : Option<TileData>,
+    pub id: Uuid,
+    pub name: String,
+    pub distance: i32,
+    pub tile: Option<TileData>,
 }
 
 impl Spell {
@@ -16,15 +16,13 @@ impl Spell {
         Self {
             id,
             name,
-            distance        : 5,
-            tile            : None,
+            distance: 5,
+            tile: None,
         }
     }
 
     /// Reads the Spell properties from a PropertySink.
-    pub fn read_from_sink(&mut self, _sink: &PropertySink) {
-
-    }
+    pub fn read_from_sink(&mut self, _sink: &PropertySink) {}
 
     // Getter
 
@@ -46,15 +44,15 @@ impl Spell {
 /// Spells
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Spells {
-    pub spells                  : Vec<Spell>,
-    pub spells_to_execute       : Vec<String>,
+    pub spells: Vec<Spell>,
+    pub spells_to_execute: Vec<String>,
 }
 
 impl Spells {
     pub fn new() -> Self {
         Self {
-            spells              : vec![],
-            spells_to_execute   : vec![],
+            spells: vec![],
+            spells_to_execute: vec![],
         }
     }
 
@@ -65,7 +63,7 @@ impl Spells {
 
     pub fn get_spell_at(&mut self, index: i32) -> Spell {
         if index >= 0 && index < self.spells.len() as i32 {
-            return self.spells[index as usize].clone()
+            return self.spells[index as usize].clone();
         }
         Spell::new(Uuid::new_v4(), "".to_string())
     }
@@ -96,14 +94,14 @@ impl IntoIterator for Spells {
 }
 
 pub fn script_register_spells_api(engine: &mut rhai::Engine) {
-
-    engine.register_type_with_name::<Spell>("Spell")
+    engine
+        .register_type_with_name::<Spell>("Spell")
         .register_get("tile", Spell::get_tile)
         .register_get("name", Spell::get_name);
 
-    engine.register_type_with_name::<Spells>("Spells")
+    engine
+        .register_type_with_name::<Spells>("Spells")
         .register_fn("len", Spells::len)
         .register_fn("spell_at", Spells::get_spell_at)
         .register_iterator::<Spells>();
-
 }

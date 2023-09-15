@@ -1,14 +1,14 @@
 use crate::prelude::*;
-use rhai::{ Engine, Dynamic, Scope };
+use rhai::{Dynamic, Engine, Scope};
 
 pub fn generate_region(region: &mut GameRegion, _asset: &Asset) {
     fn build_chain(data: &GameBehaviorData, uuid: Uuid) -> Vec<BehaviorNode> {
-        let mut chain =  vec![];
+        let mut chain = vec![];
 
         let mut c = uuid;
 
         loop {
-            let mut d : Option<Uuid> = None;
+            let mut d: Option<Uuid> = None;
 
             for (s1, _s2, d1, _d2) in &data.connections {
                 if *s1 == c {
@@ -33,7 +33,6 @@ pub fn generate_region(region: &mut GameRegion, _asset: &Asset) {
     }
 
     if let Some(procedural) = &mut region.procedural {
-
         let data = procedural.data.clone();
 
         for (id, node) in &data.nodes {
@@ -41,8 +40,7 @@ pub fn generate_region(region: &mut GameRegion, _asset: &Asset) {
                 let chain = build_chain(&data, node.id);
                 create_cellular(region, (id, node), chain);
                 break;
-            } else
-            if node.behavior_type == BehaviorNodeType::DrunkardsWalk {
+            } else if node.behavior_type == BehaviorNodeType::DrunkardsWalk {
                 let chain = build_chain(&data, node.id);
                 drunkards_walk(region, (id, node), chain);
                 break;
@@ -53,7 +51,6 @@ pub fn generate_region(region: &mut GameRegion, _asset: &Asset) {
 
 /// Random walk
 fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), chain: Vec<BehaviorNode>) {
-
     let mut engine = setup_engine();
 
     let mut size = 80;
@@ -70,9 +67,11 @@ fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), chain: 
     let mut scope = Scope::new();
     scope.set_value("size", size);
 
-    let mut start_area : Option<(isize, isize, String)> = None;
+    let mut start_area: Option<(isize, isize, String)> = None;
 
-    if let Some(p) = get_node_script_dynamic_value(&mut engine, &mut scope, node.1, "start".to_string()) {
+    if let Some(p) =
+        get_node_script_dynamic_value(&mut engine, &mut scope, node.1, "start".to_string())
+    {
         if let Some(pos) = p.read_lock::<ScriptPosition>() {
             start_area = Some((pos.pos_signed.0, pos.pos_signed.1, "Start".to_string()));
         }
@@ -148,22 +147,29 @@ fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), chain: 
 
         if let Some(floor) = get_floor(&engine, size, &chain) {
             layer1.insert((x, y), floor.clone());
-            layer2.remove(&(x,y));
+            layer2.remove(&(x, y));
         }
 
         for _ in 0..distance {
-
             match rng.gen_range(0..4) {
-                0 => { x -= 1; },
-                1 => { x += 1; },
-                2 => { y -= 1; },
-                _ => { y += 1; }
+                0 => {
+                    x -= 1;
+                }
+                1 => {
+                    x += 1;
+                }
+                2 => {
+                    y -= 1;
+                }
+                _ => {
+                    y += 1;
+                }
             }
 
-            if is_valid(x, y, range_s,range_e) {
+            if is_valid(x, y, range_s, range_e) {
                 if let Some(floor) = get_floor(&engine, size, &chain) {
                     layer1.insert((x, y), floor.clone());
-                    layer2.remove(&(x,y));
+                    layer2.remove(&(x, y));
                 }
                 d += 1;
             } else {
@@ -210,7 +216,6 @@ fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), chain: 
         }
     }*/
 
-
     region.data.layer1 = layer1;
     region.data.layer2 = layer2;
     region.data.layer3 = layer3;
@@ -220,8 +225,11 @@ fn drunkards_walk(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), chain: 
 }
 
 /// Cellular creation
-fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), _chain: Vec<BehaviorNode>) {
-
+fn create_cellular(
+    region: &mut GameRegion,
+    node: (&Uuid, &BehaviorNode),
+    _chain: Vec<BehaviorNode>,
+) {
     let mut engine = setup_engine();
 
     let mut size = 80;
@@ -243,7 +251,7 @@ fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), _chain
     let range_s = 0_isize;
     let range_e = size as isize;
 
-    let mut random_layer : FxHashMap<(isize, isize), i32> = FxHashMap::default();
+    let mut random_layer: FxHashMap<(isize, isize), i32> = FxHashMap::default();
 
     for y in range_s..range_e {
         for x in range_s..range_e {
@@ -256,7 +264,9 @@ fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), _chain
         let mut neighbours = 0;
         for dy in -1..=1 {
             for dx in -1..=1 {
-                if dx == 0 && dy == 0 { continue; }
+                if dx == 0 && dy == 0 {
+                    continue;
+                }
                 if let Some(v) = map.get(&(pos.0 + dx, pos.1 + dy)) {
                     if *v == 1 {
                         neighbours += 1;
@@ -284,7 +294,6 @@ fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), _chain
 
     if let Some(f) = get_node_value(node.1, "floor".into()) {
         if let Some(w) = get_node_value(node.1, "wall".into()) {
-
             region.delete_areas();
 
             if f.to_tile_data().is_none() || w.to_tile_data().is_none() {
@@ -318,7 +327,7 @@ fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), _chain
             // Close the edges
             for y in range_s..range_e {
                 for x in range_s..range_e {
-                    if x == range_s || y == range_s || x == range_e -1 || y == range_e - 1 {
+                    if x == range_s || y == range_s || x == range_e - 1 || y == range_e - 1 {
                         if wall.usage == TileUsage::EnvBlocking {
                             layer2.insert((x, y), wall.clone());
                         } else {
@@ -339,7 +348,12 @@ fn create_cellular(region: &mut GameRegion, node: (&Uuid, &BehaviorNode), _chain
 }
 
 /// Get the script int value of the given node
-fn get_node_script_dynamic_value(engine: &Engine, scope: &mut Scope, node: &BehaviorNode, name: String) -> Option<Dynamic> {
+fn get_node_script_dynamic_value(
+    engine: &Engine,
+    scope: &mut Scope,
+    node: &BehaviorNode,
+    name: String,
+) -> Option<Dynamic> {
     if let Some(v) = get_node_value(node, name) {
         if let Some(s) = v.to_string() {
             let rc = engine.eval_with_scope::<Dynamic>(scope, s.as_str());
@@ -381,7 +395,6 @@ fn setup_engine() -> Engine {
 
     #[allow(deprecated)]
     engine.on_var(|name, _index, _context| {
-
         if name.starts_with("d") {
             let mut s = name.to_string();
             s.remove(0);
@@ -435,15 +448,15 @@ fn get_floor(_engine: &Engine, _size: i32, chain: &Vec<BehaviorNode>) -> Option<
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScriptPosition {
-    pub pos             : (usize, usize),
-    pub pos_signed      : (isize, isize)
+    pub pos: (usize, usize),
+    pub pos_signed: (isize, isize),
 }
 
 impl ScriptPosition {
     pub fn new(x: i32, y: i32) -> Self {
         Self {
-            pos         : (x as usize, y as usize),
-            pos_signed  : (x as isize, y as isize),
+            pos: (x as usize, y as usize),
+            pos_signed: (x as isize, y as isize),
         }
     }
 
@@ -456,7 +469,8 @@ impl ScriptPosition {
     }
 
     pub fn register(engine: &mut Engine) {
-        engine.register_type_with_name::<ScriptPosition>("Position")
+        engine
+            .register_type_with_name::<ScriptPosition>("Position")
             .register_get("x", ScriptPosition::x)
             .register_get("y", ScriptPosition::y)
             .register_fn("pos", ScriptPosition::new);

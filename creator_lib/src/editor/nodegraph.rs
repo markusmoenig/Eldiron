@@ -2,106 +2,126 @@ use crate::prelude::*;
 
 use zeno::{Mask, Stroke};
 
-pub struct NodeGraph  {
-    pub rect                    : (usize, usize, usize, usize),
-    pub dirty                   : bool,
-    buffer                      : Vec<u8>,
-    graph_mode                  : GraphMode,
-    graph_type                  : BehaviorType,
-    pub nodes                   : Vec<NodeWidget>,
+pub struct NodeGraph {
+    pub rect: (usize, usize, usize, usize),
+    pub dirty: bool,
+    buffer: Vec<u8>,
+    graph_mode: GraphMode,
+    graph_type: BehaviorType,
+    pub nodes: Vec<NodeWidget>,
 
-    pub offset                  : (isize, isize),
+    pub offset: (isize, isize),
 
-    drag_indices                : Vec<usize>,
-    drag_offset                 : (isize, isize),
-    drag_node_pos               : Vec<(isize, isize)>,
+    drag_indices: Vec<usize>,
+    drag_offset: (isize, isize),
+    drag_node_pos: Vec<(isize, isize)>,
 
     // For connecting nodes
-    source_conn                 : Option<(BehaviorNodeConnector,usize)>,
-    dest_conn                   : Option<(BehaviorNodeConnector,usize)>,
+    source_conn: Option<(BehaviorNodeConnector, usize)>,
+    dest_conn: Option<(BehaviorNodeConnector, usize)>,
 
-    pub clicked                 : bool,
-    overview_preview_clicked    : bool,
+    pub clicked: bool,
+    overview_preview_clicked: bool,
 
-    pub preview                 : Option<NodePreviewWidget>,
-    preview_drag_start          : (isize, isize),
-    preview_is_visible          : bool,
+    pub preview: Option<NodePreviewWidget>,
+    preview_drag_start: (isize, isize),
+    preview_is_visible: bool,
 
-    mouse_pos                   : (usize, usize),
-    mouse_hover_pos             : (usize, usize),
+    mouse_pos: (usize, usize),
+    mouse_hover_pos: (usize, usize),
 
-    behavior_tree_ids           : Vec<Uuid>,
-    behavior_tree_rects         : Vec<(usize, usize, usize, usize)>,
-    curr_behavior_tree_id       : Option<Uuid>,
+    behavior_tree_ids: Vec<Uuid>,
+    behavior_tree_rects: Vec<(usize, usize, usize, usize)>,
+    curr_behavior_tree_id: Option<Uuid>,
 
-    visible_node_ids            : Vec<Uuid>,
-    behavior_id                 : Uuid,
+    visible_node_ids: Vec<Uuid>,
+    behavior_id: Uuid,
 
-    behavior_debug_data         : Option<BehaviorDebugData>,
+    behavior_debug_data: Option<BehaviorDebugData>,
 
-    corner_index                : Option<usize>,
+    corner_index: Option<usize>,
 
-    pub sub_type                : NodeSubType,
-    pub active_indices          : Vec<usize>,
+    pub sub_type: NodeSubType,
+    pub active_indices: Vec<usize>,
 }
 
-impl EditorContent for NodeGraph  {
-
-    fn new(_text: Vec<String>, rect: (usize, usize, usize, usize), behavior_type: BehaviorType, _asset: &Asset, _context: &ScreenContext) -> Self where Self: Sized  {
+impl EditorContent for NodeGraph {
+    fn new(
+        _text: Vec<String>,
+        rect: (usize, usize, usize, usize),
+        behavior_type: BehaviorType,
+        _asset: &Asset,
+        _context: &ScreenContext,
+    ) -> Self
+    where
+        Self: Sized,
+    {
         Self {
             rect,
-            dirty                       : true,
-            buffer                      : vec![0;rect.2 * rect.3 * 4],
-            graph_mode                  : GraphMode::Overview,
-            graph_type                  : behavior_type,
-            nodes                       : vec![],
-            offset                      : (0, 0),
-            drag_indices                : vec![],
-            drag_offset                 : (0, 0),
-            drag_node_pos               : vec![],
+            dirty: true,
+            buffer: vec![0; rect.2 * rect.3 * 4],
+            graph_mode: GraphMode::Overview,
+            graph_type: behavior_type,
+            nodes: vec![],
+            offset: (0, 0),
+            drag_indices: vec![],
+            drag_offset: (0, 0),
+            drag_node_pos: vec![],
 
-            clicked                     : false,
-            overview_preview_clicked    : false,
+            clicked: false,
+            overview_preview_clicked: false,
 
-            source_conn                 : None,
-            dest_conn                   : None,
+            source_conn: None,
+            dest_conn: None,
 
-            preview                     : None,
-            preview_drag_start          : (0,0),
-            preview_is_visible          : false,
+            preview: None,
+            preview_drag_start: (0, 0),
+            preview_is_visible: false,
 
-            mouse_pos                   : (0,0),
-            mouse_hover_pos             : (0, 0),
+            mouse_pos: (0, 0),
+            mouse_hover_pos: (0, 0),
 
-            behavior_tree_ids           : vec![],
-            behavior_tree_rects         : vec![],
-            curr_behavior_tree_id       : None,
+            behavior_tree_ids: vec![],
+            behavior_tree_rects: vec![],
+            curr_behavior_tree_id: None,
 
-            visible_node_ids            : vec![],
+            visible_node_ids: vec![],
 
-            behavior_id                 : Uuid::new_v4(),
+            behavior_id: Uuid::new_v4(),
 
-            behavior_debug_data         : None,
+            behavior_debug_data: None,
 
-            sub_type                    : NodeSubType::None,
-            active_indices              : vec![],
+            sub_type: NodeSubType::None,
+            active_indices: vec![],
 
-            corner_index                : None,
+            corner_index: None,
         }
     }
 
     fn set_mode(&mut self, mode: GraphMode, context: &ScreenContext) {
-
         // Create previews
-        if mode == GraphMode::Detail && (self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Systems/*  || self.graph_type == BehaviorType::GameLogic*/) && self.preview.is_none() {
+        if mode == GraphMode::Detail
+            && (self.graph_type == BehaviorType::Behaviors
+                || self.graph_type == BehaviorType::Systems/*  || self.graph_type == BehaviorType::GameLogic*/)
+            && self.preview.is_none()
+        {
             self.preview = Some(NodePreviewWidget::new(context, self.graph_type));
         }
 
         self.graph_mode = mode;
     }
 
-    fn set_mode_and_rect(&mut self, mode: GraphMode, rect: (usize, usize, usize, usize), context: &mut ScreenContext) {
-        if mode == GraphMode::Detail && (self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Systems /*|| self.graph_type == BehaviorType::GameLogic*/) && self.preview.is_none() {
+    fn set_mode_and_rect(
+        &mut self,
+        mode: GraphMode,
+        rect: (usize, usize, usize, usize),
+        context: &mut ScreenContext,
+    ) {
+        if mode == GraphMode::Detail
+            && (self.graph_type == BehaviorType::Behaviors
+                || self.graph_type == BehaviorType::Systems/*|| self.graph_type == BehaviorType::GameLogic*/)
+            && self.preview.is_none()
+        {
             self.preview = Some(NodePreviewWidget::new(context, self.graph_type));
         }
         self.graph_mode = mode;
@@ -109,7 +129,12 @@ impl EditorContent for NodeGraph  {
         self.resize(rect.2, rect.3, context)
     }
 
-    fn set_mode_and_nodes(&mut self, mode: GraphMode, nodes: Vec<NodeWidget>, _context: &ScreenContext) {
+    fn set_mode_and_nodes(
+        &mut self,
+        mode: GraphMode,
+        nodes: Vec<NodeWidget>,
+        _context: &ScreenContext,
+    ) {
         self.graph_mode = mode;
         self.nodes = nodes;
         self.mark_all_dirty();
@@ -124,11 +149,25 @@ impl EditorContent for NodeGraph  {
         self.sort(context);
     }
 
-    fn draw(&mut self, frame: &mut [u8], anim_counter: usize, asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
+    fn draw(
+        &mut self,
+        frame: &mut [u8],
+        anim_counter: usize,
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+    ) {
         let safe_rect = (0_usize, 0_usize, self.rect.2, self.rect.3);
 
         if self.dirty {
-            context.draw2d.draw_square_pattern(&mut self.buffer[..], &safe_rect, safe_rect.2, &[34, 34, 36, 255], &[46, 46, 46, 255], 40);
+            context.draw2d.draw_square_pattern(
+                &mut self.buffer[..],
+                &safe_rect,
+                safe_rect.2,
+                &[34, 34, 36, 255],
+                &[46, 46, 46, 255],
+                40,
+            );
 
             if self.graph_mode == GraphMode::Overview {
                 for active_index in 0..self.active_indices.len() {
@@ -140,18 +179,15 @@ impl EditorContent for NodeGraph  {
                         if index == context.curr_tileset_index {
                             selected = true;
                         }
-                    } else
-                    if self.graph_type == BehaviorType::Regions {
+                    } else if self.graph_type == BehaviorType::Regions {
                         if index == context.curr_region_index {
                             selected = true;
                         }
-                    } else
-                    if self.graph_type == BehaviorType::Behaviors {
+                    } else if self.graph_type == BehaviorType::Behaviors {
                         if index == context.curr_behavior_index {
                             selected = true;
                         }
-                    } else
-                    if self.graph_type == BehaviorType::Systems {
+                    } else if self.graph_type == BehaviorType::Systems {
                         if index == context.curr_systems_index {
                             selected = true;
                         }
@@ -164,94 +200,199 @@ impl EditorContent for NodeGraph  {
 
                     if self.nodes[index].dirty {
                         let mut preview_buffer = vec![0; 100 * 100 * 4];
-                        if self.graph_type == BehaviorType::Tiles && self.sub_type == NodeSubType::Tilemap {
+                        if self.graph_type == BehaviorType::Tiles
+                            && self.sub_type == NodeSubType::Tilemap
+                        {
                             // For tile maps draw the default_tile
-                            if let Some(map)= asset.tileset.maps.get_mut(&asset.tileset.maps_ids[active_index]) {
+                            if let Some(map) = asset
+                                .tileset
+                                .maps
+                                .get_mut(&asset.tileset.maps_ids[active_index])
+                            {
                                 if let Some(default_tile) = map.settings.default_tile {
-                                    context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &default_tile, 0, 100);
+                                    context.draw2d.draw_animated_tile(
+                                        &mut preview_buffer[..],
+                                        &(0, 0),
+                                        map,
+                                        100,
+                                        &default_tile,
+                                        0,
+                                        100,
+                                    );
                                 }
                             }
-                        } else
-                        if self.graph_type == BehaviorType::Tiles && self.sub_type == NodeSubType::Image {
+                        } else if self.graph_type == BehaviorType::Tiles
+                            && self.sub_type == NodeSubType::Image
+                        {
                             // For images draw it
-                            if let Some(image)= asset.tileset.images.get_mut(&asset.tileset.images_ids[active_index]) {
-                                context.draw2d.scale_chunk(&mut preview_buffer[..], &(0, 0, 100, 100), 100, &image.pixels, &(image.width, image.height), 1.0);
+                            if let Some(image) = asset
+                                .tileset
+                                .images
+                                .get_mut(&asset.tileset.images_ids[active_index])
+                            {
+                                context.draw2d.scale_chunk(
+                                    &mut preview_buffer[..],
+                                    &(0, 0, 100, 100),
+                                    100,
+                                    &image.pixels,
+                                    &(image.width, image.height),
+                                    1.0,
+                                );
                             }
-                        } else
-                        if self.graph_type == BehaviorType::Tiles && self.sub_type == NodeSubType::Audio {
+                        } else if self.graph_type == BehaviorType::Tiles
+                            && self.sub_type == NodeSubType::Audio
+                        {
                             // For audio draw an audio icon
                             if let Some(icon) = context.icons.get(&"audio".to_string()) {
-                                context.draw2d.scale_chunk(&mut preview_buffer[..], &(10, 10, 80, 80), 100, &icon.0[..], &(icon.1 as usize, icon.2 as usize), 0.5);
+                                context.draw2d.scale_chunk(
+                                    &mut preview_buffer[..],
+                                    &(10, 10, 80, 80),
+                                    100,
+                                    &icon.0[..],
+                                    &(icon.1 as usize, icon.2 as usize),
+                                    0.5,
+                                );
                             }
-                        } else
-                        if self.graph_type == BehaviorType::Systems {
+                        } else if self.graph_type == BehaviorType::Systems {
                             // Draw the icon tile
-                            if let Some(tile_id) = context.data.get_systems_default_tile(context.data.systems_ids[index]) {
-                                if let Some(map)= asset.tileset.maps.get_mut(&tile_id.tilemap) {
-                                    context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.x_off as usize, tile_id.y_off as usize), 0, 100);
+                            if let Some(tile_id) = context
+                                .data
+                                .get_systems_default_tile(context.data.systems_ids[index])
+                            {
+                                if let Some(map) = asset.tileset.maps.get_mut(&tile_id.tilemap) {
+                                    context.draw2d.draw_animated_tile(
+                                        &mut preview_buffer[..],
+                                        &(0, 0),
+                                        map,
+                                        100,
+                                        &(tile_id.x_off as usize, tile_id.y_off as usize),
+                                        0,
+                                        100,
+                                    );
                                 }
                             }
-                        } else
-                        if self.graph_type == BehaviorType::Regions {
+                        } else if self.graph_type == BehaviorType::Regions {
                             // For regions draw the center of the map
-                            if let Some(region)= context.data.regions.get_mut(&context.data.regions_ids[index]) {
-
+                            if let Some(region) = context
+                                .data
+                                .regions
+                                .get_mut(&context.data.regions_ids[index])
+                            {
                                 let mut mask_buffer = vec![0.0; 100 * 100];
-                                context.draw2d.create_rounded_rect_mask(&mut mask_buffer[..], &(0, 0, 100, 100), 100, &(10.0, 10.0, 10.0, 10.0));
+                                context.draw2d.create_rounded_rect_mask(
+                                    &mut mask_buffer[..],
+                                    &(0, 0, 100, 100),
+                                    100,
+                                    &(10.0, 10.0, 10.0, 10.0),
+                                );
 
                                 context.draw2d.mask = Some(mask_buffer.clone());
                                 context.draw2d.mask_size = (100, 100);
 
                                 let offset = region.get_center_offset_for_visible_size((10, 10));
-                                context.draw2d.draw_region(&mut preview_buffer[..], region, &(0, 0, 100, 100), &offset, 100, 10, anim_counter, asset, false);
+                                context.draw2d.draw_region(
+                                    &mut preview_buffer[..],
+                                    region,
+                                    &(0, 0, 100, 100),
+                                    &offset,
+                                    100,
+                                    10,
+                                    anim_counter,
+                                    asset,
+                                    false,
+                                );
 
                                 context.draw2d.mask = None;
                             }
-                        } else
-                        if self.graph_type == BehaviorType::Behaviors {
+                        } else if self.graph_type == BehaviorType::Behaviors {
                             // Draw the main behavior tile
-                            if let Some(tile_id) = context.data.get_behavior_default_tile(context.data.behaviors_ids[index]) {
-                                if let Some(map)= asset.tileset.maps.get_mut(&tile_id.tilemap) {
-                                    context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.x_off as usize, tile_id.y_off as usize), 0, 100);
+                            if let Some(tile_id) = context
+                                .data
+                                .get_behavior_default_tile(context.data.behaviors_ids[index])
+                            {
+                                if let Some(map) = asset.tileset.maps.get_mut(&tile_id.tilemap) {
+                                    context.draw2d.draw_animated_tile(
+                                        &mut preview_buffer[..],
+                                        &(0, 0),
+                                        map,
+                                        100,
+                                        &(tile_id.x_off as usize, tile_id.y_off as usize),
+                                        0,
+                                        100,
+                                    );
                                 }
                             }
-                        } else
-                        if self.graph_type == BehaviorType::Items {
+                        } else if self.graph_type == BehaviorType::Items {
                             if self.sub_type == NodeSubType::Item {
                                 // Draw the item tile
-                                if let Some(tile_id) = context.data.get_item_default_tile(context.data.items_ids[active_index]) {
-                                    if let Some(map)= asset.tileset.maps.get_mut(&tile_id.tilemap) {
-                                        context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.x_off as usize, tile_id.y_off as usize), 0, 100);
+                                if let Some(tile_id) = context
+                                    .data
+                                    .get_item_default_tile(context.data.items_ids[active_index])
+                                {
+                                    if let Some(map) = asset.tileset.maps.get_mut(&tile_id.tilemap)
+                                    {
+                                        context.draw2d.draw_animated_tile(
+                                            &mut preview_buffer[..],
+                                            &(0, 0),
+                                            map,
+                                            100,
+                                            &(tile_id.x_off as usize, tile_id.y_off as usize),
+                                            0,
+                                            100,
+                                        );
                                     }
                                 }
-                            } else
-                            if self.sub_type == NodeSubType::Spell {
+                            } else if self.sub_type == NodeSubType::Spell {
                                 // Draw the spell tile
-                                if let Some(tile_id) = context.data.get_spell_default_tile(context.data.spells_ids[active_index]) {
-                                    if let Some(map)= asset.tileset.maps.get_mut(&tile_id.tilemap) {
-                                        context.draw2d.draw_animated_tile(&mut preview_buffer[..], &(0, 0), map, 100, &(tile_id.x_off as usize, tile_id.y_off as usize), 0, 100);
+                                if let Some(tile_id) = context
+                                    .data
+                                    .get_spell_default_tile(context.data.spells_ids[active_index])
+                                {
+                                    if let Some(map) = asset.tileset.maps.get_mut(&tile_id.tilemap)
+                                    {
+                                        context.draw2d.draw_animated_tile(
+                                            &mut preview_buffer[..],
+                                            &(0, 0),
+                                            map,
+                                            100,
+                                            &(tile_id.x_off as usize, tile_id.y_off as usize),
+                                            0,
+                                            100,
+                                        );
                                     }
                                 }
                             }
                         }
 
-                        self.nodes[index].draw_overview(frame, anim_counter, asset, context, selected, &preview_buffer, selected && self.overview_preview_clicked);
+                        self.nodes[index].draw_overview(
+                            frame,
+                            anim_counter,
+                            asset,
+                            context,
+                            selected,
+                            &preview_buffer,
+                            selected && self.overview_preview_clicked,
+                        );
                     }
 
-                    let rect= self.get_node_rect(index, true);
+                    let rect = self.get_node_rect(index, true);
                     self.nodes[index].graph_offset = (rect.0, rect.1);
                     self.nodes[index].graph_offset = (rect.0, rect.1);
-                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, safe_rect.2, &safe_rect);
+                    context.draw2d.blend_slice_safe(
+                        &mut self.buffer[..],
+                        &self.nodes[index].buffer[..],
+                        &rect,
+                        safe_rect.2,
+                        &safe_rect,
+                    );
                 }
-            } else
-            if self.nodes.len() > 0 {
+            } else if self.nodes.len() > 0 {
                 // Detail View
 
-                let mut corner_index : Option<usize> = None;
+                let mut corner_index: Option<usize> = None;
 
                 // Draw nodes
                 for index in 0..self.nodes.len() {
-
                     // Check for corner node
                     if self.nodes[index].is_corner_node {
                         corner_index = Some(index);
@@ -260,17 +401,29 @@ impl EditorContent for NodeGraph  {
                     }
 
                     // We only draw nodes which are marked visible, i.e. connected to the current behavior tree or unconnected nodes
-                    if self.visible_node_ids.contains(&self.widget_index_to_node_id(index)) {
-
+                    if self
+                        .visible_node_ids
+                        .contains(&self.widget_index_to_node_id(index))
+                    {
                         if self.nodes[index].dirty {
-
-                            let selected = if Some(self.nodes[index].id) == self.get_curr_node_id(context) { true } else { false };
+                            let selected =
+                                if Some(self.nodes[index].id) == self.get_curr_node_id(context) {
+                                    true
+                                } else {
+                                    false
+                                };
                             self.nodes[index].draw(frame, anim_counter, asset, context, selected);
                         }
 
-                        let rect= self.get_node_rect(index, true);
+                        let rect = self.get_node_rect(index, true);
                         self.nodes[index].graph_offset = (rect.0, rect.1);
-                        context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[index].buffer[..], &rect, safe_rect.2, &safe_rect);
+                        context.draw2d.blend_slice_safe(
+                            &mut self.buffer[..],
+                            &self.nodes[index].buffer[..],
+                            &rect,
+                            safe_rect.2,
+                            &safe_rect,
+                        );
                     }
                 }
 
@@ -280,24 +433,33 @@ impl EditorContent for NodeGraph  {
                         self.nodes[corner_index].draw(frame, anim_counter, asset, context, false);
                     }
 
-                    let rect= self.get_node_rect(corner_index, true);
+                    let rect = self.get_node_rect(corner_index, true);
                     self.nodes[corner_index].graph_offset = (rect.0, rect.1);
                     self.nodes[corner_index].graph_offset = (rect.0, rect.1);
-                    context.draw2d.blend_slice_safe(&mut self.buffer[..], &self.nodes[corner_index].buffer[..], &rect, safe_rect.2, &safe_rect);
+                    context.draw2d.blend_slice_safe(
+                        &mut self.buffer[..],
+                        &self.nodes[corner_index].buffer[..],
+                        &rect,
+                        safe_rect.2,
+                        &safe_rect,
+                    );
                 }
 
                 // --
-                let mut mask : Vec<u8> = vec![0; safe_rect.2 * safe_rect.3];
-                let mut path : String = "".to_string();
+                let mut mask: Vec<u8> = vec![0; safe_rect.2 * safe_rect.3];
+                let mut path: String = "".to_string();
 
-                let mut orange_mask : Vec<u8> = vec![0; safe_rect.2 * safe_rect.3];
-                let mut orange_path : String = "".to_string();
+                let mut orange_mask: Vec<u8> = vec![0; safe_rect.2 * safe_rect.3];
+                let mut orange_path: String = "".to_string();
 
                 // Draw connections
-                if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
-
-                    for (source_node_id , source_connector, dest_node_id, dest_connector) in &behavior.data.connections {
-
+                if let Some(behavior) = context
+                    .data
+                    .get_behavior(self.get_curr_behavior_id(context), self.graph_type)
+                {
+                    for (source_node_id, source_connector, dest_node_id, dest_connector) in
+                        &behavior.data.connections
+                    {
                         if self.visible_node_ids.contains(source_node_id) {
                             let source_index = self.node_id_to_widget_index(source_node_id.clone());
                             let source_rect = &self.get_node_rect(source_index, true);
@@ -307,9 +469,12 @@ impl EditorContent for NodeGraph  {
                             let dest_rect = &self.get_node_rect(dest_index, true);
                             let dest_node = &self.nodes[dest_index];
 
-                            if let Some(s_connector) = source_node.node_connector.get(source_connector) {
-                                if let Some(d_connector) = dest_node.node_connector.get(dest_connector) {
-
+                            if let Some(s_connector) =
+                                source_node.node_connector.get(source_connector)
+                            {
+                                if let Some(d_connector) =
+                                    dest_node.node_connector.get(dest_connector)
+                                {
                                     let start_x;
                                     let start_y;
 
@@ -322,29 +487,45 @@ impl EditorContent for NodeGraph  {
                                     let end_x;
                                     let end_y;
 
-                                    let sdx : f32;
-                                    let sdy : f32;
-                                    let edx : f32;
-                                    let edy : f32;
+                                    let sdx: f32;
+                                    let sdy: f32;
+                                    let edx: f32;
+                                    let edy: f32;
 
                                     if *source_connector == BehaviorNodeConnector::Right {
-                                        start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize;
-                                        start_y = source_rect.1 + s_connector.rect.1 as isize + s_connector.rect.3 as isize / 2;
-                                        sdx = 1.0; sdy = 0.0;
+                                        start_x = source_rect.0
+                                            + s_connector.rect.0 as isize
+                                            + s_connector.rect.2 as isize;
+                                        start_y = source_rect.1
+                                            + s_connector.rect.1 as isize
+                                            + s_connector.rect.3 as isize / 2;
+                                        sdx = 1.0;
+                                        sdy = 0.0;
                                     } else {
-                                        start_x = source_rect.0 + s_connector.rect.0 as isize + s_connector.rect.2 as isize / 2;
-                                        start_y = source_rect.1 + s_connector.rect.1 as isize + s_connector.rect.3 as isize;
-                                        sdx = 0.0; sdy = 1.0;
+                                        start_x = source_rect.0
+                                            + s_connector.rect.0 as isize
+                                            + s_connector.rect.2 as isize / 2;
+                                        start_y = source_rect.1
+                                            + s_connector.rect.1 as isize
+                                            + s_connector.rect.3 as isize;
+                                        sdx = 0.0;
+                                        sdy = 1.0;
                                     }
 
                                     if *dest_connector == BehaviorNodeConnector::Left {
                                         end_x = dest_rect.0 + d_connector.rect.0 as isize + 1;
-                                        end_y = dest_rect.1 + d_connector.rect.1 as isize + d_connector.rect.3 as isize / 2;
-                                        edx = -1.0; edy = 0.0;
+                                        end_y = dest_rect.1
+                                            + d_connector.rect.1 as isize
+                                            + d_connector.rect.3 as isize / 2;
+                                        edx = -1.0;
+                                        edy = 0.0;
                                     } else {
-                                        end_x = dest_rect.0 + d_connector.rect.0 as isize + d_connector.rect.2 as isize / 2;
+                                        end_x = dest_rect.0
+                                            + d_connector.rect.0 as isize
+                                            + d_connector.rect.2 as isize / 2;
                                         end_y = dest_rect.1 + d_connector.rect.1 as isize + 1;
-                                        edx = 0.0; edy = -1.0;
+                                        edx = 0.0;
+                                        edy = -1.0;
                                     }
 
                                     let dx = start_x - end_x;
@@ -360,14 +541,39 @@ impl EditorContent for NodeGraph  {
 
                                     let mut connection_drawn = false;
                                     if let Some(debug_data) = &self.behavior_debug_data {
-                                        if debug_data.executed_connections.contains(&(*source_node_id, *source_connector)) {
-                                            orange_path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
+                                        if debug_data
+                                            .executed_connections
+                                            .contains(&(*source_node_id, *source_connector))
+                                        {
+                                            orange_path += format!(
+                                                "M {},{} C {},{} {},{} {},{}",
+                                                start_x,
+                                                start_y,
+                                                control_start_x,
+                                                control_start_y,
+                                                control_end_x,
+                                                control_end_y,
+                                                end_x,
+                                                end_y
+                                            )
+                                            .as_str();
                                             connection_drawn = true;
                                         }
                                     }
 
                                     if connection_drawn == false {
-                                        path += format!("M {},{} C {},{} {},{} {},{}", start_x, start_y, control_start_x, control_start_y, control_end_x, control_end_y, end_x, end_y).as_str();
+                                        path += format!(
+                                            "M {},{} C {},{} {},{} {},{}",
+                                            start_x,
+                                            start_y,
+                                            control_start_x,
+                                            control_start_y,
+                                            control_end_x,
+                                            control_end_y,
+                                            end_x,
+                                            end_y
+                                        )
+                                        .as_str();
                                     }
                                 }
                             }
@@ -377,14 +583,15 @@ impl EditorContent for NodeGraph  {
 
                 // Draw ongoing connection effort
                 if let Some(conn) = &self.source_conn {
-
                     let node = &self.nodes[conn.1];
                     let connector = &node.node_connector[&conn.0];
 
                     let node_rect = self.get_node_rect(conn.1, true);
 
-                    let start_x = node_rect.0 + connector.rect.0 as isize + connector.rect.2 as isize / 2;
-                    let start_y = node_rect.1 + connector.rect.1 as isize + connector.rect.3 as isize / 2;
+                    let start_x =
+                        node_rect.0 + connector.rect.0 as isize + connector.rect.2 as isize / 2;
+                    let start_y =
+                        node_rect.1 + connector.rect.1 as isize + connector.rect.3 as isize / 2;
 
                     let mut end_x = self.mouse_pos.0 as isize - self.rect.0 as isize;
                     let mut end_y = self.mouse_pos.1 as isize - self.rect.1 as isize;
@@ -394,8 +601,10 @@ impl EditorContent for NodeGraph  {
                         let connector = &node.node_connector[&conn.0];
                         let node_rect = self.get_node_rect(conn.1, true);
 
-                        end_x = node_rect.0 + connector.rect.0 as isize + connector.rect.2 as isize / 2;
-                        end_y = node_rect.1 + connector.rect.1 as isize + connector.rect.3 as isize / 2;
+                        end_x =
+                            node_rect.0 + connector.rect.0 as isize + connector.rect.2 as isize / 2;
+                        end_y =
+                            node_rect.1 + connector.rect.1 as isize + connector.rect.3 as isize / 2;
                     }
 
                     path += format!("M {},{} L {},{}", start_x, start_y, end_x, end_y).as_str();
@@ -404,25 +613,35 @@ impl EditorContent for NodeGraph  {
                 // Draw the path if not empty
                 if !path.is_empty() || !orange_path.is_empty() {
                     Mask::new(path.as_str())
-                    .size(safe_rect.2 as u32, safe_rect.3 as u32)
-                    .style(
-                       Stroke::new(2.0)
-                    )
-                    .render_into(&mut mask, None);
+                        .size(safe_rect.2 as u32, safe_rect.3 as u32)
+                        .style(Stroke::new(2.0))
+                        .render_into(&mut mask, None);
 
-                    context.draw2d.blend_mask(&mut self.buffer[..], &safe_rect, safe_rect.2, &mask[..], &(safe_rect.2, safe_rect.3), &context.node_connector_color);
+                    context.draw2d.blend_mask(
+                        &mut self.buffer[..],
+                        &safe_rect,
+                        safe_rect.2,
+                        &mask[..],
+                        &(safe_rect.2, safe_rect.3),
+                        &context.node_connector_color,
+                    );
                 }
 
                 // Draw the orange path if not empty
                 if !orange_path.is_empty() {
                     Mask::new(orange_path.as_str())
-                    .size(safe_rect.2 as u32, safe_rect.3 as u32)
-                    .style(
-                        Stroke::new(2.0)
-                    )
-                    .render_into(&mut orange_mask, None);
+                        .size(safe_rect.2 as u32, safe_rect.3 as u32)
+                        .style(Stroke::new(2.0))
+                        .render_into(&mut orange_mask, None);
 
-                    context.draw2d.blend_mask(&mut self.buffer[..], &safe_rect, safe_rect.2, &orange_mask[..], &(safe_rect.2, safe_rect.3), &context.color_orange);
+                    context.draw2d.blend_mask(
+                        &mut self.buffer[..],
+                        &safe_rect,
+                        safe_rect.2,
+                        &orange_mask[..],
+                        &(safe_rect.2, safe_rect.3),
+                        &context.color_orange,
+                    );
                 }
 
                 let behavior_id = self.get_curr_behavior_id(context);
@@ -430,11 +649,30 @@ impl EditorContent for NodeGraph  {
 
                 // Render the preview widget
                 if let Some(preview) = &mut self.preview {
-                    if context.data.get_behavior_default_position(behavior_id).is_some() {
+                    if context
+                        .data
+                        .get_behavior_default_position(behavior_id)
+                        .is_some()
+                    {
                         preview.draw(frame, anim_counter, asset, context);
-                        preview.rect = (self.rect.0 + self.rect.2 - preview.size.0, self.rect.1, preview.size.0, preview.size.1);
+                        preview.rect = (
+                            self.rect.0 + self.rect.2 - preview.size.0,
+                            self.rect.1,
+                            preview.size.0,
+                            preview.size.1,
+                        );
                         preview.graph_offset = (preview.rect.0 as isize, preview.rect.1 as isize);
-                        context.draw2d.blend_slice(&mut self.buffer[..], &mut preview.buffer[..], &(self.rect.2 - preview.size.0, 0, preview.size.0, preview.size.1), safe_rect.2);
+                        context.draw2d.blend_slice(
+                            &mut self.buffer[..],
+                            &mut preview.buffer[..],
+                            &(
+                                self.rect.2 - preview.size.0,
+                                0,
+                                preview.size.0,
+                                preview.size.1,
+                            ),
+                            safe_rect.2,
+                        );
                         self.preview_is_visible = true;
                     }
                 }
@@ -443,7 +681,15 @@ impl EditorContent for NodeGraph  {
 
                 self.behavior_tree_rects = vec![];
 
-                let left_start = if self.graph_type == BehaviorType::Behaviors || self.graph_type == BehaviorType::Items || self.graph_type == BehaviorType::Systems || self.graph_type == BehaviorType::GameLogic { 180 } else { 5 };
+                let left_start = if self.graph_type == BehaviorType::Behaviors
+                    || self.graph_type == BehaviorType::Items
+                    || self.graph_type == BehaviorType::Systems
+                    || self.graph_type == BehaviorType::GameLogic
+                {
+                    180
+                } else {
+                    5
+                };
                 let mut total_width = safe_rect.2 - left_start - 5;
                 if let Some(preview) = &mut self.preview {
                     if self.preview_is_visible {
@@ -452,7 +698,6 @@ impl EditorContent for NodeGraph  {
                 }
                 let mut bt_rect = (left_start, 3, 170, 25);
                 for bt_id in &self.behavior_tree_ids {
-
                     let mut selected = false;
                     if let Some(curr_index) = self.curr_behavior_tree_id {
                         if curr_index == *bt_id {
@@ -460,13 +705,34 @@ impl EditorContent for NodeGraph  {
                         }
                     }
 
-                    let color = if selected { context.color_gray } else {context.color_black };
-                    context.draw2d.draw_rounded_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &((bt_rect.2) as f32, (bt_rect.3) as f32), &color, &(0.0, 0.0, 0.0, 0.0));
+                    let color = if selected {
+                        context.color_gray
+                    } else {
+                        context.color_black
+                    };
+                    context.draw2d.draw_rounded_rect(
+                        &mut self.buffer[..],
+                        &bt_rect,
+                        safe_rect.2,
+                        &((bt_rect.2) as f32, (bt_rect.3) as f32),
+                        &color,
+                        &(0.0, 0.0, 0.0, 0.0),
+                    );
 
                     self.behavior_tree_rects.push(bt_rect.clone());
 
                     let idx = self.node_id_to_widget_index(*bt_id);
-                    context.draw2d.draw_text_rect(&mut self.buffer[..], &bt_rect, safe_rect.2, &asset.get_editor_font("OpenSans"), 16.0, &self.nodes[idx].name, &context.color_white, &color, crate::draw2d::TextAlignment::Center);
+                    context.draw2d.draw_text_rect(
+                        &mut self.buffer[..],
+                        &bt_rect,
+                        safe_rect.2,
+                        &asset.get_editor_font("OpenSans"),
+                        16.0,
+                        &self.nodes[idx].name,
+                        &context.color_white,
+                        &color,
+                        crate::draw2d::TextAlignment::Center,
+                    );
 
                     bt_rect.0 += 171;
                     if (bt_rect.0 + bt_rect.2) - left_start > total_width {
@@ -477,7 +743,9 @@ impl EditorContent for NodeGraph  {
             }
         }
         self.dirty = false;
-        context.draw2d.copy_slice(frame, &mut self.buffer[..], &self.rect, context.width);
+        context
+            .draw2d
+            .copy_slice(frame, &mut self.buffer[..], &self.rect, context.width);
 
         // Draw nodes overlay
         for index in 0..self.nodes.len() {
@@ -523,11 +791,23 @@ impl EditorContent for NodeGraph  {
             y += self.rect.1 as isize;
         }
 
-        (x, y, self.nodes[node_index].size.0, self.nodes[node_index].size.1)
+        (
+            x,
+            y,
+            self.nodes[node_index].size.0,
+            self.nodes[node_index].size.1,
+        )
     }
 
     /// Updates a node value from the dialog
-    fn update_from_dialog(&mut self, id: (Uuid, Uuid, String), value: Value, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>) {
+    fn update_from_dialog(
+        &mut self,
+        id: (Uuid, Uuid, String),
+        value: Value,
+        _asset: &mut Asset,
+        context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+    ) {
         // println!("graph {:?} {:?}", id, value);
 
         if context.dialog_entry == DialogEntry::NodeName {
@@ -538,11 +818,18 @@ impl EditorContent for NodeGraph  {
                     self.nodes[node_index].dirty = true;
                     self.dirty = true;
 
-                    context.data.set_behavior_node_name((self.get_curr_behavior_id(context), context.dialog_node_behavior_id.0),context.dialog_node_behavior_value.4.clone(), self.graph_type);
+                    context.data.set_behavior_node_name(
+                        (
+                            self.get_curr_behavior_id(context),
+                            context.dialog_node_behavior_id.0,
+                        ),
+                        context.dialog_node_behavior_value.4.clone(),
+                        self.graph_type,
+                    );
                     break;
                 }
             }
-            return
+            return;
         }
 
         // Atom based
@@ -555,7 +842,11 @@ impl EditorContent for NodeGraph  {
                         self.nodes[node_index].dirty = true;
                         self.dirty = true;
 
-                        context.data.set_behavior_id_value(id.clone(), value.clone(), context.curr_graph_type);
+                        context.data.set_behavior_id_value(
+                            id.clone(),
+                            value.clone(),
+                            context.curr_graph_type,
+                        );
 
                         break;
                     }
@@ -564,8 +855,14 @@ impl EditorContent for NodeGraph  {
         }
     }
 
-    fn mouse_down(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool {
-
+    fn mouse_down(
+        &mut self,
+        pos: (usize, usize),
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+        toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
         self.overview_preview_clicked = false;
         let mut rc = false;
 
@@ -578,12 +875,14 @@ impl EditorContent for NodeGraph  {
             for active_index in 0..self.active_indices.len() {
                 let index = self.active_indices[active_index];
 
-                let rect= self.get_node_rect(index, false);
+                let rect = self.get_node_rect(index, false);
 
                 if context.contains_pos_for_isize(pos, rect) {
-
                     self.drag_offset = (pos.0 as isize, pos.1 as isize);
-                    self.drag_node_pos = vec!((self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize));
+                    self.drag_node_pos = vec![(
+                        self.nodes[index].user_data.position.0 as isize,
+                        self.nodes[index].user_data.position.1 as isize,
+                    )];
                     self.drag_indices = vec![index];
 
                     if self.graph_type == BehaviorType::Tiles {
@@ -597,7 +896,6 @@ impl EditorContent for NodeGraph  {
                     }
                     if self.graph_type == BehaviorType::Regions {
                         if context.curr_region_index != index {
-
                             self.nodes[context.curr_region_index].dirty = true;
                             context.curr_region_index = index;
                             self.nodes[index].dirty = true;
@@ -607,7 +905,6 @@ impl EditorContent for NodeGraph  {
                     }
                     if self.graph_type == BehaviorType::Behaviors {
                         if context.curr_behavior_index != index {
-
                             if context.curr_behavior_index >= self.nodes.len() {
                                 context.curr_behavior_index = 0;
                             }
@@ -621,7 +918,6 @@ impl EditorContent for NodeGraph  {
                     }
                     if self.graph_type == BehaviorType::Systems {
                         if context.curr_systems_index != index {
-
                             self.nodes[context.curr_systems_index].dirty = true;
                             context.curr_systems_index = index;
                             self.nodes[index].dirty = true;
@@ -631,7 +927,6 @@ impl EditorContent for NodeGraph  {
                     }
                     if self.graph_type == BehaviorType::Items {
                         if context.curr_items_index != index {
-
                             self.nodes[context.curr_items_index].dirty = true;
                             context.curr_items_index = index;
                             self.nodes[index].dirty = true;
@@ -661,8 +956,10 @@ impl EditorContent for NodeGraph  {
                         if self.sub_type == NodeSubType::Audio {
                             for (audio_index, n) in asset.audio_names.iter().enumerate() {
                                 if *n == self.nodes[index].name {
-
-                                    if let Some(file) = std::fs::File::open(asset.audio_paths[audio_index].clone()).ok() {
+                                    if let Some(file) =
+                                        std::fs::File::open(asset.audio_paths[audio_index].clone())
+                                            .ok()
+                                    {
                                         let buffered = std::io::BufReader::new(file);
                                         context.play_audio((*n).to_string(), buffered);
                                     }
@@ -679,10 +976,12 @@ impl EditorContent for NodeGraph  {
             for active_index in 0..self.active_indices.len() {
                 let index = self.active_indices[active_index];
 
-                let rect= self.get_node_rect(index, false);
+                let rect = self.get_node_rect(index, false);
                 if context.contains_pos_for_isize(pos, rect) {
-
-                    let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
+                    let local = (
+                        (pos.0 as isize - rect.0) as usize,
+                        (pos.1 as isize - rect.1) as usize,
+                    );
 
                     if self.nodes[index].mouse_down(local, asset, context) {
                         self.dirty = true;
@@ -691,12 +990,13 @@ impl EditorContent for NodeGraph  {
                     break;
                 }
             }
-        } else
-        if self.graph_mode == GraphMode::Detail {
-
+        } else if self.graph_mode == GraphMode::Detail {
             // Check the behavior tree selector at the top
             for index in 0..self.behavior_tree_rects.len() {
-                if context.contains_pos_for((pos.0 - self.rect.0, pos.1 - self.rect.1), self.behavior_tree_rects[index]) {
+                if context.contains_pos_for(
+                    (pos.0 - self.rect.0, pos.1 - self.rect.1),
+                    self.behavior_tree_rects[index],
+                ) {
                     self.curr_behavior_tree_id = Some(self.behavior_tree_ids[index]);
                     self.check_node_visibility(context);
                     self.dirty = true;
@@ -705,22 +1005,25 @@ impl EditorContent for NodeGraph  {
             }
 
             for index in 0..self.nodes.len() {
-
                 if self.nodes[index].is_corner_node {
                     continue;
                 }
 
-                let rect= self.get_node_rect(index, false);
+                let rect = self.get_node_rect(index, false);
 
-                if self.visible_node_ids.contains(&self.widget_index_to_node_id(index)) {
-
+                if self
+                    .visible_node_ids
+                    .contains(&self.widget_index_to_node_id(index))
+                {
                     if context.contains_pos_for_isize(pos, rect) {
-
                         // Check for node terminals
                         for (conn, connector) in &self.nodes[index].node_connector {
-                            let c_rect = (pos.0  as isize - rect.0, pos.1 as isize - rect.1);
+                            let c_rect = (pos.0 as isize - rect.0, pos.1 as isize - rect.1);
                             if c_rect.0 > 0 && c_rect.1 > 0 {
-                                if context.contains_pos_for((c_rect.0 as usize, c_rect.1 as usize), connector.rect) {
+                                if context.contains_pos_for(
+                                    (c_rect.0 as usize, c_rect.1 as usize),
+                                    connector.rect,
+                                ) {
                                     self.source_conn = Some((*conn, index));
 
                                     return true;
@@ -728,9 +1031,15 @@ impl EditorContent for NodeGraph  {
                             }
                         }
                         self.drag_offset = (pos.0 as isize, pos.1 as isize);
-                        self.drag_node_pos = vec!((self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize));
+                        self.drag_node_pos = vec![(
+                            self.nodes[index].user_data.position.0 as isize,
+                            self.nodes[index].user_data.position.1 as isize,
+                        )];
                         self.drag_indices = vec![index];
-                        self.collect_drag_children_indices(self.widget_index_to_node_id(index), &context);
+                        self.collect_drag_children_indices(
+                            self.widget_index_to_node_id(index),
+                            &context,
+                        );
 
                         if self.get_curr_node_id(context) != Some(self.nodes[index].id) {
                             // Update the old selection
@@ -740,7 +1049,10 @@ impl EditorContent for NodeGraph  {
                                 self.nodes[sel_index].dirty = true;
                             }
 
-                            if let Some(behavior) = context.data.get_mut_behavior(self.behavior_id, self.graph_type) {
+                            if let Some(behavior) = context
+                                .data
+                                .get_mut_behavior(self.behavior_id, self.graph_type)
+                            {
                                 behavior.data.curr_node_id = Some(self.nodes[index].id);
                             }
 
@@ -759,8 +1071,11 @@ impl EditorContent for NodeGraph  {
             if let Some(preview) = &mut self.preview {
                 if self.preview_is_visible {
                     if context.contains_pos_for(pos, preview.rect) {
-                        if preview.mouse_down((pos.0 - preview.rect.0, pos.1 - preview.rect.1), asset, context) {
-
+                        if preview.mouse_down(
+                            (pos.0 - preview.rect.0, pos.1 - preview.rect.1),
+                            asset,
+                            context,
+                        ) {
                             if preview.clicked {
                                 self.dirty = true;
                                 return true;
@@ -772,17 +1087,19 @@ impl EditorContent for NodeGraph  {
                 }
             }
 
-
             // Check the nodes
             for index in 0..self.nodes.len() {
-
                 // Only if the node is visible
-                if self.visible_node_ids.contains(&self.widget_index_to_node_id(index)) {
-
-                    let rect= self.get_node_rect(index, false);
+                if self
+                    .visible_node_ids
+                    .contains(&self.widget_index_to_node_id(index))
+                {
+                    let rect = self.get_node_rect(index, false);
                     if context.contains_pos_for_isize(pos, rect) {
-
-                        let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
+                        let local = (
+                            (pos.0 as isize - rect.0) as usize,
+                            (pos.1 as isize - rect.1) as usize,
+                        );
 
                         if self.nodes[index].mouse_down(local, asset, context) {
                             self.dirty = true;
@@ -797,17 +1114,23 @@ impl EditorContent for NodeGraph  {
         rc
     }
 
-    fn mouse_up(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, toolbar: &mut Option<&mut ToolBar>) -> bool {
-
-
+    fn mouse_up(
+        &mut self,
+        pos: (usize, usize),
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+        toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
         // Switch the editor state if an overview was clicked
         if self.overview_preview_clicked {
-
             let mut change_index = true;
 
             let mut widget_index = 0;
             if self.graph_type == BehaviorType::Tiles {
-                if self.nodes[context.curr_tileset_index].sub_type == NodeSubType::Tilemap || self.nodes[context.curr_tileset_index].sub_type == NodeSubType::Image {
+                if self.nodes[context.curr_tileset_index].sub_type == NodeSubType::Tilemap
+                    || self.nodes[context.curr_tileset_index].sub_type == NodeSubType::Image
+                {
                     context.switch_editor_state = Some(super::EditorState::TilesDetail);
                     widget_index = 1;
                 } else {
@@ -815,20 +1138,16 @@ impl EditorContent for NodeGraph  {
                     self.dirty = true;
                     self.nodes[context.curr_tileset_index].dirty = true;
                 }
-            } else
-            if self.graph_type == BehaviorType::Regions {
+            } else if self.graph_type == BehaviorType::Regions {
                 context.switch_editor_state = Some(super::EditorState::RegionDetail);
                 widget_index = 2;
-            } else
-            if self.graph_type == BehaviorType::Behaviors {
+            } else if self.graph_type == BehaviorType::Behaviors {
                 context.switch_editor_state = Some(super::EditorState::BehaviorDetail);
                 widget_index = 3;
-            } else
-            if self.graph_type == BehaviorType::Systems {
+            } else if self.graph_type == BehaviorType::Systems {
                 context.switch_editor_state = Some(super::EditorState::SystemsDetail);
                 widget_index = 4;
-            } else
-            if self.graph_type == BehaviorType::Items {
+            } else if self.graph_type == BehaviorType::Items {
                 context.switch_editor_state = Some(super::EditorState::ItemsDetail);
                 widget_index = 5;
             }
@@ -849,11 +1168,19 @@ impl EditorContent for NodeGraph  {
 
             // Save the new node position
             if self.graph_mode == GraphMode::Detail {
-                if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
+                if let Some(behavior) = context
+                    .data
+                    .get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type)
+                {
                     for node_widget in &self.nodes {
-                        if self.drag_indices.contains(&self.node_id_to_widget_index(node_widget.id)) {
+                        if self
+                            .drag_indices
+                            .contains(&self.node_id_to_widget_index(node_widget.id))
+                        {
                             let position = node_widget.user_data.position.clone();
-                            if let Some(behavior_node) = behavior.data.nodes.get_mut(&node_widget.id) {
+                            if let Some(behavior_node) =
+                                behavior.data.nodes.get_mut(&node_widget.id)
+                            {
                                 behavior_node.position = position;
                             }
                         }
@@ -868,16 +1195,27 @@ impl EditorContent for NodeGraph  {
         // Node connection
         if let Some(source_conn) = &self.source_conn {
             if let Some(dest_conn) = &self.dest_conn {
-
-                if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
-
+                if let Some(behavior) = context
+                    .data
+                    .get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type)
+                {
                     // Add the connection in the order of source connector -> dest connector
                     if self.connector_is_source(dest_conn.0) {
-                        behavior.data.connections.push((self.widget_index_to_node_id(dest_conn.1), dest_conn.0, self.widget_index_to_node_id(source_conn.1), source_conn.0));
+                        behavior.data.connections.push((
+                            self.widget_index_to_node_id(dest_conn.1),
+                            dest_conn.0,
+                            self.widget_index_to_node_id(source_conn.1),
+                            source_conn.0,
+                        ));
                         self.nodes[source_conn.1].dirty = true;
                         behavior.save_data();
                     } else {
-                        behavior.data.connections.push((self.widget_index_to_node_id(source_conn.1), source_conn.0, self.widget_index_to_node_id(dest_conn.1), dest_conn.0));
+                        behavior.data.connections.push((
+                            self.widget_index_to_node_id(source_conn.1),
+                            source_conn.0,
+                            self.widget_index_to_node_id(dest_conn.1),
+                            dest_conn.0,
+                        ));
                         self.nodes[dest_conn.1].dirty = true;
                         behavior.save_data();
                     }
@@ -891,10 +1229,13 @@ impl EditorContent for NodeGraph  {
 
         // Check the atom widgets
         for index in 0..self.nodes.len() {
-            let rect= self.get_node_rect(index, false);
-            let local = ((pos.0 as isize - rect.0) as usize, (pos.1 as isize  - rect.1) as usize);
+            let rect = self.get_node_rect(index, false);
+            let local = (
+                (pos.0 as isize - rect.0) as usize,
+                (pos.1 as isize - rect.1) as usize,
+            );
 
-            let mut menu_activated : Option<String> = None;
+            let mut menu_activated: Option<String> = None;
             if let Some(menu) = &mut self.nodes[index].menu {
                 if menu.mouse_up(local, asset, context) {
                     if menu.new_selection.is_some() {
@@ -910,17 +1251,18 @@ impl EditorContent for NodeGraph  {
                 self.nodes[index].dirty = true;
 
                 if self.graph_mode == GraphMode::Overview {
-                    if  "Rename".to_string() == menu_activated {
+                    if "Rename".to_string() == menu_activated {
                         // Rename node
                         context.dialog_state = DialogState::Opening;
                         context.dialog_height = 0;
                         context.target_fps = 60;
                         context.dialog_entry = DialogEntry::NodeName;
-                        context.dialog_node_behavior_id = (self.nodes[index].id, Uuid::new_v4(), "".to_string());
-                        context.dialog_node_behavior_value = (0.0, 0.0, 0.0, 0.0, self.nodes[index].name.clone());
+                        context.dialog_node_behavior_id =
+                            (self.nodes[index].id, Uuid::new_v4(), "".to_string());
+                        context.dialog_node_behavior_value =
+                            (0.0, 0.0, 0.0, 0.0, self.nodes[index].name.clone());
                         context.dialog_value = Value::String(self.nodes[index].name.clone());
-                    } else
-                    if "Delete".to_string() == menu_activated {
+                    } else if "Delete".to_string() == menu_activated {
                         if self.graph_type == BehaviorType::Regions {
                             self.nodes.remove(context.curr_region_index);
                             context.data.delete_region(&context.curr_region_index);
@@ -930,8 +1272,7 @@ impl EditorContent for NodeGraph  {
                                 toolbar.widgets[0].dirty = true;
                             }
                             context.curr_region_index = 0;
-                        } else
-                        if self.graph_type == BehaviorType::Behaviors {
+                        } else if self.graph_type == BehaviorType::Behaviors {
                             self.nodes.remove(context.curr_behavior_index);
                             context.data.delete_behavior(&context.curr_behavior_index);
                             if let Some(toolbar) = toolbar {
@@ -940,8 +1281,7 @@ impl EditorContent for NodeGraph  {
                                 toolbar.widgets[0].dirty = true;
                             }
                             context.curr_behavior_index = 0;
-                        } else
-                        if self.graph_type == BehaviorType::Systems {
+                        } else if self.graph_type == BehaviorType::Systems {
                             self.nodes.remove(context.curr_systems_index);
                             context.data.delete_system(&context.curr_systems_index);
                             if let Some(toolbar) = toolbar {
@@ -950,13 +1290,15 @@ impl EditorContent for NodeGraph  {
                                 toolbar.widgets[0].dirty = true;
                             }
                             context.curr_systems_index = 0;
-                        } else
-                        if self.graph_type == BehaviorType::Items {
-
+                        } else if self.graph_type == BehaviorType::Items {
                             self.nodes.remove(context.curr_items_index);
 
                             if self.sub_type == NodeSubType::Item {
-                                if let Some(index) = self.active_indices.iter().position(|&r| r == context.curr_items_index) {
+                                if let Some(index) = self
+                                    .active_indices
+                                    .iter()
+                                    .position(|&r| r == context.curr_items_index)
+                                {
                                     context.data.delete_item(&index);
                                     if let Some(toolbar) = toolbar {
                                         toolbar.widgets[0].text = context.data.items_names.clone();
@@ -964,9 +1306,12 @@ impl EditorContent for NodeGraph  {
                                         toolbar.widgets[0].dirty = true;
                                     }
                                 }
-                            } else
-                            if self.sub_type == NodeSubType::Spell {
-                                if let Some(index) = self.active_indices.iter().position(|&r| r == context.curr_items_index) {
+                            } else if self.sub_type == NodeSubType::Spell {
+                                if let Some(index) = self
+                                    .active_indices
+                                    .iter()
+                                    .position(|&r| r == context.curr_items_index)
+                                {
                                     context.data.delete_spell(&index);
                                     if let Some(toolbar) = toolbar {
                                         toolbar.widgets[0].text = context.data.spells_names.clone();
@@ -986,26 +1331,24 @@ impl EditorContent for NodeGraph  {
                 }
 
                 if self.graph_mode == GraphMode::Detail {
-                    if  "Rename".to_string() == menu_activated {
+                    if "Rename".to_string() == menu_activated {
                         // Rename node
                         context.dialog_state = DialogState::Opening;
                         context.dialog_height = 0;
                         context.target_fps = 60;
                         context.dialog_entry = DialogEntry::NodeName;
-                        context.dialog_node_behavior_id = (self.nodes[index].id, Uuid::new_v4(), "".to_string());
+                        context.dialog_node_behavior_id =
+                            (self.nodes[index].id, Uuid::new_v4(), "".to_string());
                         context.dialog_value = Value::String(self.nodes[index].name.clone());
-                    } else
-                    if "Disconnect".to_string() == menu_activated {
+                    } else if "Disconnect".to_string() == menu_activated {
                         // Disconnect node
                         self.disconnect_node(self.nodes[index].id, context);
-                    } else
-                    if "Delete".to_string() == menu_activated {
+                    } else if "Delete".to_string() == menu_activated {
                         // Delete node
                         self.delete_node(self.nodes[index].id, context);
-                    } else
-                    if "Help".to_string() == menu_activated {
+                    } else if "Help".to_string() == menu_activated {
                         if let Some(help_link) = &self.nodes[index].help_link {
-                            _  = open::that(help_link);
+                            _ = open::that(help_link);
                         }
                     }
                 }
@@ -1017,7 +1360,10 @@ impl EditorContent for NodeGraph  {
                 self.dirty = true;
 
                 if self.graph_type != BehaviorType::Regions {
-                    if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
+                    if let Some(behavior) = context
+                        .data
+                        .get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type)
+                    {
                         behavior.save_data();
                     }
                 }
@@ -1029,18 +1375,23 @@ impl EditorContent for NodeGraph  {
         if let Some(preview) = &mut self.preview {
             if self.preview_is_visible && preview.mouse_up(pos, asset, context) {
                 self.dirty = true;
-                return  true;
+                return true;
             }
         }
         false
     }
 
-    fn mouse_dragged(&mut self, pos: (usize, usize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
-
+    fn mouse_dragged(
+        &mut self,
+        pos: (usize, usize),
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+        _toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
         self.mouse_pos = pos.clone();
 
         for index in 0..self.nodes.len() {
-
             // Node menu
             if let Some(menu) = &mut self.nodes[index].menu {
                 if menu.mouse_dragged(pos, asset, context) {
@@ -1048,15 +1399,25 @@ impl EditorContent for NodeGraph  {
                 }
             }
 
-            let rect= self.get_node_rect(index, false);
+            let rect = self.get_node_rect(index, false);
             for atom in &mut self.nodes[index].widgets {
-                if atom.atom_widget_type == AtomWidgetType::SmallMenuButton || atom.atom_widget_type == AtomWidgetType::NodeMenuButton {
+                if atom.atom_widget_type == AtomWidgetType::SmallMenuButton
+                    || atom.atom_widget_type == AtomWidgetType::NodeMenuButton
+                {
                     if atom.mouse_dragged(pos, asset, context) {
                         return true;
                     }
                 } else {
-                    let x = if pos.0 as isize > rect.0 { pos.0 as isize - rect.0 } else { 0 };
-                    let y = if pos.1 as isize > rect.1 { pos.1 as isize - rect.1 } else { 0 };
+                    let x = if pos.0 as isize > rect.0 {
+                        pos.0 as isize - rect.0
+                    } else {
+                        0
+                    };
+                    let y = if pos.1 as isize > rect.1 {
+                        pos.1 as isize - rect.1
+                    } else {
+                        0
+                    };
                     let local = (x as usize, y as usize);
                     if atom.mouse_dragged(local, asset, context) {
                         self.dirty = atom.dirty;
@@ -1099,21 +1460,23 @@ impl EditorContent for NodeGraph  {
         // Dragging a connection, check for dest connection
         if let Some(source) = self.source_conn {
             for index in 0..self.nodes.len() {
-                let rect= self.get_node_rect(index, false);
+                let rect = self.get_node_rect(index, false);
 
-                if self.visible_node_ids.contains(&self.widget_index_to_node_id(index)) {
+                if self
+                    .visible_node_ids
+                    .contains(&self.widget_index_to_node_id(index))
+                {
                     if context.contains_pos_for_isize(pos, rect) {
-
                         // Check for node terminals
                         for (conn, connector) in &self.nodes[index].node_connector {
-                            let c_rect = (pos.0  as isize - rect.0, pos.1 as isize - rect.1);
+                            let c_rect = (pos.0 as isize - rect.0, pos.1 as isize - rect.1);
                             if c_rect.0 > 0 && c_rect.1 > 0 {
-
-                                if context.contains_pos_for((c_rect.0 as usize, c_rect.1 as usize), connector.rect) {
-
+                                if context.contains_pos_for(
+                                    (c_rect.0 as usize, c_rect.1 as usize),
+                                    connector.rect,
+                                ) {
                                     // Check if nodes are different
                                     if index != source.1 {
-
                                         let source1 = self.connector_is_source(source.0);
                                         let source2 = self.connector_is_source(*conn);
 
@@ -1146,7 +1509,7 @@ impl EditorContent for NodeGraph  {
                     self.dirty = true;
                     //preview.rect = (self.rect.0 + self.rect.2 - preview.size.0, self.rect.1, preview.size.0, preview.size.1);
 
-                    return  true;
+                    return true;
                 }
             }
         }
@@ -1154,8 +1517,14 @@ impl EditorContent for NodeGraph  {
         false
     }
 
-    fn mouse_wheel(&mut self, delta: (isize, isize), asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
-
+    fn mouse_wheel(
+        &mut self,
+        delta: (isize, isize),
+        asset: &mut Asset,
+        context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+        _toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
         if let Some(preview) = &mut self.preview {
             if self.preview_is_visible {
                 if context.contains_pos_for(self.mouse_hover_pos, preview.rect) {
@@ -1171,7 +1540,14 @@ impl EditorContent for NodeGraph  {
         true
     }
 
-    fn mouse_hover(&mut self, pos: (usize, usize), _asset: &mut Asset, _context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
+    fn mouse_hover(
+        &mut self,
+        pos: (usize, usize),
+        _asset: &mut Asset,
+        _context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+        _toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
         self.mouse_hover_pos = pos;
         false
     }
@@ -1200,7 +1576,6 @@ impl EditorContent for NodeGraph  {
 
     /// Set the behavior id, this will take the bevhavior node data and create node widgets
     fn set_behavior_id(&mut self, id: Uuid, context: &mut ScreenContext) {
-
         self.nodes = vec![];
         self.behavior_tree_ids = vec![];
         self.curr_behavior_tree_id = None;
@@ -1218,7 +1593,8 @@ impl EditorContent for NodeGraph  {
             ids.sort_by(|x, y| x.1.cmp(&y.1));
 
             for (id, _name) in ids {
-                let node_widget = NodeWidget::new_from_behavior_data(&behavior.data,  &behavior.data.nodes[id]);
+                let node_widget =
+                    NodeWidget::new_from_behavior_data(&behavior.data, &behavior.data.nodes[id]);
                 nodes.push(node_widget);
             }
         }
@@ -1242,13 +1618,19 @@ impl EditorContent for NodeGraph  {
     }
 
     /// Adds a node of the type identified by its name
-    fn add_node_of_name(&mut self, name: String, position: (isize, isize), context: &mut ScreenContext) {
-
-        let mut node_widget : Option<NodeWidget> =  None;
+    fn add_node_of_name(
+        &mut self,
+        name: String,
+        position: (isize, isize),
+        context: &mut ScreenContext,
+    ) {
+        let mut node_widget: Option<NodeWidget> = None;
 
         // Create the node
-        if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
-
+        if let Some(behavior) = context
+            .data
+            .get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type)
+        {
             let node_type = match name.as_str() {
                 "Expression" => BehaviorNodeType::Expression,
                 "Script" => BehaviorNodeType::Script,
@@ -1262,7 +1644,9 @@ impl EditorContent for NodeGraph  {
                 "Take" => BehaviorNodeType::Take,
                 "Drop" => BehaviorNodeType::Drop,
                 "Light" if self.graph_type == BehaviorType::Items => BehaviorNodeType::LightItem,
-                "Set Tile" if self.graph_type == BehaviorType::Items => BehaviorNodeType::SetItemTile,
+                "Set Tile" if self.graph_type == BehaviorType::Items => {
+                    BehaviorNodeType::SetItemTile
+                }
                 "Random Walk" => BehaviorNodeType::RandomWalk,
                 "Pathfinder" => BehaviorNodeType::Pathfinder,
                 "Lookout" => BehaviorNodeType::Lookout,
@@ -1280,7 +1664,9 @@ impl EditorContent for NodeGraph  {
                 "Drop Inv." => BehaviorNodeType::DropInventory,
                 "Target" => BehaviorNodeType::Target,
                 "Magic Target" => BehaviorNodeType::MagicTarget,
-                "Teleport" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::TeleportArea,
+                "Teleport" if self.graph_type == BehaviorType::Regions => {
+                    BehaviorNodeType::TeleportArea
+                }
                 "Teleport" => BehaviorNodeType::Teleport,
                 "Audio" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::AudioArea,
                 "Audio" => BehaviorNodeType::Audio,
@@ -1290,7 +1676,9 @@ impl EditorContent for NodeGraph  {
                 "Set Level Tree" => BehaviorNodeType::SetLevelTree,
                 "Schedule" => BehaviorNodeType::Schedule,
 
-                "Skill Level" if self.graph_type == BehaviorType::Items => BehaviorNodeType::SkillLevelItem,
+                "Skill Level" if self.graph_type == BehaviorType::Items => {
+                    BehaviorNodeType::SkillLevelItem
+                }
                 "Skill Tree" => BehaviorNodeType::SkillTree,
                 "Skill Level" => BehaviorNodeType::SkillLevel,
 
@@ -1301,9 +1689,13 @@ impl EditorContent for NodeGraph  {
                 "Enter Area" => BehaviorNodeType::EnterArea,
                 "Leave Area" => BehaviorNodeType::LeaveArea,
                 "Inside Area" => BehaviorNodeType::InsideArea,
-                "Message" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::MessageArea,
+                "Message" if self.graph_type == BehaviorType::Regions => {
+                    BehaviorNodeType::MessageArea
+                }
                 "Light" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::LightArea,
-                "Action" if self.graph_type == BehaviorType::Regions => BehaviorNodeType::ActionArea,
+                "Action" if self.graph_type == BehaviorType::Regions => {
+                    BehaviorNodeType::ActionArea
+                }
 
                 "Overlay Tiles" => BehaviorNodeType::OverlayTiles,
 
@@ -1311,7 +1703,7 @@ impl EditorContent for NodeGraph  {
                 "Drunk. Walk" => BehaviorNodeType::DrunkardsWalk,
                 "Tile" => BehaviorNodeType::Tile,
 
-                _ => BehaviorNodeType::BehaviorTree
+                _ => BehaviorNodeType::BehaviorTree,
             };
 
             let id = behavior.add_node(node_type, name.clone());
@@ -1319,14 +1711,17 @@ impl EditorContent for NodeGraph  {
                 node.position = position;
             }
 
-            let node = NodeWidget::new_from_behavior_data(&behavior.data, &behavior.data.nodes.get(&id).unwrap());
+            let node = NodeWidget::new_from_behavior_data(
+                &behavior.data,
+                &behavior.data.nodes.get(&id).unwrap(),
+            );
             node_widget = Some(node);
 
             behavior.save_data();
         }
 
         if let Some(mut node) = node_widget {
-            self.init_node_widget( &mut node, context);
+            self.init_node_widget(&mut node, context);
             self.nodes.push(node);
         }
 
@@ -1336,17 +1731,17 @@ impl EditorContent for NodeGraph  {
 
     /// Inits the node widget (atom widgets, id)
     fn init_node_widget(&mut self, node_widget: &mut NodeWidget, context: &mut ScreenContext) {
-
         let behavior_data_id;
         let node_id;
         let node_behavior_type;
 
-        if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
-
+        if let Some(behavior) = context
+            .data
+            .get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type)
+        {
             behavior_data_id = behavior.data.id;
 
             if let Some(node) = behavior.data.nodes.get(&node_widget.id) {
-
                 node_id = node.id;
                 node_behavior_type = node.behavior_type;
             } else {
@@ -1358,7 +1753,11 @@ impl EditorContent for NodeGraph  {
 
         // menu button factory
         let mut create_menu_atom = |id: String, text: Vec<String>, def: Value| -> AtomWidget {
-            let mut atom = AtomWidget::new(text, AtomWidgetType::NodeMenuButton, AtomData::new(id.to_lowercase().as_str(), Value::Empty()));
+            let mut atom = AtomWidget::new(
+                text,
+                AtomWidgetType::NodeMenuButton,
+                AtomData::new(id.to_lowercase().as_str(), Value::Empty()),
+            );
             atom.atom_data.text = id.clone();
             let id = (behavior_data_id, node_id, id.to_lowercase());
             atom.behavior_id = Some(id.clone());
@@ -1374,66 +1773,112 @@ impl EditorContent for NodeGraph  {
                 node_widget.is_corner_node = true;
                 node_widget.color = context.color_black.clone();
 
-                let aligh_menu = create_menu_atom("Alignment".to_string(), vec!["Positive".to_string(), "Neutral".to_string(), "Negative".to_string()], Value::Integer(0));
+                let aligh_menu = create_menu_atom(
+                    "Alignment".to_string(),
+                    vec![
+                        "Positive".to_string(),
+                        "Neutral".to_string(),
+                        "Negative".to_string(),
+                    ],
+                    Value::Integer(0),
+                );
 
                 node_widget.widgets.push(aligh_menu);
 
                 // Position
-                let mut position_atom = AtomWidget::new(vec![], AtomWidgetType::NodePositionButton,
-                AtomData::new("position", Value::Empty()));
+                let mut position_atom = AtomWidget::new(
+                    vec![],
+                    AtomWidgetType::NodePositionButton,
+                    AtomData::new("position", Value::Empty()),
+                );
                 position_atom.atom_data.text = "position".to_string();
                 let id = (behavior_data_id, node_id, "position".to_string());
                 position_atom.behavior_id = Some(id.clone());
                 //position_atom.atom_data.data = context.data.get_behavior_id_value(id, (-1.0,0.0,0.0,0.0, "".to_string()), self.graph_type);
-                position_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+                position_atom.atom_data.value =
+                    context
+                        .data
+                        .get_behavior_id_value(id, Value::Empty(), self.graph_type);
                 node_widget.widgets.push(position_atom);
 
-                let mut character_settings = AtomWidget::new(vec!["Settings".to_string()], AtomWidgetType::NodeCharacterSettingsButton,
-                AtomData::new("settings", Value::Empty()));
+                let mut character_settings = AtomWidget::new(
+                    vec!["Settings".to_string()],
+                    AtomWidgetType::NodeCharacterSettingsButton,
+                    AtomData::new("settings", Value::Empty()),
+                );
                 character_settings.atom_data.text = "Settings".to_string();
                 let id = (behavior_data_id, node_id, "settings".to_string());
                 character_settings.behavior_id = Some(id.clone());
                 let mut sink = PropertySink::new();
                 update_item_sink(&mut sink);
-                character_settings.atom_data.value = context.data.get_behavior_id_value(id, Value::PropertySink(sink), self.graph_type);
+                character_settings.atom_data.value = context.data.get_behavior_id_value(
+                    id,
+                    Value::PropertySink(sink),
+                    self.graph_type,
+                );
                 node_widget.widgets.push(character_settings);
 
                 // Default Character Tile
-                let mut tile_atom = AtomWidget::new(vec![], AtomWidgetType::NodeCharTileButton,
-                    AtomData::new("tile", Value::Empty()));
+                let mut tile_atom = AtomWidget::new(
+                    vec![],
+                    AtomWidgetType::NodeCharTileButton,
+                    AtomData::new("tile", Value::Empty()),
+                );
                 tile_atom.atom_data.text = "tile".to_string();
                 let id = (behavior_data_id, node_id, "tile".to_string());
                 tile_atom.behavior_id = Some(id.clone());
-                tile_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+                tile_atom.atom_data.value =
+                    context
+                        .data
+                        .get_behavior_id_value(id, Value::Empty(), self.graph_type);
                 node_widget.widgets.push(tile_atom);
 
                 // Chunks
-                let mut chunk_atom = AtomWidget::new(vec![], AtomWidgetType::NodePropertyLog,
-                    AtomData::new("chunks", Value::Empty()));
+                let mut chunk_atom = AtomWidget::new(
+                    vec![],
+                    AtomWidgetType::NodePropertyLog,
+                    AtomData::new("chunks", Value::Empty()),
+                );
                 chunk_atom.atom_data.text = "chunks".to_string();
                 let id = (behavior_data_id, node_id, "chunks".to_string());
                 chunk_atom.behavior_id = Some(id.clone());
-                chunk_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+                chunk_atom.atom_data.value =
+                    context
+                        .data
+                        .get_behavior_id_value(id, Value::Empty(), self.graph_type);
                 node_widget.widgets.push(chunk_atom);
-            } else
-            if self.graph_type == BehaviorType::Items {
+            } else if self.graph_type == BehaviorType::Items {
                 node_widget.is_corner_node = true;
                 node_widget.color = context.color_black.clone();
 
                 // Default Character Tile
-                let mut tile_atom = AtomWidget::new(vec![], AtomWidgetType::NodeIconTileButton,
-                    AtomData::new("tile", Value::Empty()));
+                let mut tile_atom = AtomWidget::new(
+                    vec![],
+                    AtomWidgetType::NodeIconTileButton,
+                    AtomData::new("tile", Value::Empty()),
+                );
                 tile_atom.atom_data.text = "tile".to_string();
                 let id = (behavior_data_id, node_id, "tile".to_string());
                 tile_atom.behavior_id = Some(id.clone());
-                tile_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+                tile_atom.atom_data.value =
+                    context
+                        .data
+                        .get_behavior_id_value(id, Value::Empty(), self.graph_type);
                 node_widget.widgets.push(tile_atom);
 
                 let mut item_settings;
                 if self.sub_type == NodeSubType::Spell {
-                    item_settings = AtomWidget::new(vec!["Settings".to_string()], AtomWidgetType::NodeSpellSettingsButton,AtomData::new("settings", Value::Empty()));
+                    item_settings = AtomWidget::new(
+                        vec!["Settings".to_string()],
+                        AtomWidgetType::NodeSpellSettingsButton,
+                        AtomData::new("settings", Value::Empty()),
+                    );
                 } else {
-                    item_settings = AtomWidget::new(vec!["Settings".to_string()], AtomWidgetType::NodeItemSettingsButton, AtomData::new("settings", Value::Empty()));
+                    item_settings = AtomWidget::new(
+                        vec!["Settings".to_string()],
+                        AtomWidgetType::NodeItemSettingsButton,
+                        AtomData::new("settings", Value::Empty()),
+                    );
                 }
 
                 item_settings.atom_data.text = "Settings".to_string();
@@ -1441,34 +1886,49 @@ impl EditorContent for NodeGraph  {
                 item_settings.behavior_id = Some(id.clone());
                 let mut sink = PropertySink::new();
                 update_item_sink(&mut sink);
-                item_settings.atom_data.value = context.data.get_behavior_id_value(id, Value::PropertySink(sink), self.graph_type);
+                item_settings.atom_data.value = context.data.get_behavior_id_value(
+                    id,
+                    Value::PropertySink(sink),
+                    self.graph_type,
+                );
                 node_widget.widgets.push(item_settings);
-            } else
-            if self.graph_type == BehaviorType::Systems {
+            } else if self.graph_type == BehaviorType::Systems {
                 node_widget.is_corner_node = true;
                 node_widget.color = context.color_black.clone();
 
                 // Icon Tile
-                let mut tile_atom = AtomWidget::new(vec![], AtomWidgetType::NodeIconTileButton,
-                    AtomData::new("tile", Value::Empty()));
+                let mut tile_atom = AtomWidget::new(
+                    vec![],
+                    AtomWidgetType::NodeIconTileButton,
+                    AtomData::new("tile", Value::Empty()),
+                );
                 tile_atom.atom_data.text = "tile".to_string();
                 let id = (behavior_data_id, node_id, "tile".to_string());
                 tile_atom.behavior_id = Some(id.clone());
-                tile_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+                tile_atom.atom_data.value =
+                    context
+                        .data
+                        .get_behavior_id_value(id, Value::Empty(), self.graph_type);
                 node_widget.widgets.push(tile_atom);
-            } else
-            if self.graph_type == BehaviorType::GameLogic {
+            } else if self.graph_type == BehaviorType::GameLogic {
                 node_widget.is_corner_node = true;
                 node_widget.color = context.color_black.clone();
 
                 // Name of the startup tree
-                let mut startup_atom = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-                AtomData::new("startup", Value::Empty()));
+                let mut startup_atom = AtomWidget::new(
+                    vec![],
+                    AtomWidgetType::NodeTextButton,
+                    AtomData::new("startup", Value::Empty()),
+                );
                 startup_atom.atom_data.text = "startup".to_string();
                 let id = (behavior_data_id, node_id, "startup".to_string());
                 startup_atom.behavior_id = Some(id.clone());
                 //startup_atom.atom_data.data = context.data.get_behavior_id_value(id, (0.0,0.0,0.0,0.0, "Game".to_string()), self.graph_type);
-                startup_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::String("Game".to_string()), self.graph_type);
+                startup_atom.atom_data.value = context.data.get_behavior_id_value(
+                    id,
+                    Value::String("Game".to_string()),
+                    self.graph_type,
+                );
                 node_widget.widgets.push(startup_atom);
             }
             return;
@@ -1476,32 +1936,59 @@ impl EditorContent for NodeGraph  {
 
         // Node menu
 
-        let mut menu_text : Vec<String> = vec!["Rename".to_string()];
-        menu_text.push( "Disconnect".to_string());
-        menu_text.push( "Delete".to_string());
-        menu_text.push( "Help".to_string());
+        let mut menu_text: Vec<String> = vec!["Rename".to_string()];
+        menu_text.push("Disconnect".to_string());
+        menu_text.push("Delete".to_string());
+        menu_text.push("Help".to_string());
 
-        let mut node_menu_atom = AtomWidget::new(menu_text, AtomWidgetType::NodeMenu,
-        AtomData::new("menu", Value::Empty()));
+        let mut node_menu_atom = AtomWidget::new(
+            menu_text,
+            AtomWidgetType::NodeMenu,
+            AtomData::new("menu", Value::Empty()),
+        );
         node_menu_atom.atom_data.text = "menu".to_string();
         let id = (behavior_data_id, node_id, "menu".to_string());
         node_menu_atom.behavior_id = Some(id.clone());
         node_widget.menu = Some(node_menu_atom);
 
         if node_behavior_type == BehaviorNodeType::BehaviorTree {
-            let tree_menu = create_menu_atom("Execute".to_string(), vec!["Always".to_string(), "On Startup".to_string(), "On Demand".to_string()], Value::Integer(0));
+            let tree_menu = create_menu_atom(
+                "Execute".to_string(),
+                vec![
+                    "Always".to_string(),
+                    "On Startup".to_string(),
+                    "On Demand".to_string(),
+                ],
+                Value::Integer(0),
+            );
 
             node_widget.widgets.push(tree_menu);
             node_widget.color = context.color_green.clone();
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#behavior-tree".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#behavior-tree".to_string());
 
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
             if self.graph_type != BehaviorType::GameLogic {
-                node_widget.node_connector.insert(BehaviorNodeConnector::Bottom1, NodeConnector { rect: (0,0,0,0) } );
-                node_widget.node_connector.insert(BehaviorNodeConnector::Bottom2, NodeConnector { rect: (0,0,0,0) } );
-                node_widget.node_connector.insert(BehaviorNodeConnector::Bottom3, NodeConnector { rect: (0,0,0,0) } );
-                node_widget.node_connector.insert(BehaviorNodeConnector::Bottom4, NodeConnector { rect: (0,0,0,0) } );
+                node_widget.node_connector.insert(
+                    BehaviorNodeConnector::Bottom1,
+                    NodeConnector { rect: (0, 0, 0, 0) },
+                );
+                node_widget.node_connector.insert(
+                    BehaviorNodeConnector::Bottom2,
+                    NodeConnector { rect: (0, 0, 0, 0) },
+                );
+                node_widget.node_connector.insert(
+                    BehaviorNodeConnector::Bottom3,
+                    NodeConnector { rect: (0, 0, 0, 0) },
+                );
+                node_widget.node_connector.insert(
+                    BehaviorNodeConnector::Bottom4,
+                    NodeConnector { rect: (0, 0, 0, 0) },
+                );
             }
 
             // Add the node to the behavior tree ids
@@ -1509,60 +1996,109 @@ impl EditorContent for NodeGraph  {
             if self.curr_behavior_tree_id == None {
                 self.curr_behavior_tree_id = Some(node_widget.id);
             }
-        } else
-        if node_behavior_type == BehaviorNodeType::Expression {
-            let mut atom1 = AtomWidget::new(vec!["Expression".to_string()], AtomWidgetType::NodeExpressionButton,
-            AtomData::new("expression", Value::Empty()));
+        } else if node_behavior_type == BehaviorNodeType::Expression {
+            let mut atom1 = AtomWidget::new(
+                vec!["Expression".to_string()],
+                AtomWidgetType::NodeExpressionButton,
+                AtomData::new("expression", Value::Empty()),
+            );
             atom1.atom_data.text = "Expression".to_string();
             let id = (behavior_data_id, node_id, "expression".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("".to_owned()), self.graph_type);
+            atom1.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("".to_owned()),
+                self.graph_type,
+            );
             node_widget.widgets.push(atom1);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#expression".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#expression".to_string());
 
             node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Script {
-            let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScriptButton,
-            AtomData::new("script", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Script {
+            let mut atom1 = AtomWidget::new(
+                vec!["Script".to_string()],
+                AtomWidgetType::NodeScriptButton,
+                AtomData::new("script", Value::Empty()),
+            );
             atom1.atom_data.text = "Script".to_string();
             let id = (behavior_data_id, node_id, "script".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("".to_owned()), self.graph_type);
+            atom1.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("".to_owned()),
+                self.graph_type,
+            );
             node_widget.widgets.push(atom1);
 
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#script".to_string());
 
             node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Screen {
-
-            let mut script_name = AtomWidget::new(vec!["Script Name".to_string()], AtomWidgetType::NodeTextButton,
-            AtomData::new("script_name", Value::String("".to_string())));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Screen {
+            let mut script_name = AtomWidget::new(
+                vec!["Script Name".to_string()],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("script_name", Value::String("".to_string())),
+            );
             script_name.atom_data.text = "Script Name".to_string();
             let id = (behavior_data_id, node_id, "script_name".to_string());
             script_name.behavior_id = Some(id.clone());
-            script_name.atom_data.value = context.data.get_behavior_id_value(id, Value::String("main.rhai".to_string()), self.graph_type);
+            script_name.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("main.rhai".to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(script_name);
 
-            let mut reveal_atom = AtomWidget::new(vec!["Reveal Scripts Folder".to_string()], AtomWidgetType::NodeRevealScriptsButton,
-            AtomData::new("reveal_scripts", Value::String("".to_string())));
+            let mut reveal_atom = AtomWidget::new(
+                vec!["Reveal Scripts Folder".to_string()],
+                AtomWidgetType::NodeRevealScriptsButton,
+                AtomData::new("reveal_scripts", Value::String("".to_string())),
+            );
             reveal_atom.atom_data.text = "Reveal Scripts Folder".to_string();
             let id = (behavior_data_id, node_id, "reveal_scripts".to_string());
             reveal_atom.behavior_id = Some(id.clone());
-            reveal_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::String("Reveal".to_string()), self.graph_type);
+            reveal_atom.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("Reveal".to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(reveal_atom);
 
-            let mut edit_atom = AtomWidget::new(vec!["Edit Script".to_string()], AtomWidgetType::NodeScreenButton,
-            AtomData::new("script", Value::Empty()));
+            let mut edit_atom = AtomWidget::new(
+                vec!["Edit Script".to_string()],
+                AtomWidgetType::NodeScreenButton,
+                AtomData::new("script", Value::Empty()),
+            );
             edit_atom.atom_data.text = "Edit Script".to_string();
             let id = (behavior_data_id, node_id, "script".to_string());
             edit_atom.behavior_id = Some(id.clone());
@@ -1572,8 +2108,14 @@ impl EditorContent for NodeGraph  {
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#screen".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
 
             // Check if the scripts and main.rai script exist and if not create it
             let game_path = context.curr_project_path.join("game");
@@ -1586,10 +2128,12 @@ impl EditorContent for NodeGraph  {
                     }
                 }
             }
-        } else
-        if node_behavior_type == BehaviorNodeType::Widget {
-            let mut atom1 = AtomWidget::new(vec!["Script".to_string()], AtomWidgetType::NodeScreenButton,
-            AtomData::new("script", Value::Empty()));
+        } else if node_behavior_type == BehaviorNodeType::Widget {
+            let mut atom1 = AtomWidget::new(
+                vec!["Script".to_string()],
+                AtomWidgetType::NodeScreenButton,
+                AtomData::new("script", Value::Empty()),
+            );
             atom1.atom_data.text = "Script".to_string();
             let id = (behavior_data_id, node_id, "script".to_string());
             atom1.behavior_id = Some(id.clone());
@@ -1597,836 +2141,1565 @@ impl EditorContent for NodeGraph  {
             if let Some(txt) = context.scripts.get("widget") {
                 def_text = txt.clone();
             }
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String(def_text), self.graph_type);
+            atom1.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::String(def_text), self.graph_type);
             node_widget.widgets.push(atom1);
 
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#widget".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Move {
-            let mut atom1 = AtomWidget::new(vec!["Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("delay", Value::Integer(0)));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Move {
+            let mut atom1 = AtomWidget::new(
+                vec!["Delay".to_string()],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("delay", Value::Integer(0)),
+            );
             atom1.atom_data.text = "Delay".to_string();
             let id = (behavior_data_id, node_id, "delay".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Integer(2), self.graph_type);
+            atom1.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Integer(2), self.graph_type);
             node_widget.widgets.push(atom1);
 
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#move".to_string());
 
             node_widget.color = context.color_gray.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Target {
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Target {
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#target".to_string());
             node_widget.color = context.color_gray.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::MagicTarget {
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#magic-target".to_string());
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::MagicTarget {
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#magic-target".to_string());
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Message || node_behavior_type == BehaviorNodeType::MessageArea {
-
-            let type_menu = create_menu_atom("Type".to_string(), vec!["Status".to_string(), "Say".to_string(), "Yell".to_string(), "Private".to_string(), "Debug".to_string()], Value::Integer(0));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Message
+            || node_behavior_type == BehaviorNodeType::MessageArea
+        {
+            let type_menu = create_menu_atom(
+                "Type".to_string(),
+                vec![
+                    "Status".to_string(),
+                    "Say".to_string(),
+                    "Yell".to_string(),
+                    "Private".to_string(),
+                    "Debug".to_string(),
+                ],
+                Value::Integer(0),
+            );
             node_widget.widgets.push(type_menu);
 
-            let mut atom2 = AtomWidget::new(vec!["Text".to_string()], AtomWidgetType::NodeTextButton,
-            AtomData::new("text", Value::String("".to_string())));
+            let mut atom2 = AtomWidget::new(
+                vec!["Text".to_string()],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("text", Value::String("".to_string())),
+            );
             atom2.atom_data.text = "Text".to_string();
             let id = (behavior_data_id, node_id, "text".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("Message".to_string()), self.graph_type);
+            atom2.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("Message".to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#message".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#message".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Action || node_behavior_type == BehaviorNodeType::ActionArea {
-
-            let mut atom2 = AtomWidget::new(vec!["Action".to_string()], AtomWidgetType::NodeTextButton,
-            AtomData::new("action", Value::String("".to_string())));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Action
+            || node_behavior_type == BehaviorNodeType::ActionArea
+        {
+            let mut atom2 = AtomWidget::new(
+                vec!["Action".to_string()],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("action", Value::String("".to_string())),
+            );
             atom2.atom_data.text = "Action".to_string();
             let id = (behavior_data_id, node_id, "action".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("Action".to_string()), self.graph_type);
+            atom2.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("Action".to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(atom2);
 
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#action".to_string());
 
             node_widget.color = context.color_blue.clone();
-            if  node_behavior_type == BehaviorNodeType::Action {
+            if node_behavior_type == BehaviorNodeType::Action {
                 node_widget.color = context.color_gray.clone();
-                node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-                node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-                node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
+                node_widget.node_connector.insert(
+                    BehaviorNodeConnector::Top,
+                    NodeConnector { rect: (0, 0, 0, 0) },
+                );
+                node_widget.node_connector.insert(
+                    BehaviorNodeConnector::Success,
+                    NodeConnector { rect: (0, 0, 0, 0) },
+                );
+                node_widget.node_connector.insert(
+                    BehaviorNodeConnector::Fail,
+                    NodeConnector { rect: (0, 0, 0, 0) },
+                );
             } else {
                 node_widget.color = context.color_green.clone();
-                node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+                node_widget.node_connector.insert(
+                    BehaviorNodeConnector::Right,
+                    NodeConnector { rect: (0, 0, 0, 0) },
+                );
             }
-        } else
-        if node_behavior_type == BehaviorNodeType::Take {
+        } else if node_behavior_type == BehaviorNodeType::Take {
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#take".to_string());
             node_widget.color = context.color_gray.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Drop {
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Drop {
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#drop".to_string());
             node_widget.color = context.color_gray.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Equip {
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Equip {
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#equip".to_string());
             node_widget.color = context.color_gray.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-       if node_behavior_type == BehaviorNodeType::RandomWalk {
-            let mut max_distance = AtomWidget::new(vec!["Max Distance".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("max_distance", Value::Integer(0)));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::RandomWalk {
+            let mut max_distance = AtomWidget::new(
+                vec!["Max Distance".to_string()],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("max_distance", Value::Integer(0)),
+            );
             max_distance.atom_data.text = "Max Distance".to_string();
             let id = (behavior_data_id, node_id, "max_distance".to_string());
             max_distance.behavior_id = Some(id.clone());
-            max_distance.atom_data.value = context.data.get_behavior_id_value(id, Value::String("2".to_string()), self.graph_type);
+            max_distance.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("2".to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(max_distance);
 
-            let mut speed = AtomWidget::new(vec!["Walk Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("walk_delay", Value::Empty()));
+            let mut speed = AtomWidget::new(
+                vec!["Walk Delay".to_string()],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("walk_delay", Value::Empty()),
+            );
             speed.atom_data.text = "Walk Delay".to_string();
             let id = (behavior_data_id, node_id, "walk_delay".to_string());
             speed.behavior_id = Some(id.clone());
-            speed.atom_data.value = context.data.get_behavior_id_value(id, Value::String("2".to_string()), self.graph_type);
+            speed.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("2".to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(speed);
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
 
-            let mut speed = AtomWidget::new(vec!["Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("delay", Value::Empty()));
+            let mut speed = AtomWidget::new(
+                vec!["Delay".to_string()],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("delay", Value::Empty()),
+            );
             speed.atom_data.text = "Delay".to_string();
             let id = (behavior_data_id, node_id, "delay".to_string());
             speed.behavior_id = Some(id.clone());
-            speed.atom_data.value = context.data.get_behavior_id_value(id, Value::String("10".to_string()), self.graph_type);
+            speed.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("10".to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(speed);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#random-walk".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#random-walk".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Pathfinder {
-            let mut atom1 = AtomWidget::new(vec!["Destination".to_string()], AtomWidgetType::NodePositionButton,
-            AtomData::new("destination", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Pathfinder {
+            let mut atom1 = AtomWidget::new(
+                vec!["Destination".to_string()],
+                AtomWidgetType::NodePositionButton,
+                AtomData::new("destination", Value::Empty()),
+            );
             atom1.atom_data.text = "Destination".to_string();
             let id = (behavior_data_id, node_id, "destination".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom1.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            let mut atom2 = AtomWidget::new(vec!["Walk Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("walk_delay", Value::Empty()));
+            let mut atom2 = AtomWidget::new(
+                vec!["Walk Delay".to_string()],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("walk_delay", Value::Empty()),
+            );
             atom2.atom_data.text = "Walk Delay".to_string();
             let id = (behavior_data_id, node_id, "walk_delay".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("8".to_string()), self.graph_type);
+            atom2.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("8".to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#pathfinder".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#pathfinder".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Lookout {
-            let type_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string(), "Sleeping".to_string(), "Intoxicated".to_string()], Value::Integer(0));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Right,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Lookout {
+            let type_menu = create_menu_atom(
+                "State".to_string(),
+                vec![
+                    "Normal".to_string(),
+                    "Killed".to_string(),
+                    "Sleeping".to_string(),
+                    "Intoxicated".to_string(),
+                ],
+                Value::Integer(0),
+            );
             node_widget.widgets.push(type_menu);
 
-            let mut atom1 = AtomWidget::new(vec!["Expression".to_string()], AtomWidgetType::NodeExpressionButton,
-            AtomData::new("expression", Value::Empty()));
+            let mut atom1 = AtomWidget::new(
+                vec!["Expression".to_string()],
+                AtomWidgetType::NodeExpressionButton,
+                AtomData::new("expression", Value::Empty()),
+            );
             atom1.atom_data.text = "Expression".to_string();
             let id = (behavior_data_id, node_id, "expression".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom1.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            let mut atom2 = AtomWidget::new(vec!["Max Distance".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("max_distance", Value::Empty()));
+            let mut atom2 = AtomWidget::new(
+                vec!["Max Distance".to_string()],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("max_distance", Value::Empty()),
+            );
             atom2.atom_data.text = "Max Distance".to_string();
             let id = (behavior_data_id, node_id, "max_distance".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("7".to_string()), self.graph_type);
+            atom2.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("7".to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#lookout".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#lookout".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::CloseIn {
-            let mut atom1 = AtomWidget::new(vec!["To Distance".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("to_distance", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::CloseIn {
+            let mut atom1 = AtomWidget::new(
+                vec!["To Distance".to_string()],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("to_distance", Value::Empty()),
+            );
             atom1.atom_data.text = "To Distance".to_string();
             let id = (behavior_data_id, node_id, "to_distance".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("1".to_string()), self.graph_type);
+            atom1.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("1".to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(atom1);
 
-            let mut atom2 = AtomWidget::new(vec!["Walk Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("delay", Value::Empty()));
+            let mut atom2 = AtomWidget::new(
+                vec!["Walk Delay".to_string()],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("delay", Value::Empty()),
+            );
             atom2.atom_data.text = "Walk Delay".to_string();
             let id = (behavior_data_id, node_id, "delay".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Integer(2), self.graph_type);
+            atom2.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Integer(2), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#close-in".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#close-in".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::MultiChoice {
-            let mut header = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("header", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Right,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::MultiChoice {
+            let mut header = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("header", Value::Empty()),
+            );
             header.atom_data.text = "Header".to_string();
             let id = (behavior_data_id, node_id, "header".to_string());
             header.behavior_id = Some(id.clone());
-            header.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            header.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(header);
 
-            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("text", Value::Empty()));
+            let mut atom1 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("text", Value::Empty()),
+            );
             atom1.atom_data.text = "Text".to_string();
             let id = (behavior_data_id, node_id, "text".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom1.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("answer", Value::Empty()));
+            let mut atom2 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("answer", Value::Empty()),
+            );
             atom2.atom_data.text = "Answer".to_string();
             let id = (behavior_data_id, node_id, "answer".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom2.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#multi-choice".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#multi-choice".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Sell {
-            let mut header = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("header", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Right,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Sell {
+            let mut header = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("header", Value::Empty()),
+            );
             header.atom_data.text = "Header".to_string();
             let id = (behavior_data_id, node_id, "header".to_string());
             header.behavior_id = Some(id.clone());
-            header.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            header.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(header);
 
-            let mut exit = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("exit", Value::Empty()));
+            let mut exit = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("exit", Value::Empty()),
+            );
             exit.atom_data.text = "Exit Text".to_string();
             let id = (behavior_data_id, node_id, "exit".to_string());
             exit.behavior_id = Some(id.clone());
-            exit.atom_data.value = context.data.get_behavior_id_value(id, Value::String("Exit".to_string()), self.graph_type);
+            exit.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("Exit".to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(exit);
 
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#sell".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::LockTree {
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::LockTree {
             // let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
             // node_widget.widgets.push(target_menu);
 
-            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("tree", Value::Empty()));
+            let mut atom2 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("tree", Value::Empty()),
+            );
             atom2.atom_data.text = "Tree Name".to_string();
             let id = (behavior_data_id, node_id, "tree".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom2.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#lock-tree".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#lock-tree".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::UnlockTree {
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::UnlockTree {
             // let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
             // node_widget.widgets.push(target_menu);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#unlock-tree".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#unlock-tree".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::SetState {
-            let state_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string(), "Purged".to_string(), "Sleeping".to_string(), "Intoxicated".to_string()], Value::Integer(0));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::SetState {
+            let state_menu = create_menu_atom(
+                "State".to_string(),
+                vec![
+                    "Normal".to_string(),
+                    "Killed".to_string(),
+                    "Purged".to_string(),
+                    "Sleeping".to_string(),
+                    "Intoxicated".to_string(),
+                ],
+                Value::Integer(0),
+            );
             node_widget.widgets.push(state_menu);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#set-state".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#set-state".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::CallSystem {
-
-            let mut atom1 = AtomWidget::new(context.data.systems_names.clone(), AtomWidgetType::NodeTextButton,
-            AtomData::new("system", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::CallSystem {
+            let mut atom1 = AtomWidget::new(
+                context.data.systems_names.clone(),
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("system", Value::Empty()),
+            );
             atom1.atom_data.text = "System Name".to_string();
             let id = (behavior_data_id, node_id, "system".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom1.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("tree", Value::Empty()));
+            let mut atom2 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("tree", Value::Empty()),
+            );
             atom2.atom_data.text = "Tree Name".to_string();
             let id = (behavior_data_id, node_id, "tree".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom2.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#call-system".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#call-system".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::CallBehavior {
-            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("tree", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::CallBehavior {
+            let mut atom1 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("tree", Value::Empty()),
+            );
             atom1.atom_data.text = "Tree Name".to_string();
             let id = (behavior_data_id, node_id, "tree".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom1.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#call-behavior".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#call-behavior".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::QueryState {
-            let type_menu = create_menu_atom("State".to_string(), vec!["Normal".to_string(), "Killed".to_string(), "Sleeping".to_string(), "Intoxicated".to_string()], Value::Integer(0));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::QueryState {
+            let type_menu = create_menu_atom(
+                "State".to_string(),
+                vec![
+                    "Normal".to_string(),
+                    "Killed".to_string(),
+                    "Sleeping".to_string(),
+                    "Intoxicated".to_string(),
+                ],
+                Value::Integer(0),
+            );
             node_widget.widgets.push(type_menu);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#query-state".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#query-state".to_string());
             node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::HasTarget {
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#has-target".to_string());
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::HasTarget {
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#has-target".to_string());
             node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Untarget {
-            let mut atom2 = AtomWidget::new(vec!["If Distance Is Greater".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("distance", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Untarget {
+            let mut atom2 = AtomWidget::new(
+                vec!["If Distance Is Greater".to_string()],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("distance", Value::Empty()),
+            );
             atom2.atom_data.text = "If Distance Is Greater".to_string();
             let id = (behavior_data_id, node_id, "distance".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("3".to_string()), self.graph_type);
+            atom2.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("3".to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#untarget".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#untarget".to_string());
 
             node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Success, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Fail, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::DropInventory {
-            let type_menu = create_menu_atom("Drop".to_string(), vec!["Everything".to_string(), "Random Item".to_string()], Value::Integer(0));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Success,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Fail,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::DropInventory {
+            let type_menu = create_menu_atom(
+                "Drop".to_string(),
+                vec!["Everything".to_string(), "Random Item".to_string()],
+                Value::Integer(0),
+            );
 
             node_widget.widgets.push(type_menu);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#drop-inventory".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#drop-inventory".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-       if node_behavior_type == BehaviorNodeType::Teleport {
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Teleport {
             // Position
-            let mut position_atom = AtomWidget::new(vec![], AtomWidgetType::NodePositionButton,
-            AtomData::new("position", Value::Empty()));
+            let mut position_atom = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodePositionButton,
+                AtomData::new("position", Value::Empty()),
+            );
             position_atom.atom_data.text = "Position".to_string();
             let id = (behavior_data_id, node_id, "position".to_string());
             position_atom.behavior_id = Some(id.clone());
-            position_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            position_atom.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(position_atom);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#teleport".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#teleport".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-       if node_behavior_type == BehaviorNodeType::Effect {
-            let target_menu = create_menu_atom("For".to_string(), vec!["Self".to_string(), "Target".to_string()], Value::Integer(0));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Effect {
+            let target_menu = create_menu_atom(
+                "For".to_string(),
+                vec!["Self".to_string(), "Target".to_string()],
+                Value::Integer(0),
+            );
             node_widget.widgets.push(target_menu);
 
-            let mut effect_atom = AtomWidget::new(vec![], AtomWidgetType::NodeEffectTileButton,
-            AtomData::new("effect", Value::Empty()));
+            let mut effect_atom = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeEffectTileButton,
+                AtomData::new("effect", Value::Empty()),
+            );
             effect_atom.atom_data.text = "Effect".to_string();
             let id = (behavior_data_id, node_id, "effect".to_string());
             effect_atom.behavior_id = Some(id.clone());
-            effect_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            effect_atom.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(effect_atom);
 
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#effect".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Audio {
-            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("audio", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Audio {
+            let mut atom1 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("audio", Value::Empty()),
+            );
             atom1.atom_data.text = "Audio".to_string();
             let id = (behavior_data_id, node_id, "audio".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom1.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#audio".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Respawn {
-            let mut atom2 = AtomWidget::new(vec!["Minutes to Wait".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("minutes", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Respawn {
+            let mut atom2 = AtomWidget::new(
+                vec!["Minutes to Wait".to_string()],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("minutes", Value::Empty()),
+            );
             atom2.atom_data.text = "Minutes to Wait".to_string();
             let id = (behavior_data_id, node_id, "minutes".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("30".to_string()), self.graph_type);
+            atom2.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("30".to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#respawn".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#respawn".to_string());
 
             node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Schedule {
-            let mut atom1 = AtomWidget::new(vec!["From".to_string()], AtomWidgetType::NodeTimeButton,
-            AtomData::new("from", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Schedule {
+            let mut atom1 = AtomWidget::new(
+                vec!["From".to_string()],
+                AtomWidgetType::NodeTimeButton,
+                AtomData::new("from", Value::Empty()),
+            );
             atom1.atom_data.text = "From".to_string();
             let id = (behavior_data_id, node_id, "from".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Date(Date::new_time(0, 0)), self.graph_type);
+            atom1.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::Date(Date::new_time(0, 0)),
+                self.graph_type,
+            );
             node_widget.widgets.push(atom1);
 
-            let mut atom2 = AtomWidget::new(vec!["To".to_string()], AtomWidgetType::NodeTimeButton,
-            AtomData::new("to", Value::Empty()));
+            let mut atom2 = AtomWidget::new(
+                vec!["To".to_string()],
+                AtomWidgetType::NodeTimeButton,
+                AtomData::new("to", Value::Empty()),
+            );
             atom2.atom_data.text = "To".to_string();
             let id = (behavior_data_id, node_id, "to".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Date(Date::new_time(23, 59)), self.graph_type);
+            atom2.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::Date(Date::new_time(23, 59)),
+                self.graph_type,
+            );
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#schedule".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#schedule".to_string());
 
             node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Right,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
         } else
-
         // Area
         if node_behavior_type == BehaviorNodeType::InsideArea {
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#inside-area".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#inside-area".to_string());
             node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Always {
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Right,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Always {
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#always".to_string());
             node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::EnterArea {
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#enter-area".to_string());
-            let menu = create_menu_atom("Character".to_string(), vec!["Everyone".to_string(), "First Only".to_string()], Value::Integer(0));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Right,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::EnterArea {
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#enter-area".to_string());
+            let menu = create_menu_atom(
+                "Character".to_string(),
+                vec!["Everyone".to_string(), "First Only".to_string()],
+                Value::Integer(0),
+            );
             node_widget.widgets.push(menu);
 
             node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::LeaveArea {
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#leave-area".to_string());
-            let menu = create_menu_atom("Character".to_string(), vec!["Everyone".to_string(), "Last Only".to_string()], Value::Integer(0));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Right,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::LeaveArea {
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#leave-area".to_string());
+            let menu = create_menu_atom(
+                "Character".to_string(),
+                vec!["Everyone".to_string(), "Last Only".to_string()],
+                Value::Integer(0),
+            );
             node_widget.widgets.push(menu);
 
             node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-        } else
-       if node_behavior_type == BehaviorNodeType::TeleportArea {
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Right,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::TeleportArea {
             // Position
-            let mut position_atom = AtomWidget::new(vec![], AtomWidgetType::NodePositionButton,
-            AtomData::new("position", Value::Empty()));
+            let mut position_atom = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodePositionButton,
+                AtomData::new("position", Value::Empty()),
+            );
             position_atom.atom_data.text = "Position".to_string();
             let id = (behavior_data_id, node_id, "position".to_string());
             position_atom.behavior_id = Some(id.clone());
-            position_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            position_atom.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(position_atom);
 
             // Filter Expression
-            let mut filter = AtomWidget::new(vec!["".to_string()], AtomWidgetType::NodeExpressionButton,
-            AtomData::new("filter", Value::Empty()));
+            let mut filter = AtomWidget::new(
+                vec!["".to_string()],
+                AtomWidgetType::NodeExpressionButton,
+                AtomData::new("filter", Value::Empty()),
+            );
             filter.atom_data.text = "Filter Expression".to_string();
             let id = (behavior_data_id, node_id, "filter".to_string());
             filter.behavior_id = Some(id.clone());
-            filter.atom_data.value = context.data.get_behavior_id_value(id, Value::String("".to_owned()), self.graph_type);
+            filter.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("".to_owned()),
+                self.graph_type,
+            );
             node_widget.widgets.push(filter);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#teleport".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#teleport".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::AudioArea {
-            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("audio", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::AudioArea {
+            let mut atom1 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("audio", Value::Empty()),
+            );
             atom1.atom_data.text = "Audio".to_string();
             let id = (behavior_data_id, node_id, "audio".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom1.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#audio".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::LightArea {
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::LightArea {
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#light".to_string());
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::OverlayTiles {
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#overlay-tiles".to_string());
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::OverlayTiles {
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#overlay-tiles".to_string());
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
         } else
-
         // Items
         if node_behavior_type == BehaviorNodeType::LightItem {
-            let menu = create_menu_atom("State".to_string(), vec!["Off".to_string(), "On".to_string()], Value::Integer(0));
+            let menu = create_menu_atom(
+                "State".to_string(),
+                vec!["Off".to_string(), "On".to_string()],
+                Value::Integer(0),
+            );
             node_widget.widgets.push(menu);
 
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#light".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::SetItemTile {
-
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::SetItemTile {
             // Default Character Tile
-            let mut tile_atom = AtomWidget::new(vec![], AtomWidgetType::NodeIconTileButton,
-                AtomData::new("tile", Value::Empty()));
+            let mut tile_atom = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeIconTileButton,
+                AtomData::new("tile", Value::Empty()),
+            );
             tile_atom.atom_data.text = "Tile".to_string();
             let id = (behavior_data_id, node_id, "tile".to_string());
             tile_atom.behavior_id = Some(id.clone());
-            tile_atom.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            tile_atom.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(tile_atom);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#set-tile".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#set-tile".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::SetLevelTree {
-
-            let mut atom1 = AtomWidget::new(context.data.systems_names.clone(), AtomWidgetType::NodeTextButton,
-            AtomData::new("system", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::SetLevelTree {
+            let mut atom1 = AtomWidget::new(
+                context.data.systems_names.clone(),
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("system", Value::Empty()),
+            );
             atom1.atom_data.text = "System Name".to_string();
             let id = (behavior_data_id, node_id, "system".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom1.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("tree", Value::Empty()));
+            let mut atom2 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("tree", Value::Empty()),
+            );
             atom2.atom_data.text = "Tree Name".to_string();
             let id = (behavior_data_id, node_id, "tree".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom2.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#set-level-tree".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#set-level-tree".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
         } else
-
         // System
-
         if node_behavior_type == BehaviorNodeType::SkillTree {
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#skill-tree".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#skill-tree".to_string());
 
             node_widget.color = context.color_orange.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
 
             // Add the node to the behavior tree ids
             self.behavior_tree_ids.push(node_widget.id);
             if self.curr_behavior_tree_id == None {
                 self.curr_behavior_tree_id = Some(node_widget.id);
             }
-        } else
-        if node_behavior_type == BehaviorNodeType::SkillLevel {
-            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeNumberButton,
-            AtomData::new("start", Value::Empty()));
+        } else if node_behavior_type == BehaviorNodeType::SkillLevel {
+            let mut atom1 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeNumberButton,
+                AtomData::new("start", Value::Empty()),
+            );
             atom1.atom_data.text = "Starts at".to_string();
             let id = (behavior_data_id, node_id, "start".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom1.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("message", Value::Empty()));
+            let mut atom2 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("message", Value::Empty()),
+            );
             atom2.atom_data.text = "Message".to_string();
             let id = (behavior_data_id, node_id, "message".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom2.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#skill-level".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#skill-level".to_string());
 
             node_widget.color = context.color_orange.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
-        } else
-
-        if node_behavior_type == BehaviorNodeType::LevelTree {
-
-            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("message", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::LevelTree {
+            let mut atom2 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("message", Value::Empty()),
+            );
             atom2.atom_data.text = "Experience Message".to_string();
             let id = (behavior_data_id, node_id, "message".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::String("You gained {} experience.".to_string()), self.graph_type);
+            atom2.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("You gained {} experience.".to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(atom2);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#level-tree".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#level-tree".to_string());
 
             node_widget.color = context.color_orange.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
 
             // Add the node to the behavior tree ids
             self.behavior_tree_ids.push(node_widget.id);
             if self.curr_behavior_tree_id == None {
                 self.curr_behavior_tree_id = Some(node_widget.id);
             }
-        } else
-        if node_behavior_type == BehaviorNodeType::Level {
-            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeNumberButton,
-            AtomData::new("start", Value::Empty()));
+        } else if node_behavior_type == BehaviorNodeType::Level {
+            let mut atom1 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeNumberButton,
+                AtomData::new("start", Value::Empty()),
+            );
             atom1.atom_data.text = "Starts at".to_string();
             let id = (behavior_data_id, node_id, "start".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom1.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeTextButton,
-            AtomData::new("message", Value::Empty()));
+            let mut atom2 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeTextButton,
+                AtomData::new("message", Value::Empty()),
+            );
             atom2.atom_data.text = "Message".to_string();
             let id = (behavior_data_id, node_id, "message".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom2.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            let mut atom3 = AtomWidget::new(vec![], AtomWidgetType::NodeScriptButton,
-            AtomData::new("script", Value::Empty()));
+            let mut atom3 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeScriptButton,
+                AtomData::new("script", Value::Empty()),
+            );
             atom3.atom_data.text = "Script".to_string();
             let id = (behavior_data_id, node_id, "script".to_string());
             atom3.behavior_id = Some(id.clone());
-            atom3.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom3.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom3);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#level-tree".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#level-tree".to_string());
 
             node_widget.color = context.color_orange.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
         } else
-
         // Item
-
         if node_behavior_type == BehaviorNodeType::SkillLevelItem {
-            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeScriptButton,
-            AtomData::new("script", Value::Empty()));
+            let mut atom2 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeScriptButton,
+                AtomData::new("script", Value::Empty()),
+            );
             atom2.atom_data.text = "Script".to_string();
             let id = (behavior_data_id, node_id, "script".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom2.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            let mut atom1 = AtomWidget::new(vec!["Delay".to_string()], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("delay", Value::Empty()));
+            let mut atom1 = AtomWidget::new(
+                vec!["Delay".to_string()],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("delay", Value::Empty()),
+            );
             atom1.atom_data.text = "Delay".to_string();
             let id = (behavior_data_id, node_id, "delay".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String(4.to_string()), self.graph_type);
+            atom1.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String(4.to_string()),
+                self.graph_type,
+            );
             node_widget.widgets.push(atom1);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#skill-level".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#skill-level".to_string());
 
             node_widget.color = context.color_orange.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Top, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Bottom, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Top,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Right,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Bottom,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
         } else
-
         // Procedural
-
         if node_behavior_type == BehaviorNodeType::Cellular {
-            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("steps", Value::Empty()));
+            let mut atom1 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("steps", Value::Empty()),
+            );
             atom1.atom_data.text = "Iterations".to_string();
             let id = (behavior_data_id, node_id, "steps".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("1".into()), self.graph_type);
+            atom1.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::String("1".into()), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            let mut atom4 = AtomWidget::new(vec![], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("size", Value::Empty()));
+            let mut atom4 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("size", Value::Empty()),
+            );
             atom4.atom_data.text = "Size".to_string();
             let id = (behavior_data_id, node_id, "size".to_string());
             atom4.behavior_id = Some(id.clone());
-            atom4.atom_data.value = context.data.get_behavior_id_value(id, Value::String("80".into()), self.graph_type);
+            atom4.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::String("80".into()), self.graph_type);
             node_widget.widgets.push(atom4);
 
-            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeEnvTileButton,
-            AtomData::new("wall", Value::Empty()));
+            let mut atom2 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeEnvTileButton,
+                AtomData::new("wall", Value::Empty()),
+            );
             atom2.atom_data.text = "Wall".to_string();
             let id = (behavior_data_id, node_id, "wall".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom2.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
-            let mut atom3 = AtomWidget::new(vec![], AtomWidgetType::NodeEnvTileButton,
-            AtomData::new("floor", Value::Empty()));
+            let mut atom3 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeEnvTileButton,
+                AtomData::new("floor", Value::Empty()),
+            );
             atom3.atom_data.text = "Floor".to_string();
             let id = (behavior_data_id, node_id, "floor".to_string());
             atom3.behavior_id = Some(id.clone());
-            atom3.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom3.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom3);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#cellular".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#cellular".to_string());
 
             node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::DrunkardsWalk {
-            let mut atom1 = AtomWidget::new(vec![], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("distance", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Right,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::DrunkardsWalk {
+            let mut atom1 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("distance", Value::Empty()),
+            );
             atom1.atom_data.text = "Max Distance".to_string();
             let id = (behavior_data_id, node_id, "distance".to_string());
             atom1.behavior_id = Some(id.clone());
-            atom1.atom_data.value = context.data.get_behavior_id_value(id, Value::String("50".into()), self.graph_type);
+            atom1.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::String("50".into()), self.graph_type);
             node_widget.widgets.push(atom1);
 
-            let mut atom4 = AtomWidget::new(vec![], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("size", Value::Empty()));
+            let mut atom4 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("size", Value::Empty()),
+            );
             atom4.atom_data.text = "Size".to_string();
             let id = (behavior_data_id, node_id, "size".to_string());
             atom4.behavior_id = Some(id.clone());
-            atom4.atom_data.value = context.data.get_behavior_id_value(id, Value::String("80".into()), self.graph_type);
+            atom4.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::String("80".into()), self.graph_type);
             node_widget.widgets.push(atom4);
 
-            let mut start = AtomWidget::new(vec![], AtomWidgetType::NodeExpressionValueButton,
-            AtomData::new("start", Value::Empty()));
+            let mut start = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeExpressionValueButton,
+                AtomData::new("start", Value::Empty()),
+            );
             start.atom_data.text = "Start Area Position".to_string();
             let id = (behavior_data_id, node_id, "start".to_string());
             start.behavior_id = Some(id.clone());
-            start.atom_data.value = context.data.get_behavior_id_value(id, Value::String("pos(size / 2, size / 2)".into()), self.graph_type);
+            start.atom_data.value = context.data.get_behavior_id_value(
+                id,
+                Value::String("pos(size / 2, size / 2)".into()),
+                self.graph_type,
+            );
             node_widget.widgets.push(start);
 
-            node_widget.help_link = Some("https://eldiron.com/nodes/index.html#drunkardswalk".to_string());
+            node_widget.help_link =
+                Some("https://eldiron.com/nodes/index.html#drunkardswalk".to_string());
 
             node_widget.color = context.color_green.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
-        } else
-        if node_behavior_type == BehaviorNodeType::Tile {
-
-            let mut atom2 = AtomWidget::new(vec![], AtomWidgetType::NodeEnvTileButton,
-            AtomData::new("tile", Value::Empty()));
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Right,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+        } else if node_behavior_type == BehaviorNodeType::Tile {
+            let mut atom2 = AtomWidget::new(
+                vec![],
+                AtomWidgetType::NodeEnvTileButton,
+                AtomData::new("tile", Value::Empty()),
+            );
             atom2.atom_data.text = "Tile".to_string();
             let id = (behavior_data_id, node_id, "tile".to_string());
             atom2.behavior_id = Some(id.clone());
-            atom2.atom_data.value = context.data.get_behavior_id_value(id, Value::Empty(), self.graph_type);
+            atom2.atom_data.value =
+                context
+                    .data
+                    .get_behavior_id_value(id, Value::Empty(), self.graph_type);
             node_widget.widgets.push(atom2);
 
             node_widget.help_link = Some("https://eldiron.com/nodes/index.html#tile".to_string());
 
             node_widget.color = context.color_blue.clone();
-            node_widget.node_connector.insert(BehaviorNodeConnector::Left, NodeConnector { rect: (0,0,0,0) } );
-            node_widget.node_connector.insert(BehaviorNodeConnector::Right, NodeConnector { rect: (0,0,0,0) } );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Left,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
+            node_widget.node_connector.insert(
+                BehaviorNodeConnector::Right,
+                NodeConnector { rect: (0, 0, 0, 0) },
+            );
         }
     }
 
@@ -2447,7 +3720,15 @@ impl EditorContent for NodeGraph  {
 
     /// Returns true if the node connector is a source connector (Right or Bottom)
     fn connector_is_source(&self, connector: BehaviorNodeConnector) -> bool {
-        if connector == BehaviorNodeConnector::Right || connector == BehaviorNodeConnector::Bottom || connector == BehaviorNodeConnector::Success || connector == BehaviorNodeConnector::Fail || connector == BehaviorNodeConnector::Bottom1 || connector == BehaviorNodeConnector::Bottom2 || connector == BehaviorNodeConnector::Bottom3 || connector == BehaviorNodeConnector::Bottom4 {
+        if connector == BehaviorNodeConnector::Right
+            || connector == BehaviorNodeConnector::Bottom
+            || connector == BehaviorNodeConnector::Success
+            || connector == BehaviorNodeConnector::Fail
+            || connector == BehaviorNodeConnector::Bottom1
+            || connector == BehaviorNodeConnector::Bottom2
+            || connector == BehaviorNodeConnector::Bottom3
+            || connector == BehaviorNodeConnector::Bottom4
+        {
             return true;
         }
         false
@@ -2455,7 +3736,10 @@ impl EditorContent for NodeGraph  {
 
     /// Disconnect the node from all connections
     fn disconnect_node(&mut self, id: Uuid, context: &mut ScreenContext) {
-        if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
+        if let Some(behavior) = context
+            .data
+            .get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type)
+        {
             let mut nothing_to_remove = false;
             while nothing_to_remove == false {
                 nothing_to_remove = true;
@@ -2485,19 +3769,27 @@ impl EditorContent for NodeGraph  {
                 if let Some(rem_index) = self.behavior_tree_ids.iter().position(|&x| x == id) {
                     self.behavior_tree_ids.remove(rem_index);
                 }
-                break
+                break;
             }
         }
 
         // Remove node data
-        if let Some(behavior) = context.data.get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type) {
+        if let Some(behavior) = context
+            .data
+            .get_mut_behavior(self.get_curr_behavior_id(context), self.graph_type)
+        {
             behavior.data.nodes.remove(&id);
             behavior.save_data();
         }
     }
 
     /// Sets the widget and behavior data for the given atom id
-    fn set_node_atom_data(&mut self, node_atom_id: (Uuid, Uuid, String), value: Value, context: &mut ScreenContext) {
+    fn set_node_atom_data(
+        &mut self,
+        node_atom_id: (Uuid, Uuid, String),
+        value: Value,
+        context: &mut ScreenContext,
+    ) {
         for index in 0..self.nodes.len() {
             if self.nodes[index].id == node_atom_id.1 {
                 for atom_index in 0..self.nodes[index].widgets.len() {
@@ -2507,7 +3799,11 @@ impl EditorContent for NodeGraph  {
                         self.nodes[index].dirty = true;
                         self.dirty = true;
 
-                        context.data.set_behavior_id_value(node_atom_id.clone(), value.clone(), self.graph_type);
+                        context.data.set_behavior_id_value(
+                            node_atom_id.clone(),
+                            value.clone(),
+                            self.graph_type,
+                        );
 
                         break;
                     }
@@ -2518,38 +3814,49 @@ impl EditorContent for NodeGraph  {
 
     /// Checks the visibility of a node
     fn check_node_visibility(&mut self, context: &ScreenContext) {
-
         self.visible_node_ids = vec![];
 
         if self.graph_type == BehaviorType::Regions {
             // Regions all nodes are visible
             for index in 0..self.nodes.len() {
-                self.visible_node_ids.push(self.widget_index_to_node_id(index));
+                self.visible_node_ids
+                    .push(self.widget_index_to_node_id(index));
             }
             return;
         }
 
         if let Some(tree_id) = self.curr_behavior_tree_id {
-
             self.visible_node_ids.push(tree_id);
             self.mark_connections_visible(tree_id, context);
 
             // Find unconnected nodes and mark them visible
             for index in 0..self.nodes.len() {
-
                 let mut connected = false;
-                if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
-
+                if let Some(behavior) = context
+                    .data
+                    .get_behavior(self.get_curr_behavior_id(context), self.graph_type)
+                {
                     // Skip behavior tree nodes
-                    if let Some(node_data) = behavior.data.nodes.get(&self.widget_index_to_node_id(index)) {
-                        if node_data.behavior_type == BehaviorNodeType::BehaviorTree || node_data.behavior_type == BehaviorNodeType::SkillTree || node_data.behavior_type == BehaviorNodeType::LevelTree {
+                    if let Some(node_data) = behavior
+                        .data
+                        .nodes
+                        .get(&self.widget_index_to_node_id(index))
+                    {
+                        if node_data.behavior_type == BehaviorNodeType::BehaviorTree
+                            || node_data.behavior_type == BehaviorNodeType::SkillTree
+                            || node_data.behavior_type == BehaviorNodeType::LevelTree
+                        {
                             continue;
                         }
                     }
 
                     // Check if node is connected
-                    for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
-                        if self.nodes[index].id == *source_node_id || self.nodes[index].id == *dest_node_id {
+                    for (source_node_id, _source_connector, dest_node_id, _dest_connector) in
+                        &behavior.data.connections
+                    {
+                        if self.nodes[index].id == *source_node_id
+                            || self.nodes[index].id == *dest_node_id
+                        {
                             connected = true;
                             break;
                         }
@@ -2568,15 +3875,21 @@ impl EditorContent for NodeGraph  {
         } else {
             // If there is no behavior tree mark all nodes as visible
             for index in 0..self.nodes.len() {
-                self.visible_node_ids.push(self.widget_index_to_node_id(index));
+                self.visible_node_ids
+                    .push(self.widget_index_to_node_id(index));
             }
         }
     }
 
     /// Marks all connected nodes as visible
     fn mark_connections_visible(&mut self, id: Uuid, context: &ScreenContext) {
-        if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
-            for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
+        if let Some(behavior) = context
+            .data
+            .get_behavior(self.get_curr_behavior_id(context), self.graph_type)
+        {
+            for (source_node_id, _source_connector, dest_node_id, _dest_connector) in
+                &behavior.data.connections
+            {
                 if *source_node_id == id {
                     self.visible_node_ids.push(*dest_node_id);
                     self.mark_connections_visible(*dest_node_id, context);
@@ -2587,16 +3900,23 @@ impl EditorContent for NodeGraph  {
 
     /// Checks if the given node id is part of an unconnected branch.
     fn belongs_to_standalone_branch(&mut self, id: Uuid, context: &ScreenContext) -> bool {
-        if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
-
-            for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
+        if let Some(behavior) = context
+            .data
+            .get_behavior(self.get_curr_behavior_id(context), self.graph_type)
+        {
+            for (source_node_id, _source_connector, dest_node_id, _dest_connector) in
+                &behavior.data.connections
+            {
                 if *dest_node_id == id {
                     return self.belongs_to_standalone_branch(*source_node_id, context);
                 }
             }
 
             if let Some(node_data) = behavior.data.nodes.get(&id) {
-                if node_data.behavior_type != BehaviorNodeType::BehaviorTree && node_data.behavior_type != BehaviorNodeType::SkillTree && node_data.behavior_type != BehaviorNodeType::LevelTree {
+                if node_data.behavior_type != BehaviorNodeType::BehaviorTree
+                    && node_data.behavior_type != BehaviorNodeType::SkillTree
+                    && node_data.behavior_type != BehaviorNodeType::LevelTree
+                {
                     return true;
                 }
             }
@@ -2606,13 +3926,21 @@ impl EditorContent for NodeGraph  {
 
     /// Collects the children indices of the given node id so that they can all be dragged at once
     fn collect_drag_children_indices(&mut self, id: Uuid, context: &ScreenContext) {
-        if let Some(behavior) = context.data.get_behavior(self.get_curr_behavior_id(context), self.graph_type) {
-            for (source_node_id , _source_connector, dest_node_id, _dest_connector) in &behavior.data.connections {
+        if let Some(behavior) = context
+            .data
+            .get_behavior(self.get_curr_behavior_id(context), self.graph_type)
+        {
+            for (source_node_id, _source_connector, dest_node_id, _dest_connector) in
+                &behavior.data.connections
+            {
                 if *source_node_id == id {
                     let index = self.node_id_to_widget_index(*dest_node_id);
                     if self.drag_indices.contains(&index) == false {
                         self.drag_indices.push(index);
-                        self.drag_node_pos.push((self.nodes[index].user_data.position.0 as isize, self.nodes[index].user_data.position.1 as isize));
+                        self.drag_node_pos.push((
+                            self.nodes[index].user_data.position.0 as isize,
+                            self.nodes[index].user_data.position.1 as isize,
+                        ));
                     }
                     self.collect_drag_children_indices(*dest_node_id, context);
                 }
@@ -2626,10 +3954,14 @@ impl EditorContent for NodeGraph  {
     }
 
     /// Get the rect
-    fn get_rect(&self) -> (usize, usize, usize, usize) { self.rect.clone() }
+    fn get_rect(&self) -> (usize, usize, usize, usize) {
+        self.rect.clone()
+    }
 
     /// Get the offset
-    fn get_offset(&self) -> (isize, isize) { self.offset.clone() }
+    fn get_offset(&self) -> (isize, isize) {
+        self.offset.clone()
+    }
 
     /// Needs redraw
     fn set_dirty(&mut self) {
@@ -2648,33 +3980,38 @@ impl EditorContent for NodeGraph  {
     fn get_curr_behavior_id(&self, context: &ScreenContext) -> Uuid {
         if self.graph_type == BehaviorType::Regions {
             if self.sub_type == NodeSubType::Area {
-                if let Some(region) = context.data.regions.get(&context.data.regions_ids[context.curr_region_index]) {
+                if let Some(region) = context
+                    .data
+                    .regions
+                    .get(&context.data.regions_ids[context.curr_region_index])
+                {
                     return region.behaviors[context.curr_region_area_index].data.id;
                 }
-            } else
-            if self.sub_type == NodeSubType::Procedural {
-                if let Some(region) = context.data.regions.get(&context.data.regions_ids[context.curr_region_index]) {
+            } else if self.sub_type == NodeSubType::Procedural {
+                if let Some(region) = context
+                    .data
+                    .regions
+                    .get(&context.data.regions_ids[context.curr_region_index])
+                {
                     if let Some(procedural) = &region.procedural {
                         return procedural.data.id;
                     }
                 }
             }
-        } else
-        if self.graph_type == BehaviorType::Behaviors {
+        } else if self.graph_type == BehaviorType::Behaviors {
             return context.data.behaviors_ids[context.curr_behavior_index];
-        } else
-        if self.graph_type == BehaviorType::Systems {
+        } else if self.graph_type == BehaviorType::Systems {
             return context.data.systems_ids[context.curr_systems_index];
-        } else
-        if self.graph_type == BehaviorType::Items {
-
+        } else if self.graph_type == BehaviorType::Items {
             let active_indices = self.get_active_indices();
-            if let Some(index) = active_indices.iter().position(|&r| r == context.curr_items_index) {
+            if let Some(index) = active_indices
+                .iter()
+                .position(|&r| r == context.curr_items_index)
+            {
                 if self.sub_type == NodeSubType::Item {
                     return context.data.items_ids[index];
-                } else
-                if self.sub_type == NodeSubType::Spell {
-                   return context.data.spells_ids[index];
+                } else if self.sub_type == NodeSubType::Spell {
+                    return context.data.spells_ids[index];
                 }
             }
         }
@@ -2716,7 +4053,6 @@ impl EditorContent for NodeGraph  {
 
     /// A game debug update
     fn debug_update(&mut self, update: GameUpdate, context: &mut ScreenContext) {
-
         context.debug_messages.append(&mut update.messages.clone());
         context.debug_sheet = update.sheet.clone();
 
@@ -2766,8 +4102,9 @@ impl EditorContent for NodeGraph  {
 
     /// Sort the items
     fn sort(&mut self, context: &mut ScreenContext) {
-
-        if self.graph_mode == GraphMode::Detail { return; }
+        if self.graph_mode == GraphMode::Detail {
+            return;
+        }
 
         let item_width = (280 + 20) as isize;
         let item_height = (120 + 20) as isize;
@@ -2789,15 +4126,17 @@ impl EditorContent for NodeGraph  {
 
             for i in 0..c {
                 let index = indices[i];
-                self.nodes[index].user_data.position = (20 + (i as isize % per_row) * item_width, 20 + (i as isize / per_row) * item_height);
+                self.nodes[index].user_data.position = (
+                    20 + (i as isize % per_row) * item_width,
+                    20 + (i as isize / per_row) * item_height,
+                );
                 self.nodes[index].dirty = true;
             }
 
             if indices.len() > 0 && !indices.contains(&context.curr_tileset_index) {
                 context.curr_tileset_index = indices[0];
             }
-        } else
-        if self.graph_type == BehaviorType::Items {
+        } else if self.graph_type == BehaviorType::Items {
             let mut c = 0;
             for index in 0..self.nodes.len() {
                 if self.nodes[index].sub_type == self.sub_type {
@@ -2811,7 +4150,10 @@ impl EditorContent for NodeGraph  {
 
             for i in 0..c {
                 let index = indices[i];
-                self.nodes[index].user_data.position = (20 + (i as isize % per_row) * item_width, 20 + (i as isize / per_row) * item_height);
+                self.nodes[index].user_data.position = (
+                    20 + (i as isize % per_row) * item_width,
+                    20 + (i as isize / per_row) * item_height,
+                );
                 self.nodes[index].dirty = true;
             }
 
@@ -2820,7 +4162,10 @@ impl EditorContent for NodeGraph  {
             }
         } else {
             for index in 0..self.nodes.len() {
-                self.nodes[index].user_data.position = (20 + (index as isize % per_row) * item_width, 20 + (index as isize / per_row) * item_height);
+                self.nodes[index].user_data.position = (
+                    20 + (index as isize % per_row) * item_width,
+                    20 + (index as isize / per_row) * item_height,
+                );
                 self.nodes[index].visible = true;
                 self.nodes[index].dirty = true;
                 indices.push(index);
@@ -2835,29 +4180,36 @@ impl EditorContent for NodeGraph  {
         self.active_indices.clone()
     }
 
-    fn set_active_indices(&mut self, indices: Vec<usize> ) {
+    fn set_active_indices(&mut self, indices: Vec<usize>) {
         self.active_indices = indices;
     }
 
-    fn key_down(&mut self, _char: Option<char>, key: Option<WidgetKey>, _asset: &mut Asset, context: &mut ScreenContext, _options: &mut Option<Box<dyn EditorOptions>>, _toolbar: &mut Option<&mut ToolBar>) -> bool {
-        if context.is_running { return false; }
+    fn key_down(
+        &mut self,
+        _char: Option<char>,
+        key: Option<WidgetKey>,
+        _asset: &mut Asset,
+        context: &mut ScreenContext,
+        _options: &mut Option<Box<dyn EditorOptions>>,
+        _toolbar: &mut Option<&mut ToolBar>,
+    ) -> bool {
+        if context.is_running {
+            return false;
+        }
         if let Some(key) = key {
             if key == WidgetKey::Left {
                 self.offset.0 -= 20;
                 self.dirty = true;
                 return true;
-            } else
-            if key == WidgetKey::Right {
+            } else if key == WidgetKey::Right {
                 self.offset.0 += 20;
                 self.dirty = true;
                 return true;
-            } else
-            if key == WidgetKey::Up {
+            } else if key == WidgetKey::Up {
                 self.offset.1 -= 20;
                 self.dirty = true;
                 return true;
-            } else
-            if key == WidgetKey::Down {
+            } else if key == WidgetKey::Down {
                 self.offset.1 += 20;
                 self.dirty = true;
                 return true;
@@ -2865,5 +4217,4 @@ impl EditorContent for NodeGraph  {
         }
         return false;
     }
-
 }

@@ -1,40 +1,43 @@
 use crate::prelude::*;
 
 pub struct LogWidget {
-    pub rect                    : (isize, isize, usize, usize),
+    pub rect: (isize, isize, usize, usize),
 
-    pub dirty                   : bool,
-    pub buffer                  : Vec<u8>,
+    pub dirty: bool,
+    pub buffer: Vec<u8>,
 
-    pub size                    : (usize, usize),
+    pub size: (usize, usize),
 
-    pub drag_size               : Option<(usize, usize)>,
+    pub drag_size: Option<(usize, usize)>,
 
-    pub drawn_lines             : usize,
+    pub drawn_lines: usize,
 }
 
 impl LogWidget {
-
     pub fn new(_context: &ScreenContext) -> Self {
-
         Self {
-            rect                : (950, 450, 280, 200),
+            rect: (950, 450, 280, 200),
 
-            dirty               : true,
-            buffer              : vec![],
+            dirty: true,
+            buffer: vec![],
 
-            size                : (280, 200),
+            size: (280, 200),
 
-            drag_size           : None,
+            drag_size: None,
 
-            drawn_lines         : 0,
+            drawn_lines: 0,
         }
     }
 
-    pub fn draw(&mut self, _frame: &mut [u8], _anim_counter: usize, _asset: &mut Asset, _context: &mut ScreenContext) {
-
+    pub fn draw(
+        &mut self,
+        _frame: &mut [u8],
+        _anim_counter: usize,
+        _asset: &mut Asset,
+        _context: &mut ScreenContext,
+    ) {
         if self.buffer.len() != self.size.0 * self.size.1 * 4 {
-            self.buffer = vec![0;self.size.0 * self.size.1 * 4];
+            self.buffer = vec![0; self.size.0 * self.size.1 * 4];
         }
 
         /*
@@ -74,7 +77,12 @@ impl LogWidget {
         self.dirty = false;
     }
 
-    pub fn _mouse_wheel(&mut self, _delta: (isize, isize), _asset: &mut Asset, _context: &mut ScreenContext) -> bool {
+    pub fn _mouse_wheel(
+        &mut self,
+        _delta: (isize, isize),
+        _asset: &mut Asset,
+        _context: &mut ScreenContext,
+    ) -> bool {
         // self.area_scroll_offset.0 -= delta.0 / self.tile_size as isize;
         // self.area_scroll_offset.1 += delta.1 / self.tile_size as isize;
         // self.dirty = true;
