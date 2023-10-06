@@ -2,6 +2,24 @@
 
 Classic RPG Creation
 
+---
+
+### Rewrite of the Creator in Progress
+
+After v0.8.4 I decided to rewrite the Creator part of Eldiron.
+
+While I was very happy with the underlying systems, especially the heart of it all, the behavior node system, I was not happy with the UI of the Creator itself.
+
+The Creator was too disjointed. It is logically structured into different sections but it is not productive (or fun) to create behaviors for characters or items “blind” without connection to their usage in the map / game.
+
+I am currently redoing the Creator with a heavy focus on being map centered, i.e. you create the game interacting with items on the map with live previews / gaming and debugging for every single item.
+
+I think this will make for a much more fun experience as you develop the game interactively on the map instead of developing each item in a vacuum.
+
+The current release still contains the old Creator, while v0.9.0 with the new creator is targetted to be released at the end of 2023.
+
+---
+
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/) [![version](https://img.shields.io/badge/version-0.8.2-yellow.svg)](https://shields.io/) [![macOS](https://svgshare.com/i/ZjP.svg)](https://svgshare.com/i/ZjP.svg) [![Windows](https://svgshare.com/i/ZhY.svg)](https://svgshare.com/i/ZhY.svg) [![Linux](https://svgshare.com/i/Zhy.svg)](https://svgshare.com/i/Zhy.svg) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Patreon](https://badgen.net/badge/icon/patreon?icon=patreon&label)](https://patreon.com/eldiron) [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/EldironRPG)
 
 
