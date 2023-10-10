@@ -17,7 +17,7 @@ serde = { version = "1.0.90", features = ["derive"] }
 serde_json = "1.0.90"
 fontdue = "0.7.2"
 vectorize = "0.2.0"
-itertools = "0.10.2"
+itertools = "0.11"
 zeno = "0.2.1"
 rand = "0.8.5"
 pathfinding = "4.1.1"
@@ -26,11 +26,11 @@ rhai = { git = "https://github.com/rhaiscript/rhai/", default-features = true, f
 #rhai = { git = "https://github.com/rhaiscript/rhai/" }
 regex = "1.8.3"
 fs_extra = "1.3.0"
-open = "4.0.0"
+open = "5.0.0"
 copypasta = "0.8.2"
 code_editor = "0.3.9"
 #code_editor = { path = "../../code_editor/code_editor" }
-rfd = "0.11.2"
+rfd = "0.12"
 #audio-engine = "0.4.5"
 audio-engine = { git = "https://github.com/Rodrigodd/audio-engine" }
 futures = "0.3"

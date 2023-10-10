@@ -11,7 +11,7 @@ core_embed_binaries = { path = "../core_embed_binaries", optional = true }
 env_logger = "0.10"
 log = "0.4"
 pixels = "0.13.0"
-winit = "0.28.6"
+winit = "0.28.7"
 winit_input_helper = "0.14.1"
 png = "0.17.5"
 serde = { version = "1.0.144", features = ["derive"] }

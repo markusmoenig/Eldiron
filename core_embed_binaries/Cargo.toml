@@ -8,4 +8,4 @@ edition = "2021"
 authors = ["Markus Moenig"]
 
 [dependencies]
-rust-embed = "6.4.0"
+rust-embed = { version = "8.0.0", default-features = true, features = ["include-exclude"]}
