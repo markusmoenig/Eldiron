@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-theframework = { path = "../../TheFramework" }
+theframework = { path = "../../TheFramework", features = ["ui"]}
 lazy_static = "1.4.0"

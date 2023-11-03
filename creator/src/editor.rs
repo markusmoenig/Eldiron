@@ -1,50 +1,49 @@
-
-use theframework::prelude::*;
+use crate::prelude::*;
+use std::sync::mpsc::Receiver;
 
 pub struct Editor {
-    circle_id           : u32,
-}
-
-pub trait CustomEditor {
-    //fn process_cmds(&mut self);
-    //fn to_world(&self, pos: Vec2f) -> Vec2f;
-}
-
-impl CustomEditor for Editor {
-
+    sidebar: Sidebar,
+    event_receiver: Option<Receiver<TheEvent>>,
 }
 
 impl TheTrait for Editor {
-    fn new() -> Self where Self: Sized {
-    Self {
-            circle_id   : 0,
+    fn new() -> Self
+    where
+        Self: Sized,
+    {
+        Self {
+            sidebar: Sidebar::new(),
+            event_receiver: None,
         }
     }
 
-    fn init(&mut self, ctx: &mut TheContext) {
+    fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.sidebar.init_ui(ui, ctx);
+        self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
     }
 
-    /// Draw a circle in the middle of the window
-    fn draw(&mut self, pixels: &mut [u8], ctx: &mut TheContext) {
-        //ctx.renderer.draw(pixels, ctx.width, ctx.height);
-        // ctx.draw.rounded_rect(pixels, &(100, 100, 100, 100), ctx.width, &[128, 128, 128, 255], &(1.0, 1.0, 1.0, 1.0));
-        println!("{:?}", ctx.width);
-        ctx.draw.rect(pixels, &(100, 100, 100, 100), ctx.width, &[128, 128, 128, 255])
+    /// Handle UI events and UI state
+    fn update_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
+        let mut redraw = false;
 
-    }
-
-    /// If the touch event is inside the circle, set the circle state to Selected
-    fn touch_down(&mut self, x: f32, y: f32, ctx: &mut TheContext) -> bool {
-        false
-    }
-
-    /// Set the circle state to Selected.
-    fn touch_up(&mut self, _x: f32, _y: f32, ctx: &mut TheContext) -> bool {
-        false
-    }
-
-    /// Query if the renderer needs an update (tramsition animation ongoing etc.)
-    fn needs_update(&mut self, ctx: &mut TheContext) -> bool {
-        false
+        if let Some(receiver) = &mut self.event_receiver {
+            while let Ok(event) = receiver.try_recv() {
+                self.sidebar.handle_event(&event, ui, ctx);
+                match event {
+                    TheEvent::StateChanged(id, state) => {
+                        // println!("app Widget State changed {:?}: {:?}", id, state);
+                    }
+                    TheEvent::FileRequesterResult(id, paths) => {
+                        // println!("FileRequester Result {:?} {:?}", id, paths);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        redraw
     }
 }
+
+pub trait EldironEditor {}
+
+impl EldironEditor for Editor {}

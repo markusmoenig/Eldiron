@@ -1,7 +1,12 @@
 use theframework::*;
 
 pub mod editor;
-pub mod widget;
+pub mod sidebar;
+
+pub mod prelude {
+    pub use crate::sidebar::*;
+    pub use theframework::prelude::*;
+}
 
 use crate::editor::Editor;
 
