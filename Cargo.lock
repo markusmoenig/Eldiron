@@ -937,6 +937,8 @@ name = "creator"
 version = "0.1.0"
 dependencies = [
  "lazy_static",
+ "serde",
+ "serde_json",
  "theframework",
 ]
 
@@ -3582,6 +3584,7 @@ dependencies = [
  "console_error_panic_hook",
  "console_log",
  "env_logger 0.10.0",
+ "flate2",
  "fontdue",
  "futures",
  "log",
@@ -3591,6 +3594,8 @@ dependencies = [
  "rfd",
  "rust-embed",
  "rustc-hash",
+ "serde",
+ "serde_json",
  "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",

@@ -2,10 +2,16 @@ use theframework::*;
 
 pub mod editor;
 pub mod sidebar;
+pub mod project;
+pub mod tilemap;
 
 pub mod prelude {
-    pub use crate::sidebar::*;
     pub use theframework::prelude::*;
+    pub use ::serde::{Serialize, Deserialize};
+
+    pub use crate::sidebar::*;
+    pub use crate::tilemap::*;
+    pub use crate::project::*;
 }
 
 use crate::editor::Editor;
