@@ -249,6 +249,7 @@ impl Sidebar {
                                 }
                                 rgba_layout.relayout(ctx);
                             }
+                            self.apply_tilemap_item(ui, ctx, Some(t));
                         }
                     }
                 }
@@ -346,6 +347,17 @@ impl Sidebar {
         }
     }
 
+    /// Apply the given item to the UI
+    pub fn apply_tilemap_item(&mut self, ui: &mut TheUI, ctx: &mut TheContext, tilemap: Option<&Tilemap>) {
+        if let Some(widget) = ui.canvas.get_widget(Some(&"Tiles Name Edit".to_string()), None) {
+            if let Some(tilemap) = tilemap {
+                widget.set_value(TheValue::Text(tilemap.name.clone()));
+            } else {
+                widget.set_value(TheValue::Empty);
+            }
+        }
+    }
+
     /// Deselects the section buttons
     pub fn deselect_sections_buttons(&mut self, ui: &mut TheUI, except: String) {
         if let Some(layout) = ui.canvas.get_layout(Some(&"Section Buttons".into()), None) {
@@ -355,5 +367,15 @@ impl Sidebar {
                 }
             }
         }
+    }
+
+    /// Returns the selected id in the given list layout
+    pub fn get_selected_in_list_layout(&self, ui: &mut TheUI, layout_name: &str) -> Option<TheId> {
+        if let Some(layout) = ui.canvas.get_layout(Some(&layout_name.to_string()), None) {
+            if let Some(list_layout) = layout.as_list_layout() {
+                return list_layout.selected();
+            }
+        }
+        None
     }
 }

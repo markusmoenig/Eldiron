@@ -133,6 +133,23 @@ impl TheTrait for Editor {
                             self.project.add_tilemap(tilemap);
                         }
                     }
+                    TheEvent::ValueChanged(id, value) => {
+                        //println!("{:?} {:?}", id, value);
+                        if id.name == "Tiles Name Edit" {
+                            if let Some(list_id) = self.sidebar.get_selected_in_list_layout(ui, "Tiles List") {
+                                ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
+                            }
+                        } else
+                        if id.name == "Tiles Item" {
+                            for t in &mut self.project.tilemaps {
+                                if t.id == id.uuid {
+                                    if let Some(text) = value.to_string() {
+                                        t.name = text;
+                                    }
+                                }
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }
