@@ -1,10 +1,11 @@
-use crate::prelude::*;
+use crate::{prelude::*, browser::Browser};
 use std::sync::mpsc::Receiver;
 
 pub struct Editor {
     project: Project,
 
     sidebar: Sidebar,
+    browser: Browser,
     event_receiver: Option<Receiver<TheEvent>>,
 }
 
@@ -15,6 +16,7 @@ impl TheTrait for Editor {
     {
         Self {
             sidebar: Sidebar::new(),
+            browser: Browser::new(),
             event_receiver: None,
 
             project: Project::default(),
@@ -62,10 +64,11 @@ impl TheTrait for Editor {
 
         self.sidebar.init_ui(ui, ctx, &mut self.project);
 
-        // Main
+        // Browser
 
-        let rgba_layout = TheRGBALayout::new(TheId::named("Main RGBALayout"));
-        ui.canvas.set_layout(rgba_layout);
+        self.browser.init_ui(ui, ctx, &mut self.project);
+
+        // Main
 
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
     }

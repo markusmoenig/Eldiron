@@ -7,6 +7,7 @@ pub struct Tilemap {
     pub name: String,
     pub buffer: TheRGBABuffer,
 
+    pub grid_size: i32,
     pub scroll_offset: Vec2i,
     pub zoom: f32,
 }
@@ -19,6 +20,7 @@ impl Tilemap {
             name: String::new(),
             buffer: TheRGBABuffer::empty(),
 
+            grid_size: 24,
             scroll_offset: Vec2i::zero(),
             zoom: 1.0,
         }

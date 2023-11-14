@@ -168,6 +168,8 @@ impl Sidebar {
         tiles_text_layout.limiter_mut().set_max_width(width);
         let tiles_name_edit = TheTextLineEdit::new(TheId::named("Tiles Name Edit"));
         tiles_text_layout.add_pair("Name".to_string(), Box::new(tiles_name_edit));
+        let tiles_grid_edit = TheTextLineEdit::new(TheId::named("Tiles Grid Edit"));
+        tiles_text_layout.add_pair("Grid Size".to_string(), Box::new(tiles_grid_edit));
         content_stack_layout.add_layout(Box::new(tiles_text_layout));
 
         // ---
@@ -239,19 +241,62 @@ impl Sidebar {
                 }
 
                 if id.name == "Tiles Item" {
-                    // Display the buffer
+                    // Display the tilemap editor
                     for t in &project.tilemaps {
                         if t.id == id.uuid {
-                            if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Main RGBALayout".into()), None) {
-                                if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
-                                    rgba_layout.set_buffer(t.buffer.clone());
-                                    rgba_layout.set_scroll_offset(t.scroll_offset);
-                                }
-                                rgba_layout.relayout(ctx);
+
+                            let mut center = TheCanvas::new();
+
+                            let mut rgba_layout = TheRGBALayout::new(TheId::named("Main RGBALayout"));
+                            rgba_layout.set_buffer(t.buffer.clone());
+                            rgba_layout.set_scroll_offset(t.scroll_offset);
+                            if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                                rgba_view.set_grid(Some(t.grid_size));
                             }
+
+                            rgba_layout.relayout(ctx);
+
+                            center.set_layout(rgba_layout);
+
+                            //
+
+                            let mut toolbar_canvas = TheCanvas::new();
+                            let toolbar_widget = TheToolbar::new(TheId::named("Toolbar"));
+                            toolbar_canvas.set_widget(toolbar_widget);
+
+                            let mut regions_add_button = TheToolbarButton::new(TheId::named("Regions Add"));
+                            // regions_add_button.set_icon_name("icon_role_add".to_string());
+                            regions_add_button.set_text("icon_role_add".to_string());
+                            let mut regions_remove_button = TheToolbarButton::new(TheId::named("Regions Remove"));
+                            regions_remove_button.set_icon_name("icon_role_remove".to_string());
+
+                            let mut regions_name_edit = TheTextLineEdit::new(TheId::named("Regions Name Edit"));
+                            regions_name_edit.limiter_mut().set_max_width(150);
+
+                            let mut dropdown =
+                                TheDropdownMenu::new(TheId::named(format!("DropDown {}", 1).as_str()));
+                            dropdown.add_option("Option #1".to_string());
+                            dropdown.add_option("Option #2".to_string());
+
+                            let mut toolbar_hlayout = TheHLayout::new(TheId::named("Toolbar Layout"));
+                            toolbar_hlayout.set_background_color(None);
+                            toolbar_hlayout.set_margin(vec4i(5, 1, 5, 0));
+                            toolbar_hlayout.add_widget(Box::new(regions_add_button));
+                            toolbar_hlayout.add_widget(Box::new(regions_remove_button));
+                            toolbar_hlayout.add_widget(Box::new(regions_name_edit));
+                            toolbar_hlayout.add_widget(Box::new(dropdown));
+
+                            toolbar_canvas.set_layout(toolbar_hlayout);
+                            center.set_top(toolbar_canvas);
+                            ctx.ui.relayout = true;
+
+                            ui.canvas.set_center(center);
+
+                            ctx.ui.relayout = true;
                             self.apply_tilemap_item(ui, ctx, Some(t));
                         }
                     }
+                    redraw = true;
                 }
 
                 // Section Buttons
@@ -352,6 +397,13 @@ impl Sidebar {
         if let Some(widget) = ui.canvas.get_widget(Some(&"Tiles Name Edit".to_string()), None) {
             if let Some(tilemap) = tilemap {
                 widget.set_value(TheValue::Text(tilemap.name.clone()));
+            } else {
+                widget.set_value(TheValue::Empty);
+            }
+        }
+        if let Some(widget) = ui.canvas.get_widget(Some(&"Tiles Grid Edit".to_string()), None) {
+            if let Some(tilemap) = tilemap {
+                widget.set_value(TheValue::Text(tilemap.grid_size.clone().to_string()));
             } else {
                 widget.set_value(TheValue::Empty);
             }
