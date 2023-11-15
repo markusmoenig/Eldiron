@@ -69,7 +69,7 @@ impl Sidebar {
         self.list_toolbar_stack_layout_id = list_toolbar_stack_layout.id().clone();
         self.content_stack_layout_id = content_stack_layout.id().clone();
         let mut toolbar_canvas = TheCanvas::new();
-        let toolbar_widget = TheToolbar::new(TheId::named("Toolbar"));
+        let toolbar_widget = TheTraybar::new(TheId::named("Toolbar"));
         toolbar_canvas.set_widget(toolbar_widget);
 
         list_canvas.set_top(header);
@@ -151,14 +151,14 @@ impl Sidebar {
             .set_max_size(vec2i(width, 200));
         list_stack_layout.add_layout(Box::new(tiles_list_layout));
 
-        let mut tiles_add_button = TheToolbarButton::new(TheId::named("Tiles Add"));
+        let mut tiles_add_button = TheTraybarButton::new(TheId::named("Tiles Add"));
         tiles_add_button.set_icon_name("icon_role_add".to_string());
-        let mut tiles_remove_button = TheToolbarButton::new(TheId::named("Tiles Remove"));
+        let mut tiles_remove_button = TheTraybarButton::new(TheId::named("Tiles Remove"));
         tiles_remove_button.set_icon_name("icon_role_remove".to_string());
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::named("Toolbar Layout"));
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 0));
+        toolbar_hlayout.set_margin(vec4i(5, 4, 5, 0));
         toolbar_hlayout.add_widget(Box::new(tiles_add_button));
         toolbar_hlayout.add_widget(Box::new(tiles_remove_button));
 
@@ -255,19 +255,18 @@ impl Sidebar {
                             }
 
                             rgba_layout.relayout(ctx);
-
                             center.set_layout(rgba_layout);
 
                             //
 
                             let mut toolbar_canvas = TheCanvas::new();
-                            let toolbar_widget = TheToolbar::new(TheId::named("Toolbar"));
-                            toolbar_canvas.set_widget(toolbar_widget);
+                            let traybar_widget = TheTraybar::new(TheId::empty());
+                            toolbar_canvas.set_widget(traybar_widget);
 
-                            let mut regions_add_button = TheToolbarButton::new(TheId::named("Regions Add"));
+                            let mut regions_add_button = TheTraybarButton::new(TheId::named("Regions Add"));
                             // regions_add_button.set_icon_name("icon_role_add".to_string());
                             regions_add_button.set_text("icon_role_add".to_string());
-                            let mut regions_remove_button = TheToolbarButton::new(TheId::named("Regions Remove"));
+                            let mut regions_remove_button = TheTraybarButton::new(TheId::named("Regions Remove"));
                             regions_remove_button.set_icon_name("icon_role_remove".to_string());
 
                             let mut regions_name_edit = TheTextLineEdit::new(TheId::named("Regions Name Edit"));
@@ -280,7 +279,7 @@ impl Sidebar {
 
                             let mut toolbar_hlayout = TheHLayout::new(TheId::named("Toolbar Layout"));
                             toolbar_hlayout.set_background_color(None);
-                            toolbar_hlayout.set_margin(vec4i(5, 1, 5, 0));
+                            toolbar_hlayout.set_margin(vec4i(5, 4, 5, 0));
                             toolbar_hlayout.add_widget(Box::new(regions_add_button));
                             toolbar_hlayout.add_widget(Box::new(regions_remove_button));
                             toolbar_hlayout.add_widget(Box::new(regions_name_edit));
