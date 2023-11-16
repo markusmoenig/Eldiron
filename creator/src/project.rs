@@ -19,4 +19,14 @@ impl Project {
     pub fn add_tilemap(&mut self, tilemap: Tilemap) {
         self.tilemaps.push(tilemap)
     }
+
+    /// Get the tilemap of the given uuid.
+    pub fn get_tilemap(&mut self, uuid: Uuid) -> Option<&mut Tilemap> {
+        for t in &mut self.tilemaps {
+            if t.id == uuid {
+                return Some(t);
+            }
+        }
+        None
+    }
 }
