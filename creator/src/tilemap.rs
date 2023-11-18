@@ -65,6 +65,11 @@ impl TileRole {
             TileRole::UI => { TheColor::from_hex("#e3cfb4") }
         }
     }
+    pub fn iterator() -> impl Iterator<Item = TileRole> {
+        [TileRole::Character, TileRole::GrassAndWood, TileRole::Hill, TileRole::Road,
+        TileRole::Water, TileRole::ManMade, TileRole::Dungeon, TileRole::Effect,
+        TileRole::Icon, TileRole::UI].iter().copied()
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]

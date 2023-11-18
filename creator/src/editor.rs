@@ -6,6 +6,8 @@ pub struct Editor {
 
     sidebar: Sidebar,
     browser: Browser,
+
+    update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
 }
 
@@ -14,11 +16,15 @@ impl TheTrait for Editor {
     where
         Self: Sized,
     {
+        // let mut vm = TheVM::new();
+        // let rc = vm.interpret("let t = 2 + 6;\n let p = clock();\n print(t);".to_string());
+
         Self {
             sidebar: Sidebar::new(),
             browser: Browser::new(),
             event_receiver: None,
 
+            update_tracker: UpdateTracker::new(),
             project: Project::default(),
         }
     }
@@ -76,6 +82,8 @@ impl TheTrait for Editor {
     /// Handle UI events and UI state
     fn update_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
         let mut redraw = false;
+
+        let _internal_update = self.update_tracker.update(250); // 4 fps
 
         if let Some(receiver) = &mut self.event_receiver {
             while let Ok(event) = receiver.try_recv() {
