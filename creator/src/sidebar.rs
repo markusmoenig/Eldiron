@@ -11,7 +11,7 @@ impl Sidebar {
     pub fn new() -> Self {
         Self {
             stack_layout_id: TheId::empty(),
-            curr_tilemap_uuid: Uuid::new_v4()
+            curr_tilemap_uuid: Uuid::new_v4(),
         }
     }
 
@@ -24,7 +24,8 @@ impl Sidebar {
         section_bar_canvas.set_widget(TheSectionbar::new(TheId::named("Sectionbar")));
         sectionbar_canvas.set_top(section_bar_canvas);
 
-        let mut region_sectionbar_button = TheSectionbarButton::new(TheId::named("Regions Section"));
+        let mut region_sectionbar_button =
+            TheSectionbarButton::new(TheId::named("Regions Section"));
         region_sectionbar_button.set_text("Regions".to_string());
         region_sectionbar_button.set_state(TheWidgetState::Selected);
 
@@ -58,9 +59,7 @@ impl Sidebar {
 
         let mut stack_layout = TheStackLayout::new(TheId::named("List Stack Layout"));
 
-        stack_layout
-            .limiter_mut()
-            .set_max_width(width);
+        stack_layout.limiter_mut().set_max_width(width);
 
         self.stack_layout_id = stack_layout.id().clone();
 
@@ -69,9 +68,7 @@ impl Sidebar {
         let mut regions_canvas = TheCanvas::default();
 
         let mut list_layout = TheListLayout::new(TheId::named("Regions List"));
-        list_layout
-            .limiter_mut()
-            .set_max_size(vec2i(width, 200));
+        list_layout.limiter_mut().set_max_size(vec2i(width, 200));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -99,9 +96,7 @@ impl Sidebar {
         let mut yellow_canvas = TheCanvas::default();
         let mut yellow_color = TheColorButton::new(TheId::named("Yellow"));
         yellow_color.set_color([255, 255, 0, 255]);
-        yellow_color
-            .limiter_mut()
-            .set_max_size(vec2i(width, 350));
+        yellow_color.limiter_mut().set_max_size(vec2i(width, 350));
         yellow_canvas.set_widget(yellow_color);
 
         regions_canvas.set_top(list_canvas);
@@ -114,9 +109,7 @@ impl Sidebar {
         let mut character_canvas = TheCanvas::default();
 
         let mut list_layout = TheListLayout::new(TheId::named("Character List"));
-        list_layout
-            .limiter_mut()
-            .set_max_size(vec2i(width, 200));
+        list_layout.limiter_mut().set_max_size(vec2i(width, 200));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -144,9 +137,7 @@ impl Sidebar {
         let mut red_canvas = TheCanvas::default();
         let mut red_color = TheColorButton::new(TheId::named("Red"));
         red_color.set_color([255, 0, 0, 255]);
-        red_color
-            .limiter_mut()
-            .set_max_size(vec2i(width, 350));
+        red_color.limiter_mut().set_max_size(vec2i(width, 350));
         red_canvas.set_widget(red_color);
 
         character_canvas.set_top(list_canvas);
@@ -159,9 +150,7 @@ impl Sidebar {
         let mut tiles_canvas = TheCanvas::default();
 
         let mut list_layout = TheListLayout::new(TheId::named("Tiles List"));
-        list_layout
-            .limiter_mut()
-            .set_max_size(vec2i(width, 200));
+        list_layout.limiter_mut().set_max_size(vec2i(width, 200));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -243,12 +232,16 @@ impl Sidebar {
         ui.canvas.set_right(canvas);
     }
 
-    pub fn handle_event(&mut self, event: &TheEvent, ui: &mut TheUI, ctx: &mut TheContext, project: &mut Project) -> bool {
+    pub fn handle_event(
+        &mut self,
+        event: &TheEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+    ) -> bool {
         let mut redraw = false;
         match event {
-
-            // Add
-
+            // Tiles Add
             TheEvent::FileRequesterResult(id, paths) => {
                 if id.name == "Tiles Add" {
                     for p in paths {
@@ -256,23 +249,21 @@ impl Sidebar {
                     }
                 }
             }
-            TheEvent::ImageDecodeResult(id, name, buffer) => {
+            TheEvent::ImageDecodeResult(id, name, _buffer) => {
                 if id.name == "Tiles Add" {
-                    if let Some(layout) = ui.canvas.get_layout(Some(&"Tiles List".to_string()), None) {
+                    if let Some(layout) =
+                        ui.canvas.get_layout(Some(&"Tiles List".to_string()), None)
+                    {
                         if let Some(list_layout) = layout.as_list_layout() {
-                            let mut item = TheListItem::new(TheId::named_with_id("Tiles Item", id.uuid));
+                            let mut item =
+                                TheListItem::new(TheId::named_with_id("Tiles Item", id.uuid));
                             item.set_text(name.clone());
                             item.set_state(TheWidgetState::Selected);
                             list_layout.deselect_all();
                             let id = item.id().clone();
                             list_layout.add_item(item, ctx);
-                            ctx.ui.send_widget_state_changed(&id, TheWidgetState::Selected);
-
-                            if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Main RGBALayout".into()), None) {
-                                if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
-                                    rgba_layout.set_buffer(buffer.clone());
-                                }
-                            }
+                            ctx.ui
+                                .send_widget_state_changed(&id, TheWidgetState::Selected);
 
                             redraw = true;
                         }
@@ -280,6 +271,41 @@ impl Sidebar {
                 }
             }
             TheEvent::StateChanged(id, state) => {
+                // Regions Add
+
+                if id.name == "Regions Add" {
+                    if let Some(list_layout) = ui.get_list_layout("Regions List") {
+
+                        let region = Region::new();
+
+                        let mut item =
+                            TheListItem::new(TheId::named_with_id("Regions Item", region.id));
+                        item.set_text("New Region".to_string());
+                        item.set_state(TheWidgetState::Selected);
+                        list_layout.deselect_all();
+                        let id = item.id().clone();
+                        list_layout.add_item(item, ctx);
+                        ctx.ui
+                            .send_widget_state_changed(&id, TheWidgetState::Selected);
+
+                        project.regions.push(region);
+                    }
+                } else
+
+                if id.name == "Regions Item" {
+                    for r in &project.regions {
+                        if r.id == id.uuid {
+                            if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
+                                if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
+                                    if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                                        //rgba_view.set_mode(TheRGBAViewMode::Tile);
+                                        println!("211");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else
 
                 // Tiles Item Handling
 
@@ -293,13 +319,12 @@ impl Sidebar {
                         .set_widget_state("Tiles Add".to_string(), TheWidgetState::None);
                     ctx.ui.clear_hover();
                     redraw = true;
-                }
+                } else
 
                 if id.name == "Tiles Item" {
                     // Display the tilemap editor
                     for t in &project.tilemaps {
                         if t.id == id.uuid {
-
                             self.curr_tilemap_uuid = t.id;
 
                             let mut center = TheCanvas::new();
@@ -320,7 +345,8 @@ impl Sidebar {
                             let traybar_widget = TheTraybar::new(TheId::empty());
                             toolbar_canvas.set_widget(traybar_widget);
 
-                            let mut add_button = TheTraybarButton::new(TheId::named("Tiles Add Selection"));
+                            let mut add_button =
+                                TheTraybarButton::new(TheId::named("Tiles Add Selection"));
                             add_button.set_text("Add Selection".to_string());
                             // let mut regions_remove_button = TheTraybarButton::new(TheId::named("Regions Remove"));
                             // regions_remove_button.set_icon_name("icon_role_remove".to_string());
@@ -328,7 +354,8 @@ impl Sidebar {
                             let mut tile_name_text = TheText::new(TheId::empty());
                             tile_name_text.set_text("Tile Name".to_string());
 
-                            let mut tile_name_edit = TheTextLineEdit::new(TheId::named("Tiles Tile Name Edit"));
+                            let mut tile_name_edit =
+                                TheTextLineEdit::new(TheId::named("Tiles Tile Name Edit"));
                             tile_name_edit.limiter_mut().set_max_width(150);
 
                             // let mut dropdown =
@@ -336,14 +363,16 @@ impl Sidebar {
                             // dropdown.add_option("Option #1".to_string());
                             // dropdown.add_option("Option #2".to_string());
 
-                            let mut toolbar_hlayout = TheHLayout::new(TheId::named("Toolbar Layout"));
+                            let mut toolbar_hlayout =
+                                TheHLayout::new(TheId::named("Toolbar Layout"));
                             toolbar_hlayout.set_background_color(None);
                             toolbar_hlayout.set_margin(vec4i(5, 4, 5, 0));
                             toolbar_hlayout.add_widget(Box::new(tile_name_text));
                             toolbar_hlayout.add_widget(Box::new(tile_name_edit));
 
                             for dir in TileRole::iterator() {
-                                let mut color_button = TheColorButton::new(TheId::named("Tile Item Filter Character"));
+                                let mut color_button =
+                                    TheColorButton::new(TheId::named("Tile Item Filter Character"));
                                 color_button.limiter_mut().set_max_size(vec2i(19, 19));
                                 color_button.set_color(dir.to_color().to_u8_array());
                                 if dir == TileRole::Character {
@@ -358,7 +387,9 @@ impl Sidebar {
                             center.set_top(toolbar_canvas);
                             ctx.ui.relayout = true;
 
-                            if let Some(browser) = ui.canvas.get_layout(Some(&"Browser".to_string()), None) {
+                            if let Some(browser) =
+                                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
+                            {
                                 if let Some(browser) = browser.as_tab_layout() {
                                     browser.clear();
                                     browser.add_canvas(t.name.clone(), center);
@@ -370,35 +401,52 @@ impl Sidebar {
                         }
                     }
                     redraw = true;
-                }
+                } else
 
                 if id.name == "Tiles Add Selection" {
-
-                    if let Some(editor) = ui.canvas.get_layout(Some(&"Tiles Editor".to_string()), None) {
+                    if let Some(editor) = ui
+                        .canvas
+                        .get_layout(Some(&"Tiles Editor".to_string()), None)
+                    {
                         if let Some(editor) = editor.as_rgba_layout() {
-                            let regions = editor.rgba_view_mut().as_rgba_view().unwrap().selection_as_regions();
+                            let sequence = editor
+                                .rgba_view_mut()
+                                .as_rgba_view()
+                                .unwrap()
+                                .selection_as_sequence();
                             let mut tile = Tile::default();
-                            tile.regions = regions;
+                            tile.sequence = sequence;
 
-                            if let Some(text_line_edit) = ui.get_text_line_edit("Tiles Tile Name Edit") {
+                            if let Some(text_line_edit) =
+                                ui.get_text_line_edit("Tiles Tile Name Edit")
+                            {
                                 tile.name = text_line_edit.text();
                             }
 
-                            if let Some(layout) = ui.canvas.get_layout(Some(&"Tiles Tilemap List".to_string()), None) {
+                            if let Some(layout) = ui
+                                .canvas
+                                .get_layout(Some(&"Tiles Tilemap List".to_string()), None)
+                            {
                                 let list_layout_id = layout.id().clone();
                                 if let Some(list_layout) = layout.as_list_layout() {
-                                    let mut item = TheListItem::new(TheId::named_with_id("Tiles Tilemap Item", tile.id));
+                                    let mut item = TheListItem::new(TheId::named_with_id(
+                                        "Tiles Tilemap Item",
+                                        tile.id,
+                                    ));
                                     item.set_text(tile.name.clone());
                                     item.set_state(TheWidgetState::Selected);
                                     item.set_size(42);
                                     item.set_associated_layout(list_layout_id);
                                     if let Some(t) = project.get_tilemap(self.curr_tilemap_uuid) {
-                                        item.set_icon(tile.regions[0].scale(&t.buffer, 36, 36));
+                                        item.set_icon(
+                                            tile.sequence.regions[0].scale(&t.buffer, 36, 36),
+                                        );
                                     }
                                     list_layout.deselect_all();
                                     let id = item.id().clone();
                                     list_layout.add_item(item, ctx);
-                                    ctx.ui.send_widget_state_changed(&id, TheWidgetState::Selected);
+                                    ctx.ui
+                                        .send_widget_state_changed(&id, TheWidgetState::Selected);
 
                                     redraw = true;
                                 }
@@ -409,7 +457,7 @@ impl Sidebar {
                             }
                         }
                     }
-                }
+                } else
 
                 // Section Buttons
 
@@ -421,10 +469,8 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Regions".to_string()));
                     }
 
-                    ctx.ui.send(TheEvent::SetStackIndex(
-                        self.stack_layout_id.clone(),
-                        0,
-                    ));
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 0));
                     self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
                 } else if id.name == "Character Section" && *state == TheWidgetState::Selected {
@@ -435,10 +481,8 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Character".to_string()));
                     }
 
-                    ctx.ui.send(TheEvent::SetStackIndex(
-                        self.stack_layout_id.clone(),
-                        1,
-                    ));
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 1));
                     self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
                 } else if id.name == "Tiles Section" && *state == TheWidgetState::Selected {
@@ -449,10 +493,8 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Tiles".to_string()));
                     }
 
-                    ctx.ui.send(TheEvent::SetStackIndex(
-                        self.stack_layout_id.clone(),
-                        2,
-                    ));
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 2));
                     self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
                 }
@@ -481,15 +523,26 @@ impl Sidebar {
     }
 
     /// Apply the given item to the UI
-    pub fn apply_tilemap(&mut self, ui: &mut TheUI, ctx: &mut TheContext, tilemap: Option<&Tilemap>) {
-        if let Some(widget) = ui.canvas.get_widget(Some(&"Tiles Name Edit".to_string()), None) {
+    pub fn apply_tilemap(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        tilemap: Option<&Tilemap>,
+    ) {
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Tiles Name Edit".to_string()), None)
+        {
             if let Some(tilemap) = tilemap {
                 widget.set_value(TheValue::Text(tilemap.name.clone()));
             } else {
                 widget.set_value(TheValue::Empty);
             }
         }
-        if let Some(widget) = ui.canvas.get_widget(Some(&"Tiles Grid Edit".to_string()), None) {
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Tiles Grid Edit".to_string()), None)
+        {
             if let Some(tilemap) = tilemap {
                 widget.set_value(TheValue::Text(tilemap.grid_size.clone().to_string()));
             } else {
@@ -498,13 +551,17 @@ impl Sidebar {
         }
 
         //
-        if let Some(layout) = ui.canvas.get_layout(Some(&"Tiles Tilemap List".to_string()), None) {
+        if let Some(layout) = ui
+            .canvas
+            .get_layout(Some(&"Tiles Tilemap List".to_string()), None)
+        {
             let list_layout_id = layout.id().clone();
             if let Some(list_layout) = layout.as_list_layout() {
                 if let Some(tilemap) = tilemap {
                     list_layout.clear();
                     for tile in &tilemap.tiles {
-                        let mut item = TheListItem::new(TheId::named_with_id("Tiles Tilemap Item", tile.id));
+                        let mut item =
+                            TheListItem::new(TheId::named_with_id("Tiles Tilemap Item", tile.id));
                         item.set_text(tile.name.clone());
                         item.set_size(42);
                         item.set_state(TheWidgetState::Selected);

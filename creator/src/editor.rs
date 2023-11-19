@@ -1,4 +1,4 @@
-use crate::{prelude::*, browser::Browser};
+use crate::{browser::Browser, prelude::*};
 use std::sync::mpsc::Receiver;
 
 pub struct Editor {
@@ -30,7 +30,6 @@ impl TheTrait for Editor {
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-
         // Menubar
         let mut top_canvas = TheCanvas::new();
 
@@ -76,6 +75,11 @@ impl TheTrait for Editor {
 
         // Main
 
+        let mut center = TheCanvas::new();
+        let tile_editor = TheRGBALayout::new(TheId::named("Region Editor"));
+        center.set_layout(tile_editor);
+        ui.canvas.set_center(center);
+
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
     }
 
@@ -87,14 +91,16 @@ impl TheTrait for Editor {
 
         if let Some(receiver) = &mut self.event_receiver {
             while let Ok(event) = receiver.try_recv() {
-                redraw = self.sidebar.handle_event(&event, ui, ctx, &mut self.project);
+                redraw = self
+                    .sidebar
+                    .handle_event(&event, ui, ctx, &mut self.project);
                 match event {
-
                     TheEvent::FileRequesterResult(id, paths) => {
                         if id.name == "Open" {
                             for p in paths {
                                 let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
-                                self.project = serde_json::from_str(&contents).unwrap_or(Project::default());
+                                self.project =
+                                    serde_json::from_str(&contents).unwrap_or(Project::default());
                                 self.sidebar.load_from_project(ui, ctx, &self.project);
                                 redraw = true;
                             }
@@ -106,25 +112,29 @@ impl TheTrait for Editor {
                         }
                     }
                     TheEvent::StateChanged(id, _state) => {
-
                         // Open / Save Project
 
                         if id.name == "Open" {
                             ctx.ui.open_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                                 "Open".into(),
-                                TheFileExtension::new("Eldiron".into(), vec!["eldiron".to_string()]),
+                                TheFileExtension::new(
+                                    "Eldiron".into(),
+                                    vec!["eldiron".to_string()],
+                                ),
                             );
                             ctx.ui
                                 .set_widget_state("Open".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        } else
-                        if id.name == "Save" {
+                        } else if id.name == "Save" {
                             ctx.ui.save_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                                 "Save".into(),
-                                TheFileExtension::new("Eldiron".into(), vec!["eldiron".to_string()]),
+                                TheFileExtension::new(
+                                    "Eldiron".into(),
+                                    vec!["eldiron".to_string()],
+                                ),
                             );
                             ctx.ui
                                 .set_widget_state("Save".to_string(), TheWidgetState::None);
@@ -135,7 +145,6 @@ impl TheTrait for Editor {
                     TheEvent::ImageDecodeResult(id, name, buffer) => {
                         // Add a new tilemap to the project
                         if id.name == "Tiles Add" {
-
                             let mut tilemap = Tilemap::default();
                             tilemap.name = name;
                             tilemap.id = id.uuid;
@@ -147,11 +156,12 @@ impl TheTrait for Editor {
                     TheEvent::ValueChanged(id, value) => {
                         //println!("{:?} {:?}", id, value);
                         if id.name == "Tiles Name Edit" {
-                            if let Some(list_id) = self.sidebar.get_selected_in_list_layout(ui, "Tiles List") {
+                            if let Some(list_id) =
+                                self.sidebar.get_selected_in_list_layout(ui, "Tiles List")
+                            {
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
-                        } else
-                        if id.name == "Tiles Item" {
+                        } else if id.name == "Tiles Item" {
                             for t in &mut self.project.tilemaps {
                                 if t.id == id.uuid {
                                     if let Some(text) = value.to_string() {
