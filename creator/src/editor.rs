@@ -6,6 +6,7 @@ pub struct Editor {
 
     sidebar: Sidebar,
     browser: Browser,
+    tileeditor: TileEditor,
 
     update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
@@ -20,12 +21,14 @@ impl TheTrait for Editor {
         // let rc = vm.interpret("let t = 2 + 6;\n let p = clock();\n print(t);".to_string());
 
         Self {
+            project: Project::new(),
+
             sidebar: Sidebar::new(),
             browser: Browser::new(),
-            event_receiver: None,
+            tileeditor: TileEditor::new(),
 
             update_tracker: UpdateTracker::new(),
-            project: Project::default(),
+            event_receiver: None,
         }
     }
 
@@ -66,19 +69,13 @@ impl TheTrait for Editor {
         ui.canvas.set_top(top_canvas);
 
         // Sidebar
-
         self.sidebar.init_ui(ui, ctx, &mut self.project);
 
         // Browser
-
         self.browser.init_ui(ui, ctx, &mut self.project);
 
-        // Main
-
-        let mut center = TheCanvas::new();
-        let tile_editor = TheRGBALayout::new(TheId::named("Region Editor"));
-        center.set_layout(tile_editor);
-        ui.canvas.set_center(center);
+        // TileEditor
+        self.tileeditor.init_ui(ui, ctx, &mut self.project);
 
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
     }
@@ -94,13 +91,19 @@ impl TheTrait for Editor {
                 redraw = self
                     .sidebar
                     .handle_event(&event, ui, ctx, &mut self.project);
+                if self
+                    .tileeditor
+                    .handle_event(&event, ui, ctx, &mut self.project)
+                {
+                    redraw = true;
+                }
                 match event {
                     TheEvent::FileRequesterResult(id, paths) => {
                         if id.name == "Open" {
                             for p in paths {
                                 let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
                                 self.project =
-                                    serde_json::from_str(&contents).unwrap_or(Project::default());
+                                    serde_json::from_str(&contents).unwrap_or(Project::new());
                                 self.sidebar.load_from_project(ui, ctx, &self.project);
                                 redraw = true;
                             }
@@ -144,8 +147,8 @@ impl TheTrait for Editor {
                     }
                     TheEvent::ImageDecodeResult(id, name, buffer) => {
                         // Add a new tilemap to the project
-                        if id.name == "Tiles Add" {
-                            let mut tilemap = Tilemap::default();
+                        if id.name == "Tilemap Add" {
+                            let mut tilemap = Tilemap::new();
                             tilemap.name = name;
                             tilemap.id = id.uuid;
                             tilemap.buffer = buffer;
@@ -155,13 +158,13 @@ impl TheTrait for Editor {
                     }
                     TheEvent::ValueChanged(id, value) => {
                         //println!("{:?} {:?}", id, value);
-                        if id.name == "Tiles Name Edit" {
+                        if id.name == "Tilemap Name Edit" {
                             if let Some(list_id) =
-                                self.sidebar.get_selected_in_list_layout(ui, "Tiles List")
+                                self.sidebar.get_selected_in_list_layout(ui, "Tilemap List")
                             {
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
-                        } else if id.name == "Tiles Item" {
+                        } else if id.name == "Tilemap Item" {
                             for t in &mut self.project.tilemaps {
                                 if t.id == id.uuid {
                                     if let Some(text) = value.to_string() {

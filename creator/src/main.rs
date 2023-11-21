@@ -6,7 +6,9 @@ pub mod misc;
 pub mod project;
 pub mod region;
 pub mod sidebar;
+pub mod tileeditor;
 pub mod tilemap;
+pub mod tiledrawer;
 
 pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
@@ -17,7 +19,9 @@ pub mod prelude {
     pub use crate::project::*;
     pub use crate::region::*;
     pub use crate::sidebar::*;
+    pub use crate::tileeditor::*;
     pub use crate::tilemap::*;
+    pub use crate::tiledrawer::TileDrawer;
 }
 
 use crate::editor::Editor;

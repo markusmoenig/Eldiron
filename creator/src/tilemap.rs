@@ -14,8 +14,14 @@ pub struct Tilemap {
     pub tiles: Vec<Tile>,
 }
 
+impl Default for Tilemap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Tilemap {
-    pub fn default() -> Self {
+    pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
 

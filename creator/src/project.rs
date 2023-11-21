@@ -7,8 +7,14 @@ pub struct Project {
     pub tilemaps: Vec<Tilemap>,
 }
 
+impl Default for Project {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Project {
-    pub fn default() -> Self {
+    pub fn new() -> Self {
         Self {
             name: String::new(),
 

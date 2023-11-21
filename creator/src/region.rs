@@ -14,9 +14,17 @@ pub struct Region {
     pub name: String,
     pub layers: Vec<Layer2D>,
 
+    pub width: i32,
+    pub height: i32,
     pub grid_size: i32,
     pub scroll_offset: Vec2i,
     pub zoom: f32,
+}
+
+impl Default for Region {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Region {
@@ -25,7 +33,7 @@ impl Region {
             id: Uuid::new_v4(),
             region_type: RegionType::Region2D,
 
-            name: String::new(),
+            name: "New Region".to_string(),
             layers: vec![
                 Layer2D::new(),
                 Layer2D::new(),
@@ -33,6 +41,8 @@ impl Region {
                 Layer2D::new(),
             ],
 
+            width: 80,
+            height: 80,
             grid_size: 24,
             scroll_offset: Vec2i::zero(),
             zoom: 1.0,
