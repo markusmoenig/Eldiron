@@ -940,6 +940,7 @@ dependencies = [
  "serde",
  "serde_json",
  "theframework",
+ "vectorize",
 ]
 
 [[package]]

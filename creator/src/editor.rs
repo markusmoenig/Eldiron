@@ -105,12 +105,16 @@ impl TheTrait for Editor {
                                 self.project =
                                     serde_json::from_str(&contents).unwrap_or(Project::new());
                                 self.sidebar.load_from_project(ui, ctx, &self.project);
+                                self.tileeditor.load_from_project(ui, ctx, &self.project);
                                 redraw = true;
                             }
                         } else if id.name == "Save" {
                             for p in paths {
-                                let json = serde_json::to_string(&self.project).unwrap();
-                                std::fs::write(p, json).expect("Unable to write file");
+                                let json = serde_json::to_string(&self.project);//.unwrap();
+                                //println!("{:?}", json.err());
+                                if let Ok(json) = json {
+                                    std::fs::write(p, json).expect("Unable to write file");
+                                }
                             }
                         }
                     }

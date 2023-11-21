@@ -91,7 +91,14 @@ pub enum Layer2DRole {
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct Layer2D {
+    #[serde(with = "vectorize")]
     pub tiles: FxHashMap<(u32, u32), Uuid>,
+}
+
+impl Default for Layer2D {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Layer2D {
