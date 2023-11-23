@@ -27,7 +27,7 @@ jobs:
 
       - name: Build
         run: |
-          cd creator_main
+          cd creator
           cargo build --verbose
 
       # - name: Run tests

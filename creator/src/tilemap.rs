@@ -71,6 +71,20 @@ impl TileRole {
             TileRole::UI => TheColor::from_hex("#e3cfb4"),
         }
     }
+    pub fn to_string(self) -> &'static str {
+        match self {
+            TileRole::Character => "Character",
+            TileRole::GrassAndWood => "Grass and Wood",
+            TileRole::Hill => "Hill",
+            TileRole::Road => "Road",
+            TileRole::Water => "Water",
+            TileRole::ManMade => "Man Made",
+            TileRole::Dungeon => "Dungeon",
+            TileRole::Effect => "Effect",
+            TileRole::Icon => "Icon",
+            TileRole::UI => "UI",
+        }
+    }
     pub fn iterator() -> impl Iterator<Item = TileRole> {
         [
             TileRole::Character,
@@ -100,7 +114,7 @@ pub struct Tile {
 }
 
 impl Tile {
-    pub fn default() -> Self {
+    pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
             name: String::new(),

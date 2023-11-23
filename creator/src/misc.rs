@@ -17,7 +17,7 @@ impl UpdateTracker {
         }
     }
 
-    pub fn update(&mut self, trigger_ms: u64) {
+    pub fn update(&mut self, trigger_ms: u64) -> bool {
         self.update_counter += 1;
 
         if self.last_fps_check.elapsed() >= Duration::from_secs(1) {
@@ -27,7 +27,9 @@ impl UpdateTracker {
         if self.last_internal_update.elapsed() >= Duration::from_millis(trigger_ms) {
             self.internal_update();
             self.last_internal_update = Instant::now();
+            return true;
         }
+        false
     }
 
     fn calculate_and_reset_fps(&mut self) {

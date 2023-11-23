@@ -30,12 +30,7 @@ impl Project {
 
     /// Get the tilemap of the given uuid.
     pub fn get_tilemap(&mut self, uuid: Uuid) -> Option<&mut Tilemap> {
-        for t in &mut self.tilemaps {
-            if t.id == uuid {
-                return Some(t);
-            }
-        }
-        None
+        self.tilemaps.iter_mut().find(|t| t.id == uuid)
     }
 
     /// Extract all tiles from all tilemaps and store them in a hash.

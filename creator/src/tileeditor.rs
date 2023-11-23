@@ -21,7 +21,7 @@ impl TileEditor {
         let mut region_editor = TheRGBALayout::new(TheId::named("Region Editor"));
         if let Some(rgba_view) = region_editor.rgba_view_mut().as_rgba_view() {
             rgba_view.set_mode(TheRGBAViewMode::TileEditor);
-            rgba_view.set_selection_color([255, 255, 255, 10]);
+            rgba_view.set_grid_color([255, 255, 255, 5]);
         }
         center.set_layout(region_editor);
         ui.canvas.set_center(center);
@@ -43,18 +43,27 @@ impl TileEditor {
         match event {
             TheEvent::TileEditorClicked(_id, coord) => {
                 if let Some(coord) = coord.to_vec2i() {
-                    if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None)
+                    if let Some(rgba_layout) =
+                        ui.canvas.get_layout(Some(&"Region Editor".into()), None)
                     {
                         if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
                             if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                                self.tiledrawer.draw_tile(coord, rgba_view.buffer_mut(), 24, self.curr_tile_uuid, ctx);
+                                self.tiledrawer.draw_tile(
+                                    coord,
+                                    rgba_view.buffer_mut(),
+                                    24,
+                                    self.curr_tile_uuid,
+                                    ctx,
+                                );
                             }
                         }
                     }
                     if self.tiledrawer.tiles.contains_key(&self.curr_tile_uuid) {
                         for r in &mut project.regions {
                             if r.id == self.curr_region_uuid {
-                                r.layers[0].tiles.insert((coord.x as u32, coord.y as u32), self.curr_tile_uuid);
+                                r.layers[0]
+                                    .tiles
+                                    .insert((coord.x as u32, coord.y as u32), self.curr_tile_uuid);
                             }
                         }
                     }

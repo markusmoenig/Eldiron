@@ -84,7 +84,19 @@ impl TheTrait for Editor {
     fn update_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
         let mut redraw = false;
 
-        let _internal_update = self.update_tracker.update(250); // 4 fps
+        if self.update_tracker.update(250) {
+
+            // Update the widgets which have anims (if they are visible)
+            if let Some(icon_view) = ui
+                .canvas
+                .get_widget(Some(&"Tilemap Editor Icon View".to_string()), None)
+            {
+                if let Some(icon_view) = icon_view.as_icon_view() {
+                    icon_view.step();
+                    redraw = true;
+                }
+            }
+        }
 
         if let Some(receiver) = &mut self.event_receiver {
             while let Ok(event) = receiver.try_recv() {
@@ -110,8 +122,8 @@ impl TheTrait for Editor {
                             }
                         } else if id.name == "Save" {
                             for p in paths {
-                                let json = serde_json::to_string(&self.project);//.unwrap();
-                                //println!("{:?}", json.err());
+                                let json = serde_json::to_string(&self.project); //.unwrap();
+                                                                                 //println!("{:?}", json.err());
                                 if let Ok(json) = json {
                                     std::fs::write(p, json).expect("Unable to write file");
                                 }
