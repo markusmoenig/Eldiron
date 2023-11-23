@@ -7,6 +7,12 @@ pub struct UpdateTracker {
     last_internal_update: Instant,
 }
 
+impl Default for UpdateTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UpdateTracker {
     pub fn new() -> Self {
         UpdateTracker {

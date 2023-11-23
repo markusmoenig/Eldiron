@@ -27,7 +27,7 @@ impl TileEditor {
         ui.canvas.set_center(center);
     }
 
-    pub fn load_from_project(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
+    pub fn load_from_project(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
         self.tiledrawer.tiles = project.extract_tiles();
     }
 

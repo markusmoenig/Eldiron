@@ -404,7 +404,11 @@ impl Sidebar {
                             hdivider.limiter_mut().set_max_width(15);
                             toolbar_hlayout.add_widget(Box::new(hdivider));
 
+                            let mut drop_down = TheDropdownMenu::new(TheId::named("Tilemap Editor Role"));
+
                             for dir in TileRole::iterator() {
+                                drop_down.add_option(dir.to_string().to_string());
+                                /*
                                 let mut color_button = TheColorButton::new(TheId::named(
                                     "Tilemap Editor Filter Character",
                                 ));
@@ -413,8 +417,10 @@ impl Sidebar {
                                 if dir == TileRole::Character {
                                     color_button.set_state(TheWidgetState::Selected);
                                 }
-                                toolbar_hlayout.add_widget(Box::new(color_button));
+                                toolbar_hlayout.add_widget(Box::new(color_button));*/
                             }
+                            toolbar_hlayout.add_widget(Box::new(drop_down));
+
                             let mut hdivider = TheHDivider::new(TheId::empty());
                             hdivider.limiter_mut().set_max_width(15);
                             toolbar_hlayout.add_widget(Box::new(hdivider));
@@ -473,6 +479,13 @@ impl Sidebar {
                                 .get_widget(Some(&"Tilemap Editor Block".to_string()), None)
                             {
                                 tile.blocking = block_widget.state() == TheWidgetState::Selected;
+                            }
+
+                            if let Some(role_widget) = ui
+                                .get_drop_down_menu("Tilemap Editor Role")
+                            {
+                                let index = role_widget.selected_index();
+                                tile.role = TileRole::from_index(index as u8).unwrap();
                             }
 
                             // Only add if non-empty

@@ -101,6 +101,21 @@ impl TileRole {
         .iter()
         .copied()
     }
+    pub fn from_index(index: u8) -> Option<TileRole> {
+        match index {
+            0 => Some(TileRole::Character),
+            1 => Some(TileRole::GrassAndWood),
+            2 => Some(TileRole::Hill),
+            3 => Some(TileRole::Road),
+            4 => Some(TileRole::Water),
+            5 => Some(TileRole::ManMade),
+            6 => Some(TileRole::Dungeon),
+            7 => Some(TileRole::Effect),
+            8 => Some(TileRole::Icon),
+            9 => Some(TileRole::UI),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -111,6 +126,12 @@ pub struct Tile {
 
     pub sequence: TheRGBARegionSequence,
     pub blocking: bool,
+}
+
+impl Default for Tile {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Tile {
