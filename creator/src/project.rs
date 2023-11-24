@@ -33,6 +33,11 @@ impl Project {
         self.tilemaps.iter_mut().find(|t| t.id == uuid)
     }
 
+    /// Removes the given tilemap from the project.
+    pub fn remove_tilemap(&mut self, id: TheId) {
+        self.tilemaps.retain(|item| item.id != id.uuid);
+    }
+
     /// Extract all tiles from all tilemaps and store them in a hash.
     pub fn extract_tiles(&self) -> FxHashMap<Uuid, TheRGBATile> {
         let mut tiles = FxHashMap::default();

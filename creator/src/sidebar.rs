@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub struct Sidebar {
     stack_layout_id: TheId,
 
-    curr_tilemap_uuid: Uuid,
+    curr_tilemap_uuid: Option<Uuid>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -11,7 +11,7 @@ impl Sidebar {
     pub fn new() -> Self {
         Self {
             stack_layout_id: TheId::empty(),
-            curr_tilemap_uuid: Uuid::new_v4(),
+            curr_tilemap_uuid: None,
         }
     }
 
@@ -342,11 +342,21 @@ impl Sidebar {
                         .set_widget_state("Tilemap Add".to_string(), TheWidgetState::None);
                     ctx.ui.clear_hover();
                     redraw = true;
+                } else
+                if id.name == "Tilemap Remove" {
+                    if let Some(list_layout) = ui.get_list_layout("Tilemap List") {
+                        if let Some(selected) = list_layout.selected() {
+                            list_layout.remove(selected.clone());
+                            project.remove_tilemap(selected);
+                            self.apply_tilemap(ui, ctx, None);
+                            self.curr_tilemap_uuid = None;
+                        }
+                    }
                 } else if id.name == "Tilemap Item" {
                     // Display the tilemap editor
                     for t in &project.tilemaps {
                         if t.id == id.uuid {
-                            self.curr_tilemap_uuid = t.id;
+                            self.curr_tilemap_uuid = Some(t.id);
 
                             let mut center = TheCanvas::new();
 
@@ -512,11 +522,13 @@ impl Sidebar {
                                         item.set_state(TheWidgetState::Selected);
                                         item.set_size(42);
                                         item.set_associated_layout(list_layout_id);
-                                        if let Some(t) = project.get_tilemap(self.curr_tilemap_uuid)
-                                        {
-                                            item.set_icon(
-                                                tile.sequence.regions[0].scale(&t.buffer, 36, 36),
-                                            );
+                                        if let Some(curr_tilemap_uuid) = self.curr_tilemap_uuid {
+                                            if let Some(t) = project.get_tilemap(curr_tilemap_uuid)
+                                            {
+                                                item.set_icon(
+                                                    tile.sequence.regions[0].scale(&t.buffer, 36, 36),
+                                                );
+                                            }
                                         }
                                         list_layout.deselect_all();
                                         let id = item.id().clone();
@@ -532,8 +544,10 @@ impl Sidebar {
                                 }
                             }
 
-                            if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_uuid) {
-                                tilemap.tiles.push(tile);
+                            if let Some(curr_tilemap_uuid) = self.curr_tilemap_uuid {
+                                if let Some(tilemap) = project.get_tilemap(curr_tilemap_uuid) {
+                                    tilemap.tiles.push(tile);
+                                }
                             }
                         }
                     }
@@ -685,6 +699,8 @@ impl Sidebar {
         ctx: &mut TheContext,
         tilemap: Option<&Tilemap>,
     ) {
+        ui.set_widget_disabled_state("Tilemap Remove", ctx, tilemap.is_none());
+
         if let Some(widget) = ui
             .canvas
             .get_widget(Some(&"Tilemap Name Edit".to_string()), None)
