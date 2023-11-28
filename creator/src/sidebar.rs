@@ -87,7 +87,7 @@ impl Sidebar {
         toolbar_canvas.set_layout(toolbar_hlayout);
         list_canvas.set_bottom(toolbar_canvas);
 
-        let mut text_layout = TheTextLayout::new(TheId::empty());
+        let mut text_layout: TheTextLayout = TheTextLayout::new(TheId::empty());
         text_layout.limiter_mut().set_max_width(width);
         let name_edit = TheTextLineEdit::new(TheId::named("Region Name Edit"));
         text_layout.add_pair("Name".to_string(), Box::new(name_edit));

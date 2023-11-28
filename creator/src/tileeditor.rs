@@ -24,6 +24,35 @@ impl TileEditor {
             rgba_view.set_grid_color([255, 255, 255, 5]);
         }
         center.set_layout(region_editor);
+
+        // Top Toolbar
+        let mut top_toolbar = TheCanvas::new();
+        top_toolbar.set_widget(TheTraybar::new(TheId::empty()));
+
+        let mut gb = TheGroupButton::new(TheId::named("2D3D Group"));
+        gb.add_text("2D Map".to_string());
+        gb.add_text("2D / 3D".to_string());
+        gb.add_text("3D Map".to_string());
+
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(vec4i(5, 4, 5, 4));
+        toolbar_hlayout.add_widget(Box::new(gb));
+
+        top_toolbar.set_layout(toolbar_hlayout);
+        center.set_top(top_toolbar);
+
+        // Bottom Toolbar
+
+        let mut bottom_toolbar = TheCanvas::new();
+        bottom_toolbar.set_widget(TheTraybar::new(TheId::empty()));
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(vec4i(5, 4, 5, 4));
+
+        bottom_toolbar.set_layout(toolbar_hlayout);
+        center.set_bottom(bottom_toolbar);
+
         ui.canvas.set_center(center);
     }
 
