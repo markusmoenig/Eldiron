@@ -1,4 +1,6 @@
-use crate::{browser::Browser, prelude::*};
+use theframework::theui::TheLayout;
+
+use crate::{browser::Browser, prelude::*, widgets::thesoft3dview::TheSoft3DViewTrait};
 use std::sync::mpsc::Receiver;
 
 pub struct Editor {
@@ -77,6 +79,11 @@ impl TheTrait for Editor {
         // TileEditor
         self.tileeditor.init_ui(ui, ctx, &mut self.project);
 
+        let mut c: TheCanvas = TheCanvas::new();
+        let view = TheSoft3DView::new(TheId::named("Soft3DView"));
+        c.set_widget(view);
+        //ui.canvas.set_center(c);
+
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
     }
 
@@ -134,6 +141,16 @@ impl TheTrait for Editor {
                         // Open / Save Project
 
                         if id.name == "Open" {
+
+                            if let Some(widget) = ui.get_widget("Soft3DView") {
+                                if let Some(w) = widget
+                                    .as_any()
+                                    .downcast_mut::<TheSoft3DView>()
+                                    .map(|external_widget| external_widget as &mut dyn TheSoft3DViewTrait) {
+                                        w.set_color(WHITE);
+                                    }
+                            }
+
                             ctx.ui.open_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                                 "Open".into(),

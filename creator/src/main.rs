@@ -9,6 +9,7 @@ pub mod sidebar;
 pub mod tiledrawer;
 pub mod tileeditor;
 pub mod tilemap;
+pub mod widgets;
 
 pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
@@ -22,6 +23,8 @@ pub mod prelude {
     pub use crate::tiledrawer::TileDrawer;
     pub use crate::tileeditor::*;
     pub use crate::tilemap::*;
+
+    pub use crate::widgets::thesoft3dview::TheSoft3DView;
 }
 
 use crate::editor::Editor;

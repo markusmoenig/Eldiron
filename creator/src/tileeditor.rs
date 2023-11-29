@@ -18,12 +18,26 @@ impl TileEditor {
 
     pub fn init_ui(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, _project: &mut Project) {
         let mut center = TheCanvas::new();
+
+        let mut shared_layout = TheSharedLayout::new(TheId::named("Editor Shared"));
+
         let mut region_editor = TheRGBALayout::new(TheId::named("Region Editor"));
         if let Some(rgba_view) = region_editor.rgba_view_mut().as_rgba_view() {
             rgba_view.set_mode(TheRGBAViewMode::TileEditor);
             rgba_view.set_grid_color([255, 255, 255, 5]);
         }
-        center.set_layout(region_editor);
+
+        let mut region_editor_canvas = TheCanvas::new();
+        region_editor_canvas.set_layout(region_editor);
+        shared_layout.add_canvas(region_editor_canvas);
+
+        let mut view_3d_canvas: TheCanvas = TheCanvas::new();
+        let view_3d = TheSoft3DView::new(TheId::named("Soft3DView"));
+        view_3d_canvas.set_widget(view_3d);
+
+        shared_layout.add_canvas(view_3d_canvas);
+
+        center.set_layout(shared_layout);
 
         // Top Toolbar
         let mut top_toolbar = TheCanvas::new();
@@ -31,7 +45,7 @@ impl TileEditor {
 
         let mut gb = TheGroupButton::new(TheId::named("2D3D Group"));
         gb.add_text("2D Map".to_string());
-        gb.add_text("2D / 3D".to_string());
+        gb.add_text("Mixed".to_string());
         gb.add_text("3D Map".to_string());
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
@@ -46,9 +60,16 @@ impl TileEditor {
 
         let mut bottom_toolbar = TheCanvas::new();
         bottom_toolbar.set_widget(TheTraybar::new(TheId::empty()));
+
+        let mut gb = TheGroupButton::new(TheId::named("Editor Group"));
+        gb.add_text("Draw".to_string());
+        gb.add_text("Pick".to_string());
+        gb.add_text("Select".to_string());
+
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(5, 4, 5, 4));
+        toolbar_hlayout.add_widget(Box::new(gb));
 
         bottom_toolbar.set_layout(toolbar_hlayout);
         center.set_bottom(bottom_toolbar);
@@ -70,6 +91,20 @@ impl TileEditor {
     ) -> bool {
         let mut redraw = false;
         match event {
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == "2D3D Group" {
+                    if let Some(shared) = ui.get_shared_layout("Editor Shared") {
+                        if *index == 0 {
+                            shared.set_mode(TheSharedLayoutMode::Left);
+                        } else if *index == 1 {
+                            shared.set_mode(TheSharedLayoutMode::Shared);
+                        } else if *index == 2 {
+                            shared.set_mode(TheSharedLayoutMode::Right);
+                        }
+                        ctx.ui.relayout = true;
+                    }
+                }
+            }
             TheEvent::TileEditorClicked(_id, coord) => {
                 if let Some(coord) = coord.to_vec2i() {
                     if let Some(rgba_layout) =
