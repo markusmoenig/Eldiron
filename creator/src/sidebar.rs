@@ -71,16 +71,22 @@ impl Sidebar {
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
-        let mut regions_add_button = TheTraybarButton::new(TheId::named("Region Add"));
-        regions_add_button.set_icon_name("icon_role_add".to_string());
-        let mut regions_remove_button = TheTraybarButton::new(TheId::named("Region Remove"));
-        regions_remove_button.set_icon_name("icon_role_remove".to_string());
+        let mut region_add_button = TheTraybarButton::new(TheId::named("Region Add"));
+        region_add_button.set_icon_name("icon_role_add".to_string());
+        let mut region_remove_button = TheTraybarButton::new(TheId::named("Region Remove"));
+        region_remove_button.set_icon_name("icon_role_remove".to_string());
+        region_remove_button.set_disabled(true);
+        let mut region_settings_button = TheTraybarButton::new(TheId::named("Region Settings"));
+        region_settings_button.set_text("Settings ...".to_string());
+        region_settings_button.set_disabled(true);
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
-        toolbar_hlayout.add_widget(Box::new(regions_add_button));
-        toolbar_hlayout.add_widget(Box::new(regions_remove_button));
+        toolbar_hlayout.add_widget(Box::new(region_add_button));
+        toolbar_hlayout.add_widget(Box::new(region_remove_button));
+        toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+        toolbar_hlayout.add_widget(Box::new(region_settings_button));
 
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
@@ -250,6 +256,9 @@ impl Sidebar {
     ) -> bool {
         let mut redraw = false;
         match event {
+            TheEvent::ShowContextMenu(id, _coord) => {
+                println!("ShowContextMenu {}", id.name);
+            }
             TheEvent::TileSelectionChanged(id) => {
                 if id.name == "Tilemap Editor View" {
                     // Selection changed in the tilemap editor
@@ -330,7 +339,9 @@ impl Sidebar {
                             redraw = true;
                         }
                     }
-                } else
+                } else if id.name == "Region Settings" {
+                    self.show_region_settings(ctx);
+                }  else
                 // Tilemap Item Handling
                 if id.name == "Tilemap Add" {
                     ctx.ui.open_file_requester(
@@ -641,7 +652,10 @@ impl Sidebar {
     }
 
     /// Apply the given item to the UI
-    pub fn apply_region(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, region: Option<&Region>) {
+    pub fn apply_region(&mut self, ui: &mut TheUI, ctx: &mut TheContext, region: Option<&Region>) {
+        ui.set_widget_disabled_state("Region Remove", ctx, region.is_none());
+        ui.set_widget_disabled_state("Region Settings", ctx, region.is_none());
+
         if let Some(widget) = ui
             .canvas
             .get_widget(Some(&"Region Name Edit".to_string()), None)
@@ -758,6 +772,41 @@ impl Sidebar {
                 }
             }
         }
+    }
+
+    pub fn show_region_settings(&mut self, ctx: &mut TheContext) {
+
+        let width = 400;
+        let height = 400;
+
+        let mut canvas = TheCanvas::new();
+        canvas.limiter_mut().set_max_size(vec2i(width, height));
+
+        let mut text_layout: TheTextLayout = TheTextLayout::new(TheId::empty());
+        text_layout.limiter_mut().set_max_width(width);
+        let name_edit = TheTextLineEdit::new(TheId::named("Region Name Edit"));
+        text_layout.add_pair("Name".to_string(), Box::new(name_edit));
+        let width_edit = TheTextLineEdit::new(TheId::named("Region Width Edit"));
+        text_layout.add_pair("Width in Grid".to_string(), Box::new(width_edit));
+        let height_edit = TheTextLineEdit::new(TheId::named("Region Height Edit"));
+        text_layout.add_pair("Height in Grid".to_string(), Box::new(height_edit));
+        let grid_edit = TheTextLineEdit::new(TheId::named("Region Grid Edit"));
+        text_layout.add_pair("Grid Size".to_string(), Box::new(grid_edit));
+
+
+        // let mut yellow_canvas = TheCanvas::default();
+        // let mut yellow_color = TheColorButton::new(TheId::named("Yellow"));
+        // yellow_color.set_color([255, 255, 0, 255]);
+        // yellow_color.limiter_mut().set_max_size(vec2i(width, 200));
+        // yellow_canvas.set_widget(yellow_color);
+
+        // regions_canvas.set_top(list_canvas);
+        // regions_canvas.set_layout(text_layout);
+        // regions_canvas.set_bottom(yellow_canvas);
+        // stack_layout.add_canvas(regions_canvas);
+
+        canvas.set_layout(text_layout);
+        ctx.ui.show_dialog("Region Settings", canvas);
     }
 
     /// Deselects the section buttons
