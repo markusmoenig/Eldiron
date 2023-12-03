@@ -4,6 +4,11 @@ pub struct TileEditor {
     tiledrawer: TileDrawer,
     curr_region_uuid: Uuid,
     curr_tile_uuid: Uuid,
+
+    curr_layer_role: Layer2DRole,
+
+    icon_normal_border_color: RGBA,
+    icon_selected_border_color: RGBA,
 }
 
 #[allow(clippy::new_without_default)]
@@ -13,6 +18,11 @@ impl TileEditor {
             tiledrawer: TileDrawer::new(),
             curr_region_uuid: Uuid::new_v4(),
             curr_tile_uuid: Uuid::new_v4(),
+
+            curr_layer_role: Layer2DRole::Ground,
+
+            icon_normal_border_color: [100, 100, 100, 255],
+            icon_selected_border_color: [255, 255, 255, 255],
         }
     }
 
@@ -25,6 +35,7 @@ impl TileEditor {
         if let Some(rgba_view) = region_editor.rgba_view_mut().as_rgba_view() {
             rgba_view.set_mode(TheRGBAViewMode::TileEditor);
             rgba_view.set_grid_color([255, 255, 255, 5]);
+            rgba_view.set_hover_color(Some([255, 255, 255, 100]));
         }
 
         let mut region_editor_canvas = TheCanvas::new();
@@ -32,12 +43,81 @@ impl TileEditor {
         shared_layout.add_canvas(region_editor_canvas);
 
         let mut view_3d_canvas: TheCanvas = TheCanvas::new();
-        let view_3d = TheSoft3DView::new(TheId::named("Soft3DView"));
+        let view_3d = The3DView::new(TheId::named("Soft3DView"));
         view_3d_canvas.set_widget(view_3d);
 
         shared_layout.add_canvas(view_3d_canvas);
 
         center.set_layout(shared_layout);
+
+        // Picker
+
+        let mut tile_picker = TheCanvas::new();
+        let mut vlayout = TheVLayout::new(TheId::empty());
+        vlayout.set_background_color(Some(TheThemeColors::ListLayoutBackground));
+        vlayout.limiter_mut().set_max_width(90);
+        vlayout.set_margin(vec4i(0, 10, 0, 5));
+
+        let mut icon_preview = TheIconView::new(TheId::named("Icon Preview"));
+        icon_preview.limiter_mut().set_max_size(vec2i(60, 60));
+        icon_preview.set_border_color(Some([100, 100, 100, 255]));
+        vlayout.add_widget(Box::new(icon_preview));
+
+        // let mut gb = TheGroupButton::new(TheId::named("LMBRMB Group"));
+        // gb.set_item_width(40);
+
+        // gb.add_text("LMB".to_string());
+        // gb.add_text("RMB".to_string());
+
+        // vlayout.add_widget(Box::new(gb));
+
+        let mut spacer = TheIconView::new(TheId::empty());
+        spacer.limiter_mut().set_max_height(5);
+        vlayout.add_widget(Box::new(spacer));
+
+        let mut ground_icon = TheIconView::new(TheId::named("Ground Icon"));
+        ground_icon.set_text(Some("FLOOR".to_string()));
+        ground_icon.set_text_size(10.0);
+        ground_icon.set_text_color([200, 200, 200, 255]);
+        ground_icon.limiter_mut().set_max_size(vec2i(48, 48));
+        ground_icon.set_border_color(Some(self.icon_selected_border_color));
+
+        let mut wall_icon = TheIconView::new(TheId::named("Wall Icon"));
+        wall_icon.set_text(Some("WALL".to_string()));
+        wall_icon.set_text_size(10.0);
+        wall_icon.set_text_color([200, 200, 200, 255]);
+        wall_icon.limiter_mut().set_max_size(vec2i(48, 48));
+        wall_icon.set_border_color(Some(self.icon_normal_border_color));
+
+        let mut ceiling_icon = TheIconView::new(TheId::named("Ceiling Icon"));
+        ceiling_icon.set_text(Some("CEILING".to_string()));
+        ceiling_icon.set_text_size(10.0);
+        ceiling_icon.set_text_color([200, 200, 200, 255]);
+        ceiling_icon.limiter_mut().set_max_size(vec2i(48, 48));
+        ceiling_icon.set_border_color(Some(self.icon_normal_border_color));
+
+        let mut overlay_icon = TheIconView::new(TheId::named("Overlay Icon"));
+        overlay_icon.set_text(Some("OVER".to_string()));
+        overlay_icon.set_text_size(10.0);
+        overlay_icon.set_text_color([200, 200, 200, 255]);
+        overlay_icon.limiter_mut().set_max_size(vec2i(48, 48));
+        overlay_icon.set_border_color(Some(self.icon_normal_border_color));
+
+        vlayout.add_widget(Box::new(ground_icon));
+        vlayout.add_widget(Box::new(wall_icon));
+        vlayout.add_widget(Box::new(ceiling_icon));
+        vlayout.add_widget(Box::new(overlay_icon));
+
+        let mut spacer = TheIconView::new(TheId::empty());
+        spacer.limiter_mut().set_max_height(5);
+        vlayout.add_widget(Box::new(spacer));
+
+        let mut text = TheText::new(TheId::named("Cursor Position"));
+        text.set_text_color([200, 200, 200, 255]);
+        vlayout.add_widget(Box::new(text));
+
+        tile_picker.set_layout(vlayout);
+        center.set_left(tile_picker);
 
         // Top Toolbar
         let mut top_toolbar = TheCanvas::new();
@@ -57,7 +137,6 @@ impl TileEditor {
         center.set_top(top_toolbar);
 
         // Bottom Toolbar
-
         let mut bottom_toolbar = TheCanvas::new();
         bottom_toolbar.set_widget(TheTraybar::new(TheId::empty()));
 
@@ -106,30 +185,43 @@ impl TileEditor {
                 }
             }
             TheEvent::TileEditorClicked(_id, coord) => {
-                if let Some(coord) = coord.to_vec2i() {
-                    if let Some(rgba_layout) =
-                        ui.canvas.get_layout(Some(&"Region Editor".into()), None)
-                    {
-                        if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
-                            if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                                self.tiledrawer.draw_tile(
-                                    coord,
-                                    rgba_view.buffer_mut(),
-                                    24,
-                                    self.curr_tile_uuid,
-                                    ctx,
-                                );
-                            }
+                if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None)
+                {
+                    if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
+                        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                            self.tiledrawer.draw_tile(
+                                *coord,
+                                rgba_view.buffer_mut(),
+                                24,
+                                self.curr_tile_uuid,
+                                ctx,
+                            );
                         }
                     }
-                    if self.tiledrawer.tiles.contains_key(&self.curr_tile_uuid) {
-                        for r in &mut project.regions {
-                            if r.id == self.curr_region_uuid {
-                                r.layers[0]
-                                    .tiles
-                                    .insert((coord.x as u32, coord.y as u32), self.curr_tile_uuid);
-                            }
+                }
+                if self.tiledrawer.tiles.contains_key(&self.curr_tile_uuid) {
+                    for r in &mut project.regions {
+                        if r.id == self.curr_region_uuid {
+                            r.layers[self.curr_layer_role as usize]
+                                .tiles
+                                .insert((coord.x as u32, coord.y as u32), self.curr_tile_uuid);
+                                self.set_icon_previews(r, *coord, ui);
                         }
+                    }
+                }
+            }
+            TheEvent::TileEditorHoverChanged(_id, coord) => {
+
+                if let Some(text) = ui.get_text("Cursor Position") {
+                    text.set_text(format!("({}, {})", coord.x, coord.y));
+                    redraw = true;
+                    ctx.ui.relayout = true;
+                }
+
+                for r in &mut project.regions {
+                    if r.id == self.curr_region_uuid {
+                        self.set_icon_previews(r, *coord, ui);
+                        break;
                     }
                 }
             }
@@ -162,12 +254,111 @@ impl TileEditor {
                     }
                 } else if id.name == "Tilemap Tile" {
                     self.curr_tile_uuid = id.uuid;
+
+                    if let Some(t) = self.tiledrawer.tiles.get(&id.uuid) {
+                        if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
+                            icon_view.set_rgba_tile(t.clone());
+                        }
+                    }
                 } else if id.name == "Tilemap Editor Add Selection" {
                     self.tiledrawer.tiles = project.extract_tiles();
+                } else if id.name == "Ground Icon" {
+                    self.curr_layer_role = Layer2DRole::Ground;
+                    self.set_icon_colors(ui);
+                    redraw = true;
+                } else if id.name == "Wall Icon" {
+                    self.curr_layer_role = Layer2DRole::Wall;
+                    self.set_icon_colors(ui);
+                    redraw = true;
+                } else if id.name == "Ceiling Icon" {
+                    self.curr_layer_role = Layer2DRole::Ceiling;
+                    self.set_icon_colors(ui);
+                    redraw = true;
+                } else if id.name == "Overlay Icon" {
+                    self.curr_layer_role = Layer2DRole::Overlay;
+                    self.set_icon_colors(ui);
+                    redraw = true;
                 }
             }
             _ => {}
         }
         redraw
+    }
+
+    fn set_icon_previews(&mut self, region: &mut Region, coord: Vec2i, ui: &mut TheUI) {
+        // Ground Icon Preview
+        if let Some(id) = region.layers[0].tiles.get(&(coord.x as u32, coord.y as u32)) {
+            if let Some(tile) = self.tiledrawer.tiles.get(id) {
+                if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                    icon_view.set_rgba_tile(tile.clone());
+                }
+            }
+        } else if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+            icon_view.set_rgba_tile(TheRGBATile::default());
+        }
+
+        // Wall Icon Preview
+        if let Some(id) = region.layers[1].tiles.get(&(coord.x as u32, coord.y as u32)) {
+            if let Some(tile) = self.tiledrawer.tiles.get(id) {
+                if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
+                    icon_view.set_rgba_tile(tile.clone());
+                }
+            }
+        } else if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
+            icon_view.set_rgba_tile(TheRGBATile::default());
+        }
+
+        // Ceiling Icon Preview
+        if let Some(id) = region.layers[2].tiles.get(&(coord.x as u32, coord.y as u32)) {
+            if let Some(tile) = self.tiledrawer.tiles.get(id) {
+                if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
+                    icon_view.set_rgba_tile(tile.clone());
+                }
+            }
+        } else if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
+            icon_view.set_rgba_tile(TheRGBATile::default());
+        }
+
+        // Overlay Icon Preview
+        if let Some(id) = region.layers[3].tiles.get(&(coord.x as u32, coord.y as u32)) {
+            if let Some(tile) = self.tiledrawer.tiles.get(id) {
+                if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
+                    icon_view.set_rgba_tile(tile.clone());
+                }
+            }
+        } else if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
+            icon_view.set_rgba_tile(TheRGBATile::default());
+        }
+}
+
+    fn set_icon_colors(&mut self, ui: &mut TheUI) {
+        if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+            icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Ground {
+                Some(self.icon_selected_border_color)
+            } else {
+                Some(self.icon_normal_border_color)
+            });
+        }
+        if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
+            icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Wall {
+                Some(self.icon_selected_border_color)
+            } else {
+                Some(self.icon_normal_border_color)
+            });
+        }
+        if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
+            icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Ceiling {
+                Some(self.icon_selected_border_color)
+            } else {
+                Some(self.icon_normal_border_color)
+            });
+        }
+        if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
+            icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Overlay {
+                Some(self.icon_selected_border_color)
+            } else {
+                Some(self.icon_normal_border_color)
+            });
+        }
     }
 }

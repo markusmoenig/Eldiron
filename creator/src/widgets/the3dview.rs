@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-pub struct TheSoft3DView {
+pub struct The3DView {
     id: TheId,
     limiter: TheSizeLimiter,
     state: TheWidgetState,
@@ -10,7 +10,7 @@ pub struct TheSoft3DView {
     is_dirty: bool,
 }
 
-impl TheWidget for TheSoft3DView {
+impl TheWidget for The3DView {
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -136,11 +136,11 @@ impl TheWidget for TheSoft3DView {
     }
 }
 
-pub trait TheSoft3DViewTrait {
+pub trait The3DViewTrait {
     fn set_color(&mut self, color: RGBA);
 }
 
-impl TheSoft3DViewTrait for TheSoft3DView {
+impl The3DViewTrait for The3DView {
     fn set_color(&mut self, color: RGBA) {
         self.color = color;
         println!("ddad");

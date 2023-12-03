@@ -24,7 +24,7 @@ pub mod prelude {
     pub use crate::tileeditor::*;
     pub use crate::tilemap::*;
 
-    pub use crate::widgets::thesoft3dview::TheSoft3DView;
+    pub use crate::widgets::the3dview::{The3DView, The3DViewTrait};
 }
 
 use crate::editor::Editor;

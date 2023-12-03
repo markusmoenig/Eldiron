@@ -1,2 +1,1 @@
-pub mod thesoft3dview;
-
+pub mod the3dview;

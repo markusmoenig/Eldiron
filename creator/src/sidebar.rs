@@ -267,7 +267,6 @@ impl Sidebar {
                         .get_widget(Some(&"Tilemap Editor View".to_string()), None)
                     {
                         if let Some(rgba_view) = rgba_view.as_rgba_view() {
-
                             let tile = rgba_view.selection_as_tile();
 
                             if let Some(icon_view) = ui
@@ -340,8 +339,8 @@ impl Sidebar {
                         }
                     }
                 } else if id.name == "Region Settings" {
-                    self.show_region_settings(ctx);
-                }  else
+                    self.show_region_settings(ui, ctx);
+                } else
                 // Tilemap Item Handling
                 if id.name == "Tilemap Add" {
                     ctx.ui.open_file_requester(
@@ -353,8 +352,7 @@ impl Sidebar {
                         .set_widget_state("Tilemap Add".to_string(), TheWidgetState::None);
                     ctx.ui.clear_hover();
                     redraw = true;
-                } else
-                if id.name == "Tilemap Remove" {
+                } else if id.name == "Tilemap Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Tilemap List") {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
@@ -425,7 +423,8 @@ impl Sidebar {
                             hdivider.limiter_mut().set_max_width(15);
                             toolbar_hlayout.add_widget(Box::new(hdivider));
 
-                            let mut drop_down = TheDropdownMenu::new(TheId::named("Tilemap Editor Role"));
+                            let mut drop_down =
+                                TheDropdownMenu::new(TheId::named("Tilemap Editor Role"));
 
                             for dir in TileRole::iterator() {
                                 drop_down.add_option(dir.to_string().to_string());
@@ -502,8 +501,7 @@ impl Sidebar {
                                 tile.blocking = block_widget.state() == TheWidgetState::Selected;
                             }
 
-                            if let Some(role_widget) = ui
-                                .get_drop_down_menu("Tilemap Editor Role")
+                            if let Some(role_widget) = ui.get_drop_down_menu("Tilemap Editor Role")
                             {
                                 let index = role_widget.selected_index();
                                 tile.role = TileRole::from_index(index as u8).unwrap();
@@ -537,7 +535,8 @@ impl Sidebar {
                                             if let Some(t) = project.get_tilemap(curr_tilemap_uuid)
                                             {
                                                 item.set_icon(
-                                                    tile.sequence.regions[0].scale(&t.buffer, 36, 36),
+                                                    tile.sequence.regions[0]
+                                                        .scale(&t.buffer, 36, 36),
                                                 );
                                             }
                                         }
@@ -774,8 +773,7 @@ impl Sidebar {
         }
     }
 
-    pub fn show_region_settings(&mut self, ctx: &mut TheContext) {
-
+    pub fn show_region_settings(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         let width = 400;
         let height = 400;
 
@@ -793,7 +791,6 @@ impl Sidebar {
         let grid_edit = TheTextLineEdit::new(TheId::named("Region Grid Edit"));
         text_layout.add_pair("Grid Size".to_string(), Box::new(grid_edit));
 
-
         // let mut yellow_canvas = TheCanvas::default();
         // let mut yellow_color = TheColorButton::new(TheId::named("Yellow"));
         // yellow_color.set_color([255, 255, 0, 255]);
@@ -806,7 +803,7 @@ impl Sidebar {
         // stack_layout.add_canvas(regions_canvas);
 
         canvas.set_layout(text_layout);
-        ctx.ui.show_dialog("Region Settings", canvas);
+        ui.show_dialog("Region Settings", canvas, ctx);
     }
 
     /// Deselects the section buttons

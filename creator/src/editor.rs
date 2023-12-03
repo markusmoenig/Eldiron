@@ -1,6 +1,6 @@
 use theframework::theui::TheLayout;
 
-use crate::{browser::Browser, prelude::*, widgets::thesoft3dview::TheSoft3DViewTrait};
+use crate::prelude::*;
 use std::sync::mpsc::Receiver;
 
 pub struct Editor {
@@ -80,7 +80,7 @@ impl TheTrait for Editor {
         self.tileeditor.init_ui(ui, ctx, &mut self.project);
 
         let mut c: TheCanvas = TheCanvas::new();
-        let view = TheSoft3DView::new(TheId::named("Soft3DView"));
+        let view = The3DView::new(TheId::named("Soft3DView"));
         c.set_widget(view);
         //ui.canvas.set_center(c);
 
@@ -92,12 +92,14 @@ impl TheTrait for Editor {
         let mut redraw = false;
 
         if self.update_tracker.update(250) {
-
             // Update the widgets which have anims (if they are visible)
-            if let Some(icon_view) = ui
-                .canvas
-                .get_widget(Some(&"Tilemap Editor Icon View".to_string()), None)
-            {
+            if let Some(icon_view) = ui.get_widget("Tilemap Editor Icon View") {
+                if let Some(icon_view) = icon_view.as_icon_view() {
+                    icon_view.step();
+                    redraw = true;
+                }
+            }
+            if let Some(icon_view) = ui.get_widget("Icon Preview") {
                 if let Some(icon_view) = icon_view.as_icon_view() {
                     icon_view.step();
                     redraw = true;
@@ -141,14 +143,12 @@ impl TheTrait for Editor {
                         // Open / Save Project
 
                         if id.name == "Open" {
-
                             if let Some(widget) = ui.get_widget("Soft3DView") {
-                                if let Some(w) = widget
-                                    .as_any()
-                                    .downcast_mut::<TheSoft3DView>()
-                                    .map(|external_widget| external_widget as &mut dyn TheSoft3DViewTrait) {
-                                        w.set_color(WHITE);
-                                    }
+                                if let Some(w) = widget.as_any().downcast_mut::<The3DView>().map(
+                                    |external_widget| external_widget as &mut dyn The3DViewTrait,
+                                ) {
+                                    w.set_color(WHITE);
+                                }
                             }
 
                             ctx.ui.open_file_requester(
