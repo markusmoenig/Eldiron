@@ -43,7 +43,7 @@ impl TileEditor {
         shared_layout.add_canvas(region_editor_canvas);
 
         let mut view_3d_canvas: TheCanvas = TheCanvas::new();
-        let view_3d = The3DView::new(TheId::named("Soft3DView"));
+        let view_3d = The3DView::new(TheId::named("3DView"));
         view_3d_canvas.set_widget(view_3d);
 
         shared_layout.add_canvas(view_3d_canvas);
@@ -53,7 +53,7 @@ impl TileEditor {
         // Picker
 
         let mut tile_picker = TheCanvas::new();
-        let mut vlayout = TheVLayout::new(TheId::empty());
+        let mut vlayout = TheVLayout::new(TheId::named("Editor Icon Layout"));
         vlayout.set_background_color(Some(TheThemeColors::ListLayoutBackground));
         vlayout.limiter_mut().set_max_width(90);
         vlayout.set_margin(vec4i(0, 10, 0, 5));
@@ -215,7 +215,9 @@ impl TileEditor {
                 if let Some(text) = ui.get_text("Cursor Position") {
                     text.set_text(format!("({}, {})", coord.x, coord.y));
                     redraw = true;
-                    ctx.ui.relayout = true;
+                    if let Some(layout) = ui.get_layout("Editor Icon Layout") {
+                        layout.relayout(ctx);
+                    }
                 }
 
                 for r in &mut project.regions {

@@ -629,11 +629,7 @@ impl Sidebar {
             for region in &project.regions {
                 let mut item = TheListItem::new(TheId::named_with_id("Region Item", region.id));
                 item.set_text(region.name.clone());
-                //item.set_state(TheWidgetState::Selected);
-                // list_layout.deselect_all();
-                // let id = item.id().clone();
                 list_layout.add_item(item, ctx);
-                // ctx.ui.send_widget_state_changed(&id, TheWidgetState::Selected);
             }
         }
         if let Some(list_layout) = ui.get_list_layout("Tilemap List") {
@@ -641,13 +637,11 @@ impl Sidebar {
             for tilemap in &project.tilemaps {
                 let mut item = TheListItem::new(TheId::named_with_id("Tilemap Item", tilemap.id));
                 item.set_text(tilemap.name.clone());
-                //item.set_state(TheWidgetState::Selected);
-                // list_layout.deselect_all();
-                // let id = item.id().clone();
                 list_layout.add_item(item, ctx);
-                // ctx.ui.send_widget_state_changed(&id, TheWidgetState::Selected);
             }
         }
+        ui.select_first_list_item("Region List", ctx);
+        ui.select_first_list_item("Tilemap List", ctx);
     }
 
     /// Apply the given item to the UI
@@ -744,7 +738,6 @@ impl Sidebar {
             .canvas
             .get_layout(Some(&"Tilemap Tile List".to_string()), None)
         {
-            let list_layout_id = layout.id().clone();
             if let Some(list_layout) = layout.as_list_layout() {
                 if let Some(tilemap) = tilemap {
                     list_layout.clear();
@@ -761,14 +754,12 @@ impl Sidebar {
                         item.set_sub_text(sub_text);
                         item.set_size(42);
                         item.set_icon(tile.sequence.regions[0].scale(&tilemap.buffer, 36, 36));
-                        item.set_state(TheWidgetState::Selected);
-                        item.set_associated_layout(list_layout_id.clone());
-                        list_layout.deselect_all();
                         list_layout.add_item(item, ctx);
                     }
                 } else {
                     list_layout.clear();
                 }
+                list_layout.select_first_item(ctx);
             }
         }
     }
