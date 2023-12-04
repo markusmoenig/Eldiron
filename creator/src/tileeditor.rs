@@ -42,11 +42,10 @@ impl TileEditor {
         region_editor_canvas.set_layout(region_editor);
         shared_layout.add_canvas(region_editor_canvas);
 
-        let mut view_3d_canvas: TheCanvas = TheCanvas::new();
-        let view_3d = The3DView::new(TheId::named("3DView"));
-        view_3d_canvas.set_widget(view_3d);
-
-        shared_layout.add_canvas(view_3d_canvas);
+        let mut render_canvas: TheCanvas = TheCanvas::new();
+        let render_view = TheRenderView::new(TheId::named("RenderView"));
+        render_canvas.set_widget(render_view);
+        shared_layout.add_canvas(render_canvas);
 
         center.set_layout(shared_layout);
 
@@ -156,8 +155,15 @@ impl TileEditor {
         ui.canvas.set_center(center);
     }
 
-    pub fn load_from_project(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
+    pub fn load_from_project(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
         self.tiledrawer.tiles = project.extract_tiles();
+        if let Some(widget) = ui.get_widget("RenderView") {
+            if let Some(w) = widget.as_any().downcast_mut::<TheRenderView>().map(
+                |external_widget| external_widget as &mut dyn TheRenderViewTrait,
+            ) {
+                w.renderer_mut().set_tiles(project.extract_tiles());
+            }
+        }
     }
 
     #[allow(clippy::suspicious_else_formatting)]
@@ -205,13 +211,22 @@ impl TileEditor {
                             r.layers[self.curr_layer_role as usize]
                                 .tiles
                                 .insert((coord.x as u32, coord.y as u32), self.curr_tile_uuid);
-                                self.set_icon_previews(r, *coord, ui);
+                            self.set_icon_previews(r, *coord, ui);
+
+                            if let Some(widget) = ui.get_widget("RenderView") {
+                                if let Some(w) = widget.as_any().downcast_mut::<TheRenderView>().map(
+                                    |external_widget| external_widget as &mut dyn TheRenderViewTrait,
+                                ) {
+                                    w.renderer_mut().set_region(r);
+                                }
+                            }
+
+                            break;
                         }
                     }
                 }
             }
             TheEvent::TileEditorHoverChanged(_id, coord) => {
-
                 if let Some(text) = ui.get_text("Cursor Position") {
                     text.set_text(format!("({}, {})", coord.x, coord.y));
                     redraw = true;
@@ -248,6 +263,13 @@ impl TileEditor {
                                         rgba_view.set_grid(Some(r.grid_size));
                                         ctx.ui.relayout = true;
                                     }
+                                }
+                            }
+                            if let Some(widget) = ui.get_widget("RenderView") {
+                                if let Some(w) = widget.as_any().downcast_mut::<TheRenderView>().map(
+                                    |external_widget| external_widget as &mut dyn TheRenderViewTrait,
+                                ) {
+                                    w.renderer_mut().set_region(r);
                                 }
                             }
                             self.curr_region_uuid = r.id;
@@ -289,7 +311,10 @@ impl TileEditor {
 
     fn set_icon_previews(&mut self, region: &mut Region, coord: Vec2i, ui: &mut TheUI) {
         // Ground Icon Preview
-        if let Some(id) = region.layers[0].tiles.get(&(coord.x as u32, coord.y as u32)) {
+        if let Some(id) = region.layers[0]
+            .tiles
+            .get(&(coord.x as u32, coord.y as u32))
+        {
             if let Some(tile) = self.tiledrawer.tiles.get(id) {
                 if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
                     icon_view.set_rgba_tile(tile.clone());
@@ -300,7 +325,10 @@ impl TileEditor {
         }
 
         // Wall Icon Preview
-        if let Some(id) = region.layers[1].tiles.get(&(coord.x as u32, coord.y as u32)) {
+        if let Some(id) = region.layers[1]
+            .tiles
+            .get(&(coord.x as u32, coord.y as u32))
+        {
             if let Some(tile) = self.tiledrawer.tiles.get(id) {
                 if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
                     icon_view.set_rgba_tile(tile.clone());
@@ -311,7 +339,10 @@ impl TileEditor {
         }
 
         // Ceiling Icon Preview
-        if let Some(id) = region.layers[2].tiles.get(&(coord.x as u32, coord.y as u32)) {
+        if let Some(id) = region.layers[2]
+            .tiles
+            .get(&(coord.x as u32, coord.y as u32))
+        {
             if let Some(tile) = self.tiledrawer.tiles.get(id) {
                 if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
                     icon_view.set_rgba_tile(tile.clone());
@@ -322,7 +353,10 @@ impl TileEditor {
         }
 
         // Overlay Icon Preview
-        if let Some(id) = region.layers[3].tiles.get(&(coord.x as u32, coord.y as u32)) {
+        if let Some(id) = region.layers[3]
+            .tiles
+            .get(&(coord.x as u32, coord.y as u32))
+        {
             if let Some(tile) = self.tiledrawer.tiles.get(id) {
                 if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
                     icon_view.set_rgba_tile(tile.clone());
@@ -331,7 +365,7 @@ impl TileEditor {
         } else if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
             icon_view.set_rgba_tile(TheRGBATile::default());
         }
-}
+    }
 
     fn set_icon_colors(&mut self, ui: &mut TheUI) {
         if let Some(icon_view) = ui.get_icon_view("Ground Icon") {

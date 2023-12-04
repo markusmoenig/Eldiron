@@ -1,4 +1,4 @@
-use crate::{prelude::*, tilemap::Tilemap};
+use crate::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct Project {

@@ -1,16 +1,18 @@
 use crate::prelude::*;
 
-pub struct The3DView {
+pub struct TheRenderView {
     id: TheId,
     limiter: TheSizeLimiter,
     state: TheWidgetState,
 
+    renderer: Renderer,
+
     dim: TheDim,
-    color: RGBA,
+
     is_dirty: bool,
 }
 
-impl TheWidget for The3DView {
+impl TheWidget for TheRenderView {
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -22,8 +24,10 @@ impl TheWidget for The3DView {
             limiter,
             state: TheWidgetState::None,
 
+            renderer: Renderer::new(),
+
             dim: TheDim::zero(),
-            color: WHITE,
+
             is_dirty: false,
         }
     }
@@ -95,39 +99,11 @@ impl TheWidget for The3DView {
         _style: &mut Box<dyn TheStyle>,
         ctx: &mut TheContext,
     ) {
-        let stride: usize = buffer.stride();
-        let mut shrinker = TheDimShrinker::zero();
-
         if !self.dim().is_valid() {
             return;
         }
 
-        //style.draw_widget_border(buffer, self, &mut shrinker, ctx);
-
-        ctx.draw.rect_outline_border(
-            buffer.pixels_mut(),
-            &self.dim.to_buffer_shrunk_utuple(&shrinker),
-            stride,
-            &self.color,
-            1,
-        );
-
-        if self.state == TheWidgetState::Selected {
-            shrinker.shrink(1);
-            ctx.draw.rect(
-                buffer.pixels_mut(),
-                &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                stride,
-                &self.color,
-            );
-            ctx.draw.rect(
-                buffer.pixels_mut(),
-                &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                stride,
-                &self.color,
-            );
-        }
-
+        self.renderer.render(buffer, &self.dim, vec2i(0, 0), ctx);
         self.is_dirty = false;
     }
 
@@ -136,13 +112,12 @@ impl TheWidget for The3DView {
     }
 }
 
-pub trait The3DViewTrait {
-    fn set_color(&mut self, color: RGBA);
+pub trait TheRenderViewTrait {
+    fn renderer_mut(&mut self) -> &mut Renderer;
 }
 
-impl The3DViewTrait for The3DView {
-    fn set_color(&mut self, color: RGBA) {
-        self.color = color;
-        println!("ddad");
+impl TheRenderViewTrait for TheRenderView {
+    fn renderer_mut(&mut self) -> &mut Renderer {
+        &mut self.renderer
     }
 }

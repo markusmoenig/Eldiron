@@ -939,6 +939,7 @@ dependencies = [
  "lazy_static",
  "serde",
  "serde_json",
+ "shared",
  "theframework",
  "vectorize",
 ]
@@ -3335,6 +3336,16 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
+]
+
+[[package]]
+name = "shared"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "theframework",
+ "vectorize",
 ]
 
 [[package]]

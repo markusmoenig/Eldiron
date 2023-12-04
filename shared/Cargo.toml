@@ -1,12 +1,11 @@
 [package]
-name = "creator"
+name = "shared"
 version = "0.1.0"
 edition = "2021"
 
+
 [dependencies]
-theframework = { path = "../../TheFramework", features = ["ui", "code"]}
-shared = { path = "../shared" }
-lazy_static = "1.4.0"
+theframework = { path = "../../TheFramework"}
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 vectorize = "0.2.0"

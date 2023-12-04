@@ -12,7 +12,8 @@ members = [
     "run-wasm",
     "server",
     "client",
-    "client_web"
+    "client_web",
+    "shared"
 ]
 
 #edition = "2021"
