@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub struct TileEditor {
     tiledrawer: TileDrawer,
     curr_region_uuid: Uuid,
-    curr_tile_uuid: Uuid,
+    curr_tile_uuid: Option<Uuid>,
 
     curr_layer_role: Layer2DRole,
 
@@ -17,7 +17,7 @@ impl TileEditor {
         Self {
             tiledrawer: TileDrawer::new(),
             curr_region_uuid: Uuid::new_v4(),
-            curr_tile_uuid: Uuid::new_v4(),
+            curr_tile_uuid: None,
 
             curr_layer_role: Layer2DRole::Ground,
 
@@ -161,7 +161,7 @@ impl TileEditor {
             if let Some(w) = widget.as_any().downcast_mut::<TheRenderView>().map(
                 |external_widget| external_widget as &mut dyn TheRenderViewTrait,
             ) {
-                w.renderer_mut().set_tiles(project.extract_tiles());
+                w.renderer_mut().set_textures(project.extract_tiles());
             }
         }
     }
@@ -187,41 +187,51 @@ impl TileEditor {
                             shared.set_mode(TheSharedLayoutMode::Right);
                         }
                         ctx.ui.relayout = true;
+
+                        // Set the region and textures to the RenderView if visible
+                        if *index > 0 {
+                            if let Some(region) = project.get_region(self.curr_region_uuid) {
+                                if let Some(widget) = ui.get_widget("RenderView") {
+                                    if let Some(w) = widget.as_any().downcast_mut::<TheRenderView>().map(
+                                        |external_widget| external_widget as &mut dyn TheRenderViewTrait,
+                                    ) {
+                                        w.renderer_mut().set_region(region);
+                                        w.renderer_mut().set_textures(project.extract_tiles());
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
             TheEvent::TileEditorClicked(_id, coord) => {
-                if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None)
-                {
-                    if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
-                        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                            self.tiledrawer.draw_tile(
-                                *coord,
-                                rgba_view.buffer_mut(),
-                                24,
-                                self.curr_tile_uuid,
-                                ctx,
-                            );
+                if let Some(curr_tile_uuid) = self.curr_tile_uuid {
+                    if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None)
+                    {
+                        if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
+                            if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                                self.tiledrawer.draw_tile(
+                                    *coord,
+                                    rgba_view.buffer_mut(),
+                                    24,
+                                    curr_tile_uuid,
+                                    ctx,
+                                );
+                            }
                         }
                     }
-                }
-                if self.tiledrawer.tiles.contains_key(&self.curr_tile_uuid) {
-                    for r in &mut project.regions {
-                        if r.id == self.curr_region_uuid {
-                            r.layers[self.curr_layer_role as usize]
-                                .tiles
-                                .insert((coord.x as u32, coord.y as u32), self.curr_tile_uuid);
-                            self.set_icon_previews(r, *coord, ui);
+                    if self.tiledrawer.tiles.contains_key(&curr_tile_uuid) {
+                        if let Some(region) = project.get_region(self.curr_region_uuid) {
+                            region.set_tile((coord.x, coord.y), self.curr_layer_role, self.curr_tile_uuid);
+                            self.set_icon_previews(region, *coord, ui);
 
                             if let Some(widget) = ui.get_widget("RenderView") {
                                 if let Some(w) = widget.as_any().downcast_mut::<TheRenderView>().map(
                                     |external_widget| external_widget as &mut dyn TheRenderViewTrait,
                                 ) {
-                                    w.renderer_mut().set_region(r);
+                                    w.renderer_mut().set_region(region);
                                 }
                             }
-
-                            break;
                         }
                     }
                 }
@@ -239,6 +249,14 @@ impl TileEditor {
                     if r.id == self.curr_region_uuid {
                         self.set_icon_previews(r, *coord, ui);
                         break;
+                    }
+                }
+
+                if let Some(widget) = ui.get_widget("RenderView") {
+                    if let Some(w) = widget.as_any().downcast_mut::<TheRenderView>().map(
+                        |external_widget| external_widget as &mut dyn TheRenderViewTrait,
+                    ) {
+                        w.renderer_mut().set_position(vec3i(coord.x, 0, coord.y));
                     }
                 }
             }
@@ -277,7 +295,7 @@ impl TileEditor {
                         }
                     }
                 } else if id.name == "Tilemap Tile" {
-                    self.curr_tile_uuid = id.uuid;
+                    self.curr_tile_uuid = Some(id.uuid);
 
                     if let Some(t) = self.tiledrawer.tiles.get(&id.uuid) {
                         if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
@@ -311,59 +329,59 @@ impl TileEditor {
 
     fn set_icon_previews(&mut self, region: &mut Region, coord: Vec2i, ui: &mut TheUI) {
         // Ground Icon Preview
-        if let Some(id) = region.layers[0]
+        if let Some(tile) = region
             .tiles
-            .get(&(coord.x as u32, coord.y as u32))
+            .get(&(coord.x, coord.y))
         {
-            if let Some(tile) = self.tiledrawer.tiles.get(id) {
-                if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
-                    icon_view.set_rgba_tile(tile.clone());
+            if let Some(ground) = tile.layers[0] {
+                if let Some(tile) = self.tiledrawer.tiles.get(&ground) {
+                    if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                        icon_view.set_rgba_tile(tile.clone());
+                    }
+                } else if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                    icon_view.set_rgba_tile(TheRGBATile::default());
                 }
             }
-        } else if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
-            icon_view.set_rgba_tile(TheRGBATile::default());
-        }
-
-        // Wall Icon Preview
-        if let Some(id) = region.layers[1]
-            .tiles
-            .get(&(coord.x as u32, coord.y as u32))
-        {
-            if let Some(tile) = self.tiledrawer.tiles.get(id) {
-                if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
-                    icon_view.set_rgba_tile(tile.clone());
+            if let Some(wall) = tile.layers[1] {
+                if let Some(tile) = self.tiledrawer.tiles.get(&wall) {
+                    if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
+                        icon_view.set_rgba_tile(tile.clone());
+                    }
+                } else if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
+                    icon_view.set_rgba_tile(TheRGBATile::default());
                 }
             }
-        } else if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
-            icon_view.set_rgba_tile(TheRGBATile::default());
-        }
-
-        // Ceiling Icon Preview
-        if let Some(id) = region.layers[2]
-            .tiles
-            .get(&(coord.x as u32, coord.y as u32))
-        {
-            if let Some(tile) = self.tiledrawer.tiles.get(id) {
-                if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
-                    icon_view.set_rgba_tile(tile.clone());
+            if let Some(ceiling) = tile.layers[2] {
+                if let Some(tile) = self.tiledrawer.tiles.get(&ceiling) {
+                    if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
+                        icon_view.set_rgba_tile(tile.clone());
+                    }
+                } else if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
+                    icon_view.set_rgba_tile(TheRGBATile::default());
                 }
             }
-        } else if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
-            icon_view.set_rgba_tile(TheRGBATile::default());
-        }
-
-        // Overlay Icon Preview
-        if let Some(id) = region.layers[3]
-            .tiles
-            .get(&(coord.x as u32, coord.y as u32))
-        {
-            if let Some(tile) = self.tiledrawer.tiles.get(id) {
-                if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
-                    icon_view.set_rgba_tile(tile.clone());
+            if let Some(overlay) = tile.layers[3] {
+                if let Some(tile) = self.tiledrawer.tiles.get(&overlay) {
+                    if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
+                        icon_view.set_rgba_tile(tile.clone());
+                    }
+                } else if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
+                    icon_view.set_rgba_tile(TheRGBATile::default());
                 }
             }
-        } else if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
-            icon_view.set_rgba_tile(TheRGBATile::default());
+        } else {
+            if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                icon_view.set_rgba_tile(TheRGBATile::default());
+            }
+            if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
+                icon_view.set_rgba_tile(TheRGBATile::default());
+            }
+            if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
+                icon_view.set_rgba_tile(TheRGBATile::default());
+            }
+            if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
+                icon_view.set_rgba_tile(TheRGBATile::default());
+            }
         }
     }
 

@@ -38,6 +38,11 @@ impl Project {
         self.tilemaps.retain(|item| item.id != id.uuid);
     }
 
+    /// Get the region of the given uuid.
+    pub fn get_region(&mut self, uuid: Uuid) -> Option<&mut Region> {
+        self.regions.iter_mut().find(|t| t.id == uuid)
+    }
+
     /// Extract all tiles from all tilemaps and store them in a hash.
     pub fn extract_tiles(&self) -> FxHashMap<Uuid, TheRGBATile> {
         let mut tiles = FxHashMap::default();

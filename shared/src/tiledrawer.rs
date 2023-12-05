@@ -18,14 +18,18 @@ impl TileDrawer {
         region: &Region,
         ctx: &mut TheContext,
     ) {
-        for (coord, tile) in &region.layers[0].tiles {
-            self.draw_tile(
-                vec2i(coord.0 as i32, coord.1 as i32),
-                buffer,
-                region.grid_size,
-                *tile,
-                ctx,
-            );
+        for (coord, tile) in &region.tiles{
+            for index in 0..2 {
+                if let Some(tile_uuid) = tile.layers[index] {
+                    self.draw_tile(
+                        vec2i(coord.0, coord.1),
+                        buffer,
+                        region.grid_size,
+                        tile_uuid,
+                        ctx,
+                    );
+                }
+            }
         }
     }
 

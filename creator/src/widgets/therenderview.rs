@@ -103,7 +103,7 @@ impl TheWidget for TheRenderView {
             return;
         }
 
-        self.renderer.render(buffer, &self.dim, vec2i(0, 0), ctx);
+        self.renderer.render(buffer, &self.dim, ctx);
         self.is_dirty = false;
     }
 
@@ -118,6 +118,7 @@ pub trait TheRenderViewTrait {
 
 impl TheRenderViewTrait for TheRenderView {
     fn renderer_mut(&mut self) -> &mut Renderer {
+        self.is_dirty = true;
         &mut self.renderer
     }
 }

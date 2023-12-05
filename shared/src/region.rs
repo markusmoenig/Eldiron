@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use std::ops::{Index, IndexMut};
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub enum RegionType {
@@ -12,7 +11,7 @@ pub struct Region {
     pub region_type: RegionType,
 
     pub name: String,
-    pub layers: Vec<Layer2D>,
+    pub tiles: FxHashMap<(i32, i32), RegionTile>,
 
     pub width: i32,
     pub height: i32,
@@ -34,12 +33,7 @@ impl Region {
             region_type: RegionType::Region2D,
 
             name: "New Region".to_string(),
-            layers: vec![
-                Layer2D::new(),
-                Layer2D::new(),
-                Layer2D::new(),
-                Layer2D::new(),
-            ],
+            tiles: FxHashMap::default(),
 
             width: 80,
             height: 80,
@@ -48,35 +42,14 @@ impl Region {
             zoom: 1.0,
         }
     }
-}
 
-// Implement Index and IndexMut
-impl Index<Layer2DRole> for Region {
-    type Output = Layer2D;
-
-    fn index(&self, index: Layer2DRole) -> &Self::Output {
-        if index == Layer2DRole::Ground {
-            &self.layers[0]
-        } else if index == Layer2DRole::Wall {
-            &self.layers[1]
-        } else if index == Layer2DRole::Ceiling {
-            &self.layers[2]
+    pub fn set_tile(&mut self, pos: (i32, i32), role: Layer2DRole, tile: Option<Uuid>) {
+        if let Some(t) = self.tiles.get_mut(&pos) {
+            t.layers[role as usize] = tile;
         } else {
-            &self.layers[3]
-        }
-    }
-}
-
-impl IndexMut<Layer2DRole> for Region {
-    fn index_mut(&mut self, index: Layer2DRole) -> &mut Self::Output {
-        if index == Layer2DRole::Ground {
-            &mut self.layers[0]
-        } else if index == Layer2DRole::Wall {
-            &mut self.layers[1]
-        } else if index == Layer2DRole::Ceiling {
-            &mut self.layers[2]
-        } else {
-            &mut self.layers[3]
+            let mut region_tile = RegionTile::default();
+            region_tile.layers[role as usize] = tile;
+            self.tiles.insert(pos, region_tile);
         }
     }
 }
@@ -90,21 +63,21 @@ pub enum Layer2DRole {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-pub struct Layer2D {
-    #[serde(with = "vectorize")]
-    pub tiles: FxHashMap<(u32, u32), Uuid>,
+pub struct RegionTile {
+    pub layers: Vec<Option<Uuid>>
 }
 
-impl Default for Layer2D {
+
+impl Default for RegionTile {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Layer2D {
+impl RegionTile {
     pub fn new() -> Self {
         Self {
-            tiles: FxHashMap::default(),
+            layers: vec![None, None, None, None],
         }
     }
 }

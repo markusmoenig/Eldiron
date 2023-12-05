@@ -564,7 +564,7 @@ impl Sidebar {
                                 if let Some(w) = widget.as_any().downcast_mut::<TheRenderView>().map(
                                     |external_widget| external_widget as &mut dyn TheRenderViewTrait,
                                 ) {
-                                    w.renderer_mut().set_tiles(project.extract_tiles());
+                                    w.renderer_mut().set_textures(project.extract_tiles());
                                 }
                             }
                         }
