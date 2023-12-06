@@ -35,6 +35,9 @@ impl TheTrait for Editor {
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+
+        ui.set_statusbar_name("Statusbar".to_string());
+
         // Menubar
         let mut top_canvas = TheCanvas::new();
 
@@ -42,6 +45,7 @@ impl TheTrait for Editor {
 
         let mut open_button = TheMenubarButton::new(TheId::named("Open"));
         open_button.set_icon_name("icon_role_load".to_string());
+        open_button.set_status_text("Open an existing project...");
 
         let mut save_button = TheMenubarButton::new(TheId::named("Save"));
         save_button.set_icon_name("icon_role_save".to_string());
