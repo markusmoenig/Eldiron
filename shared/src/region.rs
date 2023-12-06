@@ -11,6 +11,7 @@ pub struct Region {
     pub region_type: RegionType,
 
     pub name: String,
+    #[serde(with = "vectorize")]
     pub tiles: FxHashMap<(i32, i32), RegionTile>,
 
     pub width: i32,
@@ -64,9 +65,8 @@ pub enum Layer2DRole {
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct RegionTile {
-    pub layers: Vec<Option<Uuid>>
+    pub layers: Vec<Option<Uuid>>,
 }
-
 
 impl Default for RegionTile {
     fn default() -> Self {

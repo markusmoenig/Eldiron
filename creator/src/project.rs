@@ -5,6 +5,9 @@ pub struct Project {
     pub name: String,
     pub regions: Vec<Region>,
     pub tilemaps: Vec<Tilemap>,
+
+    #[serde(skip)]
+    pub undo_stack: UndoStack,
 }
 
 impl Default for Project {
@@ -20,6 +23,8 @@ impl Project {
 
             regions: vec![],
             tilemaps: vec![],
+
+            undo_stack: UndoStack::default(),
         }
     }
 

@@ -168,6 +168,32 @@ impl TheTrait for Editor {
                                 .set_widget_state("Save".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
+                        } else {
+                            let mut data: Option<(UndoType, String)> = None;
+                            if id.name == "Undo" && self.project.undo_stack.has_undo() {
+                                data = Some(self.project.undo_stack.undo());
+                            } else if id.name == "Redo" && self.project.undo_stack.has_redo() {
+                                data = Some(self.project.undo_stack.redo());
+                            }
+
+                            if let Some((undo_type, json)) = data {
+                                match undo_type {
+                                    UndoType::RegionChanged => {
+                                        let region: Result<Region, serde_json::Error> =
+                                            serde_json::from_str(&json);
+                                        if let Ok(region) = region {
+                                            for (index, r) in self.project.regions.iter().enumerate() {
+                                                if r.id == region.id {
+                                                    self.tileeditor.redraw_region(&region, ui, ctx);
+                                                    self.project.regions[index] = region;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                redraw = true;
+                            }
                         }
                     }
                     TheEvent::ImageDecodeResult(id, name, buffer) => {

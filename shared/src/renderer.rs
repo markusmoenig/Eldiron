@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct Renderer {
     pub textures: FxHashMap<Uuid, TheRGBATile>,
@@ -16,12 +17,9 @@ impl Renderer {
         }
     }
 
-    pub fn render(
-        &mut self,
-        buffer: &mut TheRGBABuffer,
-        dim: &TheDim,
-        _ctx: &mut TheContext,
-    ) {
+    pub fn render(&mut self, buffer: &mut TheRGBABuffer, dim: &TheDim, _ctx: &mut TheContext) {
+        let start = self.get_time();
+
         let stride = buffer.stride();
         let pixels = buffer.pixels_mut();
 
@@ -38,22 +36,29 @@ impl Renderer {
                 let xx = (i % width) as f32;
                 let yy = height_f - (i / width) as f32;
 
-                let ro = vec3f( self.position.x + 0.5, 0.5, self.position.z + 0.5);
+                let ro = vec3f(self.position.x + 0.5, 0.5, self.position.z + 0.5);
                 let mut rd = ro;
                 rd.z -= 2.0;
 
                 let camera = Camera::new(ro, rd, 70.0);
-                let ray = camera.create_ray(vec2f(xx / width_f, yy / height_f), vec2f(width_f, height_f), vec2f(0.0, 0.0));
+                let ray = camera.create_ray(
+                    vec2f(xx / width_f, yy / height_f),
+                    vec2f(width_f, height_f),
+                    vec2f(0.0, 0.0),
+                );
 
                 let index = y as usize * stride * 4 + x as usize * 4;
-                pixels[index..index+4].copy_from_slice(&self.render_pixel(ray));//&[(xx / width as f32 * 255.0) as u8, (yy / height as f32 * 255.0) as u8, 0, 255]);
+                pixels[index..index + 4].copy_from_slice(&self.render_pixel(ray));
+                //&[(xx / width as f32 * 255.0) as u8, (yy / height as f32 * 255.0) as u8, 0, 255]);
             }
         }
+
+        let _stop = self.get_time();
+        println!("render time {:?}", _stop - start);
     }
 
     #[inline(always)]
     pub fn render_pixel(&self, ray: Ray) -> RGBA {
-
         //let mut set : FxHashSet<Vec3i> = FxHashSet::default();
         //set.insert(vec3i(0, 0, 0));
 
@@ -75,14 +80,14 @@ impl Renderer {
         let mut i = floor(ro);
         let mut dist = 0.0;
 
-        let mut normal= Vec3f::zero();
+        let mut normal = Vec3f::zero();
         let srd = signum(rd);
 
         let rdi = 1.0 / (2.0 * rd);
 
-        let mut key: Vec3<i32>;// = Vec3i::zero();
+        let mut key: Vec3<i32>; // = Vec3i::zero();
 
-        for _ii in 0..20 {
+        for _ii in 0..5 {
             key = Vec3i::from(i);
 
             //println!("{}", key);
@@ -90,9 +95,8 @@ impl Renderer {
             //if key.x == 0 && key.y == 0 && key.z == 0 {
             // if key.y <= -1 {
             if let Some(tile) = self.tiles.get(&(key.x, key.y, key.z)) {
-                //pixel = WHITE;
                 let uv = self.get_uv(normal, ray.at(dist));
-                pixel = [(uv.x * 255.0) as u8, (uv.y * 255.0) as u8, 0, 255];
+                //pixel = [(uv.x * 255.0) as u8, (uv.y * 255.0) as u8, 0, 255];
                 if let Some(texture) = self.textures.get(tile) {
                     if let Some(p) = texture.buffer[0].at_f(uv) {
                         pixel = p;
@@ -144,9 +148,9 @@ impl Renderer {
 
         // Calculate UV coordinates based on the face
         match face_index {
-            0 => Vec2f::new(frac(hp.z), frac(hp.y)), // X-axis face
-            1 => Vec2f::new(frac(hp.x), frac(hp.z)), // Y-axis face
-            2 => Vec2f::new(frac(hp.x), frac(hp.y)), // Z-axis face
+            0 => Vec2f::new(frac(hp.z), 1.0 - frac(hp.y)), // X-axis face
+            1 => Vec2f::new(frac(hp.x), 1.0 - frac(hp.z)), // Y-axis face
+            2 => Vec2f::new(frac(hp.x), 1.0 - frac(hp.y)), // Z-axis face
             _ => Vec2f::zero(),
         }
     }
@@ -155,8 +159,18 @@ impl Renderer {
         self.tiles.clear();
         for (pos, tile) in &region.tiles {
             for i in 0..3 {
-                if let Some(tile_uuid) = tile.layers[i] {
-                    self.tiles.insert((pos.0, 0, pos.1), tile_uuid);
+                if i == 0 {
+                    if let Some(tile_uuid) = tile.layers[i] {
+                        self.tiles.insert((pos.0, -1, pos.1), tile_uuid);
+                    }
+                } else if i == 1 {
+                    if let Some(tile_uuid) = tile.layers[i] {
+                        self.tiles.insert((pos.0, 0, pos.1), tile_uuid);
+                    }
+                } else if i == 2 {
+                    if let Some(tile_uuid) = tile.layers[i] {
+                        self.tiles.insert((pos.0, 1, pos.1), tile_uuid);
+                    }
                 }
             }
         }
@@ -171,4 +185,11 @@ impl Renderer {
         self.position = position.into();
     }
 
+    /// Gets the current time in milliseconds
+    fn get_time(&self) -> u128 {
+        let stop = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+        stop.as_millis()
+    }
 }

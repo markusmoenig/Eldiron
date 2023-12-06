@@ -18,7 +18,8 @@ impl TileDrawer {
         region: &Region,
         ctx: &mut TheContext,
     ) {
-        for (coord, tile) in &region.tiles{
+        buffer.pixels_mut().fill(0);
+        for (coord, tile) in &region.tiles {
             for index in 0..2 {
                 if let Some(tile_uuid) = tile.layers[index] {
                     self.draw_tile(

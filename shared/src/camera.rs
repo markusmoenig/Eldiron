@@ -6,27 +6,26 @@ use std::f32::consts::PI;
 /// Ray
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Ray {
-    pub o                   : Vec3f,
-    pub d                   : Vec3f,
+    pub o: Vec3f,
+    pub d: Vec3f,
 
-    pub inv_direction       : Vec3f,
+    pub inv_direction: Vec3f,
 
-    pub sign_x              : usize,
-    pub sign_y              : usize,
-    pub sign_z              : usize,
+    pub sign_x: usize,
+    pub sign_y: usize,
+    pub sign_z: usize,
 }
 
 impl Ray {
-
-    pub fn new(o : Vec3f, d : Vec3f) -> Self {
+    pub fn new(o: Vec3f, d: Vec3f) -> Self {
         Self {
             o,
             d,
 
-            inv_direction   : Vec3f::new(1.0 / d.x, 1.0 / d.y, 1.0 / d.z),
-            sign_x          : (d.x < 0.0) as usize,
-            sign_y          : (d.y < 0.0) as usize,
-            sign_z          : (d.z < 0.0) as usize
+            inv_direction: Vec3f::new(1.0 / d.x, 1.0 / d.y, 1.0 / d.z),
+            sign_x: (d.x < 0.0) as usize,
+            sign_y: (d.y < 0.0) as usize,
+            sign_z: (d.z < 0.0) as usize,
         }
     }
 
@@ -39,38 +38,36 @@ impl Ray {
 /// Camera
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Camera {
-    pub origin      : Vec3f,
-    pub center      : Vec3f,
-    pub fov         : f32,
+    pub origin: Vec3f,
+    pub center: Vec3f,
+    pub fov: f32,
 
     // For orbit
+    pub distance: f32,
 
-    pub distance    : f32,
+    pub forward: Vec3f,
+    pub up: Vec3f,
+    pub right: Vec3f,
 
-    pub forward     : Vec3f,
-    pub up          : Vec3f,
-    pub right       : Vec3f,
-
-    pub orbit_x     : f32,
-    pub orbit_y     : f32,
+    pub orbit_x: f32,
+    pub orbit_y: f32,
 }
 
 impl Camera {
-
     pub fn new(origin: Vec3f, center: Vec3f, fov: f32) -> Self {
         Self {
             origin,
             center,
             fov,
 
-            distance    : 2.0,
+            distance: 2.0,
 
-            forward     : Vec3f::new(0.0, 0.0, -1.0),
-            up          : Vec3f::new(0.0, 1.0, 0.0),
-            right       : Vec3f::new(1.0, 0.0, 0.0),
+            forward: Vec3f::new(0.0, 0.0, -1.0),
+            up: Vec3f::new(0.0, 1.0, 0.0),
+            right: Vec3f::new(1.0, 0.0, 0.0),
 
-            orbit_x     : 0.0,
-            orbit_y     : -90.0,
+            orbit_x: 0.0,
+            orbit_y: -90.0,
         }
     }
 
@@ -133,7 +130,6 @@ impl Camera {
 
     /// Rotate the camera around its center
     pub fn rotate(&mut self, yaw: f32, pitch: f32) {
-
         fn magnitude(vec: Vec3f) -> f32 {
             (vec.x.powi(2) + vec.y.powi(2) + vec.z.powi(2)).sqrt()
         }
@@ -179,9 +175,8 @@ impl Camera {
     }
 
     pub fn create_iso_ray(&self, uv: Vec2f, screen: Vec2f, offset: Vec2f) -> Ray {
-
         let ratio = screen.x / screen.y;
-        let pixel_size = Vec2f::new( 1.0 / screen.x, 1.0 / screen.y);
+        let pixel_size = Vec2f::new(1.0 / screen.x, 1.0 / screen.y);
 
         let cam_origin = self.origin;
         let cam_look_at = self.center;
@@ -207,7 +202,6 @@ impl Camera {
 
     /// Computes the orbi camera vectors. Based on https://www.shadertoy.com/view/ttfyzN
     pub fn compute_orbit(&mut self, mouse_delta: Vec2f) {
-
         #[inline(always)]
         pub fn mix(a: &f32, b: &f32, v: f32) -> f32 {
             (1.0 - v) * a + b * v
@@ -234,18 +228,16 @@ impl Camera {
         self.forward = normalize(self.center - camera_pos);
         self.right = normalize(cross(vec3f(0.0, 1.0, 0.0), -self.forward));
         self.up = normalize(cross(-self.forward, self.right));
-
     }
 
     /// Create an orbit camera ray
     pub fn create_orbit_ray(&self, uv: Vec2f, screen_dim: Vec2f, offset: Vec2f) -> Ray {
-
         let camera_pos = self.origin;
         let camera_fwd = self.forward;
         let camera_up = self.up;
         let camera_right = self.right;
 
-        let uv_jittered= (uv * screen_dim + (offset - 0.5)) / screen_dim;
+        let uv_jittered = (uv * screen_dim + (offset - 0.5)) / screen_dim;
         let mut screen = uv_jittered * 2.0 - 1.0;
 
         let aspect_ratio = screen_dim.x / screen_dim.y;

@@ -158,9 +158,11 @@ impl TileEditor {
     pub fn load_from_project(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
         self.tiledrawer.tiles = project.extract_tiles();
         if let Some(widget) = ui.get_widget("RenderView") {
-            if let Some(w) = widget.as_any().downcast_mut::<TheRenderView>().map(
-                |external_widget| external_widget as &mut dyn TheRenderViewTrait,
-            ) {
+            if let Some(w) = widget
+                .as_any()
+                .downcast_mut::<TheRenderView>()
+                .map(|external_widget| external_widget as &mut dyn TheRenderViewTrait)
+            {
                 w.renderer_mut().set_textures(project.extract_tiles());
             }
         }
@@ -192,9 +194,13 @@ impl TileEditor {
                         if *index > 0 {
                             if let Some(region) = project.get_region(self.curr_region_uuid) {
                                 if let Some(widget) = ui.get_widget("RenderView") {
-                                    if let Some(w) = widget.as_any().downcast_mut::<TheRenderView>().map(
-                                        |external_widget| external_widget as &mut dyn TheRenderViewTrait,
-                                    ) {
+                                    if let Some(w) = widget
+                                        .as_any()
+                                        .downcast_mut::<TheRenderView>()
+                                        .map(|external_widget| {
+                                            external_widget as &mut dyn TheRenderViewTrait
+                                        })
+                                    {
                                         w.renderer_mut().set_region(region);
                                         w.renderer_mut().set_textures(project.extract_tiles());
                                     }
@@ -206,7 +212,8 @@ impl TileEditor {
             }
             TheEvent::TileEditorClicked(_id, coord) => {
                 if let Some(curr_tile_uuid) = self.curr_tile_uuid {
-                    if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None)
+                    if let Some(rgba_layout) =
+                        ui.canvas.get_layout(Some(&"Region Editor".into()), None)
                     {
                         if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
                             if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
@@ -222,16 +229,30 @@ impl TileEditor {
                     }
                     if self.tiledrawer.tiles.contains_key(&curr_tile_uuid) {
                         if let Some(region) = project.get_region(self.curr_region_uuid) {
-                            region.set_tile((coord.x, coord.y), self.curr_layer_role, self.curr_tile_uuid);
+                            let mut undo = Undo::new(UndoType::RegionChanged);
+                            undo.set_undo_region(region);
+
+                            region.set_tile(
+                                (coord.x, coord.y),
+                                self.curr_layer_role,
+                                self.curr_tile_uuid,
+                            );
+                            undo.set_redo_region(region);
                             self.set_icon_previews(region, *coord, ui);
 
                             if let Some(widget) = ui.get_widget("RenderView") {
-                                if let Some(w) = widget.as_any().downcast_mut::<TheRenderView>().map(
-                                    |external_widget| external_widget as &mut dyn TheRenderViewTrait,
-                                ) {
+                                if let Some(w) = widget
+                                    .as_any()
+                                    .downcast_mut::<TheRenderView>()
+                                    .map(|external_widget| {
+                                        external_widget as &mut dyn TheRenderViewTrait
+                                    })
+                                {
                                     w.renderer_mut().set_region(region);
                                 }
                             }
+
+                            project.undo_stack.add(undo);
                         }
                     }
                 }
@@ -253,9 +274,11 @@ impl TileEditor {
                 }
 
                 if let Some(widget) = ui.get_widget("RenderView") {
-                    if let Some(w) = widget.as_any().downcast_mut::<TheRenderView>().map(
-                        |external_widget| external_widget as &mut dyn TheRenderViewTrait,
-                    ) {
+                    if let Some(w) = widget
+                        .as_any()
+                        .downcast_mut::<TheRenderView>()
+                        .map(|external_widget| external_widget as &mut dyn TheRenderViewTrait)
+                    {
                         w.renderer_mut().set_position(vec3i(coord.x, 0, coord.y));
                     }
                 }
@@ -284,9 +307,13 @@ impl TileEditor {
                                 }
                             }
                             if let Some(widget) = ui.get_widget("RenderView") {
-                                if let Some(w) = widget.as_any().downcast_mut::<TheRenderView>().map(
-                                    |external_widget| external_widget as &mut dyn TheRenderViewTrait,
-                                ) {
+                                if let Some(w) = widget
+                                    .as_any()
+                                    .downcast_mut::<TheRenderView>()
+                                    .map(|external_widget| {
+                                        external_widget as &mut dyn TheRenderViewTrait
+                                    })
+                                {
                                     w.renderer_mut().set_region(r);
                                 }
                             }
@@ -329,10 +356,7 @@ impl TileEditor {
 
     fn set_icon_previews(&mut self, region: &mut Region, coord: Vec2i, ui: &mut TheUI) {
         // Ground Icon Preview
-        if let Some(tile) = region
-            .tiles
-            .get(&(coord.x, coord.y))
-        {
+        if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
             if let Some(ground) = tile.layers[0] {
                 if let Some(tile) = self.tiledrawer.tiles.get(&ground) {
                     if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
@@ -413,6 +437,23 @@ impl TileEditor {
             } else {
                 Some(self.icon_normal_border_color)
             });
+        }
+    }
+
+    /// Redraws the region (if the current one is the same as the one passed here from Undo).
+    pub fn redraw_region(&mut self, region: &Region, ui: &mut TheUI, ctx: &mut TheContext) {
+        if self.curr_region_uuid != region.id {
+            return;
+        }
+        if let Some(rgba_layout) =
+            ui.canvas.get_layout(Some(&"Region Editor".into()), None)
+        {
+            if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
+                if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                    self.tiledrawer.draw_region(rgba_view.buffer_mut(), region, ctx);
+                }
+                rgba_layout.rgba_view_mut().set_needs_redraw(true);
+            }
         }
     }
 }
