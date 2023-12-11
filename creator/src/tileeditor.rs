@@ -229,15 +229,15 @@ impl TileEditor {
                     }
                     if self.tiledrawer.tiles.contains_key(&curr_tile_uuid) {
                         if let Some(region) = project.get_region(self.curr_region_uuid) {
-                            let mut undo = Undo::new(UndoType::RegionChanged);
-                            undo.set_undo_region(region);
+                            let mut undo = TheUndo::new("RegionChanged");
+                            undo.set_undo_data(region.to_json());
 
                             region.set_tile(
                                 (coord.x, coord.y),
                                 self.curr_layer_role,
                                 self.curr_tile_uuid,
                             );
-                            undo.set_redo_region(region);
+                            undo.set_redo_data(region.to_json());
                             self.set_icon_previews(region, *coord, ui);
 
                             if let Some(widget) = ui.get_widget("RenderView") {
@@ -252,7 +252,7 @@ impl TileEditor {
                                 }
                             }
 
-                            project.undo_stack.add(undo);
+                            ctx.ui.undo_stack.add(undo);
                         }
                     }
                 }

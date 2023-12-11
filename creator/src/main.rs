@@ -7,7 +7,6 @@ pub mod project;
 pub mod sidebar;
 pub mod tileeditor;
 
-pub mod undo;
 pub mod widgets;
 
 pub mod prelude {
@@ -20,7 +19,6 @@ pub mod prelude {
     pub use crate::project::*;
     pub use crate::sidebar::*;
     pub use crate::tileeditor::*;
-    pub use crate::undo::*;
 
     pub use crate::widgets::therenderview::{TheRenderView, TheRenderViewTrait};
 }

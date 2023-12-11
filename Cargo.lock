@@ -3609,6 +3609,7 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+ "vectorize",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

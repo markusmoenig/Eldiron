@@ -44,6 +44,7 @@ impl Region {
         }
     }
 
+    /// Set the tile of the given position and role.
     pub fn set_tile(&mut self, pos: (i32, i32), role: Layer2DRole, tile: Option<Uuid>) {
         if let Some(t) = self.tiles.get_mut(&pos) {
             t.layers[role as usize] = tile;
@@ -52,6 +53,16 @@ impl Region {
             region_tile.layers[role as usize] = tile;
             self.tiles.insert(pos, region_tile);
         }
+    }
+
+    /// Create a region from json.
+    pub fn from_json(json: &str) -> Self {
+        serde_json::from_str(json).unwrap_or(Region::new())
+    }
+
+    /// Convert the region to json.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self).unwrap_or_default()
     }
 }
 

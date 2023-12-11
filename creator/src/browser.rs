@@ -19,17 +19,9 @@ impl Browser {
         let mut tab_layout = TheTabLayout::new(TheId::named("Browser"));
         tab_layout.limiter_mut().set_max_height(300);
 
-        // let mut yellow_color = TheColorButton::new(TheId::named("Yellow"));
-        // yellow_color.set_color([255, 255, 0, 255]);
-        // tab_layout.add_widget("Yellow".to_string(), Box::new(yellow_color));
-
-        // let mut red_color = TheColorButton::new(TheId::named("Red"));
-        // red_color.set_color([255, 0, 0, 255]);
-        // tab_layout.add_widget("Red".to_string(), Box::new(red_color));
-
         let mut status_canvas = TheCanvas::new();
         let mut statusbar =  TheStatusbar::new(TheId::named("Statusbar"));
-        statusbar.set_text("Welcome to Eldiron".to_string());
+        statusbar.set_text("Welcome to Eldiron! Visit Eldiron.com for information and example projects.".to_string());
         status_canvas.set_widget(statusbar);
 
         canvas.set_bottom(status_canvas);

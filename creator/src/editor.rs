@@ -55,9 +55,11 @@ impl TheTrait for Editor {
         save_as_button.set_icon_offset(vec2i(2, -5));
 
         let mut undo_button = TheMenubarButton::new(TheId::named("Undo"));
+        undo_button.set_status_text("Undo the last action.");
         undo_button.set_icon_name("icon_role_undo".to_string());
 
         let mut redo_button = TheMenubarButton::new(TheId::named("Redo"));
+        redo_button.set_status_text("Redo the last action.");
         redo_button.set_icon_name("icon_role_redo".to_string());
 
         let mut hlayout = TheHLayout::new(TheId::named("Menu Layout"));
@@ -173,28 +175,26 @@ impl TheTrait for Editor {
                             ctx.ui.clear_hover();
                             redraw = true;
                         } else {
-                            let mut data: Option<(UndoType, String)> = None;
-                            if id.name == "Undo" && self.project.undo_stack.has_undo() {
-                                data = Some(self.project.undo_stack.undo());
-                            } else if id.name == "Redo" && self.project.undo_stack.has_redo() {
-                                data = Some(self.project.undo_stack.redo());
+                            let mut data: Option<(String, String)> = None;
+                            if id.name == "Undo" && ctx.ui.undo_stack.has_undo() {
+                                data = Some(ctx.ui.undo_stack.undo());
+                            } else if id.name == "Redo" && ctx.ui.undo_stack.has_redo() {
+                                data = Some(ctx.ui.undo_stack.redo());
                             }
 
                             if let Some((undo_type, json)) = data {
-                                match undo_type {
-                                    UndoType::RegionChanged => {
-                                        let region: Result<Region, serde_json::Error> =
-                                            serde_json::from_str(&json);
-                                        if let Ok(region) = region {
-                                            for (index, r) in self.project.regions.iter().enumerate() {
-                                                if r.id == region.id {
-                                                    self.tileeditor.redraw_region(&region, ui, ctx);
-                                                    self.project.regions[index] = region;
-                                                    break;
-                                                }
+                                match undo_type.as_str() {
+                                    "RegionChanged" => {
+                                        let region = Region::from_json(json.as_str());
+                                        for (index, r) in self.project.regions.iter().enumerate() {
+                                            if r.id == region.id {
+                                                self.tileeditor.redraw_region(&region, ui, ctx);
+                                                self.project.regions[index] = region;
+                                                break;
                                             }
                                         }
                                     }
+                                    _ => {}
                                 }
                                 redraw = true;
                             }
