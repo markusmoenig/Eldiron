@@ -480,7 +480,7 @@ dependencies = [
  "core_shared",
  "crossbeam-channel",
  "env_logger 0.10.0",
- "fontdue",
+ "fontdue 0.7.3",
  "futures-util",
  "getrandom",
  "itertools 0.10.5",
@@ -507,7 +507,7 @@ dependencies = [
  "core_shared",
  "directories",
  "env_logger 0.10.0",
- "fontdue",
+ "fontdue 0.7.3",
  "getrandom",
  "itertools 0.10.5",
  "log",
@@ -536,7 +536,7 @@ dependencies = [
  "core_shared",
  "directories",
  "env_logger 0.10.0",
- "fontdue",
+ "fontdue 0.7.3",
  "fs_extra",
  "getrandom",
  "itertools 0.10.5",
@@ -570,7 +570,7 @@ dependencies = [
  "core_server",
  "core_shared",
  "env_logger 0.10.0",
- "fontdue",
+ "fontdue 0.7.3",
  "getrandom",
  "itertools 0.10.5",
  "log",
@@ -608,7 +608,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0772b1f010c49d89ac6380c96a7123b27d4e95b7f42f434fea6395c942960040"
 dependencies = [
  "copypasta",
- "fontdue",
+ "fontdue 0.7.3",
 ]
 
 [[package]]
@@ -772,7 +772,7 @@ dependencies = [
  "colori",
  "core_embed_binaries",
  "core_shared",
- "fontdue",
+ "fontdue 0.7.3",
  "itertools 0.10.5",
  "lazy_static",
  "log",
@@ -795,7 +795,7 @@ dependencies = [
  "core_embed_binaries",
  "core_shared",
  "crossbeam-channel",
- "fontdue",
+ "fontdue 0.7.3",
  "itertools 0.10.5",
  "log",
  "pathfinding",
@@ -821,7 +821,7 @@ dependencies = [
  "colors-transform",
  "core_embed_binaries",
  "cpal 0.15.2",
- "fontdue",
+ "fontdue 0.7.3",
  "log",
  "png",
  "rand",
@@ -955,7 +955,7 @@ dependencies = [
  "core_server",
  "core_shared",
  "env_logger 0.10.0",
- "fontdue",
+ "fontdue 0.7.3",
  "fs_extra",
  "futures",
  "itertools 0.11.0",
@@ -1299,6 +1299,16 @@ checksum = "0793f5137567643cf65ea42043a538804ff0fbf288649e2141442b602d81f9bc"
 dependencies = [
  "hashbrown 0.13.2",
  "ttf-parser 0.15.2",
+]
+
+[[package]]
+name = "fontdue"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9099a2f86b8e674b75d03ff154b3fe4c5208ed249ced8d69cc313a9fa40bb488"
+dependencies = [
+ "hashbrown 0.14.1",
+ "ttf-parser 0.20.0",
 ]
 
 [[package]]
@@ -3591,13 +3601,15 @@ dependencies = [
 
 [[package]]
 name = "theframework"
-version = "0.1.0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecdf8b13edb4a6ab5a618b39e94b1f414eadc7cca9ea3da16dd8bf8d1f29519e"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
  "env_logger 0.10.0",
  "flate2",
- "fontdue",
+ "fontdue 0.8.0",
  "futures",
  "log",
  "maths-rs",
@@ -3819,6 +3831,12 @@ name = "ttf-parser"
 version = "0.19.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49d64318d8311fc2668e48b63969f4343e0a85c4a109aa8460d6672e364b8bd1"
+
+[[package]]
+name = "ttf-parser"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17f77d76d837a7830fe1d4f12b7b4ba4192c1888001c7164257e4bc6d21d96b4"
 
 [[package]]
 name = "tungstenite"

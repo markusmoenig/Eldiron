@@ -201,8 +201,8 @@ impl TileEditor {
                                             external_widget as &mut dyn TheRenderViewTrait
                                         })
                                     {
-                                        w.renderer_mut().set_region(region);
-                                        w.renderer_mut().set_textures(project.extract_tiles());
+                                        //w.renderer_mut().set_region(region);
+                                        //w.renderer_mut().set_textures(project.extract_tiles());
                                     }
                                 }
                             }
@@ -229,7 +229,7 @@ impl TileEditor {
                     }
                     if self.tiledrawer.tiles.contains_key(&curr_tile_uuid) {
                         if let Some(region) = project.get_region(self.curr_region_uuid) {
-                            let mut undo = TheUndo::new("RegionChanged");
+                            let mut undo = TheUndo::new(TheId::named("RegionChanged"));
                             undo.set_undo_data(region.to_json());
 
                             region.set_tile(

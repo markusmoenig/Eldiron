@@ -1,5 +1,3 @@
-use theframework::theui::TheLayout;
-
 use crate::prelude::*;
 use std::sync::mpsc::Receiver;
 
@@ -32,6 +30,10 @@ impl TheTrait for Editor {
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
         }
+    }
+
+    fn window_title(&mut self) -> String {
+        "Eldiron".to_string()
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -175,15 +177,15 @@ impl TheTrait for Editor {
                             ctx.ui.clear_hover();
                             redraw = true;
                         } else {
-                            let mut data: Option<(String, String)> = None;
+                            let mut data: Option<(TheId, String)> = None;
                             if id.name == "Undo" && ctx.ui.undo_stack.has_undo() {
                                 data = Some(ctx.ui.undo_stack.undo());
                             } else if id.name == "Redo" && ctx.ui.undo_stack.has_redo() {
                                 data = Some(ctx.ui.undo_stack.redo());
                             }
 
-                            if let Some((undo_type, json)) = data {
-                                match undo_type.as_str() {
+                            if let Some((id, json)) = data {
+                                match id.name.as_str() {
                                     "RegionChanged" => {
                                         let region = Region::from_json(json.as_str());
                                         for (index, r) in self.project.regions.iter().enumerate() {

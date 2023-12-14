@@ -1,4 +1,5 @@
 use crate::prelude::*;
+pub use shared::prelude::*;
 
 pub struct TheRenderView {
     id: TheId,
