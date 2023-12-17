@@ -1,27 +1,30 @@
 use crate::prelude::*;
-use std::sync::mpsc::Receiver;
+//use std::sync::mpsc::Receiver;
 
 pub struct Browser {
-    state_receiver: Option<Receiver<TheEvent>>,
+    //state_receiver: Option<Receiver<TheEvent>>,
 }
 
 #[allow(clippy::new_without_default)]
 impl Browser {
     pub fn new() -> Self {
         Self {
-            state_receiver: None,
+            //state_receiver: None,
         }
     }
 
-    pub fn init_ui(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, project: &mut Project) {
+    pub fn init_ui(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, _project: &mut Project) {
         let mut canvas = TheCanvas::new();
 
         let mut tab_layout = TheTabLayout::new(TheId::named("Browser"));
         tab_layout.limiter_mut().set_max_height(300);
 
         let mut status_canvas = TheCanvas::new();
-        let mut statusbar =  TheStatusbar::new(TheId::named("Statusbar"));
-        statusbar.set_text("Welcome to Eldiron! Visit Eldiron.com for information and example projects.".to_string());
+        let mut statusbar = TheStatusbar::new(TheId::named("Statusbar"));
+        statusbar.set_text(
+            "Welcome to Eldiron! Visit Eldiron.com for information and example projects."
+                .to_string(),
+        );
         status_canvas.set_widget(statusbar);
 
         canvas.set_bottom(status_canvas);
@@ -31,9 +34,10 @@ impl Browser {
     }
 
     #[allow(clippy::single_match)]
-    pub fn update_ui(&mut self, _ui: &mut TheUI, ctx: &mut TheContext) -> bool {
-        let mut redraw = false;
+    pub fn update_ui(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext) -> bool {
+        //let redraw = false;
 
+        /*
         if let Some(receiver) = &mut self.state_receiver {
             while let Ok(event) = receiver.try_recv() {
                 match event {
@@ -66,6 +70,7 @@ impl Browser {
                 }
             }
         }
-        redraw
+        */
+        false
     }
 }

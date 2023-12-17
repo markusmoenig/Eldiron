@@ -1,6 +1,6 @@
 use crate::prelude::*;
-use theframework::prelude::*;
 use std::time::{SystemTime, UNIX_EPOCH};
+use theframework::prelude::*;
 
 pub struct Renderer {
     pub textures: FxHashMap<Uuid, TheRGBATile>,

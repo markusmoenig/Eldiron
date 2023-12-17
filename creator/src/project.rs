@@ -1,10 +1,17 @@
 use crate::prelude::*;
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Project {
     pub name: String,
     pub regions: Vec<Region>,
     pub tilemaps: Vec<Tilemap>,
+
+    #[serde(default)]
+    pub characters: FxHashMap<Uuid, TheCodeBundle>,
+    #[serde(default)]
+    pub items: FxHashMap<Uuid, TheCodeBundle>,
+    #[serde(default)]
+    pub codes: FxHashMap<Uuid, TheCodeBundle>
 }
 
 impl Default for Project {
@@ -20,7 +27,21 @@ impl Project {
 
             regions: vec![],
             tilemaps: vec![],
+
+            characters: FxHashMap::default(),
+            items: FxHashMap::default(),
+            codes: FxHashMap::default()
         }
+    }
+
+    /// Add Character
+    pub fn add_character(&mut self, character: TheCodeBundle) {
+        self.characters.insert(character.uuid, character);
+    }
+
+    /// Removes the given character from the project.
+    pub fn remove_character(&mut self, id: &Uuid) {
+        self.characters.remove(id);
     }
 
     /// Add a tilemap

@@ -1,22 +1,38 @@
 use crate::prelude::*;
 
+pub enum SidebarMode {
+    Region,
+    Character,
+    Item,
+    Tilemap,
+}
+
 pub struct Sidebar {
+    pub mode: SidebarMode,
+    width: i32,
+
     stack_layout_id: TheId,
 
     curr_tilemap_uuid: Option<Uuid>,
+
+    code_editor: TheCodeEditor,
 }
 
 #[allow(clippy::new_without_default)]
 impl Sidebar {
     pub fn new() -> Self {
         Self {
+            mode: SidebarMode::Region,
+            width: 420,
+
             stack_layout_id: TheId::empty(),
             curr_tilemap_uuid: None,
+
+            code_editor: TheCodeEditor::new(),
         }
     }
 
     pub fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext, _project: &mut Project) {
-        let width = 420;
 
         let mut sectionbar_canvas = TheCanvas::new();
 
@@ -58,7 +74,7 @@ impl Sidebar {
 
         let mut stack_layout = TheStackLayout::new(TheId::named("List Stack Layout"));
 
-        stack_layout.limiter_mut().set_max_width(width);
+        stack_layout.limiter_mut().set_max_width(self.width);
 
         self.stack_layout_id = stack_layout.id().clone();
 
@@ -67,7 +83,7 @@ impl Sidebar {
         let mut regions_canvas = TheCanvas::default();
 
         let mut list_layout = TheListLayout::new(TheId::named("Region List"));
-        list_layout.limiter_mut().set_max_size(vec2i(width, 200));
+        list_layout.limiter_mut().set_max_size(vec2i(self.width, 200));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -94,7 +110,7 @@ impl Sidebar {
         list_canvas.set_bottom(toolbar_canvas);
 
         let mut text_layout: TheTextLayout = TheTextLayout::new(TheId::empty());
-        text_layout.limiter_mut().set_max_width(width);
+        text_layout.limiter_mut().set_max_width(self.width);
         let name_edit = TheTextLineEdit::new(TheId::named("Region Name Edit"));
         text_layout.add_pair("Name".to_string(), Box::new(name_edit));
         let width_edit = TheTextLineEdit::new(TheId::named("Region Width Edit"));
@@ -107,7 +123,7 @@ impl Sidebar {
         let mut yellow_canvas = TheCanvas::default();
         let mut yellow_color = TheColorButton::new(TheId::named("Yellow"));
         yellow_color.set_color([255, 255, 0, 255]);
-        yellow_color.limiter_mut().set_max_size(vec2i(width, 200));
+        yellow_color.limiter_mut().set_max_size(vec2i(self.width, 200));
         yellow_canvas.set_widget(yellow_color);
 
         regions_canvas.set_top(list_canvas);
@@ -118,9 +134,8 @@ impl Sidebar {
         // Character
 
         let mut character_canvas = TheCanvas::default();
-
         let mut list_layout = TheListLayout::new(TheId::named("Character List"));
-        list_layout.limiter_mut().set_max_size(vec2i(width, 200));
+        list_layout.limiter_mut().set_max_size(vec2i(self.width, 200));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -128,32 +143,23 @@ impl Sidebar {
         regions_add_button.set_icon_name("icon_role_add".to_string());
         let mut regions_remove_button = TheTraybarButton::new(TheId::named("Character Remove"));
         regions_remove_button.set_icon_name("icon_role_remove".to_string());
+        let mut name_edit = TheTextLineEdit::new(TheId::named("Character Name Edit"));
+        name_edit.limiter_mut().set_max_width(180);
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
         toolbar_hlayout.add_widget(Box::new(regions_add_button));
         toolbar_hlayout.add_widget(Box::new(regions_remove_button));
+        toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+        toolbar_hlayout.add_widget(Box::new(name_edit));
 
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
         toolbar_canvas.set_layout(toolbar_hlayout);
         list_canvas.set_bottom(toolbar_canvas);
 
-        let mut text_layout = TheTextLayout::new(TheId::empty());
-        text_layout.limiter_mut().set_max_width(width);
-        let name_edit = TheTextLineEdit::new(TheId::named("Character Name Edit"));
-        text_layout.add_pair("Name".to_string(), Box::new(name_edit));
-
-        let mut red_canvas = TheCanvas::default();
-        let mut red_color = TheColorButton::new(TheId::named("Red"));
-        red_color.set_color([255, 0, 0, 255]);
-        red_color.limiter_mut().set_max_size(vec2i(width, 350));
-        red_canvas.set_widget(red_color);
-
         character_canvas.set_top(list_canvas);
-        character_canvas.set_layout(text_layout);
-        character_canvas.set_bottom(red_canvas);
         stack_layout.add_canvas(character_canvas);
 
         // Tilemaps
@@ -161,7 +167,7 @@ impl Sidebar {
         let mut tiles_canvas = TheCanvas::default();
 
         let mut list_layout = TheListLayout::new(TheId::named("Tilemap List"));
-        list_layout.limiter_mut().set_max_size(vec2i(width, 200));
+        list_layout.limiter_mut().set_max_size(vec2i(self.width, 200));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -182,7 +188,7 @@ impl Sidebar {
         list_canvas.set_bottom(toolbar_canvas);
 
         let mut text_layout = TheTextLayout::new(TheId::empty());
-        text_layout.limiter_mut().set_max_width(width);
+        text_layout.limiter_mut().set_max_width(self.width);
         let name_edit = TheTextLineEdit::new(TheId::named("Tilemap Name Edit"));
         text_layout.add_pair("Name".to_string(), Box::new(name_edit));
         let grid_edit = TheTextLineEdit::new(TheId::named("Tilemap Grid Edit"));
@@ -221,7 +227,7 @@ impl Sidebar {
         tile_list_layout.set_item_size(42);
         tile_list_layout
             .limiter_mut()
-            .set_max_size(vec2i(width, 360));
+            .set_max_size(vec2i(self.width, 360));
 
         tiles_list_canvas.set_top(tiles_list_header_canvas);
         tiles_list_canvas.set_layout(tile_list_layout);
@@ -243,6 +249,7 @@ impl Sidebar {
         ui.canvas.set_right(canvas);
 
         self.apply_region(ui, ctx, None);
+        self.apply_character(ui, ctx, None);
         self.apply_tilemap(ui, ctx, None);
     }
 
@@ -254,7 +261,7 @@ impl Sidebar {
         ctx: &mut TheContext,
         project: &mut Project,
     ) -> bool {
-        let mut redraw = false;
+        let mut redraw = self.code_editor.handle_event(event, ui, ctx);
         match event {
             TheEvent::ShowContextMenu(id, _coord) => {
                 println!("ShowContextMenu {}", id.name);
@@ -340,7 +347,32 @@ impl Sidebar {
                     }
                 } else if id.name == "Region Settings" {
                     self.show_region_settings(ui, ctx);
-                } else
+                } else if id.name == "Character Add" {
+                    if let Some(list_layout) = ui.get_list_layout("Character List") {
+                        let bundle = TheCodeBundle::new();
+
+                        let mut item =
+                            TheListItem::new(TheId::named_with_id("Character Item", bundle.uuid));
+                        item.set_text(bundle.name.clone());
+                        item.set_state(TheWidgetState::Selected);
+                        list_layout.deselect_all();
+                        let id = item.id().clone();
+                        list_layout.add_item(item, ctx);
+                        ctx.ui
+                            .send_widget_state_changed(&id, TheWidgetState::Selected);
+
+                        self.apply_character(ui, ctx, Some(&bundle));
+                        project.add_character(bundle);
+                    }
+                } else if id.name == "Character Remove" {
+                    if let Some(list_layout) = ui.get_list_layout("Character List") {
+                        if let Some(selected) = list_layout.selected() {
+                            list_layout.remove(selected.clone());
+                            project.remove_character(&selected.uuid);
+                            self.apply_character(ui, ctx, None);
+                        }
+                    }
+                }
                 // Tilemap Item Handling
                 if id.name == "Tilemap Add" {
                     ctx.ui.open_file_requester(
@@ -599,6 +631,7 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Regions".to_string()));
                     }
 
+                    self.mode = SidebarMode::Region;
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 0));
                     self.deselect_sections_buttons(ui, id.name.clone());
@@ -611,6 +644,7 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Character".to_string()));
                     }
 
+                    self.mode = SidebarMode::Character;
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 1));
                     self.deselect_sections_buttons(ui, id.name.clone());
@@ -623,6 +657,7 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Tilemaps".to_string()));
                     }
 
+                    self.mode = SidebarMode::Tilemap;
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 2));
                     self.deselect_sections_buttons(ui, id.name.clone());
@@ -654,6 +689,44 @@ impl Sidebar {
         }
         ui.select_first_list_item("Region List", ctx);
         ui.select_first_list_item("Tilemap List", ctx);
+    }
+
+    /// Apply the given character to the UI
+    pub fn apply_character(&mut self, ui: &mut TheUI, ctx: &mut TheContext, character: Option<&TheCodeBundle>) {
+        ui.set_widget_disabled_state("Character Remove", ctx, character.is_none());
+        ui.set_widget_disabled_state("Character Name Edit", ctx, character.is_none());
+
+        if let Some(character) = character {
+
+            let char_canvas = self.code_editor.set_bundle(character.clone(), ctx, self.width);
+
+            if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
+                if let Some(canvas) = stack_layout.canvas_at_mut(1) {
+                    canvas.set_bottom(char_canvas);
+                }
+            }
+        } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
+            if let Some(canvas) = stack_layout.canvas_at_mut(1) {
+                let mut empty = TheCanvas::new();
+                empty.set_layout(TheVLayout::new(TheId::empty()));
+                canvas.set_bottom(empty);
+            }
+        }
+
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Character Name Edit".to_string()), None)
+        {
+            if let Some(character) = character {
+                widget.set_value(TheValue::Text(character.name.clone()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+
+        ctx.ui.relayout = true;
     }
 
     /// Apply the given item to the UI

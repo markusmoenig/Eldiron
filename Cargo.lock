@@ -3601,9 +3601,9 @@ dependencies = [
 
 [[package]]
 name = "theframework"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecdf8b13edb4a6ab5a618b39e94b1f414eadc7cca9ea3da16dd8bf8d1f29519e"
+checksum = "703274b4b49478a466c4bee71289a225a3f3068903a0a8ed55e92fd5db405006"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -3959,6 +3959,7 @@ dependencies = [
  "rand",
  "serde",
  "uuid-macro-internal",
+ "wasm-bindgen",
 ]
 
 [[package]]

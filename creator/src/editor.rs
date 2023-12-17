@@ -37,7 +37,6 @@ impl TheTrait for Editor {
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-
         ui.set_statusbar_name("Statusbar".to_string());
 
         // Menubar
@@ -185,6 +184,7 @@ impl TheTrait for Editor {
                             }
 
                             if let Some((id, json)) = data {
+                                #[allow(clippy::single_match)]
                                 match id.name.as_str() {
                                     "RegionChanged" => {
                                         let region = Region::from_json(json.as_str());

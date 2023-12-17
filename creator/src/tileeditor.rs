@@ -201,8 +201,8 @@ impl TileEditor {
                                             external_widget as &mut dyn TheRenderViewTrait
                                         })
                                     {
-                                        //w.renderer_mut().set_region(region);
-                                        //w.renderer_mut().set_textures(project.extract_tiles());
+                                        w.renderer_mut().set_region(region);
+                                        w.renderer_mut().set_textures(project.extract_tiles());
                                     }
                                 }
                             }
@@ -445,12 +445,11 @@ impl TileEditor {
         if self.curr_region_uuid != region.id {
             return;
         }
-        if let Some(rgba_layout) =
-            ui.canvas.get_layout(Some(&"Region Editor".into()), None)
-        {
+        if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
             if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
                 if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                    self.tiledrawer.draw_region(rgba_view.buffer_mut(), region, ctx);
+                    self.tiledrawer
+                        .draw_region(rgba_view.buffer_mut(), region, ctx);
                 }
                 rgba_layout.rgba_view_mut().set_needs_redraw(true);
             }
