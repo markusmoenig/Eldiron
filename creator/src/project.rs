@@ -44,6 +44,16 @@ impl Project {
         self.characters.remove(id);
     }
 
+    /// Add Item
+    pub fn add_item(&mut self, item: TheCodeBundle) {
+        self.items.insert(item.uuid, item);
+    }
+
+    /// Removes the given item from the project.
+    pub fn remove_item(&mut self, id: &Uuid) {
+        self.items.remove(id);
+    }
+
     /// Add a tilemap
     pub fn add_tilemap(&mut self, tilemap: Tilemap) {
         self.tilemaps.push(tilemap)
@@ -62,6 +72,16 @@ impl Project {
     /// Get the region of the given uuid.
     pub fn get_region(&mut self, uuid: Uuid) -> Option<&mut Region> {
         self.regions.iter_mut().find(|t| t.id == uuid)
+    }
+
+    /// Add Code
+    pub fn add_code(&mut self, code: TheCodeBundle) {
+        self.codes.insert(code.uuid, code);
+    }
+
+    /// Removes the given code from the project.
+    pub fn remove_code(&mut self, id: &Uuid) {
+        self.codes.remove(id);
     }
 
     /// Extract all tiles from all tilemaps and store them in a hash.

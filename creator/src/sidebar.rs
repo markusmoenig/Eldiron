@@ -1,10 +1,12 @@
 use crate::prelude::*;
 
+#[derive(PartialEq, Debug)]
 pub enum SidebarMode {
     Region,
     Character,
     Item,
     Tilemap,
+    Code
 }
 
 pub struct Sidebar {
@@ -23,7 +25,7 @@ impl Sidebar {
     pub fn new() -> Self {
         Self {
             mode: SidebarMode::Region,
-            width: 420,
+            width: 380,
 
             stack_layout_id: TheId::empty(),
             curr_tilemap_uuid: None,
@@ -48,17 +50,23 @@ impl Sidebar {
             TheSectionbarButton::new(TheId::named("Character Section"));
         character_sectionbar_button.set_text("Character".to_string());
 
-        // let mut item_sectionbar_button = TheSectionbarButton::new("Items Section".to_string());
-        // item_sectionbar_button.set_text("Items".to_string());
+        let mut item_sectionbar_button =
+            TheSectionbarButton::new(TheId::named("Item Section"));
+        item_sectionbar_button.set_text("Item".to_string());
 
-        let mut tile_sectionbar_button = TheSectionbarButton::new(TheId::named("Tilemap Section"));
-        tile_sectionbar_button.set_text("Tilemap".to_string());
+        let mut tilemap_sectionbar_button = TheSectionbarButton::new(TheId::named("Tilemap Section"));
+        tilemap_sectionbar_button.set_text("Tilemap".to_string());
+
+        let mut code_sectionbar_button =
+            TheSectionbarButton::new(TheId::named("Code Section"));
+        code_sectionbar_button.set_text("Code".to_string());
 
         let mut vlayout = TheVLayout::new(TheId::named("Section Buttons"));
         vlayout.add_widget(Box::new(region_sectionbar_button));
         vlayout.add_widget(Box::new(character_sectionbar_button));
-        //vlayout.add_widget(Box::new(item_sectionbar_button));
-        vlayout.add_widget(Box::new(tile_sectionbar_button));
+        vlayout.add_widget(Box::new(item_sectionbar_button));
+        vlayout.add_widget(Box::new(tilemap_sectionbar_button));
+        vlayout.add_widget(Box::new(code_sectionbar_button));
         vlayout.set_margin(vec4i(5, 10, 5, 10));
         vlayout.set_padding(4);
         vlayout.set_background_color(Some(SectionbarBackground));
@@ -135,7 +143,7 @@ impl Sidebar {
 
         let mut character_canvas = TheCanvas::default();
         let mut list_layout = TheListLayout::new(TheId::named("Character List"));
-        list_layout.limiter_mut().set_max_size(vec2i(self.width, 200));
+        list_layout.limiter_mut().set_max_size(vec2i(self.width, 400));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -161,6 +169,37 @@ impl Sidebar {
 
         character_canvas.set_top(list_canvas);
         stack_layout.add_canvas(character_canvas);
+
+        // Item
+
+        let mut item_canvas = TheCanvas::default();
+        let mut list_layout = TheListLayout::new(TheId::named("Item List"));
+        list_layout.limiter_mut().set_max_size(vec2i(self.width, 400));
+        let mut list_canvas = TheCanvas::default();
+        list_canvas.set_layout(list_layout);
+
+        let mut item_add_button = TheTraybarButton::new(TheId::named("Item Add"));
+        item_add_button.set_icon_name("icon_role_add".to_string());
+        let mut item_remove_button = TheTraybarButton::new(TheId::named("Item Remove"));
+        item_remove_button.set_icon_name("icon_role_remove".to_string());
+        let mut name_edit = TheTextLineEdit::new(TheId::named("Item Name Edit"));
+        name_edit.limiter_mut().set_max_width(180);
+
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_hlayout.add_widget(Box::new(item_add_button));
+        toolbar_hlayout.add_widget(Box::new(item_remove_button));
+        toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+        toolbar_hlayout.add_widget(Box::new(name_edit));
+
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        toolbar_canvas.set_layout(toolbar_hlayout);
+        list_canvas.set_bottom(toolbar_canvas);
+
+        item_canvas.set_top(list_canvas);
+        stack_layout.add_canvas(item_canvas);
 
         // Tilemaps
 
@@ -237,6 +276,37 @@ impl Sidebar {
         tiles_canvas.set_bottom(tiles_list_canvas);
         stack_layout.add_canvas(tiles_canvas);
 
+        // Code
+
+        let mut code_canvas = TheCanvas::default();
+        let mut list_layout = TheListLayout::new(TheId::named("Code List"));
+        list_layout.limiter_mut().set_max_size(vec2i(self.width, 400));
+        let mut list_canvas = TheCanvas::default();
+        list_canvas.set_layout(list_layout);
+
+        let mut code_add_button = TheTraybarButton::new(TheId::named("Code Add"));
+        code_add_button.set_icon_name("icon_role_add".to_string());
+        let mut code_remove_button = TheTraybarButton::new(TheId::named("Code Remove"));
+        code_remove_button.set_icon_name("icon_role_remove".to_string());
+        let mut name_edit = TheTextLineEdit::new(TheId::named("Code Name Edit"));
+        name_edit.limiter_mut().set_max_width(180);
+
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_hlayout.add_widget(Box::new(code_add_button));
+        toolbar_hlayout.add_widget(Box::new(code_remove_button));
+        toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+        toolbar_hlayout.add_widget(Box::new(name_edit));
+
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        toolbar_canvas.set_layout(toolbar_hlayout);
+        list_canvas.set_bottom(toolbar_canvas);
+
+        code_canvas.set_top(list_canvas);
+        stack_layout.add_canvas(code_canvas);
+
         //
 
         let mut canvas = TheCanvas::new();
@@ -250,7 +320,9 @@ impl Sidebar {
 
         self.apply_region(ui, ctx, None);
         self.apply_character(ui, ctx, None);
+        self.apply_item(ui, ctx, None);
         self.apply_tilemap(ui, ctx, None);
+        self.apply_code(ui, ctx, None);
     }
 
     #[allow(clippy::suspicious_else_formatting)]
@@ -372,7 +444,72 @@ impl Sidebar {
                             self.apply_character(ui, ctx, None);
                         }
                     }
-                }
+                } else if id.name == "Character Item" {
+                    if let Some(c) = project.characters.get(&id.uuid) {
+                        self.apply_character(ui, ctx, Some(c));
+                        redraw = true;
+                    }
+                } else if id.name == "Item Add" {
+                    if let Some(list_layout) = ui.get_list_layout("Item List") {
+                        let bundle = TheCodeBundle::new();
+
+                        let mut item =
+                            TheListItem::new(TheId::named_with_id("Item Item", bundle.uuid));
+                        item.set_text(bundle.name.clone());
+                        item.set_state(TheWidgetState::Selected);
+                        list_layout.deselect_all();
+                        let id = item.id().clone();
+                        list_layout.add_item(item, ctx);
+                        ctx.ui
+                            .send_widget_state_changed(&id, TheWidgetState::Selected);
+
+                        self.apply_item(ui, ctx, Some(&bundle));
+                        project.add_item(bundle);
+                    }
+                } else if id.name == "Item Remove" {
+                    if let Some(list_layout) = ui.get_list_layout("Item List") {
+                        if let Some(selected) = list_layout.selected() {
+                            list_layout.remove(selected.clone());
+                            project.remove_item(&selected.uuid);
+                            self.apply_item(ui, ctx, None);
+                        }
+                    }
+                } else if id.name == "Item Item" {
+                    if let Some(c) = project.items.get(&id.uuid) {
+                        self.apply_item(ui, ctx, Some(c));
+                        redraw = true;
+                    }
+                } else if id.name == "Code Add" {
+                    if let Some(list_layout) = ui.get_list_layout("Code List") {
+                        let bundle = TheCodeBundle::new();
+
+                        let mut item =
+                            TheListItem::new(TheId::named_with_id("Code Item", bundle.uuid));
+                        item.set_text(bundle.name.clone());
+                        item.set_state(TheWidgetState::Selected);
+                        list_layout.deselect_all();
+                        let id = item.id().clone();
+                        list_layout.add_item(item, ctx);
+                        ctx.ui
+                            .send_widget_state_changed(&id, TheWidgetState::Selected);
+
+                        self.apply_code(ui, ctx, Some(&bundle));
+                        project.add_code(bundle);
+                    }
+                } else if id.name == "Code Remove" {
+                    if let Some(list_layout) = ui.get_list_layout("Item List") {
+                        if let Some(selected) = list_layout.selected() {
+                            list_layout.remove(selected.clone());
+                            project.remove_code(&selected.uuid);
+                            self.apply_code(ui, ctx, None);
+                        }
+                    }
+                } else if id.name == "Code Item" {
+                    if let Some(c) = project.codes.get(&id.uuid) {
+                        self.apply_code(ui, ctx, Some(c));
+                        redraw = true;
+                    }
+                } else
                 // Tilemap Item Handling
                 if id.name == "Tilemap Add" {
                     ctx.ui.open_file_requester(
@@ -490,12 +627,14 @@ impl Sidebar {
                             center.set_top(toolbar_canvas);
                             ctx.ui.relayout = true;
 
-                            if let Some(browser) =
-                                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
-                            {
-                                if let Some(browser) = browser.as_tab_layout() {
-                                    browser.clear();
-                                    browser.add_canvas(t.name.clone(), center);
+                            if self.mode == SidebarMode::Tilemap {
+                                if let Some(browser) =
+                                    ui.canvas.get_layout(Some(&"Browser".to_string()), None)
+                                {
+                                    if let Some(browser) = browser.as_tab_layout() {
+                                        browser.clear();
+                                        browser.add_canvas(t.name.clone(), center);
+                                    }
                                 }
                             }
 
@@ -644,9 +783,52 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Character".to_string()));
                     }
 
+                    if let Some(list_layout) = ui.get_list_layout("Character List") {
+                        if let Some(selected) = list_layout.selected() {
+                            ctx.ui.send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
+                        } else {
+                            // Nothing to show, clear the browser
+                            if let Some(browser) =
+                                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
+                            {
+                                if let Some(browser) = browser.as_tab_layout() {
+                                    browser.clear();
+                                }
+                            }
+                        }
+                    }
+
                     self.mode = SidebarMode::Character;
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 1));
+                    self.deselect_sections_buttons(ui, id.name.clone());
+                    redraw = true;
+                } else if id.name == "Item Section" && *state == TheWidgetState::Selected {
+                    if let Some(widget) = ui
+                        .canvas
+                        .get_widget(Some(&"Switchbar Section Header".into()), None)
+                    {
+                        widget.set_value(TheValue::Text("Item".to_string()));
+                    }
+
+                    if let Some(list_layout) = ui.get_list_layout("Item List") {
+                        if let Some(selected) = list_layout.selected() {
+                            ctx.ui.send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
+                        } else {
+                            // Nothing to show, clear the browser
+                            if let Some(browser) =
+                                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
+                            {
+                                if let Some(browser) = browser.as_tab_layout() {
+                                    browser.clear();
+                                }
+                            }
+                        }
+                    }
+
+                    self.mode = SidebarMode::Item;
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 2));
                     self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
                 } else if id.name == "Tilemap Section" && *state == TheWidgetState::Selected {
@@ -657,11 +839,90 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Tilemaps".to_string()));
                     }
 
+                    if let Some(list_layout) = ui.get_list_layout("Tilemap List") {
+                        if let Some(selected) = list_layout.selected() {
+                            ctx.ui.send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
+                        } else {
+                            // Nothing to show, clear the browser
+                            if let Some(browser) =
+                                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
+                            {
+                                if let Some(browser) = browser.as_tab_layout() {
+                                    browser.clear();
+                                }
+                            }
+                        }
+                    }
+
                     self.mode = SidebarMode::Tilemap;
                     ctx.ui
-                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 2));
+                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 3));
                     self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
+                } else if id.name == "Code Section" && *state == TheWidgetState::Selected {
+                    if let Some(widget) = ui
+                        .canvas
+                        .get_widget(Some(&"Switchbar Section Header".into()), None)
+                    {
+                        widget.set_value(TheValue::Text("Code".to_string()));
+                    }
+
+                    if let Some(list_layout) = ui.get_list_layout("Code List") {
+                        if let Some(selected) = list_layout.selected() {
+                            ctx.ui.send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
+                        } else {
+                            // Nothing to show, clear the browser
+                            if let Some(browser) =
+                                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
+                            {
+                                if let Some(browser) = browser.as_tab_layout() {
+                                    browser.clear();
+                                }
+                            }
+                        }
+                    }
+
+                    self.mode = SidebarMode::Code;
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 4));
+                    self.deselect_sections_buttons(ui, id.name.clone());
+                    redraw = true;
+                }
+            }
+            TheEvent::CodeBundleChanged(bundle) => {
+                if self.mode == SidebarMode::Character {
+                    if let Some(list_layout) = ui.get_list_layout("Character List") {
+                        if let Some(selected) = list_layout.selected() {
+                            if selected.uuid == bundle.uuid {
+                                if let Some(character) = project.characters.get_mut(&bundle.uuid) {
+                                    *character = bundle.clone();
+                                }
+                                redraw = true;
+                            }
+                        }
+                    }
+                } else if self.mode == SidebarMode::Item {
+                    if let Some(list_layout) = ui.get_list_layout("Item List") {
+                        if let Some(selected) = list_layout.selected() {
+                            if selected.uuid == bundle.uuid {
+                                if let Some(item) = project.items.get_mut(&bundle.uuid) {
+                                    *item = bundle.clone();
+                                }
+                                redraw = true;
+                            }
+                        }
+                    }
+                } else if self.mode == SidebarMode::Code {
+                    if let Some(list_layout) = ui.get_list_layout("Code List") {
+                        if let Some(selected) = list_layout.selected() {
+                            if selected.uuid == bundle.uuid {
+                                if let Some(code) = project.codes.get_mut(&bundle.uuid) {
+                                    *code = bundle.clone();
+                                }
+                                redraw = true;
+                            }
+                        }
+                    }
                 }
             }
             _ => {}
@@ -670,6 +931,7 @@ impl Sidebar {
         redraw
     }
 
+    /// Apply th given project to the UI
     pub fn load_from_project(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
         if let Some(list_layout) = ui.get_list_layout("Region List") {
             list_layout.clear();
@@ -696,13 +958,23 @@ impl Sidebar {
         ui.set_widget_disabled_state("Character Remove", ctx, character.is_none());
         ui.set_widget_disabled_state("Character Name Edit", ctx, character.is_none());
 
+        // Set the character bundle.
         if let Some(character) = character {
-
-            let char_canvas = self.code_editor.set_bundle(character.clone(), ctx, self.width);
+            let char_list_canvas: TheCanvas = self.code_editor.set_bundle(character.clone(), ctx, self.width);
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(1) {
-                    canvas.set_bottom(char_canvas);
+                    canvas.set_bottom(char_list_canvas);
+                }
+            }
+
+            if let Some(browser) =
+                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
+            {
+                if let Some(browser) = browser.as_tab_layout() {
+                    browser.clear();
+                    let code_editor_canvas: TheCanvas = self.code_editor.build_canvas(ctx);
+                    browser.add_canvas(character.name.clone(), code_editor_canvas);
                 }
             }
         } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
@@ -719,6 +991,102 @@ impl Sidebar {
         {
             if let Some(character) = character {
                 widget.set_value(TheValue::Text(character.name.clone()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+
+        ctx.ui.relayout = true;
+    }
+
+    /// Apply the given item to the UI
+    pub fn apply_item(&mut self, ui: &mut TheUI, ctx: &mut TheContext, item: Option<&TheCodeBundle>) {
+        ui.set_widget_disabled_state("Item Remove", ctx, item.is_none());
+        ui.set_widget_disabled_state("Item Name Edit", ctx, item.is_none());
+
+        // Set the Item bundle.
+        if let Some(item) = item {
+            let item_list_canvas: TheCanvas = self.code_editor.set_bundle(item.clone(), ctx, self.width);
+
+            if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
+                if let Some(canvas) = stack_layout.canvas_at_mut(2) {
+                    canvas.set_bottom(item_list_canvas);
+                }
+            }
+
+            if let Some(browser) =
+                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
+            {
+                if let Some(browser) = browser.as_tab_layout() {
+                    browser.clear();
+                    let code_editor_canvas: TheCanvas = self.code_editor.build_canvas(ctx);
+                    browser.add_canvas(item.name.clone(), code_editor_canvas);
+                }
+            }
+        } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
+            if let Some(canvas) = stack_layout.canvas_at_mut(2) {
+                let mut empty = TheCanvas::new();
+                empty.set_layout(TheVLayout::new(TheId::empty()));
+                canvas.set_bottom(empty);
+            }
+        }
+
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Item Name Edit".to_string()), None)
+        {
+            if let Some(item) = item {
+                widget.set_value(TheValue::Text(item.name.clone()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+
+        ctx.ui.relayout = true;
+    }
+
+    /// Apply the given item to the UI
+    pub fn apply_code(&mut self, ui: &mut TheUI, ctx: &mut TheContext, code: Option<&TheCodeBundle>) {
+        ui.set_widget_disabled_state("Code Remove", ctx, code.is_none());
+        ui.set_widget_disabled_state("Code Name Edit", ctx, code.is_none());
+
+        // Set the Item bundle.
+        if let Some(code) = code {
+            let code_list_canvas: TheCanvas = self.code_editor.set_bundle(code.clone(), ctx, self.width);
+
+            if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
+                if let Some(canvas) = stack_layout.canvas_at_mut(4) {
+                    canvas.set_bottom(code_list_canvas);
+                }
+            }
+
+            if let Some(browser) =
+                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
+            {
+                if let Some(browser) = browser.as_tab_layout() {
+                    browser.clear();
+                    let code_editor_canvas: TheCanvas = self.code_editor.build_canvas(ctx);
+                    browser.add_canvas(code.name.clone(), code_editor_canvas);
+                }
+            }
+        } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
+            if let Some(canvas) = stack_layout.canvas_at_mut(4) {
+                let mut empty = TheCanvas::new();
+                empty.set_layout(TheVLayout::new(TheId::empty()));
+                canvas.set_bottom(empty);
+            }
+        }
+
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Code Name Edit".to_string()), None)
+        {
+            if let Some(item) = code {
+                widget.set_value(TheValue::Text(item.name.clone()));
                 widget.set_disabled(false);
             } else {
                 widget.set_value(TheValue::Empty);

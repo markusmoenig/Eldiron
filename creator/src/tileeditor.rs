@@ -95,17 +95,17 @@ impl TileEditor {
         ceiling_icon.limiter_mut().set_max_size(vec2i(48, 48));
         ceiling_icon.set_border_color(Some(self.icon_normal_border_color));
 
-        let mut overlay_icon = TheIconView::new(TheId::named("Overlay Icon"));
-        overlay_icon.set_text(Some("OVER".to_string()));
-        overlay_icon.set_text_size(10.0);
-        overlay_icon.set_text_color([200, 200, 200, 255]);
-        overlay_icon.limiter_mut().set_max_size(vec2i(48, 48));
-        overlay_icon.set_border_color(Some(self.icon_normal_border_color));
+        // let mut overlay_icon = TheIconView::new(TheId::named("Overlay Icon"));
+        // overlay_icon.set_text(Some("OVER".to_string()));
+        // overlay_icon.set_text_size(10.0);
+        // overlay_icon.set_text_color([200, 200, 200, 255]);
+        // overlay_icon.limiter_mut().set_max_size(vec2i(48, 48));
+        // overlay_icon.set_border_color(Some(self.icon_normal_border_color));
 
         vlayout.add_widget(Box::new(ground_icon));
         vlayout.add_widget(Box::new(wall_icon));
         vlayout.add_widget(Box::new(ceiling_icon));
-        vlayout.add_widget(Box::new(overlay_icon));
+        //vlayout.add_widget(Box::new(overlay_icon));
 
         let mut spacer = TheIconView::new(TheId::empty());
         spacer.limiter_mut().set_max_height(5);
@@ -212,21 +212,6 @@ impl TileEditor {
             }
             TheEvent::TileEditorClicked(_id, coord) => {
                 if let Some(curr_tile_uuid) = self.curr_tile_uuid {
-                    if let Some(rgba_layout) =
-                        ui.canvas.get_layout(Some(&"Region Editor".into()), None)
-                    {
-                        if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
-                            if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                                self.tiledrawer.draw_tile(
-                                    *coord,
-                                    rgba_view.buffer_mut(),
-                                    24,
-                                    curr_tile_uuid,
-                                    ctx,
-                                );
-                            }
-                        }
-                    }
                     if self.tiledrawer.tiles.contains_key(&curr_tile_uuid) {
                         if let Some(region) = project.get_region(self.curr_region_uuid) {
                             let mut undo = TheUndo::new(TheId::named("RegionChanged"));
@@ -253,6 +238,26 @@ impl TileEditor {
                             }
 
                             ctx.ui.undo_stack.add(undo);
+                        }
+                    }
+                    if let Some(rgba_layout) =
+                        ui.canvas.get_layout(Some(&"Region Editor".into()), None)
+                    {
+                        if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
+                            if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                                // self.tiledrawer.draw_tile(
+                                //     *coord,
+                                //     rgba_view.buffer_mut(),
+                                //     24,
+                                //     curr_tile_uuid,
+                                //     ctx,
+                                // );
+
+                                if let Some(region) = project.get_region(self.curr_region_uuid) {
+                                    self.tiledrawer.draw_region(rgba_view.buffer_mut(), region, ctx);
+                                }
+                                rgba_view.set_needs_redraw(true);
+                            }
                         }
                     }
                 }
@@ -343,11 +348,11 @@ impl TileEditor {
                     self.curr_layer_role = Layer2DRole::Ceiling;
                     self.set_icon_colors(ui);
                     redraw = true;
-                } else if id.name == "Overlay Icon" {
-                    self.curr_layer_role = Layer2DRole::Overlay;
-                    self.set_icon_colors(ui);
-                    redraw = true;
-                }
+                } //else if id.name == "Overlay Icon" {
+                    // self.curr_layer_role = Layer2DRole::Overlay;
+                    // self.set_icon_colors(ui);
+                    // redraw = true;
+                // }
             }
             _ => {}
         }
@@ -384,15 +389,15 @@ impl TileEditor {
                     icon_view.set_rgba_tile(TheRGBATile::default());
                 }
             }
-            if let Some(overlay) = tile.layers[3] {
-                if let Some(tile) = self.tiledrawer.tiles.get(&overlay) {
-                    if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
-                        icon_view.set_rgba_tile(tile.clone());
-                    }
-                } else if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
-                    icon_view.set_rgba_tile(TheRGBATile::default());
-                }
-            }
+            // if let Some(overlay) = tile.layers[3] {
+            //     if let Some(tile) = self.tiledrawer.tiles.get(&overlay) {
+            //         if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
+            //             icon_view.set_rgba_tile(tile.clone());
+            //         }
+            //     } else if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
+            //         icon_view.set_rgba_tile(TheRGBATile::default());
+            //     }
+            // }
         } else {
             if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
                 icon_view.set_rgba_tile(TheRGBATile::default());
@@ -403,9 +408,9 @@ impl TileEditor {
             if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
                 icon_view.set_rgba_tile(TheRGBATile::default());
             }
-            if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
-                icon_view.set_rgba_tile(TheRGBATile::default());
-            }
+            // if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
+            //     icon_view.set_rgba_tile(TheRGBATile::default());
+            // }
         }
     }
 
@@ -431,13 +436,13 @@ impl TileEditor {
                 Some(self.icon_normal_border_color)
             });
         }
-        if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
-            icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Overlay {
-                Some(self.icon_selected_border_color)
-            } else {
-                Some(self.icon_normal_border_color)
-            });
-        }
+        // if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
+        //     icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Overlay {
+        //         Some(self.icon_selected_border_color)
+        //     } else {
+        //         Some(self.icon_normal_border_color)
+        //     });
+        // }
     }
 
     /// Redraws the region (if the current one is the same as the one passed here from Undo).

@@ -71,7 +71,6 @@ pub enum Layer2DRole {
     Ground,
     Wall,
     Ceiling,
-    Overlay,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -88,7 +87,7 @@ impl Default for RegionTile {
 impl RegionTile {
     pub fn new() -> Self {
         Self {
-            layers: vec![None, None, None, None],
+            layers: vec![None, None, None],
         }
     }
 }

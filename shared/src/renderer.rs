@@ -1,6 +1,6 @@
 use crate::prelude::*;
-use std::time::{SystemTime, UNIX_EPOCH};
 use theframework::prelude::*;
+use rayon::prelude::*;
 
 pub struct Renderer {
     pub textures: FxHashMap<Uuid, TheRGBATile>,
@@ -21,21 +21,25 @@ impl Renderer {
     pub fn render(&mut self, buffer: &mut TheRGBABuffer, dim: &TheDim, _ctx: &mut TheContext) {
         let start = self.get_time();
 
-        let stride = buffer.stride();
+        //let stride = buffer.stride();
         let pixels = buffer.pixels_mut();
 
-        let width = dim.width;
-        let height = dim.height;
+        let width = dim.width as usize;
+        //let height = dim.height;
 
         let width_f = dim.width as f32;
         let height_f = dim.height as f32;
 
-        for y in 0..height {
-            for x in 0..width {
-                let i = y * width + x;
+        pixels
+            .par_rchunks_exact_mut(width * 4)
+            .enumerate()
+            .for_each(|(j, line)| {
+                for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
+
+                let i = j * width + i;
 
                 let xx = (i % width) as f32;
-                let yy = height_f - (i / width) as f32;
+                let yy = (i / width) as f32;
 
                 let ro = vec3f(self.position.x + 0.5, 0.5, self.position.z + 0.5);
                 let mut rd = ro;
@@ -48,11 +52,9 @@ impl Renderer {
                     vec2f(0.0, 0.0),
                 );
 
-                let index = y as usize * stride * 4 + x as usize * 4;
-                pixels[index..index + 4].copy_from_slice(&self.render_pixel(ray));
-                //&[(xx / width as f32 * 255.0) as u8, (yy / height as f32 * 255.0) as u8, 0, 255]);
+                pixel.copy_from_slice(&self.render_pixel(ray));
             }
-        }
+        });
 
         let _stop = self.get_time();
         println!("render time {:?}", _stop - start);
@@ -159,7 +161,7 @@ impl Renderer {
     pub fn set_region(&mut self, region: &Region) {
         self.tiles.clear();
         for (pos, tile) in &region.tiles {
-            for i in 0..3 {
+            for i in 0..tile.layers.len() {
                 if i == 0 {
                     if let Some(tile_uuid) = tile.layers[i] {
                         self.tiles.insert((pos.0, -1, pos.1), tile_uuid);
@@ -188,9 +190,19 @@ impl Renderer {
 
     /// Gets the current time in milliseconds
     fn get_time(&self) -> u128 {
-        let stop = SystemTime::now()
+        let time;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use std::time::{SystemTime, UNIX_EPOCH};
+            let t = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards");
-        stop.as_millis()
+            time = t.as_millis();
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            time = web_sys::window().unwrap().performance().unwrap().now() as u128;
+        }
+        time
     }
 }

@@ -3352,6 +3352,7 @@ dependencies = [
 name = "shared"
 version = "0.1.0"
 dependencies = [
+ "rayon",
  "serde",
  "serde_json",
  "theframework",
@@ -3601,9 +3602,9 @@ dependencies = [
 
 [[package]]
 name = "theframework"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "703274b4b49478a466c4bee71289a225a3f3068903a0a8ed55e92fd5db405006"
+checksum = "d2edfb924b8f4415bb9fa045235b615b9ef5a891ac1d48270649c87e3217eddc"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
