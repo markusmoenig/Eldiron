@@ -3,6 +3,8 @@ pub mod region;
 pub mod renderer;
 pub mod tiledrawer;
 pub mod tilemap;
+pub mod server;
+pub mod project;
 
 pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
@@ -12,4 +14,6 @@ pub mod prelude {
     pub use crate::renderer::Renderer;
     pub use crate::tiledrawer::TileDrawer;
     pub use crate::tilemap::{Tile, TileRole, Tilemap};
+    pub use crate::server::Server;
+    pub use crate::project::Project;
 }

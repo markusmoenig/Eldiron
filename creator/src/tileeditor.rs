@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 pub struct TileEditor {
     tiledrawer: TileDrawer,
-    curr_region_uuid: Uuid,
+    pub curr_region_uuid: Uuid,
     curr_tile_uuid: Option<Uuid>,
 
     curr_layer_role: Layer2DRole,
@@ -175,6 +175,7 @@ impl TileEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
+        server: &mut Server,
     ) -> bool {
         let mut redraw = false;
         match event {
@@ -192,7 +193,7 @@ impl TileEditor {
 
                         // Set the region and textures to the RenderView if visible
                         if *index > 0 {
-                            if let Some(region) = project.get_region(self.curr_region_uuid) {
+                            if let Some(region) = project.get_region(&self.curr_region_uuid) {
                                 if let Some(widget) = ui.get_widget("RenderView") {
                                     if let Some(w) = widget
                                         .as_any()
@@ -213,7 +214,7 @@ impl TileEditor {
             TheEvent::TileEditorClicked(_id, coord) => {
                 if let Some(curr_tile_uuid) = self.curr_tile_uuid {
                     if self.tiledrawer.tiles.contains_key(&curr_tile_uuid) {
-                        if let Some(region) = project.get_region(self.curr_region_uuid) {
+                        if let Some(region) = project.get_region_mut(&self.curr_region_uuid) {
                             let mut undo = TheUndo::new(TheId::named("RegionChanged"));
                             undo.set_undo_data(region.to_json());
 
@@ -224,6 +225,8 @@ impl TileEditor {
                             );
                             undo.set_redo_data(region.to_json());
                             self.set_icon_previews(region, *coord, ui);
+
+                            server.update_region(region);
 
                             if let Some(widget) = ui.get_widget("RenderView") {
                                 if let Some(w) = widget
@@ -253,9 +256,10 @@ impl TileEditor {
                                 //     ctx,
                                 // );
 
-                                if let Some(region) = project.get_region(self.curr_region_uuid) {
-                                    self.tiledrawer.draw_region(rgba_view.buffer_mut(), region, ctx);
-                                }
+                                // if let Some(region) = project.get_region(&self.curr_region_uuid) {
+                                //     self.tiledrawer.draw_region(rgba_view.buffer_mut(), region, ctx);
+                                // }
+                                server.draw_region(&self.curr_region_uuid, rgba_view.buffer_mut(), &self.tiledrawer, ctx);
                                 rgba_view.set_needs_redraw(true);
                             }
                         }
@@ -302,9 +306,8 @@ impl TileEditor {
                                         rgba_view.set_mode(TheRGBAViewMode::TileEditor);
                                         let width = r.width * r.grid_size;
                                         let height = r.height * r.grid_size;
-                                        let mut buffer =
+                                        let buffer =
                                             TheRGBABuffer::new(TheDim::new(0, 0, width, height));
-                                        self.tiledrawer.draw_region(&mut buffer, r, ctx);
                                         rgba_view.set_buffer(buffer);
                                         rgba_view.set_grid(Some(r.grid_size));
                                         ctx.ui.relayout = true;
@@ -323,6 +326,7 @@ impl TileEditor {
                                 }
                             }
                             self.curr_region_uuid = r.id;
+                            self.redraw_region(ui, server, ctx);
                             redraw = true;
                         }
                     }
@@ -445,6 +449,21 @@ impl TileEditor {
         // }
     }
 
+    /// Redraw the map of the current region on tick.
+    pub fn redraw_region(&mut self, ui: &mut TheUI, server: &mut Server, ctx: &mut TheContext) {
+        if let Some(rgba_layout) =
+            ui.canvas.get_layout(Some(&"Region Editor".into()), None)
+        {
+            if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
+                if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                    server.draw_region(&self.curr_region_uuid, rgba_view.buffer_mut(), &self.tiledrawer, ctx);
+                    rgba_view.set_needs_redraw(true);
+                }
+            }
+        }
+    }
+
+    /*
     /// Redraws the region (if the current one is the same as the one passed here from Undo).
     pub fn redraw_region(&mut self, region: &Region, ui: &mut TheUI, ctx: &mut TheContext) {
         if self.curr_region_uuid != region.id {
@@ -454,10 +473,10 @@ impl TileEditor {
             if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
                 if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
                     self.tiledrawer
-                        .draw_region(rgba_view.buffer_mut(), region, ctx);
+                        .draw_region(rgba_view.buffer_mut(), region, &0, ctx);
                 }
                 rgba_layout.rgba_view_mut().set_needs_redraw(true);
             }
         }
-    }
+    }*/
 }

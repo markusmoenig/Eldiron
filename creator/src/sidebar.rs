@@ -421,7 +421,13 @@ impl Sidebar {
                     self.show_region_settings(ui, ctx);
                 } else if id.name == "Character Add" {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
-                        let bundle = TheCodeBundle::new();
+                        let mut bundle = TheCodeBundle::new();
+
+                        let init = TheCodeGrid { name: "Init".into(), ..Default::default() };
+                        bundle.insert_grid(init);
+
+                        let main = TheCodeGrid { name: "Main".into(), ..Default::default() };
+                        bundle.insert_grid(main);
 
                         let mut item =
                             TheListItem::new(TheId::named_with_id("Character Item", bundle.uuid));

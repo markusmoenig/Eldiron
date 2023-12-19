@@ -3,7 +3,6 @@ use theframework::*;
 pub mod browser;
 pub mod editor;
 pub mod misc;
-pub mod project;
 pub mod sidebar;
 pub mod tileeditor;
 
@@ -16,7 +15,6 @@ pub mod prelude {
 
     pub use crate::browser::*;
     pub use crate::misc::*;
-    pub use crate::project::*;
     pub use crate::sidebar::*;
     pub use crate::tileeditor::*;
 

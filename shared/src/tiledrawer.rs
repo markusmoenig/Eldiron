@@ -15,13 +15,14 @@ impl TileDrawer {
     }
 
     pub fn draw_region(
-        &mut self,
+        &self,
         buffer: &mut TheRGBABuffer,
         region: &Region,
+        anim_counter: &usize,
         _ctx: &mut TheContext,
     ) {
 
-        let start = self.get_time();
+        let _start = self.get_time();
 
         /*
         buffer.pixels_mut().fill(0);
@@ -38,8 +39,6 @@ impl TileDrawer {
                 }
             }
         }*/
-
-        //let stride = buffer.stride();
 
         let width = buffer.dim().width as usize;
         let height = buffer.dim().height;
@@ -69,7 +68,8 @@ impl TileDrawer {
                         if let Some(tile_uuid) = tile.layers[index] {
 
                             if let Some(data) = self.tiles.get(&tile_uuid) {
-                                if let Some(c) = data.buffer[0].at(vec2i(x % tile_size, y % tile_size)) {
+                                let index = *anim_counter % data.buffer.len();
+                                if let Some(c) = data.buffer[index].at(vec2i(x % tile_size, y % tile_size)) {
                                     color = c;
                                 }
                             }
@@ -82,7 +82,7 @@ impl TileDrawer {
         });
 
         let _stop = self.get_time();
-        println!("drawing time {:?}", _stop - start);
+        //println!("drawing time {:?}", _stop - start);
     }
 
     pub fn draw_tile(

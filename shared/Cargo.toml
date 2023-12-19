@@ -3,7 +3,6 @@ name = "shared"
 version = "0.1.0"
 edition = "2021"
 
-
 [dependencies]
 # theframework = { path = "../../TheFramework", features = ["ui", "code"]}
 theframework = { version = "0.1.3", features = ["ui", "code"], default-features = true }

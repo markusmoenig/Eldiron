@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Project {
@@ -70,8 +71,13 @@ impl Project {
     }
 
     /// Get the region of the given uuid.
-    pub fn get_region(&mut self, uuid: Uuid) -> Option<&mut Region> {
-        self.regions.iter_mut().find(|t| t.id == uuid)
+    pub fn get_region(&self, uuid: &Uuid) -> Option<&Region> {
+        self.regions.iter().find(|t| t.id == *uuid)
+    }
+
+    /// Get the region of the given uuid as mutable.
+    pub fn get_region_mut(&mut self, uuid: &Uuid) -> Option<&mut Region> {
+        self.regions.iter_mut().find(|t| t.id == *uuid)
     }
 
     /// Add Code

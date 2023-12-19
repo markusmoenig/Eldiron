@@ -8,6 +8,8 @@ pub struct Editor {
     browser: Browser,
     tileeditor: TileEditor,
 
+    server: Server,
+
     update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
 }
@@ -17,15 +19,14 @@ impl TheTrait for Editor {
     where
         Self: Sized,
     {
-        // let mut vm = TheVM::new();
-        // let rc = vm.interpret("let t = 2 + 6;\n let p = clock();\n print(t);".to_string());
-
         Self {
             project: Project::new(),
 
             sidebar: Sidebar::new(),
             browser: Browser::new(),
             tileeditor: TileEditor::new(),
+
+            server: Server::new(),
 
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
@@ -86,11 +87,6 @@ impl TheTrait for Editor {
         // TileEditor
         self.tileeditor.init_ui(ui, ctx, &mut self.project);
 
-        // let mut c: TheCanvas = TheCanvas::new();
-        // let view = TheRenderView::new(TheId::named("Soft3DView"));
-        // c.set_widget(view);
-        //ui.canvas.set_center(c);
-
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
     }
 
@@ -112,6 +108,8 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
             }
+            self.server.tick();
+            self.tileeditor.redraw_region(ui, &mut self.server, ctx);
         }
 
         if let Some(receiver) = &mut self.event_receiver {
@@ -121,7 +119,7 @@ impl TheTrait for Editor {
                     .handle_event(&event, ui, ctx, &mut self.project);
                 if self
                     .tileeditor
-                    .handle_event(&event, ui, ctx, &mut self.project)
+                    .handle_event(&event, ui, ctx, &mut self.project, &mut self.server)
                 {
                     redraw = true;
                 }
@@ -134,6 +132,7 @@ impl TheTrait for Editor {
                                     serde_json::from_str(&contents).unwrap_or(Project::new());
                                 self.sidebar.load_from_project(ui, ctx, &self.project);
                                 self.tileeditor.load_from_project(ui, ctx, &self.project);
+                                self.server.set_project(self.project.clone());
                                 redraw = true;
                             }
                         } else if id.name == "Save" {
@@ -190,7 +189,10 @@ impl TheTrait for Editor {
                                         let region = Region::from_json(json.as_str());
                                         for (index, r) in self.project.regions.iter().enumerate() {
                                             if r.id == region.id {
-                                                self.tileeditor.redraw_region(&region, ui, ctx);
+                                                self.server.update_region(&region);
+                                                if region.id == self.tileeditor.curr_region_uuid {
+                                                    self.tileeditor.redraw_region(ui, &mut self.server, ctx);
+                                                }
                                                 self.project.regions[index] = region;
                                                 break;
                                             }
