@@ -116,7 +116,7 @@ impl TheTrait for Editor {
             while let Ok(event) = receiver.try_recv() {
                 redraw = self
                     .sidebar
-                    .handle_event(&event, ui, ctx, &mut self.project);
+                    .handle_event(&event, ui, ctx, &mut self.project, &mut self.server);
                 if self
                     .tileeditor
                     .handle_event(&event, ui, ctx, &mut self.project, &mut self.server)
@@ -124,6 +124,14 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
                 match event {
+                    TheEvent::TileEditorDrop(_id, location, drop) => {
+                        if drop.id.name.starts_with("Character") {
+                            self.server.add_character_to_region(
+                                drop.id.uuid,
+                                self.tileeditor.curr_region_uuid,
+                                location);
+                        }
+                    }
                     TheEvent::FileRequesterResult(id, paths) => {
                         if id.name == "Open" {
                             for p in paths {

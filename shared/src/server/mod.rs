@@ -134,4 +134,17 @@ impl Server {
             instance.draw(buffer, tiledrawer, &self.anim_counter, ctx);
         }
     }
+
+    /// Add a new character (TheCodeBundle) to the server.
+    pub fn add_character(&mut self, character: TheCodeBundle) {
+        for instance in self.instances.values_mut() {
+            instance.add_character(character.clone());
+        }
+    }
+
+    pub fn add_character_to_region(&mut self, character: Uuid, region: Uuid, location: Vec2i) {
+        if let Some(instance) = self.instances.get_mut(&region) {
+            instance.add_character_instance(character, location);
+        }
+    }
 }

@@ -332,11 +332,23 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
+        server: &mut Server,
     ) -> bool {
         let mut redraw = self.code_editor.handle_event(event, ui, ctx);
         match event {
             TheEvent::ShowContextMenu(id, _coord) => {
                 println!("ShowContextMenu {}", id.name);
+            }
+            TheEvent::DragStarted(id, text, offset) => {
+                if id.name == "Character Item" {
+                    let mut drop = TheDrop::new(id.clone());
+                    //drop.set_data(atom.to_json());
+                    drop.set_title(format!("Character: {}", text));
+                    drop.set_text(text.clone());
+                    drop.set_offset(*offset);
+                    ui.style.create_drop_image(&mut drop, ctx);
+                    ctx.ui.set_drop(drop);
+                }
             }
             TheEvent::TileSelectionChanged(id) => {
                 if id.name == "Tilemap Editor View" {
@@ -423,14 +435,15 @@ impl Sidebar {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         let mut bundle = TheCodeBundle::new();
 
-                        let init = TheCodeGrid { name: "Init".into(), ..Default::default() };
+                        let mut init = TheCodeGrid { name: "Init".into(), ..Default::default() };
+                        init.insert_atom((0, 0), TheCodeAtom::LocalSet("test".to_string()));
                         bundle.insert_grid(init);
 
                         let main = TheCodeGrid { name: "Main".into(), ..Default::default() };
                         bundle.insert_grid(main);
 
                         let mut item =
-                            TheListItem::new(TheId::named_with_id("Character Item", bundle.uuid));
+                            TheListItem::new(TheId::named_with_id("Character Item", bundle.id));
                         item.set_text(bundle.name.clone());
                         item.set_state(TheWidgetState::Selected);
                         list_layout.deselect_all();
@@ -440,6 +453,7 @@ impl Sidebar {
                             .send_widget_state_changed(&id, TheWidgetState::Selected);
 
                         self.apply_character(ui, ctx, Some(&bundle));
+                        server.add_character(bundle.clone());
                         project.add_character(bundle);
                     }
                 } else if id.name == "Character Remove" {
@@ -460,7 +474,7 @@ impl Sidebar {
                         let bundle = TheCodeBundle::new();
 
                         let mut item =
-                            TheListItem::new(TheId::named_with_id("Item Item", bundle.uuid));
+                            TheListItem::new(TheId::named_with_id("Item Item", bundle.id));
                         item.set_text(bundle.name.clone());
                         item.set_state(TheWidgetState::Selected);
                         list_layout.deselect_all();
@@ -490,7 +504,7 @@ impl Sidebar {
                         let bundle = TheCodeBundle::new();
 
                         let mut item =
-                            TheListItem::new(TheId::named_with_id("Code Item", bundle.uuid));
+                            TheListItem::new(TheId::named_with_id("Code Item", bundle.id));
                         item.set_text(bundle.name.clone());
                         item.set_state(TheWidgetState::Selected);
                         list_layout.deselect_all();
@@ -899,8 +913,8 @@ impl Sidebar {
                 if self.mode == SidebarMode::Character {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
-                            if selected.uuid == bundle.uuid {
-                                if let Some(character) = project.characters.get_mut(&bundle.uuid) {
+                            if selected.uuid == bundle.id {
+                                if let Some(character) = project.characters.get_mut(&bundle.id) {
                                     *character = bundle.clone();
                                 }
                                 redraw = true;
@@ -910,8 +924,8 @@ impl Sidebar {
                 } else if self.mode == SidebarMode::Item {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         if let Some(selected) = list_layout.selected() {
-                            if selected.uuid == bundle.uuid {
-                                if let Some(item) = project.items.get_mut(&bundle.uuid) {
+                            if selected.uuid == bundle.id {
+                                if let Some(item) = project.items.get_mut(&bundle.id) {
                                     *item = bundle.clone();
                                 }
                                 redraw = true;
@@ -921,8 +935,8 @@ impl Sidebar {
                 } else if self.mode == SidebarMode::Code {
                     if let Some(list_layout) = ui.get_list_layout("Code List") {
                         if let Some(selected) = list_layout.selected() {
-                            if selected.uuid == bundle.uuid {
-                                if let Some(code) = project.codes.get_mut(&bundle.uuid) {
+                            if selected.uuid == bundle.id {
+                                if let Some(code) = project.codes.get_mut(&bundle.id) {
                                     *code = bundle.clone();
                                 }
                                 redraw = true;
@@ -1240,17 +1254,6 @@ impl Sidebar {
         text_layout.add_pair("Height in Grid".to_string(), Box::new(height_edit));
         let grid_edit = TheTextLineEdit::new(TheId::named("Region Grid Edit"));
         text_layout.add_pair("Grid Size".to_string(), Box::new(grid_edit));
-
-        // let mut yellow_canvas = TheCanvas::default();
-        // let mut yellow_color = TheColorButton::new(TheId::named("Yellow"));
-        // yellow_color.set_color([255, 255, 0, 255]);
-        // yellow_color.limiter_mut().set_max_size(vec2i(width, 200));
-        // yellow_canvas.set_widget(yellow_color);
-
-        // regions_canvas.set_top(list_canvas);
-        // regions_canvas.set_layout(text_layout);
-        // regions_canvas.set_bottom(yellow_canvas);
-        // stack_layout.add_canvas(regions_canvas);
 
         canvas.set_layout(text_layout);
         ui.show_dialog("Region Settings", canvas, ctx);

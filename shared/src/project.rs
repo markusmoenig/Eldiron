@@ -37,7 +37,7 @@ impl Project {
 
     /// Add Character
     pub fn add_character(&mut self, character: TheCodeBundle) {
-        self.characters.insert(character.uuid, character);
+        self.characters.insert(character.id, character);
     }
 
     /// Removes the given character from the project.
@@ -47,7 +47,7 @@ impl Project {
 
     /// Add Item
     pub fn add_item(&mut self, item: TheCodeBundle) {
-        self.items.insert(item.uuid, item);
+        self.items.insert(item.id, item);
     }
 
     /// Removes the given item from the project.
@@ -82,7 +82,7 @@ impl Project {
 
     /// Add Code
     pub fn add_code(&mut self, code: TheCodeBundle) {
-        self.codes.insert(code.uuid, code);
+        self.codes.insert(code.id, code);
     }
 
     /// Removes the given code from the project.
