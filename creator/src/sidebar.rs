@@ -435,11 +435,11 @@ impl Sidebar {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         let mut bundle = TheCodeBundle::new();
 
-                        let mut init = TheCodeGrid { name: "Init".into(), ..Default::default() };
+                        let mut init = TheCodeGrid { name: "init".into(), ..Default::default() };
                         init.insert_atom((0, 0), TheCodeAtom::LocalSet("test".to_string()));
                         bundle.insert_grid(init);
 
-                        let main = TheCodeGrid { name: "Main".into(), ..Default::default() };
+                        let main = TheCodeGrid { name: "main".into(), ..Default::default() };
                         bundle.insert_grid(main);
 
                         let mut item =
@@ -453,7 +453,7 @@ impl Sidebar {
                             .send_widget_state_changed(&id, TheWidgetState::Selected);
 
                         self.apply_character(ui, ctx, Some(&bundle));
-                        server.add_character(bundle.clone());
+                        server.insert_character(bundle.clone());
                         project.add_character(bundle);
                     }
                 } else if id.name == "Character Remove" {
@@ -916,6 +916,7 @@ impl Sidebar {
                             if selected.uuid == bundle.id {
                                 if let Some(character) = project.characters.get_mut(&bundle.id) {
                                     *character = bundle.clone();
+                                    server.insert_character(bundle.clone());
                                 }
                                 redraw = true;
                             }

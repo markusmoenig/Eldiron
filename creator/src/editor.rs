@@ -126,7 +126,7 @@ impl TheTrait for Editor {
                 match event {
                     TheEvent::TileEditorDrop(_id, location, drop) => {
                         if drop.id.name.starts_with("Character") {
-                            self.server.add_character_to_region(
+                            self.server.add_character_instance_to_region(
                                 drop.id.uuid,
                                 self.tileeditor.curr_region_uuid,
                                 location);

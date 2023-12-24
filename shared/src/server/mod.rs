@@ -16,7 +16,14 @@ use prelude::*;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Server {
     project: Project,
+    #[serde(skip)]
+    compiler: TheCompiler,
+
     instances: FxHashMap<Uuid, RegionInstance>,
+
+    #[serde(skip)]
+    characters: FxHashMap<Uuid, TheCodePackage>,
+
     pub world: World,
 
     pub anim_counter: usize,
@@ -32,7 +39,12 @@ impl Server {
     pub fn new() -> Self {
         Self {
             project: Project::default(),
+            compiler: TheCompiler::new(),
+
             instances: FxHashMap::default(),
+
+            characters: FxHashMap::default(),
+
             world: World::default(),
 
             anim_counter: 0,
@@ -136,13 +148,29 @@ impl Server {
     }
 
     /// Add a new character (TheCodeBundle) to the server.
-    pub fn add_character(&mut self, character: TheCodeBundle) {
-        for instance in self.instances.values_mut() {
-            instance.add_character(character.clone());
+    pub fn insert_character(&mut self, mut character: TheCodeBundle) {
+        let mut package = TheCodePackage::new();
+        package.id = character.id;
+
+        for grid in character.grids.values_mut() {
+            let rc = self.compiler.compile(grid);
+            if let Ok(mut module) = rc {
+                module.name = grid.name.clone();
+                println!("RegionInstance::add_character: Compiled grid module: {}", grid.name);
+                package.insert_module(module.name.clone(), module);
+            } else {
+                println!("RegionInstance::add_character: Failed to compile grid: {}", grid.name);
+            }
         }
+
+        for instance in self.instances.values_mut() {
+            instance.insert_character(package.clone());
+        }
+
+        self.characters.insert(package.id, package);
     }
 
-    pub fn add_character_to_region(&mut self, character: Uuid, region: Uuid, location: Vec2i) {
+    pub fn add_character_instance_to_region(&mut self, character: Uuid, region: Uuid, location: Vec2i) {
         if let Some(instance) = self.instances.get_mut(&region) {
             instance.add_character_instance(character, location);
         }
