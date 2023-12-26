@@ -1,6 +1,6 @@
 use crate::prelude::*;
-use theframework::prelude::*;
 use rayon::prelude::*;
+use theframework::prelude::*;
 
 pub struct TileDrawer {
     pub tiles: FxHashMap<Uuid, TheRGBATile>,
@@ -21,7 +21,6 @@ impl TileDrawer {
         anim_counter: &usize,
         _ctx: &mut TheContext,
     ) {
-
         let _start = self.get_time();
 
         /*
@@ -52,41 +51,41 @@ impl TileDrawer {
             .enumerate()
             .for_each(|(j, line)| {
                 for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
+                    let i = j * width + i;
 
-                let i = j * width + i;
+                    let x = (i % width) as i32;
+                    let y = height - (i / width) as i32 - 1;
 
-                let x = (i % width) as i32;
-                let y = height - (i / width) as i32 - 1;
+                    let tile_x = x / tile_size;
+                    let tile_y = y / tile_size;
 
-                let tile_x = x / tile_size;
-                let tile_y = y / tile_size;
+                    let mut color = BLACK;
 
-                let mut color = BLACK;
-
-                if let Some(tile) = region.tiles.get(&(tile_x, tile_y)) {
-                    for index in 0..tile.layers.len() {
-                        if let Some(tile_uuid) = tile.layers[index] {
-
-                            if let Some(data) = self.tiles.get(&tile_uuid) {
-                                let index = *anim_counter % data.buffer.len();
-                                if let Some(c) = data.buffer[index].at(vec2i(x % tile_size, y % tile_size)) {
-                                    color = c;
+                    if let Some(tile) = region.tiles.get(&(tile_x, tile_y)) {
+                        for index in 0..tile.layers.len() {
+                            if let Some(tile_uuid) = tile.layers[index] {
+                                if let Some(data) = self.tiles.get(&tile_uuid) {
+                                    let index = *anim_counter % data.buffer.len();
+                                    if let Some(c) =
+                                        data.buffer[index].at(vec2i(x % tile_size, y % tile_size))
+                                    {
+                                        color = c;
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                pixel.copy_from_slice(&color);
-            }
-        });
+                    pixel.copy_from_slice(&color);
+                }
+            });
 
         let _stop = self.get_time();
         //println!("drawing time {:?}", _stop - start);
     }
 
     pub fn draw_tile(
-        &mut self,
+        &self,
         at: Vec2i,
         buffer: &mut TheRGBABuffer,
         grid: i32,
@@ -106,6 +105,24 @@ impl TileDrawer {
         }
     }
 
+    pub fn draw_tile_outline(
+        &self,
+        at: Vec2i,
+        buffer: &mut TheRGBABuffer,
+        grid: i32,
+        ctx: &mut TheContext,
+    ) {
+        let x = (at.x * grid) as usize;
+        let y = (at.y * grid) as usize;
+        let stride = buffer.stride();
+        ctx.draw.rect_outline(
+            buffer.pixels_mut(),
+            &(x, y, 24, 24),
+            stride,
+            &WHITE,
+        );
+    }
+
     /// Gets the current time in milliseconds
     fn get_time(&self) -> u128 {
         let time;
@@ -113,8 +130,8 @@ impl TileDrawer {
         {
             use std::time::{SystemTime, UNIX_EPOCH};
             let t = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards");
             time = t.as_millis();
         }
         #[cfg(target_arch = "wasm32")]
@@ -123,5 +140,4 @@ impl TileDrawer {
         }
         time
     }
-
 }

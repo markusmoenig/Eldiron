@@ -14,18 +14,16 @@ impl Default for World {
 
 impl World {
     pub fn new() -> Self {
-        Self {
-            tick_counter: 0,
-        }
+        Self { tick_counter: 0 }
     }
 
     /// Tick.
-    pub fn tick(& mut self) {
+    pub fn tick(&mut self) {
         self.tick_counter += 1;
     }
 
     /// Reset the world.
-    pub fn reset(& mut self) {
+    pub fn reset(&mut self) {
         self.tick_counter = 0;
     }
 }

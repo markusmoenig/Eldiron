@@ -1,6 +1,6 @@
 use crate::prelude::*;
-use theframework::prelude::*;
 use rayon::prelude::*;
+use theframework::prelude::*;
 
 pub struct Renderer {
     pub textures: FxHashMap<Uuid, TheRGBATile>,
@@ -35,26 +35,25 @@ impl Renderer {
             .enumerate()
             .for_each(|(j, line)| {
                 for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
+                    let i = j * width + i;
 
-                let i = j * width + i;
+                    let xx = (i % width) as f32;
+                    let yy = (i / width) as f32;
 
-                let xx = (i % width) as f32;
-                let yy = (i / width) as f32;
+                    let ro = vec3f(self.position.x + 0.5, 0.5, self.position.z + 0.5);
+                    let mut rd = ro;
+                    rd.z -= 2.0;
 
-                let ro = vec3f(self.position.x + 0.5, 0.5, self.position.z + 0.5);
-                let mut rd = ro;
-                rd.z -= 2.0;
+                    let camera = Camera::new(ro, rd, 70.0);
+                    let ray = camera.create_ray(
+                        vec2f(xx / width_f, yy / height_f),
+                        vec2f(width_f, height_f),
+                        vec2f(0.0, 0.0),
+                    );
 
-                let camera = Camera::new(ro, rd, 70.0);
-                let ray = camera.create_ray(
-                    vec2f(xx / width_f, yy / height_f),
-                    vec2f(width_f, height_f),
-                    vec2f(0.0, 0.0),
-                );
-
-                pixel.copy_from_slice(&self.render_pixel(ray));
-            }
-        });
+                    pixel.copy_from_slice(&self.render_pixel(ray));
+                }
+            });
 
         let _stop = self.get_time();
         println!("render time {:?}", _stop - start);
@@ -195,8 +194,8 @@ impl Renderer {
         {
             use std::time::{SystemTime, UNIX_EPOCH};
             let t = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards");
             time = t.as_millis();
         }
         #[cfg(target_arch = "wasm32")]

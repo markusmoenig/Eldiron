@@ -6,18 +6,18 @@ pub enum SidebarMode {
     Character,
     Item,
     Tilemap,
-    Code
+    Code,
 }
 
 pub struct Sidebar {
     pub mode: SidebarMode,
-    width: i32,
+    pub width: i32,
 
     stack_layout_id: TheId,
 
     curr_tilemap_uuid: Option<Uuid>,
 
-    code_editor: TheCodeEditor,
+    pub code_editor: TheCodeEditor,
 }
 
 #[allow(clippy::new_without_default)]
@@ -35,7 +35,6 @@ impl Sidebar {
     }
 
     pub fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext, _project: &mut Project) {
-
         let mut sectionbar_canvas = TheCanvas::new();
 
         let mut section_bar_canvas = TheCanvas::new();
@@ -50,15 +49,14 @@ impl Sidebar {
             TheSectionbarButton::new(TheId::named("Character Section"));
         character_sectionbar_button.set_text("Character".to_string());
 
-        let mut item_sectionbar_button =
-            TheSectionbarButton::new(TheId::named("Item Section"));
+        let mut item_sectionbar_button = TheSectionbarButton::new(TheId::named("Item Section"));
         item_sectionbar_button.set_text("Item".to_string());
 
-        let mut tilemap_sectionbar_button = TheSectionbarButton::new(TheId::named("Tilemap Section"));
+        let mut tilemap_sectionbar_button =
+            TheSectionbarButton::new(TheId::named("Tilemap Section"));
         tilemap_sectionbar_button.set_text("Tilemap".to_string());
 
-        let mut code_sectionbar_button =
-            TheSectionbarButton::new(TheId::named("Code Section"));
+        let mut code_sectionbar_button = TheSectionbarButton::new(TheId::named("Code Section"));
         code_sectionbar_button.set_text("Code".to_string());
 
         let mut vlayout = TheVLayout::new(TheId::named("Section Buttons"));
@@ -91,7 +89,9 @@ impl Sidebar {
         let mut regions_canvas = TheCanvas::default();
 
         let mut list_layout = TheListLayout::new(TheId::named("Region List"));
-        list_layout.limiter_mut().set_max_size(vec2i(self.width, 200));
+        list_layout
+            .limiter_mut()
+            .set_max_size(vec2i(self.width, 200));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -131,7 +131,9 @@ impl Sidebar {
         let mut yellow_canvas = TheCanvas::default();
         let mut yellow_color = TheColorButton::new(TheId::named("Yellow"));
         yellow_color.set_color([255, 255, 0, 255]);
-        yellow_color.limiter_mut().set_max_size(vec2i(self.width, 200));
+        yellow_color
+            .limiter_mut()
+            .set_max_size(vec2i(self.width, 200));
         yellow_canvas.set_widget(yellow_color);
 
         regions_canvas.set_top(list_canvas);
@@ -143,7 +145,9 @@ impl Sidebar {
 
         let mut character_canvas = TheCanvas::default();
         let mut list_layout = TheListLayout::new(TheId::named("Character List"));
-        list_layout.limiter_mut().set_max_size(vec2i(self.width, 400));
+        list_layout
+            .limiter_mut()
+            .set_max_size(vec2i(self.width, 400));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -174,7 +178,9 @@ impl Sidebar {
 
         let mut item_canvas = TheCanvas::default();
         let mut list_layout = TheListLayout::new(TheId::named("Item List"));
-        list_layout.limiter_mut().set_max_size(vec2i(self.width, 400));
+        list_layout
+            .limiter_mut()
+            .set_max_size(vec2i(self.width, 400));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -206,7 +212,9 @@ impl Sidebar {
         let mut tiles_canvas = TheCanvas::default();
 
         let mut list_layout = TheListLayout::new(TheId::named("Tilemap List"));
-        list_layout.limiter_mut().set_max_size(vec2i(self.width, 200));
+        list_layout
+            .limiter_mut()
+            .set_max_size(vec2i(self.width, 200));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -280,7 +288,9 @@ impl Sidebar {
 
         let mut code_canvas = TheCanvas::default();
         let mut list_layout = TheListLayout::new(TheId::named("Code List"));
-        list_layout.limiter_mut().set_max_size(vec2i(self.width, 400));
+        list_layout
+            .limiter_mut()
+            .set_max_size(vec2i(self.width, 400));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
@@ -333,6 +343,7 @@ impl Sidebar {
         ctx: &mut TheContext,
         project: &mut Project,
         server: &mut Server,
+        server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = self.code_editor.handle_event(event, ui, ctx);
         match event {
@@ -435,11 +446,39 @@ impl Sidebar {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         let mut bundle = TheCodeBundle::new();
 
-                        let mut init = TheCodeGrid { name: "init".into(), ..Default::default() };
-                        init.insert_atom((0, 0), TheCodeAtom::LocalSet("test".to_string()));
+                        let mut init = TheCodeGrid {
+                            name: "init".into(),
+                            ..Default::default()
+                        };
+                        init.insert_atom(
+                            (0, 0),
+                            TheCodeAtom::ObjectSet("self".to_string(), "name".to_string()),
+                        );
+                        init.insert_atom((1, 0), TheCodeAtom::Assignment("=".to_string()));
+                        init.insert_atom(
+                            (2, 0),
+                            TheCodeAtom::Value(TheValue::Text("Unnamed".to_string())),
+                        );
+
+                        init.insert_atom(
+                            (0, 2),
+                            TheCodeAtom::ObjectSet("self".to_string(), "tile".to_string()),
+                        );
+                        init.insert_atom((1, 2), TheCodeAtom::Assignment("=".to_string()));
+                        init.insert_atom(
+                            (2, 2),
+                            TheCodeAtom::Value(TheValue::Tile(
+                                "Tile name".to_string(),
+                                Uuid::new_v4(),
+                            )),
+                        );
+
                         bundle.insert_grid(init);
 
-                        let main = TheCodeGrid { name: "main".into(), ..Default::default() };
+                        let main = TheCodeGrid {
+                            name: "main".into(),
+                            ..Default::default()
+                        };
                         bundle.insert_grid(main);
 
                         let mut item =
@@ -466,6 +505,8 @@ impl Sidebar {
                     }
                 } else if id.name == "Character Item" {
                     if let Some(c) = project.characters.get(&id.uuid) {
+                        server_ctx.curr_character = Some(id.uuid);
+                        server_ctx.curr_character_instance = None;
                         self.apply_character(ui, ctx, Some(c));
                         redraw = true;
                     }
@@ -805,7 +846,8 @@ impl Sidebar {
 
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
-                            ctx.ui.send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
+                            ctx.ui
+                                .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
                         } else {
                             // Nothing to show, clear the browser
                             if let Some(browser) =
@@ -833,7 +875,8 @@ impl Sidebar {
 
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         if let Some(selected) = list_layout.selected() {
-                            ctx.ui.send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
+                            ctx.ui
+                                .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
                         } else {
                             // Nothing to show, clear the browser
                             if let Some(browser) =
@@ -861,7 +904,8 @@ impl Sidebar {
 
                     if let Some(list_layout) = ui.get_list_layout("Tilemap List") {
                         if let Some(selected) = list_layout.selected() {
-                            ctx.ui.send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
+                            ctx.ui
+                                .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
                         } else {
                             // Nothing to show, clear the browser
                             if let Some(browser) =
@@ -889,7 +933,8 @@ impl Sidebar {
 
                     if let Some(list_layout) = ui.get_list_layout("Code List") {
                         if let Some(selected) = list_layout.selected() {
-                            ctx.ui.send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
+                            ctx.ui
+                                .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
                         } else {
                             // Nothing to show, clear the browser
                             if let Some(browser) =
@@ -907,16 +952,54 @@ impl Sidebar {
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 4));
                     self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
+                } else if id.name == "Compile" {
+                    // Compile button in the editor. Compile the code and send it to the server if successful.
+                    // We do not need to store it in the project because thats already done in the
+                    // CodeBundleChanged event.
+
+                    if let Some(layout) = ui.get_code_layout("Code Editor") {
+                        if let Some(code_view) = layout.code_view_mut().as_code_view() {
+                            let grid = code_view.codegrid_mut();
+
+                            let mut compiler = TheCompiler::new();
+                            let rc = compiler.compile(grid);
+
+                            if let Ok(_module) = rc {
+                                let bundle = self.code_editor.get_bundle();
+
+                                // Successfully compiled, transfer the bundle to the server.
+                                if self.mode == SidebarMode::Character {
+                                    if let Some(character_instance) = server_ctx.curr_character_instance {
+                                        server.update_character_bundle(server_ctx.curr_region, character_instance, self.code_editor.get_bundle());
+                                    } else {
+                                        server.insert_character(bundle);
+                                    }
+                                }
+                            } else {
+                                code_view.set_debug_module(TheDebugModule::new());
+                            }
+                        }
+                    }
                 }
             }
             TheEvent::CodeBundleChanged(bundle) => {
                 if self.mode == SidebarMode::Character {
+                    if let Some(character_instance) = server_ctx.curr_character_instance {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            if let Some(character) = region
+                                .characters
+                                .get_mut(&character_instance)
+                            {
+                                // Update the character instance
+                                character.custom = bundle.clone();
+                            }
+                        }
+                    } else
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
                                 if let Some(character) = project.characters.get_mut(&bundle.id) {
                                     *character = bundle.clone();
-                                    server.insert_character(bundle.clone());
                                 }
                                 redraw = true;
                             }
@@ -975,13 +1058,20 @@ impl Sidebar {
     }
 
     /// Apply the given character to the UI
-    pub fn apply_character(&mut self, ui: &mut TheUI, ctx: &mut TheContext, character: Option<&TheCodeBundle>) {
+    pub fn apply_character(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        character: Option<&TheCodeBundle>,
+    ) {
         ui.set_widget_disabled_state("Character Remove", ctx, character.is_none());
         ui.set_widget_disabled_state("Character Name Edit", ctx, character.is_none());
 
         // Set the character bundle.
         if let Some(character) = character {
-            let char_list_canvas: TheCanvas = self.code_editor.set_bundle(character.clone(), ctx, self.width);
+            let char_list_canvas: TheCanvas =
+                self.code_editor
+                    .set_bundle(character.clone(), ctx, self.width);
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(1) {
@@ -989,9 +1079,7 @@ impl Sidebar {
                 }
             }
 
-            if let Some(browser) =
-                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
-            {
+            if let Some(browser) = ui.canvas.get_layout(Some(&"Browser".to_string()), None) {
                 if let Some(browser) = browser.as_tab_layout() {
                     browser.clear();
                     let code_editor_canvas: TheCanvas = self.code_editor.build_canvas(ctx);
@@ -1023,13 +1111,19 @@ impl Sidebar {
     }
 
     /// Apply the given item to the UI
-    pub fn apply_item(&mut self, ui: &mut TheUI, ctx: &mut TheContext, item: Option<&TheCodeBundle>) {
+    pub fn apply_item(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        item: Option<&TheCodeBundle>,
+    ) {
         ui.set_widget_disabled_state("Item Remove", ctx, item.is_none());
         ui.set_widget_disabled_state("Item Name Edit", ctx, item.is_none());
 
         // Set the Item bundle.
         if let Some(item) = item {
-            let item_list_canvas: TheCanvas = self.code_editor.set_bundle(item.clone(), ctx, self.width);
+            let item_list_canvas: TheCanvas =
+                self.code_editor.set_bundle(item.clone(), ctx, self.width);
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(2) {
@@ -1037,9 +1131,7 @@ impl Sidebar {
                 }
             }
 
-            if let Some(browser) =
-                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
-            {
+            if let Some(browser) = ui.canvas.get_layout(Some(&"Browser".to_string()), None) {
                 if let Some(browser) = browser.as_tab_layout() {
                     browser.clear();
                     let code_editor_canvas: TheCanvas = self.code_editor.build_canvas(ctx);
@@ -1071,13 +1163,19 @@ impl Sidebar {
     }
 
     /// Apply the given item to the UI
-    pub fn apply_code(&mut self, ui: &mut TheUI, ctx: &mut TheContext, code: Option<&TheCodeBundle>) {
+    pub fn apply_code(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        code: Option<&TheCodeBundle>,
+    ) {
         ui.set_widget_disabled_state("Code Remove", ctx, code.is_none());
         ui.set_widget_disabled_state("Code Name Edit", ctx, code.is_none());
 
         // Set the Item bundle.
         if let Some(code) = code {
-            let code_list_canvas: TheCanvas = self.code_editor.set_bundle(code.clone(), ctx, self.width);
+            let code_list_canvas: TheCanvas =
+                self.code_editor.set_bundle(code.clone(), ctx, self.width);
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(4) {
@@ -1085,9 +1183,7 @@ impl Sidebar {
                 }
             }
 
-            if let Some(browser) =
-                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
-            {
+            if let Some(browser) = ui.canvas.get_layout(Some(&"Browser".to_string()), None) {
                 if let Some(browser) = browser.as_tab_layout() {
                     browser.clear();
                     let code_editor_canvas: TheCanvas = self.code_editor.build_canvas(ctx);
@@ -1279,5 +1375,14 @@ impl Sidebar {
             }
         }
         None
+    }
+
+    /// Deselects all items in the given list layout.
+    pub fn deselect_all(&self, layout_name: &str,  ui: &mut TheUI) {
+        if let Some(layout) = ui.canvas.get_layout(Some(&layout_name.to_string()), None) {
+            if let Some(list_layout) = layout.as_list_layout() {
+                list_layout.deselect_all();
+            }
+        }
     }
 }

@@ -12,7 +12,7 @@ pub struct Project {
     #[serde(default)]
     pub items: FxHashMap<Uuid, TheCodeBundle>,
     #[serde(default)]
-    pub codes: FxHashMap<Uuid, TheCodeBundle>
+    pub codes: FxHashMap<Uuid, TheCodeBundle>,
 }
 
 impl Default for Project {
@@ -31,7 +31,7 @@ impl Project {
 
             characters: FxHashMap::default(),
             items: FxHashMap::default(),
-            codes: FxHashMap::default()
+            codes: FxHashMap::default(),
         }
     }
 

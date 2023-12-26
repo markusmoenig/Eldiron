@@ -1,14 +1,16 @@
 use crate::prelude::*;
-use theframework::prelude::*;
 use std::sync::mpsc;
+use theframework::prelude::*;
 
 pub mod region_instance;
 pub mod world;
+pub mod context;
 
 pub mod prelude {
-    pub use super::Server;
     pub use super::region_instance::RegionInstance;
+    pub use super::context::ServerContext;
     pub use super::world::World;
+    pub use super::Server;
 }
 
 use prelude::*;
@@ -60,8 +62,7 @@ impl Server {
     }
 
     /// Tick. Compute the next frame.
-    pub fn tick(& mut self) {
-
+    pub fn tick(&mut self) {
         self.world.tick();
         self.anim_counter = self.anim_counter.wrapping_add(1);
 
@@ -90,7 +91,6 @@ impl Server {
 
     /// Setup all regions in the project and create their instances.
     pub fn setup_regions(&mut self) {
-
         self.instances = FxHashMap::default();
 
         /*
@@ -140,10 +140,17 @@ impl Server {
         }
     }
 
-    /// Draws the given region instance into the given buffer.
-    pub fn draw_region(&self, uuid: &Uuid, buffer: &mut TheRGBABuffer, tiledrawer: &TileDrawer, ctx: &mut TheContext) {
+    /// Draws the given region instance into the given buffer. This drawing routine is only used by the editor.
+    pub fn draw_region(
+        &self,
+        uuid: &Uuid,
+        buffer: &mut TheRGBABuffer,
+        tiledrawer: &TileDrawer,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext
+    ) {
         if let Some(instance) = self.instances.get(uuid) {
-            instance.draw(buffer, tiledrawer, &self.anim_counter, ctx);
+            instance.draw(buffer, tiledrawer, &self.anim_counter, ctx, server_ctx);
         }
     }
 
@@ -156,10 +163,16 @@ impl Server {
             let rc = self.compiler.compile(grid);
             if let Ok(mut module) = rc {
                 module.name = grid.name.clone();
-                println!("RegionInstance::add_character: Compiled grid module: {}", grid.name);
+                println!(
+                    "RegionInstance::add_character: Compiled grid module: {}",
+                    grid.name
+                );
                 package.insert_module(module.name.clone(), module);
             } else {
-                println!("RegionInstance::add_character: Failed to compile grid: {}", grid.name);
+                println!(
+                    "RegionInstance::add_character: Failed to compile grid: {}",
+                    grid.name
+                );
             }
         }
 
@@ -170,9 +183,15 @@ impl Server {
         self.characters.insert(package.id, package);
     }
 
-    pub fn add_character_instance_to_region(&mut self, character: Uuid, region: Uuid, location: Vec2i) {
+    pub fn add_character_instance_to_region(&mut self, region: Uuid, character: Character) {
         if let Some(instance) = self.instances.get_mut(&region) {
-            instance.add_character_instance(character, location);
+            instance.add_character_instance(character);
+        }
+    }
+
+    pub fn update_character_bundle(&mut self, region: Uuid, character: Uuid, bundle: TheCodeBundle) {
+        if let Some(instance) = self.instances.get_mut(&region) {
+            instance.update_character_bundle(character, bundle);
         }
     }
 }

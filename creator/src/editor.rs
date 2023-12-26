@@ -9,6 +9,7 @@ pub struct Editor {
     tileeditor: TileEditor,
 
     server: Server,
+    server_ctx: ServerContext,
 
     update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
@@ -25,6 +26,8 @@ impl TheTrait for Editor {
             sidebar: Sidebar::new(),
             browser: Browser::new(),
             tileeditor: TileEditor::new(),
+
+            server_ctx: ServerContext::default(),
 
             server: Server::new(),
 
@@ -109,27 +112,71 @@ impl TheTrait for Editor {
                 }
             }
             self.server.tick();
-            self.tileeditor.redraw_region(ui, &mut self.server, ctx);
+            self.tileeditor.redraw_region(ui, &mut self.server, ctx, &self.server_ctx);
         }
 
         if let Some(receiver) = &mut self.event_receiver {
             while let Ok(event) = receiver.try_recv() {
-                redraw = self
-                    .sidebar
-                    .handle_event(&event, ui, ctx, &mut self.project, &mut self.server);
-                if self
-                    .tileeditor
-                    .handle_event(&event, ui, ctx, &mut self.project, &mut self.server)
-                {
+                redraw =
+                    self.sidebar
+                        .handle_event(&event, ui, ctx, &mut self.project, &mut self.server, &mut self.server_ctx);
+                if self.tileeditor.handle_event(
+                    &event,
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.server,
+                    &mut self.server_ctx,
+                ) {
                     redraw = true;
                 }
                 match event {
                     TheEvent::TileEditorDrop(_id, location, drop) => {
                         if drop.id.name.starts_with("Character") {
+                            let mut custom = TheCodeBundle::new();
+
+                            let mut init = TheCodeGrid {
+                                name: "init".into(),
+                                ..Default::default()
+                            };
+                            init.insert_atom(
+                                (0, 0),
+                                TheCodeAtom::ObjectSet("self".to_string(), "position".to_string()),
+                            );
+                            init.insert_atom((1, 0), TheCodeAtom::Assignment("=".to_string()));
+                            init.insert_atom(
+                                (2, 0),
+                                TheCodeAtom::Value(TheValue::Position(vec3f(
+                                    location.x as f32,
+                                    location.y as f32,
+                                    0.0,
+                                ))),
+                            );
+                            custom.insert_grid(init);
+
+                            self.sidebar.code_editor.set_bundle(custom.clone(), ctx, self.sidebar.width);
+
+                            let character = Character {
+                                id: custom.id,
+                                character_id: drop.id.uuid,
+                                custom,
+                            };
+
+                            if let Some(region) = self
+                                .project
+                                .get_region_mut(&self.server_ctx.curr_region)
+                            {
+                                region.characters.insert(character.id, character.clone());
+                            }
+
+                            self.server_ctx.curr_character = None;
+                            self.server_ctx.curr_character_instance = Some(character.id);
+                            self.sidebar.deselect_all("Character List", ui);
+
                             self.server.add_character_instance_to_region(
-                                drop.id.uuid,
-                                self.tileeditor.curr_region_uuid,
-                                location);
+                                self.server_ctx.curr_region,
+                                character,
+                            );
                         }
                     }
                     TheEvent::FileRequesterResult(id, paths) => {
@@ -198,8 +245,13 @@ impl TheTrait for Editor {
                                         for (index, r) in self.project.regions.iter().enumerate() {
                                             if r.id == region.id {
                                                 self.server.update_region(&region);
-                                                if region.id == self.tileeditor.curr_region_uuid {
-                                                    self.tileeditor.redraw_region(ui, &mut self.server, ctx);
+                                                if region.id == self.server_ctx.curr_region {
+                                                    self.tileeditor.redraw_region(
+                                                        ui,
+                                                        &mut self.server,
+                                                        ctx,
+                                                        &self.server_ctx,
+                                                    );
                                                 }
                                                 self.project.regions[index] = region;
                                                 break;
@@ -239,43 +291,38 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
-                        }
-                        else if id.name == "Character Name Edit" {
-                            if let Some(list_id) =
-                                self.sidebar.get_selected_in_list_layout(ui, "Character List")
+                        } else if id.name == "Character Name Edit" {
+                            if let Some(list_id) = self
+                                .sidebar
+                                .get_selected_in_list_layout(ui, "Character List")
                             {
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
-                        }
-                        else if id.name == "Character Item" {
+                        } else if id.name == "Character Item" {
                             if let Some(character) = self.project.characters.get_mut(&id.uuid) {
                                 if let Some(text) = value.to_string() {
                                     character.name = text;
                                 }
                             }
-                        }
-                        else if id.name == "Item Name Edit" {
+                        } else if id.name == "Item Name Edit" {
                             if let Some(list_id) =
                                 self.sidebar.get_selected_in_list_layout(ui, "Item List")
                             {
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
-                        }
-                        else if id.name == "Item Item" {
+                        } else if id.name == "Item Item" {
                             if let Some(item) = self.project.items.get_mut(&id.uuid) {
                                 if let Some(text) = value.to_string() {
                                     item.name = text;
                                 }
                             }
-                        }
-                        else if id.name == "Tilemap Name Edit" {
+                        } else if id.name == "Tilemap Name Edit" {
                             if let Some(list_id) =
                                 self.sidebar.get_selected_in_list_layout(ui, "Tilemap List")
                             {
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
-                        }
-                        else if id.name == "Tilemap Item" {
+                        } else if id.name == "Tilemap Item" {
                             for t in &mut self.project.tilemaps {
                                 if t.id == id.uuid {
                                     if let Some(text) = value.to_string() {
@@ -283,15 +330,13 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
-                        }
-                        else if id.name == "Code Name Edit" {
+                        } else if id.name == "Code Name Edit" {
                             if let Some(list_id) =
                                 self.sidebar.get_selected_in_list_layout(ui, "Code List")
                             {
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
-                        }
-                        else if id.name == "Code Item" {
+                        } else if id.name == "Code Item" {
                             if let Some(code) = self.project.codes.get_mut(&id.uuid) {
                                 if let Some(text) = value.to_string() {
                                     code.name = text;

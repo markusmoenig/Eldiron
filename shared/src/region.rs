@@ -1,3 +1,4 @@
+use crate::prelude::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
@@ -13,6 +14,9 @@ pub struct Region {
     pub name: String,
     #[serde(with = "vectorize")]
     pub tiles: FxHashMap<(i32, i32), RegionTile>,
+
+    #[serde(default)]
+    pub characters: FxHashMap<Uuid, Character>,
 
     pub width: i32,
     pub height: i32,
@@ -35,6 +39,8 @@ impl Region {
 
             name: "New Region".to_string(),
             tiles: FxHashMap::default(),
+
+            characters: FxHashMap::default(),
 
             width: 80,
             height: 80,
