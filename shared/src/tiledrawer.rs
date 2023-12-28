@@ -90,18 +90,22 @@ impl TileDrawer {
         buffer: &mut TheRGBABuffer,
         grid: i32,
         tile: Uuid,
+        anim_counter: &usize,
         ctx: &mut TheContext,
-    ) {
+    ) -> bool {
         if let Some(data) = self.tiles.get(&tile) {
             let x = (at.x * grid) as usize;
             let y = (at.y * grid) as usize;
             let stride = buffer.stride();
             ctx.draw.copy_slice(
                 buffer.pixels_mut(),
-                data.buffer[0].pixels(),
+                data.buffer[anim_counter % data.buffer.len()].pixels(),
                 &(x, y, 24, 24),
                 stride,
             );
+            true
+        } else {
+            false
         }
     }
 
@@ -115,12 +119,18 @@ impl TileDrawer {
         let x = (at.x * grid) as usize;
         let y = (at.y * grid) as usize;
         let stride = buffer.stride();
-        ctx.draw.rect_outline(
-            buffer.pixels_mut(),
-            &(x, y, 24, 24),
-            stride,
-            &WHITE,
-        );
+        ctx.draw
+            .rect_outline(buffer.pixels_mut(), &(x, y, 24, 24), stride, &WHITE);
+    }
+
+    /// Get the tile id of the given name.
+    pub fn get_tile_id_by_name(&self, name: String) -> Option<Uuid> {
+        for (id, tile) in &self.tiles {
+            if tile.name == name {
+                return Some(*id);
+            }
+        }
+        None
     }
 
     /// Gets the current time in milliseconds

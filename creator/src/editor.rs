@@ -112,14 +112,20 @@ impl TheTrait for Editor {
                 }
             }
             self.server.tick();
-            self.tileeditor.redraw_region(ui, &mut self.server, ctx, &self.server_ctx);
+            self.tileeditor
+                .redraw_region(ui, &mut self.server, ctx, &self.server_ctx);
         }
 
         if let Some(receiver) = &mut self.event_receiver {
             while let Ok(event) = receiver.try_recv() {
-                redraw =
-                    self.sidebar
-                        .handle_event(&event, ui, ctx, &mut self.project, &mut self.server, &mut self.server_ctx);
+                redraw = self.sidebar.handle_event(
+                    &event,
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.server,
+                    &mut self.server_ctx,
+                );
                 if self.tileeditor.handle_event(
                     &event,
                     ui,
@@ -154,7 +160,11 @@ impl TheTrait for Editor {
                             );
                             custom.insert_grid(init);
 
-                            self.sidebar.code_editor.set_bundle(custom.clone(), ctx, self.sidebar.width);
+                            self.sidebar.code_editor.set_bundle(
+                                custom.clone(),
+                                ctx,
+                                self.sidebar.width,
+                            );
 
                             let character = Character {
                                 id: custom.id,
@@ -162,9 +172,8 @@ impl TheTrait for Editor {
                                 custom,
                             };
 
-                            if let Some(region) = self
-                                .project
-                                .get_region_mut(&self.server_ctx.curr_region)
+                            if let Some(region) =
+                                self.project.get_region_mut(&self.server_ctx.curr_region)
                             {
                                 region.characters.insert(character.id, character.clone());
                             }

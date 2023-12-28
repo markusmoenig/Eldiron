@@ -2,13 +2,13 @@ use crate::prelude::*;
 use std::sync::mpsc;
 use theframework::prelude::*;
 
+pub mod context;
 pub mod region_instance;
 pub mod world;
-pub mod context;
 
 pub mod prelude {
-    pub use super::region_instance::RegionInstance;
     pub use super::context::ServerContext;
+    pub use super::region_instance::RegionInstance;
     pub use super::world::World;
     pub use super::Server;
 }
@@ -142,14 +142,14 @@ impl Server {
 
     /// Draws the given region instance into the given buffer. This drawing routine is only used by the editor.
     pub fn draw_region(
-        &self,
+        &mut self,
         uuid: &Uuid,
         buffer: &mut TheRGBABuffer,
         tiledrawer: &TileDrawer,
         ctx: &mut TheContext,
-        server_ctx: &ServerContext
+        server_ctx: &ServerContext,
     ) {
-        if let Some(instance) = self.instances.get(uuid) {
+        if let Some(instance) = self.instances.get_mut(uuid) {
             instance.draw(buffer, tiledrawer, &self.anim_counter, ctx, server_ctx);
         }
     }
@@ -189,7 +189,12 @@ impl Server {
         }
     }
 
-    pub fn update_character_bundle(&mut self, region: Uuid, character: Uuid, bundle: TheCodeBundle) {
+    pub fn update_character_bundle(
+        &mut self,
+        region: Uuid,
+        character: Uuid,
+        bundle: TheCodeBundle,
+    ) {
         if let Some(instance) = self.instances.get_mut(&region) {
             instance.update_character_bundle(character, bundle);
         }

@@ -265,7 +265,7 @@ impl TileEditor {
                                     rgba_view.buffer_mut(),
                                     &self.tiledrawer,
                                     ctx,
-                                    server_ctx
+                                    server_ctx,
                                 );
                                 rgba_view.set_needs_redraw(true);
                             }
@@ -457,7 +457,13 @@ impl TileEditor {
     }
 
     /// Redraw the map of the current region on tick.
-    pub fn redraw_region(&mut self, ui: &mut TheUI, server: &mut Server, ctx: &mut TheContext, server_ctx: &ServerContext) {
+    pub fn redraw_region(
+        &mut self,
+        ui: &mut TheUI,
+        server: &mut Server,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) {
         if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
             if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
                 if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
@@ -466,7 +472,7 @@ impl TileEditor {
                         rgba_view.buffer_mut(),
                         &self.tiledrawer,
                         ctx,
-                        server_ctx
+                        server_ctx,
                     );
                     rgba_view.set_needs_redraw(true);
                 }

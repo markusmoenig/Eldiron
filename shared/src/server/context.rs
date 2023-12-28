@@ -2,7 +2,6 @@ use theframework::prelude::*;
 
 /// This gives context to the server of the editing state for live highlighting.
 pub struct ServerContext {
-
     /// The currently selected region in the editor.
     pub curr_region: Uuid,
 

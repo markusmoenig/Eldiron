@@ -62,24 +62,48 @@ impl RegionInstance {
 
     /// Draws this instance into the given buffer.
     pub fn draw(
-        &self,
+        &mut self,
         buffer: &mut TheRGBABuffer,
         tiledrawer: &TileDrawer,
         anim_counter: &usize,
         ctx: &mut TheContext,
-        server_ctx: &ServerContext
+        server_ctx: &ServerContext,
     ) {
         tiledrawer.draw_region(buffer, &self.region, anim_counter, ctx);
 
-        for c in self.sandbox.objects.values() {
-            //println!("RegionInstance::draw: Object: {:?}", c);
-            if let Some(TheValue::Position(p)) = c.get(&"position".into()) {
-                if let Some(TheValue::Tile(name, _id)) = c.get(&"tile".into()) {
-                    println!("p {:?} s {:?}", p, name);
+        for c in self.sandbox.objects.values_mut() {
+            if let Some(TheValue::Position(p)) = c.get(&"position".into()).cloned() {
+                if let Some(TheValue::Tile(name, id)) = c.get_mut(&"tile".into()) {
+                    //println!("p {:?} s {:?}", p, name);
+
+                    if !tiledrawer.draw_tile(
+                        vec2i(p.x as i32, p.y as i32),
+                        buffer,
+                        self.region.grid_size,
+                        *id,
+                        anim_counter,
+                        ctx,
+                    ) {
+                        if let Some(found_id) = tiledrawer.get_tile_id_by_name(name.clone()) {
+                            *id = found_id;
+                            tiledrawer.draw_tile(
+                                vec2i(p.x as i32, p.y as i32),
+                                buffer,
+                                self.region.grid_size,
+                                found_id,
+                                anim_counter,
+                                ctx,
+                            );
+                        } else {
+                            println!("RegionInstance::draw: Tile not found: {}", name);
+                        }
+                    }
                 }
             }
 
-            if Some(c.id) == server_ctx.curr_character_instance || Some(c.package_id) == server_ctx.curr_character {
+            if Some(c.id) == server_ctx.curr_character_instance
+                || Some(c.package_id) == server_ctx.curr_character
+            {
                 if let Some(TheValue::Position(p)) = c.get(&"position".into()) {
                     tiledrawer.draw_tile_outline(
                         vec2i(p.x as i32, p.y as i32),
@@ -92,8 +116,27 @@ impl RegionInstance {
         }
     }
 
-    /// Insert a (TheCodeBundle) to the region.
-    pub fn insert_character(&mut self, character: TheCodePackage) {
+    /// Insert a (TheCodePackage) to the region.
+    pub fn insert_character(&mut self, mut character: TheCodePackage) {
+
+        // We collect all instances of this character and execute the init function on them.
+        let mut instance_ids = vec![];
+        for o in self.sandbox.objects.values() {
+            if o.package_id == character.id {
+                instance_ids.push(o.id);
+            }
+        }
+
+        for id in instance_ids {
+            self.sandbox.clear_runtime_states();
+            self.sandbox.aliases.insert("self".to_string(), id);
+            character.execute("init".to_string(), &mut self.sandbox);
+
+            if let Some(inst) = self.characters_custom.get_mut(&id) {
+                inst.execute("init".to_string(), &mut self.sandbox);
+            }
+        }
+
         self.characters.insert(character.id, character);
     }
 
@@ -139,9 +182,7 @@ impl RegionInstance {
     }
 
     pub fn update_character_bundle(&mut self, character: Uuid, mut bundle: TheCodeBundle) {
-
         if let Some(existing_package) = self.characters_custom.get_mut(&character) {
-
             let mut package = TheCodePackage::new();
 
             let mut compiler = TheCompiler::new();
@@ -168,7 +209,6 @@ impl RegionInstance {
 
             package.execute("init".to_string(), &mut self.sandbox);
 
-            println!("updated package");
             *existing_package = package;
         }
     }

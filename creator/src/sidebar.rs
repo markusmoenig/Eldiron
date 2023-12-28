@@ -467,10 +467,7 @@ impl Sidebar {
                         init.insert_atom((1, 2), TheCodeAtom::Assignment("=".to_string()));
                         init.insert_atom(
                             (2, 2),
-                            TheCodeAtom::Value(TheValue::Tile(
-                                "Tile name".to_string(),
-                                Uuid::new_v4(),
-                            )),
+                            TheCodeAtom::Value(TheValue::Tile("Name".to_string(), Uuid::nil())),
                         );
 
                         bundle.insert_grid(init);
@@ -969,8 +966,14 @@ impl Sidebar {
 
                                 // Successfully compiled, transfer the bundle to the server.
                                 if self.mode == SidebarMode::Character {
-                                    if let Some(character_instance) = server_ctx.curr_character_instance {
-                                        server.update_character_bundle(server_ctx.curr_region, character_instance, self.code_editor.get_bundle());
+                                    if let Some(character_instance) =
+                                        server_ctx.curr_character_instance
+                                    {
+                                        server.update_character_bundle(
+                                            server_ctx.curr_region,
+                                            character_instance,
+                                            self.code_editor.get_bundle(),
+                                        );
                                     } else {
                                         server.insert_character(bundle);
                                     }
@@ -986,16 +989,13 @@ impl Sidebar {
                 if self.mode == SidebarMode::Character {
                     if let Some(character_instance) = server_ctx.curr_character_instance {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            if let Some(character) = region
-                                .characters
-                                .get_mut(&character_instance)
+                            if let Some(character) = region.characters.get_mut(&character_instance)
                             {
                                 // Update the character instance
                                 character.custom = bundle.clone();
                             }
                         }
-                    } else
-                    if let Some(list_layout) = ui.get_list_layout("Character List") {
+                    } else if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
                                 if let Some(character) = project.characters.get_mut(&bundle.id) {
@@ -1378,7 +1378,7 @@ impl Sidebar {
     }
 
     /// Deselects all items in the given list layout.
-    pub fn deselect_all(&self, layout_name: &str,  ui: &mut TheUI) {
+    pub fn deselect_all(&self, layout_name: &str, ui: &mut TheUI) {
         if let Some(layout) = ui.canvas.get_layout(Some(&layout_name.to_string()), None) {
             if let Some(list_layout) = layout.as_list_layout() {
                 list_layout.deselect_all();
