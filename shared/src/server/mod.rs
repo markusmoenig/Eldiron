@@ -26,6 +26,7 @@ pub struct Server {
     #[serde(skip)]
     characters: FxHashMap<Uuid, TheCodePackage>,
 
+    pub debug_mode: bool,
     pub world: World,
 
     pub anim_counter: usize,
@@ -47,6 +48,7 @@ impl Server {
 
             characters: FxHashMap::default(),
 
+            debug_mode: false,
             world: World::default(),
 
             anim_counter: 0,
@@ -127,6 +129,7 @@ impl Server {
             let uuid = region.id;
             let mut instance = RegionInstance::new();
 
+            instance.set_debug_mode(self.debug_mode);
             instance.setup(uuid, &self.project);
 
             self.instances.insert(uuid, instance);
@@ -183,9 +186,30 @@ impl Server {
         self.characters.insert(package.id, package);
     }
 
-    pub fn add_character_instance_to_region(&mut self, region: Uuid, character: Character) {
+    /// Get the debug module for the given module id.
+    pub fn get_region_debug_module(&mut self, region: Uuid, module_id: Uuid) -> TheDebugModule {
         if let Some(instance) = self.instances.get_mut(&region) {
-            instance.add_character_instance(character);
+            instance.get_module_debug_module(module_id)
+        } else {
+            TheDebugModule::default()
+        }
+    }
+
+    /// Get the debug module for the given entity id.
+    pub fn get_region_debug_codegrid(&mut self, region: Uuid, entity_id: Uuid) -> TheDebugModule {
+        if let Some(instance) = self.instances.get_mut(&region) {
+            instance.get_codegrid_debug_module(entity_id)
+        } else {
+            TheDebugModule::default()
+        }
+    }
+
+    /// Adds a new character instance to the given region and returns its module id (for debugging).
+    pub fn add_character_instance_to_region(&mut self, region: Uuid, character: Character) -> Option<Uuid> {
+        if let Some(instance) = self.instances.get_mut(&region) {
+            instance.add_character_instance(character)
+        } else {
+            None
         }
     }
 

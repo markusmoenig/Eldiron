@@ -9,7 +9,7 @@ pub struct Character {
     pub character_id: Uuid,
 
     /// The custom bundle to override the default behavior.
-    pub custom: TheCodeBundle,
+    pub instance: TheCodeBundle,
 }
 
 impl Default for Character {
@@ -24,7 +24,7 @@ impl Character {
             id: Uuid::new_v4(),
             character_id: Uuid::new_v4(),
 
-            custom: TheCodeBundle::new(),
+            instance: TheCodeBundle::new(),
         }
     }
 }

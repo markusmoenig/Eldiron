@@ -20,6 +20,9 @@ impl TheTrait for Editor {
     where
         Self: Sized,
     {
+        let mut server = Server::new();
+        server.debug_mode = true;
+
         Self {
             project: Project::new(),
 
@@ -28,8 +31,7 @@ impl TheTrait for Editor {
             tileeditor: TileEditor::new(),
 
             server_ctx: ServerContext::default(),
-
-            server: Server::new(),
+            server,
 
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
@@ -112,6 +114,10 @@ impl TheTrait for Editor {
                 }
             }
             self.server.tick();
+            if self.server_ctx.curr_character_instance.is_some() {
+                let debug = self.server.get_region_debug_codegrid(self.server_ctx.curr_region, self.sidebar.code_editor.get_codegrid_id(ui));
+                self.sidebar.code_editor.set_debug_module(debug, ui);
+            }
             self.tileeditor
                 .redraw_region(ui, &mut self.server, ctx, &self.server_ctx);
         }
@@ -139,7 +145,7 @@ impl TheTrait for Editor {
                 match event {
                     TheEvent::TileEditorDrop(_id, location, drop) => {
                         if drop.id.name.starts_with("Character") {
-                            let mut custom = TheCodeBundle::new();
+                            let mut instance = TheCodeBundle::new();
 
                             let mut init = TheCodeGrid {
                                 name: "init".into(),
@@ -158,18 +164,18 @@ impl TheTrait for Editor {
                                     0.0,
                                 ))),
                             );
-                            custom.insert_grid(init);
+                            instance.insert_grid(init);
 
                             self.sidebar.code_editor.set_bundle(
-                                custom.clone(),
+                                instance.clone(),
                                 ctx,
                                 self.sidebar.width,
                             );
 
                             let character = Character {
-                                id: custom.id,
+                                id: instance.id,
                                 character_id: drop.id.uuid,
-                                custom,
+                                instance,
                             };
 
                             if let Some(region) =
@@ -178,14 +184,26 @@ impl TheTrait for Editor {
                                 region.characters.insert(character.id, character.clone());
                             }
 
-                            self.server_ctx.curr_character = None;
+                            self.server_ctx.curr_character = Some(character.character_id);
                             self.server_ctx.curr_character_instance = Some(character.id);
                             self.sidebar.deselect_all("Character List", ui);
 
-                            self.server.add_character_instance_to_region(
+                            self.server_ctx.curr_grid_id = self.server.add_character_instance_to_region(
                                 self.server_ctx.curr_region,
                                 character,
                             );
+
+                            if let Some(curr_grid_id) = self.server_ctx.curr_grid_id {
+                                let debug_module = self.server.get_region_debug_module(
+                                    self.server_ctx.curr_region,
+                                    curr_grid_id,
+                                );
+
+                                self.sidebar.code_editor.set_debug_module(
+                                    debug_module,
+                                    ui
+                                );
+                            }
                         }
                     }
                     TheEvent::FileRequesterResult(id, paths) => {

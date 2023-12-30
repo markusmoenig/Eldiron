@@ -503,7 +503,7 @@ impl Sidebar {
                 } else if id.name == "Character Item" {
                     if let Some(c) = project.characters.get(&id.uuid) {
                         server_ctx.curr_character = Some(id.uuid);
-                        server_ctx.curr_character_instance = None;
+                        //server_ctx.curr_character_instance = None;
                         self.apply_character(ui, ctx, Some(c));
                         redraw = true;
                     }
@@ -992,7 +992,7 @@ impl Sidebar {
                             if let Some(character) = region.characters.get_mut(&character_instance)
                             {
                                 // Update the character instance
-                                character.custom = bundle.clone();
+                                character.instance = bundle.clone();
                             }
                         }
                     } else if let Some(list_layout) = ui.get_list_layout("Character List") {

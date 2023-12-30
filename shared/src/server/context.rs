@@ -10,6 +10,9 @@ pub struct ServerContext {
 
     /// The currently selected character instance in the editor.
     pub curr_character_instance: Option<Uuid>,
+
+    /// The currently selected codegrid in the code editor.
+    pub curr_grid_id: Option<Uuid>,
 }
 
 impl Default for ServerContext {
@@ -24,6 +27,8 @@ impl ServerContext {
             curr_region: Uuid::nil(),
             curr_character: None,
             curr_character_instance: None,
+
+            curr_grid_id: None
         }
     }
 }

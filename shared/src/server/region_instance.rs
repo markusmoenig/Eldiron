@@ -9,7 +9,11 @@ pub struct RegionInstance {
     characters: FxHashMap<Uuid, TheCodePackage>,
 
     #[serde(skip)]
-    characters_custom: FxHashMap<Uuid, TheCodePackage>,
+    characters_instances: FxHashMap<Uuid, TheCodePackage>,
+
+    /// For fast lookups an array of (character_instance_id, character_id) tuples.
+    #[serde(skip)]
+    characters_ids: Vec<(Uuid, Uuid)>,
 
     region: Region,
 }
@@ -26,7 +30,8 @@ impl RegionInstance {
             sandbox: TheCodeSandbox::new(),
 
             characters: FxHashMap::default(),
-            characters_custom: FxHashMap::default(),
+            characters_instances: FxHashMap::default(),
+            characters_ids: vec![],
 
             region: Region::new(),
         }
@@ -42,7 +47,27 @@ impl RegionInstance {
     }
 
     /// Tick. Compute the next frame.
-    pub fn tick(&mut self) {}
+    pub fn tick(&mut self) {
+
+        // We iterate over all character instances and execute their main function
+        // as well as the main function of their character template.
+        for (instance_id, character_id) in &mut self.characters_ids {
+
+            self.sandbox.clear_runtime_states();
+            self.sandbox.aliases.insert("self".to_string(), *instance_id);
+
+            if let Some(instance) = self.characters_instances.get_mut(instance_id) {
+                instance.execute("main".to_string(), &mut self.sandbox);
+            }
+
+            if let Some(instance) = self.characters.get_mut(character_id) {
+                instance.execute("main".to_string(), &mut self.sandbox);
+
+                println!("instance_id: {}, debug {:?}", character_id, self.sandbox.get_codegrid_debug_module(*character_id));
+
+            }
+        }
+    }
 
     /// Create an instance from json.
     pub fn from_json(json: &str) -> Self {
@@ -54,10 +79,25 @@ impl RegionInstance {
         serde_json::to_string(&self).unwrap_or_default()
     }
 
+    /// Sets the debugging mode.
+    pub fn set_debug_mode(&mut self, debug_mode: bool) {
+        self.sandbox.debug_mode = debug_mode;
+    }
+
     /// Updates the region instance. This is called when the region has been edited in the editor.
     pub fn update(&mut self, region: &Region) {
         self.region = region.clone();
         //println!("RegionInstance::update: {:?}", self.region);
+    }
+
+    /// Returns the debug module (if any) for the given module_id.
+    pub fn get_module_debug_module(&self, id: Uuid) -> TheDebugModule {
+        self.sandbox.get_module_debug_module(id)
+    }
+
+    /// Returns the debug module (if any) for the given codegrid_id.
+    pub fn get_codegrid_debug_module(&self, id: Uuid) -> TheDebugModule {
+        self.sandbox.get_codegrid_debug_module(id)
     }
 
     /// Draws this instance into the given buffer.
@@ -132,7 +172,7 @@ impl RegionInstance {
             self.sandbox.aliases.insert("self".to_string(), id);
             character.execute("init".to_string(), &mut self.sandbox);
 
-            if let Some(inst) = self.characters_custom.get_mut(&id) {
+            if let Some(inst) = self.characters_instances.get_mut(&id) {
                 inst.execute("init".to_string(), &mut self.sandbox);
             }
         }
@@ -141,13 +181,15 @@ impl RegionInstance {
     }
 
     /// Adds a character instance to the region.
-    pub fn add_character_instance(&mut self, mut character: Character) {
+    pub fn add_character_instance(&mut self, mut character: Character) -> Option<Uuid>{
         let mut package = TheCodePackage::new();
         package.id = character.id;
 
+        let mut module_id = None;
+
         let mut compiler = TheCompiler::new();
 
-        for grid in character.custom.grids.values_mut() {
+        for grid in character.instance.grids.values_mut() {
             let rc = compiler.compile(grid);
             if let Ok(mut module) = rc {
                 module.name = grid.name.clone();
@@ -155,6 +197,7 @@ impl RegionInstance {
                     "RegionInstance::add_character_instance: Compiled grid module: {}",
                     grid.name
                 );
+                module_id = Some(module.id);
                 package.insert_module(module.name.clone(), module);
             } else {
                 println!(
@@ -178,11 +221,14 @@ impl RegionInstance {
 
         package.execute("init".to_string(), &mut self.sandbox);
 
-        self.characters_custom.insert(package.id, package);
+        self.characters_ids.push((character.id, character.character_id));
+        self.characters_instances.insert(package.id, package);
+
+        module_id
     }
 
     pub fn update_character_bundle(&mut self, character: Uuid, mut bundle: TheCodeBundle) {
-        if let Some(existing_package) = self.characters_custom.get_mut(&character) {
+        if let Some(existing_package) = self.characters_instances.get_mut(&character) {
             let mut package = TheCodePackage::new();
 
             let mut compiler = TheCompiler::new();
