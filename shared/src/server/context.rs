@@ -28,7 +28,7 @@ impl ServerContext {
             curr_character: None,
             curr_character_instance: None,
 
-            curr_grid_id: None
+            curr_grid_id: None,
         }
     }
 }

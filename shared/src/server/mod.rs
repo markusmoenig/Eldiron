@@ -1,6 +1,7 @@
 use crate::prelude::*;
-use std::sync::mpsc;
+use std::sync::{mpsc, RwLock, Mutex};
 use theframework::prelude::*;
+use lazy_static::lazy_static;
 
 pub mod context;
 pub mod region_instance;
@@ -11,6 +12,12 @@ pub mod prelude {
     pub use super::region_instance::RegionInstance;
     pub use super::world::World;
     pub use super::Server;
+}
+
+lazy_static! {
+    pub static ref REGIONS: RwLock<FxHashMap<Uuid, Region>> = RwLock::new(FxHashMap::default());
+    pub static ref RNG: Mutex<rand::rngs::StdRng> = Mutex::new(rand::rngs::StdRng::from_entropy());
+    pub static ref TILES: RwLock<FxHashMap<Uuid, TheRGBATile>> = RwLock::new(FxHashMap::default());
 }
 
 use prelude::*;
@@ -57,6 +64,16 @@ impl Server {
 
     /// Sets the current project. Resets the server.
     pub fn set_project(&mut self, project: Project) {
+
+        let mut regions = FxHashMap::default();
+
+        for region in &project.regions {
+            regions.insert(region.id, region.clone());
+        }
+
+        *REGIONS.write().unwrap() = regions;
+        *TILES.write().unwrap() = project.extract_tiles();
+
         self.world.reset();
         self.anim_counter = 0;
         self.project = project;
@@ -138,8 +155,8 @@ impl Server {
 
     /// Update the region instance for the region. Called after live updates from the editor.
     pub fn update_region(&mut self, region: &Region) {
-        if let Some(instance) = self.instances.get_mut(&region.id) {
-            instance.update(region);
+        if let Ok(r) = &mut REGIONS.write() {
+            r.insert(region.id, region.clone());
         }
     }
 
@@ -205,7 +222,11 @@ impl Server {
     }
 
     /// Adds a new character instance to the given region and returns its module id (for debugging).
-    pub fn add_character_instance_to_region(&mut self, region: Uuid, character: Character) -> Option<Uuid> {
+    pub fn add_character_instance_to_region(
+        &mut self,
+        region: Uuid,
+        character: Character,
+    ) -> Option<Uuid> {
         if let Some(instance) = self.instances.get_mut(&region) {
             instance.add_character_instance(character)
         } else {

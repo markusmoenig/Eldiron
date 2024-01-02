@@ -1,12 +1,12 @@
 [package]
 name = "creator"
-version = "0.1.0"
+version = "0.8.3"
 edition = "2021"
 
 [dependencies]
 # theframework = { path = "../../TheFramework", features = ["ui", "code"]}
 #theframework = { source = "https://github.com/markusmoenig/TheFramework", features = ["ui", "code"], default-features = true }
-theframework = { version = "0.1.10", features = ["ui", "code"], default-features = true }
+theframework = { version = "0.1.11", features = ["ui", "code"], default-features = true }
 shared = { path = "../shared" }
 lazy_static = "1.4.0"
 serde = { version = "1.0", features = ["derive"] }

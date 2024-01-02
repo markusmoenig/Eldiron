@@ -258,6 +258,8 @@ impl Sidebar {
         filter_edit.limiter_mut().set_max_size(vec2i(75, 18));
         filter_edit.set_font_size(12.5);
         filter_edit.set_embedded(true);
+        filter_edit.set_status_text("Show tiles containing the given text.");
+        filter_edit.set_continuous(true);
         tiles_list_header_canvas_hlayout.add_widget(Box::new(filter_edit));
 
         for dir in TileRole::iterator() {
@@ -265,6 +267,7 @@ impl Sidebar {
             color_button.limiter_mut().set_max_size(vec2i(17, 17));
             color_button.set_color(dir.to_color().to_u8_array());
             color_button.set_state(TheWidgetState::Selected);
+            color_button.set_status_text(format!("Show \"{}\" tiles.", dir.to_string()).as_str());
             tiles_list_header_canvas_hlayout.add_widget(Box::new(color_button));
         }
 
@@ -359,6 +362,13 @@ impl Sidebar {
                     drop.set_offset(*offset);
                     ui.style.create_drop_image(&mut drop, ctx);
                     ctx.ui.set_drop(drop);
+                }
+            }
+            TheEvent::ValueChanged(id, _value) => {
+                if id.name == "Tilemap Filter Edit" {
+                    if let Some(id) = self.curr_tilemap_uuid {
+                        self.show_filtered_tiles(ui, ctx, project.get_tilemap(id).as_deref())
+                    }
                 }
             }
             TheEvent::TileSelectionChanged(id) => {
@@ -588,7 +598,8 @@ impl Sidebar {
                             self.curr_tilemap_uuid = None;
                         }
                     }
-                } else if id.name == "Tilemap Item" {
+                }
+                else if id.name == "Tilemap Item" {
                     // Display the tilemap editor
                     for t in &project.tilemaps {
                         if t.id == id.uuid {
@@ -1045,6 +1056,16 @@ impl Sidebar {
                 list_layout.add_item(item, ctx);
             }
         }
+        self.apply_character(ui, ctx, None);
+        if let Some(list_layout) = ui.get_list_layout("Character List") {
+            list_layout.clear();
+            let list = project.sorted_character_list();
+            for (id, name) in list {
+                let mut item = TheListItem::new(TheId::named_with_id("Character Item", id));
+                item.set_text(name);
+                list_layout.add_item(item, ctx);
+            }
+        }
         if let Some(list_layout) = ui.get_list_layout("Tilemap List") {
             list_layout.clear();
             for tilemap in &project.tilemaps {
@@ -1054,6 +1075,7 @@ impl Sidebar {
             }
         }
         ui.select_first_list_item("Region List", ctx);
+        ui.select_first_list_item("Character List", ctx);
         ui.select_first_list_item("Tilemap List", ctx);
     }
 
@@ -1302,8 +1324,28 @@ impl Sidebar {
                 widget.set_disabled(true);
             }
         }
+        self.show_filtered_tiles(ui, ctx, tilemap);
+    }
 
-        //
+    /// Shows the filtered tiles of the given tilemap.
+    pub fn show_filtered_tiles(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        tilemap: Option<&Tilemap>,
+    ) {
+
+        let mut filter_text = if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Tilemap Filter Edit".to_string()), None)
+        {
+            widget.value().to_string().unwrap_or_default()
+        } else {
+            "".to_string()
+        };
+
+        filter_text = filter_text.to_lowercase();
+
         if let Some(layout) = ui
             .canvas
             .get_layout(Some(&"Tilemap Tile List".to_string()), None)
@@ -1312,26 +1354,28 @@ impl Sidebar {
                 if let Some(tilemap) = tilemap {
                     list_layout.clear();
                     for tile in &tilemap.tiles {
-                        let mut item =
-                            TheListItem::new(TheId::named_with_id("Tilemap Tile", tile.id));
-                        item.set_text(tile.name.clone());
-                        let mut sub_text = if tile.blocking {
-                            "Blocking".to_string()
-                        } else {
-                            "Non-Blocking".to_string()
-                        };
-                        sub_text += ("  ".to_string() + tile.role.to_string()).as_str();
-                        item.set_sub_text(sub_text);
-                        item.set_size(42);
-                        item.set_icon(tile.sequence.regions[0].scale(&tilemap.buffer, 36, 36));
-                        list_layout.add_item(item, ctx);
+                        if filter_text.is_empty() || tile.name.to_lowercase().contains(&filter_text) {
+                            let mut item =
+                                TheListItem::new(TheId::named_with_id("Tilemap Tile", tile.id));
+                            item.set_text(tile.name.clone());
+                            let mut sub_text = if tile.blocking {
+                                "Blocking".to_string()
+                            } else {
+                                "Non-Blocking".to_string()
+                            };
+                            sub_text += ("  ".to_string() + tile.role.to_string()).as_str();
+                            item.set_sub_text(sub_text);
+                            item.set_size(42);
+                            item.set_icon(tile.sequence.regions[0].scale(&tilemap.buffer, 36, 36));
+                            list_layout.add_item(item, ctx);
+                        }
                     }
                 } else {
                     list_layout.clear();
                 }
-                list_layout.select_first_item(ctx);
             }
         }
+        ui.select_first_list_item("Tilemap Tile List", ctx);
     }
 
     pub fn show_region_settings(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {

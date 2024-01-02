@@ -934,7 +934,7 @@ dependencies = [
 
 [[package]]
 name = "creator"
-version = "0.1.0"
+version = "0.8.3"
 dependencies = [
  "lazy_static",
  "serde",
@@ -3350,8 +3350,10 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.1.0"
+version = "0.8.3"
 dependencies = [
+ "lazy_static",
+ "rand",
  "rayon",
  "serde",
  "serde_json",
@@ -3602,9 +3604,9 @@ dependencies = [
 
 [[package]]
 name = "theframework"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afd680b5a07fb34285aabe0ba4c0668384d2b60494d18903243b97cc16f42962"
+checksum = "c6ecf5fbe1dc262c636733b658c9a4443f75f67a42fd3031baba2b8f1f88a80a"
 dependencies = [
  "console_error_panic_hook",
  "console_log",

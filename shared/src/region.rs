@@ -12,6 +12,7 @@ pub struct Region {
     pub region_type: RegionType,
 
     pub name: String,
+
     #[serde(with = "vectorize")]
     pub tiles: FxHashMap<(i32, i32), RegionTile>,
 
@@ -33,6 +34,7 @@ impl Default for Region {
 
 impl Region {
     pub fn new() -> Self {
+        println!("new");
         Self {
             id: Uuid::new_v4(),
             region_type: RegionType::Region2D,
@@ -60,6 +62,33 @@ impl Region {
             self.tiles.insert(pos, region_tile);
         }
     }
+
+    /// Returns true if the character can move to the given position.
+    pub fn can_move_to(&self, pos: Vec3f, tiles: &FxHashMap<Uuid, TheRGBATile>) -> bool {
+        let mut can_move = true;
+        let pos = vec2i(pos.x as i32, pos.y as i32);
+
+        if pos.x < 0 || pos.y < 0{
+            return false;
+        }
+
+        if pos.x  >= self.width || pos.y >= self.height {
+            return false;
+        }
+
+        if let Some(tile) = self.tiles.get(&(pos.x, pos.y)) {
+            for layer in tile.layers.iter().flatten() {
+                if let Some(t) = tiles.get(layer) {
+                    if t.blocking {
+                        can_move = false;
+                    }
+                }
+            }
+        }
+
+        can_move
+    }
+
 
     /// Create a region from json.
     pub fn from_json(json: &str) -> Self {

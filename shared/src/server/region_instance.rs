@@ -1,8 +1,11 @@
 use crate::prelude::*;
 use theframework::prelude::*;
+use crate::server::{RNG, REGIONS, TILES};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RegionInstance {
+    pub id: Uuid,
+
     sandbox: TheCodeSandbox,
 
     #[serde(skip)]
@@ -14,8 +17,6 @@ pub struct RegionInstance {
     /// For fast lookups an array of (character_instance_id, character_id) tuples.
     #[serde(skip)]
     characters_ids: Vec<(Uuid, Uuid)>,
-
-    region: Region,
 }
 
 impl Default for RegionInstance {
@@ -26,35 +27,76 @@ impl Default for RegionInstance {
 
 impl RegionInstance {
     pub fn new() -> Self {
+
+        let mut sandbox = TheCodeSandbox::new();
+
+        sandbox.add_global(
+            "RandWalk",
+            TheCodeNode::new(
+                |_stack, data, sandbox| {
+                    if let Some(region) = REGIONS.read().unwrap().get(&sandbox.id) {
+
+                        if let Some(object) = sandbox.get_self_mut() {
+                            if let Some(TheValue::Position(p)) = object.get_mut(&"position".into()) {
+                                let mut x = p.x;
+                                let mut y = p.y;
+
+                                let dir = RNG.lock().unwrap().gen_range(0..=4);
+
+                                if dir == 0 {
+                                    x += 1.0;
+                                } else if dir == 1 {
+                                    x -= 1.0;
+                                } else if dir == 2 {
+                                    y += 1.0;
+                                } else if dir == 3 {
+                                    y -= 1.0;
+                                }
+
+                                if region.can_move_to(vec3f(x, y, p.z), &TILES.read().unwrap()) {
+                                    *p = vec3f(x, y, p.z);
+                                    if sandbox.debug_mode {
+                                        sandbox.set_debug_value(data.location, TheValue::Text("True".to_string()));
+                                    }
+                                }
+                                else if sandbox.debug_mode {
+                                    sandbox.set_debug_value(data.location, TheValue::Text("False".to_string()));
+                                }
+                            }
+                        }
+                    }
+                    TheCodeNodeCallResult::Continue
+                },
+                TheCodeNodeData::values(vec![TheValue::Int(0)]),
+            ),
+        );
+
         Self {
-            sandbox: TheCodeSandbox::new(),
+            id: Uuid::nil(),
+
+            sandbox,
 
             characters: FxHashMap::default(),
             characters_instances: FxHashMap::default(),
             characters_ids: vec![],
-
-            region: Region::new(),
         }
     }
 
     /// Sets up the region instance.
-    pub fn setup(&mut self, uuid: Uuid, project: &Project) {
-        if let Some(region) = project.get_region(&uuid).cloned() {
-            self.region = region.clone();
-        } else {
-            println!("RegionInstance::setup: Region not found: {}", uuid);
-        }
+    pub fn setup(&mut self, id: Uuid, _project: &Project) {
+        self.id = id;
+        self.sandbox.id = id;
     }
 
     /// Tick. Compute the next frame.
     pub fn tick(&mut self) {
-
         // We iterate over all character instances and execute their main function
         // as well as the main function of their character template.
         for (instance_id, character_id) in &mut self.characters_ids {
-
             self.sandbox.clear_runtime_states();
-            self.sandbox.aliases.insert("self".to_string(), *instance_id);
+            self.sandbox
+                .aliases
+                .insert("self".to_string(), *instance_id);
 
             if let Some(instance) = self.characters_instances.get_mut(instance_id) {
                 instance.execute("main".to_string(), &mut self.sandbox);
@@ -63,8 +105,11 @@ impl RegionInstance {
             if let Some(instance) = self.characters.get_mut(character_id) {
                 instance.execute("main".to_string(), &mut self.sandbox);
 
-                println!("instance_id: {}, debug {:?}", character_id, self.sandbox.get_codegrid_debug_module(*character_id));
-
+                // println!(
+                //     "instance_id: {}, debug {:?}",
+                //     character_id,
+                //     self.sandbox.get_codegrid_debug_module(*character_id)
+                // );
             }
         }
     }
@@ -82,12 +127,6 @@ impl RegionInstance {
     /// Sets the debugging mode.
     pub fn set_debug_mode(&mut self, debug_mode: bool) {
         self.sandbox.debug_mode = debug_mode;
-    }
-
-    /// Updates the region instance. This is called when the region has been edited in the editor.
-    pub fn update(&mut self, region: &Region) {
-        self.region = region.clone();
-        //println!("RegionInstance::update: {:?}", self.region);
     }
 
     /// Returns the debug module (if any) for the given module_id.
@@ -109,48 +148,50 @@ impl RegionInstance {
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
     ) {
-        tiledrawer.draw_region(buffer, &self.region, anim_counter, ctx);
+        if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
+            tiledrawer.draw_region(buffer, region, anim_counter, ctx);
 
-        for c in self.sandbox.objects.values_mut() {
-            if let Some(TheValue::Position(p)) = c.get(&"position".into()).cloned() {
-                if let Some(TheValue::Tile(name, id)) = c.get_mut(&"tile".into()) {
-                    //println!("p {:?} s {:?}", p, name);
+            for c in self.sandbox.objects.values_mut() {
+                if let Some(TheValue::Position(p)) = c.get(&"position".into()).cloned() {
+                    if let Some(TheValue::Tile(name, id)) = c.get_mut(&"tile".into()) {
+                        //println!("p {:?} s {:?}", p, name);
 
-                    if !tiledrawer.draw_tile(
-                        vec2i(p.x as i32, p.y as i32),
-                        buffer,
-                        self.region.grid_size,
-                        *id,
-                        anim_counter,
-                        ctx,
-                    ) {
-                        if let Some(found_id) = tiledrawer.get_tile_id_by_name(name.clone()) {
-                            *id = found_id;
-                            tiledrawer.draw_tile(
-                                vec2i(p.x as i32, p.y as i32),
-                                buffer,
-                                self.region.grid_size,
-                                found_id,
-                                anim_counter,
-                                ctx,
-                            );
-                        } else {
-                            println!("RegionInstance::draw: Tile not found: {}", name);
+                        if !tiledrawer.draw_tile(
+                            vec2i(p.x as i32, p.y as i32),
+                            buffer,
+                            region.grid_size,
+                            *id,
+                            anim_counter,
+                            ctx,
+                        ) {
+                            if let Some(found_id) = tiledrawer.get_tile_id_by_name(name.clone()) {
+                                *id = found_id;
+                                tiledrawer.draw_tile(
+                                    vec2i(p.x as i32, p.y as i32),
+                                    buffer,
+                                    region.grid_size,
+                                    found_id,
+                                    anim_counter,
+                                    ctx,
+                                );
+                            } else {
+                                //println!("RegionInstance::draw: Tile not found: {}", name);
+                            }
                         }
                     }
                 }
-            }
 
-            if Some(c.id) == server_ctx.curr_character_instance
-                || Some(c.package_id) == server_ctx.curr_character
-            {
-                if let Some(TheValue::Position(p)) = c.get(&"position".into()) {
-                    tiledrawer.draw_tile_outline(
-                        vec2i(p.x as i32, p.y as i32),
-                        buffer,
-                        self.region.grid_size,
-                        ctx,
-                    );
+                if Some(c.id) == server_ctx.curr_character_instance
+                    || Some(c.package_id) == server_ctx.curr_character
+                {
+                    if let Some(TheValue::Position(p)) = c.get(&"position".into()) {
+                        tiledrawer.draw_tile_outline(
+                            vec2i(p.x as i32, p.y as i32),
+                            buffer,
+                            region.grid_size,
+                            ctx,
+                        );
+                    }
                 }
             }
         }
@@ -158,7 +199,6 @@ impl RegionInstance {
 
     /// Insert a (TheCodePackage) to the region.
     pub fn insert_character(&mut self, mut character: TheCodePackage) {
-
         // We collect all instances of this character and execute the init function on them.
         let mut instance_ids = vec![];
         for o in self.sandbox.objects.values() {
@@ -181,7 +221,7 @@ impl RegionInstance {
     }
 
     /// Adds a character instance to the region.
-    pub fn add_character_instance(&mut self, mut character: Character) -> Option<Uuid>{
+    pub fn add_character_instance(&mut self, mut character: Character) -> Option<Uuid> {
         let mut package = TheCodePackage::new();
         package.id = character.id;
 
@@ -221,7 +261,8 @@ impl RegionInstance {
 
         package.execute("init".to_string(), &mut self.sandbox);
 
-        self.characters_ids.push((character.id, character.character_id));
+        self.characters_ids
+            .push((character.id, character.character_id));
         self.characters_instances.insert(package.id, package);
 
         module_id

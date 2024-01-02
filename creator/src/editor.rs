@@ -115,7 +115,10 @@ impl TheTrait for Editor {
             }
             self.server.tick();
             if self.server_ctx.curr_character_instance.is_some() {
-                let debug = self.server.get_region_debug_codegrid(self.server_ctx.curr_region, self.sidebar.code_editor.get_codegrid_id(ui));
+                let debug = self.server.get_region_debug_codegrid(
+                    self.server_ctx.curr_region,
+                    self.sidebar.code_editor.get_codegrid_id(ui),
+                );
                 self.sidebar.code_editor.set_debug_module(debug, ui);
             }
             self.tileeditor
@@ -188,10 +191,11 @@ impl TheTrait for Editor {
                             self.server_ctx.curr_character_instance = Some(character.id);
                             self.sidebar.deselect_all("Character List", ui);
 
-                            self.server_ctx.curr_grid_id = self.server.add_character_instance_to_region(
-                                self.server_ctx.curr_region,
-                                character,
-                            );
+                            self.server_ctx.curr_grid_id =
+                                self.server.add_character_instance_to_region(
+                                    self.server_ctx.curr_region,
+                                    character,
+                                );
 
                             if let Some(curr_grid_id) = self.server_ctx.curr_grid_id {
                                 let debug_module = self.server.get_region_debug_module(
@@ -199,10 +203,7 @@ impl TheTrait for Editor {
                                     curr_grid_id,
                                 );
 
-                                self.sidebar.code_editor.set_debug_module(
-                                    debug_module,
-                                    ui
-                                );
+                                self.sidebar.code_editor.set_debug_module(debug_module, ui);
                             }
                         }
                     }
