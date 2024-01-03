@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use std::sync::mpsc::Receiver;
+use crate::Embedded;
 
 pub struct Editor {
     project: Project,
@@ -43,12 +44,46 @@ impl TheTrait for Editor {
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+
+        // Embedded Icons
+
+        for file in Embedded::iter() {
+            let name = file.as_ref();
+
+            if name.ends_with(".png") {
+                if let Some(file) = Embedded::get(name) {
+                    let data = std::io::Cursor::new(file.data);
+
+                    let decoder = png::Decoder::new(data);
+                    if let Ok(mut reader) = decoder.read_info() {
+                        let mut buf = vec![0; reader.output_buffer_size()];
+                        let info = reader.next_frame(&mut buf).unwrap();
+                        let bytes = &buf[..info.buffer_size()];
+
+                        let mut cut_name = name.replace("icons/", "");
+                        cut_name = cut_name.replace(".png", "");
+
+                        ctx.ui.add_icon(
+                            cut_name.to_string(),
+                            TheRGBABuffer::from(bytes.to_vec(), info.width, info.height),
+                        );
+                    }
+                }
+            }
+        }
+
+        // ---
+
         ui.set_statusbar_name("Statusbar".to_string());
 
         // Menubar
         let mut top_canvas = TheCanvas::new();
 
         let menubar = TheMenubar::new(TheId::named("Menubar"));
+
+        let mut logo_button = TheMenubarButton::new(TheId::named("Logo"));
+        logo_button.set_icon_name("logo".to_string());
+        logo_button.set_status_text("Open the Eldiron Website ...");
 
         let mut open_button = TheMenubarButton::new(TheId::named("Open"));
         open_button.set_icon_name("icon_role_load".to_string());
@@ -69,15 +104,23 @@ impl TheTrait for Editor {
         redo_button.set_status_text("Redo the last action.");
         redo_button.set_icon_name("icon_role_redo".to_string());
 
+        let mut patreon_button = TheMenubarButton::new(TheId::named("Patreon"));
+        patreon_button.set_status_text("Visit my Patreon page.");
+        patreon_button.set_icon_name("patreon".to_string());
+
         let mut hlayout = TheHLayout::new(TheId::named("Menu Layout"));
         hlayout.set_background_color(None);
-        hlayout.set_margin(vec4i(40, 5, 20, 0));
+        hlayout.set_margin(vec4i(10, 5, 20, 0));
+        hlayout.add_widget(Box::new(logo_button));
+        hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
         hlayout.add_widget(Box::new(open_button));
         hlayout.add_widget(Box::new(save_button));
         hlayout.add_widget(Box::new(save_as_button));
         hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
         hlayout.add_widget(Box::new(undo_button));
         hlayout.add_widget(Box::new(redo_button));
+        hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
+        hlayout.add_widget(Box::new(patreon_button));
 
         top_canvas.set_widget(menubar);
         top_canvas.set_layout(hlayout);
@@ -169,11 +212,13 @@ impl TheTrait for Editor {
                             );
                             instance.insert_grid(init);
 
-                            self.sidebar.code_editor.set_bundle(
-                                instance.clone(),
-                                ctx,
-                                self.sidebar.width,
-                            );
+                            // Set the character instance bundle, disabled for now
+
+                            // self.sidebar.code_editor.set_bundle(
+                            //     instance.clone(),
+                            //     ctx,
+                            //     self.sidebar.width,
+                            // );
 
                             let character = Character {
                                 id: instance.id,
@@ -189,7 +234,7 @@ impl TheTrait for Editor {
 
                             self.server_ctx.curr_character = Some(character.character_id);
                             self.server_ctx.curr_character_instance = Some(character.id);
-                            self.sidebar.deselect_all("Character List", ui);
+                            //self.sidebar.deselect_all("Character List", ui);
 
                             self.server_ctx.curr_grid_id =
                                 self.server.add_character_instance_to_region(
@@ -197,14 +242,16 @@ impl TheTrait for Editor {
                                     character,
                                 );
 
-                            if let Some(curr_grid_id) = self.server_ctx.curr_grid_id {
-                                let debug_module = self.server.get_region_debug_module(
-                                    self.server_ctx.curr_region,
-                                    curr_grid_id,
-                                );
+                            // Set the character instance debug info, disabled for now
 
-                                self.sidebar.code_editor.set_debug_module(debug_module, ui);
-                            }
+                            // if let Some(curr_grid_id) = self.server_ctx.curr_grid_id {
+                            //     let debug_module = self.server.get_region_debug_module(
+                            //         self.server_ctx.curr_region,
+                            //         curr_grid_id,
+                            //     );
+
+                            //     self.sidebar.code_editor.set_debug_module(debug_module, ui);
+                            // }
                         }
                     }
                     TheEvent::FileRequesterResult(id, paths) => {
@@ -231,7 +278,23 @@ impl TheTrait for Editor {
                     TheEvent::StateChanged(id, _state) => {
                         // Open / Save Project
 
-                        if id.name == "Open" {
+                        if id.name == "Logo" {
+                            _ = open::that("https://eldiron.com");
+                            ctx.ui
+                                .set_widget_state("Logo".to_string(), TheWidgetState::None);
+                            ctx.ui.clear_hover();
+                            redraw = true;
+                        }
+
+                        else if id.name == "Patreon" {
+                            _ = open::that("https://www.patreon.com/eldiron");
+                            ctx.ui
+                                .set_widget_state("Patreon".to_string(), TheWidgetState::None);
+                            ctx.ui.clear_hover();
+                            redraw = true;
+                        }
+
+                        else if id.name == "Open" {
                             ctx.ui.open_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                                 "Open".into(),

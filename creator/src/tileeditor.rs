@@ -347,6 +347,7 @@ impl TileEditor {
                     }
                 } else if id.name == "Tilemap Editor Add Selection" {
                     self.tiledrawer.tiles = project.extract_tiles();
+                    server.update_tiles(project.extract_tiles());
                 } else if id.name == "Ground Icon" {
                     self.curr_layer_role = Layer2DRole::Ground;
                     self.set_icon_colors(ui);

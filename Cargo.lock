@@ -937,6 +937,9 @@ name = "creator"
 version = "0.8.3"
 dependencies = [
  "lazy_static",
+ "open",
+ "png",
+ "rust-embed",
  "serde",
  "serde_json",
  "shared",
@@ -2569,9 +2572,9 @@ checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 
 [[package]]
 name = "open"
-version = "5.0.0"
+version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfabf1927dce4d6fdf563d63328a0a506101ced3ec780ca2135747336c98cef8"
+checksum = "90878fb664448b54c4e592455ad02831e23a3f7e157374a8b95654731aac7349"
 dependencies = [
  "is-wsl",
  "libc",
@@ -3604,9 +3607,9 @@ dependencies = [
 
 [[package]]
 name = "theframework"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6ecf5fbe1dc262c636733b658c9a4443f75f67a42fd3031baba2b8f1f88a80a"
+checksum = "b4631f1f56cf5f34b95cfeb16812058e1f2f652b492833635f64f14a10e276f1"
 dependencies = [
  "console_error_panic_hook",
  "console_log",

@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 # theframework = { path = "../../TheFramework", features = ["ui", "code"]}
-theframework = { version = "0.1.11", features = ["ui", "code"], default-features = true }
+theframework = { version = "0.1.12", features = ["ui", "code"], default-features = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 vectorize = "0.2.0"

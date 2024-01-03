@@ -8,6 +8,13 @@ pub mod tileeditor;
 
 pub mod widgets;
 
+use rust_embed::RustEmbed;
+#[derive(RustEmbed)]
+#[folder = "embedded/"]
+#[exclude = "*.txt"]
+#[exclude = "*.DS_Store"]
+pub struct Embedded;
+
 pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
     pub use shared::prelude::*;

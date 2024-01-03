@@ -153,6 +153,11 @@ impl Server {
         }
     }
 
+    /// Updates the tiles in the server. Called after live tilemap updates from the editor.
+    pub fn update_tiles(&mut self, tiles: FxHashMap<Uuid, TheRGBATile>) {
+        *TILES.write().unwrap() = tiles;
+    }
+
     /// Update the region instance for the region. Called after live updates from the editor.
     pub fn update_region(&mut self, region: &Region) {
         if let Ok(r) = &mut REGIONS.write() {
@@ -234,14 +239,15 @@ impl Server {
         }
     }
 
-    pub fn update_character_bundle(
+    /// Updates a character instance.
+    pub fn update_character_instance_bundle(
         &mut self,
         region: Uuid,
         character: Uuid,
         bundle: TheCodeBundle,
     ) {
         if let Some(instance) = self.instances.get_mut(&region) {
-            instance.update_character_bundle(character, bundle);
+            instance.update_character_instance_bundle(character, bundle);
         }
     }
 }

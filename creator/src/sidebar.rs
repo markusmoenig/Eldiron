@@ -23,6 +23,13 @@ pub struct Sidebar {
 #[allow(clippy::new_without_default)]
 impl Sidebar {
     pub fn new() -> Self {
+        let mut code_editor = TheCodeEditor::new();
+
+        code_editor.add_external(TheExternalCode::new(
+            "RandWalk".to_string(),
+            "Moves the character in a random direction.".to_string(),
+        ));
+
         Self {
             mode: SidebarMode::Region,
             width: 380,
@@ -30,7 +37,7 @@ impl Sidebar {
             stack_layout_id: TheId::empty(),
             curr_tilemap_uuid: None,
 
-            code_editor: TheCodeEditor::new(),
+            code_editor
         }
     }
 
@@ -974,20 +981,23 @@ impl Sidebar {
 
                             if let Ok(_module) = rc {
                                 let bundle = self.code_editor.get_bundle();
+                                self.code_editor.set_compiled(true, ui, ctx);
 
                                 // Successfully compiled, transfer the bundle to the server.
-                                if self.mode == SidebarMode::Character {
+
+                                if self.mode == SidebarMode::Region {
                                     if let Some(character_instance) =
                                         server_ctx.curr_character_instance
                                     {
-                                        server.update_character_bundle(
+                                        server.update_character_instance_bundle(
                                             server_ctx.curr_region,
                                             character_instance,
                                             self.code_editor.get_bundle(),
                                         );
-                                    } else {
-                                        server.insert_character(bundle);
                                     }
+                                } else
+                                if self.mode == SidebarMode::Character {
+                                    server.insert_character(bundle);
                                 }
                             } else {
                                 code_view.set_debug_module(TheDebugModule::new());
@@ -996,8 +1006,8 @@ impl Sidebar {
                     }
                 }
             }
-            TheEvent::CodeBundleChanged(bundle) => {
-                if self.mode == SidebarMode::Character {
+            TheEvent::CodeBundleChanged(bundle, _) => {
+                if self.mode == SidebarMode::Region {
                     if let Some(character_instance) = server_ctx.curr_character_instance {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             if let Some(character) = region.characters.get_mut(&character_instance)
@@ -1006,7 +1016,10 @@ impl Sidebar {
                                 character.instance = bundle.clone();
                             }
                         }
-                    } else if let Some(list_layout) = ui.get_list_layout("Character List") {
+                    }
+                } else
+                if self.mode == SidebarMode::Character {
+                    if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
                                 if let Some(character) = project.characters.get_mut(&bundle.id) {
@@ -1089,6 +1102,8 @@ impl Sidebar {
         ui.set_widget_disabled_state("Character Remove", ctx, character.is_none());
         ui.set_widget_disabled_state("Character Name Edit", ctx, character.is_none());
 
+        let compiled: bool = self.code_editor.compiled(ui);
+
         // Set the character bundle.
         if let Some(character) = character {
             let char_list_canvas: TheCanvas =
@@ -1128,6 +1143,8 @@ impl Sidebar {
                 widget.set_disabled(true);
             }
         }
+
+        self.code_editor.set_compiled(compiled, ui, ctx);
 
         ctx.ui.relayout = true;
     }

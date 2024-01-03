@@ -268,7 +268,8 @@ impl RegionInstance {
         module_id
     }
 
-    pub fn update_character_bundle(&mut self, character: Uuid, mut bundle: TheCodeBundle) {
+    /// Updates a character instance.
+    pub fn update_character_instance_bundle(&mut self, character: Uuid, mut bundle: TheCodeBundle) {
         if let Some(existing_package) = self.characters_instances.get_mut(&character) {
             let mut package = TheCodePackage::new();
 
