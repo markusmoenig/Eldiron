@@ -3,10 +3,11 @@ use theframework::*;
 pub mod browser;
 pub mod editor;
 pub mod misc;
+pub mod panels;
 pub mod sidebar;
 pub mod tileeditor;
+pub mod tilemapeditor;
 pub mod tilepicker;
-pub mod panels;
 
 pub mod widgets;
 
@@ -17,14 +18,7 @@ use rust_embed::RustEmbed;
 #[exclude = "*.DS_Store"]
 pub struct Embedded;
 
-pub enum LeftStackIndex {
-    TilePicker,
-    CodeEditor,
-}
-
 pub mod prelude {
-
-    pub use crate::LeftStackIndex;
 
     pub use ::serde::{Deserialize, Serialize};
     pub use shared::prelude::*;
@@ -32,10 +26,11 @@ pub mod prelude {
 
     pub use crate::browser::*;
     pub use crate::misc::*;
+    pub use crate::panels::*;
     pub use crate::sidebar::*;
     pub use crate::tileeditor::*;
+    pub use crate::tilemapeditor::*;
     pub use crate::tilepicker::*;
-    pub use crate::panels::*;
 
     pub use crate::widgets::therenderview::{TheRenderView, TheRenderViewTrait};
 }

@@ -380,7 +380,9 @@ impl TileEditor {
                             redraw = true;
                         }
                     }
-                } else if id.name == "Tilemap Tile" {
+                }
+                // An item in the tile list was selected
+                else if id.name == "Tilemap Tile" {
                     self.curr_tile_uuid = Some(id.uuid);
 
                     if let Some(t) = self.tiledrawer.tiles.get(&id.uuid) {

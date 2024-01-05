@@ -1,5 +1,5 @@
+use crate::editor::{CODEEDITOR, TILEMAPEDITOR};
 use crate::prelude::*;
-use crate::editor::{CODEEDITOR, TILEPICKER};
 
 #[derive(PartialEq, Debug)]
 pub enum SidebarMode {
@@ -607,109 +607,7 @@ impl Sidebar {
                         if t.id == id.uuid {
                             self.curr_tilemap_uuid = Some(t.id);
 
-                            let mut center = TheCanvas::new();
-
-                            let mut rgba_layout =
-                                TheRGBALayout::new(TheId::named("Tilemap Editor"));
-                            rgba_layout.set_buffer(t.buffer.clone());
-                            rgba_layout.set_scroll_offset(t.scroll_offset);
-                            if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                                rgba_view.set_grid(Some(t.grid_size));
-                                rgba_view.set_mode(TheRGBAViewMode::TileSelection);
-                            }
-
-                            rgba_layout.relayout(ctx);
-                            center.set_layout(rgba_layout);
-
-                            //
-
-                            let mut toolbar_canvas = TheCanvas::new();
-                            let traybar_widget = TheTraybar::new(TheId::empty());
-                            toolbar_canvas.set_widget(traybar_widget);
-
-                            let mut add_button =
-                                TheTraybarButton::new(TheId::named("Tilemap Editor Add Selection"));
-                            add_button.set_text("Add Tile".to_string());
-
-                            let icon_view =
-                                TheIconView::new(TheId::named("Tilemap Editor Icon View"));
-
-                            let mut tile_name_text = TheText::new(TheId::empty());
-                            tile_name_text.set_text("Tile Name".to_string());
-
-                            let mut tile_name_edit =
-                                TheTextLineEdit::new(TheId::named("Tilemap Editor Name Edit"));
-                            tile_name_edit.limiter_mut().set_max_width(150);
-
-                            let mut block_name_text = TheText::new(TheId::empty());
-                            block_name_text.set_text("Blocking".to_string());
-
-                            let block_check_button =
-                                TheCheckButton::new(TheId::named("Tilemap Editor Block"));
-
-                            let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
-                            toolbar_hlayout.set_background_color(None);
-                            toolbar_hlayout.set_margin(vec4i(5, 4, 5, 4));
-
-                            toolbar_hlayout.add_widget(Box::new(icon_view));
-                            let mut hdivider = TheHDivider::new(TheId::empty());
-                            hdivider.limiter_mut().set_max_width(15);
-                            toolbar_hlayout.add_widget(Box::new(hdivider));
-
-                            toolbar_hlayout.add_widget(Box::new(tile_name_text));
-                            toolbar_hlayout.add_widget(Box::new(tile_name_edit));
-
-                            let mut hdivider = TheHDivider::new(TheId::empty());
-                            hdivider.limiter_mut().set_max_width(15);
-                            toolbar_hlayout.add_widget(Box::new(hdivider));
-
-                            let mut drop_down =
-                                TheDropdownMenu::new(TheId::named("Tilemap Editor Role"));
-
-                            for dir in TileRole::iterator() {
-                                drop_down.add_option(dir.to_string().to_string());
-                                /*
-                                let mut color_button = TheColorButton::new(TheId::named(
-                                    "Tilemap Editor Filter Character",
-                                ));
-                                color_button.limiter_mut().set_max_size(vec2i(19, 19));
-                                color_button.set_color(dir.to_color().to_u8_array());
-                                if dir == TileRole::Character {
-                                    color_button.set_state(TheWidgetState::Selected);
-                                }
-                                toolbar_hlayout.add_widget(Box::new(color_button));*/
-                            }
-                            toolbar_hlayout.add_widget(Box::new(drop_down));
-
-                            let mut hdivider = TheHDivider::new(TheId::empty());
-                            hdivider.limiter_mut().set_max_width(15);
-                            toolbar_hlayout.add_widget(Box::new(hdivider));
-
-                            toolbar_hlayout.add_widget(Box::new(block_name_text));
-                            toolbar_hlayout.add_widget(Box::new(block_check_button));
-
-                            let mut hdivider = TheHDivider::new(TheId::empty());
-                            hdivider.limiter_mut().set_max_width(15);
-                            toolbar_hlayout.add_widget(Box::new(hdivider));
-
-                            toolbar_hlayout.add_widget(Box::new(add_button));
-
-                            toolbar_canvas.set_layout(toolbar_hlayout);
-                            center.set_top(toolbar_canvas);
-                            ctx.ui.relayout = true;
-
-                            if self.mode == SidebarMode::Tilemap {
-                                if let Some(browser) =
-                                    ui.canvas.get_layout(Some(&"Browser".to_string()), None)
-                                {
-                                    if let Some(browser) = browser.as_tab_layout() {
-                                        browser.clear();
-                                        browser.add_canvas(t.name.clone(), center);
-                                    }
-                                }
-                            }
-
-                            ctx.ui.relayout = true;
+                            TILEMAPEDITOR.lock().unwrap().set_tilemap(t, ui, ctx);
                             self.apply_tilemap(ui, ctx, Some(t));
                         }
                     }
@@ -802,6 +700,11 @@ impl Sidebar {
                                 }
                             }
 
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Update Tilepicker"),
+                                TheValue::Empty,
+                            ));
+
                             if let Some(widget) = ui.get_widget("RenderView") {
                                 if let Some(w) = widget
                                     .as_any()
@@ -841,7 +744,8 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Regions".to_string()));
                     }
 
-                    ctx.ui.send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));
 
                     self.mode = SidebarMode::Region;
                     ctx.ui
@@ -856,21 +760,13 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Character".to_string()));
                     }
 
-                    ctx.ui.send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
 
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             ctx.ui
                                 .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
-                        } else {
-                            // Nothing to show, clear the browser
-                            if let Some(browser) =
-                                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
-                            {
-                                if let Some(browser) = browser.as_tab_layout() {
-                                    browser.clear();
-                                }
-                            }
                         }
                     }
 
@@ -891,15 +787,6 @@ impl Sidebar {
                         if let Some(selected) = list_layout.selected() {
                             ctx.ui
                                 .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
-                        } else {
-                            // Nothing to show, clear the browser
-                            if let Some(browser) =
-                                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
-                            {
-                                if let Some(browser) = browser.as_tab_layout() {
-                                    browser.clear();
-                                }
-                            }
                         }
                     }
 
@@ -916,19 +803,13 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Tilemaps".to_string()));
                     }
 
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 2));
+
                     if let Some(list_layout) = ui.get_list_layout("Tilemap List") {
                         if let Some(selected) = list_layout.selected() {
                             ctx.ui
                                 .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
-                        } else {
-                            // Nothing to show, clear the browser
-                            if let Some(browser) =
-                                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
-                            {
-                                if let Some(browser) = browser.as_tab_layout() {
-                                    browser.clear();
-                                }
-                            }
                         }
                     }
 
@@ -949,15 +830,6 @@ impl Sidebar {
                         if let Some(selected) = list_layout.selected() {
                             ctx.ui
                                 .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
-                        } else {
-                            // Nothing to show, clear the browser
-                            if let Some(browser) =
-                                ui.canvas.get_layout(Some(&"Browser".to_string()), None)
-                            {
-                                if let Some(browser) = browser.as_tab_layout() {
-                                    browser.clear();
-                                }
-                            }
                         }
                     }
 
@@ -1088,7 +960,10 @@ impl Sidebar {
         ui.select_first_list_item("Character List", ctx);
         ui.select_first_list_item("Tilemap List", ctx);
 
-        TILEPICKER.lock().unwrap().set_tiles(&project.extract_tiles_vec(), ui);
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Tilepicker"),
+            TheValue::Empty,
+        ));
     }
 
     /// Apply the given character to the UI
@@ -1106,7 +981,9 @@ impl Sidebar {
         // Set the character bundle.
         if let Some(character) = character {
             let char_list_canvas: TheCanvas =
-                CODEEDITOR.lock().unwrap()
+                CODEEDITOR
+                    .lock()
+                    .unwrap()
                     .set_bundle(character.clone(), ctx, self.width);
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
@@ -1152,7 +1029,10 @@ impl Sidebar {
         // Set the Item bundle.
         if let Some(item) = item {
             let item_list_canvas: TheCanvas =
-                CODEEDITOR.lock().unwrap().set_bundle(item.clone(), ctx, self.width);
+                CODEEDITOR
+                    .lock()
+                    .unwrap()
+                    .set_bundle(item.clone(), ctx, self.width);
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(2) {
@@ -1196,7 +1076,10 @@ impl Sidebar {
         // Set the Item bundle.
         if let Some(code) = code {
             let code_list_canvas: TheCanvas =
-                CODEEDITOR.lock().unwrap().set_bundle(code.clone(), ctx, self.width);
+                CODEEDITOR
+                    .lock()
+                    .unwrap()
+                    .set_bundle(code.clone(), ctx, self.width);
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(4) {
@@ -1204,13 +1087,13 @@ impl Sidebar {
                 }
             }
 
-            if let Some(browser) = ui.canvas.get_layout(Some(&"Browser".to_string()), None) {
-                if let Some(browser) = browser.as_tab_layout() {
-                    browser.clear();
-                    let code_editor_canvas: TheCanvas = CODEEDITOR.lock().unwrap().build_canvas(ctx);
-                    browser.add_canvas(code.name.clone(), code_editor_canvas);
-                }
-            }
+            // if let Some(browser) = ui.canvas.get_layout(Some(&"Browser".to_string()), None) {
+            //     if let Some(browser) = browser.as_tab_layout() {
+            //         browser.clear();
+            //         let code_editor_canvas: TheCanvas = CODEEDITOR.lock().unwrap().build_canvas(ctx);
+            //         browser.add_canvas(code.name.clone(), code_editor_canvas);
+            //     }
+            // }
         } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
             if let Some(canvas) = stack_layout.canvas_at_mut(4) {
                 let mut empty = TheCanvas::new();

@@ -102,6 +102,13 @@ impl Project {
         self.codes.remove(id);
     }
 
+    /// Removes the given tile from the project.
+    pub fn remove_tile(&mut self, id: &Uuid) {
+        for tilemap in &mut self.tilemaps {
+            tilemap.tiles.retain(|t| t.id != *id);
+        }
+    }
+
     /// Extract all tiles from all tilemaps and store them in a hash.
     pub fn extract_tiles(&self) -> FxHashMap<Uuid, TheRGBATile> {
         let mut tiles = FxHashMap::default();

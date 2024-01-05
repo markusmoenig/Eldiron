@@ -1,11 +1,11 @@
-use serde_json::value;
-
 use crate::prelude::*;
 
 pub struct TilePicker {
     pub id: String,
 
     pub tile_ids: FxHashMap<(i32, i32), Uuid>,
+    pub tile_text: FxHashMap<(i32, i32), String>,
+    pub filter: String,
 }
 
 #[allow(clippy::new_without_default)]
@@ -14,6 +14,8 @@ impl TilePicker {
         Self {
             id,
             tile_ids: FxHashMap::default(),
+            tile_text: FxHashMap::default(),
+            filter: "".to_string(),
         }
     }
 
@@ -33,7 +35,7 @@ impl TilePicker {
         toolbar_hlayout.set_margin(vec4i(10, 1, 5, 1));
         toolbar_hlayout.set_padding(3);
         toolbar_hlayout.add_widget(Box::new(filter_text));
-        let mut filter_edit = TheTextLineEdit::new(TheId::named("Tilemap Filter Edit"));
+        let mut filter_edit = TheTextLineEdit::new(TheId::named(&self.make_id(" Filter Edit")));
         filter_edit.set_text("".to_string());
         filter_edit
             .limiter_mut()
@@ -76,6 +78,9 @@ impl TilePicker {
         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
             rgba_view.set_grid(Some(24));
             rgba_view.set_mode(TheRGBAViewMode::TilePicker);
+            let mut c = WHITE;
+            c[3] = 128;
+            rgba_view.set_hover_color(Some(c));
         }
 
         canvas.set_top(toolbar_canvas);
@@ -85,9 +90,9 @@ impl TilePicker {
     }
 
     /// Set the tiles for the picker.
-    pub fn set_tiles(&mut self, tiles: &Vec<TheRGBATile>, ui: &mut TheUI) {
-
+    pub fn set_tiles(&mut self, tiles: Vec<TheRGBATile>, ui: &mut TheUI) {
         self.tile_ids.clear();
+        self.tile_text.clear();
         if let Some(editor) = ui.get_rgba_layout(&self.make_id(" RGBA Layout")) {
             //println!("{}", editor.dim().width);
             let width = editor.dim().width - 24;
@@ -96,18 +101,29 @@ impl TilePicker {
             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
                 let grid = 24;
 
+                let mut filtered_tiles = vec![];
+
+                for t in tiles {
+                    if t.name.to_lowercase().contains(&self.filter) {
+                        filtered_tiles.push(t);
+                    }
+                }
+
                 let tiles_per_row = width / grid;
-                let lines = max(tiles.len() as i32 / tiles_per_row, 1);
+                let lines = max(filtered_tiles.len() as i32 / tiles_per_row, 1);
 
-                let mut buffer = TheRGBABuffer::new(TheDim::sized(width, max(lines * grid, height)));
+                let mut buffer =
+                    TheRGBABuffer::new(TheDim::sized(width, max(lines * grid, height)));
 
-                for (i, tile) in tiles.iter().enumerate() {
-                    let x = (i as i32 % tiles_per_row) * grid;
-                    let y = (i as i32 / tiles_per_row) * grid;
+                for (i, tile) in filtered_tiles.iter().enumerate() {
+                    let x = i as i32 % tiles_per_row;
+                    let y = i as i32 / tiles_per_row;
 
                     self.tile_ids.insert((x, y), tile.id);
+                    self.tile_text
+                        .insert((x, y), format!("{}, {}", tile.name, tile.role));
                     if !tile.buffer.is_empty() {
-                        buffer.copy_into(x, y, &tile.buffer[0]);
+                        buffer.copy_into(x * grid, y * grid, &tile.buffer[0]);
                     }
                 }
 
@@ -116,18 +132,60 @@ impl TilePicker {
         }
     }
 
-    pub fn handle_event(&mut self, event: &TheEvent, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
+    pub fn handle_event(
+        &mut self,
+        event: &TheEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+    ) -> bool {
         let redraw = false;
 
         match event {
             TheEvent::TilePicked(id, pos) => {
                 if id.name == self.make_id(" RGBA Layout View") {
                     if let Some(tile_id) = self.tile_ids.get(&(pos.x, pos.y)) {
-                        ctx.ui.send(TheEvent::StateChanged(TheId::named_with_id("Tilemap Tile", *tile_id), TheWidgetState::Selected));
+                        ctx.ui.send(TheEvent::StateChanged(
+                            TheId::named_with_id("Tilemap Tile", *tile_id),
+                            TheWidgetState::Selected,
+                        ));
                     }
                 }
             }
-            TheEvent::ValueChanged(_id, _value) => {}
+            TheEvent::TileEditorHoverChanged(id, pos) => {
+                if id.name == self.make_id(" RGBA Layout View") {
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        id.clone(),
+                        self.tile_text
+                            .get(&(pos.x, pos.y))
+                            .unwrap_or(&"".to_string())
+                            .to_string(),
+                    ));
+                }
+            }
+            TheEvent::TileEditorDelete(id, selected) => {
+                if id.name == self.make_id(" RGBA Layout View") {
+                    for tile_pos in selected {
+                        if let Some(tile_id) = self.tile_ids.get(tile_pos) {
+                            project.remove_tile(tile_id);
+                        }
+                    }
+                    self.set_tiles(project.extract_tiles_vec(), ui);
+                }
+            }
+            TheEvent::Custom(id, _value) => {
+                if id.name == "Update Tilepicker" {
+                    self.set_tiles(project.extract_tiles_vec(), ui);
+                }
+            }
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == self.make_id(" Filter Edit") {
+                    if let TheValue::Text(filter) = value {
+                        self.filter = filter.to_lowercase();
+                        self.set_tiles(project.extract_tiles_vec(), ui);
+                    }
+                }
+            }
             _ => {}
         }
         redraw

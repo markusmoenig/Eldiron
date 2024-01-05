@@ -6,7 +6,9 @@ use std::sync::Mutex;
 
 lazy_static! {
     pub static ref CODEEDITOR: Mutex<TheCodeEditor> = Mutex::new(TheCodeEditor::new());
-    pub static ref TILEPICKER: Mutex<TilePicker> = Mutex::new(TilePicker::new("Main Tile Picker".to_string()));
+    pub static ref TILEPICKER: Mutex<TilePicker> =
+        Mutex::new(TilePicker::new("Main Tile Picker".to_string()));
+    pub static ref TILEMAPEDITOR: Mutex<TilemapEditor> = Mutex::new(TilemapEditor::new());
 }
 
 pub struct Editor {
