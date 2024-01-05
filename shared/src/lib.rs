@@ -10,7 +10,6 @@ pub mod tilemap;
 pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
 
-    pub use rand::prelude::*;
     pub use crate::camera::{Camera, Ray};
     pub use crate::character::Character;
     pub use crate::project::Project;
@@ -20,4 +19,5 @@ pub mod prelude {
     pub use crate::server::Server;
     pub use crate::tiledrawer::TileDrawer;
     pub use crate::tilemap::{Tile, TileRole, Tilemap};
+    pub use rand::prelude::*;
 }

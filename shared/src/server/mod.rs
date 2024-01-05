@@ -1,7 +1,7 @@
 use crate::prelude::*;
-use std::sync::{mpsc, RwLock, Mutex};
-use theframework::prelude::*;
 use lazy_static::lazy_static;
+use std::sync::{mpsc, Mutex, RwLock};
+use theframework::prelude::*;
 
 pub mod context;
 pub mod region_instance;
@@ -64,7 +64,6 @@ impl Server {
 
     /// Sets the current project. Resets the server.
     pub fn set_project(&mut self, project: Project) {
-
         let mut regions = FxHashMap::default();
 
         for region in &project.regions {

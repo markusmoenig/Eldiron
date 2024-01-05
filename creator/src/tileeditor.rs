@@ -1,6 +1,15 @@
 use crate::prelude::*;
 
+#[derive(PartialEq, Clone, Copy, Debug)]
+enum EditorMode {
+    Draw,
+    Pick,
+    Select,
+}
+
 pub struct TileEditor {
+    editor_mode: EditorMode,
+
     tiledrawer: TileDrawer,
 
     curr_tile_uuid: Option<Uuid>,
@@ -15,6 +24,8 @@ pub struct TileEditor {
 impl TileEditor {
     pub fn new() -> Self {
         Self {
+            editor_mode: EditorMode::Draw,
+
             tiledrawer: TileDrawer::new(),
 
             curr_tile_uuid: None,
@@ -127,10 +138,18 @@ impl TileEditor {
         gb.add_text("Mixed".to_string());
         gb.add_text("3D Map".to_string());
 
+        let mut zoom = TheSlider::new(TheId::named("Region Editor Zoom"));
+        zoom.set_value(TheValue::Float(1.0));
+        zoom.set_range(TheValue::RangeF32(0.3..=3.0));
+        zoom.set_continuous(true);
+        zoom.limiter_mut().set_max_width(120);
+
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(5, 4, 5, 4));
         toolbar_hlayout.add_widget(Box::new(gb));
+        toolbar_hlayout.add_widget(Box::new(zoom));
+        toolbar_hlayout.set_reverse_index(Some(1));
 
         top_toolbar.set_layout(toolbar_hlayout);
         center.set_top(top_toolbar);
@@ -210,64 +229,76 @@ impl TileEditor {
                             }
                         }
                     }
+                } else if id.name == "Editor Group" {
+                    if *index == 0 {
+                        self.editor_mode = EditorMode::Draw
+                    } else if *index == 1 {
+                        self.editor_mode = EditorMode::Pick
+                    } else if *index == 2 {
+                        self.editor_mode = EditorMode::Select
+                    }
                 }
             }
-            TheEvent::TileEditorClicked(_id, coord) => {
-                if let Some(curr_tile_uuid) = self.curr_tile_uuid {
-                    if self.tiledrawer.tiles.contains_key(&curr_tile_uuid) {
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            let mut undo = TheUndo::new(TheId::named("RegionChanged"));
-                            undo.set_undo_data(region.to_json());
+            TheEvent::TileEditorClicked(_id, coord) | TheEvent::TileEditorDragged(_id, coord) => {
+                if self.editor_mode == EditorMode::Pick {
+                } else if self.editor_mode == EditorMode::Draw {
+                    if let Some(curr_tile_uuid) = self.curr_tile_uuid {
+                        if self.tiledrawer.tiles.contains_key(&curr_tile_uuid) {
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                let mut undo = TheUndo::new(TheId::named("RegionChanged"));
+                                undo.set_undo_data(region.to_json());
 
-                            region.set_tile(
-                                (coord.x, coord.y),
-                                self.curr_layer_role,
-                                self.curr_tile_uuid,
-                            );
-                            undo.set_redo_data(region.to_json());
-                            self.set_icon_previews(region, *coord, ui);
-
-                            server.update_region(region);
-
-                            if let Some(widget) = ui.get_widget("RenderView") {
-                                if let Some(w) = widget
-                                    .as_any()
-                                    .downcast_mut::<TheRenderView>()
-                                    .map(|external_widget| {
-                                        external_widget as &mut dyn TheRenderViewTrait
-                                    })
-                                {
-                                    w.renderer_mut().set_region(region);
-                                }
-                            }
-
-                            ctx.ui.undo_stack.add(undo);
-                        }
-                    }
-                    if let Some(rgba_layout) =
-                        ui.canvas.get_layout(Some(&"Region Editor".into()), None)
-                    {
-                        if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
-                            if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                                // self.tiledrawer.draw_tile(
-                                //     *coord,
-                                //     rgba_view.buffer_mut(),
-                                //     24,
-                                //     curr_tile_uuid,
-                                //     ctx,
-                                // );
-
-                                // if let Some(region) = project.get_region(&self.curr_region_uuid) {
-                                //     self.tiledrawer.draw_region(rgba_view.buffer_mut(), region, ctx);
-                                // }
-                                server.draw_region(
-                                    &server_ctx.curr_region,
-                                    rgba_view.buffer_mut(),
-                                    &self.tiledrawer,
-                                    ctx,
-                                    server_ctx,
+                                region.set_tile(
+                                    (coord.x, coord.y),
+                                    self.curr_layer_role,
+                                    self.curr_tile_uuid,
                                 );
-                                rgba_view.set_needs_redraw(true);
+                                undo.set_redo_data(region.to_json());
+                                self.set_icon_previews(region, *coord, ui);
+
+                                server.update_region(region);
+
+                                if let Some(widget) = ui.get_widget("RenderView") {
+                                    if let Some(w) = widget
+                                        .as_any()
+                                        .downcast_mut::<TheRenderView>()
+                                        .map(|external_widget| {
+                                            external_widget as &mut dyn TheRenderViewTrait
+                                        })
+                                    {
+                                        w.renderer_mut().set_region(region);
+                                    }
+                                }
+
+                                ctx.ui.undo_stack.add(undo);
+                            }
+                        }
+                        if let Some(rgba_layout) =
+                            ui.canvas.get_layout(Some(&"Region Editor".into()), None)
+                        {
+                            if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
+                                if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view()
+                                {
+                                    // self.tiledrawer.draw_tile(
+                                    //     *coord,
+                                    //     rgba_view.buffer_mut(),
+                                    //     24,
+                                    //     curr_tile_uuid,
+                                    //     ctx,
+                                    // );
+
+                                    // if let Some(region) = project.get_region(&self.curr_region_uuid) {
+                                    //     self.tiledrawer.draw_region(rgba_view.buffer_mut(), region, ctx);
+                                    // }
+                                    server.draw_region(
+                                        &server_ctx.curr_region,
+                                        rgba_view.buffer_mut(),
+                                        &self.tiledrawer,
+                                        ctx,
+                                        server_ctx,
+                                    );
+                                    rgba_view.set_needs_redraw(true);
+                                }
                             }
                         }
                     }
@@ -296,6 +327,18 @@ impl TileEditor {
                         .map(|external_widget| external_widget as &mut dyn TheRenderViewTrait)
                     {
                         w.renderer_mut().set_position(vec3i(coord.x, 0, coord.y));
+                    }
+                }
+            }
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == "Region Editor Zoom" {
+                    if let Some(v) = value.to_f32() {
+                        if let Some(layout) = ui.get_rgba_layout("Region Editor") {
+                            if let Some(code_view) = layout.rgba_view_mut().as_rgba_view() {
+                                code_view.set_zoom(v);
+                                ctx.ui.relayout = true;
+                            }
+                        }
                     }
                 }
             }

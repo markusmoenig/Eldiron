@@ -34,7 +34,6 @@ impl Default for Region {
 
 impl Region {
     pub fn new() -> Self {
-        println!("new");
         Self {
             id: Uuid::new_v4(),
             region_type: RegionType::Region2D,
@@ -68,11 +67,11 @@ impl Region {
         let mut can_move = true;
         let pos = vec2i(pos.x as i32, pos.y as i32);
 
-        if pos.x < 0 || pos.y < 0{
+        if pos.x < 0 || pos.y < 0 {
             return false;
         }
 
-        if pos.x  >= self.width || pos.y >= self.height {
+        if pos.x >= self.width || pos.y >= self.height {
             return false;
         }
 
@@ -88,7 +87,6 @@ impl Region {
 
         can_move
     }
-
 
     /// Create a region from json.
     pub fn from_json(json: &str) -> Self {

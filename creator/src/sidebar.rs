@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::editor::{CODEEDITOR, TILEPICKER};
 
 #[derive(PartialEq, Debug)]
 pub enum SidebarMode {
@@ -16,8 +17,6 @@ pub struct Sidebar {
     stack_layout_id: TheId,
 
     curr_tilemap_uuid: Option<Uuid>,
-
-    pub code_editor: TheCodeEditor,
 }
 
 #[allow(clippy::new_without_default)]
@@ -36,8 +35,6 @@ impl Sidebar {
 
             stack_layout_id: TheId::empty(),
             curr_tilemap_uuid: None,
-
-            code_editor
         }
     }
 
@@ -345,7 +342,6 @@ impl Sidebar {
         self.apply_code(ui, ctx, None);
     }
 
-    #[allow(clippy::suspicious_else_formatting)]
     pub fn handle_event(
         &mut self,
         event: &TheEvent,
@@ -355,7 +351,8 @@ impl Sidebar {
         server: &mut Server,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let mut redraw = self.code_editor.handle_event(event, ui, ctx);
+        let mut redraw = false;
+
         match event {
             TheEvent::ShowContextMenu(id, _coord) => {
                 println!("ShowContextMenu {}", id.name);
@@ -433,7 +430,6 @@ impl Sidebar {
             }
             TheEvent::StateChanged(id, state) => {
                 // Regions Add
-
                 if id.name == "Region Add" {
                     if let Some(list_layout) = ui.get_list_layout("Region List") {
                         let region = Region::new();
@@ -584,9 +580,9 @@ impl Sidebar {
                         self.apply_code(ui, ctx, Some(c));
                         redraw = true;
                     }
-                } else
+                }
                 // Tilemap Item Handling
-                if id.name == "Tilemap Add" {
+                else if id.name == "Tilemap Add" {
                     ctx.ui.open_file_requester(
                         TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                         "Open".into(),
@@ -605,8 +601,7 @@ impl Sidebar {
                             self.curr_tilemap_uuid = None;
                         }
                     }
-                }
-                else if id.name == "Tilemap Item" {
+                } else if id.name == "Tilemap Item" {
                     // Display the tilemap editor
                     for t in &project.tilemaps {
                         if t.id == id.uuid {
@@ -836,15 +831,17 @@ impl Sidebar {
                             }
                         }
                     }
-                } else
+                }
                 // Section Buttons
-                if id.name == "Region Section" && *state == TheWidgetState::Selected {
+                else if id.name == "Region Section" && *state == TheWidgetState::Selected {
                     if let Some(widget) = ui
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
                     {
                         widget.set_value(TheValue::Text("Regions".to_string()));
                     }
+
+                    ctx.ui.send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));
 
                     self.mode = SidebarMode::Region;
                     ctx.ui
@@ -858,6 +855,8 @@ impl Sidebar {
                     {
                         widget.set_value(TheValue::Text("Character".to_string()));
                     }
+
+                    ctx.ui.send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
 
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
@@ -980,8 +979,8 @@ impl Sidebar {
                             let rc = compiler.compile(grid);
 
                             if let Ok(_module) = rc {
-                                let bundle = self.code_editor.get_bundle();
-                                self.code_editor.set_compiled(true, ui, ctx);
+                                let bundle: TheCodeBundle = CODEEDITOR.lock().unwrap().get_bundle();
+                                CODEEDITOR.lock().unwrap().set_compiled(true, ui, ctx);
 
                                 // Successfully compiled, transfer the bundle to the server.
 
@@ -992,11 +991,10 @@ impl Sidebar {
                                         server.update_character_instance_bundle(
                                             server_ctx.curr_region,
                                             character_instance,
-                                            self.code_editor.get_bundle(),
+                                            CODEEDITOR.lock().unwrap().get_bundle(),
                                         );
                                     }
-                                } else
-                                if self.mode == SidebarMode::Character {
+                                } else if self.mode == SidebarMode::Character {
                                     server.insert_character(bundle);
                                 }
                             } else {
@@ -1017,8 +1015,7 @@ impl Sidebar {
                             }
                         }
                     }
-                } else
-                if self.mode == SidebarMode::Character {
+                } else if self.mode == SidebarMode::Character {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
@@ -1090,6 +1087,8 @@ impl Sidebar {
         ui.select_first_list_item("Region List", ctx);
         ui.select_first_list_item("Character List", ctx);
         ui.select_first_list_item("Tilemap List", ctx);
+
+        TILEPICKER.lock().unwrap().set_tiles(&project.extract_tiles_vec(), ui);
     }
 
     /// Apply the given character to the UI
@@ -1102,25 +1101,17 @@ impl Sidebar {
         ui.set_widget_disabled_state("Character Remove", ctx, character.is_none());
         ui.set_widget_disabled_state("Character Name Edit", ctx, character.is_none());
 
-        let compiled: bool = self.code_editor.compiled(ui);
+        let compiled: bool = CODEEDITOR.lock().unwrap().compiled(ui);
 
         // Set the character bundle.
         if let Some(character) = character {
             let char_list_canvas: TheCanvas =
-                self.code_editor
+                CODEEDITOR.lock().unwrap()
                     .set_bundle(character.clone(), ctx, self.width);
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(1) {
                     canvas.set_bottom(char_list_canvas);
-                }
-            }
-
-            if let Some(browser) = ui.canvas.get_layout(Some(&"Browser".to_string()), None) {
-                if let Some(browser) = browser.as_tab_layout() {
-                    browser.clear();
-                    let code_editor_canvas: TheCanvas = self.code_editor.build_canvas(ctx);
-                    browser.add_canvas(character.name.clone(), code_editor_canvas);
                 }
             }
         } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
@@ -1144,8 +1135,7 @@ impl Sidebar {
             }
         }
 
-        self.code_editor.set_compiled(compiled, ui, ctx);
-
+        CODEEDITOR.lock().unwrap().set_compiled(compiled, ui, ctx);
         ctx.ui.relayout = true;
     }
 
@@ -1162,19 +1152,11 @@ impl Sidebar {
         // Set the Item bundle.
         if let Some(item) = item {
             let item_list_canvas: TheCanvas =
-                self.code_editor.set_bundle(item.clone(), ctx, self.width);
+                CODEEDITOR.lock().unwrap().set_bundle(item.clone(), ctx, self.width);
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(2) {
                     canvas.set_bottom(item_list_canvas);
-                }
-            }
-
-            if let Some(browser) = ui.canvas.get_layout(Some(&"Browser".to_string()), None) {
-                if let Some(browser) = browser.as_tab_layout() {
-                    browser.clear();
-                    let code_editor_canvas: TheCanvas = self.code_editor.build_canvas(ctx);
-                    browser.add_canvas(item.name.clone(), code_editor_canvas);
                 }
             }
         } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
@@ -1214,7 +1196,7 @@ impl Sidebar {
         // Set the Item bundle.
         if let Some(code) = code {
             let code_list_canvas: TheCanvas =
-                self.code_editor.set_bundle(code.clone(), ctx, self.width);
+                CODEEDITOR.lock().unwrap().set_bundle(code.clone(), ctx, self.width);
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(4) {
@@ -1225,7 +1207,7 @@ impl Sidebar {
             if let Some(browser) = ui.canvas.get_layout(Some(&"Browser".to_string()), None) {
                 if let Some(browser) = browser.as_tab_layout() {
                     browser.clear();
-                    let code_editor_canvas: TheCanvas = self.code_editor.build_canvas(ctx);
+                    let code_editor_canvas: TheCanvas = CODEEDITOR.lock().unwrap().build_canvas(ctx);
                     browser.add_canvas(code.name.clone(), code_editor_canvas);
                 }
             }
@@ -1351,7 +1333,6 @@ impl Sidebar {
         ctx: &mut TheContext,
         tilemap: Option<&Tilemap>,
     ) {
-
         let mut filter_text = if let Some(widget) = ui
             .canvas
             .get_widget(Some(&"Tilemap Filter Edit".to_string()), None)
@@ -1371,7 +1352,8 @@ impl Sidebar {
                 if let Some(tilemap) = tilemap {
                     list_layout.clear();
                     for tile in &tilemap.tiles {
-                        if filter_text.is_empty() || tile.name.to_lowercase().contains(&filter_text) {
+                        if filter_text.is_empty() || tile.name.to_lowercase().contains(&filter_text)
+                        {
                             let mut item =
                                 TheListItem::new(TheId::named_with_id("Tilemap Tile", tile.id));
                             item.set_text(tile.name.clone());

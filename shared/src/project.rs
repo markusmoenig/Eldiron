@@ -118,4 +118,21 @@ impl Project {
         }
         tiles
     }
+
+    /// Extract all tiles from all tilemaps and store them in a vec.
+    pub fn extract_tiles_vec(&self) -> Vec<TheRGBATile> {
+        let mut tiles = vec![];
+        for tilemap in &self.tilemaps {
+            for tile in &tilemap.tiles {
+                let mut rgba_tile = TheRGBATile::new();
+                rgba_tile.id = tile.id;
+                rgba_tile.name = tile.name.clone();
+                rgba_tile.buffer = tilemap.buffer.extract_sequence(&tile.sequence);
+                rgba_tile.role = tile.role as u8;
+                rgba_tile.blocking = tile.blocking;
+                tiles.push(rgba_tile);
+            }
+        }
+        tiles
+    }
 }

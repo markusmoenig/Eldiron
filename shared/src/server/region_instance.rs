@@ -1,6 +1,6 @@
 use crate::prelude::*;
+use crate::server::{REGIONS, RNG, TILES};
 use theframework::prelude::*;
-use crate::server::{RNG, REGIONS, TILES};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RegionInstance {
@@ -27,7 +27,6 @@ impl Default for RegionInstance {
 
 impl RegionInstance {
     pub fn new() -> Self {
-
         let mut sandbox = TheCodeSandbox::new();
 
         sandbox.add_global(
@@ -35,9 +34,9 @@ impl RegionInstance {
             TheCodeNode::new(
                 |_stack, data, sandbox| {
                     if let Some(region) = REGIONS.read().unwrap().get(&sandbox.id) {
-
                         if let Some(object) = sandbox.get_self_mut() {
-                            if let Some(TheValue::Position(p)) = object.get_mut(&"position".into()) {
+                            if let Some(TheValue::Position(p)) = object.get_mut(&"position".into())
+                            {
                                 let mut x = p.x;
                                 let mut y = p.y;
 
@@ -56,11 +55,16 @@ impl RegionInstance {
                                 if region.can_move_to(vec3f(x, y, p.z), &TILES.read().unwrap()) {
                                     *p = vec3f(x, y, p.z);
                                     if sandbox.debug_mode {
-                                        sandbox.set_debug_value(data.location, TheValue::Text("True".to_string()));
+                                        sandbox.set_debug_value(
+                                            data.location,
+                                            TheValue::Text("True".to_string()),
+                                        );
                                     }
-                                }
-                                else if sandbox.debug_mode {
-                                    sandbox.set_debug_value(data.location, TheValue::Text("False".to_string()));
+                                } else if sandbox.debug_mode {
+                                    sandbox.set_debug_value(
+                                        data.location,
+                                        TheValue::Text("False".to_string()),
+                                    );
                                 }
                             }
                         }

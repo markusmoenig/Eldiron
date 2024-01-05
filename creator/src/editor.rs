@@ -1,12 +1,19 @@
 use crate::prelude::*;
-use std::sync::mpsc::Receiver;
 use crate::Embedded;
+use lazy_static::lazy_static;
+use std::sync::mpsc::Receiver;
+use std::sync::Mutex;
+
+lazy_static! {
+    pub static ref CODEEDITOR: Mutex<TheCodeEditor> = Mutex::new(TheCodeEditor::new());
+    pub static ref TILEPICKER: Mutex<TilePicker> = Mutex::new(TilePicker::new("Main Tile Picker".to_string()));
+}
 
 pub struct Editor {
     project: Project,
 
     sidebar: Sidebar,
-    browser: Browser,
+    panels: Panels,
     tileeditor: TileEditor,
 
     server: Server,
@@ -28,7 +35,7 @@ impl TheTrait for Editor {
             project: Project::new(),
 
             sidebar: Sidebar::new(),
-            browser: Browser::new(),
+            panels: Panels::new(),
             tileeditor: TileEditor::new(),
 
             server_ctx: ServerContext::default(),
@@ -44,7 +51,6 @@ impl TheTrait for Editor {
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-
         // Embedded Icons
 
         for file in Embedded::iter() {
@@ -110,7 +116,7 @@ impl TheTrait for Editor {
 
         let mut hlayout = TheHLayout::new(TheId::named("Menu Layout"));
         hlayout.set_background_color(None);
-        hlayout.set_margin(vec4i(10, 5, 20, 0));
+        hlayout.set_margin(vec4i(10, 2, 10, 1));
         hlayout.add_widget(Box::new(logo_button));
         hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
         hlayout.add_widget(Box::new(open_button));
@@ -119,8 +125,10 @@ impl TheTrait for Editor {
         hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
         hlayout.add_widget(Box::new(undo_button));
         hlayout.add_widget(Box::new(redo_button));
-        hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
+        //hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
         hlayout.add_widget(Box::new(patreon_button));
+
+        hlayout.set_reverse_index(Some(1));
 
         top_canvas.set_widget(menubar);
         top_canvas.set_layout(hlayout);
@@ -129,8 +137,8 @@ impl TheTrait for Editor {
         // Sidebar
         self.sidebar.init_ui(ui, ctx, &mut self.project);
 
-        // Browser
-        self.browser.init_ui(ui, ctx, &mut self.project);
+        // Panels
+        self.panels.init_ui(ui, ctx, &mut self.project);
 
         // TileEditor
         self.tileeditor.init_ui(ui, ctx, &mut self.project);
@@ -160,9 +168,9 @@ impl TheTrait for Editor {
             if self.server_ctx.curr_character_instance.is_some() {
                 let debug = self.server.get_region_debug_codegrid(
                     self.server_ctx.curr_region,
-                    self.sidebar.code_editor.get_codegrid_id(ui),
+                    CODEEDITOR.lock().unwrap().get_codegrid_id(ui),
                 );
-                self.sidebar.code_editor.set_debug_module(debug, ui);
+                CODEEDITOR.lock().unwrap().set_debug_module(debug, ui);
             }
             self.tileeditor
                 .redraw_region(ui, &mut self.server, ctx, &self.server_ctx);
@@ -178,6 +186,16 @@ impl TheTrait for Editor {
                     &mut self.server,
                     &mut self.server_ctx,
                 );
+                if self.panels.handle_event(
+                    &event,
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.server,
+                    &mut self.server_ctx,
+                ) {
+                    redraw = true;
+                }
                 if self.tileeditor.handle_event(
                     &event,
                     ui,
@@ -284,17 +302,13 @@ impl TheTrait for Editor {
                                 .set_widget_state("Logo".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        }
-
-                        else if id.name == "Patreon" {
+                        } else if id.name == "Patreon" {
                             _ = open::that("https://www.patreon.com/eldiron");
                             ctx.ui
                                 .set_widget_state("Patreon".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        }
-
-                        else if id.name == "Open" {
+                        } else if id.name == "Open" {
                             ctx.ui.open_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                                 "Open".into(),
