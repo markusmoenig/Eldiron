@@ -239,8 +239,79 @@ impl TileEditor {
                     }
                 }
             }
+            TheEvent::TileEditorDelete(_id, keys) => {
+                if self.editor_mode == EditorMode::Pick {
+
+                    // If there is a character instance at the position we delete the instance.
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+
+                        let mut changed = false;
+                        let mut undo = TheUndo::new(TheId::named("RegionChanged"));
+                        undo.set_undo_data(region.to_json());
+
+                        for k in keys {
+                            if let Some(c) = server.get_character_at(server_ctx.curr_region, vec2i(k.0, k.1)) {
+                                if region.characters.remove(&c.0).is_some() {
+                                    changed = true;
+                                    server.remove_character_instance(region.id, c.0);
+                                    server_ctx.curr_character_instance = None;
+                                    server_ctx.curr_character = None;
+                                }
+                            }
+                        }
+
+                        if changed {
+                            undo.set_redo_data(region.to_json());
+                            ctx.ui.undo_stack.add(undo);
+                            server.update_region(region);
+                            redraw = true;
+                        }
+                    }
+                }
+                else if self.editor_mode == EditorMode::Draw {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        let mut undo = TheUndo::new(TheId::named("RegionChanged"));
+                        undo.set_undo_data(region.to_json());
+                        let mut changed = false;
+                        let mut p = vec2i(0, 0);
+                        for k in keys {
+                            if region.tiles.contains_key(k) {
+                                region.tiles.remove(k);
+                                changed = true;
+                                p = vec2i(k.0, k.1);
+                            }
+                        }
+                        if changed {
+                            undo.set_redo_data(region.to_json());
+                            ctx.ui.undo_stack.add(undo);
+                            server.update_region(region);
+                            self.set_icon_previews(region, p, ui);
+                            redraw = true;
+                        }
+                    }
+                }
+            }
             TheEvent::TileEditorClicked(_id, coord) | TheEvent::TileEditorDragged(_id, coord) => {
                 if self.editor_mode == EditorMode::Pick {
+                    // Check for character at the given position.
+                    if let Some(c) = server.get_character_at(server_ctx.curr_region, *coord) {
+                        server_ctx.curr_character_instance = Some(c.0);
+                        server_ctx.curr_character = Some(c.1);
+                        ctx.ui.send(TheEvent::Custom(TheId::named_with_id("Set Character Bundle", c.0), TheValue::Empty));
+                    } else
+                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                        if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
+                            for uuid in tile.layers.iter().flatten() {
+                                if self.tiledrawer.tiles.contains_key(uuid) {
+                                    ctx.ui.send(TheEvent::StateChanged(
+                                        TheId::named_with_id("Tilemap Tile", *uuid),
+                                        TheWidgetState::Selected,
+                                    ));
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 } else if self.editor_mode == EditorMode::Draw {
                     if let Some(curr_tile_uuid) = self.curr_tile_uuid {
                         if self.tiledrawer.tiles.contains_key(&curr_tile_uuid) {

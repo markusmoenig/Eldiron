@@ -249,4 +249,24 @@ impl Server {
             instance.update_character_instance_bundle(character, bundle);
         }
     }
+
+    /// Remove the character instance from the given region.
+    pub fn remove_character_instance(
+        &mut self,
+        region: Uuid,
+        character: Uuid
+    ) {
+        if let Some(instance) = self.instances.get_mut(&region) {
+            instance.remove_character_instance(character);
+        }
+    }
+
+    /// Returns the character instance id and the character id for the character at the given position for the given region.
+    pub fn get_character_at(&self, region: Uuid, pos: Vec2i) -> Option<(Uuid, Uuid)> {
+        if let Some(instance) = self.instances.get(&region) {
+            instance.get_character_at(pos)
+        } else {
+            None
+        }
+    }
 }

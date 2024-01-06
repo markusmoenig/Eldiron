@@ -114,13 +114,14 @@ impl TileDrawer {
         at: Vec2i,
         buffer: &mut TheRGBABuffer,
         grid: i32,
+        color: [u8; 4],
         ctx: &mut TheContext,
     ) {
         let x = (at.x * grid) as usize;
         let y = (at.y * grid) as usize;
         let stride = buffer.stride();
         ctx.draw
-            .rect_outline(buffer.pixels_mut(), &(x, y, 24, 24), stride, &WHITE);
+            .rect_outline(buffer.pixels_mut(), &(x, y, 24, 24), stride, &color);
     }
 
     /// Get the tile id of the given name.

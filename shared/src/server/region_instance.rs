@@ -185,14 +185,24 @@ impl RegionInstance {
                     }
                 }
 
-                if Some(c.id) == server_ctx.curr_character_instance
-                    || Some(c.package_id) == server_ctx.curr_character
-                {
+                if Some(c.id) == server_ctx.curr_character_instance {
                     if let Some(TheValue::Position(p)) = c.get(&"position".into()) {
                         tiledrawer.draw_tile_outline(
                             vec2i(p.x as i32, p.y as i32),
                             buffer,
                             region.grid_size,
+                            WHITE,
+                            ctx,
+                        );
+                    }
+                }
+                else if Some(c.id) == server_ctx.curr_character {
+                    if let Some(TheValue::Position(p)) = c.get(&"position".into()) {
+                        tiledrawer.draw_tile_outline(
+                            vec2i(p.x as i32, p.y as i32),
+                            buffer,
+                            region.grid_size,
+                            [128, 128, 128, 255],
                             ctx,
                         );
                     }
@@ -303,5 +313,28 @@ impl RegionInstance {
 
             *existing_package = package;
         }
+    }
+
+    /// Removes the given character instance from the region.
+    pub fn remove_character_instance(&mut self, character: Uuid) {
+        self.characters_instances.remove(&character);
+        self.characters_ids.retain(|(instance_id, _)| *instance_id != character);
+    }
+
+    /// Returns the character instance id and the character id for the character at the given position.
+    pub fn get_character_at(&self, pos: Vec2i) -> Option<(Uuid, Uuid)> {
+        for c in self.sandbox.objects.values() {
+            if let Some(TheValue::Position(p)) = c.get(&"position".into()).cloned() {
+                if vec2i(p.x as i32, p.y as i32) == pos {
+                    for (instance_id, character_id) in &self.characters_ids {
+                        if *instance_id == c.id {
+                            return Some((*instance_id, *character_id));
+                        }
+                    }
+                }
+            }
+        }
+
+        None
     }
 }

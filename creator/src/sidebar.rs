@@ -922,6 +922,53 @@ impl Sidebar {
                     }
                 }
             }
+            TheEvent::Custom(id, _v) => {
+                if id.name == "Set Character Bundle" {
+                    // Character selection
+                    if self.mode == SidebarMode::Region {
+                        // In Region mode, we need to set the character bundle of the current character instance.
+                        if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                            if let Some(character) = region.characters.get(&id.uuid) {
+                                for grid in character.instance.grids.values() {
+                                    if grid.name == "init" {
+                                        CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                        ctx.ui.send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else if self.mode == SidebarMode::Character {
+                        // In Character mode, we need to set the character bundle of the current character.
+
+                    }
+                }
+            }
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == "Editor Group" {
+                    if *index == 0 {
+                        ctx.ui.send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));
+                    }
+                    else if *index == 1 {
+                        if self.mode == SidebarMode::Region {
+                            if let Some(character_instance) = server_ctx.curr_character_instance {
+                                if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                                    if let Some(character) = region.characters.get(&character_instance) {
+                                        for grid in character.instance.grids.values() {
+                                            if grid.name == "init" {
+                                                CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                                ctx.ui.send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else if self.mode == SidebarMode::Character {
+                        }
+                    }
+                }
+            }
             _ => {}
         }
 
