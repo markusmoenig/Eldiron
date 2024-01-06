@@ -6,7 +6,7 @@ Classic RPG Creation
 
 ### Rewrite of the Creator in Progress
 
-After v0.8.4 I decided to rewrite the Creator part of Eldiron.
+After v0.8.2 I decided to rewrite the Creator part of Eldiron.
 
 While I was very happy with the underlying systems, especially the heart of it all, the behavior node system, I was not happy with the UI of the Creator itself.
 
@@ -16,18 +16,20 @@ I am currently redoing the Creator with a heavy focus on being map centered, i.e
 
 I think this will make for a much more fun experience as you develop the game interactively on the map instead of developing each item in a vacuum.
 
-The current release still contains the old Creator, while v0.9.0 with the new creator is targetted to be released at the end of 2023.
+The current release still contains the old Creator, while v0.8.5 with the new creator is targetted to be released in the first quarter of 2024.
 
 ---
 
-[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/) [![version](https://img.shields.io/badge/version-0.8.2-yellow.svg)](https://shields.io/) [![macOS](https://svgshare.com/i/ZjP.svg)](https://svgshare.com/i/ZjP.svg) [![Windows](https://svgshare.com/i/ZhY.svg)](https://svgshare.com/i/ZhY.svg) [![Linux](https://svgshare.com/i/Zhy.svg)](https://svgshare.com/i/Zhy.svg) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Patreon](https://badgen.net/badge/icon/patreon?icon=patreon&label)](https://patreon.com/eldiron) [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/EldironRPG)
+![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white) ![macOS](https://img.shields.io/badge/mac%20os-000000?style=for-the-badge&logo=macos&logoColor=F0F0F0) ![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
+
+[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/) [![version](https://img.shields.io/badge/version-0.8.2-yellow.svg)](https://shields.io/) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Patreon](https://badgen.net/badge/icon/patreon?icon=patreon&label)](https://patreon.com/eldiron) [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/EldironRPG)
 
 
 <!---
 [![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/channel/UCCmrO356zLQv_m8dPEqBUfA)
 -->
 
-Eldiron is currently under active development and a v1 is planned for 2023. Eldiron is open source and licensed under the MIT.
+Eldiron is currently under active development and a v1 is planned for 2024. Eldiron is open source and licensed under the MIT.
 
 ![Screenshot](images/region_screenshot.png)
 ![Screenshot](images/behavior_screenshot.png)
