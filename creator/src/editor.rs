@@ -159,7 +159,7 @@ impl TheTrait for Editor {
 
         if self.update_tracker.update(250) {
             // Update the widgets which have anims (if they are visible)
-            if let Some(icon_view) = ui.get_widget("Tilemap Editor Icon View") {
+            if let Some(icon_view) = ui.get_widget("Global Icon Preview") {
                 if let Some(icon_view) = icon_view.as_icon_view() {
                     icon_view.step();
                     redraw = true;

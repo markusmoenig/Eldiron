@@ -44,24 +44,24 @@ impl Tilemap {
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub enum TileRole {
-    Character,    // #d9ac8b
-    GrassAndWood, // #3e6958
-    Hill,         // #b1a58d
-    Road,         // #624c3c
-    Water,        // #243d5c
-    ManMade,      // #e0c872
-    Dungeon,      // #b03a48
-    Effect,       // #d4804d
-    Icon,         // #5c8b93
-    UI,           // #e3cfb4
+    Character, // #d9ac8b
+    Nature,    // #3e6958
+    Mountain,  // #b1a58d
+    Road,      // #624c3c
+    Water,     // #243d5c
+    ManMade,   // #e0c872
+    Dungeon,   // #b03a48
+    Effect,    // #d4804d
+    Icon,      // #5c8b93
+    UI,        // #e3cfb4
 }
 
 impl TileRole {
     pub fn to_color(self) -> TheColor {
         match self {
             TileRole::Character => TheColor::from_hex("#d9ac8b"),
-            TileRole::GrassAndWood => TheColor::from_hex("#3e6958"),
-            TileRole::Hill => TheColor::from_hex("#b1a58d"),
+            TileRole::Nature => TheColor::from_hex("#3e6958"),
+            TileRole::Mountain => TheColor::from_hex("#b1a58d"),
             TileRole::Road => TheColor::from_hex("#624c3c"),
             TileRole::Water => TheColor::from_hex("#243d5c"),
             TileRole::ManMade => TheColor::from_hex("#e0c872"),
@@ -74,8 +74,8 @@ impl TileRole {
     pub fn to_string(self) -> &'static str {
         match self {
             TileRole::Character => "Character",
-            TileRole::GrassAndWood => "Grass and Wood",
-            TileRole::Hill => "Hill",
+            TileRole::Nature => "Nature",
+            TileRole::Mountain => "Mountain",
             TileRole::Road => "Road",
             TileRole::Water => "Water",
             TileRole::ManMade => "Man Made",
@@ -88,8 +88,8 @@ impl TileRole {
     pub fn iterator() -> impl Iterator<Item = TileRole> {
         [
             TileRole::Character,
-            TileRole::GrassAndWood,
-            TileRole::Hill,
+            TileRole::Nature,
+            TileRole::Mountain,
             TileRole::Road,
             TileRole::Water,
             TileRole::ManMade,
@@ -104,8 +104,8 @@ impl TileRole {
     pub fn from_index(index: u8) -> Option<TileRole> {
         match index {
             0 => Some(TileRole::Character),
-            1 => Some(TileRole::GrassAndWood),
-            2 => Some(TileRole::Hill),
+            1 => Some(TileRole::Nature),
+            2 => Some(TileRole::Mountain),
             3 => Some(TileRole::Road),
             4 => Some(TileRole::Water),
             5 => Some(TileRole::ManMade),
@@ -139,7 +139,7 @@ impl Tile {
         Self {
             id: Uuid::new_v4(),
             name: String::new(),
-            role: TileRole::GrassAndWood,
+            role: TileRole::Nature,
 
             sequence: TheRGBARegionSequence::new(),
             blocking: false,

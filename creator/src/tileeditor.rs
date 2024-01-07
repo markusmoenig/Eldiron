@@ -159,9 +159,22 @@ impl TileEditor {
         bottom_toolbar.set_widget(TheTraybar::new(TheId::empty()));
 
         let mut gb = TheGroupButton::new(TheId::named("Editor Group"));
-        gb.add_text("Draw".to_string());
-        gb.add_text("Pick".to_string());
-        gb.add_text("Select".to_string());
+        gb.add_text_status_icon(
+            "Draw".to_string(),
+            "Draw tiles in the region.".to_string(),
+            "draw".to_string(),
+        );
+        gb.add_text_status_icon(
+            "Pick".to_string(),
+            "Pick content in the region.".to_string(),
+            "pick".to_string(),
+        );
+        gb.add_text_status_icon(
+            "Select".to_string(),
+            "Select an area in the region.".to_string(),
+            "selection".to_string(),
+        );
+        gb.set_item_width(65);
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);

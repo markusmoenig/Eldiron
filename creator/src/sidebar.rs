@@ -63,16 +63,22 @@ impl Sidebar {
         let mut code_sectionbar_button = TheSectionbarButton::new(TheId::named("Code Section"));
         code_sectionbar_button.set_text("Code".to_string());
 
+        let mut icon_view: TheIconView = TheIconView::new(TheId::named("Global Icon Preview"));
+        icon_view.limiter_mut().set_max_size(vec2i(60, 60));
+        icon_view.set_alpha_mode(false);
+
         let mut vlayout = TheVLayout::new(TheId::named("Section Buttons"));
         vlayout.add_widget(Box::new(region_sectionbar_button));
         vlayout.add_widget(Box::new(character_sectionbar_button));
         vlayout.add_widget(Box::new(item_sectionbar_button));
         vlayout.add_widget(Box::new(tilemap_sectionbar_button));
         vlayout.add_widget(Box::new(code_sectionbar_button));
-        vlayout.set_margin(vec4i(5, 10, 5, 10));
+        vlayout.add_widget(Box::new(icon_view));
+        vlayout.set_margin(vec4i(5, 10, 5, 5));
         vlayout.set_padding(4);
         vlayout.set_background_color(Some(SectionbarBackground));
         vlayout.limiter_mut().set_max_width(90);
+        vlayout.set_reverse_index(Some(1));
         sectionbar_canvas.set_layout(vlayout);
 
         //
@@ -335,14 +341,20 @@ impl Sidebar {
         filter_edit.set_continuous(true);
         tiles_list_header_canvas_hlayout.add_widget(Box::new(filter_edit));
 
+        let mut drop_down = TheDropdownMenu::new(TheId::named("Tilemap Filter Role"));
+        drop_down.add_option("All".to_string());
         for dir in TileRole::iterator() {
-            let mut color_button = TheColorButton::new(TheId::named("Tilemap Filter Character"));
-            color_button.limiter_mut().set_max_size(vec2i(17, 17));
-            color_button.set_color(dir.to_color().to_u8_array());
-            color_button.set_state(TheWidgetState::Selected);
-            color_button.set_status_text(format!("Show \"{}\" tiles.", dir.to_string()).as_str());
-            tiles_list_header_canvas_hlayout.add_widget(Box::new(color_button));
+            drop_down.add_option(dir.to_string().to_string());
         }
+        tiles_list_header_canvas_hlayout.add_widget(Box::new(drop_down));
+        // for dir in TileRole::iterator() {
+        //     let mut color_button = TheColorButton::new(TheId::named("Tilemap Filter Character"));
+        //     color_button.limiter_mut().set_max_size(vec2i(17, 17));
+        //     color_button.set_color(dir.to_color().to_u8_array());
+        //     color_button.set_state(TheWidgetState::Selected);
+        //     color_button.set_status_text(format!("Show \"{}\" tiles.", dir.to_string()).as_str());
+        //     tiles_list_header_canvas_hlayout.add_widget(Box::new(color_button));
+        // }
 
         tiles_list_header_canvas.set_layout(tiles_list_header_canvas_hlayout);
 
@@ -447,7 +459,7 @@ impl Sidebar {
                             }
                         }
                     }
-                } else if id.name == "Tilemap Filter Edit" {
+                } else if id.name == "Tilemap Filter Edit" || id.name == "Tilemap Filter Role" {
                     if let Some(id) = self.curr_tilemap_uuid {
                         self.show_filtered_tiles(ui, ctx, project.get_tilemap(id).as_deref())
                     }
@@ -465,7 +477,7 @@ impl Sidebar {
 
                             if let Some(icon_view) = ui
                                 .canvas
-                                .get_widget(Some(&"Tilemap Editor Icon View".to_string()), None)
+                                .get_widget(Some(&"Global Icon Preview".to_string()), None)
                             {
                                 if let Some(icon_view) = icon_view.as_icon_view() {
                                     icon_view.set_rgba_tile(tile);
@@ -698,6 +710,20 @@ impl Sidebar {
                         }
                     }
                     redraw = true;
+                } else if id.name == "Tilemap Editor Clear Selection" {
+                    if let Some(editor) = ui
+                        .canvas
+                        .get_layout(Some(&"Tilemap Editor".to_string()), None)
+                    {
+                        if let Some(editor) = editor.as_rgba_layout() {
+                            editor
+                                .rgba_view_mut()
+                                .as_rgba_view()
+                                .unwrap()
+                                .set_selection(FxHashSet::default());
+                        }
+                        self.clear_global_preview(ui);
+                    }
                 } else if id.name == "Tilemap Editor Add Selection" {
                     let mut clear_selection = false;
 
@@ -819,6 +845,7 @@ impl Sidebar {
                                     .set_selection(FxHashSet::default());
                             }
                         }
+                        self.clear_global_preview(ui);
                     }
                 }
                 // Section Buttons
@@ -833,7 +860,9 @@ impl Sidebar {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));
 
+                    self.clear_global_preview(ui);
                     self.mode = SidebarMode::Region;
+
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 0));
                     self.deselect_sections_buttons(ui, id.name.clone());
@@ -856,7 +885,9 @@ impl Sidebar {
                         }
                     }
 
+                    self.clear_global_preview(ui);
                     self.mode = SidebarMode::Character;
+
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 1));
                     self.deselect_sections_buttons(ui, id.name.clone());
@@ -876,7 +907,9 @@ impl Sidebar {
                         }
                     }
 
+                    self.clear_global_preview(ui);
                     self.mode = SidebarMode::Item;
+
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 2));
                     self.deselect_sections_buttons(ui, id.name.clone());
@@ -899,7 +932,9 @@ impl Sidebar {
                         }
                     }
 
+                    self.clear_global_preview(ui);
                     self.mode = SidebarMode::Tilemap;
+
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 3));
                     self.deselect_sections_buttons(ui, id.name.clone());
@@ -919,7 +954,9 @@ impl Sidebar {
                         }
                     }
 
+                    self.clear_global_preview(ui);
                     self.mode = SidebarMode::Code;
+
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 4));
                     self.deselect_sections_buttons(ui, id.name.clone());
@@ -1374,6 +1411,19 @@ impl Sidebar {
             "".to_string()
         };
 
+        let filter_role = if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Tilemap Filter Role".to_string()), None)
+        {
+            if let Some(drop_down_menu) = widget.as_drop_down_menu() {
+                drop_down_menu.selected_index()
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+
         filter_text = filter_text.to_lowercase();
 
         if let Some(layout) = ui
@@ -1384,7 +1434,11 @@ impl Sidebar {
                 if let Some(tilemap) = tilemap {
                     list_layout.clear();
                     for tile in &tilemap.tiles {
-                        if filter_text.is_empty() || tile.name.to_lowercase().contains(&filter_text)
+                        if (filter_text.is_empty()
+                            || tile.name.to_lowercase().contains(&filter_text))
+                            && (filter_role == 0
+                                || tile.role
+                                    == TileRole::from_index(filter_role as u8 - 1).unwrap())
                         {
                             let mut item =
                                 TheListItem::new(TheId::named_with_id("Tilemap Tile", tile.id));
@@ -1457,6 +1511,18 @@ impl Sidebar {
         if let Some(layout) = ui.canvas.get_layout(Some(&layout_name.to_string()), None) {
             if let Some(list_layout) = layout.as_list_layout() {
                 list_layout.deselect_all();
+            }
+        }
+    }
+
+    /// Clears the global preview area.
+    pub fn clear_global_preview(&mut self, ui: &mut TheUI) {
+        if let Some(icon_view) = ui
+            .canvas
+            .get_widget(Some(&"Global Icon Preview".to_string()), None)
+        {
+            if let Some(icon_view) = icon_view.as_icon_view() {
+                icon_view.set_rgba_tile(TheRGBATile::new());
             }
         }
     }

@@ -26,7 +26,11 @@ impl TilemapEditor {
         let mut add_button = TheTraybarButton::new(TheId::named("Tilemap Editor Add Selection"));
         add_button.set_text("Add Tile".to_string());
 
-        let icon_view = TheIconView::new(TheId::named("Tilemap Editor Icon View"));
+        let mut clear_button =
+            TheTraybarButton::new(TheId::named("Tilemap Editor Clear Selection"));
+        clear_button.set_text("Clear".to_string());
+
+        //let icon_view = TheIconView::new(TheId::named("Tilemap Editor Icon View"));
 
         let mut tile_name_text = TheText::new(TheId::empty());
         tile_name_text.set_text("Tile Name".to_string());
@@ -41,12 +45,12 @@ impl TilemapEditor {
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 4, 5, 4));
+        toolbar_hlayout.set_margin(vec4i(10, 4, 5, 4));
 
-        toolbar_hlayout.add_widget(Box::new(icon_view));
-        let mut hdivider = TheHDivider::new(TheId::empty());
-        hdivider.limiter_mut().set_max_width(15);
-        toolbar_hlayout.add_widget(Box::new(hdivider));
+        //toolbar_hlayout.add_widget(Box::new(icon_view));
+        //let mut hdivider = TheHDivider::new(TheId::empty());
+        //hdivider.limiter_mut().set_max_width(15);
+        //toolbar_hlayout.add_widget(Box::new(hdivider));
 
         toolbar_hlayout.add_widget(Box::new(tile_name_text));
         toolbar_hlayout.add_widget(Box::new(tile_name_edit));
@@ -84,6 +88,8 @@ impl TilemapEditor {
         toolbar_hlayout.add_widget(Box::new(hdivider));
 
         toolbar_hlayout.add_widget(Box::new(add_button));
+        toolbar_hlayout.add_widget(Box::new(clear_button));
+        toolbar_hlayout.set_reverse_index(Some(1));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
         canvas.set_top(toolbar_canvas);

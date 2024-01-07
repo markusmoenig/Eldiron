@@ -5,7 +5,9 @@ pub struct TilePicker {
 
     pub tile_ids: FxHashMap<(i32, i32), Uuid>,
     pub tile_text: FxHashMap<(i32, i32), String>,
+
     pub filter: String,
+    pub filter_role: u8,
 }
 
 #[allow(clippy::new_without_default)]
@@ -16,6 +18,7 @@ impl TilePicker {
             tile_ids: FxHashMap::default(),
             tile_text: FxHashMap::default(),
             filter: "".to_string(),
+            filter_role: 0,
         }
     }
 
@@ -52,14 +55,21 @@ impl TilePicker {
             toolbar_hlayout.add_widget(Box::new(spacer));
         }
 
+        // for dir in TileRole::iterator() {
+        //     let mut color_button = TheColorButton::new(TheId::named("Tilemap Filter Character"));
+        //     color_button.limiter_mut().set_max_size(vec2i(17, 17));
+        //     color_button.set_color(dir.to_color().to_u8_array());
+        //     color_button.set_state(TheWidgetState::Selected);
+        //     color_button.set_status_text(format!("Show \"{}\" tiles.", dir.to_string()).as_str());
+        //     toolbar_hlayout.add_widget(Box::new(color_button));
+        // }
+
+        let mut drop_down = TheDropdownMenu::new(TheId::named(&self.make_id(" Filter Role")));
+        drop_down.add_option("All".to_string());
         for dir in TileRole::iterator() {
-            let mut color_button = TheColorButton::new(TheId::named("Tilemap Filter Character"));
-            color_button.limiter_mut().set_max_size(vec2i(17, 17));
-            color_button.set_color(dir.to_color().to_u8_array());
-            color_button.set_state(TheWidgetState::Selected);
-            color_button.set_status_text(format!("Show \"{}\" tiles.", dir.to_string()).as_str());
-            toolbar_hlayout.add_widget(Box::new(color_button));
+            drop_down.add_option(dir.to_string().to_string());
         }
+        toolbar_hlayout.add_widget(Box::new(drop_down));
 
         if !minimal {
             let mut zoom = TheSlider::new(TheId::named("Region Editor Zoom"));
@@ -104,7 +114,9 @@ impl TilePicker {
                 let mut filtered_tiles = vec![];
 
                 for t in tiles {
-                    if t.name.to_lowercase().contains(&self.filter) {
+                    if t.name.to_lowercase().contains(&self.filter)
+                        && (self.filter_role == 0 || t.role == self.filter_role - 1)
+                    {
                         filtered_tiles.push(t);
                     }
                 }
@@ -182,6 +194,11 @@ impl TilePicker {
                 if id.name == self.make_id(" Filter Edit") {
                     if let TheValue::Text(filter) = value {
                         self.filter = filter.to_lowercase();
+                        self.set_tiles(project.extract_tiles_vec(), ui);
+                    }
+                } else if id.name == self.make_id(" Filter Role") {
+                    if let TheValue::Int(filter) = value {
+                        self.filter_role = *filter as u8;
                         self.set_tiles(project.extract_tiles_vec(), ui);
                     }
                 }
