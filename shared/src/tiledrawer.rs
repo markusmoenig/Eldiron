@@ -44,7 +44,7 @@ impl TileDrawer {
 
         let pixels = buffer.pixels_mut();
 
-        let tile_size = 24;
+        let tile_size = region.grid_size;
 
         pixels
             .par_rchunks_exact_mut(width * 4)

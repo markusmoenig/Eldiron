@@ -92,6 +92,11 @@ impl Project {
         self.regions.iter_mut().find(|t| t.id == *uuid)
     }
 
+    /// Remove a region
+    pub fn remove_region(&mut self, id: &Uuid) {
+        self.regions.retain(|item| item.id != *id);
+    }
+
     /// Add Code
     pub fn add_code(&mut self, code: TheCodeBundle) {
         self.codes.insert(code.id, code);

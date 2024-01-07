@@ -195,8 +195,7 @@ impl RegionInstance {
                             ctx,
                         );
                     }
-                }
-                else if Some(c.id) == server_ctx.curr_character {
+                } else if Some(c.id) == server_ctx.curr_character {
                     if let Some(TheValue::Position(p)) = c.get(&"position".into()) {
                         tiledrawer.draw_tile_outline(
                             vec2i(p.x as i32, p.y as i32),
@@ -318,7 +317,8 @@ impl RegionInstance {
     /// Removes the given character instance from the region.
     pub fn remove_character_instance(&mut self, character: Uuid) {
         self.characters_instances.remove(&character);
-        self.characters_ids.retain(|(instance_id, _)| *instance_id != character);
+        self.characters_ids
+            .retain(|(instance_id, _)| *instance_id != character);
     }
 
     /// Returns the character instance id and the character id for the character at the given position.

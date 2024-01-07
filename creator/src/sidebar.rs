@@ -101,12 +101,19 @@ impl Sidebar {
 
         let mut region_add_button = TheTraybarButton::new(TheId::named("Region Add"));
         region_add_button.set_icon_name("icon_role_add".to_string());
+        region_add_button.set_status_text("Add a new region.");
+
         let mut region_remove_button = TheTraybarButton::new(TheId::named("Region Remove"));
         region_remove_button.set_icon_name("icon_role_remove".to_string());
+        region_remove_button.set_status_text("Remove the selected region.");
         region_remove_button.set_disabled(true);
-        let mut region_settings_button = TheTraybarButton::new(TheId::named("Region Settings"));
-        region_settings_button.set_text("Settings ...".to_string());
-        region_settings_button.set_disabled(true);
+        let mut name_edit = TheTextLineEdit::new(TheId::named("Region Name Edit"));
+        name_edit.limiter_mut().set_max_width(200);
+        name_edit.set_status_text("Edit the name of the region.");
+
+        // let mut region_settings_button = TheTraybarButton::new(TheId::named("Region Settings"));
+        // region_settings_button.set_text("Settings ...".to_string());
+        // region_settings_button.set_disabled(true);
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
@@ -114,35 +121,92 @@ impl Sidebar {
         toolbar_hlayout.add_widget(Box::new(region_add_button));
         toolbar_hlayout.add_widget(Box::new(region_remove_button));
         toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
-        toolbar_hlayout.add_widget(Box::new(region_settings_button));
+        toolbar_hlayout.add_widget(Box::new(name_edit));
 
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
         toolbar_canvas.set_layout(toolbar_hlayout);
         list_canvas.set_bottom(toolbar_canvas);
 
+        let mut region_canvas = TheCanvas::new();
+        let mut region_tab = TheTabLayout::new(TheId::named("Region Tab Layout"));
+
+        // Region Content
+
+        let mut list_layout = TheListLayout::new(TheId::named("Region Content List"));
+        list_layout
+            .limiter_mut()
+            .set_max_size(vec2i(self.width, 250));
+        let mut content_canvas = TheCanvas::default();
+        content_canvas.set_layout(list_layout);
+
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        let mut filter_text = TheText::new(TheId::empty());
+        filter_text.set_text("Filter".to_string());
+
+        toolbar_hlayout.add_widget(Box::new(filter_text));
+        let mut filter_edit = TheTextLineEdit::new(TheId::named("Region Content Filter Edit"));
+        filter_edit.set_text("".to_string());
+        filter_edit.limiter_mut().set_max_size(vec2i(75, 18));
+        filter_edit.set_font_size(12.5);
+        filter_edit.set_embedded(true);
+        filter_edit.set_status_text("Show content containing the given text.");
+        filter_edit.set_continuous(true);
+        toolbar_hlayout.add_widget(Box::new(filter_edit));
+
+        let mut drop_down = TheDropdownMenu::new(TheId::named("Region Content Dropdown"));
+        drop_down.add_option("All".to_string());
+        drop_down.add_option("Character".to_string());
+        drop_down.add_option("Areas".to_string());
+        drop_down.add_option("Item".to_string());
+        toolbar_hlayout.add_widget(Box::new(drop_down));
+
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        toolbar_canvas.set_layout(toolbar_hlayout);
+        content_canvas.set_top(toolbar_canvas);
+
+        region_tab.add_canvas("Content".to_string(), content_canvas);
+
+        // Region Settings
+
+        let mut settings_canvas = TheCanvas::default();
+
         let mut text_layout: TheTextLayout = TheTextLayout::new(TheId::empty());
-        text_layout.limiter_mut().set_max_width(self.width);
-        let name_edit = TheTextLineEdit::new(TheId::named("Region Name Edit"));
-        text_layout.add_pair("Name".to_string(), Box::new(name_edit));
-        let width_edit = TheTextLineEdit::new(TheId::named("Region Width Edit"));
-        text_layout.add_pair("Width in Grid".to_string(), Box::new(width_edit));
-        let height_edit = TheTextLineEdit::new(TheId::named("Region Height Edit"));
-        text_layout.add_pair("Height in Grid".to_string(), Box::new(height_edit));
-        let grid_edit = TheTextLineEdit::new(TheId::named("Region Grid Edit"));
+        text_layout
+            .limiter_mut()
+            .set_max_size(vec2i(self.width, 250));
+        let mut drop_down = TheDropdownMenu::new(TheId::named("Region Settings Dropdown"));
+        drop_down.add_option("Top / Left".to_string());
+        drop_down.add_option("Top / Right".to_string());
+        drop_down.add_option("Bottom / Left".to_string());
+        drop_down.add_option("Bottom / Right".to_string());
+        drop_down.set_status_text(
+            "On region size changes the region will grow or shrink from the given corner.",
+        );
+        text_layout.add_pair("Grow / Shrink From".to_string(), Box::new(drop_down));
+        let mut width_edit = TheTextLineEdit::new(TheId::named("Region Width Edit"));
+        width_edit.set_range(TheValue::RangeI32(1..=100000));
+        width_edit.set_status_text("The width of the region in grid units.");
+        text_layout.add_pair("Width (Grid)".to_string(), Box::new(width_edit));
+        let mut height_edit = TheTextLineEdit::new(TheId::named("Region Height Edit"));
+        height_edit.set_range(TheValue::RangeI32(1..=100000));
+        height_edit.set_status_text("The height of the region in grid units.");
+        text_layout.add_pair("Height (Grid)".to_string(), Box::new(height_edit));
+        let mut grid_edit = TheTextLineEdit::new(TheId::named("Region Grid Edit"));
+        grid_edit.set_range(TheValue::RangeI32(1..=1000));
+        grid_edit.set_status_text("The size of the region grid in pixels.");
         text_layout.add_pair("Grid Size".to_string(), Box::new(grid_edit));
 
-        let mut yellow_canvas = TheCanvas::default();
-        let mut yellow_color = TheColorButton::new(TheId::named("Yellow"));
-        yellow_color.set_color([255, 255, 0, 255]);
-        yellow_color
-            .limiter_mut()
-            .set_max_size(vec2i(self.width, 200));
-        yellow_canvas.set_widget(yellow_color);
+        settings_canvas.set_layout(text_layout);
+        region_tab.add_canvas("Settings".to_string(), settings_canvas);
 
+        region_canvas.set_layout(region_tab);
         regions_canvas.set_top(list_canvas);
-        regions_canvas.set_layout(text_layout);
-        regions_canvas.set_bottom(yellow_canvas);
+        //regions_canvas.set_layout(text_layout);
+        regions_canvas.set_bottom(region_canvas);
         stack_layout.add_canvas(regions_canvas);
 
         // Character
@@ -160,7 +224,8 @@ impl Sidebar {
         let mut regions_remove_button = TheTraybarButton::new(TheId::named("Character Remove"));
         regions_remove_button.set_icon_name("icon_role_remove".to_string());
         let mut name_edit = TheTextLineEdit::new(TheId::named("Character Name Edit"));
-        name_edit.limiter_mut().set_max_width(180);
+        name_edit.limiter_mut().set_max_width(200);
+        name_edit.set_status_text("Edit the name of the character.");
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
@@ -193,7 +258,8 @@ impl Sidebar {
         let mut item_remove_button = TheTraybarButton::new(TheId::named("Item Remove"));
         item_remove_button.set_icon_name("icon_role_remove".to_string());
         let mut name_edit = TheTextLineEdit::new(TheId::named("Item Name Edit"));
-        name_edit.limiter_mut().set_max_width(180);
+        name_edit.limiter_mut().set_max_width(200);
+        name_edit.set_status_text("Edit the name of the item.");
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
@@ -227,23 +293,26 @@ impl Sidebar {
         let mut regions_remove_button = TheTraybarButton::new(TheId::named("Tilemap Remove"));
         regions_remove_button.set_icon_name("icon_role_remove".to_string());
 
+        let mut name_edit = TheTextLineEdit::new(TheId::named("Tilemap Name Edit"));
+        name_edit.limiter_mut().set_max_width(150);
+        name_edit.set_status_text("Edit the name of the tilemap.");
+        let mut grid_edit = TheTextLineEdit::new(TheId::named("Tilemap Grid Edit"));
+        grid_edit.limiter_mut().set_max_width(50);
+        grid_edit.set_status_text("Edit the grid size of the tilemap.");
+
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
         toolbar_hlayout.add_widget(Box::new(regions_add_button));
         toolbar_hlayout.add_widget(Box::new(regions_remove_button));
+        toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+        toolbar_hlayout.add_widget(Box::new(name_edit));
+        toolbar_hlayout.add_widget(Box::new(grid_edit));
 
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
         toolbar_canvas.set_layout(toolbar_hlayout);
         list_canvas.set_bottom(toolbar_canvas);
-
-        let mut text_layout = TheTextLayout::new(TheId::empty());
-        text_layout.limiter_mut().set_max_width(self.width);
-        let name_edit = TheTextLineEdit::new(TheId::named("Tilemap Name Edit"));
-        text_layout.add_pair("Name".to_string(), Box::new(name_edit));
-        let grid_edit = TheTextLineEdit::new(TheId::named("Tilemap Grid Edit"));
-        text_layout.add_pair("Grid Size".to_string(), Box::new(grid_edit));
 
         let mut tiles_list_canvas = TheCanvas::default();
 
@@ -279,15 +348,10 @@ impl Sidebar {
 
         let mut tile_list_layout = TheListLayout::new(TheId::named("Tilemap Tile List"));
         tile_list_layout.set_item_size(42);
-        tile_list_layout
-            .limiter_mut()
-            .set_max_size(vec2i(self.width, 360));
-
         tiles_list_canvas.set_top(tiles_list_header_canvas);
         tiles_list_canvas.set_layout(tile_list_layout);
 
         tiles_canvas.set_top(list_canvas);
-        tiles_canvas.set_layout(text_layout);
         tiles_canvas.set_bottom(tiles_list_canvas);
         stack_layout.add_canvas(tiles_canvas);
 
@@ -306,7 +370,8 @@ impl Sidebar {
         let mut code_remove_button = TheTraybarButton::new(TheId::named("Code Remove"));
         code_remove_button.set_icon_name("icon_role_remove".to_string());
         let mut name_edit = TheTextLineEdit::new(TheId::named("Code Name Edit"));
-        name_edit.limiter_mut().set_max_width(180);
+        name_edit.limiter_mut().set_max_width(200);
+        name_edit.set_status_text("Edit the name of the code.");
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
@@ -368,8 +433,21 @@ impl Sidebar {
                     ctx.ui.set_drop(drop);
                 }
             }
-            TheEvent::ValueChanged(id, _value) => {
-                if id.name == "Tilemap Filter Edit" {
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == "Region Grid Edit" {
+                    if let Some(v) = value.to_i32() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.grid_size = v;
+                            server.update_region(region);
+
+                            if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
+                                if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                                    rgba.set_grid(Some(v));
+                                }
+                            }
+                        }
+                    }
+                } else if id.name == "Tilemap Filter Edit" {
                     if let Some(id) = self.curr_tilemap_uuid {
                         self.show_filtered_tiles(ui, ctx, project.get_tilemap(id).as_deref())
                     }
@@ -445,6 +523,14 @@ impl Sidebar {
                             .send_widget_state_changed(&id, TheWidgetState::Selected);
 
                         project.regions.push(region);
+                    }
+                } else if id.name == "Region Remove" {
+                    if let Some(list_layout) = ui.get_list_layout("Region List") {
+                        if let Some(selected) = list_layout.selected() {
+                            list_layout.remove(selected.clone());
+                            project.remove_region(&selected.uuid);
+                            self.apply_region(ui, ctx, None);
+                        }
                     }
                 } else if id.name == "Region Item" {
                     for r in &project.regions {
@@ -932,39 +1018,47 @@ impl Sidebar {
                                 for grid in character.instance.grids.values() {
                                     if grid.name == "init" {
                                         CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
-                                        ctx.ui.send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                                        ctx.ui.send(TheEvent::SetStackIndex(
+                                            TheId::named("Left Stack"),
+                                            1,
+                                        ));
                                     }
                                 }
                             }
                         }
-                    }
-                    else if self.mode == SidebarMode::Character {
+                    } else if self.mode == SidebarMode::Character {
                         // In Character mode, we need to set the character bundle of the current character.
-
                     }
                 }
             }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Editor Group" {
                     if *index == 0 {
-                        ctx.ui.send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));
-                    }
-                    else if *index == 1 {
+                        ctx.ui
+                            .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));
+                    } else if *index == 1 {
                         if self.mode == SidebarMode::Region {
                             if let Some(character_instance) = server_ctx.curr_character_instance {
                                 if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                                    if let Some(character) = region.characters.get(&character_instance) {
+                                    if let Some(character) =
+                                        region.characters.get(&character_instance)
+                                    {
                                         for grid in character.instance.grids.values() {
                                             if grid.name == "init" {
-                                                CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
-                                                ctx.ui.send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                                                CODEEDITOR
+                                                    .lock()
+                                                    .unwrap()
+                                                    .set_codegrid(grid.clone(), ui);
+                                                ctx.ui.send(TheEvent::SetStackIndex(
+                                                    TheId::named("Left Stack"),
+                                                    1,
+                                                ));
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
-                        else if self.mode == SidebarMode::Character {
+                        } else if self.mode == SidebarMode::Character {
                         }
                     }
                 }
@@ -1216,6 +1310,14 @@ impl Sidebar {
             } else {
                 widget.set_value(TheValue::Empty);
                 widget.set_disabled(true);
+            }
+        }
+
+        if let Some(region) = region {
+            if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
+                if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                    rgba.set_grid(Some(region.grid_size));
+                }
             }
         }
     }

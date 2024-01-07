@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use crate::Embedded;
 use lazy_static::lazy_static;
+use std::path::PathBuf;
 use std::sync::mpsc::Receiver;
 use std::sync::Mutex;
 
@@ -13,6 +14,7 @@ lazy_static! {
 
 pub struct Editor {
     project: Project,
+    project_path: Option<PathBuf>,
 
     sidebar: Sidebar,
     panels: Panels,
@@ -35,6 +37,7 @@ impl TheTrait for Editor {
 
         Self {
             project: Project::new(),
+            project_path: None,
 
             sidebar: Sidebar::new(),
             panels: Panels::new(),
@@ -49,7 +52,7 @@ impl TheTrait for Editor {
     }
 
     fn window_title(&mut self) -> String {
-        "Eldiron".to_string()
+        "Eldiron Creator".to_string()
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -95,13 +98,15 @@ impl TheTrait for Editor {
 
         let mut open_button = TheMenubarButton::new(TheId::named("Open"));
         open_button.set_icon_name("icon_role_load".to_string());
-        open_button.set_status_text("Open an existing project...");
+        open_button.set_status_text("Open an existing Eldiron project...");
 
         let mut save_button = TheMenubarButton::new(TheId::named("Save"));
+        save_button.set_status_text("Save the current project.");
         save_button.set_icon_name("icon_role_save".to_string());
 
         let mut save_as_button = TheMenubarButton::new(TheId::named("Save As"));
         save_as_button.set_icon_name("icon_role_save_as".to_string());
+        save_as_button.set_status_text("Save the current project to a new file.");
         save_as_button.set_icon_offset(vec2i(2, -5));
 
         let mut undo_button = TheMenubarButton::new(TheId::named("Undo"));
@@ -246,11 +251,35 @@ impl TheTrait for Editor {
                                 instance,
                             };
 
+                            // Add the character instance to the region content list
+
+                            let mut name = "Character".to_string();
+                            if let Some(character) = self.project.characters.get(&drop.id.uuid) {
+                                name = character.name.clone();
+                            }
+
+                            if let Some(list) = ui.get_list_layout("Region Content List") {
+                                let mut item = TheListItem::new(TheId::named_with_id(
+                                    "Region Content List Item",
+                                    character.id,
+                                ));
+                                item.set_text(name);
+                                item.set_state(TheWidgetState::Selected);
+
+                                list.deselect_all();
+                                list.add_item(item, ctx);
+                                list.select_item(character.id, ctx);
+                            }
+
+                            // Add the character instance to the project
+
                             if let Some(region) =
                                 self.project.get_region_mut(&self.server_ctx.curr_region)
                             {
                                 region.characters.insert(character.id, character.clone());
                             }
+
+                            // Add the character instance to the server
 
                             self.server_ctx.curr_character = Some(character.character_id);
                             self.server_ctx.curr_character_instance = Some(character.id);
@@ -277,6 +306,7 @@ impl TheTrait for Editor {
                     TheEvent::FileRequesterResult(id, paths) => {
                         if id.name == "Open" {
                             for p in paths {
+                                self.project_path = Some(p.clone());
                                 let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
                                 self.project =
                                     serde_json::from_str(&contents).unwrap_or(Project::new());
@@ -284,13 +314,26 @@ impl TheTrait for Editor {
                                 self.tileeditor.load_from_project(ui, ctx, &self.project);
                                 self.server.set_project(self.project.clone());
                                 redraw = true;
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    "Project loaded successfully.".to_string(),
+                                ))
                             }
-                        } else if id.name == "Save" {
+                        } else if id.name == "Save As" {
                             for p in paths {
-                                let json = serde_json::to_string(&self.project); //.unwrap();
-                                                                                 //println!("{:?}", json.err());
+                                let json = serde_json::to_string(&self.project);
                                 if let Ok(json) = json {
-                                    std::fs::write(p, json).expect("Unable to write file");
+                                    if std::fs::write(p, json).is_ok() {
+                                        ctx.ui.send(TheEvent::SetStatusText(
+                                            TheId::empty(),
+                                            "Project saved successfully.".to_string(),
+                                        ))
+                                    } else {
+                                        ctx.ui.send(TheEvent::SetStatusText(
+                                            TheId::empty(),
+                                            "Unable to save project!".to_string(),
+                                        ))
+                                    }
                                 }
                             }
                         }
@@ -324,6 +367,23 @@ impl TheTrait for Editor {
                             ctx.ui.clear_hover();
                             redraw = true;
                         } else if id.name == "Save" {
+                            if let Some(path) = &self.project_path {
+                                let json = serde_json::to_string(&self.project);
+                                if let Ok(json) = json {
+                                    if std::fs::write(path, json).is_ok() {
+                                        ctx.ui.send(TheEvent::SetStatusText(
+                                            TheId::empty(),
+                                            "Project saved successfully.".to_string(),
+                                        ))
+                                    } else {
+                                        ctx.ui.send(TheEvent::SetStatusText(
+                                            TheId::empty(),
+                                            "Unable to save project!".to_string(),
+                                        ))
+                                    }
+                                }
+                            }
+                        } else if id.name == "Save As" {
                             ctx.ui.save_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                                 "Save".into(),
@@ -333,7 +393,7 @@ impl TheTrait for Editor {
                                 ),
                             );
                             ctx.ui
-                                .set_widget_state("Save".to_string(), TheWidgetState::None);
+                                .set_widget_state("Save As".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
                         } else {

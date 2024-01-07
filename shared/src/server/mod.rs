@@ -251,11 +251,7 @@ impl Server {
     }
 
     /// Remove the character instance from the given region.
-    pub fn remove_character_instance(
-        &mut self,
-        region: Uuid,
-        character: Uuid
-    ) {
+    pub fn remove_character_instance(&mut self, region: Uuid, character: Uuid) {
         if let Some(instance) = self.instances.get_mut(&region) {
             instance.remove_character_instance(character);
         }
