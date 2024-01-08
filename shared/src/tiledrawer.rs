@@ -69,13 +69,12 @@ impl TileDrawer {
                                     if let Some(c) =
                                         data.buffer[index].at(vec2i(x % tile_size, y % tile_size))
                                     {
-                                        color = c;
+                                        color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
                                     }
                                 }
                             }
                         }
                     }
-
                     pixel.copy_from_slice(&color);
                 }
             });
@@ -132,6 +131,17 @@ impl TileDrawer {
             }
         }
         None
+    }
+
+    /// Mixes the two colors together.
+    #[inline(always)]
+    pub fn mix_color(&self, a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
+        [
+            (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
+            (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] as f32 / 255.0 * v) * 255.0) as u8,
+            (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v) * 255.0) as u8,
+            (((1.0 - v) * (a[3] as f32 / 255.0) + b[3] as f32 / 255.0 * v) * 255.0) as u8,
+        ]
     }
 
     /// Gets the current time in milliseconds

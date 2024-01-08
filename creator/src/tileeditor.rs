@@ -4,6 +4,7 @@ use crate::prelude::*;
 enum EditorMode {
     Draw,
     Pick,
+    Erase,
     Select,
 }
 
@@ -141,7 +142,7 @@ impl TileEditor {
 
         let mut zoom = TheSlider::new(TheId::named("Region Editor Zoom"));
         zoom.set_value(TheValue::Float(1.0));
-        zoom.set_range(TheValue::RangeF32(0.3..=3.0));
+        zoom.set_range(TheValue::RangeF32(0.5..=3.0));
         zoom.set_continuous(true);
         zoom.limiter_mut().set_max_width(120);
 
@@ -169,6 +170,11 @@ impl TileEditor {
             "Pick".to_string(),
             "Pick content in the region.".to_string(),
             "pick".to_string(),
+        );
+        gb.add_text_status_icon(
+            "Erase".to_string(),
+            "Delete content in the region.".to_string(),
+            "eraser".to_string(),
         );
         gb.add_text_status_icon(
             "Select".to_string(),
@@ -245,11 +251,16 @@ impl TileEditor {
                     }
                 } else if id.name == "Editor Group" {
                     if *index == 0 {
-                        self.editor_mode = EditorMode::Draw
-                    } else if *index == 1 {
-                        self.editor_mode = EditorMode::Pick
-                    } else if *index == 2 {
-                        self.editor_mode = EditorMode::Select
+                        self.editor_mode = EditorMode::Draw;
+                    }
+                    else if *index == 1 {
+                        self.editor_mode = EditorMode::Pick;
+                    }
+                    else if *index == 2 {
+                        self.editor_mode = EditorMode::Erase;
+                    }
+                    else if *index == 3 {
+                        self.editor_mode = EditorMode::Select;
                     }
                 }
             }
@@ -312,7 +323,23 @@ impl TileEditor {
                 }
             }
             TheEvent::TileEditorClicked(_id, coord) | TheEvent::TileEditorDragged(_id, coord) => {
-                if self.editor_mode == EditorMode::Pick {
+
+                if self.editor_mode == EditorMode::Erase {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        let mut undo = TheUndo::new(TheId::named("RegionChanged"));
+                        undo.set_undo_data(region.to_json());
+
+                        if region.tiles.contains_key(&(coord.x, coord.y)) {
+                            region.tiles.remove(&(coord.x, coord.y));
+                        }
+
+                        undo.set_redo_data(region.to_json());
+                        ctx.ui.undo_stack.add(undo);
+                        server.update_region(region);
+                        self.set_icon_previews(region, *coord, ui);
+                        redraw = true;
+                    }
+                } else if self.editor_mode == EditorMode::Pick {
                     // Check for character at the given position.
                     if let Some(c) = server.get_character_at(server_ctx.curr_region, *coord) {
                         server_ctx.curr_character_instance = Some(c.0);
@@ -427,10 +454,8 @@ impl TileEditor {
                 if id.name == "Region Editor Zoom" {
                     if let Some(v) = value.to_f32() {
                         if let Some(layout) = ui.get_rgba_layout("Region Editor") {
-                            if let Some(code_view) = layout.rgba_view_mut().as_rgba_view() {
-                                code_view.set_zoom(v);
-                                ctx.ui.relayout = true;
-                            }
+                            layout.set_zoom(v);
+                            layout.relayout(ctx);
                         }
                     }
                 }
