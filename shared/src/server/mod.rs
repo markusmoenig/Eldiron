@@ -22,8 +22,18 @@ lazy_static! {
 
 use prelude::*;
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum ServerState {
+    Running,
+    Stopped,
+    Paused,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Server {
+
+    pub state: ServerState,
+
     project: Project,
     #[serde(skip)]
     compiler: TheCompiler,
@@ -48,6 +58,8 @@ impl Default for Server {
 impl Server {
     pub fn new() -> Self {
         Self {
+            state: ServerState::Stopped,
+
             project: Project::default(),
             compiler: TheCompiler::new(),
 
@@ -64,51 +76,26 @@ impl Server {
 
     /// Sets the current project. Resets the server.
     pub fn set_project(&mut self, project: Project) {
-        let mut regions = FxHashMap::default();
 
+        let mut regions = FxHashMap::default();
         for region in &project.regions {
             regions.insert(region.id, region.clone());
         }
+
+        self.characters = FxHashMap::default();
 
         *REGIONS.write().unwrap() = regions;
         *TILES.write().unwrap() = project.extract_tiles();
 
         self.world.reset();
         self.anim_counter = 0;
+
+        self.setup_regions(&project);
         self.project = project;
-        self.setup_regions();
-    }
-
-    /// Tick. Compute the next frame.
-    pub fn tick(&mut self) {
-        self.world.tick();
-        self.anim_counter = self.anim_counter.wrapping_add(1);
-
-        let (sender, receiver) = mpsc::channel();
-        let mut join_handles = vec![];
-
-        for (key, mut instance) in self.instances.drain() {
-            let sender = sender.clone();
-            let handle = std::thread::spawn(move || {
-                instance.tick();
-                sender.send((key, instance)).unwrap();
-            });
-
-            join_handles.push(handle);
-        }
-
-        for handle in join_handles {
-            handle.join().unwrap();
-        }
-
-        drop(sender);
-        for (key, instance) in receiver {
-            self.instances.insert(key, instance);
-        }
     }
 
     /// Setup all regions in the project and create their instances.
-    pub fn setup_regions(&mut self) {
+    pub fn setup_regions(&mut self, project: &Project) {
         self.instances = FxHashMap::default();
 
         /*
@@ -141,14 +128,66 @@ impl Server {
         }*/
 
         // Syncronous version. Slower but has the advantage not to clone project for each thread.
-        for region in &self.project.regions {
+
+        // First pass we just create the region instances.
+        for region in &project.regions {
             let uuid = region.id;
             let mut instance = RegionInstance::new();
 
             instance.set_debug_mode(self.debug_mode);
-            instance.setup(uuid, &self.project);
+            instance.setup(uuid, project);
 
             self.instances.insert(uuid, instance);
+        }
+
+        // Add all characters
+        for bundle in project.characters.values() {
+            self.insert_character(bundle.clone());
+        }
+
+        // Second pass we just create the region character instances.
+        for region in &project.regions {
+            for character in region.characters.values() {
+                self.add_character_instance_to_region(region.id, character.clone());
+            }
+        }
+    }
+
+    /// Starts the server.
+    pub fn start(&mut self) {
+        self.state = ServerState::Running;
+    }
+
+    /// Stops the server.
+    pub fn stop(&mut self) {
+        self.state = ServerState::Stopped;
+    }
+
+    /// Tick. Compute the next frame.
+    pub fn tick(&mut self) {
+        self.world.tick();
+        self.anim_counter = self.anim_counter.wrapping_add(1);
+
+        let (sender, receiver) = mpsc::channel();
+        let mut join_handles = vec![];
+
+        for (key, mut instance) in self.instances.drain() {
+            let sender = sender.clone();
+            let handle = std::thread::spawn(move || {
+                instance.tick();
+                sender.send((key, instance)).unwrap();
+            });
+
+            join_handles.push(handle);
+        }
+
+        for handle in join_handles {
+            handle.join().unwrap();
+        }
+
+        drop(sender);
+        for (key, instance) in receiver {
+            self.instances.insert(key, instance);
         }
     }
 

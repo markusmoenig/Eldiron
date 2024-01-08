@@ -69,6 +69,7 @@ impl TileEditor {
         vlayout.set_margin(vec4i(0, 10, 0, 5));
 
         let mut icon_preview = TheIconView::new(TheId::named("Icon Preview"));
+        icon_preview.set_alpha_mode(false);
         icon_preview.limiter_mut().set_max_size(vec2i(60, 60));
         icon_preview.set_border_color(Some([100, 100, 100, 255]));
         vlayout.add_widget(Box::new(icon_preview));

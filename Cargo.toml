@@ -1,18 +1,18 @@
 [workspace]
 
 members = [
-    "core_server",
-    "core_render",
-    "core_embed_binaries",
+    #"core_server",
+    #"core_render",
+    #"core_embed_binaries",
     "creator",
-    "creator_lib",
-    "creator_main",
-    "client_standalone",
-    "client_standalone_web",
+    #"creator_lib",
+    #"creator_main",
+    #"client_standalone",
+    #"client_standalone_web",
     "run-wasm",
-    "server",
-    "client",
-    "client_web",
+    #"server",
+    #"client",
+    #"client_web",
     "shared"
 ]
 

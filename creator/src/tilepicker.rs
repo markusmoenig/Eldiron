@@ -8,6 +8,7 @@ pub struct TilePicker {
 
     pub filter: String,
     pub filter_role: u8,
+    pub zoom: f32,
 }
 
 #[allow(clippy::new_without_default)]
@@ -19,6 +20,7 @@ impl TilePicker {
             tile_text: FxHashMap::default(),
             filter: "".to_string(),
             filter_role: 0,
+            zoom: 1.0,
         }
     }
 
@@ -72,7 +74,7 @@ impl TilePicker {
         toolbar_hlayout.add_widget(Box::new(drop_down));
 
         if !minimal {
-            let mut zoom = TheSlider::new(TheId::named("Region Editor Zoom"));
+            let mut zoom = TheSlider::new(TheId::named(&self.make_id(" Zoom")));
             zoom.set_value(TheValue::Float(1.0));
             zoom.set_range(TheValue::RangeF32(0.3..=3.0));
             zoom.set_continuous(true);
@@ -105,11 +107,13 @@ impl TilePicker {
         self.tile_text.clear();
         if let Some(editor) = ui.get_rgba_layout(&self.make_id(" RGBA Layout")) {
             //println!("{}", editor.dim().width);
-            let width = editor.dim().width - 24;
-            let height = editor.dim().height - 24;
+            let width = editor.dim().width - 16;
+            let height = editor.dim().height - 16;
 
             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
-                let grid = 24;
+                let grid = (36_f32 * self.zoom) as i32;
+
+                rgba_view.set_grid(Some(grid));
 
                 let mut filtered_tiles = vec![];
 
@@ -136,6 +140,7 @@ impl TilePicker {
                         .insert((x, y), format!("{}, {}", tile.name, tile.role));
                     if !tile.buffer.is_empty() {
                         buffer.copy_into(x * grid, y * grid, &tile.buffer[0]);
+                        buffer.copy_into(x * grid, y * grid, &tile.buffer[0].scaled(grid, grid));
                     }
                 }
 
@@ -196,9 +201,16 @@ impl TilePicker {
                         self.filter = filter.to_lowercase();
                         self.set_tiles(project.extract_tiles_vec(), ui);
                     }
-                } else if id.name == self.make_id(" Filter Role") {
+                }
+                else if id.name == self.make_id(" Filter Role") {
                     if let TheValue::Int(filter) = value {
                         self.filter_role = *filter as u8;
+                        self.set_tiles(project.extract_tiles_vec(), ui);
+                    }
+                }
+                else if id.name == self.make_id(" Zoom") {
+                    if let TheValue::Float(zoom) = value {
+                        self.zoom = *zoom;
                         self.set_tiles(project.extract_tiles_vec(), ui);
                     }
                 }

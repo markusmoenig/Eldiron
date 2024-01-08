@@ -117,6 +117,18 @@ impl TheTrait for Editor {
         redo_button.set_status_text("Redo the last action.");
         redo_button.set_icon_name("icon_role_redo".to_string());
 
+        let mut play_button = TheMenubarButton::new(TheId::named("Play"));
+        play_button.set_status_text("Start the server for live playing and debugging.");
+        play_button.set_icon_name("play".to_string());
+
+        let mut pause_button = TheMenubarButton::new(TheId::named("Pause"));
+        pause_button.set_status_text("Pause. Click for single step the server.");
+        pause_button.set_icon_name("play-pause".to_string());
+
+        let mut stop_button = TheMenubarButton::new(TheId::named("Stop"));
+        stop_button.set_status_text("Stop the server.");
+        stop_button.set_icon_name("stop-fill".to_string());
+
         let mut patreon_button = TheMenubarButton::new(TheId::named("Patreon"));
         patreon_button.set_status_text("Visit my Patreon page.");
         patreon_button.set_icon_name("patreon".to_string());
@@ -132,7 +144,11 @@ impl TheTrait for Editor {
         hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
         hlayout.add_widget(Box::new(undo_button));
         hlayout.add_widget(Box::new(redo_button));
-        //hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
+        hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
+        hlayout.add_widget(Box::new(play_button));
+        hlayout.add_widget(Box::new(pause_button));
+        hlayout.add_widget(Box::new(stop_button));
+
         hlayout.add_widget(Box::new(patreon_button));
 
         hlayout.set_reverse_index(Some(1));
@@ -156,6 +172,7 @@ impl TheTrait for Editor {
     /// Handle UI events and UI state
     fn update_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
         let mut redraw = false;
+        let mut update_server_icons = false;
 
         if self.update_tracker.update(250) {
             // Update the widgets which have anims (if they are visible)
@@ -171,7 +188,9 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
             }
-            self.server.tick();
+            if self.server.state == ServerState::Running {
+                self.server.tick();
+            }
             if self.server_ctx.curr_character_instance.is_some() {
                 let debug = self.server.get_region_debug_codegrid(
                     self.server_ctx.curr_region,
@@ -313,6 +332,8 @@ impl TheTrait for Editor {
                                 self.sidebar.load_from_project(ui, ctx, &self.project);
                                 self.tileeditor.load_from_project(ui, ctx, &self.project);
                                 self.server.set_project(self.project.clone());
+                                self.server.state = ServerState::Stopped;
+                                update_server_icons = true;
                                 redraw = true;
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
@@ -347,13 +368,15 @@ impl TheTrait for Editor {
                                 .set_widget_state("Logo".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        } else if id.name == "Patreon" {
+                        }
+                        else if id.name == "Patreon" {
                             _ = open::that("https://www.patreon.com/eldiron");
                             ctx.ui
                                 .set_widget_state("Patreon".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        } else if id.name == "Open" {
+                        }
+                        else if id.name == "Open" {
                             ctx.ui.open_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                                 "Open".into(),
@@ -366,7 +389,8 @@ impl TheTrait for Editor {
                                 .set_widget_state("Open".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        } else if id.name == "Save" {
+                        }
+                        else if id.name == "Save" {
                             if let Some(path) = &self.project_path {
                                 let json = serde_json::to_string(&self.project);
                                 if let Ok(json) = json {
@@ -383,7 +407,8 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
-                        } else if id.name == "Save As" {
+                        }
+                        else if id.name == "Save As" {
                             ctx.ui.save_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                                 "Save".into(),
@@ -396,7 +421,38 @@ impl TheTrait for Editor {
                                 .set_widget_state("Save As".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        } else {
+                        }
+
+                        // Server
+
+                        else if id.name == "Play" {
+                            self.server.start();
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                "Server has been started.".to_string(),
+                            ));
+                            update_server_icons = true;
+                        }
+                        else if id.name == "Pause" {
+                            if self.server.state == ServerState::Running {
+                                self.server.state = ServerState::Paused;
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    "Server has been paused.".to_string(),
+                                ));
+                                update_server_icons = true;
+                            }
+                            else if self.server.state == ServerState::Paused {
+                                self.server.tick();
+                            }
+                        }
+                        else if id.name == "Stop" {
+                            self.server.set_project(self.project.clone());
+                            self.server.stop();
+                            update_server_icons = true;
+                        }
+
+                        else {
                             let mut data: Option<(TheId, String)> = None;
                             if id.name == "Undo" && ctx.ui.undo_stack.has_undo() {
                                 data = Some(ctx.ui.undo_stack.undo());
@@ -515,10 +571,72 @@ impl TheTrait for Editor {
                 }
             }
         }
+        if update_server_icons {
+            self.update_server_state_icons(ui);
+            redraw = true;
+        }
         redraw
     }
 }
 
-pub trait EldironEditor {}
+pub trait EldironEditor {
+    fn update_server_state_icons(&mut self, ui: &mut TheUI);
+}
 
-impl EldironEditor for Editor {}
+impl EldironEditor for Editor {
+
+    fn update_server_state_icons(&mut self, ui: &mut TheUI) {
+
+        if self.server.state == ServerState::Running {
+            if let Some(button) = ui.get_widget("Play") {
+                if let Some(button) = button.as_menubar_button() {
+                    button.set_icon_name("play-fill".to_string());
+                }
+            }
+            if let Some(button) = ui.get_widget("Pause") {
+                if let Some(button) = button.as_menubar_button() {
+                    button.set_icon_name("play-pause".to_string());
+                }
+            }
+            if let Some(button) = ui.get_widget("Stop") {
+                if let Some(button) = button.as_menubar_button() {
+                    button.set_icon_name("stop".to_string());
+                }
+            }
+        }
+        else if self.server.state == ServerState::Paused {
+            if let Some(button) = ui.get_widget("Play") {
+                if let Some(button) = button.as_menubar_button() {
+                    button.set_icon_name("play".to_string());
+                }
+            }
+            if let Some(button) = ui.get_widget("Pause") {
+                if let Some(button) = button.as_menubar_button() {
+                    button.set_icon_name("play-pause-fill".to_string());
+                }
+            }
+            if let Some(button) = ui.get_widget("Stop") {
+                if let Some(button) = button.as_menubar_button() {
+                    button.set_icon_name("stop".to_string());
+                }
+            }
+        }
+        else if self.server.state == ServerState::Stopped {
+            if let Some(button) = ui.get_widget("Play") {
+                if let Some(button) = button.as_menubar_button() {
+                    button.set_icon_name("play".to_string());
+                }
+            }
+            if let Some(button) = ui.get_widget("Pause") {
+                if let Some(button) = button.as_menubar_button() {
+                    button.set_icon_name("play-pause".to_string());
+                }
+            }
+            if let Some(button) = ui.get_widget("Stop") {
+                if let Some(button) = button.as_menubar_button() {
+                    button.set_icon_name("stop-fill".to_string());
+                }
+            }
+        }
+    }
+}

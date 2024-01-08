@@ -16,7 +16,7 @@ pub mod prelude {
     pub use crate::region::{Layer2DRole, Region, RegionTile};
     pub use crate::renderer::Renderer;
     pub use crate::server::context::ServerContext;
-    pub use crate::server::Server;
+    pub use crate::server::{Server, ServerState};
     pub use crate::tiledrawer::TileDrawer;
     pub use crate::tilemap::{Tile, TileRole, Tilemap};
     pub use rand::prelude::*;
