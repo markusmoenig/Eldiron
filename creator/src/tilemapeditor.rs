@@ -33,7 +33,7 @@ impl TilemapEditor {
         //let icon_view = TheIconView::new(TheId::named("Tilemap Editor Icon View"));
 
         let mut tile_name_text = TheText::new(TheId::empty());
-        tile_name_text.set_text("Tile Name".to_string());
+        tile_name_text.set_text("Tile Tags".to_string());
 
         let mut tile_name_edit = TheTextLineEdit::new(TheId::named("Tilemap Editor Name Edit"));
         tile_name_edit.limiter_mut().set_max_width(150);
@@ -47,11 +47,6 @@ impl TilemapEditor {
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(10, 4, 5, 4));
 
-        //toolbar_hlayout.add_widget(Box::new(icon_view));
-        //let mut hdivider = TheHDivider::new(TheId::empty());
-        //hdivider.limiter_mut().set_max_width(15);
-        //toolbar_hlayout.add_widget(Box::new(hdivider));
-
         toolbar_hlayout.add_widget(Box::new(tile_name_text));
         toolbar_hlayout.add_widget(Box::new(tile_name_edit));
 
@@ -63,16 +58,6 @@ impl TilemapEditor {
 
         for dir in TileRole::iterator() {
             drop_down.add_option(dir.to_string().to_string());
-            /*
-            let mut color_button = TheColorButton::new(TheId::named(
-                "Tilemap Editor Filter Character",
-            ));
-            color_button.limiter_mut().set_max_size(vec2i(19, 19));
-            color_button.set_color(dir.to_color().to_u8_array());
-            if dir == TileRole::Character {
-                color_button.set_state(TheWidgetState::Selected);
-            }
-            toolbar_hlayout.add_widget(Box::new(color_button));*/
         }
         toolbar_hlayout.add_widget(Box::new(drop_down));
 
@@ -88,8 +73,15 @@ impl TilemapEditor {
         toolbar_hlayout.add_widget(Box::new(hdivider));
 
         toolbar_hlayout.add_widget(Box::new(add_button));
+
+        let mut zoom = TheSlider::new(TheId::named("Tilemap Editor Zoom"));
+        zoom.set_value(TheValue::Float(1.0));
+        zoom.set_range(TheValue::RangeF32(0.5..=3.0));
+        zoom.set_continuous(true);
+        zoom.limiter_mut().set_max_width(120);
+        toolbar_hlayout.add_widget(Box::new(zoom));
         toolbar_hlayout.add_widget(Box::new(clear_button));
-        toolbar_hlayout.set_reverse_index(Some(1));
+        toolbar_hlayout.set_reverse_index(Some(2));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
         canvas.set_top(toolbar_canvas);

@@ -76,7 +76,7 @@ impl TilePicker {
         if !minimal {
             let mut zoom = TheSlider::new(TheId::named(&self.make_id(" Zoom")));
             zoom.set_value(TheValue::Float(1.0));
-            zoom.set_range(TheValue::RangeF32(0.3..=3.0));
+            zoom.set_range(TheValue::RangeF32(1.0..=3.0));
             zoom.set_continuous(true);
             zoom.limiter_mut().set_max_width(120);
             toolbar_hlayout.add_widget(Box::new(zoom));
@@ -102,7 +102,7 @@ impl TilePicker {
     }
 
     /// Set the tiles for the picker.
-    pub fn set_tiles(&mut self, tiles: Vec<TheRGBATile>, ui: &mut TheUI) {
+    pub fn set_tiles(&mut self, tiles: Vec<TheRGBATile>, ui: &mut TheUI, ctx: &mut TheContext) {
         self.tile_ids.clear();
         self.tile_text.clear();
         if let Some(editor) = ui.get_rgba_layout(&self.make_id(" RGBA Layout")) {
@@ -126,7 +126,7 @@ impl TilePicker {
                 }
 
                 let tiles_per_row = width / grid;
-                let lines = max(filtered_tiles.len() as i32 / tiles_per_row, 1);
+                let lines = filtered_tiles.len() as i32 / tiles_per_row + 1;
 
                 let mut buffer =
                     TheRGBABuffer::new(TheDim::sized(width, max(lines * grid, height)));
@@ -136,8 +136,16 @@ impl TilePicker {
                     let y = i as i32 / tiles_per_row;
 
                     self.tile_ids.insert((x, y), tile.id);
-                    self.tile_text
-                        .insert((x, y), format!("{}, {}", tile.name, tile.role));
+                    self.tile_text.insert(
+                        (x, y),
+                        format!(
+                            "{} : {}",
+                            tile.name,
+                            TileRole::from_index(tile.role)
+                                .unwrap_or(TileRole::ManMade)
+                                .to_string()
+                        ),
+                    );
                     if !tile.buffer.is_empty() {
                         buffer.copy_into(x * grid, y * grid, &tile.buffer[0]);
                         buffer.copy_into(x * grid, y * grid, &tile.buffer[0].scaled(grid, grid));
@@ -146,6 +154,7 @@ impl TilePicker {
 
                 rgba_view.set_buffer(buffer);
             }
+            editor.relayout(ctx);
         }
     }
 
@@ -187,31 +196,29 @@ impl TilePicker {
                             project.remove_tile(tile_id);
                         }
                     }
-                    self.set_tiles(project.extract_tiles_vec(), ui);
+                    self.set_tiles(project.extract_tiles_vec(), ui, ctx);
                 }
             }
             TheEvent::Custom(id, _value) => {
                 if id.name == "Update Tilepicker" {
-                    self.set_tiles(project.extract_tiles_vec(), ui);
+                    self.set_tiles(project.extract_tiles_vec(), ui, ctx);
                 }
             }
             TheEvent::ValueChanged(id, value) => {
                 if id.name == self.make_id(" Filter Edit") {
                     if let TheValue::Text(filter) = value {
                         self.filter = filter.to_lowercase();
-                        self.set_tiles(project.extract_tiles_vec(), ui);
+                        self.set_tiles(project.extract_tiles_vec(), ui, ctx);
                     }
-                }
-                else if id.name == self.make_id(" Filter Role") {
+                } else if id.name == self.make_id(" Filter Role") {
                     if let TheValue::Int(filter) = value {
                         self.filter_role = *filter as u8;
-                        self.set_tiles(project.extract_tiles_vec(), ui);
+                        self.set_tiles(project.extract_tiles_vec(), ui, ctx);
                     }
-                }
-                else if id.name == self.make_id(" Zoom") {
+                } else if id.name == self.make_id(" Zoom") {
                     if let TheValue::Float(zoom) = value {
                         self.zoom = *zoom;
-                        self.set_tiles(project.extract_tiles_vec(), ui);
+                        self.set_tiles(project.extract_tiles_vec(), ui, ctx);
                     }
                 }
             }

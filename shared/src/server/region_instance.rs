@@ -337,4 +337,25 @@ impl RegionInstance {
 
         None
     }
+
+    /// Returns the value of the given character instance property along with its character id.
+    pub fn get_character_property(
+        &self,
+        character_id: Uuid,
+        property: String,
+    ) -> Option<(TheValue, Uuid)> {
+        for (id, c) in &self.sandbox.objects {
+            if *id == character_id {
+                if let Some(value) = c.get(&property).cloned() {
+                    for (instance_id, character_id) in &self.characters_ids {
+                        if *instance_id == c.id {
+                            return Some((value.clone(), *character_id));
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
 }

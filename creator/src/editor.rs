@@ -118,11 +118,11 @@ impl TheTrait for Editor {
         redo_button.set_icon_name("icon_role_redo".to_string());
 
         let mut play_button = TheMenubarButton::new(TheId::named("Play"));
-        play_button.set_status_text("Start the server for live playing and debugging.");
+        play_button.set_status_text("Start the server for live editing and debugging.");
         play_button.set_icon_name("play".to_string());
 
         let mut pause_button = TheMenubarButton::new(TheId::named("Pause"));
-        pause_button.set_status_text("Pause. Click for single step the server.");
+        pause_button.set_status_text("Pause. Click for single stepping the server.");
         pause_button.set_icon_name("play-pause".to_string());
 
         let mut stop_button = TheMenubarButton::new(TheId::named("Stop"));
@@ -158,7 +158,8 @@ impl TheTrait for Editor {
         ui.canvas.set_top(top_canvas);
 
         // Sidebar
-        self.sidebar.init_ui(ui, ctx, &mut self.project);
+        self.sidebar
+            .init_ui(ui, ctx, &mut self.project, &mut self.server);
 
         // Panels
         self.panels.init_ui(ui, ctx, &mut self.project);
@@ -368,15 +369,13 @@ impl TheTrait for Editor {
                                 .set_widget_state("Logo".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        }
-                        else if id.name == "Patreon" {
+                        } else if id.name == "Patreon" {
                             _ = open::that("https://www.patreon.com/eldiron");
                             ctx.ui
                                 .set_widget_state("Patreon".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        }
-                        else if id.name == "Open" {
+                        } else if id.name == "Open" {
                             ctx.ui.open_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                                 "Open".into(),
@@ -389,8 +388,7 @@ impl TheTrait for Editor {
                                 .set_widget_state("Open".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        }
-                        else if id.name == "Save" {
+                        } else if id.name == "Save" {
                             if let Some(path) = &self.project_path {
                                 let json = serde_json::to_string(&self.project);
                                 if let Ok(json) = json {
@@ -407,8 +405,7 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
-                        }
-                        else if id.name == "Save As" {
+                        } else if id.name == "Save As" {
                             ctx.ui.save_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                                 "Save".into(),
@@ -422,9 +419,7 @@ impl TheTrait for Editor {
                             ctx.ui.clear_hover();
                             redraw = true;
                         }
-
                         // Server
-
                         else if id.name == "Play" {
                             self.server.start();
                             ctx.ui.send(TheEvent::SetStatusText(
@@ -432,8 +427,7 @@ impl TheTrait for Editor {
                                 "Server has been started.".to_string(),
                             ));
                             update_server_icons = true;
-                        }
-                        else if id.name == "Pause" {
+                        } else if id.name == "Pause" {
                             if self.server.state == ServerState::Running {
                                 self.server.state = ServerState::Paused;
                                 ctx.ui.send(TheEvent::SetStatusText(
@@ -441,18 +435,14 @@ impl TheTrait for Editor {
                                     "Server has been paused.".to_string(),
                                 ));
                                 update_server_icons = true;
-                            }
-                            else if self.server.state == ServerState::Paused {
+                            } else if self.server.state == ServerState::Paused {
                                 self.server.tick();
                             }
-                        }
-                        else if id.name == "Stop" {
+                        } else if id.name == "Stop" {
                             self.server.set_project(self.project.clone());
                             self.server.stop();
                             update_server_icons = true;
-                        }
-
-                        else {
+                        } else {
                             let mut data: Option<(TheId, String)> = None;
                             if id.name == "Undo" && ctx.ui.undo_stack.has_undo() {
                                 data = Some(ctx.ui.undo_stack.undo());
@@ -584,9 +574,7 @@ pub trait EldironEditor {
 }
 
 impl EldironEditor for Editor {
-
     fn update_server_state_icons(&mut self, ui: &mut TheUI) {
-
         if self.server.state == ServerState::Running {
             if let Some(button) = ui.get_widget("Play") {
                 if let Some(button) = button.as_menubar_button() {
@@ -603,8 +591,7 @@ impl EldironEditor for Editor {
                     button.set_icon_name("stop".to_string());
                 }
             }
-        }
-        else if self.server.state == ServerState::Paused {
+        } else if self.server.state == ServerState::Paused {
             if let Some(button) = ui.get_widget("Play") {
                 if let Some(button) = button.as_menubar_button() {
                     button.set_icon_name("play".to_string());
@@ -620,8 +607,7 @@ impl EldironEditor for Editor {
                     button.set_icon_name("stop".to_string());
                 }
             }
-        }
-        else if self.server.state == ServerState::Stopped {
+        } else if self.server.state == ServerState::Stopped {
             if let Some(button) = ui.get_widget("Play") {
                 if let Some(button) = button.as_menubar_button() {
                     button.set_icon_name("play".to_string());

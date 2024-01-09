@@ -96,7 +96,7 @@ impl TileDrawer {
             let x = (at.x * grid) as usize;
             let y = (at.y * grid) as usize;
             let stride = buffer.stride();
-            ctx.draw.copy_slice(
+            ctx.draw.blend_slice(
                 buffer.pixels_mut(),
                 data.buffer[anim_counter % data.buffer.len()].pixels(),
                 &(x, y, 24, 24),

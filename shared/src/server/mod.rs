@@ -31,7 +31,6 @@ pub enum ServerState {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Server {
-
     pub state: ServerState,
 
     project: Project,
@@ -76,7 +75,6 @@ impl Server {
 
     /// Sets the current project. Resets the server.
     pub fn set_project(&mut self, project: Project) {
-
         let mut regions = FxHashMap::default();
         for region in &project.regions {
             regions.insert(region.id, region.clone());
@@ -300,6 +298,20 @@ impl Server {
     pub fn get_character_at(&self, region: Uuid, pos: Vec2i) -> Option<(Uuid, Uuid)> {
         if let Some(instance) = self.instances.get(&region) {
             instance.get_character_at(pos)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the property of the character instance for the given region along with its character id.
+    pub fn get_character_property(
+        &self,
+        region: Uuid,
+        character_id: Uuid,
+        property: String,
+    ) -> Option<(TheValue, Uuid)> {
+        if let Some(instance) = self.instances.get(&region) {
+            instance.get_character_property(character_id, property)
         } else {
             None
         }

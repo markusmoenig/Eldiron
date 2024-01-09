@@ -38,7 +38,13 @@ impl Sidebar {
         }
     }
 
-    pub fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext, _project: &mut Project) {
+    pub fn init_ui(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        _project: &mut Project,
+        server: &mut Server,
+    ) {
         let mut sectionbar_canvas = TheCanvas::new();
 
         let mut section_bar_canvas = TheCanvas::new();
@@ -155,7 +161,7 @@ impl Sidebar {
         toolbar_hlayout.add_widget(Box::new(filter_text));
         let mut filter_edit = TheTextLineEdit::new(TheId::named("Region Content Filter Edit"));
         filter_edit.set_text("".to_string());
-        filter_edit.limiter_mut().set_max_size(vec2i(75, 18));
+        filter_edit.limiter_mut().set_max_size(vec2i(85, 18));
         filter_edit.set_font_size(12.5);
         filter_edit.set_embedded(true);
         filter_edit.set_status_text("Show content containing the given text.");
@@ -412,7 +418,7 @@ impl Sidebar {
 
         ui.canvas.set_right(canvas);
 
-        self.apply_region(ui, ctx, None);
+        self.apply_region(ui, ctx, None, server);
         self.apply_character(ui, ctx, None);
         self.apply_item(ui, ctx, None);
         self.apply_tilemap(ui, ctx, None);
@@ -459,10 +465,22 @@ impl Sidebar {
                             }
                         }
                     }
-                } else if id.name == "Tilemap Filter Edit" || id.name == "Tilemap Filter Role" {
+                }
+                else if id.name == "Tilemap Filter Edit" || id.name == "Tilemap Filter Role" {
                     if let Some(id) = self.curr_tilemap_uuid {
                         self.show_filtered_tiles(ui, ctx, project.get_tilemap(id).as_deref())
                     }
+                }
+                else if id.name == "Tilemap Editor Zoom" {
+                    if let Some(v) = value.to_f32() {
+                        if let Some(layout) = ui.get_rgba_layout("Tilemap Editor") {
+                            layout.set_zoom(v);
+                            layout.relayout(ctx);
+                        }
+                    }
+                }
+                else if id.name == "Region Content Filter Edit" || id.name == "Region Content Dropdown" {
+                    self.apply_region(ui, ctx,  project.get_region(&server_ctx.curr_region), server);
                 }
             }
             TheEvent::TileSelectionChanged(id) => {
@@ -541,13 +559,13 @@ impl Sidebar {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
                             project.remove_region(&selected.uuid);
-                            self.apply_region(ui, ctx, None);
+                            self.apply_region(ui, ctx, None, server);
                         }
                     }
                 } else if id.name == "Region Item" {
                     for r in &project.regions {
                         if r.id == id.uuid {
-                            self.apply_region(ui, ctx, Some(r));
+                            self.apply_region(ui, ctx, Some(r), server);
                             redraw = true;
                         }
                     }
@@ -1297,9 +1315,66 @@ impl Sidebar {
     }
 
     /// Apply the given item to the UI
-    pub fn apply_region(&mut self, ui: &mut TheUI, ctx: &mut TheContext, region: Option<&Region>) {
+    pub fn apply_region(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        region: Option<&Region>,
+        server: &mut Server,
+    ) {
         ui.set_widget_disabled_state("Region Remove", ctx, region.is_none());
         ui.set_widget_disabled_state("Region Settings", ctx, region.is_none());
+
+        // Show the filter region content.
+
+        let mut filter_text = if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Region Content Filter Edit".to_string()), None)
+        {
+            widget.value().to_string().unwrap_or_default()
+        } else {
+            "".to_string()
+        };
+
+        let filter_role = if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Region Content Dropdown".to_string()), None)
+        {
+            if let Some(drop_down_menu) = widget.as_drop_down_menu() {
+                drop_down_menu.selected_index()
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+
+        filter_text = filter_text.to_lowercase();
+
+        if let Some(list) = ui.get_list_layout("Region Content List") {
+            list.clear();
+            if let Some(region) = region {
+                if filter_role < 2 {
+                    // Show Characters
+                    for (id, _) in region.characters.iter() {
+                        let mut name = "Character".to_string();
+                        if let Some((TheValue::Text(text), _)) =
+                            server.get_character_property(region.id, *id, "name".to_string())
+                        {
+                            name = text;
+                        }
+                        if filter_text.is_empty() || name.to_lowercase().contains(&filter_text) {
+                            let mut item = TheListItem::new(TheId::named_with_id(
+                                "Region Content List Item",
+                                *id,
+                            ));
+                            item.set_text(name);
+                            list.add_item(item, ctx);
+                        }
+                    }
+                }
+            }
+        }
 
         if let Some(widget) = ui
             .canvas

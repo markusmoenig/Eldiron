@@ -48,6 +48,7 @@ impl TileEditor {
             rgba_view.set_mode(TheRGBAViewMode::TileEditor);
             rgba_view.set_grid_color([255, 255, 255, 5]);
             rgba_view.set_hover_color(Some([255, 255, 255, 100]));
+            rgba_view.set_wheel_scale(-0.2);
         }
 
         let mut region_editor_canvas = TheCanvas::new();
@@ -252,14 +253,11 @@ impl TileEditor {
                 } else if id.name == "Editor Group" {
                     if *index == 0 {
                         self.editor_mode = EditorMode::Draw;
-                    }
-                    else if *index == 1 {
+                    } else if *index == 1 {
                         self.editor_mode = EditorMode::Pick;
-                    }
-                    else if *index == 2 {
+                    } else if *index == 2 {
                         self.editor_mode = EditorMode::Erase;
-                    }
-                    else if *index == 3 {
+                    } else if *index == 3 {
                         self.editor_mode = EditorMode::Select;
                     }
                 }
@@ -281,6 +279,7 @@ impl TileEditor {
                                     server.remove_character_instance(region.id, c.0);
                                     server_ctx.curr_character_instance = None;
                                     server_ctx.curr_character = None;
+                                    redraw = true;
                                     // Remove from the content list
                                     if let Some(list) = ui.get_list_layout("Region Content List") {
                                         list.remove(TheId::named_with_id(
@@ -323,7 +322,6 @@ impl TileEditor {
                 }
             }
             TheEvent::TileEditorClicked(_id, coord) | TheEvent::TileEditorDragged(_id, coord) => {
-
                 if self.editor_mode == EditorMode::Erase {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         let mut undo = TheUndo::new(TheId::named("RegionChanged"));
@@ -337,6 +335,7 @@ impl TileEditor {
                         ctx.ui.undo_stack.add(undo);
                         server.update_region(region);
                         self.set_icon_previews(region, *coord, ui);
+                        self.redraw_region(ui, server, ctx, server_ctx);
                         redraw = true;
                     }
                 } else if self.editor_mode == EditorMode::Pick {
@@ -356,6 +355,12 @@ impl TileEditor {
                                         TheId::named_with_id("Tilemap Tile", *uuid),
                                         TheWidgetState::Selected,
                                     ));
+
+                                    self.editor_mode = EditorMode::Draw;
+                                    if let Some(button) = ui.get_group_button("Editor Group") {
+                                        button.set_selected_index(0);
+                                        redraw = true;
+                                    }
                                     break;
                                 }
                             }
@@ -393,34 +398,7 @@ impl TileEditor {
                                 ctx.ui.undo_stack.add(undo);
                             }
                         }
-                        if let Some(rgba_layout) =
-                            ui.canvas.get_layout(Some(&"Region Editor".into()), None)
-                        {
-                            if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
-                                if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view()
-                                {
-                                    // self.tiledrawer.draw_tile(
-                                    //     *coord,
-                                    //     rgba_view.buffer_mut(),
-                                    //     24,
-                                    //     curr_tile_uuid,
-                                    //     ctx,
-                                    // );
-
-                                    // if let Some(region) = project.get_region(&self.curr_region_uuid) {
-                                    //     self.tiledrawer.draw_region(rgba_view.buffer_mut(), region, ctx);
-                                    // }
-                                    server.draw_region(
-                                        &server_ctx.curr_region,
-                                        rgba_view.buffer_mut(),
-                                        &self.tiledrawer,
-                                        ctx,
-                                        server_ctx,
-                                    );
-                                    rgba_view.set_needs_redraw(true);
-                                }
-                            }
-                        }
+                        self.redraw_region(ui, server, ctx, server_ctx);
                     }
                 }
             }
@@ -461,7 +439,21 @@ impl TileEditor {
                 }
             }
             TheEvent::StateChanged(id, _state) => {
-                if id.name == "Region Item" {
+                // Region Content List Selection
+                if id.name == "Region Content List Item" {
+                    if let Some((TheValue::Position(p), character_id)) = server
+                        .get_character_property(server_ctx.curr_region, id.uuid, "position".into())
+                    {
+                        // If it's a character instance, center it in the region editor.
+                        server_ctx.curr_character_instance = Some(id.uuid);
+                        server_ctx.curr_character = Some(character_id);
+                        if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
+                            rgba_layout.scroll_to_grid(vec2i(p.x as i32, p.y as i32));
+                        }
+                    }
+                }
+                // Region Selection
+                else if id.name == "Region Item" {
                     for r in &project.regions {
                         if r.id == id.uuid {
                             if let Some(rgba_layout) =
