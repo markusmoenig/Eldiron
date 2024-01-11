@@ -1,6 +1,5 @@
 use theframework::*;
 
-pub mod browser;
 pub mod editor;
 pub mod misc;
 pub mod panels;
@@ -24,7 +23,6 @@ pub mod prelude {
     pub use shared::prelude::*;
     pub use theframework::prelude::*;
 
-    pub use crate::browser::*;
     pub use crate::misc::*;
     pub use crate::panels::*;
     pub use crate::sidebar::*;

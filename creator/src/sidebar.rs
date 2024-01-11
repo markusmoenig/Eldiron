@@ -1,4 +1,4 @@
-use crate::editor::{CODEEDITOR, TILEMAPEDITOR};
+use crate::editor::{CODEEDITOR, SIDEBARMODE, TILEMAPEDITOR};
 use crate::prelude::*;
 
 #[derive(PartialEq, Debug)]
@@ -11,7 +11,6 @@ pub enum SidebarMode {
 }
 
 pub struct Sidebar {
-    pub mode: SidebarMode,
     pub width: i32,
 
     stack_layout_id: TheId,
@@ -30,7 +29,6 @@ impl Sidebar {
         ));
 
         Self {
-            mode: SidebarMode::Region,
             width: 380,
 
             stack_layout_id: TheId::empty(),
@@ -465,22 +463,21 @@ impl Sidebar {
                             }
                         }
                     }
-                }
-                else if id.name == "Tilemap Filter Edit" || id.name == "Tilemap Filter Role" {
+                } else if id.name == "Tilemap Filter Edit" || id.name == "Tilemap Filter Role" {
                     if let Some(id) = self.curr_tilemap_uuid {
                         self.show_filtered_tiles(ui, ctx, project.get_tilemap(id).as_deref())
                     }
-                }
-                else if id.name == "Tilemap Editor Zoom" {
+                } else if id.name == "Tilemap Editor Zoom" {
                     if let Some(v) = value.to_f32() {
                         if let Some(layout) = ui.get_rgba_layout("Tilemap Editor") {
                             layout.set_zoom(v);
                             layout.relayout(ctx);
                         }
                     }
-                }
-                else if id.name == "Region Content Filter Edit" || id.name == "Region Content Dropdown" {
-                    self.apply_region(ui, ctx,  project.get_region(&server_ctx.curr_region), server);
+                } else if id.name == "Region Content Filter Edit"
+                    || id.name == "Region Content Dropdown"
+                {
+                    self.apply_region(ui, ctx, project.get_region(&server_ctx.curr_region), server);
                 }
             }
             TheEvent::TileSelectionChanged(id) => {
@@ -875,11 +872,15 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Regions".to_string()));
                     }
 
-                    ctx.ui
-                        .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Set Region Panel"),
+                        TheValue::Empty,
+                    ));
 
                     self.clear_global_preview(ui);
-                    self.mode = SidebarMode::Region;
+
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Region;
 
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 0));
@@ -893,8 +894,10 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Character".to_string()));
                     }
 
-                    ctx.ui
-                        .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Set CodeGrid Panel"),
+                        TheValue::Empty,
+                    ));
 
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
@@ -904,7 +907,7 @@ impl Sidebar {
                     }
 
                     self.clear_global_preview(ui);
-                    self.mode = SidebarMode::Character;
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Character;
 
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 1));
@@ -926,7 +929,7 @@ impl Sidebar {
                     }
 
                     self.clear_global_preview(ui);
-                    self.mode = SidebarMode::Item;
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Item;
 
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 2));
@@ -940,8 +943,10 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Tilemaps".to_string()));
                     }
 
-                    ctx.ui
-                        .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 2));
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Set Tilemap Panel"),
+                        TheValue::Empty,
+                    ));
 
                     if let Some(list_layout) = ui.get_list_layout("Tilemap List") {
                         if let Some(selected) = list_layout.selected() {
@@ -951,7 +956,7 @@ impl Sidebar {
                     }
 
                     self.clear_global_preview(ui);
-                    self.mode = SidebarMode::Tilemap;
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Tilemap;
 
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 3));
@@ -973,7 +978,7 @@ impl Sidebar {
                     }
 
                     self.clear_global_preview(ui);
-                    self.mode = SidebarMode::Code;
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Code;
 
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 4));
@@ -997,7 +1002,7 @@ impl Sidebar {
 
                                 // Successfully compiled, transfer the bundle to the server.
 
-                                if self.mode == SidebarMode::Region {
+                                if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
                                     if let Some(character_instance) =
                                         server_ctx.curr_character_instance
                                     {
@@ -1007,7 +1012,7 @@ impl Sidebar {
                                             CODEEDITOR.lock().unwrap().get_bundle(),
                                         );
                                     }
-                                } else if self.mode == SidebarMode::Character {
+                                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                                     server.insert_character(bundle);
                                 }
                             } else {
@@ -1018,7 +1023,7 @@ impl Sidebar {
                 }
             }
             TheEvent::CodeBundleChanged(bundle, _) => {
-                if self.mode == SidebarMode::Region {
+                if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
                     if let Some(character_instance) = server_ctx.curr_character_instance {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             if let Some(character) = region.characters.get_mut(&character_instance)
@@ -1028,7 +1033,7 @@ impl Sidebar {
                             }
                         }
                     }
-                } else if self.mode == SidebarMode::Character {
+                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
@@ -1039,7 +1044,7 @@ impl Sidebar {
                             }
                         }
                     }
-                } else if self.mode == SidebarMode::Item {
+                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Item {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
@@ -1050,7 +1055,7 @@ impl Sidebar {
                             }
                         }
                     }
-                } else if self.mode == SidebarMode::Code {
+                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Code {
                     if let Some(list_layout) = ui.get_list_layout("Code List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
@@ -1066,22 +1071,22 @@ impl Sidebar {
             TheEvent::Custom(id, _v) => {
                 if id.name == "Set Character Bundle" {
                     // Character selection
-                    if self.mode == SidebarMode::Region {
+                    if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
                         // In Region mode, we need to set the character bundle of the current character instance.
                         if let Some(region) = project.get_region(&server_ctx.curr_region) {
                             if let Some(character) = region.characters.get(&id.uuid) {
                                 for grid in character.instance.grids.values() {
                                     if grid.name == "init" {
                                         CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
-                                        ctx.ui.send(TheEvent::SetStackIndex(
-                                            TheId::named("Left Stack"),
-                                            1,
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Set CodeGrid Panel"),
+                                            TheValue::Empty,
                                         ));
                                     }
                                 }
                             }
                         }
-                    } else if self.mode == SidebarMode::Character {
+                    } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                         // In Character mode, we need to set the character bundle of the current character.
                     }
                 }
@@ -1089,10 +1094,12 @@ impl Sidebar {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Editor Group" {
                     if *index == 0 {
-                        ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Set Region Panel"),
+                            TheValue::Empty,
+                        ));
                     } else if *index == 1 {
-                        if self.mode == SidebarMode::Region {
+                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
                             if let Some(character_instance) = server_ctx.curr_character_instance {
                                 if let Some(region) = project.get_region(&server_ctx.curr_region) {
                                     if let Some(character) =
@@ -1104,16 +1111,16 @@ impl Sidebar {
                                                     .lock()
                                                     .unwrap()
                                                     .set_codegrid(grid.clone(), ui);
-                                                ctx.ui.send(TheEvent::SetStackIndex(
-                                                    TheId::named("Left Stack"),
-                                                    1,
+                                                ctx.ui.send(TheEvent::Custom(
+                                                    TheId::named("Set CodeGrid Panel"),
+                                                    TheValue::Empty,
                                                 ));
                                             }
                                         }
                                     }
                                 }
                             }
-                        } else if self.mode == SidebarMode::Character {
+                        } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                         }
                     }
                 }
@@ -1369,6 +1376,7 @@ impl Sidebar {
                                 *id,
                             ));
                             item.set_text(name);
+                            item.add_value_column(100, TheValue::Text("Character".to_string()));
                             list.add_item(item, ctx);
                         }
                     }

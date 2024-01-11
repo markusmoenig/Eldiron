@@ -1,3 +1,4 @@
+use crate::editor::SIDEBARMODE;
 use crate::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -253,6 +254,7 @@ impl TileEditor {
                 } else if id.name == "Editor Group" {
                     if *index == 0 {
                         self.editor_mode = EditorMode::Draw;
+                        server_ctx.curr_character_instance = None;
                     } else if *index == 1 {
                         self.editor_mode = EditorMode::Pick;
                     } else if *index == 2 {
@@ -260,8 +262,16 @@ impl TileEditor {
                     } else if *index == 3 {
                         self.editor_mode = EditorMode::Select;
                     }
+
+                    if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Set Region Panel"),
+                            TheValue::Empty,
+                        ));
+                    }
                 }
             }
+            /*
             TheEvent::TileEditorDelete(_id, keys) => {
                 if self.editor_mode == EditorMode::Pick {
                     // If there is a character instance at the position we delete the instance.
@@ -320,23 +330,47 @@ impl TileEditor {
                         }
                     }
                 }
-            }
+            }*/
             TheEvent::TileEditorClicked(_id, coord) | TheEvent::TileEditorDragged(_id, coord) => {
                 if self.editor_mode == EditorMode::Erase {
+                    // If there is a character instance at the position we delete the instance.
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        let mut undo = TheUndo::new(TheId::named("RegionChanged"));
-                        undo.set_undo_data(region.to_json());
+                        if let Some(c) =
+                            server.get_character_at(server_ctx.curr_region, vec2i(coord.x, coord.y))
+                        {
+                            // Delete the character at the given position.
 
-                        if region.tiles.contains_key(&(coord.x, coord.y)) {
-                            region.tiles.remove(&(coord.x, coord.y));
+                            if region.characters.remove(&c.0).is_some() {
+                                server.remove_character_instance(region.id, c.0);
+                                server_ctx.curr_character_instance = None;
+                                server_ctx.curr_character = None;
+                                redraw = true;
+                                self.redraw_region(ui, server, ctx, server_ctx);
+
+                                // Remove from the content list
+                                if let Some(list) = ui.get_list_layout("Region Content List") {
+                                    list.remove(TheId::named_with_id(
+                                        "Region Content List Item",
+                                        c.0,
+                                    ));
+                                }
+                            }
+                        } else {
+                            // Delete the tile at the given position.
+                            let mut undo = TheUndo::new(TheId::named("RegionChanged"));
+                            undo.set_undo_data(region.to_json());
+
+                            if region.tiles.contains_key(&(coord.x, coord.y)) {
+                                region.tiles.remove(&(coord.x, coord.y));
+                            }
+
+                            undo.set_redo_data(region.to_json());
+                            ctx.ui.undo_stack.add(undo);
+                            server.update_region(region);
+                            self.set_icon_previews(region, *coord, ui);
+                            self.redraw_region(ui, server, ctx, server_ctx);
+                            redraw = true;
                         }
-
-                        undo.set_redo_data(region.to_json());
-                        ctx.ui.undo_stack.add(undo);
-                        server.update_region(region);
-                        self.set_icon_previews(region, *coord, ui);
-                        self.redraw_region(ui, server, ctx, server_ctx);
-                        redraw = true;
                     }
                 } else if self.editor_mode == EditorMode::Pick {
                     // Check for character at the given position.
@@ -348,6 +382,7 @@ impl TileEditor {
                             TheValue::Empty,
                         ));
                     } else if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                        server_ctx.curr_character_instance = None;
                         if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
                             for uuid in tile.layers.iter().flatten() {
                                 if self.tiledrawer.tiles.contains_key(uuid) {
@@ -358,13 +393,19 @@ impl TileEditor {
 
                                     self.editor_mode = EditorMode::Draw;
                                     if let Some(button) = ui.get_group_button("Editor Group") {
-                                        button.set_selected_index(0);
+                                        button.set_index(0);
                                         redraw = true;
                                     }
                                     break;
                                 }
                             }
                         }
+                    }
+                    if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Set Region Panel"),
+                            TheValue::Empty,
+                        ));
                     }
                 } else if self.editor_mode == EditorMode::Draw {
                     if let Some(curr_tile_uuid) = self.curr_tile_uuid {
@@ -447,6 +488,12 @@ impl TileEditor {
                         // If it's a character instance, center it in the region editor.
                         server_ctx.curr_character_instance = Some(id.uuid);
                         server_ctx.curr_character = Some(character_id);
+
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Set Region Panel"),
+                            TheValue::Empty,
+                        ));
+
                         if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
                             rgba_layout.scroll_to_grid(vec2i(p.x as i32, p.y as i32));
                         }

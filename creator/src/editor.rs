@@ -10,6 +10,7 @@ lazy_static! {
     pub static ref TILEPICKER: Mutex<TilePicker> =
         Mutex::new(TilePicker::new("Main Tile Picker".to_string()));
     pub static ref TILEMAPEDITOR: Mutex<TilemapEditor> = Mutex::new(TilemapEditor::new());
+    pub static ref SIDEBARMODE: Mutex<SidebarMode> = Mutex::new(SidebarMode::Region);
 }
 
 pub struct Editor {
@@ -191,6 +192,7 @@ impl TheTrait for Editor {
             }
             if self.server.state == ServerState::Running {
                 self.server.tick();
+                self.panels.update_code_object(ui, ctx, &mut self.server, &mut self.server_ctx);
             }
             if self.server_ctx.curr_character_instance.is_some() {
                 let debug = self.server.get_region_debug_codegrid(
@@ -285,6 +287,7 @@ impl TheTrait for Editor {
                                 ));
                                 item.set_text(name);
                                 item.set_state(TheWidgetState::Selected);
+                                item.add_value_column(100, TheValue::Text("Character".to_string()));
 
                                 list.deselect_all();
                                 list.add_item(item, ctx);

@@ -1,4 +1,4 @@
-use crate::editor::{CODEEDITOR, TILEMAPEDITOR, TILEPICKER};
+use crate::editor::{CODEEDITOR, SIDEBARMODE, TILEMAPEDITOR, TILEPICKER};
 use crate::prelude::*;
 
 pub struct Panels {}
@@ -47,8 +47,32 @@ impl Panels {
         // Right Stack
 
         let mut right_canvas = TheCanvas::new();
-        let right_stack = TheStackLayout::new(TheId::named("Right Stack"));
+        let mut right_stack = TheStackLayout::new(TheId::named("Right Stack"));
+
+        // Code Object details
+
+        let mut codeobject_canvas = TheCanvas::new();
+        let codeobject_layout = TheListLayout::new(TheId::named("CodeObject Layout"));
+        codeobject_canvas.set_layout(codeobject_layout);
+
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(vec4i(10, 2, 5, 2));
+
+        let mut text = TheText::new(TheId::named("Panel Object Text"));
+        text.set_text("Object".to_string());
+        toolbar_hlayout.add_widget(Box::new(text));
+
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        toolbar_canvas.set_layout(toolbar_hlayout);
+        codeobject_canvas.set_top(toolbar_canvas);
+
+        right_stack.add_canvas(codeobject_canvas);
+
         right_canvas.set_layout(right_stack);
+
+        //
 
         shared_layout.add_canvas(left_canvas);
         shared_layout.add_canvas(right_canvas);
@@ -73,8 +97,8 @@ impl Panels {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut Server,
-        _server_ctx: &mut ServerContext,
+        server: &mut Server,
+        server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = CODEEDITOR.lock().unwrap().handle_event(event, ui, ctx);
         if TILEPICKER
@@ -84,16 +108,124 @@ impl Panels {
         {
             redraw = true;
         }
-        /*
-        match event {
-            TheEvent::Custom(id, value) => {
-                if id.name == "Set Tilemap Editor" {
 
+        #[allow(clippy::single_match)]
+        match event {
+            TheEvent::Custom(id, _) => {
+                if id.name == "Set Region Panel" {
+                    println!("Set Region Panel");
+
+                    let mut shared_left = true;
+
+                    if let Some(character) = server_ctx.curr_character_instance {
+                        ctx.ui
+                            .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 0));
+
+                        if self.get_editor_group_index(ui) == 1 {
+                            ctx.ui
+                                .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+
+                            if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
+                                layout.set_mode(TheSharedLayoutMode::Shared);
+                                layout.set_shared_ratio(0.7);
+                                ctx.ui.relayout = true;
+                                redraw = true;
+                                shared_left = false;
+                            }
+
+                            if let Some((name, _)) = server.get_character_property(server_ctx.curr_region, character, "name".into()) {
+                                if let Some(text) = ui.get_text("Panel Object Text") {
+                                    text.set_text(name.describe());
+                                }
+                            }
+
+                            self.update_code_object(ui, ctx, server, server_ctx);
+                        }
+                    } else {
+                        ctx.ui
+                            .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));
+                    }
+
+                    if shared_left {
+                        if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
+                            layout.set_mode(TheSharedLayoutMode::Left);
+                            ctx.ui.relayout = true;
+                            redraw = true;
+                        }
+                    }
+                } else if id.name == "Set CodeGrid Panel" {
+                    println!("Set CodeGrid Panel");
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                    if *SIDEBARMODE.lock().unwrap() != SidebarMode::Region {
+                        if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
+                            layout.set_mode(TheSharedLayoutMode::Left);
+                            ctx.ui.relayout = true;
+                            redraw = true;
+                        }
+                    }
+                } else if id.name == "Set Tilemap Panel" {
+                    println!("Set Tilemap Panel");
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 2));
+                    if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
+                        layout.set_mode(TheSharedLayoutMode::Left);
+                        ctx.ui.relayout = true;
+                        redraw = true;
+                    }
                 }
             }
             _ => {}
-        }*/
+        }
 
         redraw
+    }
+
+    pub fn update_code_object(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server: &mut Server,
+        server_ctx: &mut ServerContext,
+    ) {
+        if let Some(list) = ui.get_list_layout("CodeObject Layout") {
+            list.clear();
+
+            if let Some(character_id) = server_ctx.curr_character_instance {
+                if let Some((object, _)) = server.get_character_object(server_ctx.curr_region, character_id) {
+                    for (name, value) in object.values {
+                        let mut item = TheListItem::new(TheId::empty());
+                        item.set_text(name);
+                        item.add_value_column(150, value);
+
+                        list.add_item(item, ctx);
+                    }
+
+                }
+            }
+            /*
+            let mut objects = Vec::new();
+
+            for object in project.objects.values() {
+                objects.push(object.clone());
+            }
+
+            objects.sort_by(|a, b| a.name.cmp(&b.name));
+
+            for object in objects {
+                let mut text = TheText::new(TheId::empty());
+                text.set_text(object.name);
+                list.add_widget(Box::new(text));
+            }*/
+        }
+    }
+
+    /// Returns the current index of the editor group.
+    fn get_editor_group_index(&self, ui: &mut TheUI) -> i32 {
+        let mut index = 0;
+        if let Some(widget) = ui.get_group_button("Editor Group") {
+            index = widget.index();
+        }
+        index
     }
 }

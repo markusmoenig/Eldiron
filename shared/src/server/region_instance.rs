@@ -319,6 +319,7 @@ impl RegionInstance {
         self.characters_instances.remove(&character);
         self.characters_ids
             .retain(|(instance_id, _)| *instance_id != character);
+        self.sandbox.objects.remove(&character);
     }
 
     /// Returns the character instance id and the character id for the character at the given position.
@@ -351,6 +352,21 @@ impl RegionInstance {
                         if *instance_id == c.id {
                             return Some((value.clone(), *character_id));
                         }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Returns the object of the given character instance property along with its character id.
+    pub fn get_character_object(&self, character_id: Uuid) -> Option<(TheCodeObject, Uuid)> {
+        for (id, c) in &self.sandbox.objects {
+            if *id == character_id {
+                for (instance_id, character_id) in &self.characters_ids {
+                    if *instance_id == c.id {
+                        return Some((c.clone(), *character_id));
                     }
                 }
             }

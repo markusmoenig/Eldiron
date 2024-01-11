@@ -316,4 +316,17 @@ impl Server {
             None
         }
     }
+
+    /// Returns the object of the character instance for the given region along with its character id.
+    pub fn get_character_object(
+        &self,
+        region: Uuid,
+        character_id: Uuid,
+    ) -> Option<(TheCodeObject, Uuid)> {
+        if let Some(instance) = self.instances.get(&region) {
+            instance.get_character_object(character_id)
+        } else {
+            None
+        }
+    }
 }
