@@ -415,7 +415,7 @@ dependencies = [
 
 [[package]]
 name = "creator"
-version = "0.8.3"
+version = "0.8.5"
 dependencies = [
  "lazy_static",
  "open",
@@ -1906,7 +1906,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.8.3"
+version = "0.8.5"
 dependencies = [
  "lazy_static",
  "rand",
@@ -2053,9 +2053,9 @@ dependencies = [
 
 [[package]]
 name = "theframework"
-version = "0.1.17"
+version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d2d2173f99348d4e2e06ad6f24e175500d490cc688a54b64619e8aed09e215c"
+checksum = "1c8ed627b6a226d6e91fc81e5404499188f3465c3ac5b8c9646a78ec0903c651"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
