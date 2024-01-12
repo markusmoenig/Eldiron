@@ -67,22 +67,16 @@ impl Sidebar {
         let mut code_sectionbar_button = TheSectionbarButton::new(TheId::named("Code Section"));
         code_sectionbar_button.set_text("Code".to_string());
 
-        let mut icon_view: TheIconView = TheIconView::new(TheId::named("Global Icon Preview"));
-        icon_view.limiter_mut().set_max_size(vec2i(60, 60));
-        icon_view.set_alpha_mode(false);
-
         let mut vlayout = TheVLayout::new(TheId::named("Section Buttons"));
         vlayout.add_widget(Box::new(region_sectionbar_button));
         vlayout.add_widget(Box::new(character_sectionbar_button));
         vlayout.add_widget(Box::new(item_sectionbar_button));
         vlayout.add_widget(Box::new(tilemap_sectionbar_button));
         vlayout.add_widget(Box::new(code_sectionbar_button));
-        vlayout.add_widget(Box::new(icon_view));
         vlayout.set_margin(vec4i(5, 10, 5, 5));
         vlayout.set_padding(4);
         vlayout.set_background_color(Some(SectionbarBackground));
         vlayout.limiter_mut().set_max_width(90);
-        vlayout.set_reverse_index(Some(1));
         sectionbar_canvas.set_layout(vlayout);
 
         //
@@ -480,29 +474,6 @@ impl Sidebar {
                     self.apply_region(ui, ctx, project.get_region(&server_ctx.curr_region), server);
                 }
             }
-            TheEvent::TileSelectionChanged(id) => {
-                if id.name == "Tilemap Editor View" {
-                    // Selection changed in the tilemap editor
-                    if let Some(rgba_view) = ui
-                        .canvas
-                        .get_widget(Some(&"Tilemap Editor View".to_string()), None)
-                    {
-                        if let Some(rgba_view) = rgba_view.as_rgba_view() {
-                            let tile = rgba_view.selection_as_tile();
-
-                            if let Some(icon_view) = ui
-                                .canvas
-                                .get_widget(Some(&"Global Icon Preview".to_string()), None)
-                            {
-                                if let Some(icon_view) = icon_view.as_icon_view() {
-                                    icon_view.set_rgba_tile(tile);
-                                    redraw = true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
             // Tiles Add
             TheEvent::FileRequesterResult(id, paths) => {
                 if id.name == "Tilemap Add" {
@@ -737,7 +708,6 @@ impl Sidebar {
                                 .unwrap()
                                 .set_selection(FxHashSet::default());
                         }
-                        self.clear_global_preview(ui);
                     }
                 } else if id.name == "Tilemap Editor Add Selection" {
                     let mut clear_selection = false;
@@ -860,7 +830,6 @@ impl Sidebar {
                                     .set_selection(FxHashSet::default());
                             }
                         }
-                        self.clear_global_preview(ui);
                     }
                 }
                 // Section Buttons
@@ -877,8 +846,6 @@ impl Sidebar {
                         TheId::named("Set Region Panel"),
                         TheValue::Empty,
                     ));
-
-                    self.clear_global_preview(ui);
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Region;
 
@@ -906,7 +873,6 @@ impl Sidebar {
                         }
                     }
 
-                    self.clear_global_preview(ui);
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Character;
 
                     ctx.ui
@@ -928,7 +894,6 @@ impl Sidebar {
                         }
                     }
 
-                    self.clear_global_preview(ui);
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Item;
 
                     ctx.ui
@@ -955,7 +920,6 @@ impl Sidebar {
                         }
                     }
 
-                    self.clear_global_preview(ui);
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Tilemap;
 
                     ctx.ui
@@ -977,7 +941,6 @@ impl Sidebar {
                         }
                     }
 
-                    self.clear_global_preview(ui);
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Code;
 
                     ctx.ui
@@ -1023,6 +986,7 @@ impl Sidebar {
                 }
             }
             TheEvent::CodeBundleChanged(bundle, _) => {
+                ctx.ui.relayout = true;
                 if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
                     if let Some(character_instance) = server_ctx.curr_character_instance {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -1065,29 +1029,6 @@ impl Sidebar {
                                 redraw = true;
                             }
                         }
-                    }
-                }
-            }
-            TheEvent::Custom(id, _v) => {
-                if id.name == "Set Character Bundle" {
-                    // Character selection
-                    if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
-                        // In Region mode, we need to set the character bundle of the current character instance.
-                        if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                            if let Some(character) = region.characters.get(&id.uuid) {
-                                for grid in character.instance.grids.values() {
-                                    if grid.name == "init" {
-                                        CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
-                                        ctx.ui.send(TheEvent::Custom(
-                                            TheId::named("Set CodeGrid Panel"),
-                                            TheValue::Empty,
-                                        ));
-                                    }
-                                }
-                            }
-                        }
-                    } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
-                        // In Character mode, we need to set the character bundle of the current character.
                     }
                 }
             }
@@ -1289,14 +1230,6 @@ impl Sidebar {
                     canvas.set_bottom(code_list_canvas);
                 }
             }
-
-            // if let Some(browser) = ui.canvas.get_layout(Some(&"Browser".to_string()), None) {
-            //     if let Some(browser) = browser.as_tab_layout() {
-            //         browser.clear();
-            //         let code_editor_canvas: TheCanvas = CODEEDITOR.lock().unwrap().build_canvas(ctx);
-            //         browser.add_canvas(code.name.clone(), code_editor_canvas);
-            //     }
-            // }
         } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
             if let Some(canvas) = stack_layout.canvas_at_mut(4) {
                 let mut empty = TheCanvas::new();
@@ -1594,18 +1527,6 @@ impl Sidebar {
         if let Some(layout) = ui.canvas.get_layout(Some(&layout_name.to_string()), None) {
             if let Some(list_layout) = layout.as_list_layout() {
                 list_layout.deselect_all();
-            }
-        }
-    }
-
-    /// Clears the global preview area.
-    pub fn clear_global_preview(&mut self, ui: &mut TheUI) {
-        if let Some(icon_view) = ui
-            .canvas
-            .get_widget(Some(&"Global Icon Preview".to_string()), None)
-        {
-            if let Some(icon_view) = icon_view.as_icon_view() {
-                icon_view.set_rgba_tile(TheRGBATile::new());
             }
         }
     }

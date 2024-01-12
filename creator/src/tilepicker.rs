@@ -168,6 +168,9 @@ impl TilePicker {
         let redraw = false;
 
         match event {
+            TheEvent::Resize => {
+                self.set_tiles(project.extract_tiles_vec(), ui, ctx);
+            }
             TheEvent::TilePicked(id, pos) => {
                 if id.name == self.make_id(" RGBA Layout View") {
                     if let Some(tile_id) = self.tile_ids.get(&(pos.x, pos.y)) {

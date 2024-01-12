@@ -1,4 +1,4 @@
-use crate::editor::SIDEBARMODE;
+use crate::editor::{CODEEDITOR, SIDEBARMODE};
 use crate::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -377,10 +377,24 @@ impl TileEditor {
                     if let Some(c) = server.get_character_at(server_ctx.curr_region, *coord) {
                         server_ctx.curr_character_instance = Some(c.0);
                         server_ctx.curr_character = Some(c.1);
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named_with_id("Set Character Bundle", c.0),
-                            TheValue::Empty,
-                        ));
+                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
+                            // In Region mode, we need to set the character bundle of the current character instance.
+                            if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                                if let Some(character) = region.characters.get(&c.0) {
+                                    for grid in character.instance.grids.values() {
+                                        if grid.name == "init" {
+                                            CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                            ctx.ui.send(TheEvent::Custom(
+                                                TheId::named("Set CodeGrid Panel"),
+                                                TheValue::Empty,
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                        } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                            // In Character mode, we need to set the character bundle of the current character.
+                        }
                     } else if let Some(region) = project.get_region(&server_ctx.curr_region) {
                         server_ctx.curr_character_instance = None;
                         if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {

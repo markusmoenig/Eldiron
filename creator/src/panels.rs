@@ -118,9 +118,12 @@ impl Panels {
                     let mut shared_left = true;
 
                     if let Some(character) = server_ctx.curr_character_instance {
+
+                        // Code Object
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 0));
 
+                        // If in Pick mode show the instance
                         if self.get_editor_group_index(ui) == 1 {
                             ctx.ui
                                 .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
