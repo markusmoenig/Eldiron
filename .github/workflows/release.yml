@@ -79,7 +79,7 @@ jobs:
           pkg-config --libs --cflags alsa
           sudo apt-get install libgtk-3-dev
           cd creator
-          cargo bundle --release --features linux_release
+          cargo bundle --release
           cd ..
           mv target/release/bundle/deb/*.deb Eldiron.deb
 
