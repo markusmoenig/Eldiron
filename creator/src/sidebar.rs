@@ -21,13 +21,6 @@ pub struct Sidebar {
 #[allow(clippy::new_without_default)]
 impl Sidebar {
     pub fn new() -> Self {
-        let mut code_editor = TheCodeEditor::new();
-
-        code_editor.add_external(TheExternalCode::new(
-            "RandWalk".to_string(),
-            "Moves the character in a random direction.".to_string(),
-        ));
-
         Self {
             width: 380,
 
@@ -670,7 +663,10 @@ impl Sidebar {
                     ctx.ui.open_file_requester(
                         TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                         "Open".into(),
-                        TheFileExtension::new("PNG Image".into(), vec!["PNG".to_string()]),
+                        TheFileExtension::new(
+                            "PNG Image".into(),
+                            vec!["png".to_string(), "PNG".to_string()],
+                        ),
                     );
                     ctx.ui
                         .set_widget_state("Tilemap Add".to_string(), TheWidgetState::None);
@@ -693,6 +689,7 @@ impl Sidebar {
 
                             TILEMAPEDITOR.lock().unwrap().set_tilemap(t, ui, ctx);
                             self.apply_tilemap(ui, ctx, Some(t));
+                            ctx.ui.relayout = true;
                         }
                     }
                     redraw = true;
@@ -841,7 +838,6 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Regions".to_string()));
                     }
 
-
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Set Region Panel"),
                         TheValue::Empty,
@@ -956,8 +952,7 @@ impl Sidebar {
                         if let Some(code_view) = layout.code_view_mut().as_code_view() {
                             let grid = code_view.codegrid_mut();
 
-                            let mut compiler = TheCompiler::new();
-                            let rc = compiler.compile(grid);
+                            let rc = server.compiler().compile(grid);
 
                             if let Ok(_module) = rc {
                                 let bundle: TheCodeBundle = CODEEDITOR.lock().unwrap().get_bundle();

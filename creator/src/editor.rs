@@ -192,7 +192,8 @@ impl TheTrait for Editor {
             }
             if self.server.state == ServerState::Running {
                 self.server.tick();
-                self.panels.update_code_object(ui, ctx, &mut self.server, &mut self.server_ctx);
+                self.panels
+                    .update_code_object(ui, ctx, &mut self.server, &mut self.server_ctx);
             }
             if self.server_ctx.curr_character_instance.is_some() {
                 let debug = self.server.get_region_debug_codegrid(

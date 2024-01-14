@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use theframework::*;
 
 pub mod editor;

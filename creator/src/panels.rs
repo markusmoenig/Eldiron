@@ -6,13 +6,24 @@ pub struct Panels {}
 #[allow(clippy::new_without_default)]
 impl Panels {
     pub fn new() -> Self {
-        CODEEDITOR
-            .lock()
-            .unwrap()
-            .add_external(TheExternalCode::new(
-                "RandWalk".to_string(),
-                "Moves the character in a random direction.".to_string(),
-            ));
+        let mut codeeditor = CODEEDITOR.lock().unwrap();
+
+        codeeditor.add_external(TheExternalCode::new(
+            "RandWalk".to_string(),
+            "Moves the character in a random direction.".to_string(),
+            vec![],
+            vec![],
+            None,
+        ));
+
+        codeeditor.add_external(TheExternalCode::new(
+            "Pulse".to_string(),
+            "Counts up to a certain value and returns true on completion. Then restarts."
+                .to_string(),
+            vec!["Count to".to_string()],
+            vec![TheValue::Int(4)],
+            Some(TheValue::Bool(false)),
+        ));
 
         Self {}
     }
@@ -118,7 +129,6 @@ impl Panels {
                     let mut shared_left = true;
 
                     if let Some(character) = server_ctx.curr_character_instance {
-
                         // Code Object
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 0));
@@ -136,7 +146,11 @@ impl Panels {
                                 shared_left = false;
                             }
 
-                            if let Some((name, _)) = server.get_character_property(server_ctx.curr_region, character, "name".into()) {
+                            if let Some((name, _)) = server.get_character_property(
+                                server_ctx.curr_region,
+                                character,
+                                "name".into(),
+                            ) {
                                 if let Some(text) = ui.get_text("Panel Object Text") {
                                     text.set_text(name.describe());
                                 }
@@ -195,7 +209,9 @@ impl Panels {
             list.clear();
 
             if let Some(character_id) = server_ctx.curr_character_instance {
-                if let Some((object, _)) = server.get_character_object(server_ctx.curr_region, character_id) {
+                if let Some((object, _)) =
+                    server.get_character_object(server_ctx.curr_region, character_id)
+                {
                     for (name, value) in object.values {
                         let mut item = TheListItem::new(TheId::empty());
                         item.set_text(name);
@@ -203,7 +219,6 @@ impl Panels {
 
                         list.add_item(item, ctx);
                     }
-
                 }
             }
             /*

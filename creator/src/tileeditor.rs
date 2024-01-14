@@ -383,7 +383,10 @@ impl TileEditor {
                                 if let Some(character) = region.characters.get(&c.0) {
                                     for grid in character.instance.grids.values() {
                                         if grid.name == "init" {
-                                            CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                            CODEEDITOR
+                                                .lock()
+                                                .unwrap()
+                                                .set_codegrid(grid.clone(), ui);
                                             ctx.ui.send(TheEvent::Custom(
                                                 TheId::named("Set CodeGrid Panel"),
                                                 TheValue::Empty,

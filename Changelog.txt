@@ -1,0 +1,11 @@
+v 0.8.7
+-------
+
+- Adjusted to the new external functions API of TheFramework.
+- Fixed mouse wheel based scrolling under Windows and Linux.
+- Fixed the filerequester under Linux to accept PNG images (Add Tilemap).
+
+v 0.8.6
+-------
+
+First release with the new codebase.

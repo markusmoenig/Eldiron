@@ -6,6 +6,7 @@ use theframework::prelude::*;
 pub mod context;
 pub mod region_instance;
 pub mod world;
+pub mod functions;
 
 pub mod prelude {
     pub use super::context::ServerContext;
@@ -56,11 +57,14 @@ impl Default for Server {
 
 impl Server {
     pub fn new() -> Self {
+        let mut compiler: TheCompiler = TheCompiler::default();
+        functions::add_compiler_functions(&mut compiler);
+
         Self {
             state: ServerState::Stopped,
 
             project: Project::default(),
-            compiler: TheCompiler::new(),
+            compiler,
 
             instances: FxHashMap::default(),
 
@@ -71,6 +75,11 @@ impl Server {
 
             anim_counter: 0,
         }
+    }
+
+    /// Returns a mutable reference to the compiler.
+    pub fn compiler(&mut self) -> &mut TheCompiler {
+        &mut self.compiler
     }
 
     /// Sets the current project. Resets the server.
