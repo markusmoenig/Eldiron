@@ -58,15 +58,16 @@ impl TheTrait for Editor {
 
     #[cfg(not(target_os = "macos"))]
     fn window_icon(&self) -> Option<(Vec<u8>, u32, u32)> {
-        let image =
-            image_rs::load_from_memory(include_bytes!("../../build/windows/Eldiron.ico")).unwrap();
+        if let Some(image) = image_rs::load_from_memory(include_bytes!("../../build/windows/Eldiron.ico")) {
+            let image = image.into_rgba8();
 
-        let image = image.into_rgba8();
+            let (width, height) = image.dimensions();
 
-        let (width, height) = image.dimensions();
-
-        let icon = (image.into_raw(), width, height);
-        Some(icon)
+            let icon = (image.into_raw(), width, height);
+            Some(icon)
+        } else {
+            None
+        }
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {

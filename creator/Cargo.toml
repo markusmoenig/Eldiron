@@ -25,8 +25,8 @@ image_rs = { version = "0.24.8", package = "image" }
 name = "Eldiron"
 identifier = "com.moenig.eldiron"
 icon = ["../build/Eldiron.icns"]
-resources = ["../assets", "../game", "../resources"]
-copyright = "Copyright (c) Markus Moenig 2023. All rights reserved."
+resources = []
+copyright = "Copyright (c) Markus Moenig 2024. All rights reserved."
 category = "Game"
 short_description = "A game creator for retro RPGs."
 long_description = """
