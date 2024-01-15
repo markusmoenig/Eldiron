@@ -427,7 +427,7 @@ dependencies = [
 
 [[package]]
 name = "creator"
-version = "0.8.5"
+version = "0.8.7"
 dependencies = [
  "image",
  "lazy_static",
@@ -2011,7 +2011,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.8.5"
+version = "0.8.7"
 dependencies = [
  "lazy_static",
  "rand",

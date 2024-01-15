@@ -509,6 +509,10 @@ impl TileEditor {
                         server_ctx.curr_character_instance = Some(id.uuid);
                         server_ctx.curr_character = Some(character_id);
 
+                        if let Some(button) = ui.get_group_button("Editor Group") {
+                            button.set_index(1);
+                        }
+
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Set Region Panel"),
                             TheValue::Empty,
@@ -600,30 +604,51 @@ impl TileEditor {
     fn set_icon_previews(&mut self, region: &mut Region, coord: Vec2i, ui: &mut TheUI) {
         // Ground Icon Preview
         if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
+
+            // Ground
+            let mut success = false;
             if let Some(ground) = tile.layers[0] {
                 if let Some(tile) = self.tiledrawer.tiles.get(&ground) {
                     if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
                         icon_view.set_rgba_tile(tile.clone());
+                        success = true;
                     }
-                } else if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
+                }
+            }
+            if !success {
+                if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
                     icon_view.set_rgba_tile(TheRGBATile::default());
                 }
             }
+
+            // Wall
+            success = false;
             if let Some(wall) = tile.layers[1] {
                 if let Some(tile) = self.tiledrawer.tiles.get(&wall) {
                     if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
                         icon_view.set_rgba_tile(tile.clone());
+                        success = true;
                     }
-                } else if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
+                }
+            }
+            if !success {
+                if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
                     icon_view.set_rgba_tile(TheRGBATile::default());
                 }
             }
+
+            // Ceiling
+            success = false;
             if let Some(ceiling) = tile.layers[2] {
                 if let Some(tile) = self.tiledrawer.tiles.get(&ceiling) {
                     if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
                         icon_view.set_rgba_tile(tile.clone());
+                        success = true;
                     }
-                } else if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
+                }
+            }
+            if !success {
+                if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
                     icon_view.set_rgba_tile(TheRGBATile::default());
                 }
             }

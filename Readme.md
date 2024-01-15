@@ -17,7 +17,7 @@ Eldiron is currently under active development and a v1 is planned for the first 
 
 I am in the process of rewriting Eldiron, the current release on GitHub still reflects the old code base. The first release for the new code base (v0.85) will come soon.
 
-![Screenshot](images/character.png)
+![Screenshot](images/character_screenshot.png)
 ![Screenshot](images/tilemap.png)
 
 ## Features of v1
