@@ -21,8 +21,8 @@
         <UI>
             <UIRef Id="WixUI_InstallDir"/>
             <Publish Dialog="ExitDialog"
-                     Control="Finish" 
-                     Event="DoAction" 
+                     Control="Finish"
+                     Event="DoAction"
                      Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
         </UI>
 
@@ -69,13 +69,13 @@
             <ComponentRef Id="EldironExe"/>
             <ComponentRef Id="Shortcut"/>
             <ComponentRef Id="ModifyPathEnv"/>
-            <ComponentGroupRef Id="Resources"/>
+            <!-- <ComponentGroupRef Id="Resources"/> -->
         </Feature>
     </Product>
 
-    <Fragment>
+    <!-- <Fragment>
         <ComponentGroup Id="Resources" Directory="INSTALLDIR">
             <ComponentGroupRef Id="DynamicFragment" />
         </ComponentGroup>
-    </Fragment>
+    </Fragment> -->
 </Wix>
