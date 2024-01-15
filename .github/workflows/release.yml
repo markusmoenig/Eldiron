@@ -25,9 +25,6 @@ jobs:
         run: |
           mkdir output
           mv target/release/creator output/creator
-          cp -r assets output
-          cp -r game output
-          cp -r resources output
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -51,9 +48,6 @@ jobs:
         run: |
           mkdir output
           mv target/release/creator.exe output/creator.exe
-          cp -r assets output
-          cp -r game output
-          cp -r resources output
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -109,9 +103,6 @@ jobs:
         run: |
           mkdir output
           mv creator.exe eldiron.exe
-          cp -r assets output
-          cp -r game output
-          cp -r resources output
 
       - name: Install WiX
         run: nuget install WiX -Version 3.11.2
