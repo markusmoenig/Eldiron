@@ -52,19 +52,20 @@ impl TheTrait for Editor {
         }
     }
 
-    fn window_title(&self) -> String {
-        "Eldiron Creator".to_string()
-    }
-
-    #[cfg(not(target_os = "macos"))]
     fn window_icon(&self) -> Option<(Vec<u8>, u32, u32)> {
-        if let Some(image) = image_rs::load_from_memory(include_bytes!("../../build/windows/Eldiron.ico")) {
-            let image = image.into_rgba8();
+        if let Some(file) = Embedded::get("window_logo.png") {
+            let data = std::io::Cursor::new(file.data);
 
-            let (width, height) = image.dimensions();
+            let decoder = png::Decoder::new(data);
+            if let Ok(mut reader) = decoder.read_info() {
+                let mut buf = vec![0; reader.output_buffer_size()];
+                let info = reader.next_frame(&mut buf).unwrap();
+                let bytes = &buf[..info.buffer_size()];
 
-            let icon = (image.into_raw(), width, height);
-            Some(icon)
+                Some((bytes.to_vec(), info.width, info.height))
+            } else {
+                None
+            }
         } else {
             None
         }
