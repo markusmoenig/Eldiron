@@ -7,15 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		DD219B7829741D5000E978F5 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = DD219B7729741D5000E978F5 /* assets */; };
-		DD219B7929741D5000E978F5 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = DD219B7729741D5000E978F5 /* assets */; };
-		DD219B7A29741D5000E978F5 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = DD219B7729741D5000E978F5 /* assets */; };
-		DD219B7C29741D8500E978F5 /* game in Resources */ = {isa = PBXBuildFile; fileRef = DD219B7B29741D8500E978F5 /* game */; };
-		DD219B7D29741D8500E978F5 /* game in Resources */ = {isa = PBXBuildFile; fileRef = DD219B7B29741D8500E978F5 /* game */; };
-		DD219B7E29741D8500E978F5 /* game in Resources */ = {isa = PBXBuildFile; fileRef = DD219B7B29741D8500E978F5 /* game */; };
-		DD219B8029741D9B00E978F5 /* resources in Resources */ = {isa = PBXBuildFile; fileRef = DD219B7F29741D9B00E978F5 /* resources */; };
-		DD219B8129741D9B00E978F5 /* resources in Resources */ = {isa = PBXBuildFile; fileRef = DD219B7F29741D9B00E978F5 /* resources */; };
-		DD219B8229741D9B00E978F5 /* resources in Resources */ = {isa = PBXBuildFile; fileRef = DD219B7F29741D9B00E978F5 /* resources */; };
 		DD219B832975298400E978F5 /* librustapi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DD219B7529741C3900E978F5 /* librustapi.a */; };
 		DD219B8529752AE300E978F5 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD219B8429752AE300E978F5 /* AudioToolbox.framework */; };
 		DD219B8729752B1100E978F5 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD219B8629752B1100E978F5 /* CoreAudio.framework */; };
@@ -72,9 +63,6 @@
 		DD219B7229741B3800E978F5 /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapi.a; path = ../../target/release/librustapi.a; sourceTree = "<group>"; };
 		DD219B7429741BF800E978F5 /* librustapi.d */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.dtrace; name = librustapi.d; path = ../../target/release/librustapi.d; sourceTree = "<group>"; };
 		DD219B7529741C3900E978F5 /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = librustapi.a; sourceTree = "<group>"; };
-		DD219B7729741D5000E978F5 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = ../../../assets; sourceTree = "<group>"; };
-		DD219B7B29741D8500E978F5 /* game */ = {isa = PBXFileReference; lastKnownFileType = folder; name = game; path = ../../../game; sourceTree = "<group>"; };
-		DD219B7F29741D9B00E978F5 /* resources */ = {isa = PBXFileReference; lastKnownFileType = folder; name = resources; path = ../../../resources; sourceTree = "<group>"; };
 		DD219B8429752AE300E978F5 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 		DD219B8629752B1100E978F5 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
 		DD219B88297672ED00E978F5 /* Keycodes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keycodes.swift; sourceTree = "<group>"; };
@@ -165,9 +153,6 @@
 		DD5FD0F828FBD15A00853829 /* Eldiron Shared */ = {
 			isa = PBXGroup;
 			children = (
-				DD219B7F29741D9B00E978F5 /* resources */,
-				DD219B7B29741D8500E978F5 /* game */,
-				DD219B7729741D5000E978F5 /* assets */,
 				DD5FD0FA28FBD15A00853829 /* Renderer.swift */,
 				DD5B037C290E90B3003F7C12 /* MetalStates.swift */,
 				DD976A9B290E65DA007131BA /* Bridge.h */,
@@ -314,7 +299,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1400;
-				LastUpgradeCheck = 1400;
+				LastUpgradeCheck = 1520;
 				TargetAttributes = {
 					DD5FD10028FBD15B00853829 = {
 						CreatedOnToolsVersion = 14.0.1;
@@ -352,10 +337,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DD219B7829741D5000E978F5 /* assets in Resources */,
 				DD5FD13228FBD15C00853829 /* Metal.h in Resources */,
-				DD219B8029741D9B00E978F5 /* resources in Resources */,
-				DD219B7C29741D8500E978F5 /* game in Resources */,
 				DD5FD10A28FBD15B00853829 /* Main.storyboard in Resources */,
 				DD5FD13528FBD15C00853829 /* Assets.xcassets in Resources */,
 				DD5FD10D28FBD15B00853829 /* LaunchScreen.storyboard in Resources */,
@@ -366,10 +348,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DD219B7929741D5000E978F5 /* assets in Resources */,
 				DD5FD13328FBD15C00853829 /* Metal.h in Resources */,
-				DD219B8129741D9B00E978F5 /* resources in Resources */,
-				DD219B7D29741D8500E978F5 /* game in Resources */,
 				DD5FD11A28FBD15B00853829 /* Main.storyboard in Resources */,
 				DD5FD13628FBD15C00853829 /* Assets.xcassets in Resources */,
 				DD5FD11D28FBD15B00853829 /* LaunchScreen.storyboard in Resources */,
@@ -381,10 +360,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DD5FD12A28FBD15C00853829 /* Main.storyboard in Resources */,
-				DD219B7A29741D5000E978F5 /* assets in Resources */,
-				DD219B7E29741D8500E978F5 /* game in Resources */,
 				DD5FD13728FBD15C00853829 /* Assets.xcassets in Resources */,
-				DD219B8229741D9B00E978F5 /* resources in Resources */,
 				DD5FD13428FBD15C00853829 /* Metal.h in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -525,9 +501,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -583,9 +561,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -754,6 +734,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = G6R6L3VH62;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -773,7 +754,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
-				MARKETING_VERSION = 0.81;
+				MARKETING_VERSION = 0.87;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.moenig.eldiron;
 				PRODUCT_NAME = Eldiron;
@@ -794,6 +775,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = G6R6L3VH62;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -813,7 +795,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
-				MARKETING_VERSION = 0.81;
+				MARKETING_VERSION = 0.87;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.moenig.eldiron;
 				PRODUCT_NAME = Eldiron;

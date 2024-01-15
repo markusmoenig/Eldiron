@@ -29,3 +29,7 @@ short_description = "A game creator for retro RPGs."
 long_description = """
 Create retro RPGs with Eldiron.
 """
+
+# [lib]
+# name = "rustapi"
+# crate-type = ["staticlib"]

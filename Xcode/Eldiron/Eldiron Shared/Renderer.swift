@@ -40,11 +40,8 @@ class Renderer: NSObject, MTKViewDelegate {
     init(metalKitView: RMTKView) {
         self.view = metalKitView
         self.device = metalKitView.device
-        
-        let resourceDir = Bundle.main.resourceURL!.path
-        let file = File()
-        
-        rust_init(resourceDir, file.containerUrl!.path)
+                
+        rust_init()
         
         #if os(OSX)
         scaleFactor = Float(NSScreen.main!.backingScaleFactor)
@@ -98,6 +95,8 @@ class Renderer: NSObject, MTKViewDelegate {
     
     func draw(in view: MTKView) {
         
+        rust_update()
+
         checkTexture()
         //print(screenWidth, screenHeight)
         guard let drawable = view.currentDrawable else {
