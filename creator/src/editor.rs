@@ -52,6 +52,10 @@ impl TheTrait for Editor {
         }
     }
 
+    fn window_title(&self) -> String {
+        "Eldiron Creator".to_string()
+    }
+
     fn window_icon(&self) -> Option<(Vec<u8>, u32, u32)> {
         if let Some(file) = Embedded::get("window_logo.png") {
             let data = std::io::Cursor::new(file.data);
