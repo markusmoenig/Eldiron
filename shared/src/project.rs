@@ -1,6 +1,16 @@
 use crate::prelude::*;
 use theframework::prelude::*;
 
+/// The default target fps for the game.
+fn default_target_fps() -> u32 {
+    30
+}
+
+/// The default ms per tick for the game.
+fn default_tick_ms() -> u32 {
+    250
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Project {
     pub name: String,
@@ -13,6 +23,12 @@ pub struct Project {
     pub items: FxHashMap<Uuid, TheCodeBundle>,
     #[serde(default)]
     pub codes: FxHashMap<Uuid, TheCodeBundle>,
+
+    #[serde(default = "default_target_fps")]
+    pub target_fps: u32,
+
+    #[serde(default = "default_tick_ms")]
+    pub tick_ms: u32,
 }
 
 impl Default for Project {
@@ -32,6 +48,9 @@ impl Project {
             characters: FxHashMap::default(),
             items: FxHashMap::default(),
             codes: FxHashMap::default(),
+
+            target_fps: default_target_fps(),
+            tick_ms: default_tick_ms(),
         }
     }
 

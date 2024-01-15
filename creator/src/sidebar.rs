@@ -1362,10 +1362,15 @@ impl Sidebar {
         }
 
         if let Some(region) = region {
+            if let Some(zoom) = ui.get_widget("Region Editor Zoom") {
+                zoom.set_value(TheValue::Float(region.zoom));
+            }
             if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
                 if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                    rgba.set_zoom(region.zoom);
                     rgba.set_grid(Some(region.grid_size));
                 }
+                rgba_layout.scroll_to(region.scroll_offset);
             }
         }
     }

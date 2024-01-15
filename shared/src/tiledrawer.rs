@@ -99,7 +99,37 @@ impl TileDrawer {
             ctx.draw.blend_slice(
                 buffer.pixels_mut(),
                 data.buffer[anim_counter % data.buffer.len()].pixels(),
-                &(x, y, 24, 24),
+                &(x, y, grid as usize, grid as usize),
+                stride,
+            );
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn draw_tile_at_pixel(
+        &self,
+        at: Vec2i,
+        buffer: &mut TheRGBABuffer,
+        tile: Uuid,
+        anim_counter: &usize,
+        ctx: &mut TheContext,
+    ) -> bool {
+        if let Some(data) = self.tiles.get(&tile) {
+            let off = anim_counter % data.buffer.len();
+            let x = at.x as usize;
+            let y = at.y as usize;
+            let stride = buffer.stride();
+            ctx.draw.blend_slice(
+                buffer.pixels_mut(),
+                data.buffer[off].pixels(),
+                &(
+                    x,
+                    y,
+                    data.buffer[off].dim().width as usize,
+                    data.buffer[off].dim().height as usize,
+                ),
                 stride,
             );
             true
@@ -118,6 +148,20 @@ impl TileDrawer {
     ) {
         let x = (at.x * grid) as usize;
         let y = (at.y * grid) as usize;
+        let stride = buffer.stride();
+        ctx.draw
+            .rect_outline(buffer.pixels_mut(), &(x, y, 24, 24), stride, &color);
+    }
+
+    pub fn draw_tile_outline_at_pixel(
+        &self,
+        at: Vec2i,
+        buffer: &mut TheRGBABuffer,
+        color: [u8; 4],
+        ctx: &mut TheContext,
+    ) {
+        let x = at.x as usize;
+        let y = at.y as usize;
         let stride = buffer.stride();
         ctx.draw
             .rect_outline(buffer.pixels_mut(), &(x, y, 24, 24), stride, &color);

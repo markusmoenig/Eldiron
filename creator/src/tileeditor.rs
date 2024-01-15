@@ -489,6 +489,9 @@ impl TileEditor {
             TheEvent::ValueChanged(id, value) => {
                 if id.name == "Region Editor Zoom" {
                     if let Some(v) = value.to_f32() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.zoom = v;
+                        }
                         if let Some(layout) = ui.get_rgba_layout("Region Editor") {
                             layout.set_zoom(v);
                             layout.relayout(ctx);
@@ -513,6 +516,9 @@ impl TileEditor {
 
                         if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
                             rgba_layout.scroll_to_grid(vec2i(p.x as i32, p.y as i32));
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                region.scroll_offset = vec2i(p.x as i32 * region.grid_size, p.y as i32 * region.grid_size);
+                            }
                         }
                     }
                 }
@@ -536,6 +542,7 @@ impl TileEditor {
                                         rgba_view.set_grid(Some(r.grid_size));
                                         ctx.ui.relayout = true;
                                     }
+                                    rgba_layout.scroll_to(r.scroll_offset);
                                 }
                             }
                             if let Some(widget) = ui.get_widget("RenderView") {

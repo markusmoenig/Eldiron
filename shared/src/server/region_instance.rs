@@ -1,5 +1,6 @@
+use super::prelude::*;
 use crate::prelude::*;
-use crate::server::REGIONS;
+use crate::server::{REGIONS, UPDATES};
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -17,6 +18,9 @@ pub struct RegionInstance {
     /// For fast lookups an array of (character_instance_id, character_id) tuples.
     #[serde(skip)]
     characters_ids: Vec<(Uuid, Uuid)>,
+
+    redraw_ms: u32,
+    tick_ms: u32,
 }
 
 impl Default for RegionInstance {
@@ -37,13 +41,19 @@ impl RegionInstance {
             characters: FxHashMap::default(),
             characters_instances: FxHashMap::default(),
             characters_ids: vec![],
+
+            redraw_ms: 1000 / 30,
+            tick_ms: 250,
         }
     }
 
     /// Sets up the region instance.
-    pub fn setup(&mut self, id: Uuid, _project: &Project) {
+    pub fn setup(&mut self, id: Uuid, project: &Project) {
         self.id = id;
         self.sandbox.id = id;
+
+        self.tick_ms = project.tick_ms;
+        self.redraw_ms = 1000 / project.target_fps;
     }
 
     /// Tick. Compute the next frame.
@@ -56,9 +66,9 @@ impl RegionInstance {
                 .aliases
                 .insert("self".to_string(), *instance_id);
 
-            if let Some(instance) = self.characters_instances.get_mut(instance_id) {
-                instance.execute("main".to_string(), &mut self.sandbox);
-            }
+            // if let Some(instance) = self.characters_instances.get_mut(instance_id) {
+            //     instance.execute("main".to_string(), &mut self.sandbox);
+            // }
 
             if let Some(instance) = self.characters.get_mut(character_id) {
                 instance.execute("main".to_string(), &mut self.sandbox);
@@ -106,9 +116,81 @@ impl RegionInstance {
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
     ) {
+        let delta = self.redraw_ms as f32 / self.tick_ms as f32;
+
         if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
+            let grid_size = region.grid_size as f32;
+
             tiledrawer.draw_region(buffer, region, anim_counter, ctx);
 
+            if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
+                for (id, character) in &mut update.characters{
+
+                    let draw_pos = if let Some((start, end)) = &mut character.moving {
+
+                        // pub fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
+                        //     let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
+                        //     t * t * (3.0 - 2.0 * t)
+                        // }
+
+                        let sum = (delta + character.move_delta).clamp(0.0, 1.0);
+                        //let d = smoothstep(0.0, 1.0, sum);//.clamp(0.0, 1.0);
+                        let d = if sum < 0.5 {
+                            2.0 * sum * sum
+                        } else {
+                            1.0 - (-2.0 * sum + 2.0).powi(2) / 2.0
+                        };
+                        let x = start.x * (1.0 - d) + end.x * d;
+                        let y = start.y * (1.0 - d) + end.y * d;
+                        character.move_delta = sum;
+                        vec2i((x * grid_size).round() as i32, (y * grid_size).round() as i32)
+                    } else {
+                        vec2i((character.position.x * grid_size) as i32, (character.position.y * grid_size) as i32)
+                    };
+
+                    //println!("moving: {:?}", draw_pos);
+
+                    if !tiledrawer.draw_tile_at_pixel(
+                        draw_pos,
+                        buffer,
+                        character.tile_id,
+                        anim_counter,
+                        ctx,
+                    ) {
+                        if let Some(found_id) =
+                            tiledrawer.get_tile_id_by_name(character.tile_name.clone())
+                        {
+                            character.tile_id = found_id;
+                            tiledrawer.draw_tile_at_pixel(
+                                draw_pos,
+                                buffer,
+                                found_id,
+                                anim_counter,
+                                ctx,
+                            );
+                        } else {
+                            //println!("RegionInstance::draw: Tile not found: {}", name);
+                        }
+                    }
+
+                    if Some(*id) == server_ctx.curr_character_instance {
+                        tiledrawer.draw_tile_outline_at_pixel(
+                            draw_pos,
+                            buffer,
+                            WHITE,
+                            ctx,
+                        );
+                    } else if Some(*id) == server_ctx.curr_character {
+                        tiledrawer.draw_tile_outline_at_pixel(
+                            draw_pos,
+                            buffer,
+                            [128, 128, 128, 255],
+                            ctx,
+                        );
+                    }
+                }
+            }
+            /*
             for c in self.sandbox.objects.values_mut() {
                 if let Some(TheValue::Position(p)) = c.get(&"position".into()).cloned() {
                     if let Some(TheValue::Tile(name, id)) = c.get_mut(&"tile".into()) {
@@ -160,7 +242,7 @@ impl RegionInstance {
                         );
                     }
                 }
-            }
+            }*/
         }
     }
 
@@ -227,6 +309,25 @@ impl RegionInstance {
         }
 
         package.execute("init".to_string(), &mut self.sandbox);
+
+        // Add the character to the update struct.
+        if let Some(object) = self.sandbox.objects.get_mut(&character.id) {
+            let mut character_update = CharacterUpdate::new();
+            if let Some(TheValue::Position(p)) = object.get(&"position".into()) {
+                character_update.position = vec2f(p.x, p.y);
+            }
+            if let Some(TheValue::Text(t)) = object.get(&"name".into()) {
+                character_update.name = t.clone();
+            }
+            if let Some(TheValue::Tile(name, id)) = object.get_mut(&"tile".into()) {
+                character_update.tile_name = name.clone();
+                character_update.tile_id = *id;
+            }
+
+            if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
+                update.characters.insert(character.id, character_update);
+            }
+        }
 
         self.characters_ids
             .push((character.id, character.character_id));

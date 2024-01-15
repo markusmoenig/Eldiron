@@ -52,8 +52,21 @@ impl TheTrait for Editor {
         }
     }
 
-    fn window_title(&mut self) -> String {
+    fn window_title(&self) -> String {
         "Eldiron Creator".to_string()
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn window_icon(&self) -> Option<(Vec<u8>, u32, u32)> {
+        let image =
+            image_rs::load_from_memory(include_bytes!("../../build/windows/Eldiron.ico")).unwrap();
+
+        let image = image.into_rgba8();
+
+        let (width, height) = image.dimensions();
+
+        let icon = (image.into_raw(), width, height);
+        Some(icon)
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -176,7 +189,11 @@ impl TheTrait for Editor {
         let mut redraw = false;
         let mut update_server_icons = false;
 
-        if self.update_tracker.update(250) {
+        let (redraw_update, tick_update) = self
+            .update_tracker
+            .update((1000 / self.project.target_fps) as u64, self.project.tick_ms as u64);
+
+        if tick_update {
             // Update the widgets which have anims (if they are visible)
             if let Some(icon_view) = ui.get_widget("Global Icon Preview") {
                 if let Some(icon_view) = icon_view.as_icon_view() {
@@ -202,8 +219,12 @@ impl TheTrait for Editor {
                 );
                 CODEEDITOR.lock().unwrap().set_debug_module(debug, ui);
             }
+        }
+
+        if redraw_update {
             self.tileeditor
                 .redraw_region(ui, &mut self.server, ctx, &self.server_ctx);
+            redraw = true;
         }
 
         if let Some(receiver) = &mut self.event_receiver {

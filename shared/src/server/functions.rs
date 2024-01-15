@@ -1,14 +1,14 @@
 use crate::prelude::*;
+use crate::server::{REGIONS, RNG, TILES, UPDATES};
 use theframework::prelude::*;
-use crate::server::{REGIONS, TILES, RNG};
 
 pub fn add_compiler_functions(compiler: &mut TheCompiler) {
-
     // RandWalk
     compiler.add_external_call(
         "RandWalk".to_string(),
-        |_stack, data, sandbox| {
-            if let Some(region) = REGIONS.read().unwrap().get(&sandbox.id) {
+        |stack, data, sandbox| {
+            let region_id = sandbox.id;
+            if let Some(region) = REGIONS.read().unwrap().get(&region_id) {
                 if let Some(object) = sandbox.get_self_mut() {
                     if let Some(TheValue::Position(p)) = object.get_mut(&"position".into()) {
                         let mut x = p.x;
@@ -27,33 +27,42 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                         }
 
                         if region.can_move_to(vec3f(x, y, p.z), &TILES.read().unwrap()) {
+                            let old_position = *p;
+
                             *p = vec3f(x, y, p.z);
-                            if sandbox.debug_mode {
-                                sandbox.set_debug_value(
-                                    data.location,
-                                    (None, TheValue::Bool(true)),
-                                );
+
+                            if let Some(update) = UPDATES.write().unwrap().get_mut(&region_id) {
+                                if let Some(cu) = update.characters.get_mut(&object.id) {
+                                    cu.position = vec2f(x, y);
+                                    cu.moving = Some((old_position.xy(), cu.position));
+                                    cu.move_delta = 0.0;
+                                }
                             }
+
+                            if sandbox.debug_mode {
+                                sandbox
+                                    .set_debug_value(data.location, (None, TheValue::Bool(true)));
+                            }
+                            if !data.sub_functions.is_empty() {
+                                _ = data.sub_functions[0].execute(sandbox).pop();
+                            }
+                            stack.push(TheValue::Bool(true));
                         } else if sandbox.debug_mode {
-                            sandbox.set_debug_value(
-                                data.location,
-                                    (None, TheValue::Bool(false)),
-                            );
+                            sandbox.set_debug_value(data.location, (None, TheValue::Bool(false)));
+                            stack.push(TheValue::Bool(false));
                         }
                     }
                 }
             }
             TheCodeNodeCallResult::Continue
         },
-        vec![TheValue::Int(0)],
+        vec![],
     );
 
     // Pulse
     compiler.add_external_call(
         "Pulse".to_string(),
-        |stack: &mut Vec<TheValue>,
-            data: &mut TheCodeNodeData,
-            sandbox: &mut TheCodeSandbox| {
+        |stack: &mut Vec<TheValue>, data: &mut TheCodeNodeData, sandbox: &mut TheCodeSandbox| {
             let count = data.values[0].to_i32().unwrap();
             let mut max_value = data.values[1].to_i32().unwrap();
 
@@ -73,15 +82,22 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                 if sandbox.debug_mode {
                     sandbox.set_debug_value(
                         data.location,
-                            (Some(TheValue::Text(format!("{} / {}", count, max_value))), TheValue::Bool(false)),
+                        (
+                            Some(TheValue::Text(format!("{} / {}", count, max_value))),
+                            TheValue::Bool(false),
+                        ),
                     );
                 }
-                TheCodeNodeCallResult::Break
+                stack.push(TheValue::Bool(false));
+                TheCodeNodeCallResult::Continue
             } else {
                 if sandbox.debug_mode {
                     sandbox.set_debug_value(
                         data.location,
-                            (Some(TheValue::Text(format!("{} / {}", count, max_value))), TheValue::Bool(true)),
+                        (
+                            Some(TheValue::Text(format!("{} / {}", count, max_value))),
+                            TheValue::Bool(true),
+                        ),
                     );
                 }
                 data.values[0] = TheValue::Int(0);
@@ -90,6 +106,10 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                         data.values[1] = TheValue::Int(int);
                     }
                 }
+                if !data.sub_functions.is_empty() {
+                    _ = data.sub_functions[0].execute(sandbox).pop();
+                }
+                stack.push(TheValue::Bool(true));
                 TheCodeNodeCallResult::Continue
             }
         },

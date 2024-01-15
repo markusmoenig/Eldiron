@@ -19,7 +19,7 @@ png = "0.17"
 open = "5.0.1"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
-image_rs = { version = "0.24.6", package = "image" }
+image_rs = { version = "0.24.8", package = "image" }
 
 [package.metadata.bundle]
 name = "Eldiron"

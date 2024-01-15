@@ -4,13 +4,15 @@ use std::sync::{mpsc, Mutex, RwLock};
 use theframework::prelude::*;
 
 pub mod context;
-pub mod region_instance;
-pub mod world;
 pub mod functions;
+pub mod region_instance;
+pub mod update;
+pub mod world;
 
 pub mod prelude {
     pub use super::context::ServerContext;
     pub use super::region_instance::RegionInstance;
+    pub use super::update::{CharacterUpdate, RegionUpdate};
     pub use super::world::World;
     pub use super::Server;
 }
@@ -19,6 +21,8 @@ lazy_static! {
     pub static ref REGIONS: RwLock<FxHashMap<Uuid, Region>> = RwLock::new(FxHashMap::default());
     pub static ref RNG: Mutex<rand::rngs::StdRng> = Mutex::new(rand::rngs::StdRng::from_entropy());
     pub static ref TILES: RwLock<FxHashMap<Uuid, TheRGBATile>> = RwLock::new(FxHashMap::default());
+    pub static ref UPDATES: RwLock<FxHashMap<Uuid, RegionUpdate>> =
+        RwLock::new(FxHashMap::default());
 }
 
 use prelude::*;
@@ -85,13 +89,16 @@ impl Server {
     /// Sets the current project. Resets the server.
     pub fn set_project(&mut self, project: Project) {
         let mut regions = FxHashMap::default();
+        let mut updates = FxHashMap::default();
         for region in &project.regions {
             regions.insert(region.id, region.clone());
+            updates.insert(region.id, RegionUpdate::default());
         }
 
         self.characters = FxHashMap::default();
 
         *REGIONS.write().unwrap() = regions;
+        *UPDATES.write().unwrap() = updates;
         *TILES.write().unwrap() = project.extract_tiles();
 
         self.world.reset();
