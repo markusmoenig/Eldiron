@@ -133,6 +133,31 @@ impl Project {
         }
     }
 
+    /// Gets the given tile from the project.
+    pub fn get_tile(&self, id: &Uuid) -> Option<&Tile> {
+        for tilemap in &self.tilemaps {
+            for tile in &tilemap.tiles {
+                if tile.id == *id {
+                    return Some(tile);
+                }
+            }
+        }
+        None
+    }
+
+    /// Gets the given mutable tile from the project.
+    pub fn get_tile_mut(&mut self, id: &Uuid) -> Option<&mut Tile> {
+        for tilemap in &mut self.tilemaps {
+            for tile in &mut tilemap.tiles {
+                if tile.id == *id {
+                    return Some(tile);
+                }
+            }
+        }
+        None
+    }
+
+
     /// Extract all tiles from all tilemaps and store them in a hash.
     pub fn extract_tiles(&self) -> FxHashMap<Uuid, TheRGBATile> {
         let mut tiles = FxHashMap::default();

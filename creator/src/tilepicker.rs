@@ -9,6 +9,8 @@ pub struct TilePicker {
     pub filter: String,
     pub filter_role: u8,
     pub zoom: f32,
+
+    pub curr_tile: Option<Uuid>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -20,7 +22,8 @@ impl TilePicker {
             tile_text: FxHashMap::default(),
             filter: "".to_string(),
             filter_role: 0,
-            zoom: 1.0,
+            zoom: 1.5,
+            curr_tile: None,
         }
     }
 
@@ -75,13 +78,17 @@ impl TilePicker {
 
         if !minimal {
             let mut zoom = TheSlider::new(TheId::named(&self.make_id(" Zoom")));
-            zoom.set_value(TheValue::Float(1.0));
+            zoom.set_value(TheValue::Float(self.zoom));
             zoom.set_range(TheValue::RangeF32(1.0..=3.0));
             zoom.set_continuous(true);
             zoom.limiter_mut().set_max_width(120);
             toolbar_hlayout.add_widget(Box::new(zoom));
             toolbar_hlayout.set_reverse_index(Some(1));
         }
+
+        // let mut details = TheTraybarButton::new(TheId::named(&self.make_id(" Tile Details")));
+        // details.set_text("Details".to_string());
+        // toolbar_hlayout.add_widget(Box::new(details));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
 
@@ -95,8 +102,54 @@ impl TilePicker {
             rgba_view.set_hover_color(Some(c));
         }
 
+        // Details
+        let mut details_canvas = TheCanvas::new();
+
+        let mut vlayout = TheVLayout::new(TheId::named(" Tile Details Layout"));
+        vlayout.set_margin(vec4i(5, 10, 5, 10));
+        vlayout.set_alignment(TheHorizontalAlign::Left);
+        vlayout.limiter_mut().set_max_width(150);
+
+        let mut drop_down = TheDropdownMenu::new(TheId::named(&self.make_id(" Tile Role")));
+        for dir in TileRole::iterator() {
+            drop_down.add_option(dir.to_string().to_string());
+        }
+        drop_down.set_disabled(true);
+
+        let mut blocking = TheDropdownMenu::new(TheId::named(&self.make_id(" Tile Blocking")));
+        blocking.add_option("No".to_string());
+        blocking.add_option("Yes".to_string());
+        blocking.set_disabled(true);
+
+        let mut tags = TheTextLineEdit::new(TheId::named(&self.make_id(" Tile Tags")));
+        tags.limiter_mut().set_max_width(130);
+        tags.set_disabled(true);
+
+        let mut text = TheText::new(TheId::empty());
+        text.set_text_size(12.0);
+        text.set_text("Role".to_string());
+        vlayout.add_widget(Box::new(text));
+        vlayout.add_widget(Box::new(drop_down));
+
+        let mut text = TheText::new(TheId::empty());
+        text.set_text_size(12.0);
+        text.set_text("Tags".to_string());
+        vlayout.add_widget(Box::new(text));
+        vlayout.add_widget(Box::new(tags));
+
+        let mut text = TheText::new(TheId::empty());
+        text.set_text_size(12.0);
+        text.set_text("Blocking".to_string());
+        vlayout.add_widget(Box::new(text));
+        vlayout.add_widget(Box::new(blocking));
+
+        details_canvas.set_layout(vlayout);
+
+        //
+
         canvas.set_top(toolbar_canvas);
         canvas.set_layout(rgba_layout);
+        canvas.set_right(details_canvas);
 
         canvas
     }
@@ -111,7 +164,7 @@ impl TilePicker {
             let height = editor.dim().height - 16;
 
             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
-                let grid = (36_f32 * self.zoom) as i32;
+                let grid = (24_f32 * self.zoom) as i32;
 
                 rgba_view.set_grid(Some(grid));
 
@@ -165,7 +218,7 @@ impl TilePicker {
         ctx: &mut TheContext,
         project: &mut Project,
     ) -> bool {
-        let redraw = false;
+        let mut redraw = false;
 
         match event {
             TheEvent::Resize => {
@@ -178,6 +231,9 @@ impl TilePicker {
                             TheId::named_with_id("Tilemap Tile", *tile_id),
                             TheWidgetState::Selected,
                         ));
+                        self.curr_tile = Some(*tile_id);
+                        self.apply_tile(ui, ctx, project);
+                        redraw = true;
                     }
                 }
             }
@@ -207,18 +263,63 @@ impl TilePicker {
                     self.set_tiles(project.extract_tiles_vec(), ui, ctx);
                 }
             }
+            // TheEvent::StateChanged(id, state) => {
+            //     if id.name == self.make_id(" Tile Details") && *state == TheWidgetState::Clicked {
+            //         if let Some(layout) = ui.get_layout(" Tile Details Layout") {
+            //             if layout.limiter().get_max_width() == 0 {
+            //                 layout.limiter_mut().set_max_width(150);
+            //             } else {
+            //                 layout.limiter_mut().set_max_width(0);
+            //             }
+            //             ctx.ui.relayout = true;
+            //         }
+            //         ctx.ui.send(TheEvent::Custom(
+            //             TheId::named("Update Tilepicker"),
+            //             TheValue::Empty,
+            //         ));
+            //     }
+            // }
             TheEvent::ValueChanged(id, value) => {
-                if id.name == self.make_id(" Filter Edit") {
+                if id.name == self.make_id(" Tile Role") {
+                    if let Some(tile_id) = self.curr_tile {
+                        if let Some(tile) = project.get_tile_mut(&tile_id) {
+                            if let TheValue::Int(role) = value {
+                                tile.role = TileRole::from_index(*role as u8).unwrap_or(TileRole::ManMade);
+                            }
+                        }
+                    }
+                }
+                else if id.name == self.make_id(" Tile Tags") {
+                    if let Some(tile_id) = self.curr_tile {
+                        if let Some(tile) = project.get_tile_mut(&tile_id) {
+                            if let TheValue::Text(tags) = value {
+                                tile.name = tags.clone();
+                            }
+                        }
+                    }
+                }
+                if id.name == self.make_id(" Tile Blocking") {
+                    if let Some(tile_id) = self.curr_tile {
+                        if let Some(tile) = project.get_tile_mut(&tile_id) {
+                            if let TheValue::Int(role) = value {
+                                tile.blocking = *role == 1;
+                            }
+                        }
+                    }
+                }
+                else if id.name == self.make_id(" Filter Edit") {
                     if let TheValue::Text(filter) = value {
                         self.filter = filter.to_lowercase();
                         self.set_tiles(project.extract_tiles_vec(), ui, ctx);
                     }
-                } else if id.name == self.make_id(" Filter Role") {
+                }
+                else if id.name == self.make_id(" Filter Role") {
                     if let TheValue::Int(filter) = value {
                         self.filter_role = *filter as u8;
                         self.set_tiles(project.extract_tiles_vec(), ui, ctx);
                     }
-                } else if id.name == self.make_id(" Zoom") {
+                }
+                else if id.name == self.make_id(" Zoom") {
                     if let TheValue::Float(zoom) = value {
                         self.zoom = *zoom;
                         self.set_tiles(project.extract_tiles_vec(), ui, ctx);
@@ -228,6 +329,41 @@ impl TilePicker {
             _ => {}
         }
         redraw
+    }
+
+    fn apply_tile(&mut self, ui: &mut TheUI, _: &mut TheContext, project: &mut Project) {
+        let mut tile: Option<&Tile> = None;
+
+        if let Some(id) = &self.curr_tile {
+            tile = project.get_tile(id);
+        }
+
+        if let Some(widget) = ui.get_text_line_edit(&self.make_id(" Tile Tags")) {
+            if let Some(tile) = tile {
+                widget.set_text(tile.name.clone());
+                widget.set_disabled(false);
+            } else {
+                widget.set_disabled(true);
+            }
+        }
+
+        if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Role")) {
+            if let Some(tile) = tile {
+                widget.set_selected_index(tile.role as i32);
+                widget.set_disabled(false);
+            } else {
+                widget.set_disabled(true);
+            }
+        }
+
+        if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Blocking")) {
+            if let Some(tile) = tile {
+                widget.set_selected_index(if tile.blocking { 1 } else { 0 });
+                widget.set_disabled(false);
+            } else {
+                widget.set_disabled(true);
+            }
+        }
     }
 
     ///  Create an id.

@@ -195,9 +195,10 @@ impl TheTrait for Editor {
         let mut redraw = false;
         let mut update_server_icons = false;
 
-        let (redraw_update, tick_update) = self
-            .update_tracker
-            .update((1000 / self.project.target_fps) as u64, self.project.tick_ms as u64);
+        let (redraw_update, tick_update) = self.update_tracker.update(
+            (1000 / self.project.target_fps) as u64,
+            self.project.tick_ms as u64,
+        );
 
         if tick_update {
             // Update the widgets which have anims (if they are visible)

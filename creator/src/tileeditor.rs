@@ -521,7 +521,10 @@ impl TileEditor {
                         if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
                             rgba_layout.scroll_to_grid(vec2i(p.x as i32, p.y as i32));
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                                region.scroll_offset = vec2i(p.x as i32 * region.grid_size, p.y as i32 * region.grid_size);
+                                region.scroll_offset = vec2i(
+                                    p.x as i32 * region.grid_size,
+                                    p.y as i32 * region.grid_size,
+                                );
                             }
                         }
                     }
@@ -604,7 +607,6 @@ impl TileEditor {
     fn set_icon_previews(&mut self, region: &mut Region, coord: Vec2i, ui: &mut TheUI) {
         // Ground Icon Preview
         if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
-
             // Ground
             let mut success = false;
             if let Some(ground) = tile.layers[0] {
