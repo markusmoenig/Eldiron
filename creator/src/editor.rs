@@ -275,15 +275,22 @@ impl TheTrait for Editor {
                             };
                             init.insert_atom(
                                 (0, 0),
-                                TheCodeAtom::ObjectSet("self".to_string(), "position".to_string()),
+                                TheCodeAtom::ObjectSet(
+                                    "self".to_string(),
+                                    "position".to_string(),
+                                    TheValueAssignment::Assign,
+                                ),
                             );
-                            init.insert_atom((1, 0), TheCodeAtom::Assignment("=".to_string()));
+                            init.insert_atom(
+                                (1, 0),
+                                TheCodeAtom::Assignment(TheValueAssignment::Assign),
+                            );
                             init.insert_atom(
                                 (2, 0),
                                 TheCodeAtom::Value(TheValue::Position(vec3f(
                                     location.x as f32,
-                                    location.y as f32,
                                     0.0,
+                                    location.y as f32,
                                 ))),
                             );
                             instance.insert_grid(init);

@@ -65,7 +65,7 @@ impl Region {
     /// Returns true if the character can move to the given position.
     pub fn can_move_to(&self, pos: Vec3f, tiles: &FxHashMap<Uuid, TheRGBATile>) -> bool {
         let mut can_move = true;
-        let pos = vec2i(pos.x as i32, pos.y as i32);
+        let pos = vec2i(pos.x as i32, pos.z as i32);
 
         if pos.x < 0 || pos.y < 0 {
             return false;

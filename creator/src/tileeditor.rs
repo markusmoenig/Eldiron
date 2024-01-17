@@ -519,11 +519,11 @@ impl TileEditor {
                         ));
 
                         if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
-                            rgba_layout.scroll_to_grid(vec2i(p.x as i32, p.y as i32));
+                            rgba_layout.scroll_to_grid(vec2i(p.x as i32, p.z as i32));
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 region.scroll_offset = vec2i(
                                     p.x as i32 * region.grid_size,
-                                    p.y as i32 * region.grid_size,
+                                    p.z as i32 * region.grid_size,
                                 );
                             }
                         }

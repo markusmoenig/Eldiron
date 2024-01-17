@@ -284,12 +284,12 @@ impl TilePicker {
                     if let Some(tile_id) = self.curr_tile {
                         if let Some(tile) = project.get_tile_mut(&tile_id) {
                             if let TheValue::Int(role) = value {
-                                tile.role = TileRole::from_index(*role as u8).unwrap_or(TileRole::ManMade);
+                                tile.role =
+                                    TileRole::from_index(*role as u8).unwrap_or(TileRole::ManMade);
                             }
                         }
                     }
-                }
-                else if id.name == self.make_id(" Tile Tags") {
+                } else if id.name == self.make_id(" Tile Tags") {
                     if let Some(tile_id) = self.curr_tile {
                         if let Some(tile) = project.get_tile_mut(&tile_id) {
                             if let TheValue::Text(tags) = value {
@@ -306,20 +306,17 @@ impl TilePicker {
                             }
                         }
                     }
-                }
-                else if id.name == self.make_id(" Filter Edit") {
+                } else if id.name == self.make_id(" Filter Edit") {
                     if let TheValue::Text(filter) = value {
                         self.filter = filter.to_lowercase();
                         self.set_tiles(project.extract_tiles_vec(), ui, ctx);
                     }
-                }
-                else if id.name == self.make_id(" Filter Role") {
+                } else if id.name == self.make_id(" Filter Role") {
                     if let TheValue::Int(filter) = value {
                         self.filter_role = *filter as u8;
                         self.set_tiles(project.extract_tiles_vec(), ui, ctx);
                     }
-                }
-                else if id.name == self.make_id(" Zoom") {
+                } else if id.name == self.make_id(" Zoom") {
                     if let TheValue::Float(zoom) = value {
                         self.zoom = *zoom;
                         self.set_tiles(project.extract_tiles_vec(), ui, ctx);

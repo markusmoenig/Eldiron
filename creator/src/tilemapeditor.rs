@@ -41,7 +41,8 @@ impl TilemapEditor {
         let mut block_name_text = TheText::new(TheId::empty());
         block_name_text.set_text("Blocking".to_string());
 
-        let block_check_button: TheCheckButton = TheCheckButton::new(TheId::named("Tilemap Editor Block"));
+        let block_check_button: TheCheckButton =
+            TheCheckButton::new(TheId::named("Tilemap Editor Block"));
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);

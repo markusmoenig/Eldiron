@@ -542,9 +542,16 @@ impl Sidebar {
                         };
                         init.insert_atom(
                             (0, 0),
-                            TheCodeAtom::ObjectSet("self".to_string(), "name".to_string()),
+                            TheCodeAtom::ObjectSet(
+                                "self".to_string(),
+                                "name".to_string(),
+                                TheValueAssignment::Assign,
+                            ),
                         );
-                        init.insert_atom((1, 0), TheCodeAtom::Assignment("=".to_string()));
+                        init.insert_atom(
+                            (1, 0),
+                            TheCodeAtom::Assignment(TheValueAssignment::Assign),
+                        );
                         init.insert_atom(
                             (2, 0),
                             TheCodeAtom::Value(TheValue::Text("Unnamed".to_string())),
@@ -552,9 +559,16 @@ impl Sidebar {
 
                         init.insert_atom(
                             (0, 2),
-                            TheCodeAtom::ObjectSet("self".to_string(), "tile".to_string()),
+                            TheCodeAtom::ObjectSet(
+                                "self".to_string(),
+                                "tile".to_string(),
+                                TheValueAssignment::Assign,
+                            ),
                         );
-                        init.insert_atom((1, 2), TheCodeAtom::Assignment("=".to_string()));
+                        init.insert_atom(
+                            (1, 2),
+                            TheCodeAtom::Assignment(TheValueAssignment::Assign),
+                        );
                         init.insert_atom(
                             (2, 2),
                             TheCodeAtom::Value(TheValue::Tile("Name".to_string(), Uuid::nil())),

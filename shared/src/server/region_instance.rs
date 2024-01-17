@@ -314,7 +314,7 @@ impl RegionInstance {
         if let Some(object) = self.sandbox.objects.get_mut(&character.id) {
             let mut character_update = CharacterUpdate::new();
             if let Some(TheValue::Position(p)) = object.get(&"position".into()) {
-                character_update.position = vec2f(p.x, p.y);
+                character_update.position = vec2f(p.x, p.z);
             }
             if let Some(TheValue::Text(t)) = object.get(&"name".into()) {
                 character_update.name = t.clone();
@@ -381,7 +381,7 @@ impl RegionInstance {
     pub fn get_character_at(&self, pos: Vec2i) -> Option<(Uuid, Uuid)> {
         for c in self.sandbox.objects.values() {
             if let Some(TheValue::Position(p)) = c.get(&"position".into()).cloned() {
-                if vec2i(p.x as i32, p.y as i32) == pos {
+                if vec2i(p.x as i32, p.z as i32) == pos {
                     for (instance_id, character_id) in &self.characters_ids {
                         if *instance_id == c.id {
                             return Some((*instance_id, *character_id));

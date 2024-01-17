@@ -12,7 +12,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                 if let Some(object) = sandbox.get_self_mut() {
                     if let Some(TheValue::Position(p)) = object.get_mut(&"position".into()) {
                         let mut x = p.x;
-                        let mut y = p.y;
+                        let mut z = p.z;
 
                         let dir = RNG.lock().unwrap().gen_range(0..=4);
 
@@ -21,20 +21,20 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                         } else if dir == 1 {
                             x -= 1.0;
                         } else if dir == 2 {
-                            y += 1.0;
+                            z += 1.0;
                         } else if dir == 3 {
-                            y -= 1.0;
+                            z -= 1.0;
                         }
 
-                        if region.can_move_to(vec3f(x, y, p.z), &TILES.read().unwrap()) {
+                        if region.can_move_to(vec3f(x, p.y, z), &TILES.read().unwrap()) {
                             let old_position = *p;
 
-                            *p = vec3f(x, y, p.z);
+                            *p = vec3f(x, p.y, z);
 
                             if let Some(update) = UPDATES.write().unwrap().get_mut(&region_id) {
                                 if let Some(cu) = update.characters.get_mut(&object.id) {
-                                    cu.position = vec2f(x, y);
-                                    cu.moving = Some((old_position.xy(), cu.position));
+                                    cu.position = vec2f(x, z);
+                                    cu.moving = Some((old_position.xz(), cu.position));
                                     cu.move_delta = 0.0;
                                 }
                             }
