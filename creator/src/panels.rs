@@ -9,6 +9,14 @@ impl Panels {
         let mut codeeditor = CODEEDITOR.lock().unwrap();
 
         codeeditor.add_external(TheExternalCode::new(
+            "KeyDown".to_string(),
+            "Returns the currently pressed key (if any).".to_string(),
+            vec![],
+            vec![],
+            Some(TheValue::Text("".to_string())),
+        ));
+
+        codeeditor.add_external(TheExternalCode::new(
             "RandWalk".to_string(),
             "Moves the character in a random direction.".to_string(),
             vec![],
@@ -18,7 +26,7 @@ impl Panels {
 
         codeeditor.add_external(TheExternalCode::new(
             "Pulse".to_string(),
-            "Counts up to a certain value and returns true on completion. Then restarts."
+            "Counts up to the value in \"Count to\" and returns true on completion. Then restarts."
                 .to_string(),
             vec!["Count to".to_string()],
             vec![TheValue::Int(4)],

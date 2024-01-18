@@ -1,8 +1,21 @@
 use crate::prelude::*;
-use crate::server::{REGIONS, RNG, TILES, UPDATES};
+use crate::server::{REGIONS, RNG, TILES, UPDATES, KEY_DOWN};
 use theframework::prelude::*;
 
 pub fn add_compiler_functions(compiler: &mut TheCompiler) {
+    //
+    compiler.add_external_call(
+        "KeyDown".to_string(),
+        |stack, _data, _sandbox| {
+            if let Some(key) = KEY_DOWN.read().unwrap().clone() {
+                stack.push(TheValue::Text(key));
+            } else {
+                stack.push(TheValue::Empty);
+            }
+            TheCodeNodeCallResult::Continue
+        },
+        vec![],
+    );
     // RandWalk
     compiler.add_external_call(
         "RandWalk".to_string(),

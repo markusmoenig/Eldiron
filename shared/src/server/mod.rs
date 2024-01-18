@@ -21,6 +21,7 @@ lazy_static! {
     pub static ref REGIONS: RwLock<FxHashMap<Uuid, Region>> = RwLock::new(FxHashMap::default());
     pub static ref RNG: Mutex<rand::rngs::StdRng> = Mutex::new(rand::rngs::StdRng::from_entropy());
     pub static ref TILES: RwLock<FxHashMap<Uuid, TheRGBATile>> = RwLock::new(FxHashMap::default());
+    pub static ref KEY_DOWN: RwLock<Option<String>> = RwLock::new(None);
     pub static ref UPDATES: RwLock<FxHashMap<Uuid, RegionUpdate>> =
         RwLock::new(FxHashMap::default());
 }
@@ -203,6 +204,8 @@ impl Server {
         for (key, instance) in receiver {
             self.instances.insert(key, instance);
         }
+
+        self.set_key_down(None);
     }
 
     /// Updates the tiles in the server. Called after live tilemap updates from the editor.
@@ -344,5 +347,10 @@ impl Server {
         } else {
             None
         }
+    }
+
+    /// Sets the currently pressed key.
+    pub fn set_key_down(&mut self, str: Option<String>) {
+        *KEY_DOWN.write().unwrap() = str;
     }
 }
