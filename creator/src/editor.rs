@@ -219,12 +219,34 @@ impl TheTrait for Editor {
                 self.panels
                     .update_code_object(ui, ctx, &mut self.server, &mut self.server_ctx);
             }
-            if self.server_ctx.curr_character_instance.is_some() {
-                let debug = self.server.get_region_debug_codegrid(
-                    self.server_ctx.curr_region,
-                    CODEEDITOR.lock().unwrap().get_codegrid_id(ui),
-                );
-                CODEEDITOR.lock().unwrap().set_debug_module(debug, ui);
+
+            // Set Debug Data
+            if let Some(character_instance) = self.server_ctx.curr_character_instance {
+                let mut debug_has_set = false;
+
+                if let Some(debug) = self
+                    .server
+                    .get_entity_debug_data(self.server_ctx.curr_region, character_instance)
+                {
+                    let editor_codegrid_id = CODEEDITOR.lock().unwrap().get_codegrid_id(ui);
+                    for debug in debug.values() {
+                        if debug.codegrid_id == editor_codegrid_id {
+                            CODEEDITOR
+                                .lock()
+                                .unwrap()
+                                .set_debug_module(debug.clone(), ui);
+                            debug_has_set = true;
+                            break;
+                        }
+                    }
+                }
+
+                if !debug_has_set {
+                    CODEEDITOR
+                        .lock()
+                        .unwrap()
+                        .set_debug_module(TheDebugModule::default(), ui);
+                }
             }
         }
 
@@ -548,6 +570,13 @@ impl TheTrait for Editor {
                                 .sidebar
                                 .get_selected_in_list_layout(ui, "Character List")
                             {
+                                if let Some(character) =
+                                    self.project.characters.get_mut(&list_id.uuid)
+                                {
+                                    if let Some(text) = value.to_string() {
+                                        character.name = text;
+                                    }
+                                }
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
                         } else if id.name == "Character Item" {

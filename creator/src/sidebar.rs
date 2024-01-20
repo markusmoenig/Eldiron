@@ -970,7 +970,6 @@ impl Sidebar {
 
                             if let Ok(_module) = rc {
                                 let bundle: TheCodeBundle = CODEEDITOR.lock().unwrap().get_bundle();
-                                CODEEDITOR.lock().unwrap().set_compiled(true, ui, ctx);
 
                                 // Successfully compiled, transfer the bundle to the server.
 
@@ -987,8 +986,17 @@ impl Sidebar {
                                 } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                                     server.insert_character(bundle);
                                 }
+
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    "Compiled successfully.".to_string(),
+                                ));
                             } else {
-                                code_view.set_debug_module(TheDebugModule::new());
+                                code_view.set_debug_module(TheDebugModule::default());
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    "Failed to compile.".to_string(),
+                                ));
                             }
                         }
                     }
@@ -1129,8 +1137,6 @@ impl Sidebar {
         ui.set_widget_disabled_state("Character Remove", ctx, character.is_none());
         ui.set_widget_disabled_state("Character Name Edit", ctx, character.is_none());
 
-        let compiled: bool = CODEEDITOR.lock().unwrap().compiled(ui);
-
         // Set the character bundle.
         if let Some(character) = character {
             let char_list_canvas: TheCanvas =
@@ -1165,7 +1171,6 @@ impl Sidebar {
             }
         }
 
-        CODEEDITOR.lock().unwrap().set_compiled(compiled, ui, ctx);
         ctx.ui.relayout = true;
     }
 

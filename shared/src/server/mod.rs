@@ -264,20 +264,20 @@ impl Server {
     }
 
     /// Get the debug module for the given module id.
-    pub fn get_region_debug_module(&mut self, region: Uuid, module_id: Uuid) -> TheDebugModule {
-        if let Some(instance) = self.instances.get_mut(&region) {
-            instance.get_module_debug_module(module_id)
-        } else {
-            TheDebugModule::default()
-        }
-    }
+    // pub fn get_region_debug_module(&mut self, region: Uuid, module_id: Uuid) -> TheDebugModule {
+    //     if let Some(instance) = self.instances.get_mut(&region) {
+    //         instance.get_module_debug_module(module_id)
+    //     } else {
+    //         TheDebugModule::default()
+    //     }
+    // }
 
     /// Get the debug module for the given entity id.
-    pub fn get_region_debug_codegrid(&mut self, region: Uuid, entity_id: Uuid) -> TheDebugModule {
+    pub fn get_entity_debug_data(&mut self, region: Uuid, entity_id: Uuid) -> Option<FxHashMap<Uuid, TheDebugModule>> {
         if let Some(instance) = self.instances.get_mut(&region) {
-            instance.get_codegrid_debug_module(entity_id)
+            instance.get_entity_debug_data(entity_id)
         } else {
-            TheDebugModule::default()
+            None
         }
     }
 
@@ -288,7 +288,7 @@ impl Server {
         character: Character,
     ) -> Option<Uuid> {
         if let Some(instance) = self.instances.get_mut(&region) {
-            instance.add_character_instance(character)
+            instance.add_character_instance(character, &mut self.compiler)
         } else {
             None
         }
@@ -302,7 +302,7 @@ impl Server {
         bundle: TheCodeBundle,
     ) {
         if let Some(instance) = self.instances.get_mut(&region) {
-            instance.update_character_instance_bundle(character, bundle);
+            instance.update_character_instance_bundle(character, bundle, &mut self.compiler);
         }
     }
 

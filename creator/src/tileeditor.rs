@@ -413,11 +413,12 @@ impl TileEditor {
                                         TheWidgetState::Selected,
                                     ));
 
-                                    self.editor_mode = EditorMode::Draw;
-                                    if let Some(button) = ui.get_group_button("Editor Group") {
-                                        button.set_index(0);
-                                        redraw = true;
-                                    }
+                                    // Switch mode to draw, disabled for now
+                                    // self.editor_mode = EditorMode::Draw;
+                                    // if let Some(button) = ui.get_group_button("Editor Group") {
+                                    //     button.set_index(0);
+                                    //     redraw = true;
+                                    // }
                                     break;
                                 }
                             }
@@ -514,6 +515,7 @@ impl TileEditor {
                         server_ctx.curr_character_instance = Some(id.uuid);
                         server_ctx.curr_character = Some(character_id);
 
+                        self.editor_mode = EditorMode::Pick;
                         if let Some(button) = ui.get_group_button("Editor Group") {
                             button.set_index(1);
                         }

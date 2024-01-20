@@ -19,6 +19,9 @@ pub struct RegionInstance {
     #[serde(skip)]
     characters_ids: Vec<(Uuid, Uuid)>,
 
+    #[serde(skip)]
+    character_debug_modules: FxHashMap<Uuid, FxHashMap<Uuid, TheDebugModule>>,
+
     redraw_ms: u32,
     tick_ms: u32,
 }
@@ -42,6 +45,8 @@ impl RegionInstance {
             characters_instances: FxHashMap::default(),
             characters_ids: vec![],
 
+            character_debug_modules: FxHashMap::default(),
+
             redraw_ms: 1000 / 30,
             tick_ms: 250,
         }
@@ -58,6 +63,9 @@ impl RegionInstance {
 
     /// Tick. Compute the next frame.
     pub fn tick(&mut self) {
+
+        self.character_debug_modules.clear();
+
         // We iterate over all character instances and execute their main function
         // as well as the main function of their character template.
         for (instance_id, character_id) in &mut self.characters_ids {
@@ -72,13 +80,12 @@ impl RegionInstance {
 
             if let Some(instance) = self.characters.get_mut(character_id) {
                 instance.execute("main".to_string(), &mut self.sandbox);
-
-                // println!(
-                //     "instance_id: {}, debug {:?}",
-                //     character_id,
-                //     self.sandbox.get_codegrid_debug_module(*character_id)
-                // );
             }
+
+            self.character_debug_modules.insert(
+                *instance_id,
+                self.sandbox.debug_modules.clone(),
+            );
         }
     }
 
@@ -98,13 +105,13 @@ impl RegionInstance {
     }
 
     /// Returns the debug module (if any) for the given module_id.
-    pub fn get_module_debug_module(&self, id: Uuid) -> TheDebugModule {
-        self.sandbox.get_module_debug_module(id)
-    }
+    // pub fn get_module_debug_module(&self, id: Uuid) -> TheDebugModule {
+    //     self.sandbox.get_module_debug_module(id)
+    // }
 
     /// Returns the debug module (if any) for the given codegrid_id.
-    pub fn get_codegrid_debug_module(&self, id: Uuid) -> TheDebugModule {
-        self.sandbox.get_codegrid_debug_module(id)
+    pub fn get_entity_debug_data(&self, id: Uuid) -> Option<FxHashMap<Uuid, TheDebugModule>> {
+        self.character_debug_modules.get(&id).cloned()
     }
 
     /// Draws this instance into the given buffer.
@@ -270,13 +277,11 @@ impl RegionInstance {
     }
 
     /// Adds a character instance to the region.
-    pub fn add_character_instance(&mut self, mut character: Character) -> Option<Uuid> {
+    pub fn add_character_instance(&mut self, mut character: Character, compiler: &mut TheCompiler) -> Option<Uuid> {
         let mut package = TheCodePackage::new();
         package.id = character.id;
 
         let mut module_id = None;
-
-        let mut compiler = TheCompiler::new();
 
         for grid in character.instance.grids.values_mut() {
             let rc = compiler.compile(grid);
@@ -337,11 +342,9 @@ impl RegionInstance {
     }
 
     /// Updates a character instance.
-    pub fn update_character_instance_bundle(&mut self, character: Uuid, mut bundle: TheCodeBundle) {
+    pub fn update_character_instance_bundle(&mut self, character: Uuid, mut bundle: TheCodeBundle, compiler: &mut TheCompiler) {
         if let Some(existing_package) = self.characters_instances.get_mut(&character) {
             let mut package = TheCodePackage::new();
-
-            let mut compiler = TheCompiler::new();
 
             for grid in bundle.grids.values_mut() {
                 let rc = compiler.compile(grid);

@@ -27,7 +27,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                         let mut x = p.x;
                         let mut z = p.z;
 
-                        let dir = RNG.lock().unwrap().gen_range(0..=4);
+                        let dir = RNG.lock().unwrap().gen_range(0..4);
 
                         if dir == 0 {
                             x += 1.0;
@@ -56,9 +56,6 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                                 sandbox
                                     .set_debug_value(data.location, (None, TheValue::Bool(true)));
                             }
-                            if !data.sub_functions.is_empty() {
-                                _ = data.sub_functions[0].execute(sandbox).pop();
-                            }
                             stack.push(TheValue::Bool(true));
                         } else if sandbox.debug_mode {
                             sandbox.set_debug_value(data.location, (None, TheValue::Bool(false)));
@@ -70,6 +67,55 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
             TheCodeNodeCallResult::Continue
         },
         vec![],
+    );
+
+    // Move
+    compiler.add_external_call(
+        "Move".to_string(),
+        |stack, data, sandbox| {
+            let region_id = sandbox.id;
+
+            let mut by = vec2f(0.0, 0.0);
+            if let Some(v) = stack.pop() {
+                if let Some(f2) = v.to_vec2f() {
+                    by = f2;
+                }
+            }
+
+            if let Some(region) = REGIONS.read().unwrap().get(&region_id) {
+                if let Some(object) = sandbox.get_self_mut() {
+                    if let Some(TheValue::Position(p)) = object.get_mut(&"position".into()) {
+                        let x = p.x + by.x;
+                        let z = p.z + by.y;
+
+                        if region.can_move_to(vec3f(x, p.y, z), &TILES.read().unwrap()) {
+                            let old_position = *p;
+
+                            *p = vec3f(x, p.y, z);
+
+                            if let Some(update) = UPDATES.write().unwrap().get_mut(&region_id) {
+                                if let Some(cu) = update.characters.get_mut(&object.id) {
+                                    cu.position = vec2f(x, z);
+                                    cu.moving = Some((old_position.xz(), cu.position));
+                                    cu.move_delta = 0.0;
+                                }
+                            }
+
+                            if sandbox.debug_mode {
+                                sandbox
+                                    .set_debug_value(data.location, (None, TheValue::Bool(true)));
+                            }
+                            stack.push(TheValue::Bool(true));
+                        } else if sandbox.debug_mode {
+                            sandbox.set_debug_value(data.location, (None, TheValue::Bool(false)));
+                            stack.push(TheValue::Bool(false));
+                        }
+                    }
+                }
+            }
+            TheCodeNodeCallResult::Continue
+        },
+        vec![TheValue::Float2(vec2f(0.0, 0.0))],
     );
 
     // Pulse
@@ -118,9 +164,6 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                     if let Some(int) = stack_v.to_i32() {
                         data.values[1] = TheValue::Int(int);
                     }
-                }
-                if !data.sub_functions.is_empty() {
-                    _ = data.sub_functions[0].execute(sandbox).pop();
                 }
                 stack.push(TheValue::Bool(true));
                 TheCodeNodeCallResult::Continue

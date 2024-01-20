@@ -33,6 +33,14 @@ impl Panels {
             Some(TheValue::Bool(false)),
         ));
 
+        codeeditor.add_external(TheExternalCode::new(
+            "Move".to_string(),
+            "Moves the character in the specified direction.".to_string(),
+            vec!["By".to_string()],
+            vec![TheValue::Float2(vec2f(0.0, 0.0))],
+            Some(TheValue::Bool(false)),
+        ));
+
         Self {}
     }
 
