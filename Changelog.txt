@@ -1,3 +1,11 @@
+v 0.8.8
+-------
+
+- Lots of smaller fixes for tilemap editing and drawing.
+- A first player character has been added which can be moved with the keyboard keys.
+- The CodeGridFX visual language has been improved to handle multiple comparisons and various
+  other features. Therefore the StarterProject from the previous release does not work anymore.
+
 v 0.8.7
 -------
 

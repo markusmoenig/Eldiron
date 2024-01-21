@@ -7,8 +7,8 @@ description = "A game creator for retro RPGs."
 
 [dependencies]
 # theframework = { path = "../../TheFramework", features = ["ui", "code"]}
-theframework = { git = "https://github.com/markusmoenig/TheFramework", features = ["ui", "code"], default-features = true }
-# theframework = { version = "0.1.19", features = ["ui", "code"], default-features = true }
+# theframework = { git = "https://github.com/markusmoenig/TheFramework", features = ["ui", "code"], default-features = true }
+theframework = { version = "0.1.20", features = ["ui", "code"], default-features = true }
 shared = { path = "../shared" }
 lazy_static = "1.4.0"
 serde = { version = "1.0", features = ["derive"] }
