@@ -557,7 +557,8 @@ impl TheTrait for Editor {
                             {
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
-                        } else if id.name == "Region Item" {
+                        }
+                        else if id.name == "Region Item" {
                             for r in &mut self.project.regions {
                                 if r.id == id.uuid {
                                     if let Some(text) = value.to_string() {
@@ -565,7 +566,8 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
-                        } else if id.name == "Character Name Edit" {
+                        }
+                        else if id.name == "Character Name Edit" {
                             if let Some(list_id) = self
                                 .sidebar
                                 .get_selected_in_list_layout(ui, "Character List")
@@ -579,45 +581,36 @@ impl TheTrait for Editor {
                                 }
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
-                        } else if id.name == "Character Item" {
+                        }
+                        else if id.name == "Character Item" {
                             if let Some(character) = self.project.characters.get_mut(&id.uuid) {
                                 if let Some(text) = value.to_string() {
                                     character.name = text;
                                 }
                             }
-                        } else if id.name == "Item Name Edit" {
+                        }
+                        else if id.name == "Item Name Edit" {
                             if let Some(list_id) =
                                 self.sidebar.get_selected_in_list_layout(ui, "Item List")
                             {
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
-                        } else if id.name == "Item Item" {
+                        }
+                        else if id.name == "Item Item" {
                             if let Some(item) = self.project.items.get_mut(&id.uuid) {
                                 if let Some(text) = value.to_string() {
                                     item.name = text;
                                 }
                             }
-                        } else if id.name == "Tilemap Name Edit" {
-                            if let Some(list_id) =
-                                self.sidebar.get_selected_in_list_layout(ui, "Tilemap List")
-                            {
-                                ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
-                            }
-                        } else if id.name == "Tilemap Item" {
-                            for t in &mut self.project.tilemaps {
-                                if t.id == id.uuid {
-                                    if let Some(text) = value.to_string() {
-                                        t.name = text;
-                                    }
-                                }
-                            }
-                        } else if id.name == "Code Name Edit" {
+                        }
+                        else if id.name == "Code Name Edit" {
                             if let Some(list_id) =
                                 self.sidebar.get_selected_in_list_layout(ui, "Code List")
                             {
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
-                        } else if id.name == "Code Item" {
+                        }
+                        else if id.name == "Code Item" {
                             if let Some(code) = self.project.codes.get_mut(&id.uuid) {
                                 if let Some(text) = value.to_string() {
                                     code.name = text;

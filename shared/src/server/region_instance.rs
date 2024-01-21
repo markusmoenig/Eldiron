@@ -141,12 +141,13 @@ impl RegionInstance {
                         // }
 
                         let sum = (delta + character.move_delta).clamp(0.0, 1.0);
-                        //let d = smoothstep(0.0, 1.0, sum);//.clamp(0.0, 1.0);
-                        let d = if sum < 0.5 {
-                            2.0 * sum * sum
-                        } else {
-                            1.0 - (-2.0 * sum + 2.0).powi(2) / 2.0
-                        };
+                        // let d = smoothstep(0.0, 1.0, sum);//.clamp(0.0, 1.0);
+                        let d = sum;
+                        // let d = if sum < 0.5 {
+                        //     2.0 * sum * sum
+                        // } else {
+                        //     1.0 - (-2.0 * sum + 2.0).powi(2) / 2.0
+                        // };
                         let x = start.x * (1.0 - d) + end.x * d;
                         let y = start.y * (1.0 - d) + end.y * d;
                         character.move_delta = sum;

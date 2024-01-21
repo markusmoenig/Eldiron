@@ -450,18 +450,50 @@ impl Sidebar {
                             }
                         }
                     }
-                } else if id.name == "Tilemap Filter Edit" || id.name == "Tilemap Filter Role" {
+                }
+                // Rename the tilemap item
+                else if id.name == "Tilemap Name Edit" {
+                    if let Some(list_id) =
+                        self.get_selected_in_list_layout(ui, "Tilemap List")
+                    {
+                        ctx.ui.send(TheEvent::SetValue(list_id.uuid, value.clone()));
+                    }
+                }
+                // Rename the tilemap in the project, triggered by the above action.
+                else if id.name == "Tilemap Item" {
+                    for t in &mut project.tilemaps {
+                        if t.id == id.uuid {
+                            if let Some(text) = value.to_string() {
+                                t.name = text;
+                            }
+                        }
+                    }
+                }
+                // Change the size of the tilemap grid
+                else if id.name == "Tilemap Grid Edit" {
+                    if let Some(tilemap_uuid) = &self.curr_tilemap_uuid {
+                        if let Some(tilemap) = project.get_tilemap(*tilemap_uuid) {
+                            if let Some(size) = value.to_i32() {
+                                tilemap.grid_size = size;
+                                self.apply_tilemap(ui, ctx, Some(tilemap));
+                            }
+                        }
+                    }
+                }
+                else if id.name == "Tilemap Filter Edit" || id.name == "Tilemap Filter Role" {
                     if let Some(id) = self.curr_tilemap_uuid {
                         self.show_filtered_tiles(ui, ctx, project.get_tilemap(id).as_deref())
                     }
-                } else if id.name == "Tilemap Editor Zoom" {
+                }
+                else if id.name == "Tilemap Editor Zoom" {
                     if let Some(v) = value.to_f32() {
                         if let Some(layout) = ui.get_rgba_layout("Tilemap Editor") {
                             layout.set_zoom(v);
                             layout.relayout(ctx);
                         }
                     }
-                } else if id.name == "Region Content Filter Edit"
+                }
+                else if id.name == "Region Content Filter Edit"
                     || id.name == "Region Content Dropdown"
                 {
                     self.apply_region(ui, ctx, project.get_region(&server_ctx.curr_region), server);
@@ -513,7 +545,9 @@ impl Sidebar {
                         ctx.ui
                             .send_widget_state_changed(&id, TheWidgetState::Selected);
 
+                        server_ctx.curr_region = region.id;
                         project.regions.push(region);
+                        server.set_project(project.clone());
                     }
                 } else if id.name == "Region Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Region List") {
@@ -1427,6 +1461,16 @@ impl Sidebar {
                 widget.set_disabled(true);
             }
         }
+
+        if let Some(layout) = ui.get_rgba_layout("Tilemap Editor") {
+            if let Some(rgba) = layout.rgba_view_mut().as_rgba_view() {
+                if let Some(tilemap) = tilemap {
+                    //rgba.set_zoom(tilemap.zoom);
+                    rgba.set_grid(Some(tilemap.grid_size));
+                }
+            }
+        }
+
         self.show_filtered_tiles(ui, ctx, tilemap);
     }
 
