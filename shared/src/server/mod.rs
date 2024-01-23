@@ -88,7 +88,7 @@ impl Server {
     }
 
     /// Sets the current project. Resets the server.
-    pub fn set_project(&mut self, project: Project) {
+    pub fn set_project(&mut self, project: Project) -> FxHashMap<Uuid, TheCodePackage>{
         let mut regions = FxHashMap::default();
         let mut updates = FxHashMap::default();
         for region in &project.regions {
@@ -105,12 +105,18 @@ impl Server {
         self.world.reset();
         self.anim_counter = 0;
 
-        self.setup_regions(&project);
+        let packages = self.compile_bundles(project.codes.clone());
+        self.compiler.set_packages(packages.clone());
+
+        self.setup_regions(&project, &packages);
+
         self.project = project;
+
+        packages
     }
 
     /// Setup all regions in the project and create their instances.
-    pub fn setup_regions(&mut self, project: &Project) {
+    pub fn setup_regions(&mut self, project: &Project, packages: &FxHashMap<Uuid, TheCodePackage>) {
         self.instances = FxHashMap::default();
 
         /*
@@ -150,7 +156,7 @@ impl Server {
             let mut instance = RegionInstance::new();
 
             instance.set_debug_mode(self.debug_mode);
-            instance.setup(uuid, project);
+            instance.setup(uuid, project, packages);
 
             self.instances.insert(uuid, instance);
         }
@@ -166,6 +172,55 @@ impl Server {
                 self.add_character_instance_to_region(region.id, character.clone());
             }
         }
+    }
+
+    /// Compiles all bundles into packages.
+    fn compile_bundles(&mut self, mut bundles: FxHashMap<Uuid, TheCodeBundle>) -> FxHashMap<Uuid, TheCodePackage>{
+        let mut packages = FxHashMap::default();
+        for bundle in bundles.values_mut() {
+            let mut package = TheCodePackage::new();
+            package.name = bundle.name.clone();
+            package.id = bundle.id;
+
+            for grid in bundle.grids.values_mut() {
+                let rc = self.compiler.compile(grid);
+                if let Ok(mut module) = rc {
+                    module.name = grid.name.clone();
+                    package.insert_module(module.name.clone(), module);
+                }
+                else if let Err(e) = rc {
+                    println!("Error in {}.{}: {} at {:?}.", bundle.name, grid.name, e.message, e.location);
+                }
+            }
+            packages.insert(package.id, package);
+        }
+
+        packages
+    }
+
+    /// Updates a code bundle and provides it to all instances and the compiler.
+    pub fn update_bundle(&mut self, mut bundle: TheCodeBundle) {
+        let mut package = TheCodePackage::new();
+        package.name = bundle.name.clone();
+        package.id = bundle.id;
+
+        for grid in bundle.grids.values_mut() {
+            let rc = self.compiler.compile(grid);
+            if let Ok(mut module) = rc {
+                module.name = grid.name.clone();
+                package.insert_module(module.name.clone(), module);
+            }
+            else if let Err(e) = rc {
+                println!("Error in {}.{}: {} at {:?}.", bundle.name, grid.name, e.message, e.location);
+            }
+        }
+
+        // Update the package in all instances.
+        for instance in self.instances.values_mut() {
+            instance.update_package(package.clone());
+        }
+
+        self.compiler.update_package(package);
     }
 
     /// Starts the server.

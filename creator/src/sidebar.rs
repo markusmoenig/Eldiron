@@ -7,7 +7,7 @@ pub enum SidebarMode {
     Character,
     Item,
     Tilemap,
-    Code,
+    Module,
 }
 
 pub struct Sidebar {
@@ -57,15 +57,15 @@ impl Sidebar {
             TheSectionbarButton::new(TheId::named("Tilemap Section"));
         tilemap_sectionbar_button.set_text("Tilemap".to_string());
 
-        let mut code_sectionbar_button = TheSectionbarButton::new(TheId::named("Code Section"));
-        code_sectionbar_button.set_text("Code".to_string());
+        let mut module_sectionbar_button = TheSectionbarButton::new(TheId::named("Module Section"));
+        module_sectionbar_button.set_text("Module".to_string());
 
         let mut vlayout = TheVLayout::new(TheId::named("Section Buttons"));
         vlayout.add_widget(Box::new(region_sectionbar_button));
         vlayout.add_widget(Box::new(character_sectionbar_button));
         vlayout.add_widget(Box::new(item_sectionbar_button));
         vlayout.add_widget(Box::new(tilemap_sectionbar_button));
-        vlayout.add_widget(Box::new(code_sectionbar_button));
+        vlayout.add_widget(Box::new(module_sectionbar_button));
         vlayout.set_margin(vec4i(5, 10, 5, 5));
         vlayout.set_padding(4);
         vlayout.set_background_color(Some(SectionbarBackground));
@@ -358,29 +358,29 @@ impl Sidebar {
         tiles_canvas.set_bottom(tiles_list_canvas);
         stack_layout.add_canvas(tiles_canvas);
 
-        // Code
+        // Module
 
-        let mut code_canvas = TheCanvas::default();
-        let mut list_layout = TheListLayout::new(TheId::named("Code List"));
+        let mut module_canvas = TheCanvas::default();
+        let mut list_layout = TheListLayout::new(TheId::named("Module List"));
         list_layout
             .limiter_mut()
             .set_max_size(vec2i(self.width, 400));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
-        let mut code_add_button = TheTraybarButton::new(TheId::named("Code Add"));
-        code_add_button.set_icon_name("icon_role_add".to_string());
-        let mut code_remove_button = TheTraybarButton::new(TheId::named("Code Remove"));
-        code_remove_button.set_icon_name("icon_role_remove".to_string());
-        let mut name_edit = TheTextLineEdit::new(TheId::named("Code Name Edit"));
+        let mut module_add_button = TheTraybarButton::new(TheId::named("Module Add"));
+        module_add_button.set_icon_name("icon_role_add".to_string());
+        let mut module_remove_button = TheTraybarButton::new(TheId::named("Module Remove"));
+        module_remove_button.set_icon_name("icon_role_remove".to_string());
+        let mut name_edit = TheTextLineEdit::new(TheId::named("Module Name Edit"));
         name_edit.limiter_mut().set_max_width(200);
         name_edit.set_status_text("Edit the name of the code.");
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
-        toolbar_hlayout.add_widget(Box::new(code_add_button));
-        toolbar_hlayout.add_widget(Box::new(code_remove_button));
+        toolbar_hlayout.add_widget(Box::new(module_add_button));
+        toolbar_hlayout.add_widget(Box::new(module_remove_button));
         toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
         toolbar_hlayout.add_widget(Box::new(name_edit));
 
@@ -389,8 +389,8 @@ impl Sidebar {
         toolbar_canvas.set_layout(toolbar_hlayout);
         list_canvas.set_bottom(toolbar_canvas);
 
-        code_canvas.set_top(list_canvas);
-        stack_layout.add_canvas(code_canvas);
+        module_canvas.set_top(list_canvas);
+        stack_layout.add_canvas(module_canvas);
 
         //
 
@@ -630,7 +630,8 @@ impl Sidebar {
                         server.insert_character(bundle.clone());
                         project.add_character(bundle);
                     }
-                } else if id.name == "Character Remove" {
+                }
+                else if id.name == "Character Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
@@ -638,14 +639,16 @@ impl Sidebar {
                             self.apply_character(ui, ctx, None);
                         }
                     }
-                } else if id.name == "Character Item" {
+                }
+                else if id.name == "Character Item" {
                     if let Some(c) = project.characters.get(&id.uuid) {
                         server_ctx.curr_character = Some(id.uuid);
                         //server_ctx.curr_character_instance = None;
                         self.apply_character(ui, ctx, Some(c));
                         redraw = true;
                     }
-                } else if id.name == "Item Add" {
+                }
+                else if id.name == "Item Add" {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         let bundle = TheCodeBundle::new();
 
@@ -662,7 +665,8 @@ impl Sidebar {
                         self.apply_item(ui, ctx, Some(&bundle));
                         project.add_item(bundle);
                     }
-                } else if id.name == "Item Remove" {
+                }
+                else if id.name == "Item Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
@@ -670,17 +674,19 @@ impl Sidebar {
                             self.apply_item(ui, ctx, None);
                         }
                     }
-                } else if id.name == "Item Item" {
+                }
+                else if id.name == "Item Item" {
                     if let Some(c) = project.items.get(&id.uuid) {
                         self.apply_item(ui, ctx, Some(c));
                         redraw = true;
                     }
-                } else if id.name == "Code Add" {
-                    if let Some(list_layout) = ui.get_list_layout("Code List") {
+                }
+                else if id.name == "Module Add" {
+                    if let Some(list_layout) = ui.get_list_layout("Module List") {
                         let bundle = TheCodeBundle::new();
 
                         let mut item =
-                            TheListItem::new(TheId::named_with_id("Code Item", bundle.id));
+                            TheListItem::new(TheId::named_with_id("Module Item", bundle.id));
                         item.set_text(bundle.name.clone());
                         item.set_state(TheWidgetState::Selected);
                         list_layout.deselect_all();
@@ -692,7 +698,8 @@ impl Sidebar {
                         self.apply_code(ui, ctx, Some(&bundle));
                         project.add_code(bundle);
                     }
-                } else if id.name == "Code Remove" {
+                }
+                else if id.name == "Module Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
@@ -700,7 +707,8 @@ impl Sidebar {
                             self.apply_code(ui, ctx, None);
                         }
                     }
-                } else if id.name == "Code Item" {
+                }
+                else if id.name == "Module Item" {
                     if let Some(c) = project.codes.get(&id.uuid) {
                         self.apply_code(ui, ctx, Some(c));
                         redraw = true;
@@ -897,7 +905,10 @@ impl Sidebar {
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 0));
                     self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
-                } else if id.name == "Character Section" && *state == TheWidgetState::Selected {
+                }
+                else if id.name == "Character Section" && *state == TheWidgetState::Selected {
+                    self.deselect_sections_buttons(ui, id.name.clone());
+
                     if let Some(widget) = ui
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
@@ -921,14 +932,16 @@ impl Sidebar {
 
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 1));
-                    self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
-                } else if id.name == "Item Section" && *state == TheWidgetState::Selected {
+                }
+                else if id.name == "Item Section" && *state == TheWidgetState::Selected {
+                    self.deselect_sections_buttons(ui, id.name.clone());
+
                     if let Some(widget) = ui
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
                     {
-                        widget.set_value(TheValue::Text("Item".to_string()));
+                        widget.set_value(TheValue::Text("Items".to_string()));
                     }
 
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
@@ -942,9 +955,9 @@ impl Sidebar {
 
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 2));
-                    self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
-                } else if id.name == "Tilemap Section" && *state == TheWidgetState::Selected {
+                }
+                else if id.name == "Tilemap Section" && *state == TheWidgetState::Selected {
                     if let Some(widget) = ui
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
@@ -970,28 +983,36 @@ impl Sidebar {
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 3));
                     self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
-                } else if id.name == "Code Section" && *state == TheWidgetState::Selected {
+                }
+                else if id.name == "Module Section" && *state == TheWidgetState::Selected {
+                    self.deselect_sections_buttons(ui, id.name.clone());
+
                     if let Some(widget) = ui
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
                     {
-                        widget.set_value(TheValue::Text("Code".to_string()));
+                        widget.set_value(TheValue::Text("Modules".to_string()));
                     }
 
-                    if let Some(list_layout) = ui.get_list_layout("Code List") {
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Set CodeGrid Panel"),
+                        TheValue::Empty,
+                    ));
+
+                    if let Some(list_layout) = ui.get_list_layout("Module List") {
                         if let Some(selected) = list_layout.selected() {
                             ctx.ui
                                 .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
                         }
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Code;
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Module;
 
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 4));
-                    self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
-                } else if id.name == "Compile" {
+                }
+                else if id.name == "Compile" {
                     // Compile button in the editor. Compile the code and send it to the server if successful.
                     // We do not need to store it in the project because thats already done in the
                     // CodeBundleChanged event.
@@ -1002,8 +1023,14 @@ impl Sidebar {
 
                             let rc = server.compiler().compile(grid);
 
-                            if let Ok(_module) = rc {
+                            if let Ok(mut module) = rc {
                                 let bundle: TheCodeBundle = CODEEDITOR.lock().unwrap().get_bundle();
+
+                                // We need to take the module name out of the bundle to make sure
+                                // to handle renames correctly.
+                                if let Some(g) = bundle.get_grid(&grid.id) {
+                                    module.name = g.name.clone();
+                                }
 
                                 // Successfully compiled, transfer the bundle to the server.
 
@@ -1017,8 +1044,15 @@ impl Sidebar {
                                             CODEEDITOR.lock().unwrap().get_bundle(),
                                         );
                                     }
-                                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                                }
+                                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                                     server.insert_character(bundle);
+                                }
+                                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Module {
+                                    // Update the bundle in the server
+                                    server.update_bundle(bundle.clone());
+                                    // Provide the bundle info to the editor
+                                    CODEEDITOR.lock().unwrap().insert_module(bundle.name, bundle.id, module);
                                 }
 
                                 ctx.ui.send(TheEvent::SetStatusText(
@@ -1048,7 +1082,8 @@ impl Sidebar {
                             }
                         }
                     }
-                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                }
+                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
@@ -1059,7 +1094,8 @@ impl Sidebar {
                             }
                         }
                     }
-                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Item {
+                }
+                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Item {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
@@ -1070,8 +1106,9 @@ impl Sidebar {
                             }
                         }
                     }
-                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Code {
-                    if let Some(list_layout) = ui.get_list_layout("Code List") {
+                }
+                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Module {
+                    if let Some(list_layout) = ui.get_list_layout("Module List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
                                 if let Some(code) = project.codes.get_mut(&bundle.id) {
@@ -1151,9 +1188,19 @@ impl Sidebar {
                 list_layout.add_item(item, ctx);
             }
         }
+        if let Some(list_layout) = ui.get_list_layout("Module List") {
+            list_layout.clear();
+            let list = project.sorted_code_list();
+            for (id, name) in list {
+                let mut item = TheListItem::new(TheId::named_with_id("Module Item", id));
+                item.set_text(name);
+                list_layout.add_item(item, ctx);
+            }
+        }
         ui.select_first_list_item("Region List", ctx);
         ui.select_first_list_item("Character List", ctx);
         ui.select_first_list_item("Tilemap List", ctx);
+        ui.select_first_list_item("Module List", ctx);
 
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Tilepicker"),
@@ -1262,10 +1309,10 @@ impl Sidebar {
         ctx: &mut TheContext,
         code: Option<&TheCodeBundle>,
     ) {
-        ui.set_widget_disabled_state("Code Remove", ctx, code.is_none());
-        ui.set_widget_disabled_state("Code Name Edit", ctx, code.is_none());
+        ui.set_widget_disabled_state("Module Remove", ctx, code.is_none());
+        ui.set_widget_disabled_state("Module Name Edit", ctx, code.is_none());
 
-        // Set the Item bundle.
+        // Set the Code bundle.
         if let Some(code) = code {
             let code_list_canvas: TheCanvas =
                 CODEEDITOR
@@ -1288,7 +1335,7 @@ impl Sidebar {
 
         if let Some(widget) = ui
             .canvas
-            .get_widget(Some(&"Code Name Edit".to_string()), None)
+            .get_widget(Some(&"Module Name Edit".to_string()), None)
         {
             if let Some(item) = code {
                 widget.set_value(TheValue::Text(item.name.clone()));
@@ -1566,6 +1613,20 @@ impl Sidebar {
 
     /// Deselects the section buttons
     pub fn deselect_sections_buttons(&mut self, ui: &mut TheUI, except: String) {
+
+        if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
+            // Remove code bundles UI from Character / Items / Modules
+            if let Some(canvas) = stack_layout.canvas_at_mut(1) {
+                canvas.set_bottom(TheCanvas::new());
+            }
+            if let Some(canvas) = stack_layout.canvas_at_mut(2) {
+                canvas.set_bottom(TheCanvas::new());
+            }
+            if let Some(canvas) = stack_layout.canvas_at_mut(4) {
+                canvas.set_bottom(TheCanvas::new());
+            }
+        }
+
         if let Some(layout) = ui.canvas.get_layout(Some(&"Section Buttons".into()), None) {
             for w in layout.widgets() {
                 if !w.id().name.starts_with(&except) {

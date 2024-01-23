@@ -53,9 +53,12 @@ impl RegionInstance {
     }
 
     /// Sets up the region instance.
-    pub fn setup(&mut self, id: Uuid, project: &Project) {
+    pub fn setup(&mut self, id: Uuid, project: &Project, packages: &FxHashMap<Uuid, TheCodePackage>) {
         self.id = id;
+
+        // Set the sandbox id to our region id.
         self.sandbox.id = id;
+        self.sandbox.packages = packages.clone();
 
         self.tick_ms = project.tick_ms;
         self.redraw_ms = 1000 / project.target_fps;
@@ -371,6 +374,11 @@ impl RegionInstance {
 
             *existing_package = package;
         }
+    }
+
+    /// Updates a package by inserting it into the sandbox.
+    pub fn update_package(&mut self, package: TheCodePackage) {
+        self.sandbox.packages.insert(package.id, package);
     }
 
     /// Removes the given character instance from the region.

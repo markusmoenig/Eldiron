@@ -126,6 +126,18 @@ impl Project {
         self.codes.remove(id);
     }
 
+    /// Returns a list of all codes sorted by name.
+    pub fn sorted_code_list(&self) -> Vec<(Uuid, String)> {
+        let mut entries: Vec<(Uuid, String)> = self
+            .codes
+            .iter()
+            .map(|(uuid, data)| (*uuid, data.name.clone()))
+            .collect();
+
+        entries.sort_by(|a, b| a.1.cmp(&b.1));
+        entries
+    }
+
     /// Removes the given tile from the project.
     pub fn remove_tile(&mut self, id: &Uuid) {
         for tilemap in &mut self.tilemaps {

@@ -393,7 +393,8 @@ impl TheTrait for Editor {
                                     serde_json::from_str(&contents).unwrap_or(Project::new());
                                 self.sidebar.load_from_project(ui, ctx, &self.project);
                                 self.tileeditor.load_from_project(ui, ctx, &self.project);
-                                self.server.set_project(self.project.clone());
+                                let packages = self.server.set_project(self.project.clone());
+                                CODEEDITOR.lock().unwrap().set_packages(packages);
                                 self.server.state = ServerState::Stopped;
                                 update_server_icons = true;
                                 redraw = true;
@@ -500,7 +501,7 @@ impl TheTrait for Editor {
                                 self.server.tick();
                             }
                         } else if id.name == "Stop" {
-                            self.server.set_project(self.project.clone());
+                            _ = self.server.set_project(self.project.clone());
                             self.server.stop();
                             update_server_icons = true;
                         } else {
@@ -603,14 +604,14 @@ impl TheTrait for Editor {
                                 }
                             }
                         }
-                        else if id.name == "Code Name Edit" {
+                        else if id.name == "Module Name Edit" {
                             if let Some(list_id) =
-                                self.sidebar.get_selected_in_list_layout(ui, "Code List")
+                                self.sidebar.get_selected_in_list_layout(ui, "Module List")
                             {
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
                         }
-                        else if id.name == "Code Item" {
+                        else if id.name == "Module Item" {
                             if let Some(code) = self.project.codes.get_mut(&id.uuid) {
                                 if let Some(text) = value.to_string() {
                                     code.name = text;

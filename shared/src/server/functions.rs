@@ -171,4 +171,24 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
         },
         vec![TheValue::Int(0), TheValue::Int(0)],
     );
+
+    // Debug
+    compiler.add_external_call(
+        "Debug".to_string(),
+        |stack: &mut Vec<TheValue>, data: &mut TheCodeNodeData, sandbox: &mut TheCodeSandbox| {
+
+            if let Some(v) = stack.pop() {
+                sandbox.set_debug_value(
+                    data.location,
+                    (
+                        None,
+                        v,
+                    ),
+                );
+            }
+
+            TheCodeNodeCallResult::Continue
+        },
+        vec![TheValue::Int(0), TheValue::Int(0)],
+    );
 }

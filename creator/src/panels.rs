@@ -41,6 +41,14 @@ impl Panels {
             Some(TheValue::Bool(false)),
         ));
 
+        codeeditor.add_external(TheExternalCode::new(
+            "Debug".to_string(),
+            "Outputs the specified debug value.".to_string(),
+            vec!["Value".to_string()],
+            vec![TheValue::Text("Text".to_string())],
+            None,
+        ));
+
         Self {}
     }
 
@@ -140,7 +148,7 @@ impl Panels {
         match event {
             TheEvent::Custom(id, _) => {
                 if id.name == "Set Region Panel" {
-                    println!("Set Region Panel");
+                    //println!("Set Region Panel");
 
                     let mut shared_left = true;
 
@@ -187,7 +195,7 @@ impl Panels {
                         }
                     }
                 } else if id.name == "Set CodeGrid Panel" {
-                    println!("Set CodeGrid Panel");
+                    //println!("Set CodeGrid Panel");
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
                     if *SIDEBARMODE.lock().unwrap() != SidebarMode::Region {
@@ -198,7 +206,7 @@ impl Panels {
                         }
                     }
                 } else if id.name == "Set Tilemap Panel" {
-                    println!("Set Tilemap Panel");
+                    //println!("Set Tilemap Panel");
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 2));
                     if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {

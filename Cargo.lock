@@ -469,7 +469,7 @@ dependencies = [
 
 [[package]]
 name = "creator"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "lazy_static",
  "open",
@@ -1757,9 +1757,9 @@ checksum = "216080ab382b992234dda86873c18d4c48358f5cfcb70fd693d7f6f2131b628b"
 
 [[package]]
 name = "rfd"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "241a0deb168c88050d872294f7b3106c1dfa8740942bcc97bc91b98e97b5c501"
+checksum = "c0d8ab342bcc5436e04d3a4c1e09e17d74958bfaddf8d5fad6f85607df0f994f"
 dependencies = [
  "block",
  "dispatch",
@@ -1953,7 +1953,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "lazy_static",
  "rand",
@@ -2101,8 +2101,7 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96b716005807c3d60e146beb754ed7dd79f9d9104929eabe81751b2d344d3151"
+source = "git+https://github.com/markusmoenig/TheFramework#f63923b52ea50a5f9ca4760287006c933eaef11f"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
