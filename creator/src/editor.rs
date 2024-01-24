@@ -215,7 +215,10 @@ impl TheTrait for Editor {
                 }
             }
             if self.server.state == ServerState::Running {
-                self.server.tick();
+                let debug = self.server.tick();
+                if !debug.is_empty() {
+                    self.sidebar.add_debug_messages(debug, ui, ctx);
+                }
                 self.panels
                     .update_code_object(ui, ctx, &mut self.server, &mut self.server_ctx);
             }
@@ -488,6 +491,7 @@ impl TheTrait for Editor {
                                 TheId::empty(),
                                 "Server has been started.".to_string(),
                             ));
+                            self.sidebar.clear_debug_messages(ui, ctx);
                             update_server_icons = true;
                         } else if id.name == "Pause" {
                             if self.server.state == ServerState::Running {
@@ -498,7 +502,10 @@ impl TheTrait for Editor {
                                 ));
                                 update_server_icons = true;
                             } else if self.server.state == ServerState::Paused {
-                                self.server.tick();
+                                let debug = self.server.tick();
+                                if !debug.is_empty() {
+                                    self.sidebar.add_debug_messages(debug, ui, ctx);
+                                }
                             }
                         } else if id.name == "Stop" {
                             _ = self.server.set_project(self.project.clone());

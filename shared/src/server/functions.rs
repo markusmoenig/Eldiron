@@ -178,6 +178,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
         |stack: &mut Vec<TheValue>, data: &mut TheCodeNodeData, sandbox: &mut TheCodeSandbox| {
 
             if let Some(v) = stack.pop() {
+                sandbox.add_debug_message(v.describe());
                 sandbox.set_debug_value(
                     data.location,
                     (

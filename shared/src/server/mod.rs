@@ -234,7 +234,8 @@ impl Server {
     }
 
     /// Tick. Compute the next frame.
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self) -> Vec<TheDebugMessage> {
+
         self.world.tick();
         self.anim_counter = self.anim_counter.wrapping_add(1);
 
@@ -261,6 +262,14 @@ impl Server {
         }
 
         self.set_key_down(None);
+
+        let mut debug_messages = vec![];
+
+        for instance in self.instances.values_mut() {
+            debug_messages.append(&mut instance.debug_messages());
+        }
+
+        debug_messages
     }
 
     /// Updates the tiles in the server. Called after live tilemap updates from the editor.

@@ -8,6 +8,8 @@ pub enum SidebarMode {
     Item,
     Tilemap,
     Module,
+    Debug,
+    Thanks
 }
 
 pub struct Sidebar {
@@ -60,16 +62,25 @@ impl Sidebar {
         let mut module_sectionbar_button = TheSectionbarButton::new(TheId::named("Module Section"));
         module_sectionbar_button.set_text("Module".to_string());
 
+        let mut debug_sectionbar_button = TheSectionbarButton::new(TheId::named("Debug Section"));
+        debug_sectionbar_button.set_text("Debug".to_string());
+
+        let mut thanks_sectionbar_button = TheSectionbarButton::new(TheId::named("Thanks Section"));
+        thanks_sectionbar_button.set_text("Patreons".to_string());
+
         let mut vlayout = TheVLayout::new(TheId::named("Section Buttons"));
         vlayout.add_widget(Box::new(region_sectionbar_button));
         vlayout.add_widget(Box::new(character_sectionbar_button));
         vlayout.add_widget(Box::new(item_sectionbar_button));
         vlayout.add_widget(Box::new(tilemap_sectionbar_button));
         vlayout.add_widget(Box::new(module_sectionbar_button));
+        vlayout.add_widget(Box::new(debug_sectionbar_button));
+        vlayout.add_widget(Box::new(thanks_sectionbar_button));
         vlayout.set_margin(vec4i(5, 10, 5, 5));
         vlayout.set_padding(4);
         vlayout.set_background_color(Some(SectionbarBackground));
         vlayout.limiter_mut().set_max_width(90);
+        vlayout.set_reverse_index(Some(2));
         sectionbar_canvas.set_layout(vlayout);
 
         //
@@ -391,6 +402,68 @@ impl Sidebar {
 
         module_canvas.set_top(list_canvas);
         stack_layout.add_canvas(module_canvas);
+
+        // Debug
+
+        let mut debug_canvas = TheCanvas::default();
+
+        let mut debug_layout = TheListLayout::new(TheId::named("Debug List"));
+
+        let mut item: TheListItem = TheListItem::new(TheId::named("Debug Item"));
+        item.set_text("Eldiron Creater Startup".to_string());
+        debug_layout.add_item(item, ctx);
+
+        debug_canvas.set_layout(debug_layout);
+        stack_layout.add_canvas(debug_canvas);
+
+        // Thanks
+
+        let mut thanks_canvas = TheCanvas::default();
+
+        let mut thanks_layout = TheListLayout::new(TheId::named("Thanks List"));
+
+        let mut item: TheListItem = TheListItem::new(TheId::empty());
+        item.set_text("Patreons:".to_string());
+        thanks_layout.add_item(item, ctx);
+
+        let item: TheListItem = TheListItem::new(TheId::empty());
+        thanks_layout.add_item(item, ctx);
+
+        let mut item: TheListItem = TheListItem::new(TheId::empty());
+        item.set_text("Erlend Sogge Heggen".to_string());
+        item.add_value_column(130, TheValue::Text("Dragon Slayer".to_string()));
+        thanks_layout.add_item(item, ctx);
+
+        let item: TheListItem = TheListItem::new(TheId::empty());
+        thanks_layout.add_item(item, ctx);
+
+        let item: TheListItem = TheListItem::new(TheId::empty());
+        thanks_layout.add_item(item, ctx);
+
+        let mut item: TheListItem = TheListItem::new(TheId::empty());
+        item.set_text("GitHub Sponsors:".to_string());
+        thanks_layout.add_item(item, ctx);
+
+        let item: TheListItem = TheListItem::new(TheId::empty());
+        thanks_layout.add_item(item, ctx);
+
+        let mut item: TheListItem = TheListItem::new(TheId::empty());
+        item.set_text("Christopher Nascone".to_string());
+        item.add_value_column(130, TheValue::Text("Adventurer".to_string()));
+        thanks_layout.add_item(item, ctx);
+
+        let item: TheListItem = TheListItem::new(TheId::empty());
+        thanks_layout.add_item(item, ctx);
+
+        let item: TheListItem = TheListItem::new(TheId::empty());
+        thanks_layout.add_item(item, ctx);
+
+        let mut item: TheListItem = TheListItem::new(TheId::empty());
+        item.set_text("You make Eldiron possible!".to_string());
+        thanks_layout.add_item(item, ctx);
+
+        thanks_canvas.set_layout(thanks_layout);
+        stack_layout.add_canvas(thanks_canvas);
 
         //
 
@@ -887,6 +960,9 @@ impl Sidebar {
                 }
                 // Section Buttons
                 else if id.name == "Region Section" && *state == TheWidgetState::Selected {
+                    self.deselect_sections_buttons(ui, id.name.clone());
+                    CODEEDITOR.lock().unwrap().set_allow_modules(true);
+
                     if let Some(widget) = ui
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
@@ -903,11 +979,11 @@ impl Sidebar {
 
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 0));
-                    self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
                 }
                 else if id.name == "Character Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
+                    CODEEDITOR.lock().unwrap().set_allow_modules(true);
 
                     if let Some(widget) = ui
                         .canvas
@@ -936,6 +1012,7 @@ impl Sidebar {
                 }
                 else if id.name == "Item Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
+                    CODEEDITOR.lock().unwrap().set_allow_modules(true);
 
                     if let Some(widget) = ui
                         .canvas
@@ -986,6 +1063,7 @@ impl Sidebar {
                 }
                 else if id.name == "Module Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
+                    CODEEDITOR.lock().unwrap().set_allow_modules(false);
 
                     if let Some(widget) = ui
                         .canvas
@@ -1010,6 +1088,40 @@ impl Sidebar {
 
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 4));
+                    redraw = true;
+                }
+                else if id.name == "Debug Section" && *state == TheWidgetState::Selected {
+                    self.deselect_sections_buttons(ui, id.name.clone());
+                    CODEEDITOR.lock().unwrap().set_allow_modules(false);
+
+                    if let Some(widget) = ui
+                        .canvas
+                        .get_widget(Some(&"Switchbar Section Header".into()), None)
+                    {
+                        widget.set_value(TheValue::Text("Debug Output".to_string()));
+                    }
+
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Debug;
+
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 5));
+                    redraw = true;
+                }
+                else if id.name == "Thanks Section" && *state == TheWidgetState::Selected {
+                    self.deselect_sections_buttons(ui, id.name.clone());
+                    CODEEDITOR.lock().unwrap().set_allow_modules(false);
+
+                    if let Some(widget) = ui
+                        .canvas
+                        .get_widget(Some(&"Switchbar Section Header".into()), None)
+                    {
+                        widget.set_value(TheValue::Text("Thanks To".to_string()));
+                    }
+
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Debug;
+
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 6));
                     redraw = true;
                 }
                 else if id.name == "Compile" {
@@ -1651,6 +1763,34 @@ impl Sidebar {
         if let Some(layout) = ui.canvas.get_layout(Some(&layout_name.to_string()), None) {
             if let Some(list_layout) = layout.as_list_layout() {
                 list_layout.deselect_all();
+            }
+        }
+    }
+
+    /// Clears the debug messages.
+    pub fn clear_debug_messages(&self, ui: &mut TheUI, ctx: &mut TheContext) {
+        if let Some(layout) = ui.canvas.get_layout(Some(&"Debug List".to_string()), None) {
+            if let Some(list_layout) = layout.as_list_layout() {
+                list_layout.clear();
+
+                let mut item = TheListItem::new(TheId::empty());
+                item.set_text("Server has been started".to_string());
+                item.add_value_column(100, TheValue::Text("Status".to_string()));
+                list_layout.add_item(item, ctx);
+            }
+        }
+    }
+
+    /// Adds the given debug messages to the debug list.
+    pub fn add_debug_messages(&self, messages: Vec<TheDebugMessage>, ui: &mut TheUI, ctx: &mut TheContext) {
+        if let Some(layout) = ui.canvas.get_layout(Some(&"Debug List".to_string()), None) {
+            if let Some(list_layout) = layout.as_list_layout() {
+                for message in messages {
+                    let mut item = TheListItem::new(TheId::named("Debug Item"));
+                    item.add_value_column(100, TheValue::Text(message.entity));
+                    item.set_text(message.message);
+                    list_layout.add_item(item, ctx);
+                }
             }
         }
     }

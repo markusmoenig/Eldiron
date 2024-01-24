@@ -68,6 +68,7 @@ impl RegionInstance {
     pub fn tick(&mut self) {
 
         self.character_debug_modules.clear();
+        self.sandbox.clear_debug_messages();
 
         // We iterate over all character instances and execute their main function
         // as well as the main function of their character template.
@@ -440,5 +441,10 @@ impl RegionInstance {
         }
 
         None
+    }
+
+    /// Returns the debug messages in the sandbox.
+    pub fn debug_messages(&self) -> Vec<TheDebugMessage> {
+        self.sandbox.debug_messages.clone()
     }
 }
