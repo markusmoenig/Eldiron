@@ -88,6 +88,25 @@ impl Region {
         can_move
     }
 
+    /// Fills a code level with the blocking tiles of the region.
+    pub fn fill_code_level(&self, level: &mut TheCodeLevel, tiles: &FxHashMap<Uuid, TheRGBATile>) {
+        level.clear_blocking();
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let pos = (x, y);
+                if let Some(tile) = self.tiles.get(&pos) {
+                    for layer in tile.layers.iter().flatten() {
+                        if let Some(t) = tiles.get(layer) {
+                            if t.blocking {
+                                level.set_blocking((x as u16, y as u16));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Create a region from json.
     pub fn from_json(json: &str) -> Self {
         serde_json::from_str(json).unwrap_or(Region::new())

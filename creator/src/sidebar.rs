@@ -66,7 +66,7 @@ impl Sidebar {
         debug_sectionbar_button.set_text("Debug".to_string());
 
         let mut thanks_sectionbar_button = TheSectionbarButton::new(TheId::named("Thanks Section"));
-        thanks_sectionbar_button.set_text("Patreons".to_string());
+        thanks_sectionbar_button.set_text("Patreon".to_string());
 
         let mut vlayout = TheVLayout::new(TheId::named("Section Buttons"));
         vlayout.add_widget(Box::new(region_sectionbar_button));
@@ -459,7 +459,7 @@ impl Sidebar {
         thanks_layout.add_item(item, ctx);
 
         let mut item: TheListItem = TheListItem::new(TheId::empty());
-        item.set_text("You make Eldiron possible!".to_string());
+        item.set_text("Thanks for your support!".to_string());
         thanks_layout.add_item(item, ctx);
 
         thanks_canvas.set_layout(thanks_layout);
@@ -1115,7 +1115,7 @@ impl Sidebar {
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
                     {
-                        widget.set_value(TheValue::Text("Thanks To".to_string()));
+                        widget.set_value(TheValue::Text("Thanks to".to_string()));
                     }
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Debug;
@@ -1163,6 +1163,10 @@ impl Sidebar {
                                 else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Module {
                                     // Update the bundle in the server
                                     server.update_bundle(bundle.clone());
+
+                                    // Update the bundle in the project
+                                    project.codes.insert(bundle.id, bundle.clone());
+
                                     // Provide the bundle info to the editor
                                     CODEEDITOR.lock().unwrap().insert_module(bundle.name, bundle.id, module);
                                 }

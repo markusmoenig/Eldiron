@@ -16,13 +16,14 @@ impl Panels {
             Some(TheValue::Text("".to_string())),
         ));
 
+        /*
         codeeditor.add_external(TheExternalCode::new(
             "RandWalk".to_string(),
             "Moves the character in a random direction.".to_string(),
             vec![],
             vec![],
             None,
-        ));
+        ));*/
 
         codeeditor.add_external(TheExternalCode::new(
             "Pulse".to_string(),

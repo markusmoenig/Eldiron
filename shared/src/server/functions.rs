@@ -1,5 +1,5 @@
-use crate::prelude::*;
-use crate::server::{REGIONS, RNG, TILES, UPDATES, KEY_DOWN};
+//use crate::prelude::*;
+use crate::server::{KEY_DOWN, REGIONS, TILES, UPDATES};
 use theframework::prelude::*;
 
 pub fn add_compiler_functions(compiler: &mut TheCompiler) {
@@ -16,6 +16,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
         },
         vec![],
     );
+    /*
     // RandWalk
     compiler.add_external_call(
         "RandWalk".to_string(),
@@ -67,7 +68,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
             TheCodeNodeCallResult::Continue
         },
         vec![],
-    );
+    );*/
 
     // Move
     compiler.add_external_call(
@@ -132,6 +133,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                 if max_value == 0 {
                     if let Some(int) = v.to_i32() {
                         max_value = int;
+                        data.values[1] = TheValue::Int(int);
                     }
                 }
             }
@@ -176,16 +178,9 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
     compiler.add_external_call(
         "Debug".to_string(),
         |stack: &mut Vec<TheValue>, data: &mut TheCodeNodeData, sandbox: &mut TheCodeSandbox| {
-
             if let Some(v) = stack.pop() {
                 sandbox.add_debug_message(v.describe());
-                sandbox.set_debug_value(
-                    data.location,
-                    (
-                        None,
-                        v,
-                    ),
-                );
+                sandbox.set_debug_value(data.location, (None, v));
             }
 
             TheCodeNodeCallResult::Continue

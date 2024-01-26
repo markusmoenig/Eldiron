@@ -2101,7 +2101,7 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
-source = "git+https://github.com/markusmoenig/TheFramework#cf9b80046d59287e3ce47922a8cddf5b039a568f"
+source = "git+https://github.com/markusmoenig/TheFramework#1773e230a222d6a79f2fecde6d5ddbc19ab468a8"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2113,6 +2113,7 @@ dependencies = [
  "maths-rs",
  "pixels",
  "png",
+ "rand",
  "rayon",
  "rfd",
  "rust-embed",
