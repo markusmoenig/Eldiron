@@ -290,6 +290,52 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
                 match event {
+                    TheEvent::DialogValueOnClose(_role, name, value) => {
+                        println!("Dialog Value On Close: {} -> {:?}", name, value);
+                        if name == "New Area Name" {
+                            // Create a new area
+
+                            if let Some(tiles) = &self.server_ctx.tile_selection {
+                                let mut area = Area {
+                                    area: tiles.tiles(),
+                                    name: value.describe(),
+                                    ..Default::default()
+                                };
+
+                                let main = TheCodeGrid {
+                                    name: "main".into(),
+                                    ..Default::default()
+                                };
+
+                                area.bundle.insert_grid(main);
+
+                                if let Some(list) = ui.get_list_layout("Region Content List") {
+                                    let mut item = TheListItem::new(TheId::named_with_id(
+                                        "Region Content List Item",
+                                        area.id,
+                                    ));
+                                    item.set_text(area.name.clone());
+                                    item.set_state(TheWidgetState::Selected);
+                                    item.add_value_column(100, TheValue::Text("Area".to_string()));
+
+                                    list.deselect_all();
+                                    list.add_item(item, ctx);
+                                    list.select_item(area.id, ctx);
+                                }
+
+                                self.server_ctx.curr_area = Some(area.id);
+                                self.server_ctx.curr_character_instance = None;
+                                self.server_ctx.curr_character = None;
+
+                                if let Some(region) =
+                                    self.project.get_region_mut(&self.server_ctx.curr_region)
+                                {
+                                    region.areas.insert(area.id, area);
+                                }
+                            }
+                            self.server_ctx.tile_selection = None;
+                        }
+                    }
                     TheEvent::TileEditorDrop(_id, location, drop) => {
                         if drop.id.name.starts_with("Character") {
                             let mut instance = TheCodeBundle::new();
@@ -367,6 +413,7 @@ impl TheTrait for Editor {
 
                             self.server_ctx.curr_character = Some(character.character_id);
                             self.server_ctx.curr_character_instance = Some(character.id);
+                            self.server_ctx.curr_area = None;
                             //self.sidebar.deselect_all("Character List", ui);
 
                             self.server_ctx.curr_grid_id =
@@ -565,8 +612,7 @@ impl TheTrait for Editor {
                             {
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
-                        }
-                        else if id.name == "Region Item" {
+                        } else if id.name == "Region Item" {
                             for r in &mut self.project.regions {
                                 if r.id == id.uuid {
                                     if let Some(text) = value.to_string() {
@@ -574,8 +620,7 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
-                        }
-                        else if id.name == "Character Name Edit" {
+                        } else if id.name == "Character Name Edit" {
                             if let Some(list_id) = self
                                 .sidebar
                                 .get_selected_in_list_layout(ui, "Character List")
@@ -589,36 +634,31 @@ impl TheTrait for Editor {
                                 }
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
-                        }
-                        else if id.name == "Character Item" {
+                        } else if id.name == "Character Item" {
                             if let Some(character) = self.project.characters.get_mut(&id.uuid) {
                                 if let Some(text) = value.to_string() {
                                     character.name = text;
                                 }
                             }
-                        }
-                        else if id.name == "Item Name Edit" {
+                        } else if id.name == "Item Name Edit" {
                             if let Some(list_id) =
                                 self.sidebar.get_selected_in_list_layout(ui, "Item List")
                             {
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
-                        }
-                        else if id.name == "Item Item" {
+                        } else if id.name == "Item Item" {
                             if let Some(item) = self.project.items.get_mut(&id.uuid) {
                                 if let Some(text) = value.to_string() {
                                     item.name = text;
                                 }
                             }
-                        }
-                        else if id.name == "Module Name Edit" {
+                        } else if id.name == "Module Name Edit" {
                             if let Some(list_id) =
                                 self.sidebar.get_selected_in_list_layout(ui, "Module List")
                             {
                                 ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
                             }
-                        }
-                        else if id.name == "Module Item" {
+                        } else if id.name == "Module Item" {
                             if let Some(code) = self.project.codes.get_mut(&id.uuid) {
                                 if let Some(text) = value.to_string() {
                                     code.name = text;

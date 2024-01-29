@@ -17,6 +17,9 @@ pub struct Region {
     pub tiles: FxHashMap<(i32, i32), RegionTile>,
 
     #[serde(default)]
+    pub areas: FxHashMap<Uuid, Area>,
+
+    #[serde(default)]
     pub characters: FxHashMap<Uuid, Character>,
 
     pub width: i32,
@@ -41,6 +44,7 @@ impl Region {
             name: "New Region".to_string(),
             tiles: FxHashMap::default(),
 
+            areas: FxHashMap::default(),
             characters: FxHashMap::default(),
 
             width: 80,

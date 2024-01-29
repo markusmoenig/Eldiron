@@ -6,6 +6,8 @@ pub mod renderer;
 pub mod server;
 pub mod tiledrawer;
 pub mod tilemap;
+pub mod area;
+pub mod tilearea;
 
 pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
@@ -14,6 +16,8 @@ pub mod prelude {
     pub use crate::character::Character;
     pub use crate::project::Project;
     pub use crate::region::{Layer2DRole, Region, RegionTile};
+    pub use crate::area::Area;
+    pub use crate::tilearea::TileArea;
     pub use crate::renderer::Renderer;
     pub use crate::server::context::ServerContext;
     pub use crate::server::update::{CharacterUpdate, RegionUpdate};

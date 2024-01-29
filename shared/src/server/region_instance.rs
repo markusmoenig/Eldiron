@@ -10,6 +10,9 @@ pub struct RegionInstance {
     sandbox: TheCodeSandbox,
 
     #[serde(skip)]
+    areas: FxHashMap<Uuid, TheCodePackage>,
+
+    #[serde(skip)]
     characters: FxHashMap<Uuid, TheCodePackage>,
 
     #[serde(skip)]
@@ -41,6 +44,8 @@ impl RegionInstance {
 
             sandbox,
 
+            areas: FxHashMap::default(),
+
             characters: FxHashMap::default(),
             characters_instances: FxHashMap::default(),
             characters_ids: vec![],
@@ -55,6 +60,8 @@ impl RegionInstance {
     /// Sets up the region instance.
     pub fn setup(&mut self, id: Uuid, project: &Project, packages: &FxHashMap<Uuid, TheCodePackage>) {
         self.id = id;
+
+        self.areas = FxHashMap::default();
 
         // Set the sandbox id to our region id.
         self.sandbox.id = id;
@@ -207,60 +214,63 @@ impl RegionInstance {
                     }
                 }
             }
-            /*
-            for c in self.sandbox.objects.values_mut() {
-                if let Some(TheValue::Position(p)) = c.get(&"position".into()).cloned() {
-                    if let Some(TheValue::Tile(name, id)) = c.get_mut(&"tile".into()) {
-                        //println!("p {:?} s {:?}", p, name);
 
-                        if !tiledrawer.draw_tile(
-                            vec2i(p.x as i32, p.y as i32),
-                            buffer,
-                            region.grid_size,
-                            *id,
-                            anim_counter,
-                            ctx,
-                        ) {
-                            if let Some(found_id) = tiledrawer.get_tile_id_by_name(name.clone()) {
-                                *id = found_id;
-                                tiledrawer.draw_tile(
-                                    vec2i(p.x as i32, p.y as i32),
-                                    buffer,
-                                    region.grid_size,
-                                    found_id,
-                                    anim_counter,
-                                    ctx,
-                                );
-                            } else {
-                                //println!("RegionInstance::draw: Tile not found: {}", name);
-                            }
-                        }
-                    }
-                }
+            if let Some(tilearea) = &server_ctx.tile_selection {
+                let tiles = tilearea.tiles();
 
-                if Some(c.id) == server_ctx.curr_character_instance {
-                    if let Some(TheValue::Position(p)) = c.get(&"position".into()) {
-                        tiledrawer.draw_tile_outline(
-                            vec2i(p.x as i32, p.y as i32),
-                            buffer,
-                            region.grid_size,
-                            WHITE,
-                            ctx,
-                        );
-                    }
-                } else if Some(c.id) == server_ctx.curr_character {
-                    if let Some(TheValue::Position(p)) = c.get(&"position".into()) {
-                        tiledrawer.draw_tile_outline(
-                            vec2i(p.x as i32, p.y as i32),
-                            buffer,
-                            region.grid_size,
-                            [128, 128, 128, 255],
-                            ctx,
-                        );
-                    }
+                tiledrawer.draw_tile_selection(
+                    &tiles,
+                    buffer,
+                    region.grid_size,
+                    WHITE,
+                    ctx);
+            }
+
+            if let Some(area_id) = &server_ctx.curr_area {
+                if let Some(area) = region.areas.get(area_id) {
+                    tiledrawer.draw_tile_selection(
+                        &area.area,
+                        buffer,
+                        region.grid_size,
+                        WHITE,
+                        ctx);
                 }
-            }*/
+            }
         }
+    }
+
+    /// Insert a (TheCodePackage) to the region.
+    pub fn insert_area(&mut self, mut area: Area, compiler: &mut TheCompiler) {
+
+        let mut package = TheCodePackage::new();
+        package.id = area.id;
+
+        for grid in area.bundle.grids.values_mut() {
+            let rc = compiler.compile(grid);
+            if let Ok(mut module) = rc {
+                module.name = grid.name.clone();
+                println!(
+                    "RegionInstance::insert_area: Compiled grid module: {}",
+                    grid.name
+                );
+                package.insert_module(module.name.clone(), module);
+            } else {
+                println!(
+                    "RegionInstance::insert_area: Failed to compile grid: {}",
+                    grid.name
+                );
+            }
+        }
+
+        let mut o = TheCodeObject::new();
+        o.id = area.id;
+
+        self.sandbox.clear_runtime_states();
+        self.sandbox.aliases.insert("self".to_string(), o.id);
+
+        //package.execute("init".to_string(), &mut self.sandbox);
+
+        self.areas.insert(area.id, package);
     }
 
     /// Insert a (TheCodePackage) to the region.

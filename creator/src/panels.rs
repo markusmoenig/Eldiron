@@ -154,7 +154,7 @@ impl Panels {
                     let mut shared_left = true;
 
                     if let Some(character) = server_ctx.curr_character_instance {
-                        // Code Object
+                        // Character
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 0));
 
@@ -183,7 +183,37 @@ impl Panels {
 
                             self.update_code_object(ui, ctx, server, server_ctx);
                         }
-                    } else {
+                    }
+                    else if let Some(area_id) = server_ctx.curr_area {
+                        // Area
+                        ctx.ui
+                            .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 0));
+
+                        // If in Pick mode show the instance
+                        if self.get_editor_group_index(ui) == 1 {
+                            ctx.ui
+                                .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+
+                            if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
+                                layout.set_mode(TheSharedLayoutMode::Shared);
+                                layout.set_shared_ratio(0.7);
+                                ctx.ui.relayout = true;
+                                redraw = true;
+                                shared_left = false;
+                            }
+
+                            if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                                if let Some(area) = region.areas.get(&area_id) {
+                                    if let Some(text) = ui.get_text("Panel Object Text") {
+                                        text.set_text(area.name.clone());
+                                    }
+                                }
+                            }
+
+                            self.update_code_object(ui, ctx, server, server_ctx);
+                        }
+                    }
+                    else {
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));
                     }

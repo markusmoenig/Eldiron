@@ -469,7 +469,7 @@ dependencies = [
 
 [[package]]
 name = "creator"
-version = "0.8.8"
+version = "0.8.9"
 dependencies = [
  "lazy_static",
  "open",
@@ -1953,7 +1953,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.8.8"
+version = "0.8.9"
 dependencies = [
  "lazy_static",
  "rand",
@@ -2101,7 +2101,7 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
-source = "git+https://github.com/markusmoenig/TheFramework#1773e230a222d6a79f2fecde6d5ddbc19ab468a8"
+source = "git+https://github.com/markusmoenig/TheFramework#7c190a9084a1e96878ab9cea1e32e22270c81f3f"
 dependencies = [
  "console_error_panic_hook",
  "console_log",

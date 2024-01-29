@@ -177,6 +177,23 @@ impl TileDrawer {
         None
     }
 
+    pub fn draw_tile_selection(
+        &self,
+        tiles: &FxHashSet<(i32, i32)>,
+        buffer: &mut TheRGBABuffer,
+        grid: i32,
+        color: [u8; 4],
+        ctx: &mut TheContext,
+    ) {
+        for t in tiles {
+            let x = (t.0 * grid) as usize;
+            let y = (t.1 * grid) as usize;
+            let stride = buffer.stride();
+            ctx.draw
+                .rect_outline(buffer.pixels_mut(), &(x, y, 24, 24), stride, &color);
+        }
+    }
+
     /// Mixes the two colors together.
     #[inline(always)]
     pub fn mix_color(&self, a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {

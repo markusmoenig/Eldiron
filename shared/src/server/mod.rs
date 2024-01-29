@@ -158,6 +158,10 @@ impl Server {
             instance.set_debug_mode(self.debug_mode);
             instance.setup(uuid, project, packages);
 
+            for area in region.areas.values() {
+                instance.insert_area(area.clone(), &mut self.compiler);
+            }
+
             self.instances.insert(uuid, instance);
         }
 
@@ -410,6 +414,16 @@ impl Server {
             instance.get_character_object(character_id)
         } else {
             None
+        }
+    }
+
+    /// Insert the area into the given region.
+    pub fn insert_area(&mut self, region: Uuid, area: Area) {
+        if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
+            if let Some(instance) = self.instances.get_mut(&region.id) {
+                instance.insert_area(area.clone(), &mut self.compiler);
+            }
+            region.areas.insert(area.id, area);
         }
     }
 

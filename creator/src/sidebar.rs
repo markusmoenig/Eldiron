@@ -9,7 +9,7 @@ pub enum SidebarMode {
     Tilemap,
     Module,
     Debug,
-    Thanks
+    Thanks,
 }
 
 pub struct Sidebar {
@@ -495,9 +495,6 @@ impl Sidebar {
         let mut redraw = false;
 
         match event {
-            TheEvent::ShowContextMenu(id, _coord) => {
-                println!("ShowContextMenu {}", id.name);
-            }
             TheEvent::DragStarted(id, text, offset) => {
                 if id.name == "Character Item" {
                     let mut drop = TheDrop::new(id.clone());
@@ -526,9 +523,7 @@ impl Sidebar {
                 }
                 // Rename the tilemap item
                 else if id.name == "Tilemap Name Edit" {
-                    if let Some(list_id) =
-                        self.get_selected_in_list_layout(ui, "Tilemap List")
-                    {
+                    if let Some(list_id) = self.get_selected_in_list_layout(ui, "Tilemap List") {
                         ctx.ui.send(TheEvent::SetValue(list_id.uuid, value.clone()));
                     }
                 }
@@ -552,21 +547,18 @@ impl Sidebar {
                             }
                         }
                     }
-                }
-                else if id.name == "Tilemap Filter Edit" || id.name == "Tilemap Filter Role" {
+                } else if id.name == "Tilemap Filter Edit" || id.name == "Tilemap Filter Role" {
                     if let Some(id) = self.curr_tilemap_uuid {
                         self.show_filtered_tiles(ui, ctx, project.get_tilemap(id).as_deref())
                     }
-                }
-                else if id.name == "Tilemap Editor Zoom" {
+                } else if id.name == "Tilemap Editor Zoom" {
                     if let Some(v) = value.to_f32() {
                         if let Some(layout) = ui.get_rgba_layout("Tilemap Editor") {
                             layout.set_zoom(v);
                             layout.relayout(ctx);
                         }
                     }
-                }
-                else if id.name == "Region Content Filter Edit"
+                } else if id.name == "Region Content Filter Edit"
                     || id.name == "Region Content Dropdown"
                 {
                     self.apply_region(ui, ctx, project.get_region(&server_ctx.curr_region), server);
@@ -703,8 +695,7 @@ impl Sidebar {
                         server.insert_character(bundle.clone());
                         project.add_character(bundle);
                     }
-                }
-                else if id.name == "Character Remove" {
+                } else if id.name == "Character Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
@@ -712,16 +703,14 @@ impl Sidebar {
                             self.apply_character(ui, ctx, None);
                         }
                     }
-                }
-                else if id.name == "Character Item" {
+                } else if id.name == "Character Item" {
                     if let Some(c) = project.characters.get(&id.uuid) {
                         server_ctx.curr_character = Some(id.uuid);
                         //server_ctx.curr_character_instance = None;
                         self.apply_character(ui, ctx, Some(c));
                         redraw = true;
                     }
-                }
-                else if id.name == "Item Add" {
+                } else if id.name == "Item Add" {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         let bundle = TheCodeBundle::new();
 
@@ -738,8 +727,7 @@ impl Sidebar {
                         self.apply_item(ui, ctx, Some(&bundle));
                         project.add_item(bundle);
                     }
-                }
-                else if id.name == "Item Remove" {
+                } else if id.name == "Item Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
@@ -747,14 +735,12 @@ impl Sidebar {
                             self.apply_item(ui, ctx, None);
                         }
                     }
-                }
-                else if id.name == "Item Item" {
+                } else if id.name == "Item Item" {
                     if let Some(c) = project.items.get(&id.uuid) {
                         self.apply_item(ui, ctx, Some(c));
                         redraw = true;
                     }
-                }
-                else if id.name == "Module Add" {
+                } else if id.name == "Module Add" {
                     if let Some(list_layout) = ui.get_list_layout("Module List") {
                         let bundle = TheCodeBundle::new();
 
@@ -771,8 +757,7 @@ impl Sidebar {
                         self.apply_code(ui, ctx, Some(&bundle));
                         project.add_code(bundle);
                     }
-                }
-                else if id.name == "Module Remove" {
+                } else if id.name == "Module Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
@@ -780,8 +765,7 @@ impl Sidebar {
                             self.apply_code(ui, ctx, None);
                         }
                     }
-                }
-                else if id.name == "Module Item" {
+                } else if id.name == "Module Item" {
                     if let Some(c) = project.codes.get(&id.uuid) {
                         self.apply_code(ui, ctx, Some(c));
                         redraw = true;
@@ -980,8 +964,7 @@ impl Sidebar {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 0));
                     redraw = true;
-                }
-                else if id.name == "Character Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Character Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(true);
 
@@ -1009,8 +992,7 @@ impl Sidebar {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 1));
                     redraw = true;
-                }
-                else if id.name == "Item Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Item Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(true);
 
@@ -1033,8 +1015,7 @@ impl Sidebar {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 2));
                     redraw = true;
-                }
-                else if id.name == "Tilemap Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Tilemap Section" && *state == TheWidgetState::Selected {
                     if let Some(widget) = ui
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
@@ -1060,8 +1041,7 @@ impl Sidebar {
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 3));
                     self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
-                }
-                else if id.name == "Module Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Module Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(false);
 
@@ -1089,8 +1069,7 @@ impl Sidebar {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 4));
                     redraw = true;
-                }
-                else if id.name == "Debug Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Debug Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(false);
 
@@ -1106,8 +1085,7 @@ impl Sidebar {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 5));
                     redraw = true;
-                }
-                else if id.name == "Thanks Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Thanks Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(false);
 
@@ -1150,17 +1128,61 @@ impl Sidebar {
                                     if let Some(character_instance) =
                                         server_ctx.curr_character_instance
                                     {
-                                        server.update_character_instance_bundle(
-                                            server_ctx.curr_region,
-                                            character_instance,
-                                            CODEEDITOR.lock().unwrap().get_bundle(),
-                                        );
+                                        // This is a character instance bundle
+
+                                        if let Some(region) =
+                                            project.get_region_mut(&server_ctx.curr_region)
+                                        {
+                                            if let Some(character) =
+                                                region.characters.get_mut(&character_instance)
+                                            {
+                                                // We check if the key exists first as a safety measure
+                                                #[allow(clippy::map_entry)]
+                                                if character.instance.grids.contains_key(&grid.id) {
+
+                                                    // Update the character instance
+                                                    character.instance.grids.insert(
+                                                        grid.id,
+                                                        grid.clone(),
+                                                    );
+
+                                                    server.update_character_instance_bundle(
+                                                        server_ctx.curr_region,
+                                                        character_instance,
+                                                        character.instance.clone(),
+                                                    );
+                                                } else {
+                                                    println!("Character instance does not contain grid: {:?}", grid.name);
+                                                }
+                                            }
+                                        }
                                     }
-                                }
-                                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                                    else if let Some(area) = server_ctx.curr_area {
+                                        // This is a region bundle
+
+                                        if let Some(region) =
+                                            project.get_region_mut(&server_ctx.curr_region)
+                                        {
+                                            if let Some(area) = region.areas.get_mut(&area) {
+
+                                                // We check if the key exists first as a safety measure
+                                                #[allow(clippy::map_entry)]
+                                                if area.bundle.grids.contains_key(&grid.id) {
+                                                    area.bundle.grids.insert(grid.id, grid.clone());
+
+                                                    server.insert_area(
+                                                        server_ctx.curr_region,
+                                                        area.clone(),
+                                                    );
+                                                } else {
+                                                    println!("Area does not contain grid: {:?}", grid.name);
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                                     server.insert_character(bundle);
-                                }
-                                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Module {
+                                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Module {
                                     // Update the bundle in the server
                                     server.update_bundle(bundle.clone());
 
@@ -1168,7 +1190,11 @@ impl Sidebar {
                                     project.codes.insert(bundle.id, bundle.clone());
 
                                     // Provide the bundle info to the editor
-                                    CODEEDITOR.lock().unwrap().insert_module(bundle.name, bundle.id, module);
+                                    CODEEDITOR.lock().unwrap().insert_module(
+                                        bundle.name,
+                                        bundle.id,
+                                        module,
+                                    );
                                 }
 
                                 ctx.ui.send(TheEvent::SetStatusText(
@@ -1198,8 +1224,7 @@ impl Sidebar {
                             }
                         }
                     }
-                }
-                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
@@ -1210,8 +1235,7 @@ impl Sidebar {
                             }
                         }
                     }
-                }
-                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Item {
+                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Item {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
@@ -1222,8 +1246,7 @@ impl Sidebar {
                             }
                         }
                     }
-                }
-                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Module {
+                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Module {
                     if let Some(list_layout) = ui.get_list_layout("Module List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
@@ -1252,6 +1275,24 @@ impl Sidebar {
                                     {
                                         for grid in character.instance.grids.values() {
                                             if grid.name == "init" {
+                                                CODEEDITOR
+                                                    .lock()
+                                                    .unwrap()
+                                                    .set_codegrid(grid.clone(), ui);
+                                                ctx.ui.send(TheEvent::Custom(
+                                                    TheId::named("Set CodeGrid Panel"),
+                                                    TheValue::Empty,
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            else if let Some(area_id) = server_ctx.curr_area {
+                                if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                                    if let Some(area) = region.areas.get(&area_id) {
+                                        for grid in area.bundle.grids.values() {
+                                            if grid.name == "main" {
                                                 CODEEDITOR
                                                     .lock()
                                                     .unwrap()
@@ -1525,6 +1566,22 @@ impl Sidebar {
                         }
                     }
                 }
+
+                if filter_role == 0 || filter_role == 2 {
+                    // Show Areas
+                    for (id, area) in region.areas.iter() {
+                        let name = area.name.clone();
+                        if filter_text.is_empty() || name.to_lowercase().contains(&filter_text) {
+                            let mut item = TheListItem::new(TheId::named_with_id(
+                                "Region Content List Item",
+                                *id,
+                            ));
+                            item.set_text(name);
+                            item.add_value_column(100, TheValue::Text("Area".to_string()));
+                            list.add_item(item, ctx);
+                        }
+                    }
+                }
             }
         }
 
@@ -1724,12 +1781,11 @@ impl Sidebar {
         text_layout.add_pair("Grid Size".to_string(), Box::new(grid_edit));
 
         canvas.set_layout(text_layout);
-        ui.show_dialog("Region Settings", canvas, ctx);
+        ui.show_dialog("Region Settings", canvas, vec![], ctx);
     }
 
     /// Deselects the section buttons
     pub fn deselect_sections_buttons(&mut self, ui: &mut TheUI, except: String) {
-
         if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
             // Remove code bundles UI from Character / Items / Modules
             if let Some(canvas) = stack_layout.canvas_at_mut(1) {
@@ -1786,7 +1842,12 @@ impl Sidebar {
     }
 
     /// Adds the given debug messages to the debug list.
-    pub fn add_debug_messages(&self, messages: Vec<TheDebugMessage>, ui: &mut TheUI, ctx: &mut TheContext) {
+    pub fn add_debug_messages(
+        &self,
+        messages: Vec<TheDebugMessage>,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
         if let Some(layout) = ui.canvas.get_layout(Some(&"Debug List".to_string()), None) {
             if let Some(list_layout) = layout.as_list_layout() {
                 for message in messages {
