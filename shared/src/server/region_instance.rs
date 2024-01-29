@@ -335,24 +335,7 @@ impl RegionInstance {
 
         package.execute("init".to_string(), &mut self.sandbox);
 
-        // Add the character to the update struct.
-        if let Some(object) = self.sandbox.objects.get_mut(&character.id) {
-            let mut character_update = CharacterUpdate::new();
-            if let Some(TheValue::Position(p)) = object.get(&"position".into()) {
-                character_update.position = vec2f(p.x, p.z);
-            }
-            if let Some(TheValue::Text(t)) = object.get(&"name".into()) {
-                character_update.name = t.clone();
-            }
-            if let Some(TheValue::Tile(name, id)) = object.get_mut(&"tile".into()) {
-                character_update.tile_name = name.clone();
-                character_update.tile_id = *id;
-            }
-
-            if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
-                update.characters.insert(character.id, character_update);
-            }
-        }
+        self.create_character_update(character.id);
 
         self.characters_ids
             .push((character.id, character.character_id));
@@ -365,6 +348,7 @@ impl RegionInstance {
     pub fn update_character_instance_bundle(&mut self, character: Uuid, mut bundle: TheCodeBundle, compiler: &mut TheCompiler) {
         if let Some(existing_package) = self.characters_instances.get_mut(&character) {
             let mut package = TheCodePackage::new();
+            package.id = character;
 
             for grid in bundle.grids.values_mut() {
                 let rc = compiler.compile(grid);
@@ -390,6 +374,8 @@ impl RegionInstance {
 
             *existing_package = package;
         }
+
+        self.create_character_update(character);
     }
 
     /// Updates a package by inserting it into the sandbox.
@@ -456,6 +442,28 @@ impl RegionInstance {
         }
 
         None
+    }
+
+    /// Creates a character update.
+    fn create_character_update(&mut self, character: Uuid) {
+        // Add the character to the update struct.
+        if let Some(object) = self.sandbox.objects.get_mut(&character) {
+            let mut character_update = CharacterUpdate::new();
+            if let Some(TheValue::Position(p)) = object.get(&"position".into()) {
+                character_update.position = vec2f(p.x, p.z);
+            }
+            if let Some(TheValue::Text(t)) = object.get(&"name".into()) {
+                character_update.name = t.clone();
+            }
+            if let Some(TheValue::Tile(name, id)) = object.get_mut(&"tile".into()) {
+                character_update.tile_name = name.clone();
+                character_update.tile_id = *id;
+            }
+
+            if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
+                update.characters.insert(character, character_update);
+            }
+        }
     }
 
     /// Returns the debug messages in the sandbox.

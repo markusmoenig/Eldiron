@@ -954,6 +954,12 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Regions".to_string()));
                     }
 
+                    if let Some(button) = ui.get_group_button("Editor Group") {
+                        if button.index() == 1 {
+                            ctx.ui.send(TheEvent::IndexChanged(button.id().clone(), 1));
+                        }
+                    }
+
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Set Region Panel"),
                         TheValue::Empty,
@@ -1214,22 +1220,26 @@ impl Sidebar {
             }
             TheEvent::CodeBundleChanged(bundle, _) => {
                 ctx.ui.relayout = true;
+                /*
                 if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
                     if let Some(character_instance) = server_ctx.curr_character_instance {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             if let Some(character) = region.characters.get_mut(&character_instance)
                             {
                                 // Update the character instance
-                                character.instance = bundle.clone();
+                                //character.instance = bundle.clone();
                             }
                         }
                     }
-                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                } else*/
+                if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
                                 if let Some(character) = project.characters.get_mut(&bundle.id) {
-                                    *character = bundle.clone();
+                                    if character.id == bundle.id {
+                                        *character = bundle.clone();
+                                    }
                                 }
                                 redraw = true;
                             }
@@ -1240,7 +1250,9 @@ impl Sidebar {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
                                 if let Some(item) = project.items.get_mut(&bundle.id) {
-                                    *item = bundle.clone();
+                                    if item.id == bundle.id {
+                                        *item = bundle.clone();
+                                    }
                                 }
                                 redraw = true;
                             }
@@ -1251,7 +1263,9 @@ impl Sidebar {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
                                 if let Some(code) = project.codes.get_mut(&bundle.id) {
-                                    *code = bundle.clone();
+                                    if code.id == bundle.id {
+                                        *code = bundle.clone();
+                                    }
                                 }
                                 redraw = true;
                             }

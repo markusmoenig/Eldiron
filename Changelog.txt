@@ -1,10 +1,11 @@
 v 0.8.9 (WiP)
 -------
 
+- Ability to create areas via context menu. And manage them in the region content list.
+- UI: Add context menus and dialog window capabilities.
 - Improvements to the code editor and the new Modules section which is a collection of codes. Now
   RandWalk is implemented in the Movement module for the starter project (and not hardcoded in the host).
   The goal is to make Eldiron a true Sandbox where everything is possible.
-
 
 v 0.8.8
 -------
