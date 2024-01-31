@@ -23,7 +23,7 @@ pub struct RegionInstance {
     characters_ids: Vec<(Uuid, Uuid)>,
 
     #[serde(skip)]
-    character_debug_modules: FxHashMap<Uuid, FxHashMap<Uuid, TheDebugModule>>,
+    debug_modules: FxHashMap<Uuid, FxHashMap<Uuid, TheDebugModule>>,
 
     redraw_ms: u32,
     tick_ms: u32,
@@ -50,7 +50,7 @@ impl RegionInstance {
             characters_instances: FxHashMap::default(),
             characters_ids: vec![],
 
-            character_debug_modules: FxHashMap::default(),
+            debug_modules: FxHashMap::default(),
 
             redraw_ms: 1000 / 30,
             tick_ms: 250,
@@ -74,7 +74,7 @@ impl RegionInstance {
     /// Tick. Compute the next frame.
     pub fn tick(&mut self) {
 
-        self.character_debug_modules.clear();
+        self.debug_modules.clear();
         self.sandbox.clear_debug_messages();
 
         self.sandbox.level.clear_blocking();
@@ -98,11 +98,27 @@ impl RegionInstance {
                 instance.execute("main".to_string(), &mut self.sandbox);
             }
 
-            self.character_debug_modules.insert(
+            self.debug_modules.insert(
                 *instance_id,
                 self.sandbox.debug_modules.clone(),
             );
         }
+
+        // We iterate over all areas and execute their main function.
+        for (area_id, package) in &mut self.areas {
+            self.sandbox.clear_runtime_states();
+            self.sandbox
+                .aliases
+                .insert("self".to_string(), *area_id);
+
+            package.execute("main".to_string(), &mut self.sandbox);
+
+            self.debug_modules.insert(
+                *area_id,
+                self.sandbox.debug_modules.clone(),
+            );
+        }
+
     }
 
     /// Create an instance from json.
@@ -127,7 +143,7 @@ impl RegionInstance {
 
     /// Returns the debug module (if any) for the given codegrid_id.
     pub fn get_entity_debug_data(&self, id: Uuid) -> Option<FxHashMap<Uuid, TheDebugModule>> {
-        self.character_debug_modules.get(&id).cloned()
+        self.debug_modules.get(&id).cloned()
     }
 
     /// Draws this instance into the given buffer.
@@ -239,7 +255,7 @@ impl RegionInstance {
         }
     }
 
-    /// Insert a (TheCodePackage) to the region.
+    /// Insert an area (TheCodePackage) to the region.
     pub fn insert_area(&mut self, mut area: Area, compiler: &mut TheCompiler) {
 
         let mut package = TheCodePackage::new();
@@ -262,15 +278,17 @@ impl RegionInstance {
             }
         }
 
-        let mut o = TheCodeObject::new();
-        o.id = area.id;
+        let mut a = TheCodeObject::new();
+        a.id = area.id;
 
         self.sandbox.clear_runtime_states();
-        self.sandbox.aliases.insert("self".to_string(), o.id);
+        self.sandbox.aliases.insert("self".to_string(), a.id);
 
         //package.execute("init".to_string(), &mut self.sandbox);
 
+        self.sandbox.add_area(a);
         self.areas.insert(area.id, package);
+
     }
 
     /// Insert a (TheCodePackage) to the region.
@@ -383,13 +401,22 @@ impl RegionInstance {
         self.sandbox.packages.insert(package.id, package);
     }
 
+    /// Removes the given area from the region.
+    pub fn remove_area(&mut self, area: Uuid) {
+        self.areas.remove(&area);
+        self.sandbox.areas.remove(&area);
+    }
+
     /// Removes the given character instance from the region.
     pub fn remove_character_instance(&mut self, character: Uuid) {
         self.characters_instances.remove(&character);
         self.characters_ids
             .retain(|(instance_id, _)| *instance_id != character);
         self.sandbox.objects.remove(&character);
-    }
+        if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
+            update.characters.remove(&character);
+        }
+        }
 
     /// Returns the character instance id and the character id for the character at the given position.
     pub fn get_character_at(&self, pos: Vec2i) -> Option<(Uuid, Uuid)> {

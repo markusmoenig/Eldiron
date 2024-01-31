@@ -76,7 +76,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
         |stack, data, sandbox| {
             let region_id = sandbox.id;
 
-            let mut by = vec2f(0.0, 0.0);
+            let mut by: Vec2<f32> = vec2f(0.0, 0.0);
             if let Some(v) = stack.pop() {
                 if let Some(f2) = v.to_vec2f() {
                     by = f2;
@@ -117,6 +117,65 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
             TheCodeNodeCallResult::Continue
         },
         vec![TheValue::Float2(vec2f(0.0, 0.0))],
+    );
+
+    // InArea
+    compiler.add_external_call(
+        "InArea".to_string(),
+        |stack, data, sandbox| {
+            let region_id = sandbox.id;
+
+            let mut count = 0;
+            if let Some(region) = REGIONS.read().unwrap().get(&region_id) {
+                if let Some(area_object) = sandbox.get_self_area_mut() {
+                    let id = area_object.id;
+                    for object in sandbox.objects.values() {
+                        if let Some(TheValue::Position(p)) = object.get(&"position".into()) {
+                            if let Some(area) = region.areas.get(&id) {
+                                if area.contains(&(p.x as i32, p.z as i32)) {
+                                    count += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            stack.push(TheValue::Int(count));
+            if sandbox.debug_mode {
+                sandbox
+                    .set_debug_value(data.location, (None, TheValue::Int(count)));
+            }
+            TheCodeNodeCallResult::Continue
+        },
+        vec![],
+    );
+
+    // WallFX
+    compiler.add_external_call(
+        "WallFX".to_string(),
+        |stack, data, sandbox| {
+            let region_id = sandbox.id;
+
+            let mut position: Vec2<i32> = vec2i(0, 0);
+            let mut effect = "normal".to_string();
+
+            if let Some(v) = stack.pop() {
+                effect = v.describe();
+            }
+
+            if let Some(TheValue::Position(v)) = stack.pop() {
+                position = vec2i(v.x as i32, v.z as i32);
+            }
+
+            //println!("WallFX: {} {}", effect, position);
+
+            if sandbox.debug_mode {
+                sandbox.set_debug_executed(data.location);
+            }
+
+            TheCodeNodeCallResult::Continue
+        },
+        vec![],
     );
 
     // Pulse

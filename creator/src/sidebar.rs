@@ -629,8 +629,6 @@ impl Sidebar {
                             redraw = true;
                         }
                     }
-                } else if id.name == "Region Settings" {
-                    self.show_region_settings(ui, ctx);
                 } else if id.name == "Character Add" {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         let mut bundle = TheCodeBundle::new();
@@ -1107,8 +1105,7 @@ impl Sidebar {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 6));
                     redraw = true;
-                }
-                else if id.name == "Compile" {
+                } else if id.name == "Compile" {
                     // Compile button in the editor. Compile the code and send it to the server if successful.
                     // We do not need to store it in the project because thats already done in the
                     // CodeBundleChanged event.
@@ -1145,12 +1142,11 @@ impl Sidebar {
                                                 // We check if the key exists first as a safety measure
                                                 #[allow(clippy::map_entry)]
                                                 if character.instance.grids.contains_key(&grid.id) {
-
                                                     // Update the character instance
-                                                    character.instance.grids.insert(
-                                                        grid.id,
-                                                        grid.clone(),
-                                                    );
+                                                    character
+                                                        .instance
+                                                        .grids
+                                                        .insert(grid.id, grid.clone());
 
                                                     server.update_character_instance_bundle(
                                                         server_ctx.curr_region,
@@ -1162,15 +1158,13 @@ impl Sidebar {
                                                 }
                                             }
                                         }
-                                    }
-                                    else if let Some(area) = server_ctx.curr_area {
+                                    } else if let Some(area) = server_ctx.curr_area {
                                         // This is a region bundle
 
                                         if let Some(region) =
                                             project.get_region_mut(&server_ctx.curr_region)
                                         {
                                             if let Some(area) = region.areas.get_mut(&area) {
-
                                                 // We check if the key exists first as a safety measure
                                                 #[allow(clippy::map_entry)]
                                                 if area.bundle.grids.contains_key(&grid.id) {
@@ -1181,7 +1175,10 @@ impl Sidebar {
                                                         area.clone(),
                                                     );
                                                 } else {
-                                                    println!("Area does not contain grid: {:?}", grid.name);
+                                                    println!(
+                                                        "Area does not contain grid: {:?}",
+                                                        grid.name
+                                                    );
                                                 }
                                             }
                                         }
@@ -1227,12 +1224,12 @@ impl Sidebar {
                             if let Some(character) = region.characters.get_mut(&character_instance)
                             {
                                 // Update the character instance
-                                //character.instance = bundle.clone();
+                                character.instance = bundle.clone();
                             }
                         }
                     }
                 } else*/
-                if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             if selected.uuid == bundle.id {
@@ -1301,8 +1298,7 @@ impl Sidebar {
                                         }
                                     }
                                 }
-                            }
-                            else if let Some(area_id) = server_ctx.curr_area {
+                            } else if let Some(area_id) = server_ctx.curr_area {
                                 if let Some(region) = project.get_region(&server_ctx.curr_region) {
                                     if let Some(area) = region.areas.get(&area_id) {
                                         for grid in area.bundle.grids.values() {
@@ -1774,28 +1770,6 @@ impl Sidebar {
             }
         }
         ui.select_first_list_item("Tilemap Tile List", ctx);
-    }
-
-    pub fn show_region_settings(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-        let width = 400;
-        let height = 400;
-
-        let mut canvas = TheCanvas::new();
-        canvas.limiter_mut().set_max_size(vec2i(width, height));
-
-        let mut text_layout: TheTextLayout = TheTextLayout::new(TheId::empty());
-        text_layout.limiter_mut().set_max_width(width);
-        let name_edit = TheTextLineEdit::new(TheId::named("Region Name Edit"));
-        text_layout.add_pair("Name".to_string(), Box::new(name_edit));
-        let width_edit = TheTextLineEdit::new(TheId::named("Region Width Edit"));
-        text_layout.add_pair("Width in Grid".to_string(), Box::new(width_edit));
-        let height_edit = TheTextLineEdit::new(TheId::named("Region Height Edit"));
-        text_layout.add_pair("Height in Grid".to_string(), Box::new(height_edit));
-        let grid_edit = TheTextLineEdit::new(TheId::named("Region Grid Edit"));
-        text_layout.add_pair("Grid Size".to_string(), Box::new(grid_edit));
-
-        canvas.set_layout(text_layout);
-        ui.show_dialog("Region Settings", canvas, vec![], ctx);
     }
 
     /// Deselects the section buttons

@@ -38,6 +38,11 @@ impl Area {
         }
     }
 
+    /// Returns true if the region contains the given position.
+    pub fn contains(&self, pos: &(i32, i32)) -> bool {
+        self.area.contains(pos)
+    }
+
     /// Set the tile of the given position and role.
     pub fn set_tile(&mut self, pos: (i32, i32), role: Layer2DRole, tile: Option<Uuid>) {
         if let Some(t) = self.tiles.get_mut(&pos) {

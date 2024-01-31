@@ -43,6 +43,35 @@ impl Panels {
         ));
 
         codeeditor.add_external(TheExternalCode::new(
+            "InArea".to_string(),
+            "Returns the amount of characters in the area.".to_string(),
+            vec![],
+            vec![],
+            Some(TheValue::Int(0)),
+        ));
+
+        codeeditor.add_external(TheExternalCode::new(
+            "WallFX".to_string(),
+            "Applies an effect on the wall at the given position.".to_string(),
+            vec!["Position".to_string(), "FX".to_string()],
+            vec![
+                TheValue::Position(vec3f(0.0, 0.0, 0.0)),
+                TheValue::TextList(
+                    0,
+                    vec![
+                        "Normal".to_string(),
+                        "Move Up".to_string(),
+                        "Move Right".to_string(),
+                        "Move Down".to_string(),
+                        "Move Left".to_string(),
+                        "Fade Out".to_string(),
+                    ],
+                ),
+            ],
+            None,
+        ));
+
+        codeeditor.add_external(TheExternalCode::new(
             "Debug".to_string(),
             "Outputs the specified debug value.".to_string(),
             vec!["Value".to_string()],
@@ -183,8 +212,7 @@ impl Panels {
 
                             self.update_code_object(ui, ctx, server, server_ctx);
                         }
-                    }
-                    else if let Some(area_id) = server_ctx.curr_area {
+                    } else if let Some(area_id) = server_ctx.curr_area {
                         // Area
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 0));
@@ -212,8 +240,7 @@ impl Panels {
 
                             self.update_code_object(ui, ctx, server, server_ctx);
                         }
-                    }
-                    else {
+                    } else {
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));
                     }

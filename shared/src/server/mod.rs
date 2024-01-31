@@ -427,6 +427,18 @@ impl Server {
         }
     }
 
+    /// Remove the area from the given region.
+    pub fn remove_area(&mut self, region: Uuid, area: Uuid) {
+        // Remove the area from the instance.
+        if let Some(instance) = self.instances.get_mut(&region) {
+            instance.remove_area(area);
+        }
+        // Remove the area data from the region.
+        if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
+            region.areas.remove(&area);
+        }
+    }
+
     /// Sets the currently pressed key.
     pub fn set_key_down(&mut self, str: Option<String>) {
         *KEY_DOWN.write().unwrap() = str;

@@ -391,36 +391,53 @@ impl TileEditor {
                         {
                             // Delete the character at the given position.
 
-                            if region.characters.remove(&c.0).is_some() {
-                                server.remove_character_instance(region.id, c.0);
-                                server_ctx.curr_character_instance = None;
-                                server_ctx.curr_character = None;
-                                redraw = true;
-                                self.redraw_region(ui, server, ctx, server_ctx);
-
-                                // Remove from the content list
-                                if let Some(list) = ui.get_list_layout("Region Content List") {
-                                    list.remove(TheId::named_with_id(
-                                        "Region Content List Item",
-                                        c.0,
-                                    ));
-                                }
+                            if let Some((value, _)) =
+                                server.get_character_property(region.id, c.0, "name".to_string())
+                            {
+                                open_delete_confirmation_dialog(
+                                    "Delete Character Instance ?",
+                                    format!("Permanently delete '{}' ?", value.describe()).as_str(),
+                                    c.0,
+                                    ui,
+                                    ctx,
+                                );
                             }
                         } else {
-                            // Delete the tile at the given position.
-                            let mut undo = TheUndo::new(TheId::named("RegionChanged"));
-                            undo.set_undo_data(region.to_json());
+                            let mut area_id = None;
 
-                            if region.tiles.contains_key(&(coord.x, coord.y)) {
-                                region.tiles.remove(&(coord.x, coord.y));
+                            // Check for area at the given position.
+                            for area in region.areas.values() {
+                                if area.area.contains(&(coord.x, coord.y)) {
+                                    // Ask to delete it.
+                                    open_delete_confirmation_dialog(
+                                        "Delete Area ?",
+                                        format!("Permanently delete area '{}' ?", area.name)
+                                            .as_str(),
+                                        area.id,
+                                        ui,
+                                        ctx,
+                                    );
+                                    area_id = Some(area.id);
+                                    break;
+                                }
                             }
 
-                            undo.set_redo_data(region.to_json());
-                            ctx.ui.undo_stack.add(undo);
-                            server.update_region(region);
-                            self.set_icon_previews(region, *coord, ui);
-                            self.redraw_region(ui, server, ctx, server_ctx);
-                            redraw = true;
+                            if area_id.is_none() {
+                                // Delete the tile at the given position.
+                                let mut undo = TheUndo::new(TheId::named("RegionChanged"));
+                                undo.set_undo_data(region.to_json());
+
+                                if region.tiles.contains_key(&(coord.x, coord.y)) {
+                                    region.tiles.remove(&(coord.x, coord.y));
+                                }
+
+                                undo.set_redo_data(region.to_json());
+                                ctx.ui.undo_stack.add(undo);
+                                server.update_region(region);
+                                self.set_icon_previews(region, *coord, ui);
+                                self.redraw_region(ui, server, ctx, server_ctx);
+                                redraw = true;
+                            }
                         }
                     }
                 } else if self.editor_mode == EditorMode::Pick {
@@ -449,9 +466,7 @@ impl TileEditor {
                         } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                             // In Character mode, we need to set the character bundle of the current character.
                         }
-                    }
-                    else if let Some(region) = project.get_region(&server_ctx.curr_region) {
-
+                    } else if let Some(region) = project.get_region(&server_ctx.curr_region) {
                         let mut found_area = false;
 
                         // Check for area at the given position.
@@ -459,10 +474,7 @@ impl TileEditor {
                             if area.area.contains(&(coord.x, coord.y)) {
                                 for grid in area.bundle.grids.values() {
                                     if grid.name == "main" {
-                                        CODEEDITOR
-                                            .lock()
-                                            .unwrap()
-                                            .set_codegrid(grid.clone(), ui);
+                                        CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
                                         ctx.ui.send(TheEvent::Custom(
                                             TheId::named("Set CodeGrid Panel"),
                                             TheValue::Empty,

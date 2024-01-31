@@ -224,12 +224,20 @@ impl TheTrait for Editor {
             }
 
             // Set Debug Data
-            if let Some(character_instance) = self.server_ctx.curr_character_instance {
+
+            let mut debug_entity: Option<Uuid> = None;
+            if let Some(id) = self.server_ctx.curr_character_instance {
+                debug_entity = Some(id);
+            } else if let Some(id) = self.server_ctx.curr_area {
+                debug_entity = Some(id);
+            }
+
+            if let Some(debug_entity) = debug_entity {
                 let mut debug_has_set = false;
 
                 if let Some(debug) = self
                     .server
-                    .get_entity_debug_data(self.server_ctx.curr_region, character_instance)
+                    .get_entity_debug_data(self.server_ctx.curr_region, debug_entity)
                 {
                     let editor_codegrid_id = CODEEDITOR.lock().unwrap().get_codegrid_id(ui);
                     for debug in debug.values() {
@@ -290,9 +298,69 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
                 match event {
-                    TheEvent::DialogValueOnClose(_role, name, value) => {
+                    TheEvent::DialogValueOnClose(role, name, uuid, value) => {
                         println!("Dialog Value On Close: {} -> {:?}", name, value);
-                        if name == "New Area Name" {
+
+                        if name == "Delete Character Instance ?" {
+                            if let Some(region) =
+                                self.project.get_region_mut(&self.server_ctx.curr_region)
+                            {
+                                let character_id = uuid;
+                                if region.characters.remove(&character_id).is_some() {
+                                    self.server
+                                        .remove_character_instance(region.id, character_id);
+                                    self.server_ctx.curr_character_instance = None;
+                                    self.server_ctx.curr_character = None;
+                                    redraw = true;
+                                    self.tileeditor.redraw_region(
+                                        ui,
+                                        &mut self.server,
+                                        ctx,
+                                        &self.server_ctx,
+                                    );
+
+                                    // Remove from the content list
+                                    if let Some(list) = ui.get_list_layout("Region Content List") {
+                                        list.remove(TheId::named_with_id(
+                                            "Region Content List Item",
+                                            character_id,
+                                        ));
+                                        ui.select_first_list_item("Region Content List", ctx);
+                                    }
+                                }
+                            }
+                        } else if name == "Delete Area ?" {
+                            if role == TheDialogButtonRole::Delete {
+                                let area_id = uuid;
+
+                                if let Some(region) =
+                                    self.project.get_region_mut(&self.server_ctx.curr_region)
+                                {
+                                    if region.areas.remove(&area_id).is_some() {
+                                        self.server.remove_area(region.id, area_id);
+                                        self.server_ctx.curr_area = None;
+                                        redraw = true;
+                                        self.tileeditor.redraw_region(
+                                            ui,
+                                            &mut self.server,
+                                            ctx,
+                                            &self.server_ctx,
+                                        );
+
+                                        // Remove from the content list
+                                        if let Some(list) =
+                                            ui.get_list_layout("Region Content List")
+                                        {
+                                            list.remove(TheId::named_with_id(
+                                                "Region Content List Item",
+                                                area_id,
+                                            ));
+                                            ui.select_first_list_item("Region Content List", ctx);
+                                        }
+                                    }
+                                }
+                            }
+                        } else if name == "New Area Name" {
                             // Create a new area
 
                             if let Some(tiles) = &self.server_ctx.tile_selection {
