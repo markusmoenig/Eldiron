@@ -19,7 +19,9 @@ impl TileDrawer {
         buffer: &mut TheRGBABuffer,
         region: &Region,
         anim_counter: &usize,
-        _ctx: &mut TheContext,
+        update: &mut RegionUpdate,
+        delta_in_tick: &f32,
+        server_tick: &i64,
     ) {
         let _start = self.get_time();
 
@@ -62,15 +64,46 @@ impl TileDrawer {
                     let mut color = BLACK;
 
                     if let Some(tile) = region.tiles.get(&(tile_x, tile_y)) {
-                        for index in 0..tile.layers.len() {
-                            if let Some(tile_uuid) = tile.layers[index] {
+                        for tile_index in 0..tile.layers.len() {
+                            if let Some(tile_uuid) = tile.layers[tile_index] {
                                 if let Some(data) = self.tiles.get(&tile_uuid) {
                                     let index = *anim_counter % data.buffer.len();
-                                    if let Some(c) =
-                                        data.buffer[index].at(vec2i(x % tile_size, y % tile_size))
-                                    {
+
+                                    if tile_index == Layer2DRole::Wall as usize {
+
+                                        let mut xx = x % tile_size;
+                                        let mut yy = y % tile_size;
+                                        let mut alpha: f32 = 1.0;
+
+                                        let mut valid = true;
+                                        if let Some(wallfx) = update.wallfx.get(&(tile_x, tile_y)) {
+                                            let d = (*server_tick - wallfx.at_tick) as f32 + delta_in_tick - 1.0;
+                                            if d < 1.0 {
+                                                let t = (d * region.grid_size as f32) as i32;
+                                                if wallfx.prev_fx != WallFX::Normal {
+                                                    wallfx.prev_fx.apply(&mut xx, &mut yy, &mut alpha, &(region.grid_size -t), &(1.0-d));
+                                                } else {
+                                                    wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
+                                                }
+                                            } else if wallfx.fx != WallFX::Normal {
+                                                valid = false;
+                                            }
+                                        }
+
+                                        if valid {
+                                            if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
+                                                color = self.mix_color(&color, &c, c[3] as f32 / 255.0 * alpha);
+                                            }
+                                        }
+                                    } else if let Some(c) = data.buffer[index].at(vec2i(x % tile_size, y % tile_size)) {
                                         color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
                                     }
+
+                                    // if let Some(c) =
+                                    //     data.buffer[index].at(vec2i(x % tile_size, y % tile_size))
+                                    // {
+                                    //     color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
+                                    // }
                                 }
                             }
                         }

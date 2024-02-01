@@ -27,6 +27,9 @@ pub struct RegionInstance {
 
     redraw_ms: u32,
     tick_ms: u32,
+
+    delta_in_tick: f32,
+    last_tick: i64
 }
 
 impl Default for RegionInstance {
@@ -54,6 +57,9 @@ impl RegionInstance {
 
             redraw_ms: 1000 / 30,
             tick_ms: 250,
+
+            delta_in_tick: 0.0,
+            last_tick: 0
         }
     }
 
@@ -160,9 +166,21 @@ impl RegionInstance {
         if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
             let grid_size = region.grid_size as f32;
 
-            tiledrawer.draw_region(buffer, region, anim_counter, ctx);
-
             if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
+
+                let server_tick = update.server_tick;
+
+                if server_tick != self.last_tick {
+                    self.delta_in_tick = 0.0;
+                    self.last_tick = server_tick;
+                } else {
+                    self.delta_in_tick += delta;
+                }
+
+                //println!("delta_in_tick {}", self.delta_in_tick);
+
+                tiledrawer.draw_region(buffer, region, anim_counter, update, &self.delta_in_tick, &server_tick);
+
                 for (id, character) in &mut update.characters{
 
                     let draw_pos = if let Some((start, end)) = &mut character.moving {

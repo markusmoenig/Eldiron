@@ -1,9 +1,13 @@
-//use crate::prelude::*;
+use crate::prelude::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct RegionUpdate {
+
+    pub wallfx: FxHashMap<(i32, i32), WallFxUpdate>,
     pub characters: FxHashMap<Uuid, CharacterUpdate>,
+
+    pub server_tick: i64,
 }
 
 impl Default for RegionUpdate {
@@ -15,16 +19,19 @@ impl Default for RegionUpdate {
 impl RegionUpdate {
     pub fn new() -> Self {
         Self {
+            wallfx: FxHashMap::default(),
             characters: FxHashMap::default(),
+            server_tick: 0,
         }
     }
 
-    /// Sets up the region instance.
+    /// Clear the update.
     pub fn clear(&mut self) {
         self.characters.clear();
     }
 }
 
+/// A character as described by the server for consumption by the client.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct CharacterUpdate {
     pub tile_id: Uuid,
@@ -52,6 +59,32 @@ impl CharacterUpdate {
             position: vec2f(0.0, 0.0),
             moving: None,
             move_delta: 0.0,
+        }
+    }
+}
+
+/// Update structure for the current wall effects in the region.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct WallFxUpdate {
+    /// When this effect got inserted.
+    pub at_tick: i64,
+
+    pub fx: WallFX,
+    pub prev_fx: WallFX,
+}
+
+impl Default for WallFxUpdate {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl WallFxUpdate {
+    pub fn new() -> Self {
+        Self {
+            at_tick: 0,
+            fx: WallFX::Normal,
+            prev_fx: WallFX::Normal,
         }
     }
 }

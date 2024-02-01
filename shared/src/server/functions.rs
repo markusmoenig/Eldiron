@@ -1,6 +1,8 @@
-//use crate::prelude::*;
+use crate::prelude::*;
 use crate::server::{KEY_DOWN, REGIONS, TILES, UPDATES};
 use theframework::prelude::*;
+
+use super::WallFX;
 
 pub fn add_compiler_functions(compiler: &mut TheCompiler) {
     //
@@ -89,12 +91,13 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                         let x = p.x + by.x;
                         let z = p.z + by.y;
 
-                        if region.can_move_to(vec3f(x, p.y, z), &TILES.read().unwrap()) {
-                            let old_position = *p;
+                        if let Some(update) = UPDATES.write().unwrap().get_mut(&region_id) {
 
-                            *p = vec3f(x, p.y, z);
+                            if region.can_move_to(vec3f(x, p.y, z), &TILES.read().unwrap(), update) {
+                                let old_position = *p;
 
-                            if let Some(update) = UPDATES.write().unwrap().get_mut(&region_id) {
+                                *p = vec3f(x, p.y, z);
+
                                 if let Some(cu) = update.characters.get_mut(&object.id) {
                                     cu.position = vec2f(x, z);
                                     cu.moving = Some((old_position.xz(), cu.position));
@@ -156,18 +159,38 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
         |stack, data, sandbox| {
             let region_id = sandbox.id;
 
-            let mut position: Vec2<i32> = vec2i(0, 0);
-            let mut effect = "normal".to_string();
+            let mut position= (0, 0);
+            let mut effect = "Normal".to_string();
 
             if let Some(v) = stack.pop() {
                 effect = v.describe();
             }
 
             if let Some(TheValue::Position(v)) = stack.pop() {
-                position = vec2i(v.x as i32, v.z as i32);
+                position = (v.x as i32, v.z as i32);
             }
 
             //println!("WallFX: {} {}", effect, position);
+
+            let fx = WallFX::from_string(&effect);
+            if let Some(update) = UPDATES.write().unwrap().get_mut(&region_id) {
+
+                if let Some(wallfx) = update.wallfx.get_mut(&position) {
+                    if wallfx.fx != fx {
+                        wallfx.prev_fx = wallfx.fx.clone();
+                        wallfx.fx = fx;
+                        wallfx.at_tick = update.server_tick;
+                    }
+                } else {
+                    update.wallfx.insert(position,
+                        WallFxUpdate {
+                            at_tick: update.server_tick,
+                            fx,
+                            prev_fx: WallFX::Normal,
+                        }
+                    );
+                }
+            }
 
             if sandbox.debug_mode {
                 sandbox.set_debug_executed(data.location);

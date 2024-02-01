@@ -6,13 +6,11 @@ use theframework::prelude::*;
 pub mod context;
 pub mod functions;
 pub mod region_instance;
-pub mod update;
 pub mod world;
 
 pub mod prelude {
     pub use super::context::ServerContext;
     pub use super::region_instance::RegionInstance;
-    pub use super::update::{CharacterUpdate, RegionUpdate};
     pub use super::world::World;
     pub use super::Server;
 }
@@ -271,6 +269,12 @@ impl Server {
 
         for instance in self.instances.values_mut() {
             debug_messages.append(&mut instance.debug_messages());
+        }
+
+        // Update the server tick for all region updates.
+        let mut updates = UPDATES.write().unwrap();
+        for region_update in updates.values_mut() {
+            region_update.server_tick = self.world.tick_counter
         }
 
         debug_messages

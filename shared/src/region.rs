@@ -67,7 +67,7 @@ impl Region {
     }
 
     /// Returns true if the character can move to the given position.
-    pub fn can_move_to(&self, pos: Vec3f, tiles: &FxHashMap<Uuid, TheRGBATile>) -> bool {
+    pub fn can_move_to(&self, pos: Vec3f, tiles: &FxHashMap<Uuid, TheRGBATile>, update: &RegionUpdate) -> bool {
         let mut can_move = true;
         let pos = vec2i(pos.x as i32, pos.z as i32);
 
@@ -80,10 +80,19 @@ impl Region {
         }
 
         if let Some(tile) = self.tiles.get(&(pos.x, pos.y)) {
-            for layer in tile.layers.iter().flatten() {
-                if let Some(t) = tiles.get(layer) {
-                    if t.blocking {
-                        can_move = false;
+            for index in 0..tile.layers.len() {
+                if let Some(layer) = tile.layers[index] {
+                    if let Some(t) = tiles.get(&layer) {
+                        if t.blocking && index == Layer2DRole::Wall as usize {
+
+                            can_move = false;
+
+                            if let Some(wallfx) = update.wallfx.get(&(pos.x, pos.y)){
+                                if wallfx.fx != WallFX::Normal {
+                                    can_move = true;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -131,6 +140,9 @@ pub enum Layer2DRole {
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct RegionTile {
+    // WallFX (name, position, alpha, delta)
+    pub wallfx: Option<(String, Vec2f, f32, f32)>,
+
     pub layers: Vec<Option<Uuid>>,
 }
 
@@ -143,6 +155,8 @@ impl Default for RegionTile {
 impl RegionTile {
     pub fn new() -> Self {
         Self {
+            wallfx: None,
+
             layers: vec![None, None, None],
         }
     }
