@@ -451,7 +451,9 @@ impl TileEditor {
                                                 TheId::named("Set CodeGrid Panel"),
                                                 TheValue::Empty,
                                             ));
-                                            if let Some(layout) = ui.get_list_layout("Region Content List") {
+                                            if let Some(layout) =
+                                                ui.get_list_layout("Region Content List")
+                                            {
                                                 layout.select_item(c.0, ctx, false);
                                             }
                                         }
@@ -478,7 +480,9 @@ impl TileEditor {
                                         server_ctx.curr_character_instance = None;
                                         server_ctx.curr_character = None;
                                         server_ctx.curr_area = Some(area.id);
-                                        if let Some(layout) = ui.get_list_layout("Region Content List") {
+                                        if let Some(layout) =
+                                            ui.get_list_layout("Region Content List")
+                                        {
                                             layout.select_item(area.id, ctx, false);
                                         }
                                         break;

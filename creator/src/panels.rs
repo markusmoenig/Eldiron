@@ -1,7 +1,9 @@
 use crate::editor::{CODEEDITOR, SIDEBARMODE, TILEMAPEDITOR, TILEPICKER};
 use crate::prelude::*;
 
-pub struct Panels {}
+pub struct Panels {
+    pub curr_atom: Option<TheCodeAtom>,
+}
 
 #[allow(clippy::new_without_default)]
 impl Panels {
@@ -79,7 +81,7 @@ impl Panels {
             None,
         ));
 
-        Self {}
+        Self { curr_atom: None }
     }
 
     pub fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext, _project: &mut Project) {
@@ -117,15 +119,21 @@ impl Panels {
 
         // Context Group
 
-        let mut context_group: TheGroupButton = TheGroupButton::new(TheId::named("Right Stack Group"));
-        context_group.add_text("Context".to_string());
-        context_group.add_text("Object".to_string());
-        context_group.add_text("Output".to_string());
+        let mut context_group: TheGroupButton =
+            TheGroupButton::new(TheId::named("Right Stack Group"));
+        context_group.add_text_status(
+            "Context".to_string(),
+            "Shows the visual context of the selected code.".to_string(),
+        );
+        context_group.add_text_status(
+            "Object".to_string(),
+            "Shows the object properties of the current character or area.".to_string(),
+        );
+        context_group.add_text_status("Output".to_string(), "Shows the text output for the current character. Only available when the server is running.".to_string());
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(10, 2, 5, 2));
-
 
         // let mut text = TheText::new(TheId::named("Panel Object Text"));
         // text.set_text("Object".to_string());
@@ -139,6 +147,8 @@ impl Panels {
         // Context
 
         let mut codecontext_canvas = TheCanvas::new();
+        let codecontext_layout = TheListLayout::new(TheId::named("CodeObject Context Layout"));
+        codecontext_canvas.set_layout(codecontext_layout);
 
         right_stack.add_canvas(codecontext_canvas);
 
@@ -148,12 +158,14 @@ impl Panels {
         let codeobject_layout = TheListLayout::new(TheId::named("CodeObject Layout"));
         codeobject_canvas.set_layout(codeobject_layout);
 
-
         right_stack.add_canvas(codeobject_canvas);
 
         // Out
 
         let mut out_canvas = TheCanvas::new();
+
+        let codeobject_layout = TheListLayout::new(TheId::named("CodeObject Output Layout"));
+        out_canvas.set_layout(codeobject_layout);
 
         right_stack.add_canvas(out_canvas);
 
@@ -199,11 +211,52 @@ impl Panels {
         }
 
         match event {
+            TheEvent::CodeEditorSelectionChanged(_, _) | TheEvent::CodeBundleChanged(_, _) => {
+                let mut set_to = TheCanvas::new();
+                let mut set_already = false;
+
+                if let Some(atom) = CODEEDITOR.lock().unwrap().get_selected_atom(ui) {
+                    //println!("Selected Atom: {:?}", atom);
+                    if let TheCodeAtom::Value(TheValue::Position(pos)) = atom {
+                        self.curr_atom = Some(atom);
+
+                        let mut w = TheIconView::new(TheId::empty());
+                        if let Some(tile) = project.extract_region_tile(
+                            server_ctx.curr_region,
+                            (pos.x as i32, pos.z as i32),
+                        ) {
+                            w.set_rgba_tile(tile);
+                        }
+                        set_to.set_widget(w);
+                        set_already = true;
+                    }
+                } else {
+                    self.curr_atom = None;
+                }
+
+                if !set_already {
+                    let layout = TheListLayout::new(TheId::named("CodeObject Context Layout"));
+                    set_to.set_layout(layout);
+                } else {
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 0));
+
+                    ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(0));
+                }
+
+                if let Some(stack) = ui.get_stack_layout("Right Stack") {
+                    if let Some(replace) = stack.canvas_at_mut(0) {
+                        *replace = set_to;
+                        ctx.ui.relayout = true;
+                    }
+                }
+            }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Right Stack Group" {
                     if let Some(stack) = ui.get_stack_layout("Right Stack") {
                         stack.set_index(*index);
                         redraw = true;
+                        ctx.ui.relayout = true;
                     }
                 }
             }
@@ -221,9 +274,8 @@ impl Panels {
 
                         // If in Pick mode show the instance
                         if self.get_editor_group_index(ui) == 1 {
-
                             ctx.ui
-                               .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                                .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
 
                             if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
                                 layout.set_mode(TheSharedLayoutMode::Shared);
@@ -253,9 +305,8 @@ impl Panels {
 
                         // If in Pick mode show the instance
                         if self.get_editor_group_index(ui) == 1 {
-
                             ctx.ui
-                               .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                                .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
 
                             if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
                                 layout.set_mode(TheSharedLayoutMode::Shared);

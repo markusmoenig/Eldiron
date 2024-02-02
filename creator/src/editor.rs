@@ -321,7 +321,9 @@ impl TheTrait for Editor {
                                         );
 
                                         // Remove from the content list
-                                        if let Some(list) = ui.get_list_layout("Region Content List") {
+                                        if let Some(list) =
+                                            ui.get_list_layout("Region Content List")
+                                        {
                                             list.remove(TheId::named_with_id(
                                                 "Region Content List Item",
                                                 character_id,

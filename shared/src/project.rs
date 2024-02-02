@@ -203,4 +203,41 @@ impl Project {
         }
         tiles
     }
+
+    /// Extract the given tile from the tilemaps.
+    pub fn extract_tile(&self, id: &Uuid) -> Option<TheRGBATile> {
+        for tilemap in &self.tilemaps {
+            for tile in &tilemap.tiles {
+                if tile.id == *id {
+                    let mut rgba_tile = TheRGBATile::new();
+                    rgba_tile.id = tile.id;
+                    rgba_tile.name = tile.name.clone();
+                    rgba_tile.buffer = tilemap.buffer.extract_sequence(&tile.sequence);
+                    rgba_tile.role = tile.role as u8;
+                    rgba_tile.blocking = tile.blocking;
+                    return Some(rgba_tile);
+                }
+            }
+        }
+        None
+    }
+
+    /// Get the tile in the region at the given position.
+    pub fn extract_region_tile(&self, region_id: Uuid, pos: (i32, i32)) -> Option<TheRGBATile> {
+        if let Some(region) = self.get_region(&region_id) {
+            if let Some(tile) = region.tiles.get(&pos) {
+                if let Some(id) = tile.layers[Layer2DRole::Wall as usize] {
+                    if let Some(t) = self.get_tile(&id) {
+                        return self.extract_tile(&t.id);
+                    }
+                }
+                else if let Some(id) = tile.layers[Layer2DRole::Ground as usize] {
+                    if let Some(t) = self.get_tile(&id) {
+                        return self.extract_tile(&t.id);
+                    }
+                }
+            }
+        }
+        None
+    }
 }
