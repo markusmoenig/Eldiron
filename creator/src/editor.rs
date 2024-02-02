@@ -302,30 +302,32 @@ impl TheTrait for Editor {
                         println!("Dialog Value On Close: {} -> {:?}", name, value);
 
                         if name == "Delete Character Instance ?" {
-                            if let Some(region) =
-                                self.project.get_region_mut(&self.server_ctx.curr_region)
-                            {
-                                let character_id = uuid;
-                                if region.characters.remove(&character_id).is_some() {
-                                    self.server
-                                        .remove_character_instance(region.id, character_id);
-                                    self.server_ctx.curr_character_instance = None;
-                                    self.server_ctx.curr_character = None;
-                                    redraw = true;
-                                    self.tileeditor.redraw_region(
-                                        ui,
-                                        &mut self.server,
-                                        ctx,
-                                        &self.server_ctx,
-                                    );
+                            if role == TheDialogButtonRole::Delete {
+                                if let Some(region) =
+                                    self.project.get_region_mut(&self.server_ctx.curr_region)
+                                {
+                                    let character_id = uuid;
+                                    if region.characters.remove(&character_id).is_some() {
+                                        self.server
+                                            .remove_character_instance(region.id, character_id);
+                                        self.server_ctx.curr_character_instance = None;
+                                        self.server_ctx.curr_character = None;
+                                        redraw = true;
+                                        self.tileeditor.redraw_region(
+                                            ui,
+                                            &mut self.server,
+                                            ctx,
+                                            &self.server_ctx,
+                                        );
 
-                                    // Remove from the content list
-                                    if let Some(list) = ui.get_list_layout("Region Content List") {
-                                        list.remove(TheId::named_with_id(
-                                            "Region Content List Item",
-                                            character_id,
-                                        ));
-                                        ui.select_first_list_item("Region Content List", ctx);
+                                        // Remove from the content list
+                                        if let Some(list) = ui.get_list_layout("Region Content List") {
+                                            list.remove(TheId::named_with_id(
+                                                "Region Content List Item",
+                                                character_id,
+                                            ));
+                                            ui.select_first_list_item("Region Content List", ctx);
+                                        }
                                     }
                                 }
                             }
@@ -388,7 +390,7 @@ impl TheTrait for Editor {
 
                                     list.deselect_all();
                                     list.add_item(item, ctx);
-                                    list.select_item(area.id, ctx);
+                                    list.select_item(area.id, ctx, true);
                                 }
 
                                 self.server_ctx.curr_area = Some(area.id);
@@ -466,7 +468,7 @@ impl TheTrait for Editor {
 
                                 list.deselect_all();
                                 list.add_item(item, ctx);
-                                list.select_item(character.id, ctx);
+                                list.select_item(character.id, ctx, true);
                             }
 
                             // Add the character instance to the project

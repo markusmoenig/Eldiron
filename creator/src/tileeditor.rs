@@ -77,14 +77,6 @@ impl TileEditor {
         icon_preview.set_border_color(Some([100, 100, 100, 255]));
         vlayout.add_widget(Box::new(icon_preview));
 
-        // let mut gb = TheGroupButton::new(TheId::named("LMBRMB Group"));
-        // gb.set_item_width(40);
-
-        // gb.add_text("LMB".to_string());
-        // gb.add_text("RMB".to_string());
-
-        // vlayout.add_widget(Box::new(gb));
-
         let mut spacer = TheIconView::new(TheId::empty());
         spacer.limiter_mut().set_max_height(5);
         vlayout.add_widget(Box::new(spacer));
@@ -459,6 +451,9 @@ impl TileEditor {
                                                 TheId::named("Set CodeGrid Panel"),
                                                 TheValue::Empty,
                                             ));
+                                            if let Some(layout) = ui.get_list_layout("Region Content List") {
+                                                layout.select_item(c.0, ctx, false);
+                                            }
                                         }
                                     }
                                 }
@@ -483,6 +478,9 @@ impl TileEditor {
                                         server_ctx.curr_character_instance = None;
                                         server_ctx.curr_character = None;
                                         server_ctx.curr_area = Some(area.id);
+                                        if let Some(layout) = ui.get_list_layout("Region Content List") {
+                                            layout.select_item(area.id, ctx, false);
+                                        }
                                         break;
                                     }
                                 }

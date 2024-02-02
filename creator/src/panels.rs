@@ -90,6 +90,7 @@ impl Panels {
 
         let mut shared_layout = TheSharedLayout::new(TheId::named("Shared Panel Layout"));
         shared_layout.limiter_mut().set_max_height(300);
+        shared_layout.set_shared_ratio(0.75);
 
         // Left Stack
 
@@ -114,26 +115,49 @@ impl Panels {
         let mut right_canvas = TheCanvas::new();
         let mut right_stack = TheStackLayout::new(TheId::named("Right Stack"));
 
-        // Code Object details
+        // Context Group
 
-        let mut codeobject_canvas = TheCanvas::new();
-        let codeobject_layout = TheListLayout::new(TheId::named("CodeObject Layout"));
-        codeobject_canvas.set_layout(codeobject_layout);
+        let mut context_group: TheGroupButton = TheGroupButton::new(TheId::named("Right Stack Group"));
+        context_group.add_text("Context".to_string());
+        context_group.add_text("Object".to_string());
+        context_group.add_text("Output".to_string());
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(10, 2, 5, 2));
 
-        let mut text = TheText::new(TheId::named("Panel Object Text"));
-        text.set_text("Object".to_string());
-        toolbar_hlayout.add_widget(Box::new(text));
+
+        // let mut text = TheText::new(TheId::named("Panel Object Text"));
+        // text.set_text("Object".to_string());
+        toolbar_hlayout.add_widget(Box::new(context_group));
 
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
         toolbar_canvas.set_layout(toolbar_hlayout);
-        codeobject_canvas.set_top(toolbar_canvas);
+        right_canvas.set_top(toolbar_canvas);
+
+        // Context
+
+        let mut codecontext_canvas = TheCanvas::new();
+
+        right_stack.add_canvas(codecontext_canvas);
+
+        // Object
+
+        let mut codeobject_canvas = TheCanvas::new();
+        let codeobject_layout = TheListLayout::new(TheId::named("CodeObject Layout"));
+        codeobject_canvas.set_layout(codeobject_layout);
+
 
         right_stack.add_canvas(codeobject_canvas);
+
+        // Out
+
+        let mut out_canvas = TheCanvas::new();
+
+        right_stack.add_canvas(out_canvas);
+
+        //
 
         right_canvas.set_layout(right_stack);
 
@@ -174,8 +198,15 @@ impl Panels {
             redraw = true;
         }
 
-        #[allow(clippy::single_match)]
         match event {
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == "Right Stack Group" {
+                    if let Some(stack) = ui.get_stack_layout("Right Stack") {
+                        stack.set_index(*index);
+                        redraw = true;
+                    }
+                }
+            }
             TheEvent::Custom(id, _) => {
                 if id.name == "Set Region Panel" {
                     //println!("Set Region Panel");
@@ -185,20 +216,23 @@ impl Panels {
                     if let Some(character) = server_ctx.curr_character_instance {
                         // Character
                         ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 0));
+                            .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 1));
+                        ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(1));
 
                         // If in Pick mode show the instance
                         if self.get_editor_group_index(ui) == 1 {
+
                             ctx.ui
-                                .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                               .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
 
                             if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
                                 layout.set_mode(TheSharedLayoutMode::Shared);
-                                layout.set_shared_ratio(0.7);
                                 ctx.ui.relayout = true;
                                 redraw = true;
                                 shared_left = false;
                             }
+
+                            ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(1));
 
                             if let Some((name, _)) = server.get_character_property(
                                 server_ctx.curr_region,
@@ -215,20 +249,22 @@ impl Panels {
                     } else if let Some(area_id) = server_ctx.curr_area {
                         // Area
                         ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 0));
+                            .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 1));
 
                         // If in Pick mode show the instance
                         if self.get_editor_group_index(ui) == 1 {
+
                             ctx.ui
-                                .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                               .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
 
                             if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
                                 layout.set_mode(TheSharedLayoutMode::Shared);
-                                layout.set_shared_ratio(0.7);
                                 ctx.ui.relayout = true;
                                 redraw = true;
                                 shared_left = false;
                             }
+
+                            ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(1));
 
                             if let Some(region) = project.get_region(&server_ctx.curr_region) {
                                 if let Some(area) = region.areas.get(&area_id) {
@@ -297,7 +333,7 @@ impl Panels {
                     for (name, value) in object.values {
                         let mut item = TheListItem::new(TheId::empty());
                         item.set_text(name);
-                        item.add_value_column(150, value);
+                        item.add_value_column(120, value);
 
                         list.add_item(item, ctx);
                     }
