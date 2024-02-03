@@ -230,7 +230,6 @@ impl Panels {
                         set_already = true;
                     }
                     if let TheCodeAtom::Value(TheValue::ColorObject(color, _)) = atom {
-
                         let mut vlayout = TheVLayout::new(TheId::empty());
 
                         let mut w = TheColorPicker::new(TheId::named("Atom Color Picker"));

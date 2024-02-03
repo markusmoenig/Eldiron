@@ -2,12 +2,16 @@ use shared::tilemap;
 
 use crate::prelude::*;
 
-pub struct TilemapEditor {}
+pub struct TilemapEditor {
+    curr_tilemap_id: Uuid,
+}
 
 #[allow(clippy::new_without_default)]
 impl TilemapEditor {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            curr_tilemap_id: Uuid::new_v4(),
+        }
     }
 
     pub fn build(&self) -> TheCanvas {
@@ -84,13 +88,31 @@ impl TilemapEditor {
         toolbar_hlayout.add_widget(Box::new(clear_button));
         toolbar_hlayout.set_reverse_index(Some(2));
 
+        // Details
+        let mut details_canvas = TheCanvas::new();
+
+        let mut vlayout = TheVLayout::new(TheId::named(" Tile Details Layout"));
+        vlayout.set_margin(vec4i(5, 20, 5, 10));
+        vlayout.set_alignment(TheHorizontalAlign::Center);
+        vlayout.limiter_mut().set_max_width(120);
+
+        let mut icon_preview = TheIconView::new(TheId::named("Tilemap Selection Preview"));
+        icon_preview.set_alpha_mode(false);
+        icon_preview.limiter_mut().set_max_size(vec2i(100, 100));
+        icon_preview.set_border_color(Some([100, 100, 100, 255]));
+        vlayout.add_widget(Box::new(icon_preview));
+
+        details_canvas.set_layout(vlayout);
+
         toolbar_canvas.set_layout(toolbar_hlayout);
         canvas.set_top(toolbar_canvas);
+        canvas.set_right(details_canvas);
 
         canvas
     }
 
     pub fn set_tilemap(&mut self, tilemap: &tilemap::Tilemap, ui: &mut TheUI, _: &mut TheContext) {
+        self.curr_tilemap_id = tilemap.id;
         if let Some(rgba_layout) = ui.get_rgba_layout("Tilemap Editor") {
             rgba_layout.set_buffer(tilemap.buffer.clone());
             rgba_layout.set_scroll_offset(tilemap.scroll_offset);
@@ -101,20 +123,60 @@ impl TilemapEditor {
         }
     }
 
-    // pub fn handle_event(&mut self, event: &TheEvent, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
-    //     let redraw = false;
+    pub fn set_tilemap_preview(&self, tile: TheRGBATile, ui: &mut TheUI) {
+        if let Some(icon_view) = ui.get_icon_view("Tilemap Selection Preview") {
+            icon_view.set_rgba_tile(tile);
+        }
+    }
 
-    //     match event {
-    //         // TheEvent::TilePicked(id, pos) => {
-    //         //     if id.name == self.make_id(" RGBA Layout View") {
-    //         //         if let Some(tile_id) = self.tile_ids.get(&(pos.x, pos.y)) {
-    //         //             ctx.ui.send(TheEvent::StateChanged(TheId::named_with_id("Tilemap Tile", *tile_id), TheWidgetState::Selected));
-    //         //         }
-    //         //     }
-    //         // }
-    //         TheEvent::ValueChanged(_id, _value) => {}
-    //         _ => {}
-    //     }
-    //     redraw
-    // }
+    pub fn handle_event(
+        &mut self,
+        event: &TheEvent,
+        ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        project: &mut Project,
+        _server: &mut Server,
+        _server_ctx: &mut ServerContext,
+    ) -> bool {
+        let redraw = false;
+
+        match event {
+            TheEvent::TileSelectionChanged(id) => {
+                if id.name == "Tilemap Editor View" {
+                    if let Some(rgba_layout) = ui.get_rgba_layout("Tilemap Editor") {
+                        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                            let selection = rgba_view.selection_as_sequence();
+
+                            let mut tile = TheRGBATile::default();
+                            if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
+                                tile.buffer = tilemap.buffer.extract_sequence(&selection);
+                            }
+                            self.set_tilemap_preview(tile, ui);
+                        }
+                    }
+                }
+            }
+            TheEvent::StateChanged(id, state) => {
+                if id.name == "Tilemap Editor Clear Selection" && *state == TheWidgetState::Clicked
+                {
+                    if let Some(editor) = ui
+                        .canvas
+                        .get_layout(Some(&"Tilemap Editor".to_string()), None)
+                    {
+                        if let Some(editor) = editor.as_rgba_layout() {
+                            editor
+                                .rgba_view_mut()
+                                .as_rgba_view()
+                                .unwrap()
+                                .set_selection(FxHashSet::default());
+                        }
+                    }
+                    self.set_tilemap_preview(TheRGBATile::default(), ui);
+                }
+            }
+            TheEvent::ValueChanged(_id, _value) => {}
+            _ => {}
+        }
+        redraw
+    }
 }

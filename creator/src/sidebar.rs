@@ -804,19 +804,6 @@ impl Sidebar {
                         }
                     }
                     redraw = true;
-                } else if id.name == "Tilemap Editor Clear Selection" {
-                    if let Some(editor) = ui
-                        .canvas
-                        .get_layout(Some(&"Tilemap Editor".to_string()), None)
-                    {
-                        if let Some(editor) = editor.as_rgba_layout() {
-                            editor
-                                .rgba_view_mut()
-                                .as_rgba_view()
-                                .unwrap()
-                                .set_selection(FxHashSet::default());
-                        }
-                    }
                 } else if id.name == "Tilemap Editor Add Selection" {
                     let mut clear_selection = false;
 
@@ -937,6 +924,10 @@ impl Sidebar {
                                     .unwrap()
                                     .set_selection(FxHashSet::default());
                             }
+                            ctx.ui.send(TheEvent::StateChanged(
+                                TheId::named("Tilemap Editor Clear Selection"),
+                                TheWidgetState::Clicked,
+                            ))
                         }
                     }
                 }

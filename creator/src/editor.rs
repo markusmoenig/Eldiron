@@ -214,6 +214,12 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
             }
+            if let Some(icon_view) = ui.get_widget("Tilemap Selection Preview") {
+                if let Some(icon_view) = icon_view.as_icon_view() {
+                    icon_view.step();
+                    redraw = true;
+                }
+            }
             if self.server.state == ServerState::Running {
                 let debug = self.server.tick();
                 if !debug.is_empty() {
@@ -288,6 +294,16 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
                 if self.tileeditor.handle_event(
+                    &event,
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.server,
+                    &mut self.server_ctx,
+                ) {
+                    redraw = true;
+                }
+                if TILEMAPEDITOR.lock().unwrap().handle_event(
                     &event,
                     ui,
                     ctx,
