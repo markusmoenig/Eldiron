@@ -217,9 +217,8 @@ impl Panels {
 
                 if let Some(atom) = CODEEDITOR.lock().unwrap().get_selected_atom(ui) {
                     //println!("Selected Atom: {:?}", atom);
+                    self.curr_atom = Some(atom.clone());
                     if let TheCodeAtom::Value(TheValue::Position(pos)) = atom {
-                        self.curr_atom = Some(atom);
-
                         let mut w = TheIconView::new(TheId::empty());
                         if let Some(tile) = project.extract_region_tile(
                             server_ctx.curr_region,
@@ -228,6 +227,18 @@ impl Panels {
                             w.set_rgba_tile(tile);
                         }
                         set_to.set_widget(w);
+                        set_already = true;
+                    }
+                    if let TheCodeAtom::Value(TheValue::ColorObject(color, _)) = atom {
+
+                        let mut vlayout = TheVLayout::new(TheId::empty());
+
+                        let mut w = TheColorPicker::new(TheId::named("Atom Color Picker"));
+                        w.set_value(TheValue::ColorObject(color, 0.0));
+                        vlayout.set_background_color(Some(ListLayoutBackground));
+                        vlayout.set_margin(vec4i(20, 20, 20, 20));
+                        vlayout.add_widget(Box::new(w));
+                        set_to.set_layout(vlayout);
                         set_already = true;
                     }
                 } else {
@@ -240,7 +251,6 @@ impl Panels {
                 } else {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 0));
-
                     ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(0));
                 }
 
@@ -249,6 +259,15 @@ impl Panels {
                         *replace = set_to;
                         ctx.ui.relayout = true;
                     }
+                }
+            }
+            TheEvent::ValueChanged(id, value) => {
+                if id.name == "Atom Color Picker" {
+                    let mut editor = CODEEDITOR.lock().unwrap();
+                    editor.start_undo(ui);
+                    editor.set_selected_atom(ui, TheCodeAtom::Value(value.clone()));
+                    editor.finish_undo(ui, ctx);
+                    editor.set_grid_selection_ui(ui, ctx);
                 }
             }
             TheEvent::IndexChanged(id, index) => {
