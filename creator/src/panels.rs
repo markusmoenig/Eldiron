@@ -339,8 +339,7 @@ impl Panels {
 
                             self.update_code_object(ui, ctx, server, server_ctx);
                         }
-                    }
-                    else if let Some(item) = server_ctx.curr_item_instance {
+                    } else if let Some(item) = server_ctx.curr_item_instance {
                         // Item
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 1));
@@ -373,8 +372,7 @@ impl Panels {
 
                             self.update_code_object(ui, ctx, server, server_ctx);
                         }
-                    }
-                    else if let Some(area_id) = server_ctx.curr_area {
+                    } else if let Some(area_id) = server_ctx.curr_area {
                         // Area
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 1));

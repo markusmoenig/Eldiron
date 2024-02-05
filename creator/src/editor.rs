@@ -350,16 +350,14 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
-                        }
-                        else if name == "Delete Item Instance ?" {
+                        } else if name == "Delete Item Instance ?" {
                             if role == TheDialogButtonRole::Delete {
                                 if let Some(region) =
                                     self.project.get_region_mut(&self.server_ctx.curr_region)
                                 {
                                     let item_id = uuid;
                                     if region.items.remove(&item_id).is_some() {
-                                        self.server
-                                            .remove_character_instance(region.id, item_id);
+                                        self.server.remove_character_instance(region.id, item_id);
                                         self.server_ctx.curr_item_instance = None;
                                         self.server_ctx.curr_item = None;
                                         redraw = true;
@@ -383,8 +381,7 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
-                        }
-                        else if name == "Delete Area ?" {
+                        } else if name == "Delete Area ?" {
                             if role == TheDialogButtonRole::Delete {
                                 let area_id = uuid;
 
@@ -636,11 +633,9 @@ impl TheTrait for Editor {
                             self.server_ctx.curr_item_instance = Some(item.id);
                             self.server_ctx.curr_area = None;
 
-                            self.server_ctx.curr_grid_id =
-                                self.server.add_item_instance_to_region(
-                                    self.server_ctx.curr_region,
-                                    item,
-                                );
+                            self.server_ctx.curr_grid_id = self
+                                .server
+                                .add_item_instance_to_region(self.server_ctx.curr_region, item);
 
                             // Set the character instance debug info, disabled for now
 
@@ -841,39 +836,8 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
-                        } else if id.name == "Character Name Edit" {
-                            if let Some(list_id) = self
-                                .sidebar
-                                .get_selected_in_list_layout(ui, "Character List")
-                            {
-                                if let Some(character) =
-                                    self.project.characters.get_mut(&list_id.uuid)
-                                {
-                                    if let Some(text) = value.to_string() {
-                                        character.name = text;
-                                    }
-                                }
-                                ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
-                            }
-                        } else if id.name == "Character Item" {
-                            if let Some(character) = self.project.characters.get_mut(&id.uuid) {
-                                if let Some(text) = value.to_string() {
-                                    character.name = text;
-                                }
-                            }
-                        } else if id.name == "Item Name Edit" {
-                            if let Some(list_id) =
-                                self.sidebar.get_selected_in_list_layout(ui, "Item List")
-                            {
-                                ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
-                            }
-                        } else if id.name == "Item Item" {
-                            if let Some(item) = self.project.items.get_mut(&id.uuid) {
-                                if let Some(text) = value.to_string() {
-                                    item.name = text;
-                                }
-                            }
-                        } else if id.name == "Module Name Edit" {
+                        }
+                        else if id.name == "Module Name Edit" {
                             if let Some(list_id) =
                                 self.sidebar.get_selected_in_list_layout(ui, "Module List")
                             {

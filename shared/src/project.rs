@@ -76,6 +76,18 @@ impl Project {
         entries
     }
 
+    /// Returns a list of all items sorted by name.
+    pub fn sorted_item_list(&self) -> Vec<(Uuid, String)> {
+        let mut entries: Vec<(Uuid, String)> = self
+            .items
+            .iter()
+            .map(|(uuid, data)| (*uuid, data.name.clone()))
+            .collect();
+
+        entries.sort_by(|a, b| a.1.cmp(&b.1));
+        entries
+    }
+
     /// Add Item
     pub fn add_item(&mut self, item: TheCodeBundle) {
         self.items.insert(item.id, item);

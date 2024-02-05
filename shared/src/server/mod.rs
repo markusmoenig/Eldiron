@@ -321,7 +321,7 @@ impl Server {
     }
 
     /// Add a new character (TheCodeBundle) to the server.
-    pub fn insert_character(&mut self, mut character: TheCodeBundle) {
+    pub fn insert_character(&mut self, mut character: TheCodeBundle) -> Option<String> {
         let mut package = TheCodePackage::new();
         package.id = character.id;
 
@@ -342,15 +342,33 @@ impl Server {
             }
         }
 
+        let mut name : Option<String> = None;
+
+        if let Some(init) = package.get_function_mut(&"init".to_string()) {
+            let mut sandbox = TheCodeSandbox::new();
+            let mut object = TheCodeObject::new();
+            object.id = character.id;
+            sandbox.add_object(object);
+            sandbox.aliases.insert("self".to_string(), character.id);
+            init.execute(&mut sandbox);
+            if let Some(object) = sandbox.get_self_mut() {
+                if let Some(name_value) = object.get(&"name".to_string()) {
+                    name = Some(name_value.describe());
+                }
+            }
+        }
+
         for instance in self.instances.values_mut() {
             instance.insert_character(package.clone());
         }
 
         self.characters.insert(package.id, package);
+
+        name
     }
 
     /// Add a new item (TheCodeBundle) to the server.
-    pub fn insert_item(&mut self, mut item: TheCodeBundle) {
+    pub fn insert_item(&mut self, mut item: TheCodeBundle) -> Option<String> {
         let mut package = TheCodePackage::new();
         package.id = item.id;
 
@@ -371,11 +389,29 @@ impl Server {
             }
         }
 
+        let mut name : Option<String> = None;
+
+        if let Some(init) = package.get_function_mut(&"init".to_string()) {
+            let mut sandbox = TheCodeSandbox::new();
+            let mut object = TheCodeObject::new();
+            object.id = item.id;
+            sandbox.add_object(object);
+            sandbox.aliases.insert("self".to_string(), item.id);
+            init.execute(&mut sandbox);
+            if let Some(object) = sandbox.get_self_mut() {
+                if let Some(name_value) = object.get(&"name".to_string()) {
+                    name = Some(name_value.describe());
+                }
+            }
+        }
+
         for instance in self.instances.values_mut() {
             instance.insert_item(package.clone());
         }
 
         self.items.insert(package.id, package);
+
+        name
     }
 
     /// Get the debug module for the given module id.

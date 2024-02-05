@@ -400,8 +400,7 @@ impl TileEditor {
                                     ctx,
                                 );
                             }
-                        }
-                        else if let Some(c) =
+                        } else if let Some(c) =
                             server.get_item_at(server_ctx.curr_region, vec2i(coord.x, coord.y))
                         {
                             // Delete the item at the given position.
@@ -417,8 +416,7 @@ impl TileEditor {
                                     ctx,
                                 );
                             }
-                        }
-                        else {
+                        } else {
                             let mut area_id = None;
 
                             // Check for area at the given position.
@@ -456,8 +454,7 @@ impl TileEditor {
                             }
                         }
                     }
-                }
-                else if self.editor_mode == EditorMode::Pick {
+                } else if self.editor_mode == EditorMode::Pick {
                     // Check for character at the given position.
                     if let Some(c) = server.get_character_at(server_ctx.curr_region, *coord) {
                         server_ctx.curr_character_instance = Some(c.0);
@@ -466,9 +463,7 @@ impl TileEditor {
                         server_ctx.curr_item_instance = None;
                         server_ctx.curr_item = None;
 
-                        if let Some(layout) =
-                            ui.get_list_layout("Region Content List")
-                        {
+                        if let Some(layout) = ui.get_list_layout("Region Content List") {
                             layout.select_item(c.0, ctx, false);
                         }
 
@@ -503,9 +498,7 @@ impl TileEditor {
                         server_ctx.curr_item = Some(c.1);
                         server_ctx.curr_area = None;
 
-                        if let Some(layout) =
-                            ui.get_list_layout("Region Content List")
-                        {
+                        if let Some(layout) = ui.get_list_layout("Region Content List") {
                             layout.select_item(c.0, ctx, false);
                         }
 
@@ -533,8 +526,7 @@ impl TileEditor {
                         //else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                         // In Character mode, we need to set the character bundle of the current character.
                         //}
-                    }
-                    else if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                    } else if let Some(region) = project.get_region(&server_ctx.curr_region) {
                         let mut found_area = false;
 
                         // Check for area at the given position.
@@ -543,9 +535,13 @@ impl TileEditor {
                                 for grid in area.bundle.grids.values() {
                                     if grid.name == "main" {
                                         if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
-                                            || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
+                                            || *SIDEBARMODE.lock().unwrap()
+                                                == SidebarMode::Character
                                         {
-                                            CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                            CODEEDITOR
+                                                .lock()
+                                                .unwrap()
+                                                .set_codegrid(grid.clone(), ui);
                                             ctx.ui.send(TheEvent::Custom(
                                                 TheId::named("Set CodeGrid Panel"),
                                                 TheValue::Empty,
@@ -709,8 +705,8 @@ impl TileEditor {
                             }
                         }
                     }
-                    if let Some((TheValue::Position(p), character_id)) = server
-                        .get_item_property(server_ctx.curr_region, id.uuid, "position".into())
+                    if let Some((TheValue::Position(p), character_id)) =
+                        server.get_item_property(server_ctx.curr_region, id.uuid, "position".into())
                     {
                         // If it's a character instance, center it in the region editor.
                         server_ctx.curr_item_instance = Some(id.uuid);
@@ -737,8 +733,7 @@ impl TileEditor {
                                 );
                             }
                         }
-                    }
-                    else if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    } else if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if let Some(area) = region.areas.get(&id.uuid) {
                             server_ctx.curr_character_instance = None;
                             server_ctx.curr_character = None;

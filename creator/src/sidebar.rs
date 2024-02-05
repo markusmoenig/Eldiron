@@ -231,17 +231,13 @@ impl Sidebar {
         regions_add_button.set_icon_name("icon_role_add".to_string());
         let mut regions_remove_button = TheTraybarButton::new(TheId::named("Character Remove"));
         regions_remove_button.set_icon_name("icon_role_remove".to_string());
-        let mut name_edit = TheTextLineEdit::new(TheId::named("Character Name Edit"));
-        name_edit.limiter_mut().set_max_width(200);
-        name_edit.set_status_text("Edit the name of the character.");
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
         toolbar_hlayout.add_widget(Box::new(regions_add_button));
         toolbar_hlayout.add_widget(Box::new(regions_remove_button));
-        toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
-        toolbar_hlayout.add_widget(Box::new(name_edit));
+        //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
 
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
@@ -274,17 +270,13 @@ impl Sidebar {
         item_add_button.set_icon_name("icon_role_add".to_string());
         let mut item_remove_button = TheTraybarButton::new(TheId::named("Item Remove"));
         item_remove_button.set_icon_name("icon_role_remove".to_string());
-        let mut name_edit = TheTextLineEdit::new(TheId::named("Item Name Edit"));
-        name_edit.limiter_mut().set_max_width(200);
-        name_edit.set_status_text("Edit the name of the item.");
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
         toolbar_hlayout.add_widget(Box::new(item_add_button));
         toolbar_hlayout.add_widget(Box::new(item_remove_button));
-        toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
-        toolbar_hlayout.add_widget(Box::new(name_edit));
+        //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
 
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
@@ -512,8 +504,7 @@ impl Sidebar {
                     drop.set_offset(*offset);
                     ui.style.create_drop_image(&mut drop, ctx);
                     ctx.ui.set_drop(drop);
-                }
-                else if id.name == "Item Item" {
+                } else if id.name == "Item Item" {
                     let mut drop = TheDrop::new(id.clone());
                     drop.set_title(format!("Item: {}", text));
                     drop.set_text(text.clone());
@@ -645,7 +636,8 @@ impl Sidebar {
                             redraw = true;
                         }
                     }
-                } else if id.name == "Character Add" {
+                }
+                else if id.name == "Character Add" {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         let mut bundle = TheCodeBundle::new();
 
@@ -798,8 +790,7 @@ impl Sidebar {
                         server.insert_item(bundle.clone());
                         project.add_item(bundle);
                     }
-                }
-                else if id.name == "Item Remove" {
+                } else if id.name == "Item Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
@@ -1225,23 +1216,19 @@ impl Sidebar {
                                             }
                                         }
                                     }
-                                    if let Some(item_instance) =
-                                        server_ctx.curr_item_instance
-                                    {
+                                    else if let Some(item_instance) = server_ctx.curr_item_instance {
                                         // This is an item instance bundle
 
                                         if let Some(region) =
                                             project.get_region_mut(&server_ctx.curr_region)
                                         {
-                                            if let Some(item) =
-                                                region.items.get_mut(&item_instance)
+                                            if let Some(item) = region.items.get_mut(&item_instance)
                                             {
                                                 // We check if the key exists first as a safety measure
                                                 #[allow(clippy::map_entry)]
                                                 if item.instance.grids.contains_key(&grid.id) {
                                                     // Update the character instance
-                                                    item
-                                                        .instance
+                                                    item.instance
                                                         .grids
                                                         .insert(grid.id, grid.clone());
 
@@ -1250,8 +1237,18 @@ impl Sidebar {
                                                         item_instance,
                                                         item.instance.clone(),
                                                     );
+                                                    // if let Some(value) = server.get_item_property(
+                                                    //     server_ctx.curr_region,
+                                                    //     item_instance,
+                                                    //     "name".to_string(),
+                                                    // ) {
+                                                    //     println!("Item name: {:?}", value);
+                                                    // }
                                                 } else {
-                                                    println!("Item instance does not contain grid: {:?}", grid.name);
+                                                    println!(
+                                                        "Item instance does not contain grid: {:?}",
+                                                        grid.name
+                                                    );
                                                 }
                                             }
                                         }
@@ -1283,10 +1280,28 @@ impl Sidebar {
                                     }
                                 }
                                 else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
-                                    server.insert_character(bundle);
+                                    if let Some(name) = server.insert_character(bundle.clone()) {
+                                        if let Some(widget) = ui.get_widget_id(bundle.id) {
+                                            if let Some(list_item) = widget.as_list_item() {
+                                                list_item.set_text(name.clone());
+                                            }
+                                        }
+                                        if let Some(bundle) = project.characters.get_mut(&bundle.id) {
+                                            bundle.name = name;
+                                        }
+                                    }
                                 }
                                 else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Item {
-                                    server.insert_item(bundle);
+                                    if let Some(name) = server.insert_item(bundle.clone()) {
+                                        if let Some(widget) = ui.get_widget_id(bundle.id) {
+                                            if let Some(list_item) = widget.as_list_item() {
+                                                list_item.set_text(name.clone());
+                                            }
+                                        }
+                                        if let Some(bundle) = project.items.get_mut(&bundle.id) {
+                                            bundle.name = name;
+                                        }
+                                    }
                                 }
                                 else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Module {
                                     // Update the bundle in the server
@@ -1450,6 +1465,16 @@ impl Sidebar {
                 list_layout.add_item(item, ctx);
             }
         }
+        self.apply_item(ui, ctx, None);
+        if let Some(list_layout) = ui.get_list_layout("Item List") {
+            list_layout.clear();
+            let list = project.sorted_item_list();
+            for (id, name) in list {
+                let mut item = TheListItem::new(TheId::named_with_id("Item Item", id));
+                item.set_text(name);
+                list_layout.add_item(item, ctx);
+            }
+        }
         if let Some(list_layout) = ui.get_list_layout("Tilemap List") {
             list_layout.clear();
             for tilemap in &project.tilemaps {
@@ -1469,6 +1494,7 @@ impl Sidebar {
         }
         ui.select_first_list_item("Region List", ctx);
         ui.select_first_list_item("Character List", ctx);
+        ui.select_first_list_item("Item List", ctx);
         ui.select_first_list_item("Tilemap List", ctx);
         ui.select_first_list_item("Module List", ctx);
 
@@ -1486,7 +1512,6 @@ impl Sidebar {
         character: Option<&TheCodeBundle>,
     ) {
         ui.set_widget_disabled_state("Character Remove", ctx, character.is_none());
-        ui.set_widget_disabled_state("Character Name Edit", ctx, character.is_none());
 
         // Set the character bundle.
         if let Some(character) = character {
@@ -1511,19 +1536,6 @@ impl Sidebar {
             }
         }
 
-        if let Some(widget) = ui
-            .canvas
-            .get_widget(Some(&"Character Name Edit".to_string()), None)
-        {
-            if let Some(character) = character {
-                widget.set_value(TheValue::Text(character.name.clone()));
-                widget.set_disabled(false);
-            } else {
-                widget.set_value(TheValue::Empty);
-                widget.set_disabled(true);
-            }
-        }
-
         ctx.ui.relayout = true;
     }
 
@@ -1535,7 +1547,6 @@ impl Sidebar {
         item: Option<&TheCodeBundle>,
     ) {
         ui.set_widget_disabled_state("Item Remove", ctx, item.is_none());
-        ui.set_widget_disabled_state("Item Name Edit", ctx, item.is_none());
 
         // Set the Item bundle.
         if let Some(item) = item {
@@ -1555,19 +1566,6 @@ impl Sidebar {
                 let mut empty = TheCanvas::new();
                 empty.set_layout(TheVLayout::new(TheId::empty()));
                 canvas.set_bottom(empty);
-            }
-        }
-
-        if let Some(widget) = ui
-            .canvas
-            .get_widget(Some(&"Item Name Edit".to_string()), None)
-        {
-            if let Some(item) = item {
-                widget.set_value(TheValue::Text(item.name.clone()));
-                widget.set_disabled(false);
-            } else {
-                widget.set_value(TheValue::Empty);
-                widget.set_disabled(true);
             }
         }
 
@@ -1639,13 +1637,9 @@ impl Sidebar {
                 zoom.set_value(TheValue::Float(1.0));
             }
 
-            if let Some(rgba_layout) =
-                ui.canvas.get_layout(Some(&"Region Editor".into()), None)
-            {
+            if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
                 if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
-                    if let Some(rgba_view) =
-                        rgba_layout.rgba_view_mut().as_rgba_view()
-                    {
+                    if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
                         rgba_view.set_mode(TheRGBAViewMode::Display);
                         rgba_view.set_zoom(1.0);
                         if let Some(buffer) = ctx.ui.icon("eldiron_map") {
