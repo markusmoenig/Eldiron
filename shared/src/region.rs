@@ -22,6 +22,9 @@ pub struct Region {
     #[serde(default)]
     pub characters: FxHashMap<Uuid, Character>,
 
+    #[serde(default)]
+    pub items: FxHashMap<Uuid, Item>,
+
     pub width: i32,
     pub height: i32,
     pub grid_size: i32,
@@ -46,6 +49,7 @@ impl Region {
 
             areas: FxHashMap::default(),
             characters: FxHashMap::default(),
+            items: FxHashMap::default(),
 
             width: 80,
             height: 80,

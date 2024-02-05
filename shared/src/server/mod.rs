@@ -41,10 +41,14 @@ pub struct Server {
     #[serde(skip)]
     compiler: TheCompiler,
 
+    /// The region instances
     instances: FxHashMap<Uuid, RegionInstance>,
 
     #[serde(skip)]
     characters: FxHashMap<Uuid, TheCodePackage>,
+
+    #[serde(skip)]
+    items: FxHashMap<Uuid, TheCodePackage>,
 
     pub debug_mode: bool,
     pub world: World,
@@ -72,6 +76,7 @@ impl Server {
             instances: FxHashMap::default(),
 
             characters: FxHashMap::default(),
+            items: FxHashMap::default(),
 
             debug_mode: false,
             world: World::default(),
@@ -95,6 +100,7 @@ impl Server {
         }
 
         self.characters = FxHashMap::default();
+        self.items = FxHashMap::default();
 
         *REGIONS.write().unwrap() = regions;
         *UPDATES.write().unwrap() = updates;
@@ -168,10 +174,18 @@ impl Server {
             self.insert_character(bundle.clone());
         }
 
-        // Second pass we just create the region character instances.
+        // .. and items
+        for bundle in project.items.values() {
+            self.insert_item(bundle.clone());
+        }
+
+        // Second pass we just create the region character and item instances.
         for region in &project.regions {
             for character in region.characters.values() {
                 self.add_character_instance_to_region(region.id, character.clone());
+            }
+            for item in region.items.values() {
+                self.add_item_instance_to_region(region.id, item.clone());
             }
         }
     }
@@ -335,6 +349,35 @@ impl Server {
         self.characters.insert(package.id, package);
     }
 
+    /// Add a new item (TheCodeBundle) to the server.
+    pub fn insert_item(&mut self, mut item: TheCodeBundle) {
+        let mut package = TheCodePackage::new();
+        package.id = item.id;
+
+        for grid in item.grids.values_mut() {
+            let rc = self.compiler.compile(grid);
+            if let Ok(mut module) = rc {
+                module.name = grid.name.clone();
+                println!(
+                    "RegionInstance::insert_item: Compiled grid module: {}",
+                    grid.name
+                );
+                package.insert_module(module.name.clone(), module);
+            } else {
+                println!(
+                    "RegionInstance::insert_item: Failed to compile grid: {}",
+                    grid.name
+                );
+            }
+        }
+
+        for instance in self.instances.values_mut() {
+            instance.insert_item(package.clone());
+        }
+
+        self.items.insert(package.id, package);
+    }
+
     /// Get the debug module for the given module id.
     // pub fn get_region_debug_module(&mut self, region: Uuid, module_id: Uuid) -> TheDebugModule {
     //     if let Some(instance) = self.instances.get_mut(&region) {
@@ -366,6 +409,19 @@ impl Server {
         }
     }
 
+    /// Adds a new item instance to the given region and returns its module id (for debugging).
+    pub fn add_item_instance_to_region(
+        &mut self,
+        region: Uuid,
+        item: Item,
+    ) -> Option<Uuid> {
+        if let Some(instance) = self.instances.get_mut(&region) {
+            instance.add_item_instance(item, &mut self.compiler)
+        } else {
+            None
+        }
+    }
+
     /// Updates a character instance.
     pub fn update_character_instance_bundle(
         &mut self,
@@ -378,6 +434,18 @@ impl Server {
         }
     }
 
+    /// Updates an item instance.
+    pub fn update_item_instance_bundle(
+        &mut self,
+        region: Uuid,
+        item: Uuid,
+        bundle: TheCodeBundle,
+    ) {
+        if let Some(instance) = self.instances.get_mut(&region) {
+            instance.update_item_instance_bundle(item, bundle, &mut self.compiler);
+        }
+    }
+
     /// Remove the character instance from the given region.
     pub fn remove_character_instance(&mut self, region: Uuid, character: Uuid) {
         if let Some(instance) = self.instances.get_mut(&region) {
@@ -385,10 +453,26 @@ impl Server {
         }
     }
 
+    /// Remove the item instance from the given region.
+    pub fn remove_item_instance(&mut self, region: Uuid, item: Uuid) {
+        if let Some(instance) = self.instances.get_mut(&region) {
+            instance.remove_item_instance(item);
+        }
+    }
+
     /// Returns the character instance id and the character id for the character at the given position for the given region.
     pub fn get_character_at(&self, region: Uuid, pos: Vec2i) -> Option<(Uuid, Uuid)> {
         if let Some(instance) = self.instances.get(&region) {
             instance.get_character_at(pos)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the item instance id and the item id for the item at the given position for the given region.
+    pub fn get_item_at(&self, region: Uuid, pos: Vec2i) -> Option<(Uuid, Uuid)> {
+        if let Some(instance) = self.instances.get(&region) {
+            instance.get_item_at(pos)
         } else {
             None
         }
@@ -403,6 +487,20 @@ impl Server {
     ) -> Option<(TheValue, Uuid)> {
         if let Some(instance) = self.instances.get(&region) {
             instance.get_character_property(character_id, property)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the property of the item instance for the given region along with its item id.
+    pub fn get_item_property(
+        &self,
+        region: Uuid,
+        item_id: Uuid,
+        property: String,
+    ) -> Option<(TheValue, Uuid)> {
+        if let Some(instance) = self.instances.get(&region) {
+            instance.get_item_property(item_id, property)
         } else {
             None
         }

@@ -16,11 +16,21 @@ pub struct RegionInstance {
     characters: FxHashMap<Uuid, TheCodePackage>,
 
     #[serde(skip)]
-    characters_instances: FxHashMap<Uuid, TheCodePackage>,
+    items: FxHashMap<Uuid, TheCodePackage>,
+
+    #[serde(skip)]
+    character_instances: FxHashMap<Uuid, TheCodePackage>,
+
+    #[serde(skip)]
+    item_instances: FxHashMap<Uuid, TheCodePackage>,
 
     /// For fast lookups an array of (character_instance_id, character_id) tuples.
     #[serde(skip)]
-    characters_ids: Vec<(Uuid, Uuid)>,
+    character_ids: Vec<(Uuid, Uuid)>,
+
+    /// For fast lookups an array of (item_instance_id, item_id) tuples.
+    #[serde(skip)]
+    item_ids: Vec<(Uuid, Uuid)>,
 
     #[serde(skip)]
     debug_modules: FxHashMap<Uuid, FxHashMap<Uuid, TheDebugModule>>,
@@ -50,8 +60,12 @@ impl RegionInstance {
             areas: FxHashMap::default(),
 
             characters: FxHashMap::default(),
-            characters_instances: FxHashMap::default(),
-            characters_ids: vec![],
+            character_instances: FxHashMap::default(),
+            character_ids: vec![],
+
+            items: FxHashMap::default(),
+            item_instances: FxHashMap::default(),
+            item_ids: vec![],
 
             debug_modules: FxHashMap::default(),
 
@@ -90,7 +104,7 @@ impl RegionInstance {
 
         // We iterate over all character instances and execute their main function
         // as well as the main function of their character template.
-        for (instance_id, character_id) in &mut self.characters_ids {
+        for (instance_id, character_id) in &mut self.character_ids {
             self.sandbox.clear_runtime_states();
             self.sandbox
                 .aliases
@@ -181,6 +195,7 @@ impl RegionInstance {
 
                 tiledrawer.draw_region(buffer, region, anim_counter, update, &self.delta_in_tick, &server_tick);
 
+                // Characters
                 for (id, character) in &mut update.characters{
 
                     let draw_pos = if let Some((start, end)) = &mut character.moving {
@@ -243,6 +258,46 @@ impl RegionInstance {
                             draw_pos,
                             buffer,
                             [128, 128, 128, 255],
+                            ctx,
+                        );
+                    }
+                }
+
+                // Items
+                for (id, item) in &mut update.items {
+
+                    let draw_pos = vec2i((item.position.x * grid_size) as i32, (item.position.y * grid_size) as i32);
+
+                    //println!("moving: {:?}", draw_pos);
+
+                    if !tiledrawer.draw_tile_at_pixel(
+                        draw_pos,
+                        buffer,
+                        item.tile_id,
+                        anim_counter,
+                        ctx,
+                    ) {
+                        if let Some(found_id) =
+                            tiledrawer.get_tile_id_by_name(item.tile_name.clone())
+                        {
+                            item.tile_id = found_id;
+                            tiledrawer.draw_tile_at_pixel(
+                                draw_pos,
+                                buffer,
+                                found_id,
+                                anim_counter,
+                                ctx,
+                            );
+                        } else {
+                            //println!("RegionInstance::draw: Tile not found: {}", name);
+                        }
+                    }
+
+                    if Some(*id) == server_ctx.curr_item_instance {
+                        tiledrawer.draw_tile_outline_at_pixel(
+                            draw_pos,
+                            buffer,
+                            WHITE,
                             ctx,
                         );
                     }
@@ -324,12 +379,31 @@ impl RegionInstance {
             self.sandbox.aliases.insert("self".to_string(), id);
             character.execute("init".to_string(), &mut self.sandbox);
 
-            if let Some(inst) = self.characters_instances.get_mut(&id) {
+            if let Some(inst) = self.character_instances.get_mut(&id) {
                 inst.execute("init".to_string(), &mut self.sandbox);
             }
         }
 
         self.characters.insert(character.id, character);
+    }
+
+    /// Insert a (TheCodePackage) to the region.
+    pub fn insert_item(&mut self, mut item: TheCodePackage) {
+        // We collect all instances of this item and execute the init function on them.
+        let mut instance_ids = vec![];
+        for o in self.sandbox.items.values() {
+            if o.package_id == item.id {
+                instance_ids.push(o.id);
+            }
+        }
+
+        for id in instance_ids {
+            self.sandbox.clear_runtime_states();
+            self.sandbox.aliases.insert("self".to_string(), id);
+            item.execute("init".to_string(), &mut self.sandbox);
+        }
+
+        self.items.insert(item.id, item);
     }
 
     /// Adds a character instance to the region.
@@ -373,16 +447,64 @@ impl RegionInstance {
 
         self.create_character_update(character.id);
 
-        self.characters_ids
+        self.character_ids
             .push((character.id, character.character_id));
-        self.characters_instances.insert(package.id, package);
+        self.character_instances.insert(package.id, package);
+
+        module_id
+    }
+
+    /// Adds an item instance to the region.
+    pub fn add_item_instance(&mut self, mut item: Item, compiler: &mut TheCompiler) -> Option<Uuid> {
+        let mut package = TheCodePackage::new();
+        package.id = item.id;
+
+        let mut module_id = None;
+
+        for grid in item.instance.grids.values_mut() {
+            let rc = compiler.compile(grid);
+            if let Ok(mut module) = rc {
+                module.name = grid.name.clone();
+                println!(
+                    "RegionInstance::add_item_instance: Compiled grid module: {}",
+                    grid.name
+                );
+                module_id = Some(module.id);
+                package.insert_module(module.name.clone(), module);
+            } else {
+                println!(
+                    "RegionInstance::add_item_instance: Failed to compile grid: {}",
+                    grid.name
+                );
+            }
+        }
+
+        let mut o = TheCodeObject::new();
+        o.id = item.id;
+
+        self.sandbox.clear_runtime_states();
+        self.sandbox.aliases.insert("self".to_string(), o.id);
+
+        if let Some(template) = self.items.get_mut(&item.item_id) {
+            o.package_id = template.id;
+            self.sandbox.add_item(o);
+            template.execute("init".to_string(), &mut self.sandbox);
+        }
+
+        package.execute("init".to_string(), &mut self.sandbox);
+
+        self.create_item_update(item.id);
+
+        self.item_ids
+            .push((item.id, item.item_id));
+        self.item_instances.insert(package.id, package);
 
         module_id
     }
 
     /// Updates a character instance.
     pub fn update_character_instance_bundle(&mut self, character: Uuid, mut bundle: TheCodeBundle, compiler: &mut TheCompiler) {
-        if let Some(existing_package) = self.characters_instances.get_mut(&character) {
+        if let Some(existing_package) = self.character_instances.get_mut(&character) {
             let mut package = TheCodePackage::new();
             package.id = character;
 
@@ -414,6 +536,40 @@ impl RegionInstance {
         self.create_character_update(character);
     }
 
+    /// Updates an item instance.
+    pub fn update_item_instance_bundle(&mut self, item: Uuid, mut bundle: TheCodeBundle, compiler: &mut TheCompiler) {
+        if let Some(existing_package) = self.item_instances.get_mut(&item) {
+            let mut package = TheCodePackage::new();
+            package.id = item;
+
+            for grid in bundle.grids.values_mut() {
+                let rc = compiler.compile(grid);
+                if let Ok(mut module) = rc {
+                    module.name = grid.name.clone();
+                    println!(
+                        "RegionInstance::update_item_instance: Compiled grid module: {}",
+                        grid.name
+                    );
+                    package.insert_module(module.name.clone(), module);
+                } else {
+                    println!(
+                        "RegionInstance::update_item_instance: Failed to compile grid: {}",
+                        grid.name
+                    );
+                }
+            }
+
+            self.sandbox.clear_runtime_states();
+            self.sandbox.aliases.insert("self".to_string(), item);
+
+            package.execute("init".to_string(), &mut self.sandbox);
+
+            *existing_package = package;
+        }
+
+        self.create_item_update(item);
+    }
+
     /// Updates a package by inserting it into the sandbox.
     pub fn update_package(&mut self, package: TheCodePackage) {
         self.sandbox.packages.insert(package.id, package);
@@ -427,23 +583,51 @@ impl RegionInstance {
 
     /// Removes the given character instance from the region.
     pub fn remove_character_instance(&mut self, character: Uuid) {
-        self.characters_instances.remove(&character);
-        self.characters_ids
+        self.character_instances.remove(&character);
+        self.character_ids
             .retain(|(instance_id, _)| *instance_id != character);
         self.sandbox.objects.remove(&character);
         if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
             update.characters.remove(&character);
         }
+    }
+
+    /// Removes the given item instance from the region.
+    pub fn remove_item_instance(&mut self, item: Uuid) {
+        self.item_instances.remove(&item);
+        self.item_ids
+            .retain(|(instance_id, _)| *instance_id != item);
+        self.sandbox.items.remove(&item);
+        if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
+            update.items.remove(&item);
         }
+    }
 
     /// Returns the character instance id and the character id for the character at the given position.
     pub fn get_character_at(&self, pos: Vec2i) -> Option<(Uuid, Uuid)> {
         for c in self.sandbox.objects.values() {
             if let Some(TheValue::Position(p)) = c.get(&"position".into()).cloned() {
                 if vec2i(p.x as i32, p.z as i32) == pos {
-                    for (instance_id, character_id) in &self.characters_ids {
+                    for (instance_id, character_id) in &self.character_ids {
                         if *instance_id == c.id {
                             return Some((*instance_id, *character_id));
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Returns the item instance id and the item id for the item at the given position.
+    pub fn get_item_at(&self, pos: Vec2i) -> Option<(Uuid, Uuid)> {
+        for c in self.sandbox.items.values() {
+            if let Some(TheValue::Position(p)) = c.get(&"position".into()).cloned() {
+                if vec2i(p.x as i32, p.z as i32) == pos {
+                    for (instance_id, item_id) in &self.item_ids {
+                        if *instance_id == c.id {
+                            return Some((*instance_id, *item_id));
                         }
                     }
                 }
@@ -462,9 +646,30 @@ impl RegionInstance {
         for (id, c) in &self.sandbox.objects {
             if *id == character_id {
                 if let Some(value) = c.get(&property).cloned() {
-                    for (instance_id, character_id) in &self.characters_ids {
+                    for (instance_id, character_id) in &self.character_ids {
                         if *instance_id == c.id {
                             return Some((value.clone(), *character_id));
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Returns the value of the given item instance property along with its item id.
+    pub fn get_item_property(
+        &self,
+        item_id: Uuid,
+        property: String,
+    ) -> Option<(TheValue, Uuid)> {
+        for (id, c) in &self.sandbox.items {
+            if *id == item_id {
+                if let Some(value) = c.get(&property).cloned() {
+                    for (instance_id, item_id) in &self.item_ids {
+                        if *instance_id == c.id {
+                            return Some((value.clone(), *item_id));
                         }
                     }
                 }
@@ -478,7 +683,7 @@ impl RegionInstance {
     pub fn get_character_object(&self, character_id: Uuid) -> Option<(TheCodeObject, Uuid)> {
         for (id, c) in &self.sandbox.objects {
             if *id == character_id {
-                for (instance_id, character_id) in &self.characters_ids {
+                for (instance_id, character_id) in &self.character_ids {
                     if *instance_id == c.id {
                         return Some((c.clone(), *character_id));
                     }
@@ -507,6 +712,28 @@ impl RegionInstance {
 
             if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
                 update.characters.insert(character, character_update);
+            }
+        }
+    }
+
+    /// Creates a character update.
+    fn create_item_update(&mut self, item: Uuid) {
+        // Add the character to the update struct.
+        if let Some(item_object) = self.sandbox.items.get_mut(&item) {
+            let mut item_update = ItemUpdate::new();
+            if let Some(TheValue::Position(p)) = item_object.get(&"position".into()) {
+                item_update.position = vec2f(p.x, p.z);
+            }
+            if let Some(TheValue::Text(t)) = item_object.get(&"name".into()) {
+                item_update.name = t.clone();
+            }
+            if let Some(TheValue::Tile(name, id)) = item_object.get_mut(&"tile".into()) {
+                item_update.tile_name = name.clone();
+                item_update.tile_id = *id;
+            }
+
+            if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
+                update.items.insert(item, item_update);
             }
         }
     }

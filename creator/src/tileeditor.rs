@@ -1,4 +1,4 @@
-use crate::editor::{CODEEDITOR, SIDEBARMODE};
+use crate::editor::{CODEEDITOR, SIDEBARMODE, TILEDRAWER};
 use crate::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -11,8 +11,6 @@ enum EditorMode {
 
 pub struct TileEditor {
     editor_mode: EditorMode,
-
-    tiledrawer: TileDrawer,
 
     curr_tile_uuid: Option<Uuid>,
 
@@ -28,8 +26,6 @@ impl TileEditor {
         Self {
             editor_mode: EditorMode::Draw,
 
-            tiledrawer: TileDrawer::new(),
-
             curr_tile_uuid: None,
 
             curr_layer_role: Layer2DRole::Ground,
@@ -39,14 +35,19 @@ impl TileEditor {
         }
     }
 
-    pub fn init_ui(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, _project: &mut Project) {
+    pub fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext, _project: &mut Project) {
         let mut center = TheCanvas::new();
 
         let mut shared_layout = TheSharedLayout::new(TheId::named("Editor Shared"));
 
         let mut region_editor = TheRGBALayout::new(TheId::named("Region Editor"));
         if let Some(rgba_view) = region_editor.rgba_view_mut().as_rgba_view() {
-            rgba_view.set_mode(TheRGBAViewMode::TileEditor);
+            rgba_view.set_mode(TheRGBAViewMode::Display);
+
+            if let Some(buffer) = ctx.ui.icon("eldiron_map") {
+                rgba_view.set_buffer(buffer.clone());
+            }
+
             rgba_view.set_grid_color([255, 255, 255, 5]);
             rgba_view.set_hover_color(Some([255, 255, 255, 100]));
             rgba_view.set_wheel_scale(-0.2);
@@ -189,7 +190,7 @@ impl TileEditor {
     }
 
     pub fn load_from_project(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
-        self.tiledrawer.tiles = project.extract_tiles();
+        TILEDRAWER.lock().unwrap().tiles = project.extract_tiles();
         if let Some(widget) = ui.get_widget("RenderView") {
             if let Some(w) = widget
                 .as_any()
@@ -260,6 +261,8 @@ impl TileEditor {
                         self.editor_mode = EditorMode::Draw;
                         server_ctx.tile_selection = None;
                         server_ctx.curr_character_instance = None;
+                        server_ctx.curr_item_instance = None;
+                        server_ctx.curr_area = None;
                     } else if *index == 1 {
                         self.editor_mode = EditorMode::Pick;
                         server_ctx.tile_selection = None;
@@ -280,7 +283,9 @@ impl TileEditor {
                         self.editor_mode = EditorMode::Select;
                     }
 
-                    if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
+                    if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
+                        || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
+                    {
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Set Region Panel"),
                             TheValue::Empty,
@@ -375,7 +380,8 @@ impl TileEditor {
                         };
                         server_ctx.tile_selection = Some(tilearea);
                     }
-                } else if self.editor_mode == EditorMode::Erase {
+                }
+                else if self.editor_mode == EditorMode::Erase {
                     // If there is a character instance at the position we delete the instance.
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if let Some(c) =
@@ -394,7 +400,25 @@ impl TileEditor {
                                     ctx,
                                 );
                             }
-                        } else {
+                        }
+                        else if let Some(c) =
+                            server.get_item_at(server_ctx.curr_region, vec2i(coord.x, coord.y))
+                        {
+                            // Delete the item at the given position.
+
+                            if let Some((value, _)) =
+                                server.get_character_property(region.id, c.0, "name".to_string())
+                            {
+                                open_delete_confirmation_dialog(
+                                    "Delete Item Instance ?",
+                                    format!("Permanently delete '{}' ?", value.describe()).as_str(),
+                                    c.0,
+                                    ui,
+                                    ctx,
+                                );
+                            }
+                        }
+                        else {
                             let mut area_id = None;
 
                             // Check for area at the given position.
@@ -432,12 +456,25 @@ impl TileEditor {
                             }
                         }
                     }
-                } else if self.editor_mode == EditorMode::Pick {
+                }
+                else if self.editor_mode == EditorMode::Pick {
                     // Check for character at the given position.
                     if let Some(c) = server.get_character_at(server_ctx.curr_region, *coord) {
                         server_ctx.curr_character_instance = Some(c.0);
                         server_ctx.curr_character = Some(c.1);
-                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
+                        server_ctx.curr_area = None;
+                        server_ctx.curr_item_instance = None;
+                        server_ctx.curr_item = None;
+
+                        if let Some(layout) =
+                            ui.get_list_layout("Region Content List")
+                        {
+                            layout.select_item(c.0, ctx, false);
+                        }
+
+                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
+                            || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
+                        {
                             // In Region mode, we need to set the character bundle of the current character instance.
                             if let Some(region) = project.get_region(&server_ctx.curr_region) {
                                 if let Some(character) = region.characters.get(&c.0) {
@@ -451,19 +488,53 @@ impl TileEditor {
                                                 TheId::named("Set CodeGrid Panel"),
                                                 TheValue::Empty,
                                             ));
-                                            if let Some(layout) =
-                                                ui.get_list_layout("Region Content List")
-                                            {
-                                                layout.select_item(c.0, ctx, false);
-                                            }
                                         }
                                     }
                                 }
                             }
-                        } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
-                            // In Character mode, we need to set the character bundle of the current character.
                         }
-                    } else if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                        //else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                        // In Character mode, we need to set the character bundle of the current character.
+                        //}
+                    }
+                    // Check for an item at the given position.
+                    else if let Some(c) = server.get_item_at(server_ctx.curr_region, *coord) {
+                        server_ctx.curr_item_instance = Some(c.0);
+                        server_ctx.curr_item = Some(c.1);
+                        server_ctx.curr_area = None;
+
+                        if let Some(layout) =
+                            ui.get_list_layout("Region Content List")
+                        {
+                            layout.select_item(c.0, ctx, false);
+                        }
+
+                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
+                            || *SIDEBARMODE.lock().unwrap() == SidebarMode::Item
+                        {
+                            // In Region mode, we need to set the character bundle of the current character instance.
+                            if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                                if let Some(item) = region.items.get(&c.0) {
+                                    for grid in item.instance.grids.values() {
+                                        if grid.name == "init" {
+                                            CODEEDITOR
+                                                .lock()
+                                                .unwrap()
+                                                .set_codegrid(grid.clone(), ui);
+                                            ctx.ui.send(TheEvent::Custom(
+                                                TheId::named("Set CodeGrid Panel"),
+                                                TheValue::Empty,
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        //else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                        // In Character mode, we need to set the character bundle of the current character.
+                        //}
+                    }
+                    else if let Some(region) = project.get_region(&server_ctx.curr_region) {
                         let mut found_area = false;
 
                         // Check for area at the given position.
@@ -471,11 +542,15 @@ impl TileEditor {
                             if area.area.contains(&(coord.x, coord.y)) {
                                 for grid in area.bundle.grids.values() {
                                     if grid.name == "main" {
-                                        CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
-                                        ctx.ui.send(TheEvent::Custom(
-                                            TheId::named("Set CodeGrid Panel"),
-                                            TheValue::Empty,
-                                        ));
+                                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
+                                            || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
+                                        {
+                                            CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                            ctx.ui.send(TheEvent::Custom(
+                                                TheId::named("Set CodeGrid Panel"),
+                                                TheValue::Empty,
+                                            ));
+                                        }
                                         found_area = true;
                                         server_ctx.curr_character_instance = None;
                                         server_ctx.curr_character = None;
@@ -496,7 +571,7 @@ impl TileEditor {
                             server_ctx.curr_character_instance = None;
                             if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
                                 for uuid in tile.layers.iter().flatten() {
-                                    if self.tiledrawer.tiles.contains_key(uuid) {
+                                    if TILEDRAWER.lock().unwrap().tiles.contains_key(uuid) {
                                         ctx.ui.send(TheEvent::StateChanged(
                                             TheId::named_with_id("Tilemap Tile", *uuid),
                                             TheWidgetState::Selected,
@@ -514,7 +589,9 @@ impl TileEditor {
                             }
                         }
                     }
-                    if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
+                    if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
+                        || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
+                    {
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Set Region Panel"),
                             TheValue::Empty,
@@ -522,7 +599,12 @@ impl TileEditor {
                     }
                 } else if self.editor_mode == EditorMode::Draw {
                     if let Some(curr_tile_uuid) = self.curr_tile_uuid {
-                        if self.tiledrawer.tiles.contains_key(&curr_tile_uuid) {
+                        if TILEDRAWER
+                            .lock()
+                            .unwrap()
+                            .tiles
+                            .contains_key(&curr_tile_uuid)
+                        {
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 let mut undo = TheUndo::new(TheId::named("RegionChanged"));
                                 undo.set_undo_data(region.to_json());
@@ -626,7 +708,37 @@ impl TileEditor {
                                 );
                             }
                         }
-                    } else if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    }
+                    if let Some((TheValue::Position(p), character_id)) = server
+                        .get_item_property(server_ctx.curr_region, id.uuid, "position".into())
+                    {
+                        // If it's a character instance, center it in the region editor.
+                        server_ctx.curr_item_instance = Some(id.uuid);
+                        server_ctx.curr_item = Some(character_id);
+                        server_ctx.curr_area = None;
+
+                        self.editor_mode = EditorMode::Pick;
+                        if let Some(button) = ui.get_group_button("Editor Group") {
+                            button.set_index(1);
+                            ctx.ui.send(TheEvent::IndexChanged(button.id().clone(), 1));
+                        }
+
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Set Region Panel"),
+                            TheValue::Empty,
+                        ));
+
+                        if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
+                            rgba_layout.scroll_to_grid(vec2i(p.x as i32, p.z as i32));
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                region.scroll_offset = vec2i(
+                                    p.x as i32 * region.grid_size,
+                                    p.z as i32 * region.grid_size,
+                                );
+                            }
+                        }
+                    }
+                    else if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if let Some(area) = region.areas.get(&id.uuid) {
                             server_ctx.curr_character_instance = None;
                             server_ctx.curr_character = None;
@@ -700,13 +812,13 @@ impl TileEditor {
                 else if id.name == "Tilemap Tile" {
                     self.curr_tile_uuid = Some(id.uuid);
 
-                    if let Some(t) = self.tiledrawer.tiles.get(&id.uuid) {
+                    if let Some(t) = TILEDRAWER.lock().unwrap().tiles.get(&id.uuid) {
                         if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
                             icon_view.set_rgba_tile(t.clone());
                         }
                     }
                 } else if id.name == "Tilemap Editor Add Selection" {
-                    self.tiledrawer.tiles = project.extract_tiles();
+                    TILEDRAWER.lock().unwrap().tiles = project.extract_tiles();
                     server.update_tiles(project.extract_tiles());
                 } else if id.name == "Ground Icon" {
                     self.curr_layer_role = Layer2DRole::Ground;
@@ -737,7 +849,7 @@ impl TileEditor {
             // Ground
             let mut success = false;
             if let Some(ground) = tile.layers[0] {
-                if let Some(tile) = self.tiledrawer.tiles.get(&ground) {
+                if let Some(tile) = TILEDRAWER.lock().unwrap().tiles.get(&ground) {
                     if let Some(icon_view) = ui.get_icon_view("Ground Icon") {
                         icon_view.set_rgba_tile(tile.clone());
                         success = true;
@@ -753,7 +865,7 @@ impl TileEditor {
             // Wall
             success = false;
             if let Some(wall) = tile.layers[1] {
-                if let Some(tile) = self.tiledrawer.tiles.get(&wall) {
+                if let Some(tile) = TILEDRAWER.lock().unwrap().tiles.get(&wall) {
                     if let Some(icon_view) = ui.get_icon_view("Wall Icon") {
                         icon_view.set_rgba_tile(tile.clone());
                         success = true;
@@ -769,7 +881,7 @@ impl TileEditor {
             // Ceiling
             success = false;
             if let Some(ceiling) = tile.layers[2] {
-                if let Some(tile) = self.tiledrawer.tiles.get(&ceiling) {
+                if let Some(tile) = TILEDRAWER.lock().unwrap().tiles.get(&ceiling) {
                     if let Some(icon_view) = ui.get_icon_view("Ceiling Icon") {
                         icon_view.set_rgba_tile(tile.clone());
                         success = true;
@@ -851,7 +963,7 @@ impl TileEditor {
                     server.draw_region(
                         &server_ctx.curr_region,
                         rgba_view.buffer_mut(),
-                        &self.tiledrawer,
+                        &TILEDRAWER.lock().unwrap(),
                         ctx,
                         server_ctx,
                     );

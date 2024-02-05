@@ -249,6 +249,15 @@ impl Sidebar {
         list_canvas.set_bottom(toolbar_canvas);
 
         character_canvas.set_top(list_canvas);
+
+        let mut empty = TheCanvas::new();
+        let mut layout = TheListLayout::new(TheId::empty());
+        layout.limiter_mut().set_max_width(self.width);
+        //empty.set_layout(layout);
+        empty.set_widget(TheColorButton::new(TheId::empty()));
+        empty.limiter_mut().set_max_width(self.width);
+        character_canvas.set_bottom(empty);
+
         stack_layout.add_canvas(character_canvas);
 
         // Item
@@ -498,8 +507,15 @@ impl Sidebar {
             TheEvent::DragStarted(id, text, offset) => {
                 if id.name == "Character Item" {
                     let mut drop = TheDrop::new(id.clone());
-                    //drop.set_data(atom.to_json());
                     drop.set_title(format!("Character: {}", text));
+                    drop.set_text(text.clone());
+                    drop.set_offset(*offset);
+                    ui.style.create_drop_image(&mut drop, ctx);
+                    ctx.ui.set_drop(drop);
+                }
+                else if id.name == "Item Item" {
+                    let mut drop = TheDrop::new(id.clone());
+                    drop.set_title(format!("Item: {}", text));
                     drop.set_text(text.clone());
                     drop.set_offset(*offset);
                     ui.style.create_drop_image(&mut drop, ctx);
@@ -693,7 +709,8 @@ impl Sidebar {
                         server.insert_character(bundle.clone());
                         project.add_character(bundle);
                     }
-                } else if id.name == "Character Remove" {
+                }
+                else if id.name == "Character Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
@@ -701,16 +718,71 @@ impl Sidebar {
                             self.apply_character(ui, ctx, None);
                         }
                     }
-                } else if id.name == "Character Item" {
+                }
+                else if id.name == "Character Item" {
                     if let Some(c) = project.characters.get(&id.uuid) {
                         server_ctx.curr_character = Some(id.uuid);
                         //server_ctx.curr_character_instance = None;
                         self.apply_character(ui, ctx, Some(c));
                         redraw = true;
                     }
-                } else if id.name == "Item Add" {
+                }
+                else if id.name == "Item Item" {
+                    if let Some(c) = project.items.get(&id.uuid) {
+                        server_ctx.curr_item = Some(id.uuid);
+                        self.apply_item(ui, ctx, Some(c));
+                        redraw = true;
+                    }
+                }
+                else if id.name == "Item Add" {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
-                        let bundle = TheCodeBundle::new();
+                        let mut bundle = TheCodeBundle::new();
+
+                        let mut init = TheCodeGrid {
+                            name: "init".into(),
+                            ..Default::default()
+                        };
+                        init.insert_atom(
+                            (0, 0),
+                            TheCodeAtom::ObjectSet(
+                                "self".to_string(),
+                                "name".to_string(),
+                                TheValueAssignment::Assign,
+                            ),
+                        );
+                        init.insert_atom(
+                            (1, 0),
+                            TheCodeAtom::Assignment(TheValueAssignment::Assign),
+                        );
+                        init.insert_atom(
+                            (2, 0),
+                            TheCodeAtom::Value(TheValue::Text("Unnamed".to_string())),
+                        );
+
+                        init.insert_atom(
+                            (0, 2),
+                            TheCodeAtom::ObjectSet(
+                                "self".to_string(),
+                                "tile".to_string(),
+                                TheValueAssignment::Assign,
+                            ),
+                        );
+                        init.insert_atom(
+                            (1, 2),
+                            TheCodeAtom::Assignment(TheValueAssignment::Assign),
+                        );
+                        init.insert_atom(
+                            (2, 2),
+                            TheCodeAtom::Value(TheValue::Tile("Name".to_string(), Uuid::nil())),
+                        );
+
+                        bundle.insert_grid(init);
+
+                        let main = TheCodeGrid {
+                            name: "main".into(),
+                            ..Default::default()
+                        };
+                        bundle.insert_grid(main);
 
                         let mut item =
                             TheListItem::new(TheId::named_with_id("Item Item", bundle.id));
@@ -723,20 +795,17 @@ impl Sidebar {
                             .send_widget_state_changed(&id, TheWidgetState::Selected);
 
                         self.apply_item(ui, ctx, Some(&bundle));
+                        server.insert_item(bundle.clone());
                         project.add_item(bundle);
                     }
-                } else if id.name == "Item Remove" {
+                }
+                else if id.name == "Item Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
                             project.remove_item(&selected.uuid);
                             self.apply_item(ui, ctx, None);
                         }
-                    }
-                } else if id.name == "Item Item" {
-                    if let Some(c) = project.items.get(&id.uuid) {
-                        self.apply_item(ui, ctx, Some(c));
-                        redraw = true;
                     }
                 } else if id.name == "Module Add" {
                     if let Some(list_layout) = ui.get_list_layout("Module List") {
@@ -998,6 +1067,11 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Items".to_string()));
                     }
 
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Set CodeGrid Panel"),
+                        TheValue::Empty,
+                    ));
+
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         if let Some(selected) = list_layout.selected() {
                             ctx.ui
@@ -1096,7 +1170,8 @@ impl Sidebar {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 6));
                     redraw = true;
-                } else if id.name == "Compile" {
+                }
+                else if id.name == "Compile" {
                     // Compile button in the editor. Compile the code and send it to the server if successful.
                     // We do not need to store it in the project because thats already done in the
                     // CodeBundleChanged event.
@@ -1149,7 +1224,39 @@ impl Sidebar {
                                                 }
                                             }
                                         }
-                                    } else if let Some(area) = server_ctx.curr_area {
+                                    }
+                                    if let Some(item_instance) =
+                                        server_ctx.curr_item_instance
+                                    {
+                                        // This is an item instance bundle
+
+                                        if let Some(region) =
+                                            project.get_region_mut(&server_ctx.curr_region)
+                                        {
+                                            if let Some(item) =
+                                                region.items.get_mut(&item_instance)
+                                            {
+                                                // We check if the key exists first as a safety measure
+                                                #[allow(clippy::map_entry)]
+                                                if item.instance.grids.contains_key(&grid.id) {
+                                                    // Update the character instance
+                                                    item
+                                                        .instance
+                                                        .grids
+                                                        .insert(grid.id, grid.clone());
+
+                                                    server.update_item_instance_bundle(
+                                                        server_ctx.curr_region,
+                                                        item_instance,
+                                                        item.instance.clone(),
+                                                    );
+                                                } else {
+                                                    println!("Item instance does not contain grid: {:?}", grid.name);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    else if let Some(area) = server_ctx.curr_area {
                                         // This is a region bundle
 
                                         if let Some(region) =
@@ -1174,9 +1281,14 @@ impl Sidebar {
                                             }
                                         }
                                     }
-                                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                                }
+                                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                                     server.insert_character(bundle);
-                                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Module {
+                                }
+                                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Item {
+                                    server.insert_item(bundle);
+                                }
+                                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Module {
                                     // Update the bundle in the server
                                     server.update_bundle(bundle.clone());
 
@@ -1392,7 +1504,9 @@ impl Sidebar {
         } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
             if let Some(canvas) = stack_layout.canvas_at_mut(1) {
                 let mut empty = TheCanvas::new();
-                empty.set_layout(TheVLayout::new(TheId::empty()));
+                let mut layout = TheListLayout::new(TheId::empty());
+                layout.limiter_mut().set_max_width(self.width);
+                empty.set_layout(layout);
                 canvas.set_bottom(empty);
             }
         }
@@ -1518,6 +1632,33 @@ impl Sidebar {
         ui.set_widget_disabled_state("Region Remove", ctx, region.is_none());
         ui.set_widget_disabled_state("Region Settings", ctx, region.is_none());
 
+        //
+
+        if region.is_none() {
+            if let Some(zoom) = ui.get_widget("Region Editor Zoom") {
+                zoom.set_value(TheValue::Float(1.0));
+            }
+
+            if let Some(rgba_layout) =
+                ui.canvas.get_layout(Some(&"Region Editor".into()), None)
+            {
+                if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
+                    if let Some(rgba_view) =
+                        rgba_layout.rgba_view_mut().as_rgba_view()
+                    {
+                        rgba_view.set_mode(TheRGBAViewMode::Display);
+                        rgba_view.set_zoom(1.0);
+                        if let Some(buffer) = ctx.ui.icon("eldiron_map") {
+                            rgba_view.set_buffer(buffer.clone());
+                        }
+                        rgba_view.set_grid(None);
+                        ctx.ui.relayout = true;
+                    }
+                    rgba_layout.scroll_to(vec2i(0, 0));
+                }
+            }
+        }
+
         // Show the filter region content.
 
         let mut filter_text = if let Some(widget) = ui
@@ -1569,6 +1710,27 @@ impl Sidebar {
                 }
 
                 if filter_role == 0 || filter_role == 2 {
+                    // Show Items
+                    for (id, _) in region.items.iter() {
+                        let mut name = "Item".to_string();
+                        if let Some((TheValue::Text(text), _)) =
+                            server.get_item_property(region.id, *id, "name".to_string())
+                        {
+                            name = text;
+                        }
+                        if filter_text.is_empty() || name.to_lowercase().contains(&filter_text) {
+                            let mut item = TheListItem::new(TheId::named_with_id(
+                                "Region Content List Item",
+                                *id,
+                            ));
+                            item.set_text(name);
+                            item.add_value_column(100, TheValue::Text("Item".to_string()));
+                            list.add_item(item, ctx);
+                        }
+                    }
+                }
+
+                if filter_role == 0 || filter_role == 3 {
                     // Show Areas
                     for (id, area) in region.areas.iter() {
                         let name = area.name.clone();

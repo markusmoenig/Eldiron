@@ -12,6 +12,12 @@ pub struct ServerContext {
     /// The currently selected character instance in the editor.
     pub curr_character_instance: Option<Uuid>,
 
+    /// The currently selected item in the editor.
+    pub curr_item: Option<Uuid>,
+
+    /// The currently selected item instance in the editor.
+    pub curr_item_instance: Option<Uuid>,
+
     /// The currently selected area in the editor.
     pub curr_area: Option<Uuid>,
 
@@ -32,8 +38,12 @@ impl ServerContext {
     pub fn new() -> Self {
         Self {
             curr_region: Uuid::nil(),
+
             curr_character: None,
             curr_character_instance: None,
+
+            curr_item: None,
+            curr_item_instance: None,
 
             curr_area: None,
 
@@ -41,5 +51,16 @@ impl ServerContext {
 
             tile_selection: None,
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.curr_region = Uuid::nil();
+        self.curr_character = None;
+        self.curr_character_instance = None;
+        self.curr_item = None;
+        self.curr_item_instance = None;
+        self.curr_area = None;
+        self.curr_grid_id = None;
+        self.tile_selection = None;
     }
 }

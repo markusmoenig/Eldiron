@@ -11,6 +11,7 @@ lazy_static! {
         Mutex::new(TilePicker::new("Main Tile Picker".to_string()));
     pub static ref TILEMAPEDITOR: Mutex<TilemapEditor> = Mutex::new(TilemapEditor::new());
     pub static ref SIDEBARMODE: Mutex<SidebarMode> = Mutex::new(SidebarMode::Region);
+    pub static ref TILEDRAWER: Mutex<TileDrawer> = Mutex::new(TileDrawer::new());
 }
 
 pub struct Editor {
@@ -267,7 +268,7 @@ impl TheTrait for Editor {
             }
         }
 
-        if redraw_update {
+        if redraw_update && !self.project.regions.is_empty() {
             self.tileeditor
                 .redraw_region(ui, &mut self.server, ctx, &self.server_ctx);
             redraw = true;
@@ -349,7 +350,41 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
-                        } else if name == "Delete Area ?" {
+                        }
+                        else if name == "Delete Item Instance ?" {
+                            if role == TheDialogButtonRole::Delete {
+                                if let Some(region) =
+                                    self.project.get_region_mut(&self.server_ctx.curr_region)
+                                {
+                                    let item_id = uuid;
+                                    if region.items.remove(&item_id).is_some() {
+                                        self.server
+                                            .remove_character_instance(region.id, item_id);
+                                        self.server_ctx.curr_item_instance = None;
+                                        self.server_ctx.curr_item = None;
+                                        redraw = true;
+                                        self.tileeditor.redraw_region(
+                                            ui,
+                                            &mut self.server,
+                                            ctx,
+                                            &self.server_ctx,
+                                        );
+
+                                        // Remove from the content list
+                                        if let Some(list) =
+                                            ui.get_list_layout("Region Content List")
+                                        {
+                                            list.remove(TheId::named_with_id(
+                                                "Region Content List Item",
+                                                item_id,
+                                            ));
+                                            ui.select_first_list_item("Region Content List", ctx);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else if name == "Delete Area ?" {
                             if role == TheDialogButtonRole::Delete {
                                 let area_id = uuid;
 
@@ -521,6 +556,103 @@ impl TheTrait for Editor {
                             //     self.sidebar.code_editor.set_debug_module(debug_module, ui);
                             // }
                         }
+                        else if drop.id.name.starts_with("Item") {
+                            let mut instance = TheCodeBundle::new();
+
+                            let mut init = TheCodeGrid {
+                                name: "init".into(),
+                                ..Default::default()
+                            };
+                            init.insert_atom(
+                                (0, 0),
+                                TheCodeAtom::ObjectSet(
+                                    "self".to_string(),
+                                    "position".to_string(),
+                                    TheValueAssignment::Assign,
+                                ),
+                            );
+                            init.insert_atom(
+                                (1, 0),
+                                TheCodeAtom::Assignment(TheValueAssignment::Assign),
+                            );
+                            init.insert_atom(
+                                (2, 0),
+                                TheCodeAtom::Value(TheValue::Position(vec3f(
+                                    location.x as f32,
+                                    0.0,
+                                    location.y as f32,
+                                ))),
+                            );
+                            instance.insert_grid(init);
+
+                            // Set the character instance bundle, disabled for now
+
+                            // self.sidebar.code_editor.set_bundle(
+                            //     instance.clone(),
+                            //     ctx,
+                            //     self.sidebar.width,
+                            // );
+
+                            let item = Item {
+                                id: instance.id,
+                                item_id: drop.id.uuid,
+                                instance,
+                            };
+
+                            // Add the item instance to the region content list
+
+                            let mut name = "Item".to_string();
+                            if let Some(item) = self.project.items.get(&drop.id.uuid) {
+                                name = item.name.clone();
+                            }
+
+                            if let Some(list) = ui.get_list_layout("Region Content List") {
+                                let mut list_item = TheListItem::new(TheId::named_with_id(
+                                    "Region Content List Item",
+                                    item.id,
+                                ));
+                                list_item.set_text(name);
+                                list_item.set_state(TheWidgetState::Selected);
+                                list_item.add_value_column(100, TheValue::Text("Item".to_string()));
+
+                                list.deselect_all();
+                                list.add_item(list_item, ctx);
+                                list.select_item(item.id, ctx, true);
+                            }
+
+                            // Add the item instance to the project
+
+                            if let Some(region) =
+                                self.project.get_region_mut(&self.server_ctx.curr_region)
+                            {
+                                region.items.insert(item.id, item.clone());
+                            }
+
+                            // Add the character instance to the server
+
+                            self.server_ctx.curr_character = None;
+                            self.server_ctx.curr_character_instance = None;
+                            self.server_ctx.curr_item = Some(item.item_id);
+                            self.server_ctx.curr_item_instance = Some(item.id);
+                            self.server_ctx.curr_area = None;
+
+                            self.server_ctx.curr_grid_id =
+                                self.server.add_item_instance_to_region(
+                                    self.server_ctx.curr_region,
+                                    item,
+                                );
+
+                            // Set the character instance debug info, disabled for now
+
+                            // if let Some(curr_grid_id) = self.server_ctx.curr_grid_id {
+                            //     let debug_module = self.server.get_region_debug_module(
+                            //         self.server_ctx.curr_region,
+                            //         curr_grid_id,
+                            //     );
+
+                            //     self.sidebar.code_editor.set_debug_module(debug_module, ui);
+                            // }
+                        }
                     }
                     TheEvent::FileRequesterResult(id, paths) => {
                         if id.name == "Open" {
@@ -536,6 +668,7 @@ impl TheTrait for Editor {
                                 self.server.state = ServerState::Stopped;
                                 update_server_icons = true;
                                 redraw = true;
+                                self.server_ctx.clear();
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
                                     "Project loaded successfully.".to_string(),

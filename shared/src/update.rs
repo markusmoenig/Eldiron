@@ -6,6 +6,7 @@ pub struct RegionUpdate {
 
     pub wallfx: FxHashMap<(i32, i32), WallFxUpdate>,
     pub characters: FxHashMap<Uuid, CharacterUpdate>,
+    pub items: FxHashMap<Uuid, ItemUpdate>,
 
     pub server_tick: i64,
 }
@@ -21,6 +22,7 @@ impl RegionUpdate {
         Self {
             wallfx: FxHashMap::default(),
             characters: FxHashMap::default(),
+            items: FxHashMap::default(),
             server_tick: 0,
         }
     }
@@ -59,6 +61,34 @@ impl CharacterUpdate {
             position: vec2f(0.0, 0.0),
             moving: None,
             move_delta: 0.0,
+        }
+    }
+}
+
+/// An item as described by the server for consumption by the client.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ItemUpdate {
+    pub tile_id: Uuid,
+    pub tile_name: String,
+
+    pub name: String,
+    pub position: Vec2f,
+}
+
+impl Default for ItemUpdate {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ItemUpdate {
+    pub fn new() -> Self {
+        Self {
+            tile_id: Uuid::nil(),
+            tile_name: "".to_string(),
+
+            name: "".to_string(),
+            position: vec2f(0.0, 0.0),
         }
     }
 }

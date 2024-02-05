@@ -1,4 +1,4 @@
-use crate::editor::{CODEEDITOR, SIDEBARMODE, TILEMAPEDITOR, TILEPICKER};
+use crate::editor::{CODEEDITOR, TILEDRAWER, TILEMAPEDITOR, TILEPICKER};
 use crate::prelude::*;
 
 pub struct Panels {
@@ -93,6 +93,7 @@ impl Panels {
         let mut shared_layout = TheSharedLayout::new(TheId::named("Shared Panel Layout"));
         shared_layout.limiter_mut().set_max_height(300);
         shared_layout.set_shared_ratio(0.75);
+        //shared_layout.set_mode(TheSharedLayoutMode::Shared);
 
         // Left Stack
 
@@ -218,7 +219,7 @@ impl Panels {
                 if let Some(atom) = CODEEDITOR.lock().unwrap().get_selected_atom(ui) {
                     //println!("Selected Atom: {:?}", atom);
                     self.curr_atom = Some(atom.clone());
-                    if let TheCodeAtom::Value(TheValue::Position(pos)) = atom {
+                    if let TheCodeAtom::Value(TheValue::Position(pos)) = &atom {
                         let mut w = TheIconView::new(TheId::empty());
                         if let Some(tile) = project.extract_region_tile(
                             server_ctx.curr_region,
@@ -229,11 +230,33 @@ impl Panels {
                         set_to.set_widget(w);
                         set_already = true;
                     }
-                    if let TheCodeAtom::Value(TheValue::ColorObject(color, _)) = atom {
+                    if let TheCodeAtom::Value(TheValue::Tile(name, _id)) = &atom {
+                        let mut w = TheIconView::new(TheId::empty());
+                        let tiledrawer = TILEDRAWER.lock().unwrap();
+                        if let Some(found_id) = tiledrawer.get_tile_id_by_name(name.clone()) {
+                            if let Some(tile) = tiledrawer.tiles.get(&found_id) {
+                                w.set_rgba_tile(tile.clone());
+                            }
+                        }
+                        set_to.set_widget(w);
+                        set_already = true;
+                    }
+                    if let TheCodeAtom::Value(TheValue::ColorObject(color, _)) = &atom {
                         let mut vlayout = TheVLayout::new(TheId::empty());
 
                         let mut w = TheColorPicker::new(TheId::named("Atom Color Picker"));
-                        w.set_value(TheValue::ColorObject(color, 0.0));
+                        w.set_value(TheValue::ColorObject(color.clone(), 0.0));
+                        vlayout.set_background_color(Some(ListLayoutBackground));
+                        vlayout.set_margin(vec4i(20, 20, 20, 20));
+                        vlayout.add_widget(Box::new(w));
+                        set_to.set_layout(vlayout);
+                        set_already = true;
+                    }
+                    if let TheCodeAtom::Value(TheValue::Direction(value, randomness)) = &atom {
+                        let mut vlayout = TheVLayout::new(TheId::empty());
+
+                        let mut w = TheDirectionPicker::new(TheId::named("Atom Direction Picker"));
+                        w.set_value(TheValue::Direction(*value, *randomness));
                         vlayout.set_background_color(Some(ListLayoutBackground));
                         vlayout.set_margin(vec4i(20, 20, 20, 20));
                         vlayout.add_widget(Box::new(w));
@@ -261,12 +284,13 @@ impl Panels {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "Atom Color Picker" {
+                if id.name == "Atom Color Picker" || id.name == "Atom Direction Picker" {
                     let mut editor = CODEEDITOR.lock().unwrap();
                     editor.start_undo(ui);
                     editor.set_selected_atom(ui, TheCodeAtom::Value(value.clone()));
                     editor.finish_undo(ui, ctx);
                     editor.set_grid_selection_ui(ui, ctx);
+                    redraw = true;
                 }
             }
             TheEvent::IndexChanged(id, index) => {
@@ -280,8 +304,6 @@ impl Panels {
             }
             TheEvent::Custom(id, _) => {
                 if id.name == "Set Region Panel" {
-                    //println!("Set Region Panel");
-
                     let mut shared_left = true;
 
                     if let Some(character) = server_ctx.curr_character_instance {
@@ -289,6 +311,8 @@ impl Panels {
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 1));
                         ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(1));
+
+                        shared_left = false;
 
                         // If in Pick mode show the instance
                         if self.get_editor_group_index(ui) == 1 {
@@ -299,7 +323,6 @@ impl Panels {
                                 layout.set_mode(TheSharedLayoutMode::Shared);
                                 ctx.ui.relayout = true;
                                 redraw = true;
-                                shared_left = false;
                             }
 
                             ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(1));
@@ -316,7 +339,42 @@ impl Panels {
 
                             self.update_code_object(ui, ctx, server, server_ctx);
                         }
-                    } else if let Some(area_id) = server_ctx.curr_area {
+                    }
+                    else if let Some(item) = server_ctx.curr_item_instance {
+                        // Item
+                        ctx.ui
+                            .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 1));
+                        ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(1));
+
+                        shared_left = false;
+
+                        // If in Pick mode show the instance
+                        if self.get_editor_group_index(ui) == 1 {
+                            ctx.ui
+                                .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+
+                            if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
+                                layout.set_mode(TheSharedLayoutMode::Shared);
+                                ctx.ui.relayout = true;
+                                redraw = true;
+                            }
+
+                            ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(1));
+
+                            if let Some((name, _)) = server.get_item_property(
+                                server_ctx.curr_region,
+                                item,
+                                "name".into(),
+                            ) {
+                                if let Some(text) = ui.get_text("Panel Object Text") {
+                                    text.set_text(name.describe());
+                                }
+                            }
+
+                            self.update_code_object(ui, ctx, server, server_ctx);
+                        }
+                    }
+                    else if let Some(area_id) = server_ctx.curr_area {
                         // Area
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 1));
@@ -361,13 +419,13 @@ impl Panels {
                     //println!("Set CodeGrid Panel");
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
-                    if *SIDEBARMODE.lock().unwrap() != SidebarMode::Region {
-                        if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
-                            layout.set_mode(TheSharedLayoutMode::Left);
-                            ctx.ui.relayout = true;
-                            redraw = true;
-                        }
-                    }
+                    // if *SIDEBARMODE.lock().unwrap() != SidebarMode::Region {
+                    //     if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
+                    //         layout.set_mode(TheSharedLayoutMode::Left);
+                    //         ctx.ui.relayout = true;
+                    //         redraw = true;
+                    //     }
+                    // }
                 } else if id.name == "Set Tilemap Panel" {
                     //println!("Set Tilemap Panel");
                     ctx.ui

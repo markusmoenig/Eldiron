@@ -10,12 +10,14 @@ pub mod area;
 pub mod tilearea;
 pub mod fx;
 pub mod update;
+pub mod item;
 
 pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
 
     pub use crate::camera::{Camera, Ray};
     pub use crate::character::Character;
+    pub use crate::item::Item;
     pub use crate::project::Project;
     pub use crate::region::{Layer2DRole, Region, RegionTile};
     pub use crate::area::Area;
