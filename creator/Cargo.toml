@@ -25,7 +25,7 @@ icon = ["../build/Eldiron.icns"]
 resources = []
 copyright = "Copyright (c) Markus Moenig 2024. All rights reserved."
 category = "Game"
-short_description = "A game creator for retro RPGs."
+short_description = "A game creator for retro RPGs with modern features."
 long_description = """
 Create retro RPGs with Eldiron.
 """

@@ -466,9 +466,8 @@ impl TheTrait for Editor {
                             };
                             init.insert_atom(
                                 (0, 0),
-                                TheCodeAtom::ObjectSet(
-                                    "self".to_string(),
-                                    "position".to_string(),
+                                TheCodeAtom::Set(
+                                    ":self.position".to_string(),
                                     TheValueAssignment::Assign,
                                 ),
                             );
@@ -562,9 +561,8 @@ impl TheTrait for Editor {
                             };
                             init.insert_atom(
                                 (0, 0),
-                                TheCodeAtom::ObjectSet(
-                                    "self".to_string(),
-                                    "position".to_string(),
+                                TheCodeAtom::Set(
+                                    ":self.position".to_string(),
                                     TheValueAssignment::Assign,
                                 ),
                             );

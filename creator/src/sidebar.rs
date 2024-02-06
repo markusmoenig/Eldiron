@@ -647,9 +647,8 @@ impl Sidebar {
                         };
                         init.insert_atom(
                             (0, 0),
-                            TheCodeAtom::ObjectSet(
-                                "self".to_string(),
-                                "name".to_string(),
+                            TheCodeAtom::Set(
+                                ":self.name".to_string(),
                                 TheValueAssignment::Assign,
                             ),
                         );
@@ -664,9 +663,8 @@ impl Sidebar {
 
                         init.insert_atom(
                             (0, 2),
-                            TheCodeAtom::ObjectSet(
-                                "self".to_string(),
-                                "tile".to_string(),
+                            TheCodeAtom::Set(
+                                ":self.tile".to_string(),
                                 TheValueAssignment::Assign,
                             ),
                         );
@@ -736,9 +734,8 @@ impl Sidebar {
                         };
                         init.insert_atom(
                             (0, 0),
-                            TheCodeAtom::ObjectSet(
-                                "self".to_string(),
-                                "name".to_string(),
+                            TheCodeAtom::Set(
+                                ":self.name".to_string(),
                                 TheValueAssignment::Assign,
                             ),
                         );
@@ -753,9 +750,8 @@ impl Sidebar {
 
                         init.insert_atom(
                             (0, 2),
-                            TheCodeAtom::ObjectSet(
-                                "self".to_string(),
-                                "tile".to_string(),
+                            TheCodeAtom::Set(
+                                ":self.tile".to_string(),
                                 TheValueAssignment::Assign,
                             ),
                         );
@@ -1526,12 +1522,11 @@ impl Sidebar {
                     canvas.set_bottom(char_list_canvas);
                 }
             }
-        } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
+        }
+        else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
             if let Some(canvas) = stack_layout.canvas_at_mut(1) {
                 let mut empty = TheCanvas::new();
-                let mut layout = TheListLayout::new(TheId::empty());
-                layout.limiter_mut().set_max_width(self.width);
-                empty.set_layout(layout);
+                empty.set_layout(TheListLayout::new(TheId::empty()));
                 canvas.set_bottom(empty);
             }
         }
@@ -1924,13 +1919,19 @@ impl Sidebar {
         if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
             // Remove code bundles UI from Character / Items / Modules
             if let Some(canvas) = stack_layout.canvas_at_mut(1) {
-                canvas.set_bottom(TheCanvas::new());
+                let mut c = TheCanvas::new();
+                c.set_layout(TheListLayout::new(TheId::empty()));
+                canvas.set_bottom(c);
             }
             if let Some(canvas) = stack_layout.canvas_at_mut(2) {
-                canvas.set_bottom(TheCanvas::new());
+                let mut c = TheCanvas::new();
+                c.set_layout(TheListLayout::new(TheId::empty()));
+                canvas.set_bottom(c);
             }
             if let Some(canvas) = stack_layout.canvas_at_mut(4) {
-                canvas.set_bottom(TheCanvas::new());
+                let mut c = TheCanvas::new();
+                c.set_layout(TheListLayout::new(TheId::empty()));
+                canvas.set_bottom(c);
             }
         }
 

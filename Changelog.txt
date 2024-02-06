@@ -1,6 +1,8 @@
 v 0.8.9 (WiP)
 -------
 
+- CodeGridFX: Replace LocalGet/Set and ObjectGet/Set just with Get/Set which takes a path.
+- General support for Items in the UI and server. However still needs CodeGridFX support.
 - Ability to create areas via context menu. And manage them in the region content list.
 - UI: Add context menus and dialog window capabilities.
 - Improvements to the code editor and the new Modules section which is a collection of codes. Now
