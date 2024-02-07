@@ -133,7 +133,7 @@ impl TilemapEditor {
         &mut self,
         event: &TheEvent,
         ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         project: &mut Project,
         _server: &mut Server,
         _server_ctx: &mut ServerContext,
@@ -141,6 +141,21 @@ impl TilemapEditor {
         let redraw = false;
 
         match event {
+            TheEvent::DialogValueOnClose(role, name, uuid, value) => {
+                if name == "Rename Tilemap" && *role == TheDialogButtonRole::Accept {
+                    if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
+                        tilemap.name = value.describe();
+                        ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
+                    }
+                }
+            }
+            TheEvent::ContextMenuSelected(_widget_id, item_id) => {
+                if item_id.name == "Rename Tilemap" {
+                    if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
+                        open_text_dialog("Rename Tilemap", "Tilemap Name", tilemap.name.as_str(), self.curr_tilemap_id, ui, ctx);
+                    }
+                }
+            }
             TheEvent::TileSelectionChanged(id) => {
                 if id.name == "Tilemap Editor View" {
                     if let Some(rgba_layout) = ui.get_rgba_layout("Tilemap Editor") {

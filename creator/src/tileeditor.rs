@@ -215,10 +215,8 @@ impl TileEditor {
         let mut redraw = false;
         match event {
             TheEvent::ContextMenuSelected(_widget_id, item_id) => {
-                //println!("Context Menu Selected: {} -> {}", widget_id.name, item_id.name);
-
                 if item_id.name == "Create Area" {
-                    open_text_dialog("New Area Name", "Area Name", "New Area", ui, ctx);
+                    open_text_dialog("New Area Name", "Area Name", "New Area", Uuid::new_v4(), ui, ctx);
                 }
             }
             TheEvent::KeyDown(v) => {

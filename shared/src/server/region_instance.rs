@@ -374,14 +374,18 @@ impl RegionInstance {
             }
         }
 
-        for id in instance_ids {
+        for id in &instance_ids {
             self.sandbox.clear_runtime_states();
-            self.sandbox.aliases.insert("self".to_string(), id);
+            self.sandbox.aliases.insert("self".to_string(), *id);
             character.execute("init".to_string(), &mut self.sandbox);
 
-            if let Some(inst) = self.character_instances.get_mut(&id) {
+            if let Some(inst) = self.character_instances.get_mut(id) {
                 inst.execute("init".to_string(), &mut self.sandbox);
             }
+        }
+
+        for id in instance_ids {
+            self.create_character_update(id);
         }
 
         self.characters.insert(character.id, character);
@@ -397,10 +401,14 @@ impl RegionInstance {
             }
         }
 
-        for id in instance_ids {
+        for id in &instance_ids {
             self.sandbox.clear_runtime_states();
-            self.sandbox.aliases.insert("self".to_string(), id);
+            self.sandbox.aliases.insert("self".to_string(), *id);
             item.execute("init".to_string(), &mut self.sandbox);
+        }
+
+        for id in instance_ids {
+            self.create_item_update(id);
         }
 
         self.items.insert(item.id, item);

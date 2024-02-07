@@ -316,7 +316,7 @@ impl TheTrait for Editor {
                 }
                 match event {
                     TheEvent::DialogValueOnClose(role, name, uuid, value) => {
-                        println!("Dialog Value On Close: {} -> {:?}", name, value);
+                        //println!("Dialog Value On Close: {} -> {:?}", name, value);
 
                         if name == "Delete Character Instance ?" {
                             if role == TheDialogButtonRole::Delete {
@@ -695,13 +695,15 @@ impl TheTrait for Editor {
                                 .set_widget_state("Logo".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        } else if id.name == "Patreon" {
+                        }
+                        else if id.name == "Patreon" {
                             _ = open::that("https://www.patreon.com/eldiron");
                             ctx.ui
                                 .set_widget_state("Patreon".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        } else if id.name == "Open" {
+                        }
+                        else if id.name == "Open" {
                             ctx.ui.open_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                                 "Open".into(),
@@ -714,7 +716,8 @@ impl TheTrait for Editor {
                                 .set_widget_state("Open".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        } else if id.name == "Save" {
+                        }
+                        else if id.name == "Save" {
                             if let Some(path) = &self.project_path {
                                 let json = serde_json::to_string(&self.project);
                                 if let Ok(json) = json {
@@ -731,7 +734,8 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
-                        } else if id.name == "Save As" {
+                        }
+                        else if id.name == "Save As" {
                             ctx.ui.save_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                                 "Save".into(),
@@ -818,36 +822,8 @@ impl TheTrait for Editor {
                             self.project.add_tilemap(tilemap);
                         }
                     }
-                    TheEvent::ValueChanged(id, value) => {
+                    TheEvent::ValueChanged(_id, _value) => {
                         //println!("{:?} {:?}", id, value);
-                        if id.name == "Region Name Edit" {
-                            if let Some(list_id) =
-                                self.sidebar.get_selected_in_list_layout(ui, "Region List")
-                            {
-                                ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
-                            }
-                        } else if id.name == "Region Item" {
-                            for r in &mut self.project.regions {
-                                if r.id == id.uuid {
-                                    if let Some(text) = value.to_string() {
-                                        r.name = text;
-                                    }
-                                }
-                            }
-                        }
-                        else if id.name == "Module Name Edit" {
-                            if let Some(list_id) =
-                                self.sidebar.get_selected_in_list_layout(ui, "Module List")
-                            {
-                                ctx.ui.send(TheEvent::SetValue(list_id.uuid, value));
-                            }
-                        } else if id.name == "Module Item" {
-                            if let Some(code) = self.project.codes.get_mut(&id.uuid) {
-                                if let Some(text) = value.to_string() {
-                                    code.name = text;
-                                }
-                            }
-                        }
                     }
                     _ => {}
                 }

@@ -11,6 +11,7 @@ pub mod tilearea;
 pub mod fx;
 pub mod update;
 pub mod item;
+pub mod client;
 
 pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
@@ -27,6 +28,7 @@ pub mod prelude {
     pub use crate::server::context::ServerContext;
     pub use crate::update::*;
     pub use crate::server::{Server, ServerState};
+    pub use crate::client::*;
     pub use crate::tiledrawer::TileDrawer;
     pub use crate::tilemap::{Tile, TileRole, Tilemap};
     pub use rand::prelude::*;
