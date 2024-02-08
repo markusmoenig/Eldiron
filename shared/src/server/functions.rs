@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::server::{KEY_DOWN, REGIONS, TILES, UPDATES};
+use crate::server::{KEY_DOWN, REGIONS, TILES, UPDATES, ITEMS};
 use theframework::prelude::*;
 
 use super::WallFX;
@@ -120,6 +120,54 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
             TheCodeNodeCallResult::Continue
         },
         vec![TheValue::Float2(vec2f(0.0, 0.0))],
+    );
+
+    // Create
+    compiler.add_external_call(
+        "Create".to_string(),
+        |stack, _data, _sandbox|
+        {
+            let mut item_name: Option<String> = None;
+            if let Some(v) = stack.pop() {
+                if let Some(name) = v.to_string() {
+                    item_name = Some(name);
+                }
+            }
+
+            let mut item_id : Option<Uuid> = None;
+            let mut items = ITEMS.write().unwrap();
+
+            if let Some(item_name) = item_name {
+                for item in items.values() {
+                    if item.name == item_name {
+                        item_id = Some(item.id);
+                        break;
+                    }
+                }
+            }
+
+            if let Some(item_id) = item_id {
+                if let Some(package) = items.get_mut(&item_id) {
+                    if let Some(init) = package.get_function_mut(&"init".to_string()) {
+                        let mut sandbox = TheCodeSandbox::new();
+                        let mut object = TheCodeObject::new();
+                        let id  = Uuid::new_v4();
+                        object.id = id;
+                        object.package_id = item_id;
+                        object.set(str!("type"), TheValue::Text(str!("Item")));
+                        sandbox.add_object(object);
+                        sandbox.aliases.insert("self".to_string(), id);
+                        init.execute(&mut sandbox);
+                        if let Some(object) = sandbox.objects.get(&id) {
+                            stack.push(TheValue::CodeObject(object.clone()));
+                        }
+                    }
+                }
+            }
+
+            TheCodeNodeCallResult::Continue
+        },
+        vec![TheValue::CodeObject(TheCodeObject::default())],
     );
 
     // InArea

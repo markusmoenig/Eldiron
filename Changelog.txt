@@ -1,6 +1,8 @@
 v 0.8.9 (WiP)
 -------
 
+- Name of characters / items adjusts to value set in the CodeGridFX init function.
+- Regions / Tilemaps / Modules can new be renamed via the context menu / dialog window.
 - CodeGridFX: Replace LocalGet/Set and ObjectGet/Set just with Get/Set which takes a path.
 - General support for Items in the UI and server. However still needs CodeGridFX support.
 - Ability to create areas via context menu. And manage them in the region content list.

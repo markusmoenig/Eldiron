@@ -551,8 +551,7 @@ impl TheTrait for Editor {
 
                             //     self.sidebar.code_editor.set_debug_module(debug_module, ui);
                             // }
-                        }
-                        else if drop.id.name.starts_with("Item") {
+                        } else if drop.id.name.starts_with("Item") {
                             let mut instance = TheCodeBundle::new();
 
                             let mut init = TheCodeGrid {
@@ -695,15 +694,13 @@ impl TheTrait for Editor {
                                 .set_widget_state("Logo".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        }
-                        else if id.name == "Patreon" {
+                        } else if id.name == "Patreon" {
                             _ = open::that("https://www.patreon.com/eldiron");
                             ctx.ui
                                 .set_widget_state("Patreon".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        }
-                        else if id.name == "Open" {
+                        } else if id.name == "Open" {
                             ctx.ui.open_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                                 "Open".into(),
@@ -716,8 +713,7 @@ impl TheTrait for Editor {
                                 .set_widget_state("Open".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
-                        }
-                        else if id.name == "Save" {
+                        } else if id.name == "Save" {
                             if let Some(path) = &self.project_path {
                                 let json = serde_json::to_string(&self.project);
                                 if let Ok(json) = json {
@@ -734,8 +730,7 @@ impl TheTrait for Editor {
                                     }
                                 }
                             }
-                        }
-                        else if id.name == "Save As" {
+                        } else if id.name == "Save As" {
                             ctx.ui.save_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                                 "Save".into(),

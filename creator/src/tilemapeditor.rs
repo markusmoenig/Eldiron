@@ -152,7 +152,14 @@ impl TilemapEditor {
             TheEvent::ContextMenuSelected(_widget_id, item_id) => {
                 if item_id.name == "Rename Tilemap" {
                     if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
-                        open_text_dialog("Rename Tilemap", "Tilemap Name", tilemap.name.as_str(), self.curr_tilemap_id, ui, ctx);
+                        open_text_dialog(
+                            "Rename Tilemap",
+                            "Tilemap Name",
+                            tilemap.name.as_str(),
+                            self.curr_tilemap_id,
+                            ui,
+                            ctx,
+                        );
                     }
                 }
             }

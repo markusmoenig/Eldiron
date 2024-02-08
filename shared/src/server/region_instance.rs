@@ -441,6 +441,8 @@ impl RegionInstance {
 
         let mut o = TheCodeObject::new();
         o.id = character.id;
+        o.set(str!("type"), TheValue::Text(str!("Character")));
+        o.set(str!("inventory"), TheValue::List(vec![]));
 
         self.sandbox.clear_runtime_states();
         self.sandbox.aliases.insert("self".to_string(), o.id);
@@ -489,6 +491,7 @@ impl RegionInstance {
 
         let mut o = TheCodeObject::new();
         o.id = item.id;
+        o.set(str!("type"), TheValue::Text(str!("Item")));
 
         self.sandbox.clear_runtime_states();
         self.sandbox.aliases.insert("self".to_string(), o.id);

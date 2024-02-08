@@ -22,6 +22,7 @@ lazy_static! {
     pub static ref KEY_DOWN: RwLock<Option<String>> = RwLock::new(None);
     pub static ref UPDATES: RwLock<FxHashMap<Uuid, RegionUpdate>> =
         RwLock::new(FxHashMap::default());
+    pub static ref ITEMS: RwLock<FxHashMap<Uuid, TheCodePackage>> = RwLock::new(FxHashMap::default());
 }
 
 use prelude::*;
@@ -46,9 +47,6 @@ pub struct Server {
 
     #[serde(skip)]
     characters: FxHashMap<Uuid, TheCodePackage>,
-
-    #[serde(skip)]
-    items: FxHashMap<Uuid, TheCodePackage>,
 
     pub debug_mode: bool,
     pub world: World,
@@ -76,7 +74,6 @@ impl Server {
             instances: FxHashMap::default(),
 
             characters: FxHashMap::default(),
-            items: FxHashMap::default(),
 
             debug_mode: false,
             world: World::default(),
@@ -100,7 +97,7 @@ impl Server {
         }
 
         self.characters = FxHashMap::default();
-        self.items = FxHashMap::default();
+        *ITEMS.write().unwrap() = FxHashMap::default();
 
         *REGIONS.write().unwrap() = regions;
         *UPDATES.write().unwrap() = updates;
@@ -401,6 +398,7 @@ impl Server {
             if let Some(object) = sandbox.get_self_mut() {
                 if let Some(name_value) = object.get(&"name".to_string()) {
                     name = Some(name_value.describe());
+                    package.name = name_value.describe();
                 }
             }
         }
@@ -409,7 +407,7 @@ impl Server {
             instance.insert_item(package.clone());
         }
 
-        self.items.insert(package.id, package);
+        ITEMS.write().unwrap().insert(package.id, package);
 
         name
     }

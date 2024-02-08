@@ -53,6 +53,14 @@ impl Panels {
         ));
 
         codeeditor.add_external(TheExternalCode::new(
+            "Create".to_string(),
+            "Creates the item identified by its name.".to_string(),
+            vec![str!("Item")],
+            vec![TheValue::Text(str!("name"))],
+            Some(TheValue::CodeObject(TheCodeObject::default())),
+        ));
+
+        codeeditor.add_external(TheExternalCode::new(
             "WallFX".to_string(),
             "Applies an effect on the wall at the given position.".to_string(),
             vec!["Position".to_string(), "FX".to_string()],
@@ -448,6 +456,42 @@ impl Panels {
         server: &mut Server,
         server_ctx: &mut ServerContext,
     ) {
+        fn create_items_for_value(
+            object: &TheCodeObject,
+            list: &mut dyn TheListLayoutTrait,
+            ctx: &mut TheContext,
+            indent: String,
+        ) {
+            for (name, value) in object.values.iter() {
+                if let TheValue::CodeObject(object) = value {
+                    create_items_for_value(object, list, ctx, str!("  ") + indent.as_str());
+                }
+                else if let TheValue::List(l) = value {
+
+                    let mut item = TheListItem::new(TheId::empty());
+                    item.set_text(indent.clone() + name.as_str());
+                    item.add_value_column(120, value.clone());
+                    list.add_item(item, ctx);
+
+                    for v in l {
+                        if let TheValue::CodeObject(object) = v {
+                            create_items_for_value(object, list, ctx, str!("  ") + indent.as_str());
+                        } else {
+                            let mut item = TheListItem::new(TheId::empty());
+                            item.set_text(indent.clone() + name.as_str());
+                            item.add_value_column(120, value.clone());
+                            list.add_item(item, ctx);
+                        }
+                    }
+                } else {
+                    let mut item = TheListItem::new(TheId::empty());
+                    item.set_text(indent.clone() + name.as_str());
+                    item.add_value_column(120, value.clone());
+                    list.add_item(item, ctx);
+                }
+            }
+        }
+
         if let Some(list) = ui.get_list_layout("CodeObject Layout") {
             list.clear();
 
@@ -455,29 +499,9 @@ impl Panels {
                 if let Some((object, _)) =
                     server.get_character_object(server_ctx.curr_region, character_id)
                 {
-                    for (name, value) in object.values {
-                        let mut item = TheListItem::new(TheId::empty());
-                        item.set_text(name);
-                        item.add_value_column(120, value);
-
-                        list.add_item(item, ctx);
-                    }
+                    create_items_for_value(&object, list, ctx, str!(""));
                 }
             }
-            /*
-            let mut objects = Vec::new();
-
-            for object in project.objects.values() {
-                objects.push(object.clone());
-            }
-
-            objects.sort_by(|a, b| a.name.cmp(&b.name));
-
-            for object in objects {
-                let mut text = TheText::new(TheId::empty());
-                text.set_text(object.name);
-                list.add_widget(Box::new(text));
-            }*/
         }
     }
 

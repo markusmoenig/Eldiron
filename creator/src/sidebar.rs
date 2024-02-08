@@ -1,4 +1,4 @@
-use crate::editor::{CODEEDITOR, SIDEBARMODE, TILEMAPEDITOR, TILEDRAWER};
+use crate::editor::{CODEEDITOR, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR};
 use crate::prelude::*;
 
 #[derive(PartialEq, Debug)]
@@ -113,7 +113,7 @@ impl Sidebar {
 
         let mut region_remove_button = TheTraybarButton::new(TheId::named("Region Remove"));
         region_remove_button.set_icon_name("icon_role_remove".to_string());
-        region_remove_button.set_status_text("Remove the selected region.");
+        region_remove_button.set_status_text("Remove the current region.");
         region_remove_button.set_disabled(true);
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
@@ -221,8 +221,10 @@ impl Sidebar {
 
         let mut regions_add_button = TheTraybarButton::new(TheId::named("Character Add"));
         regions_add_button.set_icon_name("icon_role_add".to_string());
+        regions_add_button.set_status_text("Add a new character.");
         let mut regions_remove_button = TheTraybarButton::new(TheId::named("Character Remove"));
         regions_remove_button.set_icon_name("icon_role_remove".to_string());
+        regions_remove_button.set_status_text("Remove the current character.");
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
@@ -260,8 +262,10 @@ impl Sidebar {
 
         let mut item_add_button = TheTraybarButton::new(TheId::named("Item Add"));
         item_add_button.set_icon_name("icon_role_add".to_string());
+        item_add_button.set_status_text("Add a new item.");
         let mut item_remove_button = TheTraybarButton::new(TheId::named("Item Remove"));
         item_remove_button.set_icon_name("icon_role_remove".to_string());
+        item_remove_button.set_status_text("Remove the current item.");
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
@@ -291,8 +295,10 @@ impl Sidebar {
 
         let mut regions_add_button = TheTraybarButton::new(TheId::named("Tilemap Add"));
         regions_add_button.set_icon_name("icon_role_add".to_string());
+        regions_add_button.set_status_text("Add a new tilemap from an existing PNG image.");
         let mut regions_remove_button = TheTraybarButton::new(TheId::named("Tilemap Remove"));
         regions_remove_button.set_icon_name("icon_role_remove".to_string());
+        regions_remove_button.set_status_text("Remove the current tilemap.");
 
         let mut grid_text = TheText::new(TheId::empty());
         grid_text.set_text("Grid Size".to_string());
@@ -300,10 +306,12 @@ impl Sidebar {
         grid_edit.limiter_mut().set_max_width(50);
         grid_edit.set_status_text("Edit the grid size of the tilemap.");
 
-        let mut import_button: TheTraybarButton = TheTraybarButton::new(TheId::named("Tilemap Import"));
+        let mut import_button: TheTraybarButton =
+            TheTraybarButton::new(TheId::named("Tilemap Import"));
         import_button.set_icon_name("import".to_string());
         import_button.set_status_text("Import a previously exported Eldiron Tilemap from file.");
-        let mut export_button: TheTraybarButton = TheTraybarButton::new(TheId::named("Tilemap Export"));
+        let mut export_button: TheTraybarButton =
+            TheTraybarButton::new(TheId::named("Tilemap Export"));
         export_button.set_icon_name("export".to_string());
         export_button.set_status_text("Export an Eldiron Tilemap with all tile metadata.");
 
@@ -384,8 +392,10 @@ impl Sidebar {
 
         let mut module_add_button = TheTraybarButton::new(TheId::named("Module Add"));
         module_add_button.set_icon_name("icon_role_add".to_string());
+        module_add_button.set_status_text("Add a new module.");
         let mut module_remove_button = TheTraybarButton::new(TheId::named("Module Remove"));
         module_remove_button.set_icon_name("icon_role_remove".to_string());
+        module_remove_button.set_status_text("Remove the current module.");
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
@@ -505,8 +515,7 @@ impl Sidebar {
                         region.name = value.describe();
                         ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
                     }
-                }
-                else if name == "Rename Module" && *role == TheDialogButtonRole::Accept {
+                } else if name == "Rename Module" && *role == TheDialogButtonRole::Accept {
                     if let Some(bundle) = project.codes.get_mut(uuid) {
                         bundle.name = value.describe();
                         ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
@@ -516,12 +525,25 @@ impl Sidebar {
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
                 if item_id.name == "Rename Region" {
                     if let Some(tilemap) = project.get_region(&server_ctx.curr_region) {
-                        open_text_dialog("Rename Region", "Region Name", tilemap.name.as_str(), server_ctx.curr_region, ui, ctx);
+                        open_text_dialog(
+                            "Rename Region",
+                            "Region Name",
+                            tilemap.name.as_str(),
+                            server_ctx.curr_region,
+                            ui,
+                            ctx,
+                        );
                     }
-                }
-                else if item_id.name == "Rename Module" {
+                } else if item_id.name == "Rename Module" {
                     if let Some(module) = project.codes.get(&widget_id.uuid) {
-                        open_text_dialog("Rename Module", "Module Name", module.name.as_str(), widget_id.uuid, ui, ctx);
+                        open_text_dialog(
+                            "Rename Module",
+                            "Module Name",
+                            module.name.as_str(),
+                            widget_id.uuid,
+                            ui,
+                            ctx,
+                        );
                     }
                 }
             }
@@ -590,33 +612,31 @@ impl Sidebar {
                     for p in paths {
                         ctx.ui.decode_image(id.clone(), p.clone());
                     }
-                }
-                else if id.name == "Tilemap Import" {
+                } else if id.name == "Tilemap Import" {
                     for p in paths {
                         let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
-                        let tilemap : Tilemap =
+                        let tilemap: Tilemap =
                             serde_json::from_str(&contents).unwrap_or(Tilemap::default());
 
                         if project.get_tilemap(tilemap.id).is_none() {
-
                             if let Some(layout) = ui
                                 .canvas
                                 .get_layout(Some(&"Tilemap List".to_string()), None)
                             {
                                 if let Some(list_layout) = layout.as_list_layout() {
-                                    let mut item =
-                                        TheListItem::new(TheId::named_with_id("Tilemap Item", tilemap.id));
+                                    let mut item = TheListItem::new(TheId::named_with_id(
+                                        "Tilemap Item",
+                                        tilemap.id,
+                                    ));
                                     item.set_text(tilemap.name.clone());
                                     item.set_state(TheWidgetState::Selected);
-                                    item.set_context_menu(
-                                        Some(TheContextMenu {
-                                            items: vec![TheContextMenuItem::new(
-                                                "Rename Tilemap...".to_string(),
-                                                TheId::named("Rename Tilemap"),
-                                            )],
-                                            ..Default::default()
-                                        }),
-                                    );
+                                    item.set_context_menu(Some(TheContextMenu {
+                                        items: vec![TheContextMenuItem::new(
+                                            "Rename Tilemap...".to_string(),
+                                            TheId::named("Rename Tilemap"),
+                                        )],
+                                        ..Default::default()
+                                    }));
                                     list_layout.deselect_all();
                                     let id = item.id().clone();
                                     list_layout.add_item(item, ctx);
@@ -639,8 +659,7 @@ impl Sidebar {
                             ))
                         }
                     }
-                }
-                else if id.name == "Tilemap Export" {
+                } else if id.name == "Tilemap Export" {
                     if let Some(curr_tilemap_uuid) = self.curr_tilemap_uuid {
                         if let Some(tilemap) = project.get_tilemap(curr_tilemap_uuid) {
                             for p in paths {
@@ -674,15 +693,13 @@ impl Sidebar {
                                 TheListItem::new(TheId::named_with_id("Tilemap Item", id.uuid));
                             item.set_text(name.clone());
                             item.set_state(TheWidgetState::Selected);
-                            item.set_context_menu(
-                                Some(TheContextMenu {
-                                    items: vec![TheContextMenuItem::new(
-                                        "Rename Tilemap...".to_string(),
-                                        TheId::named("Rename Tilemap"),
-                                    )],
-                                    ..Default::default()
-                                }),
-                            );
+                            item.set_context_menu(Some(TheContextMenu {
+                                items: vec![TheContextMenuItem::new(
+                                    "Rename Tilemap...".to_string(),
+                                    TheId::named("Rename Tilemap"),
+                                )],
+                                ..Default::default()
+                            }));
                             list_layout.deselect_all();
                             let id = item.id().clone();
                             list_layout.add_item(item, ctx);
@@ -696,18 +713,18 @@ impl Sidebar {
             }
             TheEvent::StateChanged(id, state) => {
                 if id.name == "Tilemap Import" {
-                        ctx.ui.open_file_requester(
-                            TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
-                            "Open".into(),
-                            TheFileExtension::new(
-                                "Eldiron Tilemap".into(),
-                                vec!["eldiron_tilemap".to_string()],
-                            ),
-                        );
-                        ctx.ui
-                            .set_widget_state("".to_string(), TheWidgetState::None);
-                        ctx.ui.clear_hover();
-                        redraw = true;
+                    ctx.ui.open_file_requester(
+                        TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
+                        "Open".into(),
+                        TheFileExtension::new(
+                            "Eldiron Tilemap".into(),
+                            vec!["eldiron_tilemap".to_string()],
+                        ),
+                    );
+                    ctx.ui
+                        .set_widget_state("".to_string(), TheWidgetState::None);
+                    ctx.ui.clear_hover();
+                    redraw = true;
                 }
                 if id.name == "Tilemap Export" {
                     if let Some(curr_tilemap_uuid) = self.curr_tilemap_uuid {
@@ -736,15 +753,13 @@ impl Sidebar {
                             TheListItem::new(TheId::named_with_id("Region Item", region.id));
                         item.set_text(region.name.clone());
                         item.set_state(TheWidgetState::Selected);
-                        item.set_context_menu(
-                            Some(TheContextMenu {
-                                items: vec![TheContextMenuItem::new(
-                                    "Rename Region...".to_string(),
-                                    TheId::named("Rename Region"),
-                                )],
-                                ..Default::default()
-                            }),
-                        );
+                        item.set_context_menu(Some(TheContextMenu {
+                            items: vec![TheContextMenuItem::new(
+                                "Rename Region...".to_string(),
+                                TheId::named("Rename Region"),
+                            )],
+                            ..Default::default()
+                        }));
                         list_layout.deselect_all();
                         let id = item.id().clone();
                         list_layout.add_item(item, ctx);
@@ -770,8 +785,7 @@ impl Sidebar {
                             redraw = true;
                         }
                     }
-                }
-                else if id.name == "Character Add" {
+                } else if id.name == "Character Add" {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         let mut bundle = TheCodeBundle::new();
 
@@ -781,10 +795,7 @@ impl Sidebar {
                         };
                         init.insert_atom(
                             (0, 0),
-                            TheCodeAtom::Set(
-                                ":self.name".to_string(),
-                                TheValueAssignment::Assign,
-                            ),
+                            TheCodeAtom::Set(":self.name".to_string(), TheValueAssignment::Assign),
                         );
                         init.insert_atom(
                             (1, 0),
@@ -797,10 +808,7 @@ impl Sidebar {
 
                         init.insert_atom(
                             (0, 2),
-                            TheCodeAtom::Set(
-                                ":self.tile".to_string(),
-                                TheValueAssignment::Assign,
-                            ),
+                            TheCodeAtom::Set(":self.tile".to_string(), TheValueAssignment::Assign),
                         );
                         init.insert_atom(
                             (1, 2),
@@ -833,8 +841,7 @@ impl Sidebar {
                         server.insert_character(bundle.clone());
                         project.add_character(bundle);
                     }
-                }
-                else if id.name == "Character Remove" {
+                } else if id.name == "Character Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
@@ -842,23 +849,20 @@ impl Sidebar {
                             self.apply_character(ui, ctx, None);
                         }
                     }
-                }
-                else if id.name == "Character Item" {
+                } else if id.name == "Character Item" {
                     if let Some(c) = project.characters.get(&id.uuid) {
                         server_ctx.curr_character = Some(id.uuid);
                         //server_ctx.curr_character_instance = None;
                         self.apply_character(ui, ctx, Some(c));
                         redraw = true;
                     }
-                }
-                else if id.name == "Item Item" {
+                } else if id.name == "Item Item" {
                     if let Some(c) = project.items.get(&id.uuid) {
                         server_ctx.curr_item = Some(id.uuid);
                         self.apply_item(ui, ctx, Some(c));
                         redraw = true;
                     }
-                }
-                else if id.name == "Item Add" {
+                } else if id.name == "Item Add" {
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         let mut bundle = TheCodeBundle::new();
 
@@ -868,10 +872,7 @@ impl Sidebar {
                         };
                         init.insert_atom(
                             (0, 0),
-                            TheCodeAtom::Set(
-                                ":self.name".to_string(),
-                                TheValueAssignment::Assign,
-                            ),
+                            TheCodeAtom::Set(":self.name".to_string(), TheValueAssignment::Assign),
                         );
                         init.insert_atom(
                             (1, 0),
@@ -884,10 +885,7 @@ impl Sidebar {
 
                         init.insert_atom(
                             (0, 2),
-                            TheCodeAtom::Set(
-                                ":self.tile".to_string(),
-                                TheValueAssignment::Assign,
-                            ),
+                            TheCodeAtom::Set(":self.tile".to_string(), TheValueAssignment::Assign),
                         );
                         init.insert_atom(
                             (1, 2),
@@ -936,15 +934,13 @@ impl Sidebar {
                             TheListItem::new(TheId::named_with_id("Module Item", bundle.id));
                         item.set_text(bundle.name.clone());
                         item.set_state(TheWidgetState::Selected);
-                        item.set_context_menu(
-                            Some(TheContextMenu {
-                                items: vec![TheContextMenuItem::new(
-                                    "Rename Module...".to_string(),
-                                    TheId::named("Rename Module"),
-                                )],
-                                ..Default::default()
-                            }),
-                        );
+                        item.set_context_menu(Some(TheContextMenu {
+                            items: vec![TheContextMenuItem::new(
+                                "Rename Module...".to_string(),
+                                TheId::named("Rename Module"),
+                            )],
+                            ..Default::default()
+                        }));
                         list_layout.deselect_all();
                         let id = item.id().clone();
                         list_layout.add_item(item, ctx);
@@ -982,8 +978,7 @@ impl Sidebar {
                         .set_widget_state("Tilemap Add".to_string(), TheWidgetState::None);
                     ctx.ui.clear_hover();
                     redraw = true;
-                }
-                else if id.name == "Tilemap Remove" {
+                } else if id.name == "Tilemap Remove" {
                     if let Some(list_layout) = ui.get_list_layout("Tilemap List") {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
@@ -992,8 +987,7 @@ impl Sidebar {
                             self.curr_tilemap_uuid = None;
                         }
                     }
-                }
-                else if id.name == "Tilemap Item" {
+                } else if id.name == "Tilemap Item" {
                     // Display the tilemap editor
                     if let Some(t) = project.get_tilemap(id.uuid) {
                         self.curr_tilemap_uuid = Some(t.id);
@@ -1290,8 +1284,7 @@ impl Sidebar {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 6));
                     redraw = true;
-                }
-                else if id.name == "Compile" {
+                } else if id.name == "Compile" {
                     // Compile button in the editor. Compile the code and send it to the server if successful.
                     // We do not need to store it in the project because thats already done in the
                     // CodeBundleChanged event.
@@ -1344,8 +1337,9 @@ impl Sidebar {
                                                 }
                                             }
                                         }
-                                    }
-                                    else if let Some(item_instance) = server_ctx.curr_item_instance {
+                                    } else if let Some(item_instance) =
+                                        server_ctx.curr_item_instance
+                                    {
                                         // This is an item instance bundle
 
                                         if let Some(region) =
@@ -1381,8 +1375,7 @@ impl Sidebar {
                                                 }
                                             }
                                         }
-                                    }
-                                    else if let Some(area) = server_ctx.curr_area {
+                                    } else if let Some(area) = server_ctx.curr_area {
                                         // This is a region bundle
 
                                         if let Some(region) =
@@ -1407,20 +1400,19 @@ impl Sidebar {
                                             }
                                         }
                                     }
-                                }
-                                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                                     if let Some(name) = server.insert_character(bundle.clone()) {
                                         if let Some(widget) = ui.get_widget_id(bundle.id) {
                                             if let Some(list_item) = widget.as_list_item() {
                                                 list_item.set_text(name.clone());
                                             }
                                         }
-                                        if let Some(bundle) = project.characters.get_mut(&bundle.id) {
+                                        if let Some(bundle) = project.characters.get_mut(&bundle.id)
+                                        {
                                             bundle.name = name;
                                         }
                                     }
-                                }
-                                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Item {
+                                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Item {
                                     if let Some(name) = server.insert_item(bundle.clone()) {
                                         if let Some(widget) = ui.get_widget_id(bundle.id) {
                                             if let Some(list_item) = widget.as_list_item() {
@@ -1431,8 +1423,7 @@ impl Sidebar {
                                             bundle.name = name;
                                         }
                                     }
-                                }
-                                else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Module {
+                                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Module {
                                     // Update the bundle in the server
                                     server.update_bundle(bundle.clone());
 
@@ -1581,15 +1572,13 @@ impl Sidebar {
             for region in &project.regions {
                 let mut item = TheListItem::new(TheId::named_with_id("Region Item", region.id));
                 item.set_text(region.name.clone());
-                item.set_context_menu(
-                    Some(TheContextMenu {
-                        items: vec![TheContextMenuItem::new(
-                            "Rename Region...".to_string(),
-                            TheId::named("Rename Region"),
-                        )],
-                        ..Default::default()
-                    }),
-                );
+                item.set_context_menu(Some(TheContextMenu {
+                    items: vec![TheContextMenuItem::new(
+                        "Rename Region...".to_string(),
+                        TheId::named("Rename Region"),
+                    )],
+                    ..Default::default()
+                }));
                 list_layout.add_item(item, ctx);
             }
         }
@@ -1618,15 +1607,13 @@ impl Sidebar {
             for tilemap in &project.tilemaps {
                 let mut item = TheListItem::new(TheId::named_with_id("Tilemap Item", tilemap.id));
                 item.set_text(tilemap.name.clone());
-                item.set_context_menu(
-                    Some(TheContextMenu {
-                        items: vec![TheContextMenuItem::new(
-                            "Rename Tilemap...".to_string(),
-                            TheId::named("Rename Tilemap"),
-                        )],
-                        ..Default::default()
-                    }),
-                );
+                item.set_context_menu(Some(TheContextMenu {
+                    items: vec![TheContextMenuItem::new(
+                        "Rename Tilemap...".to_string(),
+                        TheId::named("Rename Tilemap"),
+                    )],
+                    ..Default::default()
+                }));
                 list_layout.add_item(item, ctx);
             }
         }
@@ -1636,15 +1623,13 @@ impl Sidebar {
             for (id, name) in list {
                 let mut item = TheListItem::new(TheId::named_with_id("Module Item", id));
                 item.set_text(name);
-                item.set_context_menu(
-                    Some(TheContextMenu {
-                        items: vec![TheContextMenuItem::new(
-                            "Rename Module...".to_string(),
-                            TheId::named("Rename Module"),
-                        )],
-                        ..Default::default()
-                    }),
-                );
+                item.set_context_menu(Some(TheContextMenu {
+                    items: vec![TheContextMenuItem::new(
+                        "Rename Module...".to_string(),
+                        TheId::named("Rename Module"),
+                    )],
+                    ..Default::default()
+                }));
                 list_layout.add_item(item, ctx);
             }
         }
@@ -1682,8 +1667,7 @@ impl Sidebar {
                     canvas.set_bottom(char_list_canvas);
                 }
             }
-        }
-        else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
+        } else if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
             if let Some(canvas) = stack_layout.canvas_at_mut(1) {
                 let mut empty = TheCanvas::new();
                 empty.set_layout(TheListLayout::new(TheId::empty()));
@@ -1942,6 +1926,7 @@ impl Sidebar {
         tilemap: Option<&Tilemap>,
     ) {
         ui.set_widget_disabled_state("Tilemap Remove", ctx, tilemap.is_none());
+        ui.set_widget_disabled_state("Tilemap Export", ctx, tilemap.is_none());
 
         if let Some(widget) = ui
             .canvas
@@ -2132,13 +2117,14 @@ impl Sidebar {
             if let Some(w) = widget
                 .as_any()
                 .downcast_mut::<TheRenderView>()
-                .map(|external_widget| {
-                    external_widget as &mut dyn TheRenderViewTrait
-                })
+                .map(|external_widget| external_widget as &mut dyn TheRenderViewTrait)
             {
                 w.renderer_mut().set_textures(project.extract_tiles());
             }
         }
-        ctx.ui.send(TheEvent::Custom(TheId::named("Update Tilepicker"), TheValue::Empty));
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Tilepicker"),
+            TheValue::Empty,
+        ));
     }
 }

@@ -216,7 +216,14 @@ impl TileEditor {
         match event {
             TheEvent::ContextMenuSelected(_widget_id, item_id) => {
                 if item_id.name == "Create Area" {
-                    open_text_dialog("New Area Name", "Area Name", "New Area", Uuid::new_v4(), ui, ctx);
+                    open_text_dialog(
+                        "New Area Name",
+                        "Area Name",
+                        "New Area",
+                        Uuid::new_v4(),
+                        ui,
+                        ctx,
+                    );
                 }
             }
             TheEvent::KeyDown(v) => {
@@ -378,8 +385,7 @@ impl TileEditor {
                         };
                         server_ctx.tile_selection = Some(tilearea);
                     }
-                }
-                else if self.editor_mode == EditorMode::Erase {
+                } else if self.editor_mode == EditorMode::Erase {
                     // If there is a character instance at the position we delete the instance.
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if let Some(c) =
