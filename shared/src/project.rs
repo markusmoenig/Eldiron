@@ -24,6 +24,9 @@ pub struct Project {
     #[serde(default)]
     pub codes: FxHashMap<Uuid, TheCodeBundle>,
 
+    #[serde(default)]
+    pub screens: FxHashMap<Uuid, Screen>,
+
     #[serde(default = "default_target_fps")]
     pub target_fps: u32,
 
@@ -48,6 +51,8 @@ impl Project {
             characters: FxHashMap::default(),
             items: FxHashMap::default(),
             codes: FxHashMap::default(),
+
+            screens: FxHashMap::default(),
 
             target_fps: default_target_fps(),
             tick_ms: default_tick_ms(),
@@ -150,6 +155,28 @@ impl Project {
         entries
     }
 
+    /// Add Screen
+    pub fn add_screen(&mut self, screen: Screen) {
+        self.screens.insert(screen.id, screen);
+    }
+
+    /// Removes the given code from the project.
+    pub fn remove_screen(&mut self, id: &Uuid) {
+        self.screens.remove(id);
+    }
+
+    /// Returns a list of all screens sorted by name.
+    pub fn sorted_screens_list(&self) -> Vec<(Uuid, String)> {
+        let mut entries: Vec<(Uuid, String)> = self
+            .screens
+            .iter()
+            .map(|(uuid, data)| (*uuid, data.name.clone()))
+            .collect();
+
+        entries.sort_by(|a, b| a.1.cmp(&b.1));
+        entries
+    }
+
     /// Removes the given tile from the project.
     pub fn remove_tile(&mut self, id: &Uuid) {
         for tilemap in &mut self.tilemaps {
@@ -180,7 +207,6 @@ impl Project {
         }
         None
     }
-
 
     /// Extract all tiles from all tilemaps and store them in a hash.
     pub fn extract_tiles(&self) -> FxHashMap<Uuid, TheRGBATile> {
@@ -242,8 +268,7 @@ impl Project {
                     if let Some(t) = self.get_tile(&id) {
                         return self.extract_tile(&t.id);
                     }
-                }
-                else if let Some(id) = tile.layers[Layer2DRole::Ground as usize] {
+                } else if let Some(id) = tile.layers[Layer2DRole::Ground as usize] {
                     if let Some(t) = self.get_tile(&id) {
                         return self.extract_tile(&t.id);
                     }

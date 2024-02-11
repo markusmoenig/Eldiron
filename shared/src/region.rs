@@ -71,7 +71,12 @@ impl Region {
     }
 
     /// Returns true if the character can move to the given position.
-    pub fn can_move_to(&self, pos: Vec3f, tiles: &FxHashMap<Uuid, TheRGBATile>, update: &RegionUpdate) -> bool {
+    pub fn can_move_to(
+        &self,
+        pos: Vec3f,
+        tiles: &FxHashMap<Uuid, TheRGBATile>,
+        update: &RegionUpdate,
+    ) -> bool {
         let mut can_move = true;
         let pos = vec2i(pos.x as i32, pos.z as i32);
 
@@ -88,10 +93,9 @@ impl Region {
                 if let Some(layer) = tile.layers[index] {
                     if let Some(t) = tiles.get(&layer) {
                         if t.blocking && index == Layer2DRole::Wall as usize {
-
                             can_move = false;
 
-                            if let Some(wallfx) = update.wallfx.get(&(pos.x, pos.y)){
+                            if let Some(wallfx) = update.wallfx.get(&(pos.x, pos.y)) {
                                 if wallfx.fx != WallFX::Normal {
                                     can_move = true;
                                 }

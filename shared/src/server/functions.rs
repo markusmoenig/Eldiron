@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::server::{KEY_DOWN, REGIONS, TILES, UPDATES, ITEMS};
+use crate::server::{ITEMS, KEY_DOWN, REGIONS, TILES, UPDATES};
 use theframework::prelude::*;
 
 use super::WallFX;
@@ -92,8 +92,8 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                         let z = p.z + by.y;
 
                         if let Some(update) = UPDATES.write().unwrap().get_mut(&region_id) {
-
-                            if region.can_move_to(vec3f(x, p.y, z), &TILES.read().unwrap(), update) {
+                            if region.can_move_to(vec3f(x, p.y, z), &TILES.read().unwrap(), update)
+                            {
                                 let old_position = *p;
 
                                 *p = vec3f(x, p.y, z);
@@ -125,8 +125,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
     // Create
     compiler.add_external_call(
         "Create".to_string(),
-        |stack, _data, _sandbox|
-        {
+        |stack, _data, _sandbox| {
             let mut item_name: Option<String> = None;
             if let Some(v) = stack.pop() {
                 if let Some(name) = v.to_string() {
@@ -134,7 +133,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                 }
             }
 
-            let mut item_id : Option<Uuid> = None;
+            let mut item_id: Option<Uuid> = None;
             let mut items = ITEMS.write().unwrap();
 
             if let Some(item_name) = item_name {
@@ -151,7 +150,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                     if let Some(init) = package.get_function_mut(&"init".to_string()) {
                         let mut sandbox = TheCodeSandbox::new();
                         let mut object = TheCodeObject::new();
-                        let id  = Uuid::new_v4();
+                        let id = Uuid::new_v4();
                         object.id = id;
                         object.package_id = item_id;
                         object.set(str!("type"), TheValue::Text(str!("Item")));
@@ -193,8 +192,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
             }
             stack.push(TheValue::Int(count));
             if sandbox.debug_mode {
-                sandbox
-                    .set_debug_value(data.location, (None, TheValue::Int(count)));
+                sandbox.set_debug_value(data.location, (None, TheValue::Int(count)));
             }
             TheCodeNodeCallResult::Continue
         },
@@ -207,7 +205,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
         |stack, data, sandbox| {
             let region_id = sandbox.id;
 
-            let mut position= (0, 0);
+            let mut position = (0, 0);
             let mut effect = "Normal".to_string();
 
             if let Some(v) = stack.pop() {
@@ -222,7 +220,6 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
 
             let fx = WallFX::from_string(&effect);
             if let Some(update) = UPDATES.write().unwrap().get_mut(&region_id) {
-
                 if let Some(wallfx) = update.wallfx.get_mut(&position) {
                     if wallfx.fx != fx {
                         wallfx.prev_fx = wallfx.fx.clone();
@@ -230,12 +227,13 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                         wallfx.at_tick = update.server_tick;
                     }
                 } else {
-                    update.wallfx.insert(position,
+                    update.wallfx.insert(
+                        position,
                         WallFxUpdate {
                             at_tick: update.server_tick,
                             fx,
                             prev_fx: WallFX::Normal,
-                        }
+                        },
                     );
                 }
             }

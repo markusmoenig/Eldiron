@@ -8,6 +8,8 @@ pub enum SidebarMode {
     Item,
     Tilemap,
     Module,
+    Screen,
+    Asset,
     Debug,
     Thanks,
 }
@@ -62,6 +64,12 @@ impl Sidebar {
         let mut module_sectionbar_button = TheSectionbarButton::new(TheId::named("Module Section"));
         module_sectionbar_button.set_text("Module".to_string());
 
+        let mut screen_sectionbar_button = TheSectionbarButton::new(TheId::named("Screen Section"));
+        screen_sectionbar_button.set_text("Screen".to_string());
+
+        let mut asset_sectionbar_button = TheSectionbarButton::new(TheId::named("Asset Section"));
+        asset_sectionbar_button.set_text("Asset".to_string());
+
         let mut debug_sectionbar_button = TheSectionbarButton::new(TheId::named("Debug Section"));
         debug_sectionbar_button.set_text("Debug".to_string());
 
@@ -74,6 +82,8 @@ impl Sidebar {
         vlayout.add_widget(Box::new(item_sectionbar_button));
         vlayout.add_widget(Box::new(tilemap_sectionbar_button));
         vlayout.add_widget(Box::new(module_sectionbar_button));
+        vlayout.add_widget(Box::new(screen_sectionbar_button));
+        vlayout.add_widget(Box::new(asset_sectionbar_button));
         vlayout.add_widget(Box::new(debug_sectionbar_button));
         vlayout.add_widget(Box::new(thanks_sectionbar_button));
         vlayout.set_margin(vec4i(5, 10, 5, 5));
@@ -128,7 +138,7 @@ impl Sidebar {
         toolbar_canvas.set_layout(toolbar_hlayout);
         list_canvas.set_bottom(toolbar_canvas);
 
-        let mut region_canvas = TheCanvas::new();
+        let mut region_canvas: TheCanvas = TheCanvas::new();
         let mut region_tab = TheTabLayout::new(TheId::named("Region Tab Layout"));
 
         // Region Content
@@ -412,6 +422,168 @@ impl Sidebar {
         module_canvas.set_top(list_canvas);
         stack_layout.add_canvas(module_canvas);
 
+        // Screens
+
+        let mut screens_canvas = TheCanvas::default();
+
+        let mut list_layout = TheListLayout::new(TheId::named("Screen List"));
+        list_layout
+            .limiter_mut()
+            .set_max_size(vec2i(self.width, 200));
+        let mut list_canvas = TheCanvas::default();
+        list_canvas.set_layout(list_layout);
+
+        let mut screen_add_button = TheTraybarButton::new(TheId::named("Screen Add"));
+        screen_add_button.set_icon_name("icon_role_add".to_string());
+        screen_add_button.set_status_text("Add a new screen.");
+
+        let mut screen_remove_button = TheTraybarButton::new(TheId::named("Screen Remove"));
+        screen_remove_button.set_icon_name("icon_role_remove".to_string());
+        screen_remove_button.set_status_text("Remove the current screen.");
+        screen_remove_button.set_disabled(true);
+
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_hlayout.add_widget(Box::new(screen_add_button));
+        toolbar_hlayout.add_widget(Box::new(screen_remove_button));
+        //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        toolbar_canvas.set_layout(toolbar_hlayout);
+        list_canvas.set_bottom(toolbar_canvas);
+
+        let mut screen_canvas: TheCanvas = TheCanvas::new();
+        let mut screen_tab = TheTabLayout::new(TheId::named("Screen Tab Layout"));
+
+        // Screen Content
+
+        let mut list_layout = TheListLayout::new(TheId::named("Screen Content List"));
+        list_layout
+            .limiter_mut()
+            .set_max_size(vec2i(self.width, 250));
+        let mut content_canvas = TheCanvas::default();
+        content_canvas.set_layout(list_layout);
+
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        let mut filter_text = TheText::new(TheId::empty());
+        filter_text.set_text("Filter".to_string());
+
+        toolbar_hlayout.add_widget(Box::new(filter_text));
+        let mut filter_edit = TheTextLineEdit::new(TheId::named("Screen Content Filter Edit"));
+        filter_edit.set_text("".to_string());
+        filter_edit.limiter_mut().set_max_size(vec2i(85, 18));
+        filter_edit.set_font_size(12.5);
+        filter_edit.set_embedded(true);
+        filter_edit.set_status_text("Show content containing the given text.");
+        filter_edit.set_continuous(true);
+        toolbar_hlayout.add_widget(Box::new(filter_edit));
+
+        let mut drop_down = TheDropdownMenu::new(TheId::named("Screen Content Dropdown"));
+        drop_down.add_option("All".to_string());
+        drop_down.add_option("Widgets".to_string());
+        toolbar_hlayout.add_widget(Box::new(drop_down));
+
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        toolbar_canvas.set_layout(toolbar_hlayout);
+        content_canvas.set_top(toolbar_canvas);
+
+        screen_tab.add_canvas("Content".to_string(), content_canvas);
+
+        // Screen Settings
+
+        let mut settings_canvas = TheCanvas::default();
+
+        let mut text_layout: TheTextLayout = TheTextLayout::new(TheId::empty());
+        text_layout
+            .limiter_mut()
+            .set_max_size(vec2i(self.width, 250));
+        let mut drop_down = TheDropdownMenu::new(TheId::named("Screen Aspect Ratio Dropdown"));
+        for aspect in ScreenAspectRatio::iterator() {
+            drop_down.add_option(aspect.to_string().to_string());
+        }
+        drop_down.set_status_text("The aspect ratio of the screen.");
+        text_layout.add_pair("Aspect Ratio".to_string(), Box::new(drop_down));
+        let mut width_edit = TheTextLineEdit::new(TheId::named("Screen Width Edit"));
+        width_edit.set_range(TheValue::RangeI32(1..=100000));
+        width_edit.set_status_text("The width of the region in pixel.");
+        text_layout.add_pair("Width".to_string(), Box::new(width_edit));
+        let mut height_edit = TheTextLineEdit::new(TheId::named("Screen Height Edit"));
+        height_edit.set_range(TheValue::RangeI32(1..=100000));
+        height_edit.set_status_text("The height of the region in pixels.");
+        text_layout.add_pair("Height".to_string(), Box::new(height_edit));
+        let mut grid_edit = TheTextLineEdit::new(TheId::named("Screen Grid Edit"));
+        grid_edit.set_range(TheValue::RangeI32(1..=1000));
+        grid_edit.set_status_text("The size of the screen grid in pixels.");
+        text_layout.add_pair("Grid Size".to_string(), Box::new(grid_edit));
+
+        settings_canvas.set_layout(text_layout);
+        screen_tab.add_canvas("Settings".to_string(), settings_canvas);
+
+        screen_canvas.set_layout(screen_tab);
+        screens_canvas.set_top(list_canvas);
+        //regions_canvas.set_layout(text_layout);
+        screens_canvas.set_center(screen_canvas);
+
+        let mut empty = TheCanvas::new();
+        let mut layout = TheListLayout::new(TheId::empty());
+        layout.limiter_mut().set_max_width(self.width);
+        layout.limiter_mut().set_max_height(200);
+        empty.set_layout(layout);
+
+        screens_canvas.set_bottom(empty);
+
+        stack_layout.add_canvas(screens_canvas);
+
+        // Asset
+
+        let mut asset_canvas = TheCanvas::default();
+
+        let mut list_layout = TheListLayout::new(TheId::named("Screen List"));
+        list_layout
+            .limiter_mut()
+            .set_max_size(vec2i(self.width, 300));
+        let mut list_canvas = TheCanvas::default();
+        list_canvas.set_layout(list_layout);
+
+        let mut screen_add_button = TheTraybarButton::new(TheId::named("Screen Add"));
+        screen_add_button.set_icon_name("icon_role_add".to_string());
+        screen_add_button.set_status_text("Add a new screen.");
+
+        let mut screen_remove_button = TheTraybarButton::new(TheId::named("Screen Remove"));
+        screen_remove_button.set_icon_name("icon_role_remove".to_string());
+        screen_remove_button.set_status_text("Remove the current screen.");
+        screen_remove_button.set_disabled(true);
+
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_hlayout.add_widget(Box::new(screen_add_button));
+        toolbar_hlayout.add_widget(Box::new(screen_remove_button));
+        //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        toolbar_canvas.set_layout(toolbar_hlayout);
+        list_canvas.set_bottom(toolbar_canvas);
+
+        asset_canvas.set_top(list_canvas);
+
+        // Asset Preview
+
+        let mut list_layout = TheListLayout::new(TheId::named("Asset Preview List"));
+        list_layout.limiter_mut().set_max_width(self.width);
+        let mut list_canvas = TheCanvas::default();
+        list_canvas.set_layout(list_layout);
+
+        asset_canvas.set_center(list_canvas);
+
+        stack_layout.add_canvas(asset_canvas);
+
         // Debug
 
         let mut debug_canvas = TheCanvas::default();
@@ -490,6 +662,7 @@ impl Sidebar {
         self.apply_item(ui, ctx, None);
         self.apply_tilemap(ui, ctx, None);
         self.apply_code(ui, ctx, None);
+        self.apply_screen(ui, ctx, None);
     }
 
     pub fn handle_event(
@@ -565,7 +738,60 @@ impl Sidebar {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "Region Grid Edit" {
+                if id.name == "Screen Aspect Ratio Dropdown" {
+                    if let Some(index) = value.to_i32() {
+                        if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                            if let Some(aspect) =
+                                ScreenAspectRatio::from_index((index as usize).try_into().unwrap())
+                            {
+                                screen.aspect_ratio = aspect;
+
+                                let new_width = screen.aspect_ratio.width(screen.height);
+
+                                screen.width = new_width;
+                                ui.set_widget_value(
+                                    "Screen Width Edit",
+                                    ctx,
+                                    TheValue::Text(new_width.to_string()),
+                                );
+
+                                redraw = true;
+                            }
+                        }
+                    }
+                } else if id.name == "Screen Width Edit" {
+                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                        if let Some(v) = value.to_i32() {
+                            screen.width = v;
+                        }
+                        let new_height = screen.aspect_ratio.height(screen.width);
+
+                        screen.height = new_height;
+                        ui.set_widget_value(
+                            "Screen Height Edit",
+                            ctx,
+                            TheValue::Text(new_height.to_string()),
+                        );
+
+                        redraw = true;
+                    }
+                } else if id.name == "Screen Height Edit" {
+                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                        if let Some(v) = value.to_i32() {
+                            screen.height = v;
+                        }
+                        let new_width = screen.aspect_ratio.width(screen.height);
+
+                        screen.width = new_width;
+                        ui.set_widget_value(
+                            "Screen Width Edit",
+                            ctx,
+                            TheValue::Text(new_width.to_string()),
+                        );
+
+                        redraw = true;
+                    }
+                } else if id.name == "Region Grid Edit" {
                     if let Some(v) = value.to_i32() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.grid_size = v;
@@ -1113,6 +1339,54 @@ impl Sidebar {
                             ))
                         }
                     }
+                } else if id.name == "Screen Item" {
+                    if let Some(s) = project.screens.get(&id.uuid) {
+                        self.apply_screen(ui, ctx, Some(s));
+                        server_ctx.curr_screen = s.id;
+                        redraw = true;
+                    }
+                } else if id.name == "Screen Content List Item" {
+                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                        if let Some(widget) = screen.widgets.get_mut(&id.uuid) {
+                            let widget_list_canvas: TheCanvas = CODEEDITOR
+                                .lock()
+                                .unwrap()
+                                .set_bundle(widget.bundle.clone(), ctx, self.width, Some(200));
+
+                            if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
+                                if let Some(canvas) =
+                                    stack_layout.canvas_at_mut(SidebarMode::Screen as usize)
+                                {
+                                    canvas.set_bottom(widget_list_canvas);
+                                }
+                            }
+                        }
+                    }
+                } else if id.name == "Screen Add" {
+                    if let Some(list_layout) = ui.get_list_layout("Screen List") {
+                        let screen = Screen::default();
+
+                        let mut item =
+                            TheListItem::new(TheId::named_with_id("Screen Item", screen.id));
+                        item.set_text(screen.name.clone());
+                        item.set_state(TheWidgetState::Selected);
+                        list_layout.deselect_all();
+                        let id = item.id().clone();
+                        list_layout.add_item(item, ctx);
+                        ctx.ui
+                            .send_widget_state_changed(&id, TheWidgetState::Selected);
+
+                        self.apply_screen(ui, ctx, Some(&screen));
+                        project.add_screen(screen);
+                    }
+                } else if id.name == "Screen Remove" {
+                    if let Some(list_layout) = ui.get_list_layout("Item List") {
+                        if let Some(selected) = list_layout.selected() {
+                            list_layout.remove(selected.clone());
+                            project.remove_item(&selected.uuid);
+                            self.apply_item(ui, ctx, None);
+                        }
+                    }
                 }
                 // Section Buttons
                 else if id.name == "Region Section" && *state == TheWidgetState::Selected {
@@ -1139,8 +1413,10 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Region;
 
-                    ctx.ui
-                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 0));
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        self.stack_layout_id.clone(),
+                        SidebarMode::Region as usize,
+                    ));
                     redraw = true;
                 } else if id.name == "Character Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
@@ -1167,8 +1443,10 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Character;
 
-                    ctx.ui
-                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 1));
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        self.stack_layout_id.clone(),
+                        SidebarMode::Character as usize,
+                    ));
                     redraw = true;
                 } else if id.name == "Item Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
@@ -1195,8 +1473,10 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Item;
 
-                    ctx.ui
-                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 2));
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        self.stack_layout_id.clone(),
+                        SidebarMode::Item as usize,
+                    ));
                     redraw = true;
                 } else if id.name == "Tilemap Section" && *state == TheWidgetState::Selected {
                     if let Some(widget) = ui
@@ -1220,8 +1500,10 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Tilemap;
 
-                    ctx.ui
-                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 3));
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        self.stack_layout_id.clone(),
+                        SidebarMode::Tilemap as usize,
+                    ));
                     self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
                 } else if id.name == "Module Section" && *state == TheWidgetState::Selected {
@@ -1249,8 +1531,70 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Module;
 
-                    ctx.ui
-                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 4));
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        self.stack_layout_id.clone(),
+                        SidebarMode::Module as usize,
+                    ));
+                    redraw = true;
+                } else if id.name == "Screen Section" && *state == TheWidgetState::Selected {
+                    self.deselect_sections_buttons(ui, id.name.clone());
+                    CODEEDITOR.lock().unwrap().set_allow_modules(true);
+
+                    if let Some(widget) = ui
+                        .canvas
+                        .get_widget(Some(&"Switchbar Section Header".into()), None)
+                    {
+                        widget.set_value(TheValue::Text("Screens".to_string()));
+                    }
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Set CodeGrid Panel"),
+                        TheValue::Empty,
+                    ));
+
+                    if let Some(list_layout) = ui.get_list_layout("Screen List") {
+                        if let Some(selected) = list_layout.selected() {
+                            ctx.ui
+                                .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
+                        }
+                    }
+
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Screen;
+
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        self.stack_layout_id.clone(),
+                        SidebarMode::Screen as usize,
+                    ));
+                    redraw = true;
+                } else if id.name == "Asset Section" && *state == TheWidgetState::Selected {
+                    self.deselect_sections_buttons(ui, id.name.clone());
+                    CODEEDITOR.lock().unwrap().set_allow_modules(false);
+
+                    if let Some(widget) = ui
+                        .canvas
+                        .get_widget(Some(&"Switchbar Section Header".into()), None)
+                    {
+                        widget.set_value(TheValue::Text("Assets".to_string()));
+                    }
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Set CodeGrid Panel"),
+                        TheValue::Empty,
+                    ));
+
+                    if let Some(list_layout) = ui.get_list_layout("Asset List") {
+                        if let Some(selected) = list_layout.selected() {
+                            ctx.ui
+                                .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
+                        }
+                    }
+
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Asset;
+
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        self.stack_layout_id.clone(),
+                        SidebarMode::Asset as usize,
+                    ));
                     redraw = true;
                 } else if id.name == "Debug Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
@@ -1633,11 +1977,28 @@ impl Sidebar {
                 list_layout.add_item(item, ctx);
             }
         }
+        if let Some(list_layout) = ui.get_list_layout("Screen List") {
+            list_layout.clear();
+            let list = project.sorted_screens_list();
+            for (id, name) in list {
+                let mut item = TheListItem::new(TheId::named_with_id("Screen Item", id));
+                item.set_text(name);
+                item.set_context_menu(Some(TheContextMenu {
+                    items: vec![TheContextMenuItem::new(
+                        "Rename Screen...".to_string(),
+                        TheId::named("Rename Screen"),
+                    )],
+                    ..Default::default()
+                }));
+                list_layout.add_item(item, ctx);
+            }
+        }
         ui.select_first_list_item("Region List", ctx);
         ui.select_first_list_item("Character List", ctx);
         ui.select_first_list_item("Item List", ctx);
         ui.select_first_list_item("Tilemap List", ctx);
         ui.select_first_list_item("Module List", ctx);
+        ui.select_first_list_item("Screen List", ctx);
 
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Tilepicker"),
@@ -1660,7 +2021,7 @@ impl Sidebar {
                 CODEEDITOR
                     .lock()
                     .unwrap()
-                    .set_bundle(character.clone(), ctx, self.width);
+                    .set_bundle(character.clone(), ctx, self.width, None);
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(1) {
@@ -1693,7 +2054,7 @@ impl Sidebar {
                 CODEEDITOR
                     .lock()
                     .unwrap()
-                    .set_bundle(item.clone(), ctx, self.width);
+                    .set_bundle(item.clone(), ctx, self.width, None);
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(2) {
@@ -1711,7 +2072,7 @@ impl Sidebar {
         ctx.ui.relayout = true;
     }
 
-    /// Apply the given item to the UI
+    /// Apply the given module to the UI
     pub fn apply_code(
         &mut self,
         ui: &mut TheUI,
@@ -1726,7 +2087,7 @@ impl Sidebar {
                 CODEEDITOR
                     .lock()
                     .unwrap()
-                    .set_bundle(code.clone(), ctx, self.width);
+                    .set_bundle(code.clone(), ctx, self.width, None);
 
             if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
                 if let Some(canvas) = stack_layout.canvas_at_mut(4) {
@@ -1738,6 +2099,144 @@ impl Sidebar {
                 let mut empty = TheCanvas::new();
                 empty.set_layout(TheVLayout::new(TheId::empty()));
                 canvas.set_bottom(empty);
+            }
+        }
+
+        ctx.ui.relayout = true;
+    }
+
+    /// Apply the given screen to the UI
+    pub fn apply_screen(&mut self, ui: &mut TheUI, ctx: &mut TheContext, screen: Option<&Screen>) {
+        ui.set_widget_disabled_state("Screen Remove", ctx, screen.is_none());
+        ui.set_widget_disabled_state("Screen Settings", ctx, screen.is_none());
+
+        if screen.is_none() {
+            if let Some(zoom) = ui.get_widget("Screen Editor Zoom") {
+                zoom.set_value(TheValue::Float(1.0));
+            }
+
+            if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Screen Editor".into()), None) {
+                if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
+                    if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                        rgba_view.set_mode(TheRGBAViewMode::Display);
+                        rgba_view.set_zoom(1.0);
+                        if let Some(buffer) = ctx.ui.icon("eldiron_map") {
+                            rgba_view.set_buffer(buffer.clone());
+                        }
+                        rgba_view.set_grid(None);
+                        ctx.ui.relayout = true;
+                    }
+                    rgba_layout.scroll_to(vec2i(0, 0));
+                }
+            }
+        }
+
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Screen Aspect Ratio Dropdown".to_string()), None)
+        {
+            if let Some(screen) = screen {
+                widget.set_value(TheValue::Text(screen.aspect_ratio.to_string().to_string()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Screen Width Edit".to_string()), None)
+        {
+            if let Some(screen) = screen {
+                widget.set_value(TheValue::Text(screen.width.clone().to_string()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Screen Height Edit".to_string()), None)
+        {
+            if let Some(screen) = screen {
+                widget.set_value(TheValue::Text(screen.height.clone().to_string()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Screen Grid Edit".to_string()), None)
+        {
+            if let Some(screen) = screen {
+                widget.set_value(TheValue::Text(screen.grid_size.clone().to_string()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+
+        if let Some(screen) = screen {
+            if let Some(zoom) = ui.get_widget("Screen Editor Zoom") {
+                zoom.set_value(TheValue::Float(screen.zoom));
+            }
+            if let Some(rgba_layout) = ui.get_rgba_layout("Screen Editor") {
+                if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                    rgba.set_zoom(screen.zoom);
+                    rgba.set_grid(Some(screen.grid_size));
+                }
+                rgba_layout.scroll_to(screen.scroll_offset);
+            }
+        }
+
+        // Show the filter region content.
+
+        let mut filter_text = if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Screen Content Filter Edit".to_string()), None)
+        {
+            widget.value().to_string().unwrap_or_default()
+        } else {
+            "".to_string()
+        };
+
+        let filter_role = if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Screen Content Dropdown".to_string()), None)
+        {
+            if let Some(drop_down_menu) = widget.as_drop_down_menu() {
+                drop_down_menu.selected_index()
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+
+        filter_text = filter_text.to_lowercase();
+
+        if let Some(list) = ui.get_list_layout("Screen Content List") {
+            list.clear();
+            if let Some(screen) = screen {
+                if filter_role < 2 {
+                    // Show Widgets
+                    for (_id, widget) in screen.widgets.iter() {
+                        let name: String = widget.name.clone();
+                        if filter_text.is_empty() || name.to_lowercase().contains(&filter_text) {
+                            let mut item = TheListItem::new(TheId::named_with_id(
+                                "Screen Content List Item",
+                                widget.id,
+                            ));
+                            item.set_text(name);
+                            item.add_value_column(100, TheValue::Text("Widget".to_string()));
+                            list.add_item(item, ctx);
+                        }
+                    }
+                }
             }
         }
 
@@ -2025,19 +2524,26 @@ impl Sidebar {
     pub fn deselect_sections_buttons(&mut self, ui: &mut TheUI, except: String) {
         if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
             // Remove code bundles UI from Character / Items / Modules
-            if let Some(canvas) = stack_layout.canvas_at_mut(1) {
+            if let Some(canvas) = stack_layout.canvas_at_mut(SidebarMode::Character as usize) {
                 let mut c = TheCanvas::new();
                 c.set_layout(TheListLayout::new(TheId::empty()));
                 canvas.set_bottom(c);
             }
-            if let Some(canvas) = stack_layout.canvas_at_mut(2) {
+            if let Some(canvas) = stack_layout.canvas_at_mut(SidebarMode::Item as usize) {
                 let mut c = TheCanvas::new();
                 c.set_layout(TheListLayout::new(TheId::empty()));
                 canvas.set_bottom(c);
             }
-            if let Some(canvas) = stack_layout.canvas_at_mut(4) {
+            if let Some(canvas) = stack_layout.canvas_at_mut(SidebarMode::Module as usize) {
                 let mut c = TheCanvas::new();
                 c.set_layout(TheListLayout::new(TheId::empty()));
+                canvas.set_bottom(c);
+            }
+            if let Some(canvas) = stack_layout.canvas_at_mut(SidebarMode::Screen as usize) {
+                let mut c = TheCanvas::new();
+                let mut layout = TheListLayout::new(TheId::empty());
+                layout.limiter_mut().set_max_height(200);
+                c.set_layout(layout);
                 canvas.set_bottom(c);
             }
         }

@@ -31,13 +31,7 @@ impl Client {
         self.project = project;
     }
 
-    pub fn set_region_update(&mut self, _region_update: RegionUpdate) {
+    pub fn set_region_update(&mut self, _region_update: RegionUpdate) {}
 
-    }
-
-    pub fn draw(
-        &mut self,
-        _buffer: &mut TheRGBABuffer,
-    ) {
-    }
+    pub fn draw(&mut self, _buffer: &mut TheRGBABuffer) {}
 }

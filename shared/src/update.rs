@@ -3,7 +3,6 @@ use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct RegionUpdate {
-
     pub wallfx: FxHashMap<(i32, i32), WallFxUpdate>,
     pub characters: FxHashMap<Uuid, CharacterUpdate>,
     pub items: FxHashMap<Uuid, ItemUpdate>,

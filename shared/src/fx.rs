@@ -25,11 +25,16 @@ impl WallFX {
         }
     }
 
-    pub fn apply(&self, x: &mut i32, y: &mut i32, alpha: &mut f32, move_delta: &i32, time_delta: &f32) {
+    pub fn apply(
+        &self,
+        x: &mut i32,
+        y: &mut i32,
+        alpha: &mut f32,
+        move_delta: &i32,
+        time_delta: &f32,
+    ) {
         match self {
-            Self::Normal => {
-
-            }
+            Self::Normal => {}
             Self::MoveUp => {
                 *y += move_delta;
             }

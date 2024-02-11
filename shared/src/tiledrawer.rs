@@ -70,20 +70,29 @@ impl TileDrawer {
                                     let index = *anim_counter % data.buffer.len();
 
                                     if tile_index == Layer2DRole::Wall as usize {
-
                                         let mut xx = x % tile_size;
                                         let mut yy = y % tile_size;
                                         let mut alpha: f32 = 1.0;
 
                                         let mut valid = true;
                                         if let Some(wallfx) = update.wallfx.get(&(tile_x, tile_y)) {
-                                            let d = (*server_tick - wallfx.at_tick) as f32 + delta_in_tick - 1.0;
+                                            let d = (*server_tick - wallfx.at_tick) as f32
+                                                + delta_in_tick
+                                                - 1.0;
                                             if d < 1.0 {
                                                 let t = (d * region.grid_size as f32) as i32;
                                                 if wallfx.prev_fx != WallFX::Normal {
-                                                    wallfx.prev_fx.apply(&mut xx, &mut yy, &mut alpha, &(region.grid_size -t), &(1.0-d));
+                                                    wallfx.prev_fx.apply(
+                                                        &mut xx,
+                                                        &mut yy,
+                                                        &mut alpha,
+                                                        &(region.grid_size - t),
+                                                        &(1.0 - d),
+                                                    );
                                                 } else {
-                                                    wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
+                                                    wallfx.fx.apply(
+                                                        &mut xx, &mut yy, &mut alpha, &t, &d,
+                                                    );
                                                 }
                                             } else if wallfx.fx != WallFX::Normal {
                                                 valid = false;
@@ -92,10 +101,16 @@ impl TileDrawer {
 
                                         if valid {
                                             if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
-                                                color = self.mix_color(&color, &c, c[3] as f32 / 255.0 * alpha);
+                                                color = self.mix_color(
+                                                    &color,
+                                                    &c,
+                                                    c[3] as f32 / 255.0 * alpha,
+                                                );
                                             }
                                         }
-                                    } else if let Some(c) = data.buffer[index].at(vec2i(x % tile_size, y % tile_size)) {
+                                    } else if let Some(c) =
+                                        data.buffer[index].at(vec2i(x % tile_size, y % tile_size))
+                                    {
                                         color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
                                     }
 

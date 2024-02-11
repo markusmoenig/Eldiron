@@ -98,8 +98,8 @@ impl Panels {
         //let mut tab_layout = TheTabLayout::new(TheId::named("Browser"));
         //tab_layout.limiter_mut().set_max_height(300);
 
-        let mut shared_layout = TheSharedLayout::new(TheId::named("Shared Panel Layout"));
-        shared_layout.limiter_mut().set_max_height(300);
+        let mut shared_layout = TheSharedHLayout::new(TheId::named("Shared Panel Layout"));
+        shared_layout.limiter_mut().set_max_height(275);
         shared_layout.set_shared_ratio(0.75);
         //shared_layout.set_mode(TheSharedLayoutMode::Shared);
 
@@ -327,8 +327,8 @@ impl Panels {
                             ctx.ui
                                 .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
 
-                            if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
-                                layout.set_mode(TheSharedLayoutMode::Shared);
+                            if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                                layout.set_mode(TheSharedHLayoutMode::Shared);
                                 ctx.ui.relayout = true;
                                 redraw = true;
                             }
@@ -360,8 +360,8 @@ impl Panels {
                             ctx.ui
                                 .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
 
-                            if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
-                                layout.set_mode(TheSharedLayoutMode::Shared);
+                            if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                                layout.set_mode(TheSharedHLayoutMode::Shared);
                                 ctx.ui.relayout = true;
                                 redraw = true;
                             }
@@ -390,8 +390,8 @@ impl Panels {
                             ctx.ui
                                 .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
 
-                            if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
-                                layout.set_mode(TheSharedLayoutMode::Shared);
+                            if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                                layout.set_mode(TheSharedHLayoutMode::Shared);
                                 ctx.ui.relayout = true;
                                 redraw = true;
                                 shared_left = false;
@@ -415,8 +415,8 @@ impl Panels {
                     }
 
                     if shared_left {
-                        if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
-                            layout.set_mode(TheSharedLayoutMode::Left);
+                        if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                            layout.set_mode(TheSharedHLayoutMode::Left);
                             ctx.ui.relayout = true;
                             redraw = true;
                         }
@@ -436,8 +436,8 @@ impl Panels {
                     //println!("Set Tilemap Panel");
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 2));
-                    if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
-                        layout.set_mode(TheSharedLayoutMode::Left);
+                    if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                        layout.set_mode(TheSharedHLayoutMode::Left);
                         ctx.ui.relayout = true;
                         redraw = true;
                     }
@@ -465,9 +465,7 @@ impl Panels {
             for (name, value) in object.values.iter() {
                 if let TheValue::CodeObject(object) = value {
                     create_items_for_value(object, list, ctx, str!("  ") + indent.as_str());
-                }
-                else if let TheValue::List(l) = value {
-
+                } else if let TheValue::List(l) = value {
                     let mut item = TheListItem::new(TheId::empty());
                     item.set_text(indent.clone() + name.as_str());
                     item.add_value_column(120, value.clone());

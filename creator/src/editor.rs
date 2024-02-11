@@ -14,13 +14,22 @@ lazy_static! {
     pub static ref TILEDRAWER: Mutex<TileDrawer> = Mutex::new(TileDrawer::new());
 }
 
+#[derive(PartialEq, Clone, Copy, Debug)]
+enum ActiveEditor {
+    TileEditor,
+    ScreenEditor,
+}
+
 pub struct Editor {
     project: Project,
     project_path: Option<PathBuf>,
 
+    active_editor: ActiveEditor,
+
     sidebar: Sidebar,
     panels: Panels,
     tileeditor: TileEditor,
+    screeneditor: ScreenEditor,
 
     server: Server,
     server_ctx: ServerContext,
@@ -41,9 +50,12 @@ impl TheTrait for Editor {
             project: Project::new(),
             project_path: None,
 
+            active_editor: ActiveEditor::TileEditor,
+
             sidebar: Sidebar::new(),
             panels: Panels::new(),
             tileeditor: TileEditor::new(),
+            screeneditor: ScreenEditor::new(),
 
             server_ctx: ServerContext::default(),
             server,
@@ -185,8 +197,20 @@ impl TheTrait for Editor {
         // Panels
         self.panels.init_ui(ui, ctx, &mut self.project);
 
-        // TileEditor
-        self.tileeditor.init_ui(ui, ctx, &mut self.project);
+        // Editor
+        let mut tab_canvas: TheCanvas = TheCanvas::new();
+        let mut tab_layout = TheTabLayout::new(TheId::named("Editor Tab"));
+
+        let game_canvas = self.tileeditor.init_ui(ui, ctx, &mut self.project);
+        tab_layout.add_canvas(str!("Game"), game_canvas);
+
+        let screen_canvas = self.screeneditor.init_ui(ui, ctx, &mut self.project);
+        tab_layout.add_canvas(str!("Screen"), screen_canvas);
+
+        tab_canvas.set_layout(tab_layout);
+        ui.canvas.set_center(tab_canvas);
+
+        // -
 
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
     }
@@ -304,6 +328,16 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
+                if self.screeneditor.handle_event(
+                    &event,
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.server,
+                    &mut self.server_ctx,
+                ) {
+                    redraw = true;
+                }
                 if TILEMAPEDITOR.lock().unwrap().handle_event(
                     &event,
                     ui,
@@ -315,6 +349,16 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
                 match event {
+                    TheEvent::IndexChanged(id, index) => {
+                        if id.name == "Editor Tab Tabbar" {
+                            if index == 0 {
+                                self.active_editor = ActiveEditor::TileEditor;
+                            } else if index == 1 {
+                                self.active_editor = ActiveEditor::ScreenEditor;
+                            }
+                            redraw = true;
+                        }
+                    }
                     TheEvent::DialogValueOnClose(role, name, uuid, value) => {
                         //println!("Dialog Value On Close: {} -> {:?}", name, value);
 

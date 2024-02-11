@@ -35,10 +35,15 @@ impl TileEditor {
         }
     }
 
-    pub fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext, _project: &mut Project) {
+    pub fn init_ui(
+        &mut self,
+        _ui: &mut TheUI,
+        ctx: &mut TheContext,
+        _project: &mut Project,
+    ) -> TheCanvas {
         let mut center = TheCanvas::new();
 
-        let mut shared_layout = TheSharedLayout::new(TheId::named("Editor Shared"));
+        let mut shared_layout = TheSharedHLayout::new(TheId::named("Editor Shared"));
 
         let mut region_editor = TheRGBALayout::new(TheId::named("Region Editor"));
         if let Some(rgba_view) = region_editor.rgba_view_mut().as_rgba_view() {
@@ -186,7 +191,7 @@ impl TileEditor {
         bottom_toolbar.set_layout(toolbar_hlayout);
         center.set_bottom(bottom_toolbar);
 
-        ui.canvas.set_center(center);
+        center
     }
 
     pub fn load_from_project(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
@@ -233,13 +238,13 @@ impl TileEditor {
             }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "2D3D Group" {
-                    if let Some(shared) = ui.get_shared_layout("Editor Shared") {
+                    if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
                         if *index == 0 {
-                            shared.set_mode(TheSharedLayoutMode::Left);
+                            shared.set_mode(TheSharedHLayoutMode::Left);
                         } else if *index == 1 {
-                            shared.set_mode(TheSharedLayoutMode::Shared);
+                            shared.set_mode(TheSharedHLayoutMode::Shared);
                         } else if *index == 2 {
-                            shared.set_mode(TheSharedLayoutMode::Right);
+                            shared.set_mode(TheSharedHLayoutMode::Right);
                         }
                         ctx.ui.relayout = true;
 

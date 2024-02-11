@@ -1,6 +1,6 @@
 use super::prelude::*;
 use crate::prelude::*;
-use crate::server::{REGIONS, UPDATES, TILES};
+use crate::server::{REGIONS, TILES, UPDATES};
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -39,7 +39,7 @@ pub struct RegionInstance {
     tick_ms: u32,
 
     delta_in_tick: f32,
-    last_tick: i64
+    last_tick: i64,
 }
 
 impl Default for RegionInstance {
@@ -73,12 +73,17 @@ impl RegionInstance {
             tick_ms: 250,
 
             delta_in_tick: 0.0,
-            last_tick: 0
+            last_tick: 0,
         }
     }
 
     /// Sets up the region instance.
-    pub fn setup(&mut self, id: Uuid, project: &Project, packages: &FxHashMap<Uuid, TheCodePackage>) {
+    pub fn setup(
+        &mut self,
+        id: Uuid,
+        project: &Project,
+        packages: &FxHashMap<Uuid, TheCodePackage>,
+    ) {
         self.id = id;
 
         self.areas = FxHashMap::default();
@@ -93,7 +98,6 @@ impl RegionInstance {
 
     /// Tick. Compute the next frame.
     pub fn tick(&mut self) {
-
         self.debug_modules.clear();
         self.sandbox.clear_debug_messages();
 
@@ -118,27 +122,20 @@ impl RegionInstance {
                 instance.execute("main".to_string(), &mut self.sandbox);
             }
 
-            self.debug_modules.insert(
-                *instance_id,
-                self.sandbox.debug_modules.clone(),
-            );
+            self.debug_modules
+                .insert(*instance_id, self.sandbox.debug_modules.clone());
         }
 
         // We iterate over all areas and execute their main function.
         for (area_id, package) in &mut self.areas {
             self.sandbox.clear_runtime_states();
-            self.sandbox
-                .aliases
-                .insert("self".to_string(), *area_id);
+            self.sandbox.aliases.insert("self".to_string(), *area_id);
 
             package.execute("main".to_string(), &mut self.sandbox);
 
-            self.debug_modules.insert(
-                *area_id,
-                self.sandbox.debug_modules.clone(),
-            );
+            self.debug_modules
+                .insert(*area_id, self.sandbox.debug_modules.clone());
         }
-
     }
 
     /// Create an instance from json.
@@ -181,7 +178,6 @@ impl RegionInstance {
             let grid_size = region.grid_size as f32;
 
             if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
-
                 let server_tick = update.server_tick;
 
                 if server_tick != self.last_tick {
@@ -193,13 +189,18 @@ impl RegionInstance {
 
                 //println!("delta_in_tick {}", self.delta_in_tick);
 
-                tiledrawer.draw_region(buffer, region, anim_counter, update, &self.delta_in_tick, &server_tick);
+                tiledrawer.draw_region(
+                    buffer,
+                    region,
+                    anim_counter,
+                    update,
+                    &self.delta_in_tick,
+                    &server_tick,
+                );
 
                 // Characters
-                for (id, character) in &mut update.characters{
-
+                for (id, character) in &mut update.characters {
                     let draw_pos = if let Some((start, end)) = &mut character.moving {
-
                         // pub fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
                         //     let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
                         //     t * t * (3.0 - 2.0 * t)
@@ -216,9 +217,15 @@ impl RegionInstance {
                         let x = start.x * (1.0 - d) + end.x * d;
                         let y = start.y * (1.0 - d) + end.y * d;
                         character.move_delta = sum;
-                        vec2i((x * grid_size).round() as i32, (y * grid_size).round() as i32)
+                        vec2i(
+                            (x * grid_size).round() as i32,
+                            (y * grid_size).round() as i32,
+                        )
                     } else {
-                        vec2i((character.position.x * grid_size) as i32, (character.position.y * grid_size) as i32)
+                        vec2i(
+                            (character.position.x * grid_size) as i32,
+                            (character.position.y * grid_size) as i32,
+                        )
                     };
 
                     //println!("moving: {:?}", draw_pos);
@@ -247,12 +254,7 @@ impl RegionInstance {
                     }
 
                     if Some(*id) == server_ctx.curr_character_instance {
-                        tiledrawer.draw_tile_outline_at_pixel(
-                            draw_pos,
-                            buffer,
-                            WHITE,
-                            ctx,
-                        );
+                        tiledrawer.draw_tile_outline_at_pixel(draw_pos, buffer, WHITE, ctx);
                     } else if Some(*id) == server_ctx.curr_character {
                         tiledrawer.draw_tile_outline_at_pixel(
                             draw_pos,
@@ -265,8 +267,10 @@ impl RegionInstance {
 
                 // Items
                 for (id, item) in &mut update.items {
-
-                    let draw_pos = vec2i((item.position.x * grid_size) as i32, (item.position.y * grid_size) as i32);
+                    let draw_pos = vec2i(
+                        (item.position.x * grid_size) as i32,
+                        (item.position.y * grid_size) as i32,
+                    );
 
                     //println!("moving: {:?}", draw_pos);
 
@@ -294,12 +298,7 @@ impl RegionInstance {
                     }
 
                     if Some(*id) == server_ctx.curr_item_instance {
-                        tiledrawer.draw_tile_outline_at_pixel(
-                            draw_pos,
-                            buffer,
-                            WHITE,
-                            ctx,
-                        );
+                        tiledrawer.draw_tile_outline_at_pixel(draw_pos, buffer, WHITE, ctx);
                     }
                 }
             }
@@ -307,12 +306,7 @@ impl RegionInstance {
             if let Some(tilearea) = &server_ctx.tile_selection {
                 let tiles = tilearea.tiles();
 
-                tiledrawer.draw_tile_selection(
-                    &tiles,
-                    buffer,
-                    region.grid_size,
-                    WHITE,
-                    ctx);
+                tiledrawer.draw_tile_selection(&tiles, buffer, region.grid_size, WHITE, ctx);
             }
 
             if let Some(area_id) = &server_ctx.curr_area {
@@ -322,7 +316,8 @@ impl RegionInstance {
                         buffer,
                         region.grid_size,
                         WHITE,
-                        ctx);
+                        ctx,
+                    );
                 }
             }
         }
@@ -330,7 +325,6 @@ impl RegionInstance {
 
     /// Insert an area (TheCodePackage) to the region.
     pub fn insert_area(&mut self, mut area: Area, compiler: &mut TheCompiler) {
-
         let mut package = TheCodePackage::new();
         package.id = area.id;
 
@@ -361,7 +355,6 @@ impl RegionInstance {
 
         self.sandbox.add_area(a);
         self.areas.insert(area.id, package);
-
     }
 
     /// Insert a (TheCodePackage) to the region.
@@ -415,7 +408,11 @@ impl RegionInstance {
     }
 
     /// Adds a character instance to the region.
-    pub fn add_character_instance(&mut self, mut character: Character, compiler: &mut TheCompiler) -> Option<Uuid> {
+    pub fn add_character_instance(
+        &mut self,
+        mut character: Character,
+        compiler: &mut TheCompiler,
+    ) -> Option<Uuid> {
         let mut package = TheCodePackage::new();
         package.id = character.id;
 
@@ -465,7 +462,11 @@ impl RegionInstance {
     }
 
     /// Adds an item instance to the region.
-    pub fn add_item_instance(&mut self, mut item: Item, compiler: &mut TheCompiler) -> Option<Uuid> {
+    pub fn add_item_instance(
+        &mut self,
+        mut item: Item,
+        compiler: &mut TheCompiler,
+    ) -> Option<Uuid> {
         let mut package = TheCodePackage::new();
         package.id = item.id;
 
@@ -506,15 +507,19 @@ impl RegionInstance {
 
         self.create_item_update(item.id);
 
-        self.item_ids
-            .push((item.id, item.item_id));
+        self.item_ids.push((item.id, item.item_id));
         self.item_instances.insert(package.id, package);
 
         module_id
     }
 
     /// Updates a character instance.
-    pub fn update_character_instance_bundle(&mut self, character: Uuid, mut bundle: TheCodeBundle, compiler: &mut TheCompiler) {
+    pub fn update_character_instance_bundle(
+        &mut self,
+        character: Uuid,
+        mut bundle: TheCodeBundle,
+        compiler: &mut TheCompiler,
+    ) {
         if let Some(existing_package) = self.character_instances.get_mut(&character) {
             let mut package = TheCodePackage::new();
             package.id = character;
@@ -548,7 +553,12 @@ impl RegionInstance {
     }
 
     /// Updates an item instance.
-    pub fn update_item_instance_bundle(&mut self, item: Uuid, mut bundle: TheCodeBundle, compiler: &mut TheCompiler) {
+    pub fn update_item_instance_bundle(
+        &mut self,
+        item: Uuid,
+        mut bundle: TheCodeBundle,
+        compiler: &mut TheCompiler,
+    ) {
         if let Some(existing_package) = self.item_instances.get_mut(&item) {
             let mut package = TheCodePackage::new();
             package.id = item;
@@ -670,11 +680,7 @@ impl RegionInstance {
     }
 
     /// Returns the value of the given item instance property along with its item id.
-    pub fn get_item_property(
-        &self,
-        item_id: Uuid,
-        property: String,
-    ) -> Option<(TheValue, Uuid)> {
+    pub fn get_item_property(&self, item_id: Uuid, property: String) -> Option<(TheValue, Uuid)> {
         for (id, c) in &self.sandbox.items {
             if *id == item_id {
                 if let Some(value) = c.get(&property).cloned() {

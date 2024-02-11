@@ -1,5 +1,5 @@
-use theframework::prelude::*;
 use crate::prelude::*;
+use theframework::prelude::*;
 
 /// This gives context to the server of the editing state for live highlighting.
 pub struct ServerContext {
@@ -26,6 +26,9 @@ pub struct ServerContext {
 
     /// If the user selects a tile area.
     pub tile_selection: Option<TileArea>,
+
+    /// The currently selected screen.
+    pub curr_screen: Uuid,
 }
 
 impl Default for ServerContext {
@@ -50,6 +53,8 @@ impl ServerContext {
             curr_grid_id: None,
 
             tile_selection: None,
+
+            curr_screen: Uuid::nil(),
         }
     }
 
@@ -62,5 +67,6 @@ impl ServerContext {
         self.curr_area = None;
         self.curr_grid_id = None;
         self.tile_selection = None;
+        self.curr_screen = Uuid::nil();
     }
 }

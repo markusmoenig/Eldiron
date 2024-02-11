@@ -5,6 +5,7 @@ use theframework::*;
 pub mod editor;
 pub mod misc;
 pub mod panels;
+pub mod screeneditor;
 pub mod sidebar;
 pub mod tileeditor;
 pub mod tilemapeditor;
@@ -27,6 +28,7 @@ pub mod prelude {
 
     pub use crate::misc::*;
     pub use crate::panels::*;
+    pub use crate::screeneditor::*;
     pub use crate::sidebar::*;
     pub use crate::tileeditor::*;
     pub use crate::tilemapeditor::*;

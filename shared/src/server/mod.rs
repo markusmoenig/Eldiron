@@ -22,7 +22,8 @@ lazy_static! {
     pub static ref KEY_DOWN: RwLock<Option<String>> = RwLock::new(None);
     pub static ref UPDATES: RwLock<FxHashMap<Uuid, RegionUpdate>> =
         RwLock::new(FxHashMap::default());
-    pub static ref ITEMS: RwLock<FxHashMap<Uuid, TheCodePackage>> = RwLock::new(FxHashMap::default());
+    pub static ref ITEMS: RwLock<FxHashMap<Uuid, TheCodePackage>> =
+        RwLock::new(FxHashMap::default());
 }
 
 use prelude::*;
@@ -88,7 +89,7 @@ impl Server {
     }
 
     /// Sets the current project. Resets the server.
-    pub fn set_project(&mut self, project: Project) -> FxHashMap<Uuid, TheCodePackage>{
+    pub fn set_project(&mut self, project: Project) -> FxHashMap<Uuid, TheCodePackage> {
         let mut regions = FxHashMap::default();
         let mut updates = FxHashMap::default();
         for region in &project.regions {
@@ -188,7 +189,10 @@ impl Server {
     }
 
     /// Compiles all bundles into packages.
-    fn compile_bundles(&mut self, mut bundles: FxHashMap<Uuid, TheCodeBundle>) -> FxHashMap<Uuid, TheCodePackage>{
+    fn compile_bundles(
+        &mut self,
+        mut bundles: FxHashMap<Uuid, TheCodeBundle>,
+    ) -> FxHashMap<Uuid, TheCodePackage> {
         let mut packages = FxHashMap::default();
         for bundle in bundles.values_mut() {
             let mut package = TheCodePackage::new();
@@ -200,9 +204,11 @@ impl Server {
                 if let Ok(mut module) = rc {
                     module.name = grid.name.clone();
                     package.insert_module(module.name.clone(), module);
-                }
-                else if let Err(e) = rc {
-                    println!("Error in {}.{}: {} at {:?}.", bundle.name, grid.name, e.message, e.location);
+                } else if let Err(e) = rc {
+                    println!(
+                        "Error in {}.{}: {} at {:?}.",
+                        bundle.name, grid.name, e.message, e.location
+                    );
                 }
             }
             packages.insert(package.id, package);
@@ -222,9 +228,11 @@ impl Server {
             if let Ok(mut module) = rc {
                 module.name = grid.name.clone();
                 package.insert_module(module.name.clone(), module);
-            }
-            else if let Err(e) = rc {
-                println!("Error in {}.{}: {} at {:?}.", bundle.name, grid.name, e.message, e.location);
+            } else if let Err(e) = rc {
+                println!(
+                    "Error in {}.{}: {} at {:?}.",
+                    bundle.name, grid.name, e.message, e.location
+                );
             }
         }
 
@@ -248,7 +256,6 @@ impl Server {
 
     /// Tick. Compute the next frame.
     pub fn tick(&mut self) -> Vec<TheDebugMessage> {
-
         self.world.tick();
         self.anim_counter = self.anim_counter.wrapping_add(1);
 
@@ -339,7 +346,7 @@ impl Server {
             }
         }
 
-        let mut name : Option<String> = None;
+        let mut name: Option<String> = None;
 
         if let Some(init) = package.get_function_mut(&"init".to_string()) {
             let mut sandbox = TheCodeSandbox::new();
@@ -386,7 +393,7 @@ impl Server {
             }
         }
 
-        let mut name : Option<String> = None;
+        let mut name: Option<String> = None;
 
         if let Some(init) = package.get_function_mut(&"init".to_string()) {
             let mut sandbox = TheCodeSandbox::new();
@@ -422,7 +429,11 @@ impl Server {
     // }
 
     /// Get the debug module for the given entity id.
-    pub fn get_entity_debug_data(&mut self, region: Uuid, entity_id: Uuid) -> Option<FxHashMap<Uuid, TheDebugModule>> {
+    pub fn get_entity_debug_data(
+        &mut self,
+        region: Uuid,
+        entity_id: Uuid,
+    ) -> Option<FxHashMap<Uuid, TheDebugModule>> {
         if let Some(instance) = self.instances.get_mut(&region) {
             instance.get_entity_debug_data(entity_id)
         } else {
@@ -444,11 +455,7 @@ impl Server {
     }
 
     /// Adds a new item instance to the given region and returns its module id (for debugging).
-    pub fn add_item_instance_to_region(
-        &mut self,
-        region: Uuid,
-        item: Item,
-    ) -> Option<Uuid> {
+    pub fn add_item_instance_to_region(&mut self, region: Uuid, item: Item) -> Option<Uuid> {
         if let Some(instance) = self.instances.get_mut(&region) {
             instance.add_item_instance(item, &mut self.compiler)
         } else {
@@ -469,12 +476,7 @@ impl Server {
     }
 
     /// Updates an item instance.
-    pub fn update_item_instance_bundle(
-        &mut self,
-        region: Uuid,
-        item: Uuid,
-        bundle: TheCodeBundle,
-    ) {
+    pub fn update_item_instance_bundle(&mut self, region: Uuid, item: Uuid, bundle: TheCodeBundle) {
         if let Some(instance) = self.instances.get_mut(&region) {
             instance.update_item_instance_bundle(item, bundle, &mut self.compiler);
         }

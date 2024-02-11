@@ -27,12 +27,10 @@ impl TileArea {
         if (x > self.start.0 && y == self.start.1) || y > self.start.1 {
             self.end.0 = x;
             self.end.1 = y;
-        }
-        else if (x < self.start.0 && y == self.start.1) || y < self.start.1 {
+        } else if (x < self.start.0 && y == self.start.1) || y < self.start.1 {
             self.start.0 = x;
             self.start.1 = y;
-        }
-        else {
+        } else {
             self.end.0 = self.start.0;
             self.end.1 = self.start.1;
         }
