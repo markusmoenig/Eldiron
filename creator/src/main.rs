@@ -3,6 +3,7 @@
 use theframework::*;
 
 pub mod editor;
+pub mod externals;
 pub mod misc;
 pub mod panels;
 pub mod screeneditor;
@@ -26,6 +27,7 @@ pub mod prelude {
     pub use shared::prelude::*;
     pub use theframework::prelude::*;
 
+    pub use crate::externals::*;
     pub use crate::misc::*;
     pub use crate::panels::*;
     pub use crate::screeneditor::*;

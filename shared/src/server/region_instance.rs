@@ -196,6 +196,7 @@ impl RegionInstance {
                     update,
                     &self.delta_in_tick,
                     &server_tick,
+                    Vec2i::zero(),
                 );
 
                 // Characters

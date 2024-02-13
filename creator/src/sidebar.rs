@@ -543,20 +543,28 @@ impl Sidebar {
 
         let mut asset_canvas = TheCanvas::default();
 
-        let mut list_layout = TheListLayout::new(TheId::named("Screen List"));
+        let mut list_layout = TheListLayout::new(TheId::named("Asset List"));
         list_layout
             .limiter_mut()
             .set_max_size(vec2i(self.width, 300));
         let mut list_canvas = TheCanvas::default();
         list_canvas.set_layout(list_layout);
 
-        let mut screen_add_button = TheTraybarButton::new(TheId::named("Screen Add"));
+        let mut screen_add_button = TheTraybarButton::new(TheId::named("Asset Add"));
         screen_add_button.set_icon_name("icon_role_add".to_string());
-        screen_add_button.set_status_text("Add a new screen.");
+        screen_add_button.set_status_text("Add a new asset.");
 
-        let mut screen_remove_button = TheTraybarButton::new(TheId::named("Screen Remove"));
+        screen_add_button.set_context_menu(Some(TheContextMenu {
+            items: vec![
+                TheContextMenuItem::new("Add Image...".to_string(), TheId::named("Add Image")),
+                TheContextMenuItem::new("Add Font...".to_string(), TheId::named("Add Font")),
+            ],
+            ..Default::default()
+        }));
+
+        let mut screen_remove_button = TheTraybarButton::new(TheId::named("Asset Remove"));
         screen_remove_button.set_icon_name("icon_role_remove".to_string());
-        screen_remove_button.set_status_text("Remove the current screen.");
+        screen_remove_button.set_status_text("Remove the current asset.");
         screen_remove_button.set_disabled(true);
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
@@ -665,6 +673,7 @@ impl Sidebar {
         self.apply_screen(ui, ctx, None);
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn handle_event(
         &mut self,
         event: &TheEvent,
@@ -672,6 +681,7 @@ impl Sidebar {
         ctx: &mut TheContext,
         project: &mut Project,
         server: &mut Server,
+        client: &mut Client,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
@@ -693,10 +703,40 @@ impl Sidebar {
                         bundle.name = value.describe();
                         ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
                     }
+                } else if name == "Rename Screen" && *role == TheDialogButtonRole::Accept {
+                    if let Some(screen) = project.screens.get_mut(uuid) {
+                        screen.name = value.describe();
+                        ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
+                    }
+                } else if name == "Rename Asset" && *role == TheDialogButtonRole::Accept {
+                    if let Some(asset) = project.assets.get_mut(uuid) {
+                        asset.name = value.describe();
+                        ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
+                    }
                 }
             }
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
-                if item_id.name == "Rename Region" {
+                if item_id.name == "Add Image" {
+                    ctx.ui.open_file_requester(
+                        TheId::named_with_id(item_id.name.as_str(), Uuid::new_v4()),
+                        "Open Image".into(),
+                        TheFileExtension::new(
+                            "PNG Image".into(),
+                            vec!["png".to_string(), "PNG".to_string()],
+                        ),
+                    );
+                }
+                else if item_id.name == "Add Font" {
+                    ctx.ui.open_file_requester(
+                        TheId::named_with_id(item_id.name.as_str(), Uuid::new_v4()),
+                        "Open Font".into(),
+                        TheFileExtension::new(
+                            "Font".into(),
+                            vec!["ttf".to_string(), "TTF".to_string()],
+                        ),
+                    );
+                }
+                else if item_id.name == "Rename Region" {
                     if let Some(tilemap) = project.get_region(&server_ctx.curr_region) {
                         open_text_dialog(
                             "Rename Region",
@@ -713,6 +753,30 @@ impl Sidebar {
                             "Rename Module",
                             "Module Name",
                             module.name.as_str(),
+                            widget_id.uuid,
+                            ui,
+                            ctx,
+                        );
+                    }
+                }
+                else if item_id.name == "Rename Screen" {
+                    if let Some(screen) = project.screens.get(&widget_id.uuid) {
+                        open_text_dialog(
+                            "Rename Screen",
+                            "Screen Name",
+                            &screen.name,
+                            widget_id.uuid,
+                            ui,
+                            ctx,
+                        );
+                    }
+                }
+                else if item_id.name == "Rename Asset" {
+                    if let Some(asset) = project.assets.get(&widget_id.uuid) {
+                        open_text_dialog(
+                            "Rename Asset",
+                            "Asset Name",
+                            &asset.name,
                             widget_id.uuid,
                             ui,
                             ctx,
@@ -834,11 +898,57 @@ impl Sidebar {
             }
             // Tiles Add
             TheEvent::FileRequesterResult(id, paths) => {
-                if id.name == "Tilemap Add" {
+                if id.name == "Tilemap Add" || id.name == "Add Image" {
                     for p in paths {
                         ctx.ui.decode_image(id.clone(), p.clone());
                     }
-                } else if id.name == "Tilemap Import" {
+                }
+                else if id.name == "Add Font" {
+                    for p in paths {
+                        if let Ok(bytes) = std::fs::read(p) {
+                            if fontdue::Font::from_bytes(bytes.clone(), fontdue::FontSettings::default()).is_ok() {
+                                let asset = Asset {
+                                    name: if let Some(n) = p.file_stem() {
+                                        n.to_string_lossy().to_string()
+                                    } else {
+                                        "Font".to_string()
+                                    },
+                                    buffer: AssetBuffer::Font(bytes),
+                                    ..Asset::default()
+                                };
+
+                                if let Some(layout) =
+                                    ui.canvas.get_layout(Some(&"Asset List".to_string()), None)
+                                {
+                                    if let Some(list_layout) = layout.as_list_layout() {
+                                        let mut item =
+                                            TheListItem::new(TheId::named_with_id("Asset Item", asset.id));
+                                        item.set_text(asset.name.clone());
+                                        item.set_state(TheWidgetState::Selected);
+                                        item.set_context_menu(Some(TheContextMenu {
+                                            items: vec![TheContextMenuItem::new(
+                                                "Rename Asset...".to_string(),
+                                                TheId::named("Rename Asset"),
+                                            )],
+                                            ..Default::default()
+                                        }));
+                                        item.add_value_column(100, TheValue::Text("Font".to_string()));
+                                        list_layout.deselect_all();
+                                        let id = item.id().clone();
+                                        list_layout.add_item(item, ctx);
+                                        ctx.ui
+                                            .send_widget_state_changed(&id, TheWidgetState::Selected);
+
+                                        redraw = true;
+                                    }
+                                }
+                                project.add_asset(asset);
+                                client.set_assets(project.assets.clone());
+                            }
+                        }
+                    }
+                }
+                else if id.name == "Tilemap Import" {
                     for p in paths {
                         let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
                         let tilemap: Tilemap =
@@ -909,7 +1019,33 @@ impl Sidebar {
                 }
             }
             TheEvent::ImageDecodeResult(id, name, _buffer) => {
-                if id.name == "Tilemap Add" {
+                if id.name == "Add Image" {
+                    if let Some(layout) =
+                        ui.canvas.get_layout(Some(&"Asset List".to_string()), None)
+                    {
+                        if let Some(list_layout) = layout.as_list_layout() {
+                            let mut item =
+                                TheListItem::new(TheId::named_with_id("Asset Item", id.uuid));
+                            item.set_text(name.clone());
+                            item.set_state(TheWidgetState::Selected);
+                            item.set_context_menu(Some(TheContextMenu {
+                                items: vec![TheContextMenuItem::new(
+                                    "Rename Asset...".to_string(),
+                                    TheId::named("Rename Asset"),
+                                )],
+                                ..Default::default()
+                            }));
+                            item.add_value_column(100, TheValue::Text("Image".to_string()));
+                            list_layout.deselect_all();
+                            let id = item.id().clone();
+                            list_layout.add_item(item, ctx);
+                            ctx.ui
+                                .send_widget_state_changed(&id, TheWidgetState::Selected);
+
+                            redraw = true;
+                        }
+                    }
+                } else if id.name == "Tilemap Add" {
                     if let Some(layout) = ui
                         .canvas
                         .get_layout(Some(&"Tilemap List".to_string()), None)
@@ -1345,23 +1481,6 @@ impl Sidebar {
                         server_ctx.curr_screen = s.id;
                         redraw = true;
                     }
-                } else if id.name == "Screen Content List Item" {
-                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
-                        if let Some(widget) = screen.widgets.get_mut(&id.uuid) {
-                            let widget_list_canvas: TheCanvas = CODEEDITOR
-                                .lock()
-                                .unwrap()
-                                .set_bundle(widget.bundle.clone(), ctx, self.width, Some(200));
-
-                            if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
-                                if let Some(canvas) =
-                                    stack_layout.canvas_at_mut(SidebarMode::Screen as usize)
-                                {
-                                    canvas.set_bottom(widget_list_canvas);
-                                }
-                            }
-                        }
-                    }
                 } else if id.name == "Screen Add" {
                     if let Some(list_layout) = ui.get_list_layout("Screen List") {
                         let screen = Screen::default();
@@ -1372,18 +1491,26 @@ impl Sidebar {
                         item.set_state(TheWidgetState::Selected);
                         list_layout.deselect_all();
                         let id = item.id().clone();
+                        item.set_context_menu(Some(TheContextMenu {
+                            items: vec![TheContextMenuItem::new(
+                                "Rename Screen...".to_string(),
+                                TheId::named("Rename Screen"),
+                            )],
+                            ..Default::default()
+                        }));
                         list_layout.add_item(item, ctx);
                         ctx.ui
                             .send_widget_state_changed(&id, TheWidgetState::Selected);
 
                         self.apply_screen(ui, ctx, Some(&screen));
+                        client.update_screen(&screen);
                         project.add_screen(screen);
                     }
                 } else if id.name == "Screen Remove" {
-                    if let Some(list_layout) = ui.get_list_layout("Item List") {
+                    if let Some(list_layout) = ui.get_list_layout("Screen List") {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
-                            project.remove_item(&selected.uuid);
+                            project.remove_screen(&selected.uuid);
                             self.apply_item(ui, ctx, None);
                         }
                     }
@@ -1392,6 +1519,7 @@ impl Sidebar {
                 else if id.name == "Region Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(true);
+                    set_server_externals();
 
                     if let Some(widget) = ui
                         .canvas
@@ -1421,6 +1549,7 @@ impl Sidebar {
                 } else if id.name == "Character Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(true);
+                    set_server_externals();
 
                     if let Some(widget) = ui
                         .canvas
@@ -1451,6 +1580,7 @@ impl Sidebar {
                 } else if id.name == "Item Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(true);
+                    set_server_externals();
 
                     if let Some(widget) = ui
                         .canvas
@@ -1509,6 +1639,7 @@ impl Sidebar {
                 } else if id.name == "Module Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(false);
+                    set_server_externals();
 
                     if let Some(widget) = ui
                         .canvas
@@ -1539,6 +1670,7 @@ impl Sidebar {
                 } else if id.name == "Screen Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(true);
+                    set_client_externals();
 
                     if let Some(widget) = ui
                         .canvas
@@ -1568,7 +1700,6 @@ impl Sidebar {
                     redraw = true;
                 } else if id.name == "Asset Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
-                    CODEEDITOR.lock().unwrap().set_allow_modules(false);
 
                     if let Some(widget) = ui
                         .canvas
@@ -1598,7 +1729,6 @@ impl Sidebar {
                     redraw = true;
                 } else if id.name == "Debug Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
-                    CODEEDITOR.lock().unwrap().set_allow_modules(false);
 
                     if let Some(widget) = ui
                         .canvas
@@ -1637,7 +1767,11 @@ impl Sidebar {
                         if let Some(code_view) = layout.code_view_mut().as_code_view() {
                             let grid = code_view.codegrid_mut();
 
-                            let rc = server.compiler().compile(grid);
+                            let rc = if *SIDEBARMODE.lock().unwrap() == SidebarMode::Screen {
+                                client.compiler().compile(grid)
+                            } else {
+                                server.compiler().compile(grid)
+                            };
 
                             if let Ok(mut module) = rc {
                                 let bundle: TheCodeBundle = CODEEDITOR.lock().unwrap().get_bundle();
@@ -1780,6 +1914,15 @@ impl Sidebar {
                                         bundle.id,
                                         module,
                                     );
+                                } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Screen {
+                                    if let Some(screen) =
+                                        project.screens.get_mut(&server_ctx.curr_screen)
+                                    {
+                                        if let Some(widget) = screen.widgets.get_mut(&bundle.id) {
+                                            widget.bundle = bundle;
+                                            client.update_screen(screen);
+                                        }
+                                    }
                                 }
 
                                 ctx.ui.send(TheEvent::SetStatusText(
@@ -1993,12 +2136,33 @@ impl Sidebar {
                 list_layout.add_item(item, ctx);
             }
         }
+        if let Some(list_layout) = ui.get_list_layout("Asset List") {
+            list_layout.clear();
+            let list = project.sorted_assets_list();
+            for (id, name) in list {
+                let mut item = TheListItem::new(TheId::named_with_id("Asset Item", id));
+                item.set_text(name);
+                if let Some(asset) = project.assets.get(&id) {
+                    let text = asset.buffer.clone().to_string().to_string();
+                    item.add_value_column(100, TheValue::Text(text));
+                }
+                item.set_context_menu(Some(TheContextMenu {
+                    items: vec![TheContextMenuItem::new(
+                        "Rename Asset...".to_string(),
+                        TheId::named("Rename Asset"),
+                    )],
+                    ..Default::default()
+                }));
+                list_layout.add_item(item, ctx);
+            }
+        }
         ui.select_first_list_item("Region List", ctx);
         ui.select_first_list_item("Character List", ctx);
         ui.select_first_list_item("Item List", ctx);
         ui.select_first_list_item("Tilemap List", ctx);
         ui.select_first_list_item("Module List", ctx);
         ui.select_first_list_item("Screen List", ctx);
+        ui.select_first_list_item("Asset List", ctx);
 
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Tilepicker"),
@@ -2519,6 +2683,9 @@ impl Sidebar {
         }
         ui.select_first_list_item("Tilemap Tile List", ctx);
     }
+
+    /// Apply the given asset to the UI
+    pub fn apply_asset(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext, _asset: Option<&Asset>) {}
 
     /// Deselects the section buttons
     pub fn deselect_sections_buttons(&mut self, ui: &mut TheUI, except: String) {

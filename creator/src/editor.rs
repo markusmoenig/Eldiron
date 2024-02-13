@@ -32,6 +32,7 @@ pub struct Editor {
     screeneditor: ScreenEditor,
 
     server: Server,
+    client: Client,
     server_ctx: ServerContext,
 
     update_tracker: UpdateTracker,
@@ -46,6 +47,8 @@ impl TheTrait for Editor {
         let mut server = Server::new();
         server.debug_mode = true;
 
+        let client = Client::new();
+
         Self {
             project: Project::new(),
             project_path: None,
@@ -59,6 +62,7 @@ impl TheTrait for Editor {
 
             server_ctx: ServerContext::default(),
             server,
+            client,
 
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
@@ -89,8 +93,9 @@ impl TheTrait for Editor {
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-        // Embedded Icons
+        set_server_externals();
 
+        // Embedded Icons
         for file in Embedded::iter() {
             let name = file.as_ref();
 
@@ -252,6 +257,9 @@ impl TheTrait for Editor {
                 }
                 self.panels
                     .update_code_object(ui, ctx, &mut self.server, &mut self.server_ctx);
+                if let Some(update) = self.server.get_region_update(self.server_ctx.curr_region) {
+                    self.client.set_region_update(update);
+                }
             }
 
             // Set Debug Data
@@ -292,9 +300,16 @@ impl TheTrait for Editor {
             }
         }
 
-        if redraw_update && !self.project.regions.is_empty() {
+        if self.active_editor == ActiveEditor::TileEditor
+            && redraw_update
+            && !self.project.regions.is_empty()
+        {
             self.tileeditor
                 .redraw_region(ui, &mut self.server, ctx, &self.server_ctx);
+            redraw = true;
+        } else if self.active_editor == ActiveEditor::ScreenEditor && redraw_update {
+            self.screeneditor
+                .redraw_screen(ui, &mut self.client, ctx, &self.server_ctx);
             redraw = true;
         }
 
@@ -306,6 +321,7 @@ impl TheTrait for Editor {
                     ctx,
                     &mut self.project,
                     &mut self.server,
+                    &mut self.client,
                     &mut self.server_ctx,
                 );
                 if self.panels.handle_event(
@@ -333,7 +349,7 @@ impl TheTrait for Editor {
                     ui,
                     ctx,
                     &mut self.project,
-                    &mut self.server,
+                    &mut self.client,
                     &mut self.server_ctx,
                 ) {
                     redraw = true;
@@ -355,6 +371,7 @@ impl TheTrait for Editor {
                                 self.active_editor = ActiveEditor::TileEditor;
                             } else if index == 1 {
                                 self.active_editor = ActiveEditor::ScreenEditor;
+                                self.client.set_project(self.project.clone());
                             }
                             redraw = true;
                         }
@@ -700,6 +717,7 @@ impl TheTrait for Editor {
                                 self.sidebar.load_from_project(ui, ctx, &self.project);
                                 self.tileeditor.load_from_project(ui, ctx, &self.project);
                                 let packages = self.server.set_project(self.project.clone());
+                                self.client.set_project(self.project.clone());
                                 CODEEDITOR.lock().unwrap().set_packages(packages);
                                 self.server.state = ServerState::Stopped;
                                 update_server_icons = true;
@@ -851,8 +869,18 @@ impl TheTrait for Editor {
                         }
                     }
                     TheEvent::ImageDecodeResult(id, name, buffer) => {
-                        // Add a new tilemap to the project
-                        if id.name == "Tilemap Add" {
+                        if id.name == "Add Image" {
+                            // Add a new tilemap to the project
+                            let asset = Asset {
+                                name,
+                                id: id.uuid,
+                                buffer: AssetBuffer::Image(buffer),
+                            };
+
+                            self.project.add_asset(asset);
+                            self.client.set_assets(self.project.assets.clone());
+                        } else if id.name == "Tilemap Add" {
+                            // Add a new tilemap to the project
                             let mut tilemap = Tilemap::new();
                             tilemap.name = name;
                             tilemap.id = id.uuid;

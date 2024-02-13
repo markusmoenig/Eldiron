@@ -14,6 +14,7 @@ impl TileDrawer {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn draw_region(
         &self,
         buffer: &mut TheRGBABuffer,
@@ -22,6 +23,7 @@ impl TileDrawer {
         update: &mut RegionUpdate,
         delta_in_tick: &f32,
         server_tick: &i64,
+        offset: Vec2i,
     ) {
         let _start = self.get_time();
 
@@ -42,7 +44,10 @@ impl TileDrawer {
         }*/
 
         let width = buffer.dim().width as usize;
-        let height = buffer.dim().height;
+        //let height = buffer.dim().height;
+
+        let region_width = (region.width * region.grid_size) as usize;
+        let region_height = (region.height * region.grid_size) as usize;
 
         let pixels = buffer.pixels_mut();
 
@@ -53,10 +58,10 @@ impl TileDrawer {
             .enumerate()
             .for_each(|(j, line)| {
                 for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
-                    let i = j * width + i;
+                    let i = (j + offset.y as usize) * region_width + i + offset.x as usize;
 
-                    let x = (i % width) as i32;
-                    let y = height - (i / width) as i32 - 1;
+                    let x = (i % region_width) as i32;
+                    let y = region_height as i32 - (i / region_width) as i32 - 1;
 
                     let tile_x = x / tile_size;
                     let tile_y = y / tile_size;

@@ -1,4 +1,5 @@
 pub mod area;
+pub mod asset;
 pub mod camera;
 pub mod character;
 pub mod client;
@@ -19,6 +20,7 @@ pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
 
     pub use crate::area::Area;
+    pub use crate::asset::*;
     pub use crate::camera::{Camera, Ray};
     pub use crate::character::Character;
     pub use crate::client::*;

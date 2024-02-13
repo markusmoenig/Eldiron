@@ -29,6 +29,9 @@ pub struct ServerContext {
 
     /// The currently selected screen.
     pub curr_screen: Uuid,
+
+    /// The currently selected widget.
+    pub curr_widget: Option<Uuid>,
 }
 
 impl Default for ServerContext {
@@ -55,6 +58,7 @@ impl ServerContext {
             tile_selection: None,
 
             curr_screen: Uuid::nil(),
+            curr_widget: None,
         }
     }
 

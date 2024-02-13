@@ -3,6 +3,8 @@ use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct RegionUpdate {
+    pub id: Uuid,
+
     pub wallfx: FxHashMap<(i32, i32), WallFxUpdate>,
     pub characters: FxHashMap<Uuid, CharacterUpdate>,
     pub items: FxHashMap<Uuid, ItemUpdate>,
@@ -19,6 +21,7 @@ impl Default for RegionUpdate {
 impl RegionUpdate {
     pub fn new() -> Self {
         Self {
+            id: Uuid::nil(),
             wallfx: FxHashMap::default(),
             characters: FxHashMap::default(),
             items: FxHashMap::default(),

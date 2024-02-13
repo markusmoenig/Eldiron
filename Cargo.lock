@@ -471,6 +471,7 @@ dependencies = [
 name = "creator"
 version = "0.8.9"
 dependencies = [
+ "fontdue",
  "lazy_static",
  "open",
  "png",
@@ -1955,6 +1956,7 @@ dependencies = [
 name = "shared"
 version = "0.8.9"
 dependencies = [
+ "fontdue",
  "lazy_static",
  "rand",
  "rayon",
@@ -2101,7 +2103,7 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
-source = "git+https://github.com/markusmoenig/TheFramework#ad9fbe9dbfadbb29ade574d35a0528b77d6868fb"
+source = "git+https://github.com/markusmoenig/TheFramework#f637abdca5f3ce9eed7828f2ca3b500273dda67b"
 dependencies = [
  "console_error_panic_hook",
  "console_log",

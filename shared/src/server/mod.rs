@@ -94,7 +94,13 @@ impl Server {
         let mut updates = FxHashMap::default();
         for region in &project.regions {
             regions.insert(region.id, region.clone());
-            updates.insert(region.id, RegionUpdate::default());
+            updates.insert(
+                region.id,
+                RegionUpdate {
+                    id: region.id,
+                    ..Default::default()
+                },
+            );
         }
 
         self.characters = FxHashMap::default();
@@ -575,6 +581,11 @@ impl Server {
         if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
             region.areas.remove(&area);
         }
+    }
+
+    /// Get the update for the given region.
+    pub fn get_region_update(&self, region_id: Uuid) -> Option<RegionUpdate> {
+        UPDATES.read().unwrap().get(&region_id).cloned()
     }
 
     /// Sets the currently pressed key.

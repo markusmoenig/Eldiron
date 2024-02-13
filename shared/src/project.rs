@@ -27,6 +27,9 @@ pub struct Project {
     #[serde(default)]
     pub screens: FxHashMap<Uuid, Screen>,
 
+    #[serde(default)]
+    pub assets: FxHashMap<Uuid, Asset>,
+
     #[serde(default = "default_target_fps")]
     pub target_fps: u32,
 
@@ -53,6 +56,7 @@ impl Project {
             codes: FxHashMap::default(),
 
             screens: FxHashMap::default(),
+            assets: FxHashMap::default(),
 
             target_fps: default_target_fps(),
             tick_ms: default_tick_ms(),
@@ -169,6 +173,28 @@ impl Project {
     pub fn sorted_screens_list(&self) -> Vec<(Uuid, String)> {
         let mut entries: Vec<(Uuid, String)> = self
             .screens
+            .iter()
+            .map(|(uuid, data)| (*uuid, data.name.clone()))
+            .collect();
+
+        entries.sort_by(|a, b| a.1.cmp(&b.1));
+        entries
+    }
+
+    /// Add an asset
+    pub fn add_asset(&mut self, asset: Asset) {
+        self.assets.insert(asset.id, asset);
+    }
+
+    /// Removes the given code from the project.
+    pub fn remove_asset(&mut self, id: &Uuid) {
+        self.assets.remove(id);
+    }
+
+    /// Returns a list of all assets sorted by name.
+    pub fn sorted_assets_list(&self) -> Vec<(Uuid, String)> {
+        let mut entries: Vec<(Uuid, String)> = self
+            .assets
             .iter()
             .map(|(uuid, data)| (*uuid, data.name.clone()))
             .collect();

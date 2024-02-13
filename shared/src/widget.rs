@@ -6,10 +6,10 @@ pub struct Widget {
     pub id: Uuid,
     pub name: String,
 
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
 
     pub bundle: TheCodeBundle,
 }
@@ -26,10 +26,10 @@ impl Widget {
             id: Uuid::new_v4(),
             name: "New Widget".to_string(),
 
-            x: 0,
-            y: 0,
-            width: 20,
-            height: 20,
+            x: 0.0,
+            y: 0.0,
+            width: 20.0,
+            height: 20.0,
 
             bundle: TheCodeBundle::default(),
         }
