@@ -16,6 +16,7 @@ lazy_static! {
 
     pub static ref IMAGES: RwLock<FxHashMap<String, TheRGBABuffer>> = RwLock::new(FxHashMap::default());
     pub static ref FONTS: RwLock<FxHashMap<String, fontdue::Font>> = RwLock::new(FxHashMap::default());
+    pub static ref DRAWSETTINGS: RwLock<RegionDrawSettings> = RwLock::new(RegionDrawSettings::new());
 }
 
 #[derive()]
@@ -27,6 +28,11 @@ pub struct Client {
     widgets: FxHashMap<Uuid, TheCodePackage>,
 
     compiler: TheCompiler,
+
+    redraw_ms: u32,
+    tick_ms: u32,
+
+    last_tick: i64,
 }
 
 impl Default for Client {
@@ -47,12 +53,17 @@ impl Client {
             widgets: FxHashMap::default(),
 
             compiler,
+
+            redraw_ms: 1000 / 30,
+            tick_ms: 250,
+
+            last_tick: 0,
         }
     }
 
     /// Sets the project
     pub fn set_project(&mut self, project: Project) {
-        TILEDRAWER.write().unwrap().tiles = project.extract_tiles();
+        TILEDRAWER.write().unwrap().set_tiles(project.extract_tiles());
 
         let mut regions = REGIONS.write().unwrap();
 
@@ -68,6 +79,10 @@ impl Client {
         }
 
         self.set_assets(project.assets.clone());
+
+        self.tick_ms = project.tick_ms;
+        self.redraw_ms = 1000 / project.target_fps;
+        DRAWSETTINGS.write().unwrap().delta = self.redraw_ms as f32 / self.tick_ms as f32;
         self.project = project;
     }
 
@@ -114,8 +129,14 @@ impl Client {
         *CHARACTER.write().unwrap() = character_id;
     }
 
-    pub fn set_region_update(&mut self, region_update: RegionUpdate) {
-        *UPDATE.write().unwrap() = region_update;
+    pub fn set_region_update(&mut self, json: String) {
+        if let Some(update) = RegionUpdate::from_json(&json) {
+            *UPDATE.write().unwrap() = update;
+        }
+    }
+
+    pub fn tick(&mut self) {
+        DRAWSETTINGS.write().unwrap().anim_counter += 1;
     }
 
     pub fn draw_screen(
@@ -126,6 +147,17 @@ impl Client {
         _ctx: &mut TheContext,
         _server_ctx: &ServerContext,
     ) {
+        let delta = self.redraw_ms as f32 / self.tick_ms as f32;
+
+        let server_tick = UPDATE.read().unwrap().server_tick;
+
+        if server_tick != self.last_tick {
+            DRAWSETTINGS.write().unwrap().delta_in_tick = 0.0;
+            self.last_tick = server_tick;
+        } else {
+            DRAWSETTINGS.write().unwrap().delta_in_tick += delta;
+        }
+
         buffer.fill(BLACK);
 
         if let Some(screen) = self.project.screens.get(uuid) {

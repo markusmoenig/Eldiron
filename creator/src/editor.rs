@@ -251,6 +251,7 @@ impl TheTrait for Editor {
                 }
             }
             if self.server.state == ServerState::Running {
+                self.client.tick();
                 let debug = self.server.tick();
                 if !debug.is_empty() {
                     self.sidebar.add_debug_messages(debug, ui, ctx);
@@ -824,6 +825,7 @@ impl TheTrait for Editor {
                                 ));
                                 update_server_icons = true;
                             } else if self.server.state == ServerState::Paused {
+                                self.client.tick();
                                 let debug = self.server.tick();
                                 if !debug.is_empty() {
                                     self.sidebar.add_debug_messages(debug, ui, ctx);

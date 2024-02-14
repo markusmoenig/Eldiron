@@ -195,7 +195,7 @@ impl TileEditor {
     }
 
     pub fn load_from_project(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
-        TILEDRAWER.lock().unwrap().tiles = project.extract_tiles();
+        TILEDRAWER.lock().unwrap().set_tiles(project.extract_tiles());
         if let Some(widget) = ui.get_widget("RenderView") {
             if let Some(w) = widget
                 .as_any()

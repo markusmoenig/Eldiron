@@ -38,8 +38,9 @@ pub struct RegionInstance {
     redraw_ms: u32,
     tick_ms: u32,
 
-    delta_in_tick: f32,
     last_tick: i64,
+
+    draw_settings: RegionDrawSettings,
 }
 
 impl Default for RegionInstance {
@@ -72,8 +73,9 @@ impl RegionInstance {
             redraw_ms: 1000 / 30,
             tick_ms: 250,
 
-            delta_in_tick: 0.0,
             last_tick: 0,
+
+            draw_settings: RegionDrawSettings::new(),
         }
     }
 
@@ -94,12 +96,21 @@ impl RegionInstance {
 
         self.tick_ms = project.tick_ms;
         self.redraw_ms = 1000 / project.target_fps;
+
+        self.draw_settings.delta = self.redraw_ms as f32 / self.tick_ms as f32;
     }
 
     /// Tick. Compute the next frame.
     pub fn tick(&mut self) {
         self.debug_modules.clear();
         self.sandbox.clear_debug_messages();
+
+        if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
+            for character in update.characters.values_mut() {
+                character.moving = None;
+                character.move_delta = 0.0;
+            }
+        }
 
         self.sandbox.level.clear_blocking();
         if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
@@ -181,125 +192,41 @@ impl RegionInstance {
                 let server_tick = update.server_tick;
 
                 if server_tick != self.last_tick {
-                    self.delta_in_tick = 0.0;
+                    self.draw_settings.delta_in_tick = 0.0;
                     self.last_tick = server_tick;
                 } else {
-                    self.delta_in_tick += delta;
+                    self.draw_settings.delta_in_tick += delta;
                 }
 
-                //println!("delta_in_tick {}", self.delta_in_tick);
+                self.draw_settings.anim_counter = *anim_counter;
 
-                tiledrawer.draw_region(
+                let characters = tiledrawer.draw_region(
                     buffer,
                     region,
-                    anim_counter,
                     update,
-                    &self.delta_in_tick,
-                    &server_tick,
-                    Vec2i::zero(),
+                    &self.draw_settings,
                 );
 
-                // Characters
-                for (id, character) in &mut update.characters {
-                    let draw_pos = if let Some((start, end)) = &mut character.moving {
-                        // pub fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
-                        //     let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
-                        //     t * t * (3.0 - 2.0 * t)
-                        // }
-
-                        let sum = (delta + character.move_delta).clamp(0.0, 1.0);
-                        // let d = smoothstep(0.0, 1.0, sum);//.clamp(0.0, 1.0);
-                        let d = sum;
-                        // let d = if sum < 0.5 {
-                        //     2.0 * sum * sum
-                        // } else {
-                        //     1.0 - (-2.0 * sum + 2.0).powi(2) / 2.0
-                        // };
-                        let x = start.x * (1.0 - d) + end.x * d;
-                        let y = start.y * (1.0 - d) + end.y * d;
-                        character.move_delta = sum;
-                        vec2i(
-                            (x * grid_size).round() as i32,
-                            (y * grid_size).round() as i32,
-                        )
-                    } else {
-                        vec2i(
-                            (character.position.x * grid_size) as i32,
-                            (character.position.y * grid_size) as i32,
-                        )
-                    };
-
-                    //println!("moving: {:?}", draw_pos);
-
-                    if !tiledrawer.draw_tile_at_pixel(
-                        draw_pos,
-                        buffer,
-                        character.tile_id,
-                        anim_counter,
-                        ctx,
-                    ) {
-                        if let Some(found_id) =
-                            tiledrawer.get_tile_id_by_name(character.tile_name.clone())
-                        {
-                            character.tile_id = found_id;
-                            tiledrawer.draw_tile_at_pixel(
-                                draw_pos,
-                                buffer,
-                                found_id,
-                                anim_counter,
-                                ctx,
-                            );
-                        } else {
-                            //println!("RegionInstance::draw: Tile not found: {}", name);
+                // Draw selected character outline
+                if let Some(curr_character_instance) = server_ctx.curr_character_instance {
+                    for (position, _, character_id) in characters {
+                        if character_id == curr_character_instance {
+                            tiledrawer.draw_tile_outline_at_pixel(position, buffer, WHITE, ctx);
                         }
-                    }
-
-                    if Some(*id) == server_ctx.curr_character_instance {
-                        tiledrawer.draw_tile_outline_at_pixel(draw_pos, buffer, WHITE, ctx);
-                    } else if Some(*id) == server_ctx.curr_character {
-                        tiledrawer.draw_tile_outline_at_pixel(
-                            draw_pos,
-                            buffer,
-                            [128, 128, 128, 255],
-                            ctx,
-                        );
                     }
                 }
 
-                // Items
-                for (id, item) in &mut update.items {
-                    let draw_pos = vec2i(
-                        (item.position.x * grid_size) as i32,
-                        (item.position.y * grid_size) as i32,
-                    );
+                // Draw selected item outline
+                if let Some(curr_item_instance) = server_ctx.curr_item_instance {
+                    for (id, item) in &mut update.items {
+                        let draw_pos = vec2i(
+                            (item.position.x * grid_size) as i32,
+                            (item.position.y * grid_size) as i32,
+                        );
 
-                    //println!("moving: {:?}", draw_pos);
-
-                    if !tiledrawer.draw_tile_at_pixel(
-                        draw_pos,
-                        buffer,
-                        item.tile_id,
-                        anim_counter,
-                        ctx,
-                    ) {
-                        if let Some(found_id) =
-                            tiledrawer.get_tile_id_by_name(item.tile_name.clone())
-                        {
-                            item.tile_id = found_id;
-                            tiledrawer.draw_tile_at_pixel(
-                                draw_pos,
-                                buffer,
-                                found_id,
-                                anim_counter,
-                                ctx,
-                            );
-                        } else {
-                            //println!("RegionInstance::draw: Tile not found: {}", name);
+                        if *id == curr_item_instance {
+                            tiledrawer.draw_tile_outline_at_pixel(draw_pos, buffer, WHITE, ctx);
                         }
-                    }
-
-                    if Some(*id) == server_ctx.curr_item_instance {
-                        tiledrawer.draw_tile_outline_at_pixel(draw_pos, buffer, WHITE, ctx);
                     }
                 }
             }
@@ -723,11 +650,11 @@ impl RegionInstance {
             if let Some(TheValue::Text(t)) = object.get(&"name".into()) {
                 character_update.name = t.clone();
             }
-            if let Some(TheValue::Tile(name, id)) = object.get_mut(&"tile".into()) {
+            if let Some(TheValue::Tile(name, _id)) = object.get_mut(&"tile".into()) {
                 character_update.tile_name = name.clone();
-                character_update.tile_id = *id;
             }
 
+            character_update.id = character;
             if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
                 update.characters.insert(character, character_update);
             }

@@ -31,6 +31,7 @@ impl ScreenEditor {
         let mut screen_editor = TheRGBALayout::new(TheId::named("Screen Editor"));
         if let Some(rgba_view) = screen_editor.rgba_view_mut().as_rgba_view() {
             rgba_view.set_mode(TheRGBAViewMode::Display);
+            rgba_view.set_dont_show_grid(true);
 
             if let Some(buffer) = ctx.ui.icon("eldiron_map") {
                 rgba_view.set_buffer(buffer.clone());

@@ -584,8 +584,8 @@ impl Server {
     }
 
     /// Get the update for the given region.
-    pub fn get_region_update(&self, region_id: Uuid) -> Option<RegionUpdate> {
-        UPDATES.read().unwrap().get(&region_id).cloned()
+    pub fn get_region_update(&self, region_id: Uuid) -> Option<String> {
+        UPDATES.read().unwrap().get(&region_id).map(|update| update.to_json())
     }
 
     /// Sets the currently pressed key.

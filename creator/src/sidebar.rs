@@ -1475,13 +1475,15 @@ impl Sidebar {
                             ))
                         }
                     }
-                } else if id.name == "Screen Item" {
+                }
+                else if id.name == "Screen Item" {
                     if let Some(s) = project.screens.get(&id.uuid) {
                         self.apply_screen(ui, ctx, Some(s));
                         server_ctx.curr_screen = s.id;
                         redraw = true;
                     }
-                } else if id.name == "Screen Add" {
+                }
+                else if id.name == "Screen Add" {
                     if let Some(list_layout) = ui.get_list_layout("Screen List") {
                         let screen = Screen::default();
 
@@ -1636,7 +1638,8 @@ impl Sidebar {
                     ));
                     self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
-                } else if id.name == "Module Section" && *state == TheWidgetState::Selected {
+                }
+                else if id.name == "Module Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(false);
                     set_server_externals();
@@ -1667,7 +1670,8 @@ impl Sidebar {
                         SidebarMode::Module as usize,
                     ));
                     redraw = true;
-                } else if id.name == "Screen Section" && *state == TheWidgetState::Selected {
+                }
+                else if id.name == "Screen Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(true);
                     set_client_externals();
@@ -1698,7 +1702,8 @@ impl Sidebar {
                         SidebarMode::Screen as usize,
                     ));
                     redraw = true;
-                } else if id.name == "Asset Section" && *state == TheWidgetState::Selected {
+                }
+                else if id.name == "Asset Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
 
                     if let Some(widget) = ui
@@ -1727,7 +1732,8 @@ impl Sidebar {
                         SidebarMode::Asset as usize,
                     ));
                     redraw = true;
-                } else if id.name == "Debug Section" && *state == TheWidgetState::Selected {
+                }
+                else if id.name == "Debug Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
 
                     if let Some(widget) = ui
@@ -1742,7 +1748,8 @@ impl Sidebar {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 5));
                     redraw = true;
-                } else if id.name == "Thanks Section" && *state == TheWidgetState::Selected {
+                }
+                else if id.name == "Thanks Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(false);
 
@@ -1758,7 +1765,8 @@ impl Sidebar {
                     ctx.ui
                         .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 6));
                     redraw = true;
-                } else if id.name == "Compile" {
+                }
+                else if id.name == "Compile" {
                     // Compile button in the editor. Compile the code and send it to the server if successful.
                     // We do not need to store it in the project because thats already done in the
                     // CodeBundleChanged event.
@@ -2402,6 +2410,15 @@ impl Sidebar {
                     }
                 }
             }
+
+            // Activate the current widget
+            if let Some(selected) = list.selected() {
+                ctx.ui
+                    .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
+            }
+            else {
+                list.select_first_item(ctx);
+            }
         }
 
         ctx.ui.relayout = true;
@@ -2784,7 +2801,7 @@ impl Sidebar {
         project: &mut Project,
         server: &mut Server,
     ) {
-        TILEDRAWER.lock().unwrap().tiles = project.extract_tiles();
+        TILEDRAWER.lock().unwrap().set_tiles(project.extract_tiles());
         server.update_tiles(project.extract_tiles());
         if let Some(widget) = ui.get_widget("RenderView") {
             if let Some(w) = widget

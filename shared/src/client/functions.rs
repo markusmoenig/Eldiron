@@ -1,5 +1,5 @@
 //use crate::prelude::*;
-use super::{CHARACTER, REGIONS, TILEDRAWER, UPDATE, WIDGETBUFFER, FONTS};
+use super::{CHARACTER, REGIONS, TILEDRAWER, UPDATE, WIDGETBUFFER, FONTS, DRAWSETTINGS};
 use theframework::prelude::*;
 
 pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
@@ -7,24 +7,21 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
     compiler.add_external_call(
         "DrGame".to_string(),
         |_stack, _data, _sandbox| {
+
             let mut buffer = WIDGETBUFFER.write().unwrap();
             let mut update = UPDATE.write().unwrap();
             let tiledrawer = TILEDRAWER.read().unwrap();
 
             if let Some(region) = REGIONS.read().unwrap().get(&update.id) {
-                let mut offset = Vec2i::zero();
-                if let Some(character) = update.characters.get(&CHARACTER.read().unwrap()) {
-                    offset.x = character.position.x as i32 * region.grid_size;
-                    offset.y = character.position.y as i32 * region.grid_size;
+                let mut settings = DRAWSETTINGS.write().unwrap();
+                let character_id = CHARACTER.read().unwrap();
+                if let Some(_character) = update.characters.get(&character_id) {
+                    settings.center_on_character = Some(*character_id);
+                } else {
+                    settings.center_on_character = None;
                 }
-                tiledrawer.draw_region(&mut buffer, region, &0, &mut update, &16.0, &0, offset);
+                tiledrawer.draw_region(&mut buffer, region, &mut update, &settings);
             }
-
-            // if let Some(key) = KEY_DOWN.read().unwrap().clone() {
-            //     stack.push(TheValue::Text(key));
-            // } else {
-            //     stack.push(TheValue::Empty);
-            // }
 
             TheCodeNodeCallResult::Continue
         },
