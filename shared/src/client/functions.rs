@@ -6,11 +6,16 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
     //
     compiler.add_external_call(
         "DrGame".to_string(),
-        |_stack, _data, _sandbox| {
+        |stack, _data, _sandbox| {
 
             let mut buffer = WIDGETBUFFER.write().unwrap();
             let mut update = UPDATE.write().unwrap();
             let tiledrawer = TILEDRAWER.read().unwrap();
+
+            let mut zoom = 1.0;
+            if let Some(TheValue::Float(v)) = stack.pop() {
+                zoom = v;
+            }
 
             if let Some(region) = REGIONS.read().unwrap().get(&update.id) {
                 let mut settings = DRAWSETTINGS.write().unwrap();
@@ -20,7 +25,16 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
                 } else {
                     settings.center_on_character = None;
                 }
-                tiledrawer.draw_region(&mut buffer, region, &mut update, &settings);
+
+                if zoom != 1.0 {
+                    let scaled_width = (buffer.dim().width as f32 / zoom) as i32;
+                    let scaled_height = (buffer.dim().height as f32 / zoom) as i32;
+                    let mut zoom_buffer = TheRGBABuffer::new(TheDim::new(0, 0, scaled_width, scaled_height));
+                    tiledrawer.draw_region(&mut zoom_buffer, region, &mut update, &settings);
+                    zoom_buffer.scaled_into(&mut buffer);
+                } else {
+                    tiledrawer.draw_region(&mut buffer, region, &mut update, &settings);
+                }
             }
 
             TheCodeNodeCallResult::Continue

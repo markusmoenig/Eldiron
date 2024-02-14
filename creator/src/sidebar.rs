@@ -1746,7 +1746,7 @@ impl Sidebar {
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Debug;
 
                     ctx.ui
-                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 5));
+                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), SidebarMode::Debug as usize));
                     redraw = true;
                 }
                 else if id.name == "Thanks Section" && *state == TheWidgetState::Selected {
@@ -1763,7 +1763,7 @@ impl Sidebar {
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Debug;
 
                     ctx.ui
-                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), 6));
+                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), SidebarMode::Thanks as usize));
                     redraw = true;
                 }
                 else if id.name == "Compile" {

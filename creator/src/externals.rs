@@ -94,8 +94,8 @@ pub fn set_client_externals() {
     codeeditor.add_external(TheExternalCode::new(
         "DrGame".to_string(),
         "Draws the game in the widget.".to_string(),
-        vec![],
-        vec![],
+        vec!["Zoom".to_string()],
+        vec![TheValue::Float(1.0)],
         None,
     ));
 

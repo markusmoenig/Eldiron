@@ -9,7 +9,6 @@ pub struct RegionDrawSettings {
     pub delta_in_tick: f32,
     pub offset: Vec2i,
     pub delta: f32,
-    pub zoom: f32,
 
     pub center_on_character: Option<Uuid>,
 }
@@ -22,7 +21,6 @@ impl RegionDrawSettings {
             delta_in_tick: 0.0,
             offset: Vec2i::zero(),
             delta: 0.0,
-            zoom: 0.0,
             center_on_character: None,
         }
     }
