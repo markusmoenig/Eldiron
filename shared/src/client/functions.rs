@@ -25,6 +25,8 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
                     settings.center_on_character = None;
                 }
 
+                settings.brightness = update.brightness;
+
                 if zoom != 1.0 {
                     let scaled_width = (buffer.dim().width as f32 / zoom) as i32;
                     let scaled_height = (buffer.dim().height as f32 / zoom) as i32;

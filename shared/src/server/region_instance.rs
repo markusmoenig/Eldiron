@@ -41,6 +41,7 @@ pub struct RegionInstance {
     last_tick: i64,
 
     draw_settings: RegionDrawSettings,
+    time: TheTime,
 }
 
 impl Default for RegionInstance {
@@ -76,6 +77,7 @@ impl RegionInstance {
             last_tick: 0,
 
             draw_settings: RegionDrawSettings::new(),
+            time: TheTime::default(),
         }
     }
 
@@ -104,13 +106,15 @@ impl RegionInstance {
     pub fn tick(&mut self, time: TheTime) {
         self.debug_modules.clear();
         self.sandbox.clear_debug_messages();
-        self.draw_settings.time = time;
+        self.time = time;
+        self.draw_settings.brightness = self.get_brightness();
 
         if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
             for character in update.characters.values_mut() {
                 character.moving = None;
                 character.move_delta = 0.0;
             }
+            update.brightness = self.draw_settings.brightness;
         }
 
         self.sandbox.level.clear_blocking();
@@ -687,6 +691,46 @@ impl RegionInstance {
 
     /// If the user changes the time w/o the server running, we have to update the draw settings manually.
     pub fn set_time(&mut self, time: TheTime) {
-        self.draw_settings.time = time;
+        self.time = time;
+        self.draw_settings.brightness = self.get_brightness();
+    }
+
+    /// Calculates the brightness of the region.
+    pub fn get_brightness(&self) -> f32 {
+        let minutes = self.time.total_minutes();
+
+        let sunrise = 300; // 5:00 am
+        let sunset = 1200; // 8:00 pm
+        let transition_duration = 60; // 1 hour
+
+        let daylight_start = sunrise + transition_duration;
+        let daylight_end = sunset + transition_duration;
+
+        let br = if minutes < sunrise || minutes > daylight_end {
+            0.0
+        } else if minutes >= sunrise && minutes <= daylight_start {
+            // transition from darkness to daylight
+            let transition_start = sunrise;
+            let time_since_transition_start = minutes - transition_start;
+
+            time_since_transition_start as f32 / transition_duration as f32
+        } else if minutes >= sunset && minutes <= daylight_end {
+            // transition from daylight to darkness
+            let transition_start = sunset;
+            let time_since_transition_start = minutes - transition_start;
+
+            1.0 - time_since_transition_start as f32 / transition_duration as f32
+        } else {
+            1.0
+        };
+
+        if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
+            br.clamp(
+                min(region.min_brightness, region.max_brightness),
+                max(region.min_brightness, region.max_brightness),
+            )
+        } else {
+            br
+        }
     }
 }

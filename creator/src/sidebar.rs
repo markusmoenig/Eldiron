@@ -210,6 +210,18 @@ impl Sidebar {
         grid_edit.set_status_text("The size of the region grid in pixels.");
         text_layout.add_pair("Grid Size".to_string(), Box::new(grid_edit));
 
+        let mut minbr = TheSlider::new(TheId::named("Region Min Brightness"));
+        minbr.set_value(TheValue::Float(0.3));
+        minbr.set_continuous(true);
+        minbr.set_status_text("The minimum brightness of the region for the daylight cycle.");
+        text_layout.add_pair("Min. Brightness".to_string(), Box::new(minbr));
+
+        let mut maxbr = TheSlider::new(TheId::named("Region Max Brightness"));
+        maxbr.set_value(TheValue::Float(1.0));
+        maxbr.set_continuous(true);
+        maxbr.set_status_text("The maximum brightness of the region for the daylight cycle.");
+        text_layout.add_pair("Max. Brightness".to_string(), Box::new(maxbr));
+
         settings_canvas.set_layout(text_layout);
         region_tab.add_canvas("Settings".to_string(), settings_canvas);
 
@@ -862,6 +874,20 @@ impl Sidebar {
                                     rgba.set_grid(Some(v));
                                 }
                             }
+                        }
+                    }
+                } else if id.name == "Region Min Brightness" {
+                    if let Some(v) = value.to_f32() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.min_brightness = v;
+                            server.update_region(region);
+                        }
+                    }
+                } else if id.name == "Region Max Brightness" {
+                    if let Some(v) = value.to_f32() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.max_brightness = v;
+                            server.update_region(region);
                         }
                     }
                 }

@@ -11,6 +11,7 @@ pub struct RegionUpdate {
     pub items: FxHashMap<Uuid, ItemUpdate>,
 
     pub server_tick: i64,
+    pub brightness: f32,
 }
 
 impl Default for RegionUpdate {
@@ -27,6 +28,7 @@ impl RegionUpdate {
             characters: FxHashMap::default(),
             items: FxHashMap::default(),
             server_tick: 0,
+            brightness: 1.0,
         }
     }
 

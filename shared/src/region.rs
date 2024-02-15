@@ -1,6 +1,14 @@
 use crate::prelude::*;
 use theframework::prelude::*;
 
+fn default_min_brightness() -> f32 {
+    0.3
+}
+
+fn default_max_brightness() -> f32 {
+    1.0
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub enum RegionType {
     Region2D,
@@ -30,6 +38,12 @@ pub struct Region {
     pub grid_size: i32,
     pub scroll_offset: Vec2i,
     pub zoom: f32,
+
+    #[serde(default = "default_min_brightness")]
+    pub min_brightness: f32,
+
+    #[serde(default = "default_max_brightness")]
+    pub max_brightness: f32,
 }
 
 impl Default for Region {
@@ -56,6 +70,9 @@ impl Region {
             grid_size: 24,
             scroll_offset: Vec2i::zero(),
             zoom: 1.0,
+
+            min_brightness: 0.3,
+            max_brightness: 1.0,
         }
     }
 

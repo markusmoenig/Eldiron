@@ -170,6 +170,7 @@ impl Server {
                 instance.insert_area(area.clone(), &mut self.compiler);
             }
 
+            instance.set_time(self.world.time);
             self.instances.insert(uuid, instance);
         }
 
@@ -315,6 +316,7 @@ impl Server {
         if let Ok(r) = &mut REGIONS.write() {
             r.insert(region.id, region.clone());
         }
+        self.set_time(self.world.time);
     }
 
     /// Draws the given region instance into the given buffer. This drawing routine is only used by the editor.

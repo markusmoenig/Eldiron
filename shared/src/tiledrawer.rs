@@ -9,7 +9,7 @@ pub struct RegionDrawSettings {
     pub delta_in_tick: f32,
     pub offset: Vec2i,
     pub delta: f32,
-    pub time: TheTime,
+    pub brightness: f32,
 
     pub center_on_character: Option<Uuid>,
 }
@@ -22,7 +22,7 @@ impl RegionDrawSettings {
             delta_in_tick: 0.0,
             offset: Vec2i::zero(),
             delta: 0.0,
-            time: TheTime::default(),
+            brightness: 1.0,
             center_on_character: None,
         }
     }
@@ -216,8 +216,7 @@ impl TileDrawer {
                         }
                     }
 
-                    let minutes = settings.time.minutes as i32 + settings.time.hours as i32 * 60;
-                    let brightness = Self::get_brightness(minutes).clamp(0.3, 1.0);
+                    let brightness = settings.brightness;
 
                     color[0] = (color[0] as f32 * brightness) as u8;
                     color[1] = (color[1] as f32 * brightness) as u8;
@@ -398,35 +397,5 @@ impl TileDrawer {
             time = web_sys::window().unwrap().performance().unwrap().now() as u128;
         }
         time
-    }
-
-    /// Get the brightness of the current time.
-    fn get_brightness(minutes: i32) -> f32 {
-        let sunrise = 300; // 5:00 am
-        let sunset = 1200; // 8:00 pm
-        let transition_duration = 60; // 1 hour
-
-        let daylight_start = sunrise + transition_duration;
-        let daylight_end = sunset + transition_duration;
-
-        if minutes < sunrise || minutes > daylight_end {
-            return 0.0; // it's dark outside
-        }
-
-        if minutes >= sunrise && minutes <= daylight_start {
-            // transition from darkness to daylight
-            let transition_start = sunrise;
-            let time_since_transition_start = minutes - transition_start;
-
-            time_since_transition_start as f32 / transition_duration as f32
-        } else if minutes >= sunset && minutes <= daylight_end {
-            // transition from daylight to darkness
-            let transition_start = sunset;
-            let time_since_transition_start = minutes - transition_start;
-
-            1.0 - time_since_transition_start as f32 / transition_duration as f32
-        } else {
-            1.0
-        }
     }
 }
