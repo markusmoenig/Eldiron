@@ -340,8 +340,7 @@ impl Panels {
                             redraw = true;
                         }
                     }
-                }
-                else if id.name == "Set CodeGrid Panel" {
+                } else if id.name == "Set CodeGrid Panel" {
                     //println!("Set CodeGrid Panel");
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
@@ -352,8 +351,7 @@ impl Panels {
                     //         redraw = true;
                     //     }
                     // }
-                }
-                else if id.name == "Set Tilemap Panel" {
+                } else if id.name == "Set Tilemap Panel" {
                     //println!("Set Tilemap Panel");
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 2));

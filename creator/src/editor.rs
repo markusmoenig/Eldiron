@@ -261,6 +261,10 @@ impl TheTrait for Editor {
                 if let Some(update) = self.server.get_region_update(self.server_ctx.curr_region) {
                     self.client.set_region_update(update);
                 }
+
+                if let Some(widget) = ui.get_widget("Server Time Slider") {
+                    widget.set_value(TheValue::Time(self.server.world.time));
+                }
             }
 
             // Set Debug Data
@@ -891,8 +895,12 @@ impl TheTrait for Editor {
                             self.project.add_tilemap(tilemap);
                         }
                     }
-                    TheEvent::ValueChanged(_id, _value) => {
-                        //println!("{:?} {:?}", id, value);
+                    TheEvent::ValueChanged(id, value) => {
+                        if id.name == "Server Time Slider" {
+                            if let TheValue::Time(time) = value {
+                                self.server.set_time(time);
+                            }
+                        }
                     }
                     _ => {}
                 }

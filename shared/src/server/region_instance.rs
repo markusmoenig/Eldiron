@@ -101,9 +101,10 @@ impl RegionInstance {
     }
 
     /// Tick. Compute the next frame.
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, time: TheTime) {
         self.debug_modules.clear();
         self.sandbox.clear_debug_messages();
+        self.draw_settings.time = time;
 
         if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
             for character in update.characters.values_mut() {
@@ -200,12 +201,8 @@ impl RegionInstance {
 
                 self.draw_settings.anim_counter = *anim_counter;
 
-                let characters = tiledrawer.draw_region(
-                    buffer,
-                    region,
-                    update,
-                    &self.draw_settings,
-                );
+                let characters =
+                    tiledrawer.draw_region(buffer, region, update, &self.draw_settings);
 
                 // Draw selected character outline
                 if let Some(curr_character_instance) = server_ctx.curr_character_instance {
@@ -686,5 +683,10 @@ impl RegionInstance {
     /// Returns the debug messages in the sandbox.
     pub fn debug_messages(&self) -> Vec<TheDebugMessage> {
         self.sandbox.debug_messages.clone()
+    }
+
+    /// If the user changes the time w/o the server running, we have to update the draw settings manually.
+    pub fn set_time(&mut self, time: TheTime) {
+        self.draw_settings.time = time;
     }
 }

@@ -13,10 +13,12 @@ lazy_static! {
     pub static ref UPDATE: RwLock<RegionUpdate> = RwLock::new(RegionUpdate::default());
     pub static ref CHARACTER: RwLock<Uuid> = RwLock::new(Uuid::nil());
     pub static ref WIDGETBUFFER: RwLock<TheRGBABuffer> = RwLock::new(TheRGBABuffer::empty());
-
-    pub static ref IMAGES: RwLock<FxHashMap<String, TheRGBABuffer>> = RwLock::new(FxHashMap::default());
-    pub static ref FONTS: RwLock<FxHashMap<String, fontdue::Font>> = RwLock::new(FxHashMap::default());
-    pub static ref DRAWSETTINGS: RwLock<RegionDrawSettings> = RwLock::new(RegionDrawSettings::new());
+    pub static ref IMAGES: RwLock<FxHashMap<String, TheRGBABuffer>> =
+        RwLock::new(FxHashMap::default());
+    pub static ref FONTS: RwLock<FxHashMap<String, fontdue::Font>> =
+        RwLock::new(FxHashMap::default());
+    pub static ref DRAWSETTINGS: RwLock<RegionDrawSettings> =
+        RwLock::new(RegionDrawSettings::new());
 }
 
 #[derive()]
@@ -63,7 +65,10 @@ impl Client {
 
     /// Sets the project
     pub fn set_project(&mut self, project: Project) {
-        TILEDRAWER.write().unwrap().set_tiles(project.extract_tiles());
+        TILEDRAWER
+            .write()
+            .unwrap()
+            .set_tiles(project.extract_tiles());
 
         let mut regions = REGIONS.write().unwrap();
 
@@ -196,10 +201,15 @@ impl Client {
         for a in assets.values() {
             match &a.buffer {
                 AssetBuffer::Image(buffer) => {
-                    IMAGES.write().unwrap().insert(a.name.clone(), buffer.clone());
+                    IMAGES
+                        .write()
+                        .unwrap()
+                        .insert(a.name.clone(), buffer.clone());
                 }
                 AssetBuffer::Font(buffer) => {
-                    if let Ok(font) = fontdue::Font::from_bytes(buffer.clone(), fontdue::FontSettings::default()) {
+                    if let Ok(font) =
+                        fontdue::Font::from_bytes(buffer.clone(), fontdue::FontSettings::default())
+                    {
                         FONTS.write().unwrap().insert(a.name.clone(), font);
                     }
                 }

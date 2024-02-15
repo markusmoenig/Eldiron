@@ -140,6 +140,11 @@ impl TileEditor {
         gb.add_text("Mixed".to_string());
         gb.add_text("3D Map".to_string());
 
+        let mut time_slider = TheTimeSlider::new(TheId::named("Server Time Slider"));
+        time_slider.set_continuous(true);
+        let mut spacer = TheSpacer::new(TheId::empty());
+        spacer.limiter_mut().set_max_width(70);
+
         let mut zoom = TheSlider::new(TheId::named("Region Editor Zoom"));
         zoom.set_value(TheValue::Float(1.0));
         zoom.set_range(TheValue::RangeF32(0.5..=3.0));
@@ -150,6 +155,8 @@ impl TileEditor {
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(5, 4, 5, 4));
         toolbar_hlayout.add_widget(Box::new(gb));
+        toolbar_hlayout.add_widget(Box::new(spacer));
+        toolbar_hlayout.add_widget(Box::new(time_slider));
         toolbar_hlayout.add_widget(Box::new(zoom));
         toolbar_hlayout.set_reverse_index(Some(1));
 
@@ -195,7 +202,10 @@ impl TileEditor {
     }
 
     pub fn load_from_project(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
-        TILEDRAWER.lock().unwrap().set_tiles(project.extract_tiles());
+        TILEDRAWER
+            .lock()
+            .unwrap()
+            .set_tiles(project.extract_tiles());
         if let Some(widget) = ui.get_widget("RenderView") {
             if let Some(w) = widget
                 .as_any()

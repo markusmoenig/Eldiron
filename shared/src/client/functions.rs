@@ -1,5 +1,5 @@
 //use crate::prelude::*;
-use super::{CHARACTER, REGIONS, TILEDRAWER, UPDATE, WIDGETBUFFER, FONTS, DRAWSETTINGS};
+use super::{CHARACTER, DRAWSETTINGS, FONTS, REGIONS, TILEDRAWER, UPDATE, WIDGETBUFFER};
 use theframework::prelude::*;
 
 pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
@@ -7,7 +7,6 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
     compiler.add_external_call(
         "DrGame".to_string(),
         |stack, _data, _sandbox| {
-
             let mut buffer = WIDGETBUFFER.write().unwrap();
             let mut update = UPDATE.write().unwrap();
             let tiledrawer = TILEDRAWER.read().unwrap();
@@ -29,7 +28,8 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
                 if zoom != 1.0 {
                     let scaled_width = (buffer.dim().width as f32 / zoom) as i32;
                     let scaled_height = (buffer.dim().height as f32 / zoom) as i32;
-                    let mut zoom_buffer = TheRGBABuffer::new(TheDim::new(0, 0, scaled_width, scaled_height));
+                    let mut zoom_buffer =
+                        TheRGBABuffer::new(TheDim::new(0, 0, scaled_width, scaled_height));
                     tiledrawer.draw_region(&mut zoom_buffer, region, &mut update, &settings);
                     zoom_buffer.scaled_into(&mut buffer);
                 } else {

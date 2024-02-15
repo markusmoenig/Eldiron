@@ -725,8 +725,7 @@ impl Sidebar {
                             vec!["png".to_string(), "PNG".to_string()],
                         ),
                     );
-                }
-                else if item_id.name == "Add Font" {
+                } else if item_id.name == "Add Font" {
                     ctx.ui.open_file_requester(
                         TheId::named_with_id(item_id.name.as_str(), Uuid::new_v4()),
                         "Open Font".into(),
@@ -735,8 +734,7 @@ impl Sidebar {
                             vec!["ttf".to_string(), "TTF".to_string()],
                         ),
                     );
-                }
-                else if item_id.name == "Rename Region" {
+                } else if item_id.name == "Rename Region" {
                     if let Some(tilemap) = project.get_region(&server_ctx.curr_region) {
                         open_text_dialog(
                             "Rename Region",
@@ -758,8 +756,7 @@ impl Sidebar {
                             ctx,
                         );
                     }
-                }
-                else if item_id.name == "Rename Screen" {
+                } else if item_id.name == "Rename Screen" {
                     if let Some(screen) = project.screens.get(&widget_id.uuid) {
                         open_text_dialog(
                             "Rename Screen",
@@ -770,8 +767,7 @@ impl Sidebar {
                             ctx,
                         );
                     }
-                }
-                else if item_id.name == "Rename Asset" {
+                } else if item_id.name == "Rename Asset" {
                     if let Some(asset) = project.assets.get(&widget_id.uuid) {
                         open_text_dialog(
                             "Rename Asset",
@@ -902,11 +898,15 @@ impl Sidebar {
                     for p in paths {
                         ctx.ui.decode_image(id.clone(), p.clone());
                     }
-                }
-                else if id.name == "Add Font" {
+                } else if id.name == "Add Font" {
                     for p in paths {
                         if let Ok(bytes) = std::fs::read(p) {
-                            if fontdue::Font::from_bytes(bytes.clone(), fontdue::FontSettings::default()).is_ok() {
+                            if fontdue::Font::from_bytes(
+                                bytes.clone(),
+                                fontdue::FontSettings::default(),
+                            )
+                            .is_ok()
+                            {
                                 let asset = Asset {
                                     name: if let Some(n) = p.file_stem() {
                                         n.to_string_lossy().to_string()
@@ -921,8 +921,10 @@ impl Sidebar {
                                     ui.canvas.get_layout(Some(&"Asset List".to_string()), None)
                                 {
                                     if let Some(list_layout) = layout.as_list_layout() {
-                                        let mut item =
-                                            TheListItem::new(TheId::named_with_id("Asset Item", asset.id));
+                                        let mut item = TheListItem::new(TheId::named_with_id(
+                                            "Asset Item",
+                                            asset.id,
+                                        ));
                                         item.set_text(asset.name.clone());
                                         item.set_state(TheWidgetState::Selected);
                                         item.set_context_menu(Some(TheContextMenu {
@@ -932,12 +934,17 @@ impl Sidebar {
                                             )],
                                             ..Default::default()
                                         }));
-                                        item.add_value_column(100, TheValue::Text("Font".to_string()));
+                                        item.add_value_column(
+                                            100,
+                                            TheValue::Text("Font".to_string()),
+                                        );
                                         list_layout.deselect_all();
                                         let id = item.id().clone();
                                         list_layout.add_item(item, ctx);
-                                        ctx.ui
-                                            .send_widget_state_changed(&id, TheWidgetState::Selected);
+                                        ctx.ui.send_widget_state_changed(
+                                            &id,
+                                            TheWidgetState::Selected,
+                                        );
 
                                         redraw = true;
                                     }
@@ -947,8 +954,7 @@ impl Sidebar {
                             }
                         }
                     }
-                }
-                else if id.name == "Tilemap Import" {
+                } else if id.name == "Tilemap Import" {
                     for p in paths {
                         let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
                         let tilemap: Tilemap =
@@ -1475,15 +1481,13 @@ impl Sidebar {
                             ))
                         }
                     }
-                }
-                else if id.name == "Screen Item" {
+                } else if id.name == "Screen Item" {
                     if let Some(s) = project.screens.get(&id.uuid) {
                         self.apply_screen(ui, ctx, Some(s));
                         server_ctx.curr_screen = s.id;
                         redraw = true;
                     }
-                }
-                else if id.name == "Screen Add" {
+                } else if id.name == "Screen Add" {
                     if let Some(list_layout) = ui.get_list_layout("Screen List") {
                         let screen = Screen::default();
 
@@ -1638,8 +1642,7 @@ impl Sidebar {
                     ));
                     self.deselect_sections_buttons(ui, id.name.clone());
                     redraw = true;
-                }
-                else if id.name == "Module Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Module Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(false);
                     set_server_externals();
@@ -1670,8 +1673,7 @@ impl Sidebar {
                         SidebarMode::Module as usize,
                     ));
                     redraw = true;
-                }
-                else if id.name == "Screen Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Screen Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(true);
                     set_client_externals();
@@ -1702,8 +1704,7 @@ impl Sidebar {
                         SidebarMode::Screen as usize,
                     ));
                     redraw = true;
-                }
-                else if id.name == "Asset Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Asset Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
 
                     if let Some(widget) = ui
@@ -1732,8 +1733,7 @@ impl Sidebar {
                         SidebarMode::Asset as usize,
                     ));
                     redraw = true;
-                }
-                else if id.name == "Debug Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Debug Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
 
                     if let Some(widget) = ui
@@ -1745,11 +1745,12 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Debug;
 
-                    ctx.ui
-                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), SidebarMode::Debug as usize));
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        self.stack_layout_id.clone(),
+                        SidebarMode::Debug as usize,
+                    ));
                     redraw = true;
-                }
-                else if id.name == "Thanks Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Thanks Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(false);
 
@@ -1762,11 +1763,12 @@ impl Sidebar {
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Debug;
 
-                    ctx.ui
-                        .send(TheEvent::SetStackIndex(self.stack_layout_id.clone(), SidebarMode::Thanks as usize));
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        self.stack_layout_id.clone(),
+                        SidebarMode::Thanks as usize,
+                    ));
                     redraw = true;
-                }
-                else if id.name == "Compile" {
+                } else if id.name == "Compile" {
                     // Compile button in the editor. Compile the code and send it to the server if successful.
                     // We do not need to store it in the project because thats already done in the
                     // CodeBundleChanged event.
@@ -2415,8 +2417,7 @@ impl Sidebar {
             if let Some(selected) = list.selected() {
                 ctx.ui
                     .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
-            }
-            else {
+            } else {
                 list.select_first_item(ctx);
             }
         }
@@ -2801,7 +2802,10 @@ impl Sidebar {
         project: &mut Project,
         server: &mut Server,
     ) {
-        TILEDRAWER.lock().unwrap().set_tiles(project.extract_tiles());
+        TILEDRAWER
+            .lock()
+            .unwrap()
+            .set_tiles(project.extract_tiles());
         server.update_tiles(project.extract_tiles());
         if let Some(widget) = ui.get_widget("RenderView") {
             if let Some(w) = widget

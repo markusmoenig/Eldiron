@@ -9,6 +9,7 @@ pub struct RegionDrawSettings {
     pub delta_in_tick: f32,
     pub offset: Vec2i,
     pub delta: f32,
+    pub time: TheTime,
 
     pub center_on_character: Option<Uuid>,
 }
@@ -21,6 +22,7 @@ impl RegionDrawSettings {
             delta_in_tick: 0.0,
             offset: Vec2i::zero(),
             delta: 0.0,
+            time: TheTime::default(),
             center_on_character: None,
         }
     }
@@ -55,7 +57,7 @@ impl TileDrawer {
         buffer: &mut TheRGBABuffer,
         region: &Region,
         update: &mut RegionUpdate,
-        settings: &RegionDrawSettings
+        settings: &RegionDrawSettings,
     ) -> Vec<(Vec2i, Uuid, Uuid)> {
         let _start = self.get_time();
 
@@ -70,7 +72,7 @@ impl TileDrawer {
         let mut offset = settings.offset;
 
         // The pixel position of the characters with their tile id.
-        let mut characters : Vec<(Vec2i, Uuid, Uuid)> = vec![];
+        let mut characters: Vec<(Vec2i, Uuid, Uuid)> = vec![];
 
         for (id, character) in &mut update.characters {
             let draw_pos = if let Some((start, end)) = &mut character.moving {
@@ -175,10 +177,7 @@ impl TileDrawer {
                                                 );
                                             }
                                         }
-                                    }
-                                    else if let Some(c) =
-                                        data.buffer[index].at(vec2i(xx, yy))
-                                    {
+                                    } else if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
                                         color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
                                     }
                                 }
@@ -195,16 +194,13 @@ impl TileDrawer {
                                 if let Some(data) = self.tiles.get(&tile_uuid) {
                                     let index = settings.anim_counter % data.buffer.len();
 
-                                    if let Some(c) =
-                                        data.buffer[index].at(vec2i(xx, yy))
-                                    {
+                                    if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
                                         color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
                                     }
                                 }
                             }
                         }
                     }
-
 
                     // Characters
                     for (pos, tile, _) in &characters {
@@ -214,13 +210,18 @@ impl TileDrawer {
                             let xx = x - pos.x;
                             let yy = y - pos.y;
 
-                            if let Some(c) =
-                                data.buffer[index].at(vec2i(xx, yy))
-                            {
+                            if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
                                 color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
                             }
                         }
                     }
+
+                    let minutes = settings.time.minutes as i32 + settings.time.hours as i32 * 60;
+                    let brightness = Self::get_brightness(minutes).clamp(0.3, 1.0);
+
+                    color[0] = (color[0] as f32 * brightness) as u8;
+                    color[1] = (color[1] as f32 * brightness) as u8;
+                    color[2] = (color[2] as f32 * brightness) as u8;
 
                     pixel.copy_from_slice(&color);
                 }
@@ -397,5 +398,35 @@ impl TileDrawer {
             time = web_sys::window().unwrap().performance().unwrap().now() as u128;
         }
         time
+    }
+
+    /// Get the brightness of the current time.
+    fn get_brightness(minutes: i32) -> f32 {
+        let sunrise = 300; // 5:00 am
+        let sunset = 1200; // 8:00 pm
+        let transition_duration = 60; // 1 hour
+
+        let daylight_start = sunrise + transition_duration;
+        let daylight_end = sunset + transition_duration;
+
+        if minutes < sunrise || minutes > daylight_end {
+            return 0.0; // it's dark outside
+        }
+
+        if minutes >= sunrise && minutes <= daylight_start {
+            // transition from darkness to daylight
+            let transition_start = sunrise;
+            let time_since_transition_start = minutes - transition_start;
+
+            time_since_transition_start as f32 / transition_duration as f32
+        } else if minutes >= sunset && minutes <= daylight_end {
+            // transition from daylight to darkness
+            let transition_start = sunset;
+            let time_since_transition_start = minutes - transition_start;
+
+            1.0 - time_since_transition_start as f32 / transition_duration as f32
+        } else {
+            1.0
+        }
     }
 }

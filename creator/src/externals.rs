@@ -111,7 +111,11 @@ pub fn set_client_externals() {
         "DrText".to_string(),
         "Draws the given text.".to_string(),
         vec![str!("Font"), str!("Size"), str!("Text")],
-        vec![TheValue::Text("font".to_string()), TheValue::Float(12.0), TheValue::Text("text".to_string())],
+        vec![
+            TheValue::Text("font".to_string()),
+            TheValue::Float(12.0),
+            TheValue::Text("text".to_string()),
+        ],
         None,
     ));
 }

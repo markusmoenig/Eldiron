@@ -270,8 +270,9 @@ impl Server {
 
         for (key, mut instance) in self.instances.drain() {
             let sender = sender.clone();
+            let time = self.world.time;
             let handle = std::thread::spawn(move || {
-                instance.tick();
+                instance.tick(time);
                 sender.send((key, instance)).unwrap();
             });
 
@@ -585,11 +586,28 @@ impl Server {
 
     /// Get the update for the given region.
     pub fn get_region_update(&self, region_id: Uuid) -> Option<String> {
-        UPDATES.read().unwrap().get(&region_id).map(|update| update.to_json())
+        UPDATES
+            .read()
+            .unwrap()
+            .get(&region_id)
+            .map(|update| update.to_json())
     }
 
     /// Sets the currently pressed key.
     pub fn set_key_down(&mut self, str: Option<String>) {
         *KEY_DOWN.write().unwrap() = str;
+    }
+
+    /// Gets the server time.
+    pub fn get_time(&self) -> TheTime {
+        self.world.time
+    }
+
+    /// Sets the time of the server.
+    pub fn set_time(&mut self, time: TheTime) {
+        self.world.set_time(time);
+        for instance in self.instances.values_mut() {
+            instance.set_time(time);
+        }
     }
 }

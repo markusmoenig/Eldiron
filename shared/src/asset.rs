@@ -34,7 +34,7 @@ impl Asset {
 pub enum AssetBuffer {
     Empty,
     Image(TheRGBABuffer),
-    Font(Vec<u8>)
+    Font(Vec<u8>),
 }
 
 impl AssetBuffer {
