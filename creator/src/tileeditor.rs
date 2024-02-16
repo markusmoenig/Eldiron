@@ -108,17 +108,17 @@ impl TileEditor {
         ceiling_icon.limiter_mut().set_max_size(vec2i(48, 48));
         ceiling_icon.set_border_color(Some(self.icon_normal_border_color));
 
-        // let mut overlay_icon = TheIconView::new(TheId::named("Overlay Icon"));
-        // overlay_icon.set_text(Some("OVER".to_string()));
-        // overlay_icon.set_text_size(10.0);
-        // overlay_icon.set_text_color([200, 200, 200, 255]);
-        // overlay_icon.limiter_mut().set_max_size(vec2i(48, 48));
-        // overlay_icon.set_border_color(Some(self.icon_normal_border_color));
+        let mut cc_icon = TheIconView::new(TheId::named("Tile CC Icon"));
+        cc_icon.set_text(Some("CC".to_string()));
+        cc_icon.set_text_size(10.0);
+        cc_icon.set_text_color([200, 200, 200, 255]);
+        cc_icon.limiter_mut().set_max_size(vec2i(48, 48));
+        cc_icon.set_border_color(Some(self.icon_normal_border_color));
 
         vlayout.add_widget(Box::new(ground_icon));
         vlayout.add_widget(Box::new(wall_icon));
         vlayout.add_widget(Box::new(ceiling_icon));
-        //vlayout.add_widget(Box::new(overlay_icon));
+        vlayout.add_widget(Box::new(cc_icon));
 
         let mut spacer = TheIconView::new(TheId::empty());
         spacer.limiter_mut().set_max_height(5);
@@ -400,7 +400,8 @@ impl TileEditor {
                         };
                         server_ctx.tile_selection = Some(tilearea);
                     }
-                } else if self.editor_mode == EditorMode::Erase {
+                }
+                else if self.editor_mode == EditorMode::Erase {
                     // If there is a character instance at the position we delete the instance.
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if let Some(c) =
@@ -473,7 +474,8 @@ impl TileEditor {
                             }
                         }
                     }
-                } else if self.editor_mode == EditorMode::Pick {
+                }
+                else if self.editor_mode == EditorMode::Pick {
                     // Check for character at the given position.
                     if let Some(c) = server.get_character_at(server_ctx.curr_region, *coord) {
                         server_ctx.curr_character_instance = Some(c.0);
@@ -612,8 +614,15 @@ impl TileEditor {
                             TheValue::Empty,
                         ));
                     }
-                } else if self.editor_mode == EditorMode::Draw {
-                    if let Some(curr_tile_uuid) = self.curr_tile_uuid {
+                }
+                else if self.editor_mode == EditorMode::Draw {
+
+                    if self.curr_layer_role == Layer2DRole::Other {
+                        // Paint with color correction
+                        // TODO
+
+                    }
+                    else if let Some(curr_tile_uuid) = self.curr_tile_uuid {
                         if TILEDRAWER
                             .lock()
                             .unwrap()
@@ -831,26 +840,31 @@ impl TileEditor {
                             icon_view.set_rgba_tile(t.clone());
                         }
                     }
-                } else if id.name == "Tilemap Editor Add Selection" {
+                }
+                else if id.name == "Tilemap Editor Add Selection" {
                     TILEDRAWER.lock().unwrap().tiles = project.extract_tiles();
                     server.update_tiles(project.extract_tiles());
-                } else if id.name == "Ground Icon" {
+                }
+                else if id.name == "Ground Icon" {
                     self.curr_layer_role = Layer2DRole::Ground;
                     self.set_icon_colors(ui);
                     redraw = true;
-                } else if id.name == "Wall Icon" {
+                }
+                else if id.name == "Wall Icon" {
                     self.curr_layer_role = Layer2DRole::Wall;
                     self.set_icon_colors(ui);
                     redraw = true;
-                } else if id.name == "Ceiling Icon" {
+                }
+                else if id.name == "Ceiling Icon" {
                     self.curr_layer_role = Layer2DRole::Ceiling;
                     self.set_icon_colors(ui);
                     redraw = true;
-                } //else if id.name == "Overlay Icon" {
-                  // self.curr_layer_role = Layer2DRole::Overlay;
-                  // self.set_icon_colors(ui);
-                  // redraw = true;
-                  // }
+                }
+                else if id.name == "Tile CC Icon" {
+                    self.curr_layer_role = Layer2DRole::Other;
+                    self.set_icon_colors(ui);
+                    redraw = true;
+                }
             }
             _ => {}
         }
@@ -954,13 +968,13 @@ impl TileEditor {
                 Some(self.icon_normal_border_color)
             });
         }
-        // if let Some(icon_view) = ui.get_icon_view("Overlay Icon") {
-        //     icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Overlay {
-        //         Some(self.icon_selected_border_color)
-        //     } else {
-        //         Some(self.icon_normal_border_color)
-        //     });
-        // }
+        if let Some(icon_view) = ui.get_icon_view("Tile CC Icon") {
+            icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Other {
+                Some(self.icon_selected_border_color)
+            } else {
+                Some(self.icon_normal_border_color)
+            });
+        }
     }
 
     /// Redraw the map of the current region on tick.

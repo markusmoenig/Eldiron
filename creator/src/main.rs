@@ -10,7 +10,7 @@ pub mod screeneditor;
 pub mod sidebar;
 pub mod tileeditor;
 pub mod tilemapeditor;
-pub mod tilepicker;
+pub mod tilepickerandcc;
 
 pub mod widgets;
 
@@ -34,7 +34,7 @@ pub mod prelude {
     pub use crate::sidebar::*;
     pub use crate::tileeditor::*;
     pub use crate::tilemapeditor::*;
-    pub use crate::tilepicker::*;
+    pub use crate::tilepickerandcc::*;
 
     pub use crate::widgets::therenderview::{TheRenderView, TheRenderViewTrait};
 }
