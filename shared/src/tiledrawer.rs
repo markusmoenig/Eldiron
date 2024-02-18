@@ -273,10 +273,10 @@ impl TileDrawer {
             ro,
             ro - vec2f(0.0, 0.5),
             ro - vec2f(0.5, 0.0),
-            ro - vec2f(0.5, 0.5),
+            // ro - vec2f(0.5, 0.5),
             ro + vec2f(0.5, 0.0),
             ro + vec2f(0.0, 0.5),
-            ro + vec2f(0.5, 0.5),
+            // ro + vec2f(0.5, 0.5),
         ];
         let samples = offsets.len();
 
@@ -311,18 +311,19 @@ impl TileDrawer {
                             break;
                         }
 
-                        t += 1.0 / 6.0;
+                        t += 1.0 / 4.0;
                     }
 
                     if hit {
-                        let intensity = 1.0 - (max_t / light_strength).clamp(0.0, 1.0);
+                        let mut intensity = 1.0 - (max_t / light_strength).clamp(0.0, 1.0);
+                        intensity *= if s == 0 { 2.0 } else { 1.0 };
                         total_light += color * intensity; // * vec3f(1.0, 1.0, 0.0);
                     }
                 }
             }
 
             color = clamp(
-                color * world_brightness + color * total_light / samples as f32,
+                color * world_brightness + color * total_light / ((samples + 1) as f32),
                 color * world_brightness,
                 color,
             );

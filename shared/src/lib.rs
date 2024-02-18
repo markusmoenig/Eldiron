@@ -12,6 +12,7 @@ pub mod screen;
 pub mod server;
 pub mod tilearea;
 pub mod tiledrawer;
+pub mod tilefx;
 pub mod tilemap;
 pub mod update;
 pub mod widget;
@@ -34,6 +35,7 @@ pub mod prelude {
     pub use crate::server::{Server, ServerState};
     pub use crate::tilearea::TileArea;
     pub use crate::tiledrawer::{RegionDrawSettings, TileDrawer};
+    pub use crate::tilefx::TileFX;
     pub use crate::tilemap::{Tile, TileRole, Tilemap};
     pub use crate::update::*;
     pub use crate::widget::*;

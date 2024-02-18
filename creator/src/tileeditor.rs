@@ -108,8 +108,8 @@ impl TileEditor {
         ceiling_icon.limiter_mut().set_max_size(vec2i(48, 48));
         ceiling_icon.set_border_color(Some(self.icon_normal_border_color));
 
-        let mut cc_icon = TheIconView::new(TheId::named("Tile CC Icon"));
-        cc_icon.set_text(Some("CC".to_string()));
+        let mut cc_icon = TheIconView::new(TheId::named("Tile FX Icon"));
+        cc_icon.set_text(Some("FX".to_string()));
         cc_icon.set_text_size(10.0);
         cc_icon.set_text_color([200, 200, 200, 255]);
         cc_icon.limiter_mut().set_max_size(vec2i(48, 48));
@@ -849,7 +849,7 @@ impl TileEditor {
                     self.curr_layer_role = Layer2DRole::Ceiling;
                     self.set_icon_colors(ui);
                     redraw = true;
-                } else if id.name == "Tile CC Icon" {
+                } else if id.name == "Tile FX Icon" {
                     self.curr_layer_role = Layer2DRole::Other;
                     self.set_icon_colors(ui);
                     redraw = true;
@@ -957,7 +957,7 @@ impl TileEditor {
                 Some(self.icon_normal_border_color)
             });
         }
-        if let Some(icon_view) = ui.get_icon_view("Tile CC Icon") {
+        if let Some(icon_view) = ui.get_icon_view("Tile FX Icon") {
             icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Other {
                 Some(self.icon_selected_border_color)
             } else {

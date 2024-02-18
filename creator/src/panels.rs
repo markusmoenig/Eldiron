@@ -1,9 +1,9 @@
-use crate::editor::{CODEEDITOR, TILEDRAWER, TILEMAPEDITOR, TILEPICKER};
+use crate::editor::{CODEEDITOR, TILEDRAWER, TILEFXEDITOR, TILEMAPEDITOR, TILEPICKER};
 use crate::prelude::*;
 
 pub struct Panels {
     pub curr_atom: Option<TheCodeAtom>,
-    pub tilecc_visible: bool,
+    pub tilefx_visible: bool,
 }
 
 #[allow(clippy::new_without_default)]
@@ -11,7 +11,7 @@ impl Panels {
     pub fn new() -> Self {
         Self {
             curr_atom: None,
-            tilecc_visible: false,
+            tilefx_visible: false,
         }
     }
 
@@ -34,7 +34,7 @@ impl Panels {
         left_stack.add_canvas(TILEPICKER.lock().unwrap().build(false));
         left_stack.add_canvas(CODEEDITOR.lock().unwrap().build_canvas(ctx));
         left_stack.add_canvas(TILEMAPEDITOR.lock().unwrap().build());
-        left_stack.add_canvas(TILEPICKER.lock().unwrap().build_tilecc());
+        left_stack.add_canvas(TILEFXEDITOR.lock().unwrap().build(ctx));
 
         left_stack.set_index(0);
 
@@ -148,18 +148,18 @@ impl Panels {
                 if (id.name == "Ground Icon" || id.name == "Wall Icon" || id.name == "Ceiling Icon")
                     && *state == TheWidgetState::Clicked
                 {
-                    if self.tilecc_visible {
-                        self.tilecc_visible = false;
+                    if self.tilefx_visible {
+                        self.tilefx_visible = false;
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Set Region Panel"),
                             TheValue::Empty,
                         ));
                     }
-                } else if id.name == "Tile CC Icon"
+                } else if id.name == "Tile FX Icon"
                     && *state == TheWidgetState::Clicked
-                    && !self.tilecc_visible
+                    && !self.tilefx_visible
                 {
-                    self.tilecc_visible = true;
+                    self.tilefx_visible = true;
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Set Region Panel"),
                         TheValue::Empty,
@@ -355,7 +355,7 @@ impl Panels {
 
                             self.update_code_object(ui, ctx, server, server_ctx);
                         }
-                    } else if !self.tilecc_visible {
+                    } else if !self.tilefx_visible {
                         // Tile Picker
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));

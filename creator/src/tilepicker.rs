@@ -27,29 +27,6 @@ impl TilePicker {
         }
     }
 
-    /// Build the tile cc UI
-    pub fn build_tilecc(&self) -> TheCanvas {
-        let mut canvas = TheCanvas::new();
-
-        // Toolbar
-        let mut toolbar_canvas = TheCanvas::default();
-        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
-        toolbar_hlayout.limiter_mut().set_max_height(30);
-
-        let mut time_slider = TheTimeSlider::new(TheId::named("Tile CC Timeline"));
-        time_slider.set_status_text("The tile color correction timeline.");
-
-        toolbar_hlayout.add_widget(Box::new(time_slider));
-
-        toolbar_hlayout.set_margin(vec4i(10, 1, 5, 3));
-        toolbar_hlayout.set_mode(TheHLayoutMode::SizeBased);
-        toolbar_canvas.set_layout(toolbar_hlayout);
-
-        canvas.set_top(toolbar_canvas);
-
-        canvas
-    }
-
     /// Build the tile picker UI
     pub fn build(&self, minimal: bool) -> TheCanvas {
         let mut canvas = TheCanvas::new();
