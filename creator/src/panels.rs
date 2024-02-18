@@ -9,7 +9,10 @@ pub struct Panels {
 #[allow(clippy::new_without_default)]
 impl Panels {
     pub fn new() -> Self {
-        Self { curr_atom: None, tilecc_visible: false }
+        Self {
+            curr_atom: None,
+            tilecc_visible: false,
+        }
     }
 
     pub fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext, _project: &mut Project) {
@@ -142,15 +145,25 @@ impl Panels {
 
         match event {
             TheEvent::StateChanged(id, state) => {
-                if (id.name == "Ground Icon" || id.name == "Wall Icon" || id.name == "Ceiling Icon") && *state == TheWidgetState::Clicked {
+                if (id.name == "Ground Icon" || id.name == "Wall Icon" || id.name == "Ceiling Icon")
+                    && *state == TheWidgetState::Clicked
+                {
                     if self.tilecc_visible {
                         self.tilecc_visible = false;
-                        ctx.ui.send(TheEvent::Custom(TheId::named("Set Region Panel"), TheValue::Empty));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Set Region Panel"),
+                            TheValue::Empty,
+                        ));
                     }
-                }
-                else if id.name == "Tile CC Icon" && *state == TheWidgetState::Clicked && !self.tilecc_visible {
+                } else if id.name == "Tile CC Icon"
+                    && *state == TheWidgetState::Clicked
+                    && !self.tilecc_visible
+                {
                     self.tilecc_visible = true;
-                    ctx.ui.send(TheEvent::Custom(TheId::named("Set Region Panel"), TheValue::Empty));
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Set Region Panel"),
+                        TheValue::Empty,
+                    ));
                 }
             }
             TheEvent::CodeEditorSelectionChanged(_, _) | TheEvent::CodeBundleChanged(_, _) => {
@@ -280,8 +293,7 @@ impl Panels {
 
                             self.update_code_object(ui, ctx, server, server_ctx);
                         }
-                    }
-                    else if let Some(item) = server_ctx.curr_item_instance {
+                    } else if let Some(item) = server_ctx.curr_item_instance {
                         // Item
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 1));
@@ -314,8 +326,7 @@ impl Panels {
 
                             self.update_code_object(ui, ctx, server, server_ctx);
                         }
-                    }
-                    else if let Some(area_id) = server_ctx.curr_area {
+                    } else if let Some(area_id) = server_ctx.curr_area {
                         // Area
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 1));
@@ -344,8 +355,7 @@ impl Panels {
 
                             self.update_code_object(ui, ctx, server, server_ctx);
                         }
-                    }
-                    else if !self.tilecc_visible {
+                    } else if !self.tilecc_visible {
                         // Tile Picker
                         ctx.ui
                             .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));

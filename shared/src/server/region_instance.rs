@@ -1,6 +1,6 @@
 use super::prelude::*;
 use crate::prelude::*;
-use crate::server::{REGIONS, TILES, UPDATES};
+use crate::server::{REGIONS, UPDATES};
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -115,11 +115,10 @@ impl RegionInstance {
                 character.move_delta = 0.0;
             }
             update.brightness = self.draw_settings.brightness;
-        }
 
-        self.sandbox.level.clear_blocking();
-        if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
-            region.fill_code_level(&mut self.sandbox.level, &TILES.read().unwrap());
+            // if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
+            //     region.fill_code_level(&mut self.sandbox.level, &TILES.read().unwrap(), update);
+            // }
         }
 
         // We iterate over all character instances and execute their main function

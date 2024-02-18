@@ -400,8 +400,7 @@ impl TileEditor {
                         };
                         server_ctx.tile_selection = Some(tilearea);
                     }
-                }
-                else if self.editor_mode == EditorMode::Erase {
+                } else if self.editor_mode == EditorMode::Erase {
                     // If there is a character instance at the position we delete the instance.
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         if let Some(c) =
@@ -474,8 +473,7 @@ impl TileEditor {
                             }
                         }
                     }
-                }
-                else if self.editor_mode == EditorMode::Pick {
+                } else if self.editor_mode == EditorMode::Pick {
                     // Check for character at the given position.
                     if let Some(c) = server.get_character_at(server_ctx.curr_region, *coord) {
                         server_ctx.curr_character_instance = Some(c.0);
@@ -614,15 +612,11 @@ impl TileEditor {
                             TheValue::Empty,
                         ));
                     }
-                }
-                else if self.editor_mode == EditorMode::Draw {
-
+                } else if self.editor_mode == EditorMode::Draw {
                     if self.curr_layer_role == Layer2DRole::Other {
                         // Paint with color correction
                         // TODO
-
-                    }
-                    else if let Some(curr_tile_uuid) = self.curr_tile_uuid {
+                    } else if let Some(curr_tile_uuid) = self.curr_tile_uuid {
                         if TILEDRAWER
                             .lock()
                             .unwrap()
@@ -840,27 +834,22 @@ impl TileEditor {
                             icon_view.set_rgba_tile(t.clone());
                         }
                     }
-                }
-                else if id.name == "Tilemap Editor Add Selection" {
+                } else if id.name == "Tilemap Editor Add Selection" {
                     TILEDRAWER.lock().unwrap().tiles = project.extract_tiles();
                     server.update_tiles(project.extract_tiles());
-                }
-                else if id.name == "Ground Icon" {
+                } else if id.name == "Ground Icon" {
                     self.curr_layer_role = Layer2DRole::Ground;
                     self.set_icon_colors(ui);
                     redraw = true;
-                }
-                else if id.name == "Wall Icon" {
+                } else if id.name == "Wall Icon" {
                     self.curr_layer_role = Layer2DRole::Wall;
                     self.set_icon_colors(ui);
                     redraw = true;
-                }
-                else if id.name == "Ceiling Icon" {
+                } else if id.name == "Ceiling Icon" {
                     self.curr_layer_role = Layer2DRole::Ceiling;
                     self.set_icon_colors(ui);
                     redraw = true;
-                }
-                else if id.name == "Tile CC Icon" {
+                } else if id.name == "Tile CC Icon" {
                     self.curr_layer_role = Layer2DRole::Other;
                     self.set_icon_colors(ui);
                     redraw = true;

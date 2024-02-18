@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use rand::Rng;
 use rayon::prelude::*;
 use theframework::prelude::*;
 
@@ -115,6 +116,9 @@ impl TileDrawer {
             }
         }
 
+        let mut level = TheCodeLevel::new(region.width, region.height);
+        region.fill_code_level(&mut level, &self.tiles, update);
+
         let pixels = buffer.pixels_mut();
         pixels
             .par_rchunks_exact_mut(width * 4)
@@ -133,8 +137,10 @@ impl TileDrawer {
                     let mut yy = y % region.grid_size;
 
                     let mut color = BLACK;
+                    let mut is_empty = true;
 
                     if let Some(tile) = region.tiles.get(&(tile_x, tile_y)) {
+                        is_empty = false;
                         for tile_index in 0..tile.layers.len() {
                             if let Some(tile_uuid) = tile.layers[tile_index] {
                                 if let Some(data) = self.tiles.get(&tile_uuid) {
@@ -188,6 +194,7 @@ impl TileDrawer {
                     // Items
                     for item in update.items.values() {
                         if tile_x == item.position.x as i32 && tile_y == item.position.y as i32 {
+                            is_empty = false;
                             if let Some(tile_uuid) =
                                 self.get_tile_id_by_name(item.tile_name.clone())
                             {
@@ -211,25 +218,344 @@ impl TileDrawer {
                             let yy = y - pos.y;
 
                             if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
+                                is_empty = false;
                                 color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
                             }
                         }
                     }
 
-                    let brightness = settings.brightness;
+                    let world_brightness = settings.brightness;
 
-                    color[0] = (color[0] as f32 * brightness) as u8;
-                    color[1] = (color[1] as f32 * brightness) as u8;
-                    color[2] = (color[2] as f32 * brightness) as u8;
+                    // color[0] = (color[0] as f32 * world_brightness) as u8;
+                    // color[1] = (color[1] as f32 * world_brightness) as u8;
+                    // color[2] = (color[2] as f32 * world_brightness) as u8;
+
+                    if !is_empty {
+                        self.path(
+                            vec2i(x, y),
+                            &mut color,
+                            region,
+                            update,
+                            &level,
+                            world_brightness,
+                        );
+                    }
 
                     pixel.copy_from_slice(&color);
                 }
             });
 
         let _stop = self.get_time();
-        //println!("drawing time {:?}", _stop - start);
+        println!("drawing time {:?}", _stop - _start);
 
         characters
+    }
+
+    pub fn path(
+        &self,
+        p: Vec2i,
+        c: &mut [u8; 4],
+        _region: &Region,
+        _update: &RegionUpdate,
+        level: &TheCodeLevel,
+        world_brightness: f32,
+    ) {
+        //let mut rng = rand::thread_rng();
+
+        let mut color = TheColor::from_u8_array(*c).to_vec3f();
+
+        //let light = vec2i(39, 33);
+        let lights = vec![vec2f(39.5, 33.5)];
+
+        let ro = Vec2f::from(p) / 24.0;
+
+        let offsets = vec![
+            ro,
+            ro - vec2f(0.0, 0.5),
+            ro - vec2f(0.5, 0.0),
+            ro - vec2f(0.5, 0.5),
+            ro + vec2f(0.5, 0.0),
+            ro + vec2f(0.0, 0.5),
+            ro + vec2f(0.5, 0.5),
+        ];
+        let samples = offsets.len();
+
+        for light in &lights {
+            let mut total_light = Vec3f::new(0.0, 0.0, 0.0);
+
+            let light_strength = 10.0;
+            for s in 0..samples {
+                let ro = offsets[s];
+
+                let mut light_dir = Vec2f::from(*light) - ro;
+                let light_dist = length(light_dir);
+
+                if light_dist < light_strength {
+                    light_dir = normalize(light_dir);
+
+                    let mut t = 0.0;
+                    let max_t = light_dist;
+
+                    let mut hit = false;
+
+                    while t < max_t {
+                        let pos = ro + light_dir * t;
+                        let tile = vec2i(pos.x as i32, pos.y as i32);
+
+                        if tile == Vec2i::from(*light) {
+                            hit = true;
+                            break;
+                        }
+                        if level.is_blocking((tile.x, tile.y)) {
+                            hit = false;
+                            break;
+                        }
+
+                        t += 1.0 / 6.0;
+                    }
+
+                    if hit {
+                        let intensity = 1.0 - (max_t / light_strength).clamp(0.0, 1.0);
+                        total_light += color * intensity; // * vec3f(1.0, 1.0, 0.0);
+                    }
+                }
+            }
+
+            color = clamp(
+                color * world_brightness + color * total_light / samples as f32,
+                color * world_brightness,
+                color,
+            );
+        }
+
+        /*
+        let dx = target.x - self.x;
+        let dy = target.y - self.y;
+        let angle_to_target = (dy as f32).atan2(dx as f32);
+
+        // Add a random angle within the specified randomness range
+        let random_angle = rng.gen_range(-randomness..randomness);
+        let final_angle = angle_to_target + random_angle;
+
+        (final_angle.cos(), final_angle.sin())
+
+        if let Some(t) = self.ray_casting(Vec2f::from(ro), rd, 24.0, vec2i(39, 33), &level) {}
+        */
+        /* 2D Pathtracer
+        let spp = 32;
+        let bounces = 5;
+
+        let mut tot = Vec3f::zero();
+
+        // Samples
+        for _ in 0..spp {
+            // Render
+
+            let mut col = vec3f(1.0, 1.0, 1.0);
+            let mut ro = Vec2f::from(p);
+            let mut rd = self.uniform_vector(&mut rng);
+
+            // Bounces
+            let mut bounce_hit = false;
+            for _ in 0..bounces {
+                if let Some((t, hit, normal)) = self.ray_casting(ro, rd, 24.0, &level) {
+                    let p = Vec2f::from(hit);
+                    bounce_hit = true;
+
+                    let mat_col = vec3f(0.5, 0.5, 0.5); // TODO Get pixel from tile
+
+                    if hit == light {
+                        break;
+                    }
+                    col *= mat_col;
+
+                    ro = p + normal * 0.001; // new ray origin
+                                             //rd = reflect(rd, normal); // new ray direction
+                                             //I - 2.0 * dot(N, I) * N
+                    rd = p - 2.0 * dot(normal, p) * normal;
+                }
+            }
+            if bounce_hit {
+                tot += col;
+            }
+        }
+        tot /= spp as f32 / 4.0;
+
+        color = clamp(color * tot, color * world_brightness, color);
+        */
+
+        /*
+        if region.distance(p / region.grid_size, light) <= 10.0 {
+            let mut c = 0.0_f32;
+            // Samples
+            for _ in 0..32 {
+
+
+                let rd = self.uniform_vector(&mut rng);
+                if let Some(t) = self.ray_casting(Vec2f::from(ro), rd, 24.0, vec2i(39, 33), &level) {
+
+                }
+            }
+            c /= 8.0;
+            c = c.clamp(world_brightness, 1.0);
+
+            color *= c;
+            */
+        //}
+
+        c[0] = (color.x * 255.0) as u8;
+        c[1] = (color.y * 255.0) as u8;
+        c[2] = (color.z * 255.0) as u8;
+    }
+
+    #[inline(always)]
+    fn _ray_casting(
+        &self,
+        ro: Vec2f,
+        rd: Vec2f,
+        pixels_per_cell: f32,
+        target: Vec2i,
+        level: &TheCodeLevel,
+    ) -> Option<f32> {
+        let (mut x, mut y) = (ro.x / pixels_per_cell, ro.y / pixels_per_cell); // Convert to grid coords
+
+        let step_x = if rd.x > 0.0 { 1 } else { -1 };
+        let step_y = if rd.y > 0.0 { 1 } else { -1 };
+
+        let mut t_max_x = if rd.x > 0.0 {
+            ((x.floor() + 1.0) * pixels_per_cell - ro.x) / rd.x
+        } else {
+            (x.floor() * pixels_per_cell - ro.x) / rd.x
+        };
+
+        let mut t_max_y = if rd.y > 0.0 {
+            ((y.floor() + 1.0) * pixels_per_cell - ro.y) / rd.y
+        } else {
+            (y.floor() * pixels_per_cell - ro.y) / rd.y
+        };
+
+        let t_delta_x = pixels_per_cell / rd.x.abs();
+        let t_delta_y = pixels_per_cell / rd.y.abs();
+
+        for _ in 0..10 {
+            let ix = x as i32;
+            let iy = y as i32;
+
+            if ix == target.x && iy == target.y {
+                let distance = ((ro.x - x * pixels_per_cell).powi(2)
+                    + (ro.y - y * pixels_per_cell).powi(2))
+                .sqrt();
+                return Some(distance); // Return distance in pixels
+            }
+
+            if level.is_blocking((ix, iy)) {
+                break;
+            }
+
+            // Advance to next grid cell
+            if t_max_x < t_max_y {
+                t_max_x += t_delta_x;
+                x += step_x as f32;
+            } else {
+                t_max_y += t_delta_y;
+                y += step_y as f32;
+            }
+        }
+
+        None // No obstacle hit
+    }
+
+    #[inline(always)]
+    fn _ray_casting_2(
+        &self,
+        ro: Vec2f,
+        rd: Vec2f,
+        pixels_per_cell: f32,
+        level: &TheCodeLevel,
+    ) -> Option<(f32, Vec2i, Vec2f)> {
+        // Return type changed to include normal vector
+        let (mut x, mut y) = (ro.x / pixels_per_cell, ro.y / pixels_per_cell);
+
+        let step_x = if rd.x > 0.0 { 1 } else { -1 };
+        let step_y = if rd.y > 0.0 { 1 } else { -1 };
+
+        let mut t_max_x = if rd.x > 0.0 {
+            ((x.floor() + 1.0) * pixels_per_cell - ro.x) / rd.x
+        } else {
+            (x.floor() * pixels_per_cell - ro.x) / rd.x
+        };
+
+        let mut t_max_y = if rd.y > 0.0 {
+            ((y.floor() + 1.0) * pixels_per_cell - ro.y) / rd.y
+        } else {
+            (y.floor() * pixels_per_cell - ro.y) / rd.y
+        };
+
+        let t_delta_x = pixels_per_cell / rd.x.abs();
+        let t_delta_y = pixels_per_cell / rd.y.abs();
+
+        for _ in 0..3 {
+            let ix = x as i32;
+            let iy = y as i32;
+
+            if level.is_blocking((ix, iy)) {
+                let distance = ((ro.x - x * pixels_per_cell).powi(2)
+                    + (ro.y - y * pixels_per_cell).powi(2))
+                .sqrt();
+
+                let normal = if t_max_x < t_max_y {
+                    // Hit was on a vertical wall
+                    Vec2f::new(-step_x as f32, 0.0)
+                } else {
+                    // Hit was on a horizontal wall
+                    Vec2f::new(0.0, -step_y as f32)
+                };
+
+                return Some((distance, vec2i(ix, iy), normal)); // Return distance, grid hit and normal
+            }
+
+            // Advance to next grid cell
+            if t_max_x < t_max_y {
+                t_max_x += t_delta_x;
+                x += step_x as f32;
+            } else {
+                t_max_y += t_delta_y;
+                y += step_y as f32;
+            }
+        }
+
+        None // No obstacle hit
+    }
+
+    fn _uniform_vector(&self, rng: &mut ThreadRng) -> Vec2f {
+        let an = rng.gen_range(0.0..=1.0) * 6.283185_f32;
+        vec2f(an.sin(), an.cos())
+    }
+
+    fn _box_intersect(&self, ro: Vec2f, rd: Vec2f, bo: Vec4f) -> f32 {
+        let oc = ro - bo.xy();
+        let m = 1.0 / rd;
+        let n = -m * oc;
+        let k = abs(m) * bo.zw();
+
+        let t1 = n - k;
+        let t2 = n + k;
+
+        let tn = max(t1.x, t1.y);
+        let tf = min(t2.x, t2.y);
+
+        if tn > tf || tf < 0.0 {
+            return -1.;
+        }
+
+        let q = abs(oc) - bo.zw();
+        let g = max(q.x, q.y);
+
+        if g > 0.0 {
+            tn
+        } else {
+            tf
+        }
     }
 
     /*

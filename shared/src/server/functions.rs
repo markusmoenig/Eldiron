@@ -92,8 +92,11 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                         let z = p.z + by.y;
 
                         if let Some(update) = UPDATES.write().unwrap().get_mut(&region_id) {
-                            if region.can_move_to(vec3f(x, p.y, z), &TILES.read().unwrap(), update)
-                            {
+                            if region.can_move_to(
+                                vec2i(x as i32, z as i32),
+                                &TILES.read().unwrap(),
+                                update,
+                            ) {
                                 let old_position = *p;
 
                                 *p = vec3f(x, p.y, z);

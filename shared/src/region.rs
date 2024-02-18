@@ -93,12 +93,11 @@ impl Region {
     /// Returns true if the character can move to the given position.
     pub fn can_move_to(
         &self,
-        pos: Vec3f,
+        pos: Vec2i,
         tiles: &FxHashMap<Uuid, TheRGBATile>,
         update: &RegionUpdate,
     ) -> bool {
         let mut can_move = true;
-        let pos = vec2i(pos.x as i32, pos.z as i32);
 
         if pos.x < 0 || pos.y < 0 {
             return false;
@@ -129,20 +128,22 @@ impl Region {
         can_move
     }
 
+    pub fn distance(&self, x: Vec2i, y: Vec2i) -> f32 {
+        distance(Vec2f::from(x), Vec2f::from(y))
+    }
+
     /// Fills a code level with the blocking tiles of the region.
-    pub fn fill_code_level(&self, level: &mut TheCodeLevel, tiles: &FxHashMap<Uuid, TheRGBATile>) {
+    pub fn fill_code_level(
+        &self,
+        level: &mut TheCodeLevel,
+        tiles: &FxHashMap<Uuid, TheRGBATile>,
+        update: &RegionUpdate,
+    ) {
         level.clear_blocking();
         for y in 0..self.height {
             for x in 0..self.width {
-                let pos = (x, y);
-                if let Some(tile) = self.tiles.get(&pos) {
-                    for layer in tile.layers.iter().flatten() {
-                        if let Some(t) = tiles.get(layer) {
-                            if t.blocking {
-                                level.set_blocking((x as u16, y as u16));
-                            }
-                        }
-                    }
+                if !self.can_move_to(vec2i(x, y), tiles, update) {
+                    level.set_blocking((x, y));
                 }
             }
         }
