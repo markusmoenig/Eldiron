@@ -78,7 +78,7 @@ impl Region {
 
     /// Set the tile of the given position and role.
     pub fn set_tile(&mut self, pos: (i32, i32), role: Layer2DRole, tile: Option<Uuid>) {
-        if role == Layer2DRole::Other {
+        if role == Layer2DRole::FX {
             return;
         }
         if let Some(t) = self.tiles.get_mut(&pos) {
@@ -87,6 +87,13 @@ impl Region {
             let mut region_tile = RegionTile::default();
             region_tile.layers[role as usize] = tile;
             self.tiles.insert(pos, region_tile);
+        }
+    }
+
+    /// Set the timeline.
+    pub fn set_tilefx(&mut self, pos: (i32, i32), timeline: TheTimeline) {
+        if let Some(tile) = self.tiles.get_mut(&pos) {
+            tile.tilefx = Some(timeline);
         }
     }
 
@@ -165,7 +172,7 @@ pub enum Layer2DRole {
     Ground,
     Wall,
     Ceiling,
-    Other,
+    FX,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -173,8 +180,8 @@ pub struct RegionTile {
     // WallFX (name, position, alpha, delta)
     pub wallfx: Option<(String, Vec2f, f32, f32)>,
 
-    // Color correction timeline
-    pub color_correction: Option<TheTimeline>,
+    // TileFX Timeline
+    pub tilefx: Option<TheTimeline>,
 
     // Tile layers
     pub layers: Vec<Option<Uuid>>,
@@ -190,9 +197,7 @@ impl RegionTile {
     pub fn new() -> Self {
         Self {
             wallfx: None,
-
-            color_correction: None,
-
+            tilefx: None,
             layers: vec![None, None, None],
         }
     }

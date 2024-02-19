@@ -370,6 +370,16 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
+                if TILEFXEDITOR.lock().unwrap().handle_event(
+                    &event,
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.server,
+                    &mut self.server_ctx,
+                ) {
+                    redraw = true;
+                }
                 match event {
                     TheEvent::IndexChanged(id, index) => {
                         if id.name == "Editor Tab Tabbar" {

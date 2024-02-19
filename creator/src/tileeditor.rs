@@ -1,4 +1,4 @@
-use crate::editor::{CODEEDITOR, SIDEBARMODE, TILEDRAWER};
+use crate::editor::{CODEEDITOR, SIDEBARMODE, TILEDRAWER, TILEFXEDITOR};
 use crate::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -460,7 +460,11 @@ impl TileEditor {
                                 let mut undo = TheUndo::new(TheId::named("RegionChanged"));
                                 undo.set_undo_data(region.to_json());
 
-                                if region.tiles.contains_key(&(coord.x, coord.y)) {
+                                if self.curr_layer_role == Layer2DRole::FX {
+                                    if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
+                                        tile.tilefx = None;
+                                    }
+                                } else if region.tiles.contains_key(&(coord.x, coord.y)) {
                                     region.tiles.remove(&(coord.x, coord.y));
                                 }
 
@@ -585,20 +589,29 @@ impl TileEditor {
                             // No area, set the tile.
                             server_ctx.curr_character_instance = None;
                             if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
-                                for uuid in tile.layers.iter().flatten() {
-                                    if TILEDRAWER.lock().unwrap().tiles.contains_key(uuid) {
-                                        ctx.ui.send(TheEvent::StateChanged(
-                                            TheId::named_with_id("Tilemap Tile", *uuid),
-                                            TheWidgetState::Selected,
-                                        ));
+                                if self.curr_layer_role == Layer2DRole::FX {
+                                    if let Some(timeline) = &tile.tilefx {
+                                        TILEFXEDITOR
+                                            .lock()
+                                            .unwrap()
+                                            .set_timeline(timeline.clone(), ui);
+                                    }
+                                } else {
+                                    for uuid in tile.layers.iter().flatten() {
+                                        if TILEDRAWER.lock().unwrap().tiles.contains_key(uuid) {
+                                            ctx.ui.send(TheEvent::StateChanged(
+                                                TheId::named_with_id("Tilemap Tile", *uuid),
+                                                TheWidgetState::Selected,
+                                            ));
 
-                                        // Switch mode to draw, disabled for now
-                                        // self.editor_mode = EditorMode::Draw;
-                                        // if let Some(button) = ui.get_group_button("Editor Group") {
-                                        //     button.set_index(0);
-                                        //     redraw = true;
-                                        // }
-                                        break;
+                                            // Switch mode to draw, disabled for now
+                                            // self.editor_mode = EditorMode::Draw;
+                                            // if let Some(button) = ui.get_group_button("Editor Group") {
+                                            //     button.set_index(0);
+                                            //     redraw = true;
+                                            // }
+                                            break;
+                                        }
                                     }
                                 }
                             }
@@ -613,10 +626,7 @@ impl TileEditor {
                         ));
                     }
                 } else if self.editor_mode == EditorMode::Draw {
-                    if self.curr_layer_role == Layer2DRole::Other {
-                        // Paint with color correction
-                        // TODO
-                    } else if let Some(curr_tile_uuid) = self.curr_tile_uuid {
+                    if let Some(curr_tile_uuid) = self.curr_tile_uuid {
                         if TILEDRAWER
                             .lock()
                             .unwrap()
@@ -627,11 +637,24 @@ impl TileEditor {
                                 let mut undo = TheUndo::new(TheId::named("RegionChanged"));
                                 undo.set_undo_data(region.to_json());
 
-                                region.set_tile(
-                                    (coord.x, coord.y),
-                                    self.curr_layer_role,
-                                    self.curr_tile_uuid,
-                                );
+                                if self.curr_layer_role == Layer2DRole::FX {
+                                    if !TILEFXEDITOR.lock().unwrap().curr_timeline.is_empty() {
+                                        region.set_tilefx(
+                                            (coord.x, coord.y),
+                                            TILEFXEDITOR.lock().unwrap().curr_timeline.clone(),
+                                        )
+                                    } else if let Some(tile) =
+                                        region.tiles.get_mut(&(coord.x, coord.y))
+                                    {
+                                        tile.tilefx = None;
+                                    }
+                                } else {
+                                    region.set_tile(
+                                        (coord.x, coord.y),
+                                        self.curr_layer_role,
+                                        self.curr_tile_uuid,
+                                    );
+                                }
                                 undo.set_redo_data(region.to_json());
                                 self.set_icon_previews(region, *coord, ui);
 
@@ -840,18 +863,22 @@ impl TileEditor {
                 } else if id.name == "Ground Icon" {
                     self.curr_layer_role = Layer2DRole::Ground;
                     self.set_icon_colors(ui);
+                    server_ctx.show_fx_marker = false;
                     redraw = true;
                 } else if id.name == "Wall Icon" {
                     self.curr_layer_role = Layer2DRole::Wall;
                     self.set_icon_colors(ui);
+                    server_ctx.show_fx_marker = false;
                     redraw = true;
                 } else if id.name == "Ceiling Icon" {
                     self.curr_layer_role = Layer2DRole::Ceiling;
                     self.set_icon_colors(ui);
+                    server_ctx.show_fx_marker = false;
                     redraw = true;
                 } else if id.name == "Tile FX Icon" {
-                    self.curr_layer_role = Layer2DRole::Other;
+                    self.curr_layer_role = Layer2DRole::FX;
                     self.set_icon_colors(ui);
+                    server_ctx.show_fx_marker = true;
                     redraw = true;
                 }
             }
@@ -958,7 +985,7 @@ impl TileEditor {
             });
         }
         if let Some(icon_view) = ui.get_icon_view("Tile FX Icon") {
-            icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::Other {
+            icon_view.set_border_color(if self.curr_layer_role == Layer2DRole::FX {
                 Some(self.icon_selected_border_color)
             } else {
                 Some(self.icon_normal_border_color)

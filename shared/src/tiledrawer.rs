@@ -12,6 +12,9 @@ pub struct RegionDrawSettings {
     pub delta: f32,
     pub brightness: f32,
 
+    pub show_fx_marker: bool,
+
+    pub time: TheTime,
     pub center_on_character: Option<Uuid>,
 }
 
@@ -24,6 +27,10 @@ impl RegionDrawSettings {
             offset: Vec2i::zero(),
             delta: 0.0,
             brightness: 1.0,
+
+            show_fx_marker: false,
+
+            time: TheTime::default(),
             center_on_character: None,
         }
     }
@@ -139,6 +146,9 @@ impl TileDrawer {
                     let mut color = BLACK;
                     let mut is_empty = true;
 
+                    let mut world_brightness = settings.brightness;
+                    let mut show_fx_marker = false;
+
                     if let Some(tile) = region.tiles.get(&(tile_x, tile_y)) {
                         is_empty = false;
                         for tile_index in 0..tile.layers.len() {
@@ -189,6 +199,22 @@ impl TileDrawer {
                                 }
                             }
                         }
+
+                        // Show orange FX marker
+                        if settings.show_fx_marker && tile.tilefx.is_some() {
+                            show_fx_marker = true;
+                        }
+
+                        // Check for FX
+                        if let Some(tilefx) = &tile.tilefx {
+                            if let Some(TheValue::Float(brightness)) = tilefx.get(
+                                str!("Brightness"),
+                                &settings.time,
+                                TheInterpolation::Linear,
+                            ) {
+                                world_brightness *= brightness;
+                            }
+                        }
                     }
 
                     // Items
@@ -224,8 +250,6 @@ impl TileDrawer {
                         }
                     }
 
-                    let world_brightness = settings.brightness;
-
                     // color[0] = (color[0] as f32 * world_brightness) as u8;
                     // color[1] = (color[1] as f32 * world_brightness) as u8;
                     // color[2] = (color[2] as f32 * world_brightness) as u8;
@@ -240,13 +264,25 @@ impl TileDrawer {
                             world_brightness,
                         );
                     }
+                    // if (position.x < triangleSize && (1.0 - position.y) < triangleSize && (1.0 - position.y) > position.x - triangleSize) {
+
+                    // Show the fx marker if necessary
+                    if show_fx_marker {
+                        let triangle_size = 4;
+                        if xx < triangle_size && yy < triangle_size && yy < triangle_size - xx {
+                            color[0] = 212;
+                            color[1] = 128;
+                            color[2] = 77;
+                            color[3] = 255;
+                        }
+                    }
 
                     pixel.copy_from_slice(&color);
                 }
             });
 
         let _stop = self.get_time();
-        println!("drawing time {:?}", _stop - _start);
+        // println!("drawing time {:?}", _stop - _start);
 
         characters
     }
@@ -269,7 +305,7 @@ impl TileDrawer {
 
         let ro = Vec2f::from(p) / 24.0;
 
-        let offsets = vec![
+        let offsets = [
             ro,
             ro - vec2f(0.0, 0.5),
             ro - vec2f(0.5, 0.0),
@@ -284,6 +320,8 @@ impl TileDrawer {
             let mut total_light = Vec3f::new(0.0, 0.0, 0.0);
 
             let light_strength = 10.0;
+
+            #[allow(clippy::needless_range_loop)]
             for s in 0..samples {
                 let ro = offsets[s];
 
@@ -529,7 +567,7 @@ impl TileDrawer {
     }
 
     fn _uniform_vector(&self, rng: &mut ThreadRng) -> Vec2f {
-        let an = rng.gen_range(0.0..=1.0) * 6.283185_f32;
+        let an = rng.gen_range(0.0..=1.0) * 2.0 * std::f32::consts::PI;
         vec2f(an.sin(), an.cos())
     }
 

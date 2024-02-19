@@ -108,6 +108,7 @@ impl RegionInstance {
         self.sandbox.clear_debug_messages();
         self.time = time;
         self.draw_settings.brightness = self.get_brightness();
+        self.draw_settings.time = time;
 
         if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
             for character in update.characters.values_mut() {
@@ -188,6 +189,8 @@ impl RegionInstance {
         server_ctx: &ServerContext,
     ) {
         let delta = self.redraw_ms as f32 / self.tick_ms as f32;
+
+        self.draw_settings.show_fx_marker = server_ctx.show_fx_marker;
 
         if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
             let grid_size = region.grid_size as f32;
@@ -691,6 +694,7 @@ impl RegionInstance {
     /// If the user changes the time w/o the server running, we have to update the draw settings manually.
     pub fn set_time(&mut self, time: TheTime) {
         self.time = time;
+        self.draw_settings.time = time;
         self.draw_settings.brightness = self.get_brightness();
     }
 

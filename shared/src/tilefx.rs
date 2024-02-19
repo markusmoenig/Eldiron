@@ -3,17 +3,17 @@ use theframework::prelude::*;
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum TileFX {
     None,
-    ColorCorrection(TheCollection),
+    Brightness(TheCollection),
     LightEmitter(TheCollection),
 }
 
 impl TileFX {
     pub fn new_fx(name: &str) -> TileFX {
         match name {
-            "Color Correction" => {
-                let mut collection = TheCollection::named(str!("Color Correction"));
-                collection.set("Brightness", TheValue::FloatRange(1.0, 0.0..=1.0));
-                TileFX::ColorCorrection(collection)
+            "Brightness" => {
+                let mut collection = TheCollection::named(str!("Brightness"));
+                collection.set("Brightness", TheValue::FloatRange(1.0, 0.0..=2.0));
+                TileFX::Brightness(collection)
             }
             "Light Emitter" => {
                 let mut collection = TheCollection::named(str!("Light Emitter"));
@@ -27,8 +27,16 @@ impl TileFX {
     pub fn to_string(self) -> &'static str {
         match self {
             TileFX::None => "None",
-            TileFX::ColorCorrection(_) => "Color Correction",
+            TileFX::Brightness(_) => "Brightness",
             TileFX::LightEmitter(_) => "Light Emitter",
+        }
+    }
+
+    pub fn collection(&self) -> Option<&TheCollection> {
+        match self {
+            TileFX::None => None,
+            TileFX::Brightness(collection) => Some(collection),
+            TileFX::LightEmitter(collection) => Some(collection),
         }
     }
 }

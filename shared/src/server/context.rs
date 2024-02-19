@@ -32,6 +32,9 @@ pub struct ServerContext {
 
     /// The currently selected widget.
     pub curr_widget: Option<Uuid>,
+
+    /// Show the fx marker on the tiles
+    pub show_fx_marker: bool,
 }
 
 impl Default for ServerContext {
@@ -59,6 +62,8 @@ impl ServerContext {
 
             curr_screen: Uuid::nil(),
             curr_widget: None,
+
+            show_fx_marker: false,
         }
     }
 
