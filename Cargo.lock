@@ -1179,9 +1179,9 @@ dependencies = [
 
 [[package]]
 name = "maths-rs"
-version = "0.2.5"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e71d151f69516b0b9f474ae6f6ab526f92dd73d7735090f3c823ab483d518840"
+checksum = "a7bfe826467580a7544b44cafa9f7c76e625c27b3c3fbe518025bc7049cd2555"
 dependencies = [
  "serde",
  "serde_json",
@@ -2103,7 +2103,7 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
-source = "git+https://github.com/markusmoenig/TheFramework#ff3a4276d8ff1b0196194e5b6d717edea773de1f"
+source = "git+https://github.com/markusmoenig/TheFramework#1502e8252da516c553455a8f287f4d17bb035ce6"
 dependencies = [
  "console_error_panic_hook",
  "console_log",

@@ -79,6 +79,8 @@ impl TileDrawer {
         let grid_size = region.grid_size as f32;
         let mut offset = settings.offset;
 
+        // Collect the character positions.
+
         // The pixel position of the characters with their tile id.
         let mut characters: Vec<(Vec2i, Uuid, Uuid)> = vec![];
 
@@ -123,7 +125,8 @@ impl TileDrawer {
             }
         }
 
-        let mut level = TheCodeLevel::new(region.width, region.height);
+        // Fill the code level with the blocking info and collect lights
+        let mut level = TheCodeLevel::new(region.width, region.height, settings.time);
         region.fill_code_level(&mut level, &self.tiles, update);
 
         let pixels = buffer.pixels_mut();
@@ -209,10 +212,24 @@ impl TileDrawer {
                         if let Some(tilefx) = &tile.tilefx {
                             if let Some(TheValue::Float(brightness)) = tilefx.get(
                                 str!("Brightness"),
+                                str!("Brightness"),
                                 &settings.time,
                                 TheInterpolation::Linear,
                             ) {
-                                world_brightness *= brightness;
+                                if let Some(TheValue::TileMask(tile)) = tilefx.get(
+                                    str!("Brightness"),
+                                    str!("Mask"),
+                                    &settings.time,
+                                    TheInterpolation::Linear,
+                                ) {
+                                    if tile.is_empty()
+                                        || tile.contains(vec2i(xx, yy), region.grid_size)
+                                    {
+                                        world_brightness *= brightness;
+                                    }
+                                } else {
+                                    world_brightness *= brightness;
+                                }
                             }
                         }
                     }
@@ -255,7 +272,7 @@ impl TileDrawer {
                     // color[2] = (color[2] as f32 * world_brightness) as u8;
 
                     if !is_empty {
-                        self.path(
+                        self.render(
                             vec2i(x, y),
                             &mut color,
                             region,
@@ -264,7 +281,6 @@ impl TileDrawer {
                             world_brightness,
                         );
                     }
-                    // if (position.x < triangleSize && (1.0 - position.y) < triangleSize && (1.0 - position.y) > position.x - triangleSize) {
 
                     // Show the fx marker if necessary
                     if show_fx_marker {
@@ -287,7 +303,8 @@ impl TileDrawer {
         characters
     }
 
-    pub fn path(
+    /// Sample the lights and apply all TileFX for the pixel.
+    pub fn render(
         &self,
         p: Vec2i,
         c: &mut [u8; 4],
@@ -299,9 +316,6 @@ impl TileDrawer {
         //let mut rng = rand::thread_rng();
 
         let mut color = TheColor::from_u8_array(*c).to_vec3f();
-
-        //let light = vec2i(39, 33);
-        let lights = vec![vec2f(39.5, 33.5)];
 
         let ro = Vec2f::from(p) / 24.0;
 
@@ -316,52 +330,58 @@ impl TileDrawer {
         ];
         let samples = offsets.len();
 
-        for light in &lights {
+        // If no lights apply world brightness
+        if level.lights.is_empty() {
+            color *= world_brightness;
+        } else {
+            // Sample the lights
             let mut total_light = Vec3f::new(0.0, 0.0, 0.0);
+            for (light_grid, light_coll) in &level.lights {
+                let light_pos = Vec2f::from(*light_grid) + vec2f(0.5, 0.5);
+                let light_max_distance = 10.0;
+                let light_strength = light_coll.get_f32_default("Emission Strength", 1.0);
 
-            let light_strength = 10.0;
+                for s in offsets.iter().take(samples) {
+                    let ro = s;
 
-            #[allow(clippy::needless_range_loop)]
-            for s in 0..samples {
-                let ro = offsets[s];
+                    let mut light_dir = light_pos - ro;
+                    let light_dist = length(light_dir);
 
-                let mut light_dir = Vec2f::from(*light) - ro;
-                let light_dist = length(light_dir);
+                    if light_dist < 10.0 {
+                        light_dir = normalize(light_dir);
 
-                if light_dist < light_strength {
-                    light_dir = normalize(light_dir);
+                        let mut t = 0.0;
+                        let max_t = light_dist;
 
-                    let mut t = 0.0;
-                    let max_t = light_dist;
+                        let mut hit = false;
 
-                    let mut hit = false;
+                        while t < max_t {
+                            let pos = ro + light_dir * t;
+                            let tile = vec2i(pos.x as i32, pos.y as i32);
 
-                    while t < max_t {
-                        let pos = ro + light_dir * t;
-                        let tile = vec2i(pos.x as i32, pos.y as i32);
+                            if tile == *light_grid {
+                                hit = true;
+                                break;
+                            }
+                            if level.is_blocking((tile.x, tile.y)) {
+                                hit = false;
+                                break;
+                            }
 
-                        if tile == Vec2i::from(*light) {
-                            hit = true;
-                            break;
+                            t += 1.0 / 4.0;
                         }
-                        if level.is_blocking((tile.x, tile.y)) {
-                            hit = false;
-                            break;
+
+                        if hit {
+                            let intensity = 1.0 - (max_t / light_max_distance).clamp(0.0, 1.0);
+                            //intensity *= if s == 0 { 2.0 } else { 1.0 };
+                            total_light += intensity * light_strength;
                         }
-
-                        t += 1.0 / 4.0;
-                    }
-
-                    if hit {
-                        let mut intensity = 1.0 - (max_t / light_strength).clamp(0.0, 1.0);
-                        intensity *= if s == 0 { 2.0 } else { 1.0 };
-                        total_light += color * intensity; // * vec3f(1.0, 1.0, 0.0);
                     }
                 }
             }
 
             color = clamp(
-                color * world_brightness + color * total_light / ((samples + 1) as f32),
+                color * world_brightness + color * total_light / samples as f32,
                 color * world_brightness,
                 color,
             );

@@ -35,11 +35,17 @@ impl TileFXEditor {
         add_button.set_status_text("Add the effect to the timeline.");
         let mut clear_button = TheTraybarButton::new(TheId::named("TileFX Clear"));
         //add_button.set_icon_name("icon_role_add".to_string());
-        clear_button.set_text(str!("Clear"));
+        clear_button.set_text(str!("Clear FX"));
         clear_button.set_status_text("Clear the timeline.");
+
+        let mut clear_mask_button = TheTraybarButton::new(TheId::named("TileFX Clear Mask"));
+        clear_mask_button.set_text(str!("Clear Mask"));
+        clear_mask_button.set_status_text("Clear the pixel mask. If there are pixels selected the FX will only be applied to those pixels.");
 
         toolbar_hlayout.add_widget(Box::new(add_button));
         toolbar_hlayout.add_widget(Box::new(clear_button));
+        toolbar_hlayout.add_widget(Box::new(clear_mask_button));
+        toolbar_hlayout.set_reverse_index(Some(1));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
 
@@ -76,9 +82,17 @@ impl TileFXEditor {
         // Tile Preview
 
         let mut preview_canvas = TheCanvas::default();
-        let mut tile_icon = TheIconView::new(TheId::named("TileFX Icon"));
-        tile_icon.limiter_mut().set_max_size(vec2i(250, 250));
-        preview_canvas.set_widget(tile_icon);
+        let mut tile_rgba = TheRGBAView::new(TheId::named("TileFX RGBA"));
+        tile_rgba.set_mode(TheRGBAViewMode::TileSelection);
+        tile_rgba.set_grid(Some(16));
+        tile_rgba.set_buffer(TheRGBABuffer::new(TheDim::new(0, 0, 193, 193)));
+        tile_rgba.limiter_mut().set_max_size(vec2i(193, 193));
+
+        let mut vlayout = TheVLayout::new(TheId::empty());
+        vlayout.limiter_mut().set_max_width(200);
+        vlayout.add_widget(Box::new(tile_rgba));
+
+        preview_canvas.set_layout(vlayout);
 
         canvas.set_right(preview_canvas);
 
@@ -89,7 +103,7 @@ impl TileFXEditor {
         &mut self,
         event: &TheEvent,
         ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         _project: &mut Project,
         _server: &mut Server,
         _server_ctx: &mut ServerContext,
@@ -97,6 +111,24 @@ impl TileFXEditor {
         let mut redraw = false;
 
         match event {
+            TheEvent::TileSelectionChanged(id) => {
+                if id.name == "TileFX RGBA" {
+                    if let Some(widget) = ui.get_widget("TileFX RGBA") {
+                        if let Some(tile_rgba) = widget.as_rgba_view() {
+                            let selection = tile_rgba.selection();
+
+                            let mut lt = TheTileMask::default();
+                            for s in &selection {
+                                lt.add_pixel(vec2i(s.0, s.1), 12);
+                            }
+                            self.curr_collection.set("Mask", TheValue::TileMask(lt));
+
+                            tile_rgba.set_needs_redraw(true);
+                            redraw = true;
+                        }
+                    }
+                }
+            }
             TheEvent::ValueChanged(id, value) => {
                 if id.name.starts_with(":TILEFX:") {
                     if let Some(id) = id.name.strip_prefix(":TILEFX: ") {
@@ -143,6 +175,8 @@ impl TileFXEditor {
                                         text_layout.add_pair(name.clone(), Box::new(slider));
                                     }
                                 }
+                                redraw = true;
+                                ctx.ui.relayout = true;
                             }
                         }
                     }

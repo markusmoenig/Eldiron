@@ -147,9 +147,40 @@ impl Region {
         update: &RegionUpdate,
     ) {
         level.clear_blocking();
+
         for y in 0..self.height {
             for x in 0..self.width {
-                if !self.can_move_to(vec2i(x, y), tiles, update) {
+                let mut can_move = true;
+                let pos = vec2i(x, y);
+                if let Some(tile) = self.tiles.get(&(pos.x, pos.y)) {
+                    for index in 0..tile.layers.len() {
+                        if let Some(layer) = tile.layers[index] {
+                            if let Some(t) = tiles.get(&layer) {
+                                if t.blocking && index == Layer2DRole::Wall as usize {
+                                    can_move = false;
+
+                                    if let Some(wallfx) = update.wallfx.get(&(pos.x, pos.y)) {
+                                        if wallfx.fx != WallFX::Normal {
+                                            can_move = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // If the tile contains a light, add it.
+                    if let Some(timeline) = &tile.tilefx {
+                        let light = TileFX::new_fx("Light Emitter");
+                        if timeline.contains_collection(&light.to_kind()) {
+                            let mut l = light.collection_cloned();
+                            timeline.fill(&level.time, &mut l);
+                            level.add_light(pos, l);
+                        }
+                    }
+                }
+
+                if !can_move {
                     level.set_blocking((x, y));
                 }
             }

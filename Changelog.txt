@@ -1,6 +1,8 @@
 v 0.8.9 (WiP)
 -------
 
+- TileFX (tile effects, like lighting, brightness adjustment, etc.) with timeline support.
+- Daytime / Nighttime cycle via a timeline.
 - CodeGridFX support for drawing (client side).
 - Image and font assets which can be used by the client.
 - Screens / Widgets support for the Client.
