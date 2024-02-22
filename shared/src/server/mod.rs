@@ -4,12 +4,14 @@ use std::sync::{mpsc, Mutex, RwLock};
 use theframework::prelude::*;
 
 pub mod context;
+pub mod daylight;
 pub mod functions;
 pub mod region_instance;
 pub mod world;
 
 pub mod prelude {
     pub use super::context::ServerContext;
+    pub use super::daylight::Daylight;
     pub use super::region_instance::RegionInstance;
     pub use super::world::World;
     pub use super::Server;

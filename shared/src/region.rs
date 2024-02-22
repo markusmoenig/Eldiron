@@ -171,8 +171,8 @@ impl Region {
 
                     // If the tile contains a light, add it.
                     if let Some(timeline) = &tile.tilefx {
-                        let light = TileFX::new_fx("Light Emitter");
-                        if timeline.contains_collection(&light.to_kind()) {
+                        if timeline.contains_collection("Light Emitter") {
+                            let light = TileFX::new_fx("Light Emitter", None);
                             let mut l = light.collection_cloned();
                             timeline.fill(&level.time, &mut l);
                             level.add_light(pos, l);

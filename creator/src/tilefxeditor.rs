@@ -3,6 +3,8 @@ use crate::prelude::*;
 pub struct TileFXEditor {
     pub curr_timeline: TheTimeline,
     pub curr_collection: TheCollection,
+
+    pub preview_size: i32,
 }
 
 #[allow(clippy::new_without_default)]
@@ -11,6 +13,8 @@ impl TileFXEditor {
         Self {
             curr_timeline: TheTimeline::default(),
             curr_collection: TheCollection::default(),
+
+            preview_size: 192,
         }
     }
 
@@ -22,7 +26,7 @@ impl TileFXEditor {
         let mut toolbar_canvas = TheCanvas::default();
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.limiter_mut().set_max_height(25);
-        toolbar_hlayout.set_margin(vec4i(150, 2, 5, 3));
+        toolbar_hlayout.set_margin(vec4i(120, 2, 5, 3));
 
         let mut time_slider = TheTimeSlider::new(TheId::named("TileFX Timeline"));
         time_slider.set_status_text("The timeline for the tile based effects.");
@@ -56,8 +60,12 @@ impl TileFXEditor {
         let mut list_canvas = TheCanvas::default();
         let mut list_layout = TheListLayout::new(TheId::named("TileFX List"));
 
-        let mut item = TheListItem::new(TheId::named("TileFX Brighness"));
+        let mut item = TheListItem::new(TheId::named("TileFX Brightness"));
         item.set_text(str!("Brightness"));
+        list_layout.add_item(item, ctx);
+
+        let mut item = TheListItem::new(TheId::named("TileFX Daylight"));
+        item.set_text(str!("Daylight"));
         list_layout.add_item(item, ctx);
 
         let mut item = TheListItem::new(TheId::named("TileFX Light Emitter"));
@@ -84,9 +92,17 @@ impl TileFXEditor {
         let mut preview_canvas = TheCanvas::default();
         let mut tile_rgba = TheRGBAView::new(TheId::named("TileFX RGBA"));
         tile_rgba.set_mode(TheRGBAViewMode::TileSelection);
-        tile_rgba.set_grid(Some(16));
-        tile_rgba.set_buffer(TheRGBABuffer::new(TheDim::new(0, 0, 193, 193)));
-        tile_rgba.limiter_mut().set_max_size(vec2i(193, 193));
+        tile_rgba.set_grid(Some(self.preview_size / 24));
+        tile_rgba.set_grid_color([40, 40, 40, 255]);
+        tile_rgba.set_buffer(TheRGBABuffer::new(TheDim::new(
+            0,
+            0,
+            self.preview_size,
+            self.preview_size,
+        )));
+        tile_rgba
+            .limiter_mut()
+            .set_max_size(vec2i(self.preview_size, self.preview_size));
 
         let mut vlayout = TheVLayout::new(TheId::empty());
         vlayout.limiter_mut().set_max_width(200);
@@ -119,7 +135,7 @@ impl TileFXEditor {
 
                             let mut lt = TheTileMask::default();
                             for s in &selection {
-                                lt.add_pixel(vec2i(s.0, s.1), 12);
+                                lt.add_pixel(vec2i(s.0, s.1), true);
                             }
                             self.curr_collection.set("Mask", TheValue::TileMask(lt));
 
@@ -131,13 +147,40 @@ impl TileFXEditor {
             }
             TheEvent::ValueChanged(id, value) => {
                 if id.name.starts_with(":TILEFX:") {
-                    if let Some(id) = id.name.strip_prefix(":TILEFX: ") {
-                        self.curr_collection.set(id, value.clone());
+                    if let Some(name) = id.name.strip_prefix(":TILEFX: ") {
+                        let mut value = value.clone();
+
+                        // Correct values to their range variants if necessary as TheSlider strips them
+                        // of the range
+                        if let Some(TheValue::FloatRange(_, range)) = self.curr_collection.get(name)
+                        {
+                            value = TheValue::FloatRange(value.to_f32().unwrap(), range.clone());
+                        } else if let Some(TheValue::IntRange(_, range)) =
+                            self.curr_collection.get(name)
+                        {
+                            value = TheValue::IntRange(value.to_i32().unwrap(), range.clone());
+                        } else if let Some(TheValue::TextList(_, list)) =
+                            self.curr_collection.get(name)
+                        {
+                            value = TheValue::TextList(value.to_i32().unwrap(), list.clone());
+                        }
+
+                        self.curr_collection.set(name, value);
                     }
                 }
             }
             TheEvent::StateChanged(id, state) => {
-                if id.name == "TileFX Add" && *state == TheWidgetState::Clicked {
+                if id.name == "TileFX Clear Mask" && *state == TheWidgetState::Clicked {
+                    if let Some(widget) = ui.get_widget("TileFX RGBA") {
+                        if let Some(tile_rgba) = widget.as_rgba_view() {
+                            tile_rgba.set_selection(FxHashSet::default());
+                            self.curr_collection
+                                .set("Mask", TheValue::TileMask(TheTileMask::default()));
+                            tile_rgba.set_needs_redraw(true);
+                            redraw = true;
+                        }
+                    }
+                } else if id.name == "TileFX Add" && *state == TheWidgetState::Clicked {
                     if let Some(time_slider) = ui.get_time_slider("TileFX Timeline") {
                         if let TheValue::Time(time) = time_slider.value() {
                             self.curr_timeline.add(time, self.curr_collection.clone());
@@ -151,14 +194,13 @@ impl TileFXEditor {
                         time_slider.clear_marker();
                         redraw = true;
                     }
-                } else if id.name.starts_with("TileFX") && *state == TheWidgetState::Selected {
-                    let mut fx: Option<TileFX> = None;
+                } else if id.name.starts_with("TileFX ") && *state == TheWidgetState::Selected {
+                    let fx_name = id.name.strip_prefix("TileFX ").unwrap();
+                    let c = self
+                        .curr_timeline
+                        .get_collection_at(&TheTime::default(), fx_name.to_string());
 
-                    if id.name == "TileFX Brighness" {
-                        fx = Some(TileFX::new_fx("Brightness"));
-                    } else if id.name == "TileFX Light Emitter" {
-                        fx = Some(TileFX::new_fx("Light Emitter"));
-                    }
+                    let fx = Some(TileFX::new_fx(fx_name, c));
 
                     if let Some(fx) = fx {
                         if let Some(text_layout) = ui.get_text_layout("TileFX Settings") {
@@ -172,11 +214,45 @@ impl TileFXEditor {
                                         ));
                                         slider.set_value(TheValue::Float(*value));
                                         slider.set_range(TheValue::RangeF32(range.clone()));
+                                        slider.set_status_text(fx.get_description(name).as_str());
                                         text_layout.add_pair(name.clone(), Box::new(slider));
+                                    } else if let TheValue::IntRange(value, range) = value {
+                                        let mut slider = TheSlider::new(TheId::named(
+                                            (":TILEFX: ".to_owned() + name).as_str(),
+                                        ));
+                                        slider.set_value(TheValue::Int(*value));
+                                        slider.set_range(TheValue::RangeI32(range.clone()));
+                                        slider.set_status_text(fx.get_description(name).as_str());
+                                        text_layout.add_pair(name.clone(), Box::new(slider));
+                                    } else if let TheValue::TextList(index, list) = value {
+                                        let mut dropdown = TheDropdownMenu::new(TheId::named(
+                                            (":TILEFX: ".to_owned() + name).as_str(),
+                                        ));
+                                        for item in list {
+                                            dropdown.add_option(item.clone());
+                                        }
+                                        dropdown.set_selected_index(*index);
+                                        dropdown.set_status_text(fx.get_description(name).as_str());
+                                        text_layout.add_pair(name.clone(), Box::new(dropdown));
                                     }
                                 }
                                 redraw = true;
                                 ctx.ui.relayout = true;
+                            }
+                        }
+
+                        if let Some(TheValue::TileMask(mask)) = self.curr_collection.get("Mask") {
+                            if let Some(widget) = ui.get_widget("TileFX RGBA") {
+                                if let Some(tile_rgba) = widget.as_rgba_view() {
+                                    let mut set = FxHashSet::default();
+
+                                    for (index, value) in mask.pixels.iter() {
+                                        if *value {
+                                            set.insert((index.x, index.y));
+                                        }
+                                    }
+                                    tile_rgba.set_selection(set);
+                                }
                             }
                         }
                     }

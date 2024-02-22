@@ -10,7 +10,7 @@ pub struct RegionDrawSettings {
     pub delta_in_tick: f32,
     pub offset: Vec2i,
     pub delta: f32,
-    pub brightness: f32,
+    pub daylight: Vec3f,
 
     pub show_fx_marker: bool,
 
@@ -26,7 +26,7 @@ impl RegionDrawSettings {
             delta_in_tick: 0.0,
             offset: Vec2i::zero(),
             delta: 0.0,
-            brightness: 1.0,
+            daylight: Vec3f::one(),
 
             show_fx_marker: false,
 
@@ -147,13 +147,14 @@ impl TileDrawer {
                     let mut yy = y % region.grid_size;
 
                     let mut color = BLACK;
-                    let mut is_empty = true;
+                    let mut tile_is_empty = true;
 
-                    let mut world_brightness = settings.brightness;
+                    let mut daylight = settings.daylight;
                     let mut show_fx_marker = false;
 
                     if let Some(tile) = region.tiles.get(&(tile_x, tile_y)) {
-                        is_empty = false;
+                        tile_is_empty = false;
+
                         for tile_index in 0..tile.layers.len() {
                             if let Some(tile_uuid) = tile.layers[tile_index] {
                                 if let Some(data) = self.tiles.get(&tile_uuid) {
@@ -189,11 +190,9 @@ impl TileDrawer {
 
                                         if valid {
                                             if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
-                                                color = self.mix_color(
-                                                    &color,
-                                                    &c,
-                                                    c[3] as f32 / 255.0 * alpha,
-                                                );
+                                                let wall_alpha = c[3] as f32 / 255.0;
+                                                color =
+                                                    self.mix_color(&color, &c, wall_alpha * alpha);
                                             }
                                         }
                                     } else if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
@@ -210,7 +209,27 @@ impl TileDrawer {
 
                         // Check for FX
                         if let Some(tilefx) = &tile.tilefx {
-                            if let Some(TheValue::Float(brightness)) = tilefx.get(
+                            if let Some(TheValue::FloatRange(value, _)) = tilefx.get(
+                                str!("Daylight"),
+                                str!("Attenuation"),
+                                &settings.time,
+                                TheInterpolation::Linear,
+                            ) {
+                                if let Some(TheValue::TileMask(tile)) = tilefx.get(
+                                    str!("Daylight"),
+                                    str!("Mask"),
+                                    &settings.time,
+                                    TheInterpolation::Linear,
+                                ) {
+                                    if tile.contains(vec2i(xx, yy)) {
+                                        color[0] += ((daylight.x * value) * 255.0) as u8;
+                                        color[1] += ((daylight.y * value) * 255.0) as u8;
+                                        color[2] += ((daylight.z * value) * 255.0) as u8;
+                                        color[3] = 255;
+                                    }
+                                }
+                            }
+                            if let Some(TheValue::FloatRange(brightness, _)) = tilefx.get(
                                 str!("Brightness"),
                                 str!("Brightness"),
                                 &settings.time,
@@ -222,13 +241,11 @@ impl TileDrawer {
                                     &settings.time,
                                     TheInterpolation::Linear,
                                 ) {
-                                    if tile.is_empty()
-                                        || tile.contains(vec2i(xx, yy), region.grid_size)
-                                    {
-                                        world_brightness *= brightness;
+                                    if tile.is_empty() || tile.contains(vec2i(xx, yy)) {
+                                        daylight *= brightness;
                                     }
                                 } else {
-                                    world_brightness *= brightness;
+                                    daylight *= brightness;
                                 }
                             }
                         }
@@ -237,7 +254,7 @@ impl TileDrawer {
                     // Items
                     for item in update.items.values() {
                         if tile_x == item.position.x as i32 && tile_y == item.position.y as i32 {
-                            is_empty = false;
+                            tile_is_empty = false;
                             if let Some(tile_uuid) =
                                 self.get_tile_id_by_name(item.tile_name.clone())
                             {
@@ -261,25 +278,14 @@ impl TileDrawer {
                             let yy = y - pos.y;
 
                             if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
-                                is_empty = false;
+                                tile_is_empty = false;
                                 color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
                             }
                         }
                     }
 
-                    // color[0] = (color[0] as f32 * world_brightness) as u8;
-                    // color[1] = (color[1] as f32 * world_brightness) as u8;
-                    // color[2] = (color[2] as f32 * world_brightness) as u8;
-
-                    if !is_empty {
-                        self.render(
-                            vec2i(x, y),
-                            &mut color,
-                            region,
-                            update,
-                            &level,
-                            world_brightness,
-                        );
+                    if !tile_is_empty {
+                        self.render(vec2i(x, y), &mut color, region, update, &level, daylight);
                     }
 
                     // Show the fx marker if necessary
@@ -308,40 +314,60 @@ impl TileDrawer {
         &self,
         p: Vec2i,
         c: &mut [u8; 4],
-        _region: &Region,
+        region: &Region,
         _update: &RegionUpdate,
         level: &TheCodeLevel,
-        world_brightness: f32,
+        daylight: Vec3f,
     ) {
         //let mut rng = rand::thread_rng();
 
         let mut color = TheColor::from_u8_array(*c).to_vec3f();
 
-        let ro = Vec2f::from(p) / 24.0;
-
-        let offsets = [
-            ro,
-            ro - vec2f(0.0, 0.5),
-            ro - vec2f(0.5, 0.0),
-            // ro - vec2f(0.5, 0.5),
-            ro + vec2f(0.5, 0.0),
-            ro + vec2f(0.0, 0.5),
-            // ro + vec2f(0.5, 0.5),
-        ];
-        let samples = offsets.len();
+        let ro = Vec2f::from(p) / region.grid_size as f32;
 
         // If no lights apply world brightness
         if level.lights.is_empty() {
-            color *= world_brightness;
+            color *= daylight;
         } else {
             // Sample the lights
             let mut total_light = Vec3f::new(0.0, 0.0, 0.0);
             for (light_grid, light_coll) in &level.lights {
                 let light_pos = Vec2f::from(*light_grid) + vec2f(0.5, 0.5);
                 let light_max_distance = 10.0;
-                let light_strength = light_coll.get_f32_default("Emission Strength", 1.0);
+                let mut light_strength = light_coll.get_f32_default("Emission Strength", 1.0);
+                let light_sampling_off = light_coll.get_f32_default("Sample Offset", 0.5);
+                let light_samples = light_coll.get_i32_default("Samples #", 5) as usize;
+                let light_color = light_coll.get_i32_default("Light Color", 5);
+                let light_limiter = light_coll.get_i32_default("Limit Direction", 0);
 
-                for s in offsets.iter().take(samples) {
+                if light_color == 1 {
+                    light_strength = daylight.x;
+                }
+
+                if light_limiter == 1 && ro.y > light_pos.y {
+                    continue;
+                }
+                if light_limiter == 2 && ro.x < light_pos.x {
+                    continue;
+                }
+                if light_limiter == 3 && ro.y < light_pos.y {
+                    continue;
+                }
+                if light_limiter == 4 && ro.x > light_pos.x {
+                    continue;
+                }
+
+                let offsets = [
+                    ro,
+                    ro - vec2f(0.0, light_sampling_off),
+                    ro - vec2f(light_sampling_off, 0.0),
+                    ro + vec2f(light_sampling_off, 0.0),
+                    ro + vec2f(0.0, light_sampling_off),
+                    ro - vec2f(0.5, 0.5),
+                    ro + vec2f(0.5, 0.5),
+                ];
+
+                for s in offsets.iter().take(light_samples) {
                     let ro = s;
 
                     let mut light_dir = light_pos - ro;
@@ -374,15 +400,15 @@ impl TileDrawer {
                         if hit {
                             let intensity = 1.0 - (max_t / light_max_distance).clamp(0.0, 1.0);
                             //intensity *= if s == 0 { 2.0 } else { 1.0 };
-                            total_light += intensity * light_strength;
+                            total_light += intensity * light_strength / light_samples as f32;
                         }
                     }
                 }
             }
 
             color = clamp(
-                color * world_brightness + color * total_light / samples as f32,
-                color * world_brightness,
+                color * daylight + color * total_light,
+                color * daylight,
                 color,
             );
         }

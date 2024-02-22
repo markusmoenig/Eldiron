@@ -5,7 +5,7 @@ v 0.8.9 (WiP)
 - Daytime / Nighttime cycle via a timeline.
 - CodeGridFX support for drawing (client side).
 - Image and font assets which can be used by the client.
-- Screens / Widgets support for the Client.
+- Basic Screens / Widgets support for the Client.
 - Basic client class.
 - Name of characters / items adjusts to value set in the CodeGridFX init function.
 - Regions / Tilemaps / Modules can new be renamed via the context menu / dialog window.

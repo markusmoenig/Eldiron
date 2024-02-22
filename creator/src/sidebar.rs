@@ -11,7 +11,7 @@ pub enum SidebarMode {
     Screen,
     Asset,
     Debug,
-    Thanks,
+    Palette,
 }
 
 pub struct Sidebar {
@@ -73,8 +73,9 @@ impl Sidebar {
         let mut debug_sectionbar_button = TheSectionbarButton::new(TheId::named("Debug Section"));
         debug_sectionbar_button.set_text("Debug".to_string());
 
-        let mut thanks_sectionbar_button = TheSectionbarButton::new(TheId::named("Thanks Section"));
-        thanks_sectionbar_button.set_text("Patreon".to_string());
+        let mut palette_sectionbar_button =
+            TheSectionbarButton::new(TheId::named("Palette Section"));
+        palette_sectionbar_button.set_text("Dynamic".to_string());
 
         let mut vlayout = TheVLayout::new(TheId::named("Section Buttons"));
         vlayout.add_widget(Box::new(region_sectionbar_button));
@@ -85,7 +86,7 @@ impl Sidebar {
         vlayout.add_widget(Box::new(screen_sectionbar_button));
         vlayout.add_widget(Box::new(asset_sectionbar_button));
         vlayout.add_widget(Box::new(debug_sectionbar_button));
-        vlayout.add_widget(Box::new(thanks_sectionbar_button));
+        vlayout.add_widget(Box::new(palette_sectionbar_button));
         vlayout.set_margin(vec4i(5, 10, 5, 5));
         vlayout.set_padding(4);
         vlayout.set_background_color(Some(SectionbarBackground));
@@ -617,54 +618,39 @@ impl Sidebar {
         debug_canvas.set_layout(debug_layout);
         stack_layout.add_canvas(debug_canvas);
 
-        // Thanks
+        // Palette
 
-        let mut thanks_canvas = TheCanvas::default();
+        let mut palette_canvas = TheCanvas::default();
+        let mut palette_layout = TheListLayout::new(TheId::named("Palette Layout"));
 
-        let mut thanks_layout = TheListLayout::new(TheId::named("Thanks List"));
+        let mut picker_canvas = TheCanvas::default();
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
 
-        let mut item: TheListItem = TheListItem::new(TheId::empty());
-        item.set_text("Patreons:".to_string());
-        thanks_layout.add_item(item, ctx);
+        let mut picker_layout = TheVLayout::new(TheId::empty());
 
-        let item: TheListItem = TheListItem::new(TheId::empty());
-        thanks_layout.add_item(item, ctx);
+        toolbar_canvas.set_layout(toolbar_hlayout);
+        picker_canvas.set_top(toolbar_canvas);
+        picker_layout
+            .limiter_mut()
+            .set_max_size(vec2i(self.width, 260));
+        //toolbar_hlayout.add_widget(Box::new(screen_add_button));
+        //toolbar_hlayout.add_widget(Box::new(screen_remove_button));
 
-        let mut item: TheListItem = TheListItem::new(TheId::empty());
-        item.set_text("Erlend Sogge Heggen".to_string());
-        item.add_value_column(130, TheValue::Text("Dragon Slayer".to_string()));
-        thanks_layout.add_item(item, ctx);
+        let w = TheColorPicker::new(TheId::named("Palette Color Picker"));
+        //w.set_value(TheValue::ColorObject(color.clone(), 0.0));
+        picker_layout.set_background_color(Some(ListLayoutBackground));
+        picker_layout.set_margin(vec4i(20, 20, 20, 20));
+        picker_layout.add_widget(Box::new(w));
+        picker_canvas.set_layout(picker_layout);
 
-        let item: TheListItem = TheListItem::new(TheId::empty());
-        thanks_layout.add_item(item, ctx);
+        palette_canvas.set_layout(palette_layout);
+        palette_canvas.set_bottom(picker_canvas);
 
-        let item: TheListItem = TheListItem::new(TheId::empty());
-        thanks_layout.add_item(item, ctx);
-
-        let mut item: TheListItem = TheListItem::new(TheId::empty());
-        item.set_text("GitHub Sponsors:".to_string());
-        thanks_layout.add_item(item, ctx);
-
-        let item: TheListItem = TheListItem::new(TheId::empty());
-        thanks_layout.add_item(item, ctx);
-
-        let mut item: TheListItem = TheListItem::new(TheId::empty());
-        item.set_text("Christopher Nascone".to_string());
-        item.add_value_column(130, TheValue::Text("Adventurer".to_string()));
-        thanks_layout.add_item(item, ctx);
-
-        let item: TheListItem = TheListItem::new(TheId::empty());
-        thanks_layout.add_item(item, ctx);
-
-        let item: TheListItem = TheListItem::new(TheId::empty());
-        thanks_layout.add_item(item, ctx);
-
-        let mut item: TheListItem = TheListItem::new(TheId::empty());
-        item.set_text("Thanks for your support!".to_string());
-        thanks_layout.add_item(item, ctx);
-
-        thanks_canvas.set_layout(thanks_layout);
-        stack_layout.add_canvas(thanks_canvas);
+        stack_layout.add_canvas(palette_canvas);
 
         //
 
@@ -1776,7 +1762,7 @@ impl Sidebar {
                         SidebarMode::Debug as usize,
                     ));
                     redraw = true;
-                } else if id.name == "Thanks Section" && *state == TheWidgetState::Selected {
+                } else if id.name == "Palette Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());
                     CODEEDITOR.lock().unwrap().set_allow_modules(false);
 
@@ -1784,14 +1770,14 @@ impl Sidebar {
                         .canvas
                         .get_widget(Some(&"Switchbar Section Header".into()), None)
                     {
-                        widget.set_value(TheValue::Text("Thanks to".to_string()));
+                        widget.set_value(TheValue::Text("Palette".to_string()));
                     }
 
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Debug;
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
-                        SidebarMode::Thanks as usize,
+                        SidebarMode::Palette as usize,
                     ));
                     redraw = true;
                 } else if id.name == "Compile" {

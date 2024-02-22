@@ -35,6 +35,9 @@ pub struct RegionInstance {
     #[serde(skip)]
     debug_modules: FxHashMap<Uuid, FxHashMap<Uuid, TheDebugModule>>,
 
+    #[serde(skip)]
+    daylight: Daylight,
+
     redraw_ms: u32,
     tick_ms: u32,
 
@@ -78,6 +81,8 @@ impl RegionInstance {
 
             draw_settings: RegionDrawSettings::new(),
             time: TheTime::default(),
+
+            daylight: Daylight::default(),
         }
     }
 
@@ -107,7 +112,13 @@ impl RegionInstance {
         self.debug_modules.clear();
         self.sandbox.clear_debug_messages();
         self.time = time;
-        self.draw_settings.brightness = self.get_brightness();
+        if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
+            self.draw_settings.daylight = self.daylight.daylight(
+                self.time.total_minutes(),
+                region.min_brightness,
+                region.max_brightness,
+            );
+        }
         self.draw_settings.time = time;
 
         if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
@@ -115,7 +126,7 @@ impl RegionInstance {
                 character.moving = None;
                 character.move_delta = 0.0;
             }
-            update.brightness = self.draw_settings.brightness;
+            update.daylight = self.draw_settings.daylight;
 
             // if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
             //     region.fill_code_level(&mut self.sandbox.level, &TILES.read().unwrap(), update);
@@ -695,45 +706,12 @@ impl RegionInstance {
     pub fn set_time(&mut self, time: TheTime) {
         self.time = time;
         self.draw_settings.time = time;
-        self.draw_settings.brightness = self.get_brightness();
-    }
-
-    /// Calculates the brightness of the region.
-    pub fn get_brightness(&self) -> f32 {
-        let minutes = self.time.total_minutes();
-
-        let sunrise = 300; // 5:00 am
-        let sunset = 1200; // 8:00 pm
-        let transition_duration = 60; // 1 hour
-
-        let daylight_start = sunrise + transition_duration;
-        let daylight_end = sunset + transition_duration;
-
-        let br = if minutes < sunrise || minutes > daylight_end {
-            0.0
-        } else if minutes >= sunrise && minutes <= daylight_start {
-            // transition from darkness to daylight
-            let transition_start = sunrise;
-            let time_since_transition_start = minutes - transition_start;
-
-            time_since_transition_start as f32 / transition_duration as f32
-        } else if minutes >= sunset && minutes <= daylight_end {
-            // transition from daylight to darkness
-            let transition_start = sunset;
-            let time_since_transition_start = minutes - transition_start;
-
-            1.0 - time_since_transition_start as f32 / transition_duration as f32
-        } else {
-            1.0
-        };
-
         if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
-            br.clamp(
-                min(region.min_brightness, region.max_brightness),
-                max(region.min_brightness, region.max_brightness),
-            )
-        } else {
-            br
+            self.draw_settings.daylight = self.daylight.daylight(
+                self.time.total_minutes(),
+                region.min_brightness,
+                region.max_brightness,
+            );
         }
     }
 }

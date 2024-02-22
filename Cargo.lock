@@ -1034,6 +1034,7 @@ checksum = "8adf3ddd720272c6ea8bf59463c04e0f93d0bbf7c5439b691bca2987e0270897"
 dependencies = [
  "equivalent",
  "hashbrown 0.14.1",
+ "serde",
 ]
 
 [[package]]
@@ -1957,6 +1958,7 @@ name = "shared"
 version = "0.8.9"
 dependencies = [
  "fontdue",
+ "indexmap 2.0.2",
  "lazy_static",
  "rand",
  "rayon",
@@ -2103,7 +2105,7 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
-source = "git+https://github.com/markusmoenig/TheFramework#1502e8252da516c553455a8f287f4d17bb035ce6"
+source = "git+https://github.com/markusmoenig/TheFramework#35e1087038a080eeadb02604710a1772c538b2b8"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2111,6 +2113,7 @@ dependencies = [
  "flate2",
  "fontdue",
  "futures",
+ "indexmap 2.0.2",
  "log",
  "maths-rs",
  "pixels",

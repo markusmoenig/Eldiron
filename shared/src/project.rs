@@ -30,6 +30,9 @@ pub struct Project {
     #[serde(default)]
     pub assets: FxHashMap<Uuid, Asset>,
 
+    #[serde(default)]
+    pub palette: ThePalette,
+
     #[serde(default = "default_target_fps")]
     pub target_fps: u32,
 
@@ -57,6 +60,8 @@ impl Project {
 
             screens: FxHashMap::default(),
             assets: FxHashMap::default(),
+
+            palette: ThePalette::default(),
 
             target_fps: default_target_fps(),
             tick_ms: default_tick_ms(),

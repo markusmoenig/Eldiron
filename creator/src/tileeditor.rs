@@ -590,6 +590,25 @@ impl TileEditor {
                             server_ctx.curr_character_instance = None;
                             if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
                                 if self.curr_layer_role == Layer2DRole::FX {
+                                    // Set the tile preview.
+                                    if let Some(widget) = ui.get_widget("TileFX RGBA") {
+                                        if let Some(tile_rgba) = widget.as_rgba_view() {
+                                            if let Some(tile) = project.extract_region_tile(
+                                                server_ctx.curr_region,
+                                                (coord.x, coord.y),
+                                            ) {
+                                                let preview_size =
+                                                    TILEFXEDITOR.lock().unwrap().preview_size;
+                                                tile_rgba.set_grid(Some(
+                                                    preview_size / tile.buffer[0].dim().width,
+                                                ));
+                                                tile_rgba.set_buffer(
+                                                    tile.buffer[0]
+                                                        .scaled(preview_size, preview_size),
+                                                );
+                                            }
+                                        }
+                                    }
                                     if let Some(timeline) = &tile.tilefx {
                                         TILEFXEDITOR
                                             .lock()
@@ -633,6 +652,27 @@ impl TileEditor {
                             .tiles
                             .contains_key(&curr_tile_uuid)
                         {
+                            if self.curr_layer_role == Layer2DRole::FX {
+                                // Set the tile preview.
+                                if let Some(widget) = ui.get_widget("TileFX RGBA") {
+                                    if let Some(tile_rgba) = widget.as_rgba_view() {
+                                        if let Some(tile) = project.extract_region_tile(
+                                            server_ctx.curr_region,
+                                            (coord.x, coord.y),
+                                        ) {
+                                            let preview_size =
+                                                TILEFXEDITOR.lock().unwrap().preview_size;
+                                            tile_rgba.set_grid(Some(
+                                                preview_size / tile.buffer[0].dim().width,
+                                            ));
+                                            tile_rgba.set_buffer(
+                                                tile.buffer[0].scaled(preview_size, preview_size),
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                                 let mut undo = TheUndo::new(TheId::named("RegionChanged"));
                                 undo.set_undo_data(region.to_json());
