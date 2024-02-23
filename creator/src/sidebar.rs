@@ -75,7 +75,7 @@ impl Sidebar {
 
         let mut palette_sectionbar_button =
             TheSectionbarButton::new(TheId::named("Palette Section"));
-        palette_sectionbar_button.set_text("Dynamic".to_string());
+        palette_sectionbar_button.set_text("Palette".to_string());
 
         let mut vlayout = TheVLayout::new(TheId::named("Section Buttons"));
         vlayout.add_widget(Box::new(region_sectionbar_button));
@@ -621,7 +621,12 @@ impl Sidebar {
         // Palette
 
         let mut palette_canvas = TheCanvas::default();
-        let mut palette_layout = TheListLayout::new(TheId::named("Palette Layout"));
+        //let mut palette_layout = TheVLayout::new(TheId::named("Palette Layout"));
+
+        let palette_picker = ThePalettePicker::new(TheId::named("Palette Picker"));
+        //palette_layout.add_widget(Box::new(palette_picker));
+
+        palette_canvas.set_widget(palette_picker);
 
         let mut picker_canvas = TheCanvas::default();
         let mut toolbar_canvas = TheCanvas::default();
@@ -647,7 +652,7 @@ impl Sidebar {
         picker_layout.add_widget(Box::new(w));
         picker_canvas.set_layout(picker_layout);
 
-        palette_canvas.set_layout(palette_layout);
+        //palette_canvas.set_top(palette_canvas);
         palette_canvas.set_bottom(picker_canvas);
 
         stack_layout.add_canvas(palette_canvas);
@@ -685,6 +690,9 @@ impl Sidebar {
         let mut redraw = false;
 
         match event {
+            TheEvent::Resize => {
+                ctx.ui.redraw_all = true;
+            }
             TheEvent::Custom(id, _) => {
                 if id.name == "Update Tiles" {
                     self.update_tiles(ui, ctx, project, server);
@@ -796,7 +804,15 @@ impl Sidebar {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "Screen Aspect Ratio Dropdown" {
+                if id.name == "Palette Color Picker" {
+                    if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
+                        if let Some(color) = value.to_color() {
+                            palette_picker.set_color(color.clone());
+                            redraw = true;
+                            project.palette[palette_picker.index()] = Some(color);
+                        }
+                    }
+                } else if id.name == "Screen Aspect Ratio Dropdown" {
                     if let Some(index) = value.to_i32() {
                         if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
                             if let Some(aspect) =

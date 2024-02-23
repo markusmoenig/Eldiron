@@ -337,7 +337,7 @@ impl TileDrawer {
                 let mut light_strength = light_coll.get_f32_default("Emission Strength", 1.0);
                 let light_sampling_off = light_coll.get_f32_default("Sample Offset", 0.5);
                 let light_samples = light_coll.get_i32_default("Samples #", 5) as usize;
-                let light_color = light_coll.get_i32_default("Light Color", 5);
+                let light_color = light_coll.get_i32_default("Light Color", 0);
                 let light_limiter = light_coll.get_i32_default("Limit Direction", 0);
 
                 if light_color == 1 {
@@ -363,8 +363,8 @@ impl TileDrawer {
                     ro - vec2f(light_sampling_off, 0.0),
                     ro + vec2f(light_sampling_off, 0.0),
                     ro + vec2f(0.0, light_sampling_off),
-                    ro - vec2f(0.5, 0.5),
-                    ro + vec2f(0.5, 0.5),
+                    ro - vec2f(light_sampling_off, light_sampling_off),
+                    ro + vec2f(light_sampling_off, light_sampling_off),
                 ];
 
                 for s in offsets.iter().take(light_samples) {
@@ -373,7 +373,7 @@ impl TileDrawer {
                     let mut light_dir = light_pos - ro;
                     let light_dist = length(light_dir);
 
-                    if light_dist < 10.0 {
+                    if light_dist < light_max_distance {
                         light_dir = normalize(light_dir);
 
                         let mut t = 0.0;
