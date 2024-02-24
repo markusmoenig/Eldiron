@@ -80,6 +80,7 @@ impl TilePicker {
         if !minimal {
             let mut zoom = TheSlider::new(TheId::named(&self.make_id(" Zoom")));
             zoom.set_value(TheValue::Float(self.zoom));
+            zoom.set_default_value(TheValue::Float(1.5));
             zoom.set_range(TheValue::RangeF32(1.0..=3.0));
             zoom.set_continuous(true);
             zoom.limiter_mut().set_max_width(120);

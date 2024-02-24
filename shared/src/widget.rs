@@ -35,6 +35,14 @@ impl Widget {
         }
     }
 
+    /// Checks if the given position is inside the widget.
+    pub fn is_inside(&self, pos: &Vec2i) -> bool {
+        pos.x >= self.x as i32
+            && pos.x <= (self.x + self.width) as i32
+            && pos.y >= self.y as i32
+            && pos.y <= (self.y + self.height) as i32
+    }
+
     /// Create a region from json.
     pub fn from_json(json: &str) -> Self {
         serde_json::from_str(json).unwrap_or(Widget::new())

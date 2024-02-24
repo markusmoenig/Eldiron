@@ -4,19 +4,23 @@ use crate::editor::{CODEEDITOR, TILEDRAWER};
 use crate::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
-enum EditorMode {
-    _Create,
+enum ScreenEditorMode {
+    Create,
+    Pick,
+    Erase,
 }
 
 pub struct ScreenEditor {
-    // editor_mode: EditorMode,
+    editor_mode: ScreenEditorMode,
+    draw_outlines: bool,
 }
 
 #[allow(clippy::new_without_default)]
 impl ScreenEditor {
     pub fn new() -> Self {
         Self {
-            //editor_mode: EditorMode::Create,
+            editor_mode: ScreenEditorMode::Create,
+            draw_outlines: true,
         }
     }
 
@@ -30,7 +34,7 @@ impl ScreenEditor {
 
         let mut screen_editor = TheRGBALayout::new(TheId::named("Screen Editor"));
         if let Some(rgba_view) = screen_editor.rgba_view_mut().as_rgba_view() {
-            rgba_view.set_mode(TheRGBAViewMode::Display);
+            rgba_view.set_mode(TheRGBAViewMode::TileSelection);
             rgba_view.set_dont_show_grid(true);
 
             if let Some(buffer) = ctx.ui.icon("eldiron_map") {
@@ -55,7 +59,8 @@ impl ScreenEditor {
 
         let mut zoom = TheSlider::new(TheId::named("Screen Editor Zoom"));
         zoom.set_value(TheValue::Float(1.0));
-        zoom.set_range(TheValue::RangeF32(0.5..=3.0));
+        zoom.set_default_value(TheValue::Float(1.0));
+        zoom.set_range(TheValue::RangeF32(0.3..=3.0));
         zoom.set_continuous(true);
         zoom.limiter_mut().set_max_width(120);
 
@@ -73,11 +78,11 @@ impl ScreenEditor {
         let mut bottom_toolbar = TheCanvas::new();
         bottom_toolbar.set_widget(TheTraybar::new(TheId::empty()));
 
-        let mut gb = TheGroupButton::new(TheId::named("Editor Group"));
+        let mut gb = TheGroupButton::new(TheId::named("Screen Editor Group"));
         gb.add_text_status_icon(
             "Create".to_string(),
             "Create a widget via rectangular selection.".to_string(),
-            "draw".to_string(),
+            "selection".to_string(),
         );
         gb.add_text_status_icon(
             "Pick".to_string(),
@@ -89,12 +94,19 @@ impl ScreenEditor {
             "Delete a widget in the screen.".to_string(),
             "eraser".to_string(),
         );
-        gb.set_item_width(65);
+        gb.set_item_width(75);
+
+        let mut drop_down = TheDropdownMenu::new(TheId::named("Widget Outlines"));
+        drop_down.add_option("Show Outlines".to_string());
+        drop_down.add_option("No Outlines".to_string());
+        drop_down.set_status_text("Toggles the visibility of widget outlines.");
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(5, 4, 5, 4));
         toolbar_hlayout.add_widget(Box::new(gb));
+        toolbar_hlayout.add_widget(Box::new(drop_down));
+        toolbar_hlayout.set_reverse_index(Some(1));
 
         bottom_toolbar.set_layout(toolbar_hlayout);
         center.set_bottom(bottom_toolbar);
@@ -158,11 +170,19 @@ impl ScreenEditor {
         vlayout.add_widget(Box::new(text));
         vlayout.add_widget(Box::new(height_edit));
 
+        let mut max_text = TheText::new(TheId::named("Screen Grid Size Text"));
+        max_text.set_text_size(12.0);
+        max_text.set_text(format!("Grid: {0} x {1}", 0, 0));
+        let mut spacer = TheSpacer::new(TheId::empty());
+        spacer.limiter_mut().set_max_height(10);
+        vlayout.add_widget(Box::new(max_text));
+        vlayout.add_widget(Box::new(spacer));
+
         let mut text = TheText::new(TheId::named("Sceeen Hover Position"));
         text.set_text_size(13.0);
         text.set_text("".to_string());
         vlayout.add_widget(Box::new(text));
-        vlayout.set_reverse_index(Some(1));
+        vlayout.set_reverse_index(Some(3));
 
         details_canvas.set_layout(vlayout);
         center.set_left(details_canvas);
@@ -182,6 +202,54 @@ impl ScreenEditor {
     ) -> bool {
         let mut redraw = false;
         match event {
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == "Widget Outlines" {
+                    self.draw_outlines = *index == 0;
+                }
+                if id.name == "Screen Editor Group" {
+                    if let Some(rgba_layout) = ui.get_rgba_layout("Screen Editor") {
+                        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                            if *index == 0 {
+                                self.editor_mode = ScreenEditorMode::Create;
+                                rgba_view.set_mode(TheRGBAViewMode::TileSelection);
+                            } else if *index == 1 {
+                                self.editor_mode = ScreenEditorMode::Pick;
+                                rgba_view.set_mode(TheRGBAViewMode::TileEditor);
+                            } else if *index == 2 {
+                                self.editor_mode = ScreenEditorMode::Erase;
+                                rgba_view.set_mode(TheRGBAViewMode::TileEditor);
+                            }
+                        }
+                    }
+                }
+            }
+            TheEvent::TileEditorClicked(_id, coord) => {
+                //println!("Clicked {:?}", coord);
+                if self.editor_mode == ScreenEditorMode::Pick
+                    || self.editor_mode == ScreenEditorMode::Erase
+                {
+                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                        for (id, widget) in screen.widgets.iter_mut() {
+                            if widget.is_inside(coord) {
+                                if self.editor_mode == ScreenEditorMode::Pick {
+                                    if let Some(layout) = ui.get_list_layout("Screen Content List")
+                                    {
+                                        layout.select_item(*id, ctx, true);
+                                    }
+                                } else if self.editor_mode == ScreenEditorMode::Erase {
+                                    open_delete_confirmation_dialog(
+                                        "Delete Widget ?",
+                                        format!("Permanently delete '{}' ?", widget.name).as_str(),
+                                        *id,
+                                        ui,
+                                        ctx,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             TheEvent::TileSelectionChanged(id) => {
                 if id.name == "Screen Editor View" {
                     if let Some(rgba_layout) = ui.get_rgba_layout("Screen Editor") {
@@ -363,7 +431,6 @@ impl ScreenEditor {
                             if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
                                 if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view()
                                 {
-                                    rgba_view.set_mode(TheRGBAViewMode::TileSelection);
                                     rgba_view.set_rectangular_selection(true);
                                     let width = screen.width;
                                     let height = screen.height;
@@ -377,6 +444,15 @@ impl ScreenEditor {
                             }
                         }
                         server_ctx.curr_screen = screen.id;
+                        ui.set_widget_value(
+                            "Screen Grid Size Text",
+                            ctx,
+                            TheValue::Text(format!(
+                                "Grid {0} x {1}",
+                                screen.width / screen.grid_size,
+                                screen.height / screen.grid_size
+                            )),
+                        );
                         //self.redraw_region(ui, server, ctx, server_ctx);
                         redraw = true;
                     }
@@ -414,6 +490,7 @@ impl ScreenEditor {
         client: &mut Client,
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
+        project: &Project,
     ) {
         if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Screen Editor".into()), None) {
             if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
@@ -421,6 +498,7 @@ impl ScreenEditor {
                     if let Some(curr_character_instance) = server_ctx.curr_character_instance {
                         client.set_character_id(curr_character_instance);
                     }
+
                     client.draw_screen(
                         &server_ctx.curr_screen,
                         rgba_view.buffer_mut(),
@@ -429,6 +507,34 @@ impl ScreenEditor {
                         server_ctx,
                     );
                     rgba_view.set_needs_redraw(true);
+
+                    if self.draw_outlines {
+                        if let Some(screen) = project.screens.get(&server_ctx.curr_screen) {
+                            let gs = screen.grid_size as usize;
+                            for (id, widget) in &screen.widgets {
+                                let x = widget.x as usize;
+                                let y = widget.y as usize;
+                                let width = widget.width as usize;
+                                let height = widget.height as usize;
+
+                                if Some(*id) == server_ctx.curr_widget {
+                                    ctx.draw.rect_outline(
+                                        rgba_view.buffer_mut().pixels_mut(),
+                                        &(x * gs, y * gs, (x + width) * gs, (y + height) * gs),
+                                        screen.width as usize,
+                                        &[255, 255, 255, 255],
+                                    );
+                                } else {
+                                    ctx.draw.rect_outline(
+                                        rgba_view.buffer_mut().pixels_mut(),
+                                        &(x * gs, y * gs, (x + width) * gs, (y + height) * gs),
+                                        screen.width as usize,
+                                        &[128, 128, 128, 255],
+                                    );
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

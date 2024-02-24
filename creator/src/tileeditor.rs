@@ -147,6 +147,7 @@ impl TileEditor {
 
         let mut zoom = TheSlider::new(TheId::named("Region Editor Zoom"));
         zoom.set_value(TheValue::Float(1.0));
+        zoom.set_default_value(TheValue::Float(1.0));
         zoom.set_range(TheValue::RangeF32(0.5..=3.0));
         zoom.set_continuous(true);
         zoom.limiter_mut().set_max_width(120);

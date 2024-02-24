@@ -314,8 +314,13 @@ impl TheTrait for Editor {
                 .redraw_region(ui, &mut self.server, ctx, &self.server_ctx);
             redraw = true;
         } else if self.active_editor == ActiveEditor::ScreenEditor && redraw_update {
-            self.screeneditor
-                .redraw_screen(ui, &mut self.client, ctx, &self.server_ctx);
+            self.screeneditor.redraw_screen(
+                ui,
+                &mut self.client,
+                ctx,
+                &self.server_ctx,
+                &self.project,
+            );
             redraw = true;
         }
 
@@ -486,6 +491,29 @@ impl TheTrait for Editor {
                                             ));
                                             ui.select_first_list_item("Region Content List", ctx);
                                         }
+                                    }
+                                }
+                            }
+                        } else if name == "Delete Widget ?" {
+                            if role == TheDialogButtonRole::Delete {
+                                let widget_id = uuid;
+
+                                if let Some(screen) =
+                                    self.project.screens.get_mut(&self.server_ctx.curr_screen)
+                                {
+                                    if screen.widgets.remove(&widget_id).is_some() {
+                                        // Remove from the content list
+                                        if let Some(list) =
+                                            ui.get_list_layout("Screen Content List")
+                                        {
+                                            list.remove(TheId::named_with_id(
+                                                "Screen Content List Item",
+                                                widget_id,
+                                            ));
+                                            ui.select_first_list_item("Screen Content List", ctx);
+                                        }
+
+                                        self.client.update_screen(screen);
                                     }
                                 }
                             }
