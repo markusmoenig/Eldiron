@@ -1,1 +1,49 @@
-{"nodes":{"2d9d0130-3da4-4a95-95b4-91f9efd1e652":{"behavior_type":"MessageArea","name":"Message","values":{"text":{"String":"The sign says: \"Beware of the orc in the field!\"."},"type":{"Integer":0}},"id":"2d9d0130-3da4-4a95-95b4-91f9efd1e652","position":[370,51]},"2e0a1541-6212-4d94-8d81-14cadc2acb72":{"behavior_type":"ActionArea","name":"Action","values":{"action":{"String":"Look"}},"id":"2e0a1541-6212-4d94-8d81-14cadc2acb72","position":[83,74]}},"connections":[["2e0a1541-6212-4d94-8d81-14cadc2acb72","Right","2d9d0130-3da4-4a95-95b4-91f9efd1e652","Left"]],"id":"6b90a8e6-76ec-462d-8a02-9a9e5c7daef4","name":"area_60cb3a2e-fc10-48f2-b2ea-6bc71cabf49b","curr_node_id":"2d9d0130-3da4-4a95-95b4-91f9efd1e652","instances":[],"loot":[],"settings":null}
+{
+  "nodes": {
+    "2d9d0130-3da4-4a95-95b4-91f9efd1e652": {
+      "behavior_type": "MessageArea",
+      "name": "Message",
+      "values": {
+        "text": {
+          "String": "The sign says: \"Beware of the orc in the field!\"."
+        },
+        "type": {
+          "Integer": 0
+        }
+      },
+      "id": "2d9d0130-3da4-4a95-95b4-91f9efd1e652",
+      "position": [
+        370,
+        51
+      ]
+    },
+    "2e0a1541-6212-4d94-8d81-14cadc2acb72": {
+      "behavior_type": "ActionArea",
+      "name": "Action",
+      "values": {
+        "action": {
+          "String": "Look"
+        }
+      },
+      "id": "2e0a1541-6212-4d94-8d81-14cadc2acb72",
+      "position": [
+        83,
+        74
+      ]
+    }
+  },
+  "connections": [
+    [
+      "2e0a1541-6212-4d94-8d81-14cadc2acb72",
+      "Right",
+      "2d9d0130-3da4-4a95-95b4-91f9efd1e652",
+      "Left"
+    ]
+  ],
+  "id": "6b90a8e6-76ec-462d-8a02-9a9e5c7daef4",
+  "name": "area_60cb3a2e-fc10-48f2-b2ea-6bc71cabf49b",
+  "curr_node_id": "2d9d0130-3da4-4a95-95b4-91f9efd1e652",
+  "instances": [],
+  "loot": [],
+  "settings": null
+}

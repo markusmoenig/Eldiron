@@ -142,7 +142,7 @@ impl Region {
     /// Fills a code level with the blocking tiles of the region.
     pub fn fill_code_level(
         &self,
-        level: &mut TheCodeLevel,
+        level: &mut Level,
         tiles: &FxHashMap<Uuid, TheRGBATile>,
         update: &RegionUpdate,
     ) {

@@ -26,6 +26,9 @@ lazy_static! {
         RwLock::new(FxHashMap::default());
     pub static ref ITEMS: RwLock<FxHashMap<Uuid, TheCodePackage>> =
         RwLock::new(FxHashMap::default());
+    pub static ref CHARACTERS: RwLock<FxHashMap<Uuid, TheCodePackage>> =
+        RwLock::new(FxHashMap::default());
+    pub static ref INTERACTIONS: RwLock<Vec<Interaction>> = RwLock::new(Vec::default());
 }
 
 use prelude::*;
@@ -47,9 +50,6 @@ pub struct Server {
 
     /// The region instances
     instances: FxHashMap<Uuid, RegionInstance>,
-
-    #[serde(skip)]
-    characters: FxHashMap<Uuid, TheCodePackage>,
 
     pub debug_mode: bool,
     pub world: World,
@@ -75,8 +75,6 @@ impl Server {
             compiler,
 
             instances: FxHashMap::default(),
-
-            characters: FxHashMap::default(),
 
             debug_mode: false,
             world: World::default(),
@@ -105,7 +103,7 @@ impl Server {
             );
         }
 
-        self.characters = FxHashMap::default();
+        *CHARACTERS.write().unwrap() = FxHashMap::default();
         *ITEMS.write().unwrap() = FxHashMap::default();
 
         *REGIONS.write().unwrap() = regions;
@@ -267,6 +265,7 @@ impl Server {
     pub fn tick(&mut self) -> Vec<TheDebugMessage> {
         self.world.tick();
         self.anim_counter = self.anim_counter.wrapping_add(1);
+        INTERACTIONS.write().unwrap().clear();
 
         let (sender, receiver) = mpsc::channel();
         let mut join_handles = vec![];
@@ -377,7 +376,7 @@ impl Server {
             instance.insert_character(package.clone());
         }
 
-        self.characters.insert(package.id, package);
+        CHARACTERS.write().unwrap().insert(package.id, package);
 
         name
     }
@@ -613,5 +612,10 @@ impl Server {
         for instance in self.instances.values_mut() {
             instance.set_time(time);
         }
+    }
+
+    /// Get the current interactions.
+    pub fn get_interactions(&self) -> Vec<Interaction> {
+        INTERACTIONS.read().unwrap().clone()
     }
 }

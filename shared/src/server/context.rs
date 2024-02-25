@@ -35,6 +35,9 @@ pub struct ServerContext {
 
     /// Show the fx marker on the tiles
     pub show_fx_marker: bool,
+
+    /// The logged interactions of the characters.
+    pub interactions: FxHashMap<Uuid, Vec<Interaction>>,
 }
 
 impl Default for ServerContext {
@@ -64,6 +67,8 @@ impl ServerContext {
             curr_widget: None,
 
             show_fx_marker: false,
+
+            interactions: FxHashMap::default(),
         }
     }
 
@@ -77,5 +82,21 @@ impl ServerContext {
         self.curr_grid_id = None;
         self.tile_selection = None;
         self.curr_screen = Uuid::nil();
+        self.interactions.clear();
+    }
+
+    pub fn clear_interactions(&mut self) {
+        self.interactions.clear();
+    }
+
+    /// Adds the given interactions provided by a server tick to the context.
+    pub fn add_interactions(&mut self, interactions: Vec<Interaction>) {
+        for interaction in interactions {
+            if let Some(interactions) = self.interactions.get_mut(&interaction.to) {
+                interactions.push(interaction);
+            } else {
+                self.interactions.insert(interaction.to, vec![interaction]);
+            }
+        }
     }
 }

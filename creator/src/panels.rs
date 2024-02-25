@@ -171,7 +171,6 @@ impl Panels {
                 let mut set_already = false;
 
                 if let Some(atom) = CODEEDITOR.lock().unwrap().get_selected_atom(ui) {
-                    //println!("Selected Atom: {:?}", atom);
                     self.curr_atom = Some(atom.clone());
                     if let TheCodeAtom::Value(TheValue::Position(pos)) = &atom {
                         let mut w = TheIconView::new(TheId::empty());
@@ -400,6 +399,7 @@ impl Panels {
         redraw
     }
 
+    /// Updates the code object, i.e. displays the object properties and interactions.
     pub fn update_code_object(
         &mut self,
         ui: &mut TheUI,
@@ -412,30 +412,56 @@ impl Panels {
             list: &mut dyn TheListLayoutTrait,
             ctx: &mut TheContext,
             indent: String,
+            inside_list: bool,
         ) {
             for (name, value) in object.values.iter() {
                 if let TheValue::CodeObject(object) = value {
-                    create_items_for_value(object, list, ctx, str!("  ") + indent.as_str());
+                    create_items_for_value(
+                        object,
+                        list,
+                        ctx,
+                        str!("  ") + indent.as_str(),
+                        inside_list,
+                    );
                 } else if let TheValue::List(l) = value {
                     let mut item = TheListItem::new(TheId::empty());
                     item.set_text(indent.clone() + name.as_str());
                     item.add_value_column(120, value.clone());
+                    item.set_background_color(TheColor::from_hex("#e0c872"));
                     list.add_item(item, ctx);
 
                     for v in l {
                         if let TheValue::CodeObject(object) = v {
-                            create_items_for_value(object, list, ctx, str!("  ") + indent.as_str());
+                            if let Some(name) = object.get(&str!("name")) {
+                                let mut item = TheListItem::new(TheId::empty());
+                                item.set_text(indent.clone() + &indent + "  " + &name.describe());
+                                item.add_value_column(120, TheValue::Text("Object".into()));
+                                item.set_background_color(TheColor::from_hex("#d4804d"));
+                                list.add_item(item, ctx);
+                            }
+
+                            // create_items_for_value(
+                            //     object,
+                            //     list,
+                            //     ctx,
+                            //     str!("  ") + indent.as_str(),
+                            //     true,
+                            // );
                         } else {
                             let mut item = TheListItem::new(TheId::empty());
                             item.set_text(indent.clone() + name.as_str());
+                            item.set_background_color(TheColor::from_hex("#e0c872"));
                             item.add_value_column(120, value.clone());
                             list.add_item(item, ctx);
                         }
                     }
-                } else {
+                } else if !name.starts_with('_') {
                     let mut item = TheListItem::new(TheId::empty());
                     item.set_text(indent.clone() + name.as_str());
                     item.add_value_column(120, value.clone());
+                    if inside_list {
+                        item.set_background_color(TheColor::from_hex("#e0c872"));
+                    }
                     list.add_item(item, ctx);
                 }
             }
@@ -448,7 +474,24 @@ impl Panels {
                 if let Some((object, _)) =
                     server.get_character_object(server_ctx.curr_region, character_id)
                 {
-                    create_items_for_value(&object, list, ctx, str!(""));
+                    create_items_for_value(&object, list, ctx, str!(""), false);
+                }
+            }
+        }
+
+        if let Some(list) = ui.get_list_layout("CodeObject Output Layout") {
+            list.clear();
+
+            if let Some(character_id) = server_ctx.curr_character_instance {
+                if let Some(interaction_list) = server_ctx.interactions.get(&character_id) {
+                    for interaction in interaction_list {
+                        let mut item = TheListItem::new(TheId::empty());
+                        item.set_text(interaction.value.describe());
+                        item.set_status_text(&interaction.value.describe());
+                        //item.set_background_color(TheColor::from_hex("#e0c872"));
+                        item.add_value_column(100, TheValue::Text(interaction.from_name.clone()));
+                        list.add_item(item, ctx);
+                    }
                 }
             }
         }

@@ -257,6 +257,8 @@ impl TheTrait for Editor {
                 if !debug.is_empty() {
                     self.sidebar.add_debug_messages(debug, ui, ctx);
                 }
+                let interactions = self.server.get_interactions();
+                self.server_ctx.add_interactions(interactions);
                 self.panels
                     .update_code_object(ui, ctx, &mut self.server, &mut self.server_ctx);
                 if let Some(update) = self.server.get_region_update(self.server_ctx.curr_region) {
@@ -853,6 +855,7 @@ impl TheTrait for Editor {
                         // Server
                         else if id.name == "Play" {
                             self.server.start();
+                            self.server_ctx.clear_interactions();
                             ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),
                                 "Server has been started.".to_string(),
@@ -873,6 +876,8 @@ impl TheTrait for Editor {
                                 if !debug.is_empty() {
                                     self.sidebar.add_debug_messages(debug, ui, ctx);
                                 }
+                                let interactions = self.server.get_interactions();
+                                self.server_ctx.add_interactions(interactions);
                             }
                         } else if id.name == "Stop" {
                             _ = self.server.set_project(self.project.clone());

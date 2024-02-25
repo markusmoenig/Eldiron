@@ -1,1 +1,260 @@
-{"nodes":{"e21ff35f-b3b9-4991-b40e-d9ef3e225693":{"behavior_type":"BehaviorType","name":"Behavior Type","values":{"tile":{"TileData":{"tilemap":"0946ce29-5bcc-43eb-8beb-7499dfd03932","x_off":14,"y_off":15,"size":null,"usage":"Character"}},"chunks":{"Empty":[]},"alignment":{"Integer":0},"position":{"Position":{"region":"4400001d-e558-47b9-84e2-772c8ecd8e58","x":30,"y":-3}},"settings":{"String":"// The race of the character.\nrace = \"Human\"\n// The class of the character.\nclass = \"\"\n"}},"id":"e21ff35f-b3b9-4991-b40e-d9ef3e225693","position":[0,0]},"2b135d81-8933-47db-80df-b4e72f4198dc":{"behavior_type":"Pathfinder","name":"Pathfinder","values":{"destination":{"Position":{"region":"4400001d-e558-47b9-84e2-772c8ecd8e58","x":37,"y":-2}},"speed":{"String":"8"},"walk_delay":{"String":"8"}},"id":"2b135d81-8933-47db-80df-b4e72f4198dc","position":[226,417]},"14beef31-5db8-448f-8285-101c6b033583":{"behavior_type":"BehaviorTree","name":"Scheduler","values":{"execute":{"Integer":2}},"id":"14beef31-5db8-448f-8285-101c6b033583","position":[365,65]},"2a07a754-6e17-4697-996d-f1b6d62a4b04":{"behavior_type":"Schedule","name":"Schedule","values":{"to":{"Date":{"total_minutes":1080,"hours":18,"minutes":0,"seconds":0,"minutes_in_day":1080}},"from":{"Date":{"total_minutes":480,"hours":8,"minutes":0,"seconds":0,"minutes_in_day":480}}},"id":"2a07a754-6e17-4697-996d-f1b6d62a4b04","position":[361,199]},"255a647d-ac69-45da-be07-e9177b6e5334":{"behavior_type":"RandomWalk","name":"Random Walk","values":{"max_distance":{"String":"4"},"walk_delay":{"String":"2"},"position":{"Position":{"region":"4400001d-e558-47b9-84e2-772c8ecd8e58","x":30,"y":-3}},"speed":{"String":"8"},"delay":{"String":"2"}},"id":"255a647d-ac69-45da-be07-e9177b6e5334","position":[623,316]},"7fe6b263-fc3a-4433-9346-fd77c8ccafda":{"behavior_type":"Script","name":"Script","values":{"script":{"String":"let sheet = get_target_sheet();\nsheet.hit_points = sheet.max_hit_points;\nset_target_sheet(sheet);\nsend_status_message_target(\"Antony heals you!\");"}},"id":"7fe6b263-fc3a-4433-9346-fd77c8ccafda","position":[364,411]},"a02cfe2f-4e46-4ca1-aa34-f2241b17ca88":{"behavior_type":"BehaviorTree","name":"Look (P)","values":{"execute":{"Integer":2}},"id":"a02cfe2f-4e46-4ca1-aa34-f2241b17ca88","position":[367,85]},"726a7e07-c091-4306-a786-c58bb227bded":{"behavior_type":"BehaviorTree","name":"Heal ?","values":{"execute":{"Integer":0}},"id":"726a7e07-c091-4306-a786-c58bb227bded","position":[395,62]},"cc4f38f0-e100-473f-b33e-ce0c74e31fb6":{"behavior_type":"Message","name":"Message","values":{"text":{"String":"You see Antony, a famous healer."},"type":{"Integer":0}},"id":"cc4f38f0-e100-473f-b33e-ce0c74e31fb6","position":[367,233]},"6586e8f7-fae6-483b-b2d7-2978eeede5d7":{"behavior_type":"Lookout","name":"Lookout","values":{"max_distance":{"String":"3"},"expression":{"String":"let rc = get_sheet().hit_points < get_sheet().max_hit_points;\nrc"},"state":{"Integer":0}},"id":"6586e8f7-fae6-483b-b2d7-2978eeede5d7","position":[391,184]}},"connections":[["a02cfe2f-4e46-4ca1-aa34-f2241b17ca88","Bottom","cc4f38f0-e100-473f-b33e-ce0c74e31fb6","Top"],["14beef31-5db8-448f-8285-101c6b033583","Bottom","2a07a754-6e17-4697-996d-f1b6d62a4b04","Top"],["2a07a754-6e17-4697-996d-f1b6d62a4b04","Bottom","2b135d81-8933-47db-80df-b4e72f4198dc","Top"],["2a07a754-6e17-4697-996d-f1b6d62a4b04","Right","255a647d-ac69-45da-be07-e9177b6e5334","Left"],["726a7e07-c091-4306-a786-c58bb227bded","Bottom","6586e8f7-fae6-483b-b2d7-2978eeede5d7","Top"],["6586e8f7-fae6-483b-b2d7-2978eeede5d7","Success","7fe6b263-fc3a-4433-9346-fd77c8ccafda","Top"]],"id":"574ae7dc-8c8b-4817-9640-6348ce23fdeb","name":"Antony","curr_node_id":"7fe6b263-fc3a-4433-9346-fd77c8ccafda","instances":[],"loot":[],"settings":null}
+{
+  "nodes": {
+    "e21ff35f-b3b9-4991-b40e-d9ef3e225693": {
+      "behavior_type": "BehaviorType",
+      "name": "Behavior Type",
+      "values": {
+        "tile": {
+          "TileData": {
+            "tilemap": "0946ce29-5bcc-43eb-8beb-7499dfd03932",
+            "x_off": 14,
+            "y_off": 15,
+            "size": null,
+            "usage": "Character"
+          }
+        },
+        "chunks": {
+          "Empty": []
+        },
+        "alignment": {
+          "Integer": 0
+        },
+        "position": {
+          "Position": {
+            "region": "4400001d-e558-47b9-84e2-772c8ecd8e58",
+            "x": 30,
+            "y": -3
+          }
+        },
+        "settings": {
+          "String": "// The race of the character.\nrace = \"Human\"\n// The class of the character.\nclass = \"\"\n"
+        }
+      },
+      "id": "e21ff35f-b3b9-4991-b40e-d9ef3e225693",
+      "position": [
+        0,
+        0
+      ]
+    },
+    "2b135d81-8933-47db-80df-b4e72f4198dc": {
+      "behavior_type": "Pathfinder",
+      "name": "Pathfinder",
+      "values": {
+        "destination": {
+          "Position": {
+            "region": "4400001d-e558-47b9-84e2-772c8ecd8e58",
+            "x": 37,
+            "y": -2
+          }
+        },
+        "speed": {
+          "String": "8"
+        },
+        "walk_delay": {
+          "String": "8"
+        }
+      },
+      "id": "2b135d81-8933-47db-80df-b4e72f4198dc",
+      "position": [
+        226,
+        417
+      ]
+    },
+    "14beef31-5db8-448f-8285-101c6b033583": {
+      "behavior_type": "BehaviorTree",
+      "name": "Scheduler",
+      "values": {
+        "execute": {
+          "Integer": 2
+        }
+      },
+      "id": "14beef31-5db8-448f-8285-101c6b033583",
+      "position": [
+        365,
+        65
+      ]
+    },
+    "2a07a754-6e17-4697-996d-f1b6d62a4b04": {
+      "behavior_type": "Schedule",
+      "name": "Schedule",
+      "values": {
+        "to": {
+          "Date": {
+            "total_minutes": 1080,
+            "hours": 18,
+            "minutes": 0,
+            "seconds": 0,
+            "minutes_in_day": 1080
+          }
+        },
+        "from": {
+          "Date": {
+            "total_minutes": 480,
+            "hours": 8,
+            "minutes": 0,
+            "seconds": 0,
+            "minutes_in_day": 480
+          }
+        }
+      },
+      "id": "2a07a754-6e17-4697-996d-f1b6d62a4b04",
+      "position": [
+        361,
+        199
+      ]
+    },
+    "255a647d-ac69-45da-be07-e9177b6e5334": {
+      "behavior_type": "RandomWalk",
+      "name": "Random Walk",
+      "values": {
+        "max_distance": {
+          "String": "4"
+        },
+        "walk_delay": {
+          "String": "2"
+        },
+        "position": {
+          "Position": {
+            "region": "4400001d-e558-47b9-84e2-772c8ecd8e58",
+            "x": 30,
+            "y": -3
+          }
+        },
+        "speed": {
+          "String": "8"
+        },
+        "delay": {
+          "String": "2"
+        }
+      },
+      "id": "255a647d-ac69-45da-be07-e9177b6e5334",
+      "position": [
+        623,
+        316
+      ]
+    },
+    "7fe6b263-fc3a-4433-9346-fd77c8ccafda": {
+      "behavior_type": "Script",
+      "name": "Script",
+      "values": {
+        "script": {
+          "String": "let sheet = get_target_sheet();\nsheet.hit_points = sheet.max_hit_points;\nset_target_sheet(sheet);\nsend_status_message_target(\"Antony heals you!\");"
+        }
+      },
+      "id": "7fe6b263-fc3a-4433-9346-fd77c8ccafda",
+      "position": [
+        364,
+        411
+      ]
+    },
+    "a02cfe2f-4e46-4ca1-aa34-f2241b17ca88": {
+      "behavior_type": "BehaviorTree",
+      "name": "Look (P)",
+      "values": {
+        "execute": {
+          "Integer": 2
+        }
+      },
+      "id": "a02cfe2f-4e46-4ca1-aa34-f2241b17ca88",
+      "position": [
+        367,
+        85
+      ]
+    },
+    "726a7e07-c091-4306-a786-c58bb227bded": {
+      "behavior_type": "BehaviorTree",
+      "name": "Heal ?",
+      "values": {
+        "execute": {
+          "Integer": 0
+        }
+      },
+      "id": "726a7e07-c091-4306-a786-c58bb227bded",
+      "position": [
+        395,
+        62
+      ]
+    },
+    "cc4f38f0-e100-473f-b33e-ce0c74e31fb6": {
+      "behavior_type": "Message",
+      "name": "Message",
+      "values": {
+        "text": {
+          "String": "You see Antony, a famous healer."
+        },
+        "type": {
+          "Integer": 0
+        }
+      },
+      "id": "cc4f38f0-e100-473f-b33e-ce0c74e31fb6",
+      "position": [
+        367,
+        233
+      ]
+    },
+    "6586e8f7-fae6-483b-b2d7-2978eeede5d7": {
+      "behavior_type": "Lookout",
+      "name": "Lookout",
+      "values": {
+        "max_distance": {
+          "String": "3"
+        },
+        "expression": {
+          "String": "let rc = get_sheet().hit_points < get_sheet().max_hit_points;\nrc"
+        },
+        "state": {
+          "Integer": 0
+        }
+      },
+      "id": "6586e8f7-fae6-483b-b2d7-2978eeede5d7",
+      "position": [
+        391,
+        184
+      ]
+    }
+  },
+  "connections": [
+    [
+      "a02cfe2f-4e46-4ca1-aa34-f2241b17ca88",
+      "Bottom",
+      "cc4f38f0-e100-473f-b33e-ce0c74e31fb6",
+      "Top"
+    ],
+    [
+      "14beef31-5db8-448f-8285-101c6b033583",
+      "Bottom",
+      "2a07a754-6e17-4697-996d-f1b6d62a4b04",
+      "Top"
+    ],
+    [
+      "2a07a754-6e17-4697-996d-f1b6d62a4b04",
+      "Bottom",
+      "2b135d81-8933-47db-80df-b4e72f4198dc",
+      "Top"
+    ],
+    [
+      "2a07a754-6e17-4697-996d-f1b6d62a4b04",
+      "Right",
+      "255a647d-ac69-45da-be07-e9177b6e5334",
+      "Left"
+    ],
+    [
+      "726a7e07-c091-4306-a786-c58bb227bded",
+      "Bottom",
+      "6586e8f7-fae6-483b-b2d7-2978eeede5d7",
+      "Top"
+    ],
+    [
+      "6586e8f7-fae6-483b-b2d7-2978eeede5d7",
+      "Success",
+      "7fe6b263-fc3a-4433-9346-fd77c8ccafda",
+      "Top"
+    ]
+  ],
+  "id": "574ae7dc-8c8b-4817-9640-6348ce23fdeb",
+  "name": "Antony",
+  "curr_node_id": "7fe6b263-fc3a-4433-9346-fd77c8ccafda",
+  "instances": [],
+  "loot": [],
+  "settings": null
+}

@@ -1999,6 +1999,7 @@ impl Sidebar {
                                 if let Some(character) = project.characters.get_mut(&bundle.id) {
                                     if character.id == bundle.id {
                                         *character = bundle.clone();
+                                        server.insert_character(character.clone());
                                     }
                                 }
                                 redraw = true;

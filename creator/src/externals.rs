@@ -14,6 +14,14 @@ pub fn set_server_externals() {
         Some(TheValue::Text("".to_string())),
     ));
 
+    codeeditor.add_external(TheExternalCode::new(
+        "Tell".to_string(),
+        "Tells the current target the given text.".to_string(),
+        vec![str!("Text")],
+        vec![TheValue::Text("".to_string())],
+        None,
+    ));
+
     /*
     codeeditor.add_external(TheExternalCode::new(
         "RandWalk".to_string(),

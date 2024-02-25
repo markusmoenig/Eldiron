@@ -1,1 +1,48 @@
-{"nodes":{"93ae456b-4d53-485f-b7eb-6531c4505059":{"behavior_type":"MessageArea","name":"Message","values":{"text":{"String":"The sign  says: \"The city of Eldiron is to the north. The old Fortress to the west.\""},"type":{"Integer":0}},"id":"93ae456b-4d53-485f-b7eb-6531c4505059","position":[369,37]},"6b23c589-e7ac-4433-9c2b-483be9461da9":{"behavior_type":"ActionArea","name":"Action","values":{"action":{"String":"Look"}},"id":"6b23c589-e7ac-4433-9c2b-483be9461da9","position":[91,49]}},"connections":[["6b23c589-e7ac-4433-9c2b-483be9461da9","Right","93ae456b-4d53-485f-b7eb-6531c4505059","Left"]],"id":"aab56e6f-99b2-4d85-a92a-707904b76c87","name":"area_83ff37b3-f377-40ed-9588-b47b09be2538","curr_node_id":"93ae456b-4d53-485f-b7eb-6531c4505059","instances":[],"settings":null}
+{
+  "nodes": {
+    "93ae456b-4d53-485f-b7eb-6531c4505059": {
+      "behavior_type": "MessageArea",
+      "name": "Message",
+      "values": {
+        "text": {
+          "String": "The sign  says: \"The city of Eldiron is to the north. The old Fortress to the west.\""
+        },
+        "type": {
+          "Integer": 0
+        }
+      },
+      "id": "93ae456b-4d53-485f-b7eb-6531c4505059",
+      "position": [
+        369,
+        37
+      ]
+    },
+    "6b23c589-e7ac-4433-9c2b-483be9461da9": {
+      "behavior_type": "ActionArea",
+      "name": "Action",
+      "values": {
+        "action": {
+          "String": "Look"
+        }
+      },
+      "id": "6b23c589-e7ac-4433-9c2b-483be9461da9",
+      "position": [
+        91,
+        49
+      ]
+    }
+  },
+  "connections": [
+    [
+      "6b23c589-e7ac-4433-9c2b-483be9461da9",
+      "Right",
+      "93ae456b-4d53-485f-b7eb-6531c4505059",
+      "Left"
+    ]
+  ],
+  "id": "aab56e6f-99b2-4d85-a92a-707904b76c87",
+  "name": "area_83ff37b3-f377-40ed-9588-b47b09be2538",
+  "curr_node_id": "93ae456b-4d53-485f-b7eb-6531c4505059",
+  "instances": [],
+  "settings": null
+}

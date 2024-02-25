@@ -1,11 +1,11 @@
 use crate::prelude::*;
-use crate::server::{ITEMS, KEY_DOWN, REGIONS, TILES, UPDATES};
+use crate::server::{CHARACTERS, INTERACTIONS, ITEMS, KEY_DOWN, REGIONS, TILES, UPDATES};
 use theframework::prelude::*;
 
 use super::WallFX;
 
 pub fn add_compiler_functions(compiler: &mut TheCompiler) {
-    //
+    // KeyDown
     compiler.add_external_call(
         "KeyDown".to_string(),
         |stack, _data, _sandbox| {
@@ -86,7 +86,15 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
             }
 
             if let Some(region) = REGIONS.read().unwrap().get(&region_id) {
+                let mut self_instance_id = Uuid::nil();
+                // let mut self_package_id = Uuid::nil();
+
+                let mut target_instance_id = None;
+
                 if let Some(object) = sandbox.get_self_mut() {
+                    self_instance_id = object.id;
+                    // self_package_id = object.package_id;
+
                     if let Some(TheValue::Position(p)) = object.get_mut(&"position".into()) {
                         let x = p.x + by.x;
                         let z = p.z + by.y;
@@ -97,14 +105,23 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                                 &TILES.read().unwrap(),
                                 update,
                             ) {
-                                let old_position = *p;
+                                let mut can_move = true;
+                                for c in update.characters.values() {
+                                    if c.position.x == x && c.position.y == z {
+                                        can_move = false;
+                                        target_instance_id = Some(c.id);
+                                    }
+                                }
 
-                                *p = vec3f(x, p.y, z);
+                                if can_move {
+                                    let old_position = *p;
+                                    *p = vec3f(x, p.y, z);
 
-                                if let Some(cu) = update.characters.get_mut(&object.id) {
-                                    cu.position = vec2f(x, z);
-                                    cu.moving = Some((old_position.xz(), cu.position));
-                                    cu.move_delta = 0.0;
+                                    if let Some(cu) = update.characters.get_mut(&object.id) {
+                                        cu.position = vec2f(x, z);
+                                        cu.moving = Some((old_position.xz(), cu.position));
+                                        cu.move_delta = 0.0;
+                                    }
                                 }
                             }
 
@@ -116,6 +133,34 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                         } else if sandbox.debug_mode {
                             sandbox.set_debug_value(data.location, (None, TheValue::Bool(false)));
                             stack.push(TheValue::Bool(false));
+                        }
+                    }
+                }
+
+                // We bumped into another character. Get the package id of the other character
+                // and call the onContact function of the other / target character.
+                if let Some(target_instance_id) = target_instance_id {
+                    let mut target_package_id = Uuid::nil();
+                    if let Some(target_object) = sandbox.objects.get(&target_instance_id) {
+                        target_package_id = target_object.package_id;
+                    }
+
+                    //
+                    if let Some(target_character) =
+                        CHARACTERS.write().unwrap().get_mut(&target_package_id)
+                    {
+                        if let Some(on_contact) =
+                            target_character.get_function_mut(&"onContact".into())
+                        {
+                            let prev_aliases = sandbox.aliases.clone();
+                            sandbox
+                                .aliases
+                                .insert("self".to_string(), target_instance_id);
+                            sandbox
+                                .aliases
+                                .insert("target".to_string(), self_instance_id);
+                            on_contact.execute(sandbox);
+                            sandbox.aliases = prev_aliases;
                         }
                     }
                 }
@@ -156,7 +201,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                         let id = Uuid::new_v4();
                         object.id = id;
                         object.package_id = item_id;
-                        object.set(str!("type"), TheValue::Text(str!("Item")));
+                        object.set(str!("_type"), TheValue::Text(str!("Item")));
                         sandbox.add_object(object);
                         sandbox.aliases.insert("self".to_string(), id);
                         init.execute(&mut sandbox);
@@ -200,6 +245,34 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
             TheCodeNodeCallResult::Continue
         },
         vec![],
+    );
+
+    // Tell
+    compiler.add_external_call(
+        "Tell".to_string(),
+        |stack, _data, sandbox| {
+            let text = stack.pop().unwrap_or(TheValue::Text(str!("")));
+
+            let mut self_instance_id = Uuid::nil();
+            let mut self_name = "".to_string();
+
+            if let Some(object) = sandbox.get_self_mut() {
+                self_instance_id = object.id;
+                self_name = object
+                    .get(&str!("name"))
+                    .unwrap_or(&TheValue::Text(str!("")))
+                    .describe();
+            }
+
+            if let Some(object) = sandbox.get_target_mut() {
+                let tell =
+                    Interaction::tell(self_instance_id, self_name, object.id, text.describe());
+                INTERACTIONS.write().unwrap().push(tell);
+            }
+
+            TheCodeNodeCallResult::Continue
+        },
+        vec![TheValue::Text("".to_string())],
     );
 
     // WallFX

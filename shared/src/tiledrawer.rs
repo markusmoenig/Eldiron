@@ -126,7 +126,7 @@ impl TileDrawer {
         }
 
         // Fill the code level with the blocking info and collect lights
-        let mut level = TheCodeLevel::new(region.width, region.height, settings.time);
+        let mut level = Level::new(region.width, region.height, settings.time);
         region.fill_code_level(&mut level, &self.tiles, update);
 
         let pixels = buffer.pixels_mut();
@@ -316,7 +316,7 @@ impl TileDrawer {
         c: &mut [u8; 4],
         region: &Region,
         _update: &RegionUpdate,
-        level: &TheCodeLevel,
+        level: &Level,
         daylight: Vec3f,
     ) {
         //let mut rng = rand::thread_rng();
@@ -500,7 +500,7 @@ impl TileDrawer {
         rd: Vec2f,
         pixels_per_cell: f32,
         target: Vec2i,
-        level: &TheCodeLevel,
+        level: &Level,
     ) -> Option<f32> {
         let (mut x, mut y) = (ro.x / pixels_per_cell, ro.y / pixels_per_cell); // Convert to grid coords
 
@@ -556,7 +556,7 @@ impl TileDrawer {
         ro: Vec2f,
         rd: Vec2f,
         pixels_per_cell: f32,
-        level: &TheCodeLevel,
+        level: &Level,
     ) -> Option<(f32, Vec2i, Vec2f)> {
         // Return type changed to include normal vector
         let (mut x, mut y) = (ro.x / pixels_per_cell, ro.y / pixels_per_cell);
