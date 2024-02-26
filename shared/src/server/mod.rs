@@ -552,6 +552,16 @@ impl Server {
         }
     }
 
+    /// Returns the instance id of the character with the given name and the region id it is in.
+    pub fn get_character_instance_info_by_name(&self, name: String) -> Option<(Uuid, Uuid)> {
+        for (region, instance) in self.instances.iter() {
+            if let Some(instance_id) = instance.get_character_instance_info_by_name(name.clone()) {
+                return Some((*region, instance_id));
+            }
+        }
+        None
+    }
+
     /// Returns the object of the character instance for the given region along with its character id.
     pub fn get_character_object(
         &self,

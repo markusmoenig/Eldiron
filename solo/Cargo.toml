@@ -1,0 +1,29 @@
+[package]
+name = "solo"
+version = "0.8.9"
+edition = "2021"
+authors = ["Markus Moenig"]
+description = "A game creator for retro RPGs."
+
+[dependencies]
+# theframework = { path = "../../TheFramework", features = ["ui", "code"] }
+theframework = { git = "https://github.com/markusmoenig/TheFramework", features = [
+    "ui",
+    "code",
+], default-features = true }
+# theframework = { version = "0.1.20", features = ["ui", "code"], default-features = true }
+shared = { path = "../shared" }
+lazy_static = "1.4.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+vectorize = "0.2.0"
+rust-embed = { version = "8", default-features = true, features = [
+    "include-exclude",
+] }
+png = "0.17"
+open = "5.0.1"
+fontdue = "0.8.0"
+
+# [lib]
+# name = "rustapi"
+# crate-type = ["staticlib"]

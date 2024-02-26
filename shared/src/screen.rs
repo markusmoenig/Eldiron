@@ -41,6 +41,19 @@ impl Screen {
         }
     }
 
+    /// Returns the widgets sorted by size (width * height), smallest first.
+    pub fn sorted_widgets_by_size(&self) -> Vec<&Widget> {
+        let mut widgets: Vec<&Widget> = self.widgets.values().collect();
+        widgets.sort_by(|a, b| {
+            let size_a = a.width * a.height;
+            let size_b = b.width * b.height;
+            size_b
+                .partial_cmp(&size_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        widgets
+    }
+
     /// Create a region from json.
     pub fn from_json(json: &str) -> Self {
         serde_json::from_str(json).unwrap_or(Screen::new())

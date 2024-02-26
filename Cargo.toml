@@ -1,20 +1,5 @@
 [workspace]
 
-members = [
-    #"core_server",
-    #"core_render",
-    #"core_embed_binaries",
-    "creator",
-    #"creator_lib",
-    #"creator_main",
-    #"client_standalone",
-    #"client_standalone_web",
-    "run-wasm",
-    #"server",
-    #"client",
-    #"client_web",
-    "shared"
-]
-
+members = ["creator", "run-wasm", "shared", "solo"]
 #edition = "2021"
 resolver = "2"

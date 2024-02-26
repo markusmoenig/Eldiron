@@ -150,7 +150,6 @@ impl Client {
         buffer: &mut TheRGBABuffer,
         _tiledrawer: &TileDrawer,
         _ctx: &mut TheContext,
-        _server_ctx: &ServerContext,
     ) {
         let delta = self.redraw_ms as f32 / self.tick_ms as f32;
 

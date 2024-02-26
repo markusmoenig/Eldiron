@@ -44,10 +44,13 @@ pub mod prelude {
 use crate::editor::Editor;
 
 fn main() {
+    let args: Vec<_> = std::env::args().collect();
+
     std::env::set_var("RUST_BACKTRACE", "1");
 
     let editor = Editor::new();
     let mut app = TheApp::new();
+    app.set_cmd_line_args(args);
 
     _ = app.run(Box::new(editor));
 }

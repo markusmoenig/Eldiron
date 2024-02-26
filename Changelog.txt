@@ -1,6 +1,7 @@
 v 0.8.9 (WiP)
 -------
 
+- Basic interactions between characters.
 - TileFX (tile effects, like lighting, brightness adjustment, etc.) with timeline support.
 - Daytime / Nighttime cycle via a timeline.
 - CodeGridFX support for drawing (client side).

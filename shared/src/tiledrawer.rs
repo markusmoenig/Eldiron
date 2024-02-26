@@ -152,6 +152,8 @@ impl TileDrawer {
                     let mut daylight = settings.daylight;
                     let mut show_fx_marker = false;
 
+                    let mut mirror: Option<(i32, i32)> = None;
+
                     if let Some(tile) = region.tiles.get(&(tile_x, tile_y)) {
                         tile_is_empty = false;
 
@@ -248,6 +250,30 @@ impl TileDrawer {
                                     daylight *= brightness;
                                 }
                             }
+                            if let Some(TheValue::IntRange(range, _)) = tilefx.get(
+                                str!("Mirror"),
+                                str!("Range"),
+                                &settings.time,
+                                TheInterpolation::Linear,
+                            ) {
+                                if let Some(TheValue::TextList(index, _)) = tilefx.get(
+                                    str!("Mirror"),
+                                    str!("Direction"),
+                                    &settings.time,
+                                    TheInterpolation::Linear,
+                                ) {
+                                    if let Some(TheValue::TileMask(tile)) = tilefx.get(
+                                        str!("Mirror"),
+                                        str!("Mask"),
+                                        &settings.time,
+                                        TheInterpolation::Linear,
+                                    ) {
+                                        if tile.is_empty() || tile.contains(vec2i(xx, yy)) {
+                                            mirror = Some((range, index));
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -285,7 +311,7 @@ impl TileDrawer {
                     }
 
                     if !tile_is_empty {
-                        self.render(vec2i(x, y), &mut color, region, update, &level, daylight);
+                        self.render(vec2i(x, y), &mut color, region, &level, daylight, mirror);
                     }
 
                     // Show the fx marker if necessary
@@ -309,21 +335,59 @@ impl TileDrawer {
         characters
     }
 
+    #[inline(always)]
     /// Sample the lights and apply all TileFX for the pixel.
     pub fn render(
         &self,
         p: Vec2i,
         c: &mut [u8; 4],
         region: &Region,
-        _update: &RegionUpdate,
         level: &Level,
         daylight: Vec3f,
+        mirror: Option<(i32, i32)>,
     ) {
         //let mut rng = rand::thread_rng();
 
         let mut color = TheColor::from_u8_array(*c).to_vec3f();
 
         let ro = Vec2f::from(p) / region.grid_size as f32;
+
+        // Apply mirror
+        if let Some(mirror) = mirror {
+            let d = Vec2f::new(0.0, 1.0);
+
+            let mut t = 0.0;
+            let max_t = mirror.0 as f32;
+
+            while t < max_t {
+                let pos = ro + d * t;
+                let tile = vec2i(pos.x as i32, pos.y as i32);
+
+                if level.is_blocking((tile.x, tile.y)) {
+                    if let Some(tile) = region.tiles.get(&(tile.x, tile.y)) {
+                        if let Some(wall) = tile.layers[1] {
+                            if let Some(wall_tile) = self.tiles.get(&wall) {
+                                let index = 0; //settings.anim_counter % data.buffer.len();
+                                let xx = p.x as f32 / region.grid_size as f32;
+                                let yy = p.y as f32 / region.grid_size as f32;
+
+                                if let Some(c) =
+                                    wall_tile.buffer[index].at(vec2i(xx as i32, yy as i32))
+                                {
+                                    let p = TheColor::from_u8_array(c).to_vec3f();
+                                    //color = self.mix_color(&p, &c, c[3] as f32 / 255.0);
+                                    color = p;
+                                }
+                            }
+                        }
+                    }
+
+                    break;
+                }
+
+                t += 1.0 / 4.0;
+            }
+        }
 
         // If no lights apply world brightness
         if level.lights.is_empty() {

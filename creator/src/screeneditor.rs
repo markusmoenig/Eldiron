@@ -229,18 +229,19 @@ impl ScreenEditor {
                     || self.editor_mode == ScreenEditorMode::Erase
                 {
                     if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
-                        for (id, widget) in screen.widgets.iter_mut() {
+                        let sorted_widgets = screen.sorted_widgets_by_size();
+                        for widget in sorted_widgets.iter() {
                             if widget.is_inside(coord) {
                                 if self.editor_mode == ScreenEditorMode::Pick {
                                     if let Some(layout) = ui.get_list_layout("Screen Content List")
                                     {
-                                        layout.select_item(*id, ctx, true);
+                                        layout.select_item(widget.id, ctx, true);
                                     }
                                 } else if self.editor_mode == ScreenEditorMode::Erase {
                                     open_delete_confirmation_dialog(
                                         "Delete Widget ?",
                                         format!("Permanently delete '{}' ?", widget.name).as_str(),
-                                        *id,
+                                        widget.id,
                                         ui,
                                         ctx,
                                     );
@@ -504,7 +505,6 @@ impl ScreenEditor {
                         rgba_view.buffer_mut(),
                         &TILEDRAWER.lock().unwrap(),
                         ctx,
-                        server_ctx,
                     );
                     rgba_view.set_needs_redraw(true);
 
@@ -520,14 +520,14 @@ impl ScreenEditor {
                                 if Some(*id) == server_ctx.curr_widget {
                                     ctx.draw.rect_outline(
                                         rgba_view.buffer_mut().pixels_mut(),
-                                        &(x * gs, y * gs, (x + width) * gs, (y + height) * gs),
+                                        &(x * gs, y * gs, width * gs, height * gs),
                                         screen.width as usize,
                                         &[255, 255, 255, 255],
                                     );
                                 } else {
                                     ctx.draw.rect_outline(
                                         rgba_view.buffer_mut().pixels_mut(),
-                                        &(x * gs, y * gs, (x + width) * gs, (y + height) * gs),
+                                        &(x * gs, y * gs, width * gs, height * gs),
                                         screen.width as usize,
                                         &[128, 128, 128, 255],
                                     );

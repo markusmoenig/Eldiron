@@ -72,6 +72,10 @@ impl TileFXEditor {
         item.set_text(str!("Light Emitter"));
         list_layout.add_item(item, ctx);
 
+        let mut item = TheListItem::new(TheId::named("TileFX Mirror"));
+        item.set_text(str!("Mirror"));
+        list_layout.add_item(item, ctx);
+
         list_layout.limiter_mut().set_max_width(130);
         list_layout.select_first_item(ctx);
         list_canvas.set_layout(list_layout);

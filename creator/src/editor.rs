@@ -2,6 +2,7 @@ use crate::prelude::*;
 use crate::Embedded;
 use lazy_static::lazy_static;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::mpsc::Receiver;
 use std::sync::Mutex;
 
@@ -219,6 +220,18 @@ impl TheTrait for Editor {
         // -
 
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
+    }
+
+    /// Set the command line arguments
+    fn set_cmd_line_args(&mut self, args: Vec<String>, ctx: &mut TheContext) {
+        if args.len() > 1 {
+            if let Ok(path) = PathBuf::from_str(&args[1]) {
+                ctx.ui.send(TheEvent::FileRequesterResult(
+                    TheId::named("Open"),
+                    vec![path],
+                ));
+            }
+        }
     }
 
     /// Handle UI events and UI state

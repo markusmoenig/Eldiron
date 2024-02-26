@@ -2018,6 +2018,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "solo"
+version = "0.8.9"
+dependencies = [
+ "fontdue",
+ "lazy_static",
+ "open",
+ "png",
+ "rust-embed",
+ "serde",
+ "serde_json",
+ "shared",
+ "theframework",
+ "vectorize",
+]
+
+[[package]]
 name = "spirv"
 version = "0.2.0+1.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2105,7 +2121,7 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
-source = "git+https://github.com/markusmoenig/TheFramework#b3e08372088d9b7887dde5d5fc0c98c364f7a188"
+source = "git+https://github.com/markusmoenig/TheFramework#04dc9e305648dfad59fe7681f76269d0dba65445"
 dependencies = [
  "console_error_panic_hook",
  "console_log",

@@ -6,6 +6,7 @@ pub enum TileFX {
     None,
     Brightness(TheCollection, TileFXMetaData),
     LightEmitter(TheCollection, TileFXMetaData),
+    Mirror(TheCollection, TileFXMetaData),
 }
 
 impl TileFX {
@@ -67,6 +68,25 @@ impl TileFX {
                 meta.set_description("Emission Strength", str!("The strength of the light."));
                 TileFX::LightEmitter(coll, meta)
             }
+            "Mirror" => {
+                if let Some(collection) = collection {
+                    coll = collection;
+                } else {
+                    coll.set("Range", TheValue::IntRange(8, 1..=20));
+                    coll.set(
+                        "Direction",
+                        TheValue::TextList(
+                            0,
+                            vec![str!("North"), str!("East"), str!("South"), str!("West")],
+                        ),
+                    );
+                    coll.set("Mask", TheValue::TileMask(TheTileMask::default()));
+                }
+                let mut meta = TileFXMetaData::new();
+                meta.set_description("Range", str!("The range of the mirror in tiles."));
+                meta.set_description("Direction", str!("The direction to mirror."));
+                TileFX::LightEmitter(coll, meta)
+            }
             _ => TileFX::None,
         }
     }
@@ -77,6 +97,7 @@ impl TileFX {
             TileFX::None => str!("None"),
             TileFX::Brightness(_, _) => str!("Brightness"),
             TileFX::LightEmitter(_, _) => str!("Light Emitter"),
+            TileFX::Mirror(_, _) => str!("Mirror"),
         }
     }
 
@@ -86,6 +107,7 @@ impl TileFX {
             TileFX::None => None,
             TileFX::Brightness(collection, _) => Some(collection),
             TileFX::LightEmitter(collection, _) => Some(collection),
+            TileFX::Mirror(collection, _) => Some(collection),
         }
     }
 
@@ -95,6 +117,7 @@ impl TileFX {
             TileFX::None => TheCollection::default(),
             TileFX::Brightness(collection, _) => collection.clone(),
             TileFX::LightEmitter(collection, _) => collection.clone(),
+            TileFX::Mirror(collection, _) => collection.clone(),
         }
     }
 
@@ -104,6 +127,7 @@ impl TileFX {
             TileFX::None => None,
             TileFX::Brightness(_, meta) => Some(meta),
             TileFX::LightEmitter(_, meta) => Some(meta),
+            TileFX::Mirror(_, meta) => Some(meta),
         }
     }
 

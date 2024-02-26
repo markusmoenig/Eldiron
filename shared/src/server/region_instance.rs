@@ -714,4 +714,19 @@ impl RegionInstance {
             );
         }
     }
+
+    /// Returns the instance id of the character with the given name.
+    pub fn get_character_instance_info_by_name(&self, name: String) -> Option<Uuid> {
+        for (instance_id, _) in &self.character_ids {
+            if let Some(object) = self.sandbox.objects.get(instance_id) {
+                if let Some(TheValue::Text(n)) = object.get(&"name".into()) {
+                    if n == &name {
+                        return Some(*instance_id);
+                    }
+                }
+            }
+        }
+
+        None
+    }
 }
