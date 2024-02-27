@@ -311,7 +311,16 @@ impl TileDrawer {
                     }
 
                     if !tile_is_empty {
-                        self.render(vec2i(x, y), &mut color, region, &level, daylight, mirror);
+                        self.render(
+                            vec2i(x, y),
+                            &mut color,
+                            region,
+                            &level,
+                            daylight,
+                            settings,
+                            &characters,
+                            mirror,
+                        );
                     }
 
                     // Show the fx marker if necessary
@@ -344,6 +353,8 @@ impl TileDrawer {
         region: &Region,
         level: &Level,
         daylight: Vec3f,
+        settings: &RegionDrawSettings,
+        characters: &Vec<(Vec2i, Uuid, Uuid)>,
         mirror: Option<(i32, i32)>,
     ) {
         //let mut rng = rand::thread_rng();
@@ -351,41 +362,70 @@ impl TileDrawer {
         let mut color = TheColor::from_u8_array(*c).to_vec3f();
 
         let ro = Vec2f::from(p) / region.grid_size as f32;
+        let roi = Vec2i::from(ro);
+
+        let grid_size = region.grid_size as f32;
 
         // Apply mirror
-        if let Some(mirror) = mirror {
-            let d = Vec2f::new(0.0, 1.0);
+        if let Some((range, direction)) = mirror {
+            let d = match direction {
+                0 => Vec2f::new(0.0, -1.0),
+                1 => Vec2f::new(1.0, 0.0),
+                2 => Vec2f::new(0.0, 1.0),
+                _ => Vec2f::new(-1.0, 0.0),
+            };
 
             let mut t = 0.0;
-            let max_t = mirror.0 as f32;
+            let max_t = range as f32;
+            let mut hit = false;
 
-            while t < max_t {
+            while !hit && t < max_t {
                 let pos = ro + d * t;
                 let tile = vec2i(pos.x as i32, pos.y as i32);
 
-                if level.is_blocking((tile.x, tile.y)) {
+                // Characters
+                for (character_pos, tile_id, _) in characters {
+                    if let Some(data) = self.tiles.get(tile_id) {
+                        let index = settings.anim_counter % data.buffer.len();
+
+                        let w = data.buffer[index].dim().width as i32;
+                        let h = data.buffer[index].dim().height as i32;
+
+                        let xx = (pos.x * grid_size) as i32 - character_pos.x;
+                        let yy = (pos.y * grid_size) as i32 - character_pos.y;
+
+                        if xx >= 0 && xx < w && yy >= 0 && yy < h {
+                            if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
+                                color = TheColor::from_u8_array(c).to_vec3f();
+                                hit = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if !hit && roi != tile && level.is_blocking((tile.x, tile.y)) {
                     if let Some(tile) = region.tiles.get(&(tile.x, tile.y)) {
                         if let Some(wall) = tile.layers[1] {
                             if let Some(wall_tile) = self.tiles.get(&wall) {
-                                let index = 0; //settings.anim_counter % data.buffer.len();
-                                let xx = p.x as f32 / region.grid_size as f32;
-                                let yy = p.y as f32 / region.grid_size as f32;
+                                let index = settings.anim_counter % wall_tile.buffer.len();
+                                let xx = p.x as f32 % grid_size;
+                                let yy = p.y as f32 % grid_size;
 
                                 if let Some(c) =
                                     wall_tile.buffer[index].at(vec2i(xx as i32, yy as i32))
                                 {
                                     let p = TheColor::from_u8_array(c).to_vec3f();
-                                    //color = self.mix_color(&p, &c, c[3] as f32 / 255.0);
                                     color = p;
+                                    if c[3] == 255 {
+                                        hit = true;
+                                    }
                                 }
                             }
                         }
                     }
-
-                    break;
                 }
 
-                t += 1.0 / 4.0;
+                t += 1.0;
             }
         }
 
@@ -397,7 +437,7 @@ impl TileDrawer {
             let mut total_light = Vec3f::new(0.0, 0.0, 0.0);
             for (light_grid, light_coll) in &level.lights {
                 let light_pos = Vec2f::from(*light_grid) + vec2f(0.5, 0.5);
-                let light_max_distance = 10.0;
+                let light_max_distance = light_coll.get_i32_default("Maximum Distance", 10) as f32;
                 let mut light_strength = light_coll.get_f32_default("Emission Strength", 1.0);
                 let light_sampling_off = light_coll.get_f32_default("Sample Offset", 0.5);
                 let light_samples = light_coll.get_i32_default("Samples #", 5) as usize;

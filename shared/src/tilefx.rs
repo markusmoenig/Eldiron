@@ -43,6 +43,7 @@ impl TileFX {
                     coll = collection;
                 } else {
                     coll.set("Emission Strength", TheValue::FloatRange(1.0, 0.1..=3.0));
+                    coll.set("Maximum Distance", TheValue::IntRange(10, 1..=20));
                     coll.set("Samples #", TheValue::IntRange(5, 1..=7));
                     coll.set("Sample Offset", TheValue::FloatRange(0.5, 0.01..=0.5));
                     coll.set(
@@ -66,6 +67,22 @@ impl TileFX {
                 }
                 let mut meta = TileFXMetaData::new();
                 meta.set_description("Emission Strength", str!("The strength of the light."));
+                meta.set_description(
+                    "Maximum Distance",
+                    str!("The maximum distance light is travelling (in tiles)."),
+                );
+                meta.set_description(
+                    "Samples #",
+                    str!("The number of light samples to take. More samples mean a softer light."),
+                );
+                meta.set_description(
+                    "Sample Offset",
+                    str!("The offset of the samples from the origin."),
+                );
+                meta.set_description(
+                    "Limit Direction",
+                    str!("Limits the light distribution to the given direction. Useful for example for windows."),
+                );
                 TileFX::LightEmitter(coll, meta)
             }
             "Mirror" => {
