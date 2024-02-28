@@ -63,6 +63,7 @@ impl TileFX {
                         "Light Color",
                         TheValue::TextList(0, vec![str!("Color"), str!("Daylight")]),
                     );
+                    coll.set("Color", TheValue::ColorObject(TheColor::white(), 0.0));
                     coll.set("Mask", TheValue::TileMask(TheTileMask::default()));
                 }
                 let mut meta = TileFXMetaData::new();

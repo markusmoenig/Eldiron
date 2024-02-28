@@ -2121,7 +2121,7 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
-source = "git+https://github.com/markusmoenig/TheFramework#04dc9e305648dfad59fe7681f76269d0dba65445"
+source = "git+https://github.com/markusmoenig/TheFramework#b72b0d721a82d619b7f37831e5a931af8e1a5d4c"
 dependencies = [
  "console_error_panic_hook",
  "console_log",

@@ -391,10 +391,16 @@ impl TileDrawer {
                         let w = data.buffer[index].dim().width as i32;
                         let h = data.buffer[index].dim().height as i32;
 
-                        let xx = (pos.x * grid_size) as i32 - character_pos.x;
-                        let yy = (pos.y * grid_size) as i32 - character_pos.y;
+                        let mut xx = (pos.x * grid_size) as i32 - character_pos.x;
+                        let mut yy = (pos.y * grid_size) as i32 - character_pos.y;
 
                         if xx >= 0 && xx < w && yy >= 0 && yy < h {
+                            if direction == 0 || direction == 2 {
+                                yy = p.y % h;
+                            } else {
+                                xx = p.x % w;
+                            }
+
                             if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
                                 color = TheColor::from_u8_array(c).to_vec3f();
                                 hit = true;
@@ -441,10 +447,11 @@ impl TileDrawer {
                 let mut light_strength = light_coll.get_f32_default("Emission Strength", 1.0);
                 let light_sampling_off = light_coll.get_f32_default("Sample Offset", 0.5);
                 let light_samples = light_coll.get_i32_default("Samples #", 5) as usize;
-                let light_color = light_coll.get_i32_default("Light Color", 0);
+                let light_color_type = light_coll.get_i32_default("Light Color", 0);
+                let light_color = light_coll.get_float3_default("Color", vec3f(1.0, 1.0, 1.0));
                 let light_limiter = light_coll.get_i32_default("Limit Direction", 0);
 
-                if light_color == 1 {
+                if light_color_type == 1 {
                     light_strength = daylight.x;
                 }
 
@@ -504,7 +511,12 @@ impl TileDrawer {
                         if hit {
                             let intensity = 1.0 - (max_t / light_max_distance).clamp(0.0, 1.0);
                             //intensity *= if s == 0 { 2.0 } else { 1.0 };
-                            total_light += intensity * light_strength / light_samples as f32;
+                            let mut light =
+                                Vec3f::from(intensity * light_strength / light_samples as f32);
+                            if light_color_type == 0 {
+                                light *= light_color
+                            }
+                            total_light += light;
                         }
                     }
                 }

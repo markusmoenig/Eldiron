@@ -89,6 +89,14 @@ impl TileFXEditor {
         let mut text_layout = TheTextLayout::new(TheId::named("TileFX Settings"));
         text_layout.limiter_mut().set_max_width(300);
         center_canvas.set_layout(text_layout);
+
+        let mut center_color_canvas = TheCanvas::default();
+        let mut color_layout = TheVLayout::new(TheId::named("TileFX Color Settings"));
+        color_layout.limiter_mut().set_max_width(140);
+        color_layout.set_background_color(Some(ListLayoutBackground));
+        center_color_canvas.set_layout(color_layout);
+
+        center_canvas.set_right(center_color_canvas);
         canvas.set_center(center_canvas);
 
         // Tile Preview
@@ -207,9 +215,9 @@ impl TileFXEditor {
                     let fx = Some(TileFX::new_fx(fx_name, c));
 
                     if let Some(fx) = fx {
-                        if let Some(text_layout) = ui.get_text_layout("TileFX Settings") {
-                            if let Some(collection) = fx.collection() {
-                                self.curr_collection = collection.clone();
+                        if let Some(collection) = fx.collection() {
+                            self.curr_collection = collection.clone();
+                            if let Some(text_layout) = ui.get_text_layout("TileFX Settings") {
                                 text_layout.clear();
                                 for (name, value) in &collection.keys {
                                     if let TheValue::FloatRange(value, range) = value {
@@ -238,6 +246,21 @@ impl TileFXEditor {
                                         dropdown.set_selected_index(*index);
                                         dropdown.set_status_text(fx.get_description(name).as_str());
                                         text_layout.add_pair(name.clone(), Box::new(dropdown));
+                                    }
+                                }
+                                redraw = true;
+                                ctx.ui.relayout = true;
+                            }
+                            if let Some(vlayout) = ui.get_vlayout("TileFX Color Settings") {
+                                vlayout.clear();
+                                for (name, value) in &collection.keys {
+                                    if let TheValue::ColorObject(color, _) = value {
+                                        let mut color_picker = TheColorPicker::new(TheId::named(
+                                            (":TILEFX: ".to_owned() + name).as_str(),
+                                        ));
+                                        color_picker.limiter_mut().set_max_size(vec2i(120, 120));
+                                        color_picker.set_color(color.to_vec3f());
+                                        vlayout.add_widget(Box::new(color_picker));
                                     }
                                 }
                                 redraw = true;
