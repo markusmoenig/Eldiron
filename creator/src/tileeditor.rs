@@ -1,5 +1,12 @@
-use crate::editor::{CODEEDITOR, SIDEBARMODE, TILEDRAWER, TILEFXEDITOR};
+use crate::editor::{CODEEDITOR, RENDERER, RENDERMODE, SIDEBARMODE, TILEDRAWER, TILEFXEDITOR};
 use crate::prelude::*;
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum EditorDrawMode {
+    Draw2D,
+    DrawMixed,
+    Draw3D,
+}
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 enum EditorMode {
@@ -148,7 +155,7 @@ impl TileEditor {
         let mut zoom = TheSlider::new(TheId::named("Region Editor Zoom"));
         zoom.set_value(TheValue::Float(1.0));
         zoom.set_default_value(TheValue::Float(1.0));
-        zoom.set_range(TheValue::RangeF32(0.5..=3.0));
+        zoom.set_range(TheValue::RangeF32(0.5..=5.0));
         zoom.set_continuous(true);
         zoom.limiter_mut().set_max_width(120);
 
@@ -202,20 +209,15 @@ impl TileEditor {
         center
     }
 
-    pub fn load_from_project(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
+    pub fn load_from_project(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
         TILEDRAWER
             .lock()
             .unwrap()
             .set_tiles(project.extract_tiles());
-        if let Some(widget) = ui.get_widget("RenderView") {
-            if let Some(w) = widget
-                .as_any()
-                .downcast_mut::<TheRenderView>()
-                .map(|external_widget| external_widget as &mut dyn TheRenderViewTrait)
-            {
-                w.renderer_mut().set_textures(project.extract_tiles());
-            }
-        }
+        RENDERER
+            .lock()
+            .unwrap()
+            .set_textures(project.extract_tiles());
     }
 
     #[allow(clippy::suspicious_else_formatting)]
@@ -252,28 +254,24 @@ impl TileEditor {
                     if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
                         if *index == 0 {
                             shared.set_mode(TheSharedHLayoutMode::Left);
+                            *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
                         } else if *index == 1 {
                             shared.set_mode(TheSharedHLayoutMode::Shared);
+                            *RENDERMODE.lock().unwrap() = EditorDrawMode::DrawMixed;
                         } else if *index == 2 {
                             shared.set_mode(TheSharedHLayoutMode::Right);
+                            *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw3D;
                         }
                         ctx.ui.relayout = true;
 
                         // Set the region and textures to the RenderView if visible
                         if *index > 0 {
                             if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                                if let Some(widget) = ui.get_widget("RenderView") {
-                                    if let Some(w) = widget
-                                        .as_any()
-                                        .downcast_mut::<TheRenderView>()
-                                        .map(|external_widget| {
-                                            external_widget as &mut dyn TheRenderViewTrait
-                                        })
-                                    {
-                                        w.renderer_mut().set_region(region);
-                                        w.renderer_mut().set_textures(project.extract_tiles());
-                                    }
-                                }
+                                RENDERER.lock().unwrap().set_region(region);
+                                RENDERER
+                                    .lock()
+                                    .unwrap()
+                                    .set_textures(project.extract_tiles());
                             }
                         }
                     }
@@ -700,18 +698,7 @@ impl TileEditor {
                                 self.set_icon_previews(region, *coord, ui);
 
                                 server.update_region(region);
-
-                                if let Some(widget) = ui.get_widget("RenderView") {
-                                    if let Some(w) = widget
-                                        .as_any()
-                                        .downcast_mut::<TheRenderView>()
-                                        .map(|external_widget| {
-                                            external_widget as &mut dyn TheRenderViewTrait
-                                        })
-                                    {
-                                        w.renderer_mut().set_region(region);
-                                    }
-                                }
+                                RENDERER.lock().unwrap().set_region(region);
 
                                 ctx.ui.undo_stack.add(undo);
                             }
@@ -736,15 +723,10 @@ impl TileEditor {
                     }
                 }
 
-                if let Some(widget) = ui.get_widget("RenderView") {
-                    if let Some(w) = widget
-                        .as_any()
-                        .downcast_mut::<TheRenderView>()
-                        .map(|external_widget| external_widget as &mut dyn TheRenderViewTrait)
-                    {
-                        w.renderer_mut().set_position(vec3i(coord.x, 0, coord.y));
-                    }
-                }
+                RENDERER
+                    .lock()
+                    .unwrap()
+                    .set_position(vec3i(coord.x, 0, coord.y));
             }
             TheEvent::ValueChanged(id, value) => {
                 if id.name == "Region Editor Zoom" {
@@ -872,17 +854,9 @@ impl TileEditor {
                                     rgba_layout.scroll_to(r.scroll_offset);
                                 }
                             }
-                            if let Some(widget) = ui.get_widget("RenderView") {
-                                if let Some(w) = widget
-                                    .as_any()
-                                    .downcast_mut::<TheRenderView>()
-                                    .map(|external_widget| {
-                                        external_widget as &mut dyn TheRenderViewTrait
-                                    })
-                                {
-                                    w.renderer_mut().set_region(r);
-                                }
-                            }
+
+                            RENDERER.lock().unwrap().set_region(r);
+
                             server_ctx.curr_region = r.id;
                             self.redraw_region(ui, server, ctx, server_ctx);
                             redraw = true;

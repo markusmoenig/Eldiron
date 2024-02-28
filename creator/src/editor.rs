@@ -13,6 +13,8 @@ lazy_static! {
     pub static ref TILEMAPEDITOR: Mutex<TilemapEditor> = Mutex::new(TilemapEditor::new());
     pub static ref SIDEBARMODE: Mutex<SidebarMode> = Mutex::new(SidebarMode::Region);
     pub static ref TILEDRAWER: Mutex<TileDrawer> = Mutex::new(TileDrawer::new());
+    pub static ref RENDERER: Mutex<Renderer> = Mutex::new(Renderer::new());
+    pub static ref RENDERMODE: Mutex<EditorDrawMode> = Mutex::new(EditorDrawMode::Draw2D);
     pub static ref TILEFXEDITOR: Mutex<TileFXEditor> = Mutex::new(TileFXEditor::new());
 }
 
@@ -325,8 +327,32 @@ impl TheTrait for Editor {
             && redraw_update
             && !self.project.regions.is_empty()
         {
-            self.tileeditor
-                .redraw_region(ui, &mut self.server, ctx, &self.server_ctx);
+            let render_mode = *RENDERMODE.lock().unwrap();
+            if render_mode != EditorDrawMode::Draw2D {
+                if let Some(render_view) = ui.get_render_view("RenderView") {
+                    let dim = render_view.dim();
+
+                    let mut zoom: f32 = 1.0;
+                    if let Some(region) = self.project.get_region(&self.server_ctx.curr_region) {
+                        zoom = region.zoom;
+                    }
+
+                    let width = (dim.width as f32 / zoom) as i32;
+                    let height = (dim.height as f32 / zoom) as i32;
+
+                    let b = render_view.render_buffer_mut();
+                    b.resize(width, height);
+
+                    RENDERER
+                        .lock()
+                        .unwrap()
+                        .render(b, width as usize, height as usize);
+                }
+            }
+            if render_mode != EditorDrawMode::Draw3D {
+                self.tileeditor
+                    .redraw_region(ui, &mut self.server, ctx, &self.server_ctx);
+            }
             redraw = true;
         } else if self.active_editor == ActiveEditor::ScreenEditor && redraw_update {
             self.screeneditor.redraw_screen(

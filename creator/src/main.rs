@@ -13,8 +13,6 @@ pub mod tilefxeditor;
 pub mod tilemapeditor;
 pub mod tilepicker;
 
-pub mod widgets;
-
 use rust_embed::RustEmbed;
 #[derive(RustEmbed)]
 #[folder = "embedded/"]
@@ -37,8 +35,6 @@ pub mod prelude {
     pub use crate::tilefxeditor::*;
     pub use crate::tilemapeditor::*;
     pub use crate::tilepicker::*;
-
-    pub use crate::widgets::therenderview::{TheRenderView, TheRenderViewTrait};
 }
 
 use crate::editor::Editor;

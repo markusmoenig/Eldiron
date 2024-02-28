@@ -1,4 +1,4 @@
-use crate::editor::{CODEEDITOR, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR};
+use crate::editor::{CODEEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR};
 use crate::prelude::*;
 
 #[derive(PartialEq, Debug)]
@@ -2826,25 +2826,16 @@ impl Sidebar {
     /// Tilemaps in the project have been updated, propagate the change to all relevant parties.
     pub fn update_tiles(
         &mut self,
-        ui: &mut TheUI,
+        _ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
         server: &mut Server,
     ) {
-        TILEDRAWER
-            .lock()
-            .unwrap()
-            .set_tiles(project.extract_tiles());
-        server.update_tiles(project.extract_tiles());
-        if let Some(widget) = ui.get_widget("RenderView") {
-            if let Some(w) = widget
-                .as_any()
-                .downcast_mut::<TheRenderView>()
-                .map(|external_widget| external_widget as &mut dyn TheRenderViewTrait)
-            {
-                w.renderer_mut().set_textures(project.extract_tiles());
-            }
-        }
+        let tiles = project.extract_tiles();
+        TILEDRAWER.lock().unwrap().set_tiles(tiles.clone());
+        RENDERER.lock().unwrap().set_textures(tiles.clone());
+        server.update_tiles(tiles);
+
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Tilepicker"),
             TheValue::Empty,

@@ -18,17 +18,15 @@ impl Renderer {
         }
     }
 
-    pub fn render(&mut self, buffer: &mut TheRGBABuffer, dim: &TheDim, _ctx: &mut TheContext) {
+    pub fn render(&mut self, buffer: &mut TheRGBABuffer, width: usize, height: usize) {
         let start = self.get_time();
 
         //let stride = buffer.stride();
         let pixels = buffer.pixels_mut();
-
-        let width = dim.width as usize;
         //let height = dim.height;
 
-        let width_f = dim.width as f32;
-        let height_f = dim.height as f32;
+        let width_f = width as f32;
+        let height_f = height as f32;
 
         pixels
             .par_rchunks_exact_mut(width * 4)
@@ -176,7 +174,6 @@ impl Renderer {
                 }
             }
         }
-        println!("{:?}", self.tiles);
     }
 
     pub fn set_textures(&mut self, tiles: FxHashMap<Uuid, TheRGBATile>) {

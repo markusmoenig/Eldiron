@@ -32,8 +32,6 @@ pub mod prelude {
     pub use crate::tilemapeditor::*;
     pub use crate::tilepicker::*;
 
-    pub use crate::widgets::therenderview::{TheRenderView, TheRenderViewTrait};
-
     pub const KEY_ESCAPE: u32 = 0;
     pub const KEY_RETURN: u32 = 1;
     pub const KEY_DELETE: u32 = 2;
@@ -68,7 +66,6 @@ pub extern "C" fn rust_init() {
     APP.lock()
         .unwrap()
         .init_ui(&mut UI.lock().unwrap(), &mut CTX.lock().unwrap());
-
 }
 
 /// # Safety
@@ -87,7 +84,9 @@ pub unsafe extern "C" fn rust_draw(pixels: *mut u8, width: u32, height: u32) {
 pub extern "C" fn rust_update() -> bool {
     //println!("update");
     UI.lock().unwrap().update(&mut CTX.lock().unwrap());
-    APP.lock().unwrap().update_ui(&mut UI.lock().unwrap(), &mut CTX.lock().unwrap());
+    APP.lock()
+        .unwrap()
+        .update_ui(&mut UI.lock().unwrap(), &mut CTX.lock().unwrap());
     APP.lock().unwrap().update(&mut CTX.lock().unwrap())
 }
 
