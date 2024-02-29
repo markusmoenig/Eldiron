@@ -471,7 +471,7 @@ impl TileEditor {
                                 ctx.ui.undo_stack.add(undo);
                                 server.update_region(region);
                                 self.set_icon_previews(region, *coord, ui);
-                                self.redraw_region(ui, server, ctx, server_ctx);
+                                //self.redraw_region(ui, server, ctx, server_ctx);
                                 redraw = true;
                             }
                         }
@@ -703,7 +703,7 @@ impl TileEditor {
                                 ctx.ui.undo_stack.add(undo);
                             }
                         }
-                        self.redraw_region(ui, server, ctx, server_ctx);
+                        //self.redraw_region(ui, server, ctx, server_ctx);
                     }
                 }
             }
@@ -858,7 +858,7 @@ impl TileEditor {
                             RENDERER.lock().unwrap().set_region(r);
 
                             server_ctx.curr_region = r.id;
-                            self.redraw_region(ui, server, ctx, server_ctx);
+                            //self.redraw_region(ui, server, ctx, server_ctx);
                             redraw = true;
                         }
                     }
@@ -1015,6 +1015,7 @@ impl TileEditor {
         server: &mut Server,
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
+        compute_delta: bool,
     ) {
         if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
             if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
@@ -1025,6 +1026,7 @@ impl TileEditor {
                         &TILEDRAWER.lock().unwrap(),
                         ctx,
                         server_ctx,
+                        compute_delta,
                     );
                     rgba_view.set_needs_redraw(true);
                 }
@@ -1040,6 +1042,7 @@ impl TileEditor {
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
         project: &Project,
+        compute_delta: bool,
     ) {
         if let Some(render_view) = ui.get_render_view("RenderView") {
             let dim = render_view.dim();
@@ -1061,6 +1064,7 @@ impl TileEditor {
                 &mut RENDERER.lock().unwrap(),
                 ctx,
                 server_ctx,
+                compute_delta,
             );
         }
 
@@ -1073,6 +1077,7 @@ impl TileEditor {
                         &TILEDRAWER.lock().unwrap(),
                         ctx,
                         server_ctx,
+                        compute_delta,
                     );
                     rgba_view.set_needs_redraw(true);
                 }

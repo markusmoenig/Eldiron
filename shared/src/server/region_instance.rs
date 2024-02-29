@@ -198,6 +198,7 @@ impl RegionInstance {
         anim_counter: &usize,
         _ctx: &mut TheContext,
         server_ctx: &ServerContext,
+        compute_delta: bool,
     ) {
         let delta = self.redraw_ms as f32 / self.tick_ms as f32;
 
@@ -205,13 +206,14 @@ impl RegionInstance {
 
         if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
             if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
-                let server_tick = update.server_tick;
-
-                if server_tick != self.last_tick {
-                    self.draw_settings.delta_in_tick = 0.0;
-                    self.last_tick = server_tick;
-                } else {
-                    self.draw_settings.delta_in_tick += delta;
+                if compute_delta {
+                    let server_tick = update.server_tick;
+                    if server_tick != self.last_tick {
+                        self.draw_settings.delta_in_tick = 0.0;
+                        self.last_tick = server_tick;
+                    } else {
+                        self.draw_settings.delta_in_tick += delta;
+                    }
                 }
 
                 self.draw_settings.anim_counter = *anim_counter;
@@ -224,6 +226,7 @@ impl RegionInstance {
                     &mut self.draw_settings,
                     buffer.dim().width as usize,
                     buffer.dim().height as usize,
+                    compute_delta,
                 );
             }
         }
@@ -237,6 +240,7 @@ impl RegionInstance {
         anim_counter: &usize,
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
+        compute_delta: bool,
     ) {
         let delta = self.redraw_ms as f32 / self.tick_ms as f32;
 
@@ -246,24 +250,29 @@ impl RegionInstance {
             let grid_size = region.grid_size as f32;
 
             if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
-                let server_tick = update.server_tick;
-
-                if server_tick != self.last_tick {
-                    self.draw_settings.delta_in_tick = 0.0;
-                    self.last_tick = server_tick;
-                } else {
-                    self.draw_settings.delta_in_tick += delta;
+                if compute_delta {
+                    let server_tick = update.server_tick;
+                    if server_tick != self.last_tick {
+                        self.draw_settings.delta_in_tick = 0.0;
+                        self.last_tick = server_tick;
+                    } else {
+                        self.draw_settings.delta_in_tick += delta;
+                    }
                 }
 
                 self.draw_settings.anim_counter = *anim_counter;
-                self.draw_settings.center_on_character = None;
-                self.draw_settings.offset = Vec2i::zero();
 
-                tiledrawer.draw_region(buffer, region, update, &mut self.draw_settings);
+                tiledrawer.draw_region(
+                    buffer,
+                    region,
+                    update,
+                    &mut self.draw_settings,
+                    compute_delta,
+                );
 
                 // Draw selected character outline
                 if let Some(curr_character_instance) = server_ctx.curr_character_instance {
-                    for (position, _, character_id) in &update.characters_pixel_pos {
+                    for (position, _, character_id, _) in &update.characters_pixel_pos {
                         if *character_id == curr_character_instance {
                             tiledrawer.draw_tile_outline_at_pixel(*position, buffer, WHITE, ctx);
                         }

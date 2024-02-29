@@ -330,7 +330,7 @@ impl TheTrait for Editor {
             let render_mode = *RENDERMODE.lock().unwrap();
             if render_mode != EditorDrawMode::Draw3D {
                 self.tileeditor
-                    .redraw_region(ui, &mut self.server, ctx, &self.server_ctx);
+                    .redraw_region(ui, &mut self.server, ctx, &self.server_ctx, true);
             }
             if render_mode != EditorDrawMode::Draw2D {
                 self.tileeditor.rerender_region(
@@ -339,6 +339,7 @@ impl TheTrait for Editor {
                     ctx,
                     &self.server_ctx,
                     &self.project,
+                    render_mode == EditorDrawMode::Draw3D,
                 );
             }
             redraw = true;
@@ -441,12 +442,6 @@ impl TheTrait for Editor {
                                         self.server_ctx.curr_character_instance = None;
                                         self.server_ctx.curr_character = None;
                                         redraw = true;
-                                        self.tileeditor.redraw_region(
-                                            ui,
-                                            &mut self.server,
-                                            ctx,
-                                            &self.server_ctx,
-                                        );
 
                                         // Remove from the content list
                                         if let Some(list) =
@@ -472,12 +467,6 @@ impl TheTrait for Editor {
                                         self.server_ctx.curr_item_instance = None;
                                         self.server_ctx.curr_item = None;
                                         redraw = true;
-                                        self.tileeditor.redraw_region(
-                                            ui,
-                                            &mut self.server,
-                                            ctx,
-                                            &self.server_ctx,
-                                        );
 
                                         // Remove from the content list
                                         if let Some(list) =
@@ -503,12 +492,6 @@ impl TheTrait for Editor {
                                         self.server.remove_area(region.id, area_id);
                                         self.server_ctx.curr_area = None;
                                         redraw = true;
-                                        self.tileeditor.redraw_region(
-                                            ui,
-                                            &mut self.server,
-                                            ctx,
-                                            &self.server_ctx,
-                                        );
 
                                         // Remove from the content list
                                         if let Some(list) =
@@ -926,14 +909,6 @@ impl TheTrait for Editor {
                                         for (index, r) in self.project.regions.iter().enumerate() {
                                             if r.id == region.id {
                                                 self.server.update_region(&region);
-                                                if region.id == self.server_ctx.curr_region {
-                                                    self.tileeditor.redraw_region(
-                                                        ui,
-                                                        &mut self.server,
-                                                        ctx,
-                                                        &self.server_ctx,
-                                                    );
-                                                }
                                                 self.project.regions[index] = region;
                                                 break;
                                             }

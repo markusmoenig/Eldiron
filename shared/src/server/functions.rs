@@ -120,6 +120,8 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                                     if let Some(cu) = update.characters.get_mut(&object.id) {
                                         cu.position = vec2f(x, z);
                                         cu.moving = Some((old_position.xz(), cu.position));
+
+                                        cu.facing = by;
                                         cu.move_delta = 0.0;
                                     }
                                 }

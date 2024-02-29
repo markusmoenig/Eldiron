@@ -328,9 +328,17 @@ impl Server {
         tiledrawer: &TileDrawer,
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
+        compute_delta: bool,
     ) {
         if let Some(instance) = self.instances.get_mut(uuid) {
-            instance.draw(buffer, tiledrawer, &self.anim_counter, ctx, server_ctx);
+            instance.draw(
+                buffer,
+                tiledrawer,
+                &self.anim_counter,
+                ctx,
+                server_ctx,
+                compute_delta,
+            );
         }
     }
 
@@ -342,9 +350,17 @@ impl Server {
         renderer: &mut Renderer,
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
+        compute_delta: bool,
     ) {
         if let Some(instance) = self.instances.get_mut(uuid) {
-            instance.render(buffer, renderer, &self.anim_counter, ctx, server_ctx);
+            instance.render(
+                buffer,
+                renderer,
+                &self.anim_counter,
+                ctx,
+                server_ctx,
+                compute_delta,
+            );
         }
     }
 

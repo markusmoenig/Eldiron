@@ -32,10 +32,16 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
                     let scaled_height = (buffer.dim().height as f32 / zoom) as i32;
                     let mut zoom_buffer =
                         TheRGBABuffer::new(TheDim::new(0, 0, scaled_width, scaled_height));
-                    tiledrawer.draw_region(&mut zoom_buffer, region, &mut update, &mut settings);
+                    tiledrawer.draw_region(
+                        &mut zoom_buffer,
+                        region,
+                        &mut update,
+                        &mut settings,
+                        true,
+                    );
                     zoom_buffer.scaled_into(&mut buffer);
                 } else {
-                    tiledrawer.draw_region(&mut buffer, region, &mut update, &mut settings);
+                    tiledrawer.draw_region(&mut buffer, region, &mut update, &mut settings, true);
                 }
             }
 

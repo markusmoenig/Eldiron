@@ -12,7 +12,7 @@ pub struct RegionUpdate {
 
     #[serde(skip)]
     // The pixel position of the characters with their tile id.
-    pub characters_pixel_pos: Vec<(Vec2i, Uuid, Uuid)>,
+    pub characters_pixel_pos: Vec<(Vec2i, Uuid, Uuid, Vec2f)>,
 
     pub server_tick: i64,
     pub daylight: Vec3f,
@@ -51,7 +51,8 @@ impl RegionUpdate {
         region_height: i32,
         draw_settings: &mut RegionDrawSettings,
     ) {
-        let mut characters_pixel_pos: Vec<(Vec2i, Uuid, Uuid)> = vec![];
+        // Position, tile id, character id, facing
+        let mut characters_pixel_pos: Vec<(Vec2i, Uuid, Uuid, Vec2f)> = vec![];
 
         for (id, character) in &mut self.characters {
             let draw_pos = if let Some((start, end)) = &mut character.moving {
@@ -92,12 +93,13 @@ impl RegionUpdate {
                     0.5,
                     draw_pos.y as f32 / grid_size,
                 );
+                draw_settings.facing_3d = vec3f(character.facing.x, 0.0, character.facing.y);
             }
 
             // Find the tile id for the character.
             for (id, tile) in tiles {
                 if tile.name == character.tile_name {
-                    characters_pixel_pos.push((draw_pos, *id, character.id));
+                    characters_pixel_pos.push((draw_pos, *id, character.id, character.facing));
                 }
             }
         }
@@ -127,8 +129,14 @@ pub struct CharacterUpdate {
     pub tile_name: String,
 
     pub name: String,
+
     pub position: Vec2f,
     pub moving: Option<(Vec2f, Vec2f)>,
+
+    pub facing: Vec2f,
+    pub facing_target: Option<Vec2f>,
+
+    #[serde(skip)]
     pub move_delta: f32,
 }
 
@@ -145,8 +153,13 @@ impl CharacterUpdate {
             tile_name: "".to_string(),
 
             name: "".to_string(),
+
             position: vec2f(0.0, 0.0),
             moving: None,
+
+            facing: vec2f(0.0, -1.0),
+            facing_target: None,
+
             move_delta: 0.0,
         }
     }

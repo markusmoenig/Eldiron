@@ -26,6 +26,7 @@ impl Renderer {
         settings: &mut RegionDrawSettings,
         width: usize,
         height: usize,
+        compute_delta: bool,
     ) {
         let start = self.get_time();
 
@@ -40,18 +41,21 @@ impl Renderer {
 
         let grid_size = region.grid_size as f32;
 
-        // Collect the character positions.
-        update.generate_character_pixel_positions(
-            grid_size,
-            &self.textures,
-            vec2i(width as i32, height as i32),
-            region_height,
-            settings,
-        );
+        if compute_delta {
+            update.generate_character_pixel_positions(
+                grid_size,
+                &self.textures,
+                vec2i(width as i32, height as i32),
+                region_height,
+                settings,
+            );
+        }
 
         let mut position = self.position;
+        let mut facing = vec3f(0.0, 0.0, -1.0);
         if settings.center_on_character.is_some() {
             position = settings.center_3d;
+            facing = settings.facing_3d;
         }
 
         pixels
@@ -65,8 +69,7 @@ impl Renderer {
                     let yy = (i / width) as f32;
 
                     let ro = vec3f(position.x + 0.5, 0.5, position.z + 0.5);
-                    let mut rd = ro;
-                    rd.z -= 2.0;
+                    let rd = ro + facing * 2.0;
 
                     let camera = Camera::new(ro, rd, 70.0);
                     let ray = camera.create_ray(
@@ -113,7 +116,7 @@ impl Renderer {
 
         let mut key: Vec3<i32>; // = Vec3i::zero();
 
-        for _ii in 0..5 {
+        for _ii in 0..10 {
             key = Vec3i::from(i);
 
             //println!("{}", key);

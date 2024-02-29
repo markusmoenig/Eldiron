@@ -15,6 +15,7 @@ pub struct RegionDrawSettings {
     pub show_fx_marker: bool,
 
     pub center_3d: Vec3f,
+    pub facing_3d: Vec3f,
 
     pub time: TheTime,
     pub center_on_character: Option<Uuid>,
@@ -33,6 +34,7 @@ impl RegionDrawSettings {
             show_fx_marker: false,
 
             center_3d: Vec3f::zero(),
+            facing_3d: Vec3f::zero(),
 
             time: TheTime::default(),
             center_on_character: None,
@@ -70,6 +72,7 @@ impl TileDrawer {
         region: &Region,
         update: &mut RegionUpdate,
         settings: &mut RegionDrawSettings,
+        compute_delta: bool,
     ) {
         let _start = self.get_time();
 
@@ -82,14 +85,21 @@ impl TileDrawer {
 
         let grid_size = region.grid_size as f32;
 
-        // Collect the character positions.
-        update.generate_character_pixel_positions(
-            grid_size,
-            &self.tiles,
-            vec2i(width as i32, buffer.dim().height),
-            region_height,
-            settings,
-        );
+        if compute_delta {
+            // Collect the character positions.
+            update.generate_character_pixel_positions(
+                grid_size,
+                &self.tiles,
+                vec2i(width as i32, buffer.dim().height),
+                region_height,
+                settings,
+            );
+        }
+
+        let mut offset = settings.offset;
+        if region_height == buffer.dim().height as i32 {
+            offset = Vec2i::zero();
+        }
 
         // Fill the code level with the blocking info and collect lights
         let mut level = Level::new(region.width, region.height, settings.time);
@@ -101,9 +111,7 @@ impl TileDrawer {
             .enumerate()
             .for_each(|(j, line)| {
                 for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
-                    let i = (j + settings.offset.y as usize) * region_width
-                        + i
-                        + settings.offset.x as usize;
+                    let i = (j + offset.y as usize) * region_width + i + offset.x as usize;
 
                     let x = (i % region_width) as i32;
                     let y = region_height - (i / region_width) as i32 - 1;
@@ -115,7 +123,6 @@ impl TileDrawer {
                     let mut yy = y % region.grid_size;
 
                     let mut color = BLACK;
-                    let mut tile_is_empty = true;
 
                     let mut daylight = settings.daylight;
                     let mut show_fx_marker = false;
@@ -123,8 +130,6 @@ impl TileDrawer {
                     let mut mirror: Option<(i32, i32)> = None;
 
                     if let Some(tile) = region.tiles.get(&(tile_x, tile_y)) {
-                        tile_is_empty = false;
-
                         for tile_index in 0..tile.layers.len() {
                             if let Some(tile_uuid) = tile.layers[tile_index] {
                                 if let Some(data) = self.tiles.get(&tile_uuid) {
@@ -243,42 +248,38 @@ impl TileDrawer {
                                 }
                             }
                         }
-                    }
-
-                    // Items
-                    for item in update.items.values() {
-                        if tile_x == item.position.x as i32 && tile_y == item.position.y as i32 {
-                            tile_is_empty = false;
-                            if let Some(tile_uuid) =
-                                self.get_tile_id_by_name(item.tile_name.clone())
+                        // Items
+                        for item in update.items.values() {
+                            if tile_x == item.position.x as i32 && tile_y == item.position.y as i32
                             {
-                                if let Some(data) = self.tiles.get(&tile_uuid) {
-                                    let index = settings.anim_counter % data.buffer.len();
+                                if let Some(tile_uuid) =
+                                    self.get_tile_id_by_name(item.tile_name.clone())
+                                {
+                                    if let Some(data) = self.tiles.get(&tile_uuid) {
+                                        let index = settings.anim_counter % data.buffer.len();
 
-                                    if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
-                                        color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
+                                        if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
+                                            color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    // Characters
-                    for (pos, tile, _) in &update.characters_pixel_pos {
-                        if let Some(data) = self.tiles.get(tile) {
-                            let index = settings.anim_counter % data.buffer.len();
+                        // Characters
+                        for (pos, tile, _, _) in &update.characters_pixel_pos {
+                            if let Some(data) = self.tiles.get(tile) {
+                                let index = settings.anim_counter % data.buffer.len();
 
-                            let xx = x - pos.x;
-                            let yy = y - pos.y;
+                                let xx = x - pos.x;
+                                let yy = y - pos.y;
 
-                            if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
-                                tile_is_empty = false;
-                                color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
+                                if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
+                                    color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
+                                }
                             }
                         }
-                    }
 
-                    if !tile_is_empty {
                         self.render(
                             vec2i(x, y),
                             &mut color,
@@ -289,16 +290,16 @@ impl TileDrawer {
                             settings,
                             mirror,
                         );
-                    }
 
-                    // Show the fx marker if necessary
-                    if show_fx_marker {
-                        let triangle_size = 4;
-                        if xx < triangle_size && yy < triangle_size && yy < triangle_size - xx {
-                            color[0] = 212;
-                            color[1] = 128;
-                            color[2] = 77;
-                            color[3] = 255;
+                        // Show the fx marker if necessary
+                        if show_fx_marker {
+                            let triangle_size = 4;
+                            if xx < triangle_size && yy < triangle_size && yy < triangle_size - xx {
+                                color[0] = 212;
+                                color[1] = 128;
+                                color[2] = 77;
+                                color[3] = 255;
+                            }
                         }
                     }
 
@@ -307,7 +308,7 @@ impl TileDrawer {
             });
 
         let _stop = self.get_time();
-        // println!("drawing time {:?}", _stop - _start);
+        println!("draw time {:?}", _stop - _start);
     }
 
     #[inline(always)]
@@ -350,7 +351,7 @@ impl TileDrawer {
                 let tile = vec2i(pos.x as i32, pos.y as i32);
 
                 // Characters
-                for (character_pos, tile_id, _) in &update.characters_pixel_pos {
+                for (character_pos, tile_id, _, _) in &update.characters_pixel_pos {
                     if let Some(data) = self.tiles.get(tile_id) {
                         let index = settings.anim_counter % data.buffer.len();
 
