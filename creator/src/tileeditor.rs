@@ -1031,4 +1031,52 @@ impl TileEditor {
             }
         }
     }
+
+    /// Redraw the map of the current region on tick.
+    pub fn rerender_region(
+        &mut self,
+        ui: &mut TheUI,
+        server: &mut Server,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+        project: &Project,
+    ) {
+        if let Some(render_view) = ui.get_render_view("RenderView") {
+            let dim = render_view.dim();
+
+            let mut zoom: f32 = 1.0;
+            if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                zoom = region.zoom;
+            }
+
+            let width = (dim.width as f32 / zoom) as i32;
+            let height = (dim.height as f32 / zoom) as i32;
+
+            let b = render_view.render_buffer_mut();
+            b.resize(width, height);
+
+            server.render_region(
+                &server_ctx.curr_region,
+                b,
+                &mut RENDERER.lock().unwrap(),
+                ctx,
+                server_ctx,
+            );
+        }
+
+        if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
+            if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
+                if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+                    server.draw_region(
+                        &server_ctx.curr_region,
+                        rgba_view.buffer_mut(),
+                        &TILEDRAWER.lock().unwrap(),
+                        ctx,
+                        server_ctx,
+                    );
+                    rgba_view.set_needs_redraw(true);
+                }
+            }
+        }
+    }
 }

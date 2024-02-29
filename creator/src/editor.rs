@@ -328,30 +328,18 @@ impl TheTrait for Editor {
             && !self.project.regions.is_empty()
         {
             let render_mode = *RENDERMODE.lock().unwrap();
-            if render_mode != EditorDrawMode::Draw2D {
-                if let Some(render_view) = ui.get_render_view("RenderView") {
-                    let dim = render_view.dim();
-
-                    let mut zoom: f32 = 1.0;
-                    if let Some(region) = self.project.get_region(&self.server_ctx.curr_region) {
-                        zoom = region.zoom;
-                    }
-
-                    let width = (dim.width as f32 / zoom) as i32;
-                    let height = (dim.height as f32 / zoom) as i32;
-
-                    let b = render_view.render_buffer_mut();
-                    b.resize(width, height);
-
-                    RENDERER
-                        .lock()
-                        .unwrap()
-                        .render(b, width as usize, height as usize);
-                }
-            }
             if render_mode != EditorDrawMode::Draw3D {
                 self.tileeditor
                     .redraw_region(ui, &mut self.server, ctx, &self.server_ctx);
+            }
+            if render_mode != EditorDrawMode::Draw2D {
+                self.tileeditor.rerender_region(
+                    ui,
+                    &mut self.server,
+                    ctx,
+                    &self.server_ctx,
+                    &self.project,
+                );
             }
             redraw = true;
         } else if self.active_editor == ActiveEditor::ScreenEditor && redraw_update {

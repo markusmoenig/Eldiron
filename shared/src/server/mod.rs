@@ -334,6 +334,20 @@ impl Server {
         }
     }
 
+    /// Renders the given region instance into the given buffer. This drawing routine is only used by the editor.
+    pub fn render_region(
+        &mut self,
+        uuid: &Uuid,
+        buffer: &mut TheRGBABuffer,
+        renderer: &mut Renderer,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) {
+        if let Some(instance) = self.instances.get_mut(uuid) {
+            instance.render(buffer, renderer, &self.anim_counter, ctx, server_ctx);
+        }
+    }
+
     /// Add a new character (TheCodeBundle) to the server.
     pub fn insert_character(&mut self, mut character: TheCodeBundle) -> Option<String> {
         let mut package = TheCodePackage::new();

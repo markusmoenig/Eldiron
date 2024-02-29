@@ -18,7 +18,15 @@ impl Renderer {
         }
     }
 
-    pub fn render(&mut self, buffer: &mut TheRGBABuffer, width: usize, height: usize) {
+    pub fn render(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        region: &Region,
+        update: &mut RegionUpdate,
+        settings: &mut RegionDrawSettings,
+        width: usize,
+        height: usize,
+    ) {
         let start = self.get_time();
 
         //let stride = buffer.stride();
@@ -27,6 +35,24 @@ impl Renderer {
 
         let width_f = width as f32;
         let height_f = height as f32;
+
+        let region_height = region.height * region.grid_size;
+
+        let grid_size = region.grid_size as f32;
+
+        // Collect the character positions.
+        update.generate_character_pixel_positions(
+            grid_size,
+            &self.textures,
+            vec2i(width as i32, height as i32),
+            region_height,
+            settings,
+        );
+
+        let mut position = self.position;
+        if settings.center_on_character.is_some() {
+            position = settings.center_3d;
+        }
 
         pixels
             .par_rchunks_exact_mut(width * 4)
@@ -38,7 +64,7 @@ impl Renderer {
                     let xx = (i % width) as f32;
                     let yy = (i / width) as f32;
 
-                    let ro = vec3f(self.position.x + 0.5, 0.5, self.position.z + 0.5);
+                    let ro = vec3f(position.x + 0.5, 0.5, position.z + 0.5);
                     let mut rd = ro;
                     rd.z -= 2.0;
 

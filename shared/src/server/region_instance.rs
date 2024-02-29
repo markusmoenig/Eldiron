@@ -190,6 +190,45 @@ impl RegionInstance {
         self.debug_modules.get(&id).cloned()
     }
 
+    /// Renders this instance into the given buffer.
+    pub fn render(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        renderer: &mut Renderer,
+        anim_counter: &usize,
+        _ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) {
+        let delta = self.redraw_ms as f32 / self.tick_ms as f32;
+
+        self.draw_settings.show_fx_marker = server_ctx.show_fx_marker;
+
+        if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
+            if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
+                let server_tick = update.server_tick;
+
+                if server_tick != self.last_tick {
+                    self.draw_settings.delta_in_tick = 0.0;
+                    self.last_tick = server_tick;
+                } else {
+                    self.draw_settings.delta_in_tick += delta;
+                }
+
+                self.draw_settings.anim_counter = *anim_counter;
+                self.draw_settings.center_on_character = server_ctx.curr_character_instance;
+
+                renderer.render(
+                    buffer,
+                    region,
+                    update,
+                    &mut self.draw_settings,
+                    buffer.dim().width as usize,
+                    buffer.dim().height as usize,
+                );
+            }
+        }
+    }
+
     /// Draws this instance into the given buffer.
     pub fn draw(
         &mut self,
@@ -217,15 +256,16 @@ impl RegionInstance {
                 }
 
                 self.draw_settings.anim_counter = *anim_counter;
+                self.draw_settings.center_on_character = None;
+                self.draw_settings.offset = Vec2i::zero();
 
-                let characters =
-                    tiledrawer.draw_region(buffer, region, update, &self.draw_settings);
+                tiledrawer.draw_region(buffer, region, update, &mut self.draw_settings);
 
                 // Draw selected character outline
                 if let Some(curr_character_instance) = server_ctx.curr_character_instance {
-                    for (position, _, character_id) in characters {
-                        if character_id == curr_character_instance {
-                            tiledrawer.draw_tile_outline_at_pixel(position, buffer, WHITE, ctx);
+                    for (position, _, character_id) in &update.characters_pixel_pos {
+                        if *character_id == curr_character_instance {
+                            tiledrawer.draw_tile_outline_at_pixel(*position, buffer, WHITE, ctx);
                         }
                     }
                 }

@@ -14,6 +14,8 @@ pub struct RegionDrawSettings {
 
     pub show_fx_marker: bool,
 
+    pub center_3d: Vec3f,
+
     pub time: TheTime,
     pub center_on_character: Option<Uuid>,
 }
@@ -29,6 +31,8 @@ impl RegionDrawSettings {
             daylight: Vec3f::one(),
 
             show_fx_marker: false,
+
+            center_3d: Vec3f::zero(),
 
             time: TheTime::default(),
             center_on_character: None,
@@ -65,8 +69,8 @@ impl TileDrawer {
         buffer: &mut TheRGBABuffer,
         region: &Region,
         update: &mut RegionUpdate,
-        settings: &RegionDrawSettings,
-    ) -> Vec<(Vec2i, Uuid, Uuid)> {
+        settings: &mut RegionDrawSettings,
+    ) {
         let _start = self.get_time();
 
         let server_tick = update.server_tick;
@@ -77,53 +81,15 @@ impl TileDrawer {
         let region_height = region.height * region.grid_size;
 
         let grid_size = region.grid_size as f32;
-        let mut offset = settings.offset;
 
         // Collect the character positions.
-
-        // The pixel position of the characters with their tile id.
-        let mut characters: Vec<(Vec2i, Uuid, Uuid)> = vec![];
-
-        for (id, character) in &mut update.characters {
-            let draw_pos = if let Some((start, end)) = &mut character.moving {
-                // pub fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
-                //     let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
-                //     t * t * (3.0 - 2.0 * t)
-                // }
-
-                let sum = (settings.delta + character.move_delta).clamp(0.0, 1.0);
-                // let d = smoothstep(0.0, 1.0, sum);//.clamp(0.0, 1.0);
-                let d = sum;
-                // let d = if sum < 0.5 {
-                //     2.0 * sum * sum
-                // } else {
-                //     1.0 - (-2.0 * sum + 2.0).powi(2) / 2.0
-                // };
-                let x = start.x * (1.0 - d) + end.x * d;
-                let y = start.y * (1.0 - d) + end.y * d;
-                character.move_delta = sum;
-                vec2i(
-                    (x * grid_size).round() as i32,
-                    (y * grid_size).round() as i32,
-                )
-            } else {
-                vec2i(
-                    (character.position.x * grid_size) as i32,
-                    (character.position.y * grid_size) as i32,
-                )
-            };
-
-            if Some(*id) == settings.center_on_character {
-                let center_x = (buffer.dim().width as f32 / 2.0) as i32 - region.grid_size / 2;
-                let center_y = (buffer.dim().height as f32 / 2.0) as i32 + region.grid_size / 2;
-                offset.x += draw_pos.x - center_x;
-                offset.y += region_height - (draw_pos.y + center_y);
-            }
-
-            if let Some(tile_id) = self.get_tile_id_by_name(character.tile_name.clone()) {
-                characters.push((draw_pos, tile_id, character.id));
-            }
-        }
+        update.generate_character_pixel_positions(
+            grid_size,
+            &self.tiles,
+            vec2i(width as i32, buffer.dim().height),
+            region_height,
+            settings,
+        );
 
         // Fill the code level with the blocking info and collect lights
         let mut level = Level::new(region.width, region.height, settings.time);
@@ -135,7 +101,9 @@ impl TileDrawer {
             .enumerate()
             .for_each(|(j, line)| {
                 for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
-                    let i = (j + offset.y as usize) * region_width + i + offset.x as usize;
+                    let i = (j + settings.offset.y as usize) * region_width
+                        + i
+                        + settings.offset.x as usize;
 
                     let x = (i % region_width) as i32;
                     let y = region_height - (i / region_width) as i32 - 1;
@@ -296,7 +264,7 @@ impl TileDrawer {
                     }
 
                     // Characters
-                    for (pos, tile, _) in &characters {
+                    for (pos, tile, _) in &update.characters_pixel_pos {
                         if let Some(data) = self.tiles.get(tile) {
                             let index = settings.anim_counter % data.buffer.len();
 
@@ -315,10 +283,10 @@ impl TileDrawer {
                             vec2i(x, y),
                             &mut color,
                             region,
+                            update,
                             &level,
                             daylight,
                             settings,
-                            &characters,
                             mirror,
                         );
                     }
@@ -340,8 +308,6 @@ impl TileDrawer {
 
         let _stop = self.get_time();
         // println!("drawing time {:?}", _stop - _start);
-
-        characters
     }
 
     #[inline(always)]
@@ -351,10 +317,10 @@ impl TileDrawer {
         p: Vec2i,
         c: &mut [u8; 4],
         region: &Region,
+        update: &RegionUpdate,
         level: &Level,
         daylight: Vec3f,
         settings: &RegionDrawSettings,
-        characters: &Vec<(Vec2i, Uuid, Uuid)>,
         mirror: Option<(i32, i32)>,
     ) {
         //let mut rng = rand::thread_rng();
@@ -384,7 +350,7 @@ impl TileDrawer {
                 let tile = vec2i(pos.x as i32, pos.y as i32);
 
                 // Characters
-                for (character_pos, tile_id, _) in characters {
+                for (character_pos, tile_id, _) in &update.characters_pixel_pos {
                     if let Some(data) = self.tiles.get(tile_id) {
                         let index = settings.anim_counter % data.buffer.len();
 
