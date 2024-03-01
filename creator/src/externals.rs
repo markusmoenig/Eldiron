@@ -49,6 +49,14 @@ pub fn set_server_externals() {
     ));
 
     codeeditor.add_external(TheExternalCode::new(
+        "Rotate".to_string(),
+        "Rotates the character in 2D by the specified angle.".to_string(),
+        vec!["Angle".to_string()],
+        vec![TheValue::Float(0.0)],
+        None,
+    ));
+
+    codeeditor.add_external(TheExternalCode::new(
         "InArea".to_string(),
         "Returns the amount of characters in the area.".to_string(),
         vec![],

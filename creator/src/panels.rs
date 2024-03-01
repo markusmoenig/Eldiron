@@ -15,14 +15,19 @@ impl Panels {
         }
     }
 
-    pub fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext, _project: &mut Project) {
+    pub fn init_ui(
+        &mut self,
+        _ui: &mut TheUI,
+        ctx: &mut TheContext,
+        _project: &mut Project,
+    ) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
         //let mut tab_layout = TheTabLayout::new(TheId::named("Browser"));
         //tab_layout.limiter_mut().set_max_height(300);
 
         let mut shared_layout = TheSharedHLayout::new(TheId::named("Shared Panel Layout"));
-        shared_layout.limiter_mut().set_max_height(275);
+        //shared_layout.limiter_mut().set_max_height(275);
         shared_layout.set_shared_ratio(0.75);
         //shared_layout.set_mode(TheSharedLayoutMode::Shared);
 
@@ -111,18 +116,9 @@ impl Panels {
         shared_layout.add_canvas(left_canvas);
         shared_layout.add_canvas(right_canvas);
 
-        let mut status_canvas = TheCanvas::new();
-        let mut statusbar = TheStatusbar::new(TheId::named("Statusbar"));
-        statusbar.set_text(
-            "Welcome to Eldiron! Visit Eldiron.com for information and example projects."
-                .to_string(),
-        );
-        status_canvas.set_widget(statusbar);
-
-        canvas.set_bottom(status_canvas);
         canvas.set_layout(shared_layout);
 
-        ui.canvas.set_bottom(canvas);
+        canvas
     }
 
     pub fn handle_event(
@@ -205,11 +201,11 @@ impl Panels {
                         set_to.set_layout(vlayout);
                         set_already = true;
                     }
-                    if let TheCodeAtom::Value(TheValue::Direction(value, randomness)) = &atom {
+                    if let TheCodeAtom::Value(TheValue::Direction(value)) = &atom {
                         let mut vlayout = TheVLayout::new(TheId::empty());
 
                         let mut w = TheDirectionPicker::new(TheId::named("Atom Direction Picker"));
-                        w.set_value(TheValue::Direction(*value, *randomness));
+                        w.set_value(TheValue::Direction(*value));
                         vlayout.set_background_color(Some(ListLayoutBackground));
                         vlayout.set_margin(vec4i(20, 20, 20, 20));
                         vlayout.add_widget(Box::new(w));

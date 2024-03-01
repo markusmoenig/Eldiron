@@ -171,6 +171,16 @@ impl TheTrait for Editor {
         stop_button.set_status_text("Stop the server.");
         stop_button.set_icon_name("stop-fill".to_string());
 
+        let mut square_button = TheMenubarButton::new(TheId::named("Square"));
+        square_button.set_status_text("Display full content.");
+        square_button.set_icon_name("square".to_string());
+        square_button.set_icon_offset(vec2i(-1, -1));
+
+        let mut square_half_button = TheMenubarButton::new(TheId::named("Square Half"));
+        square_half_button.set_status_text("Display content 60/40.");
+        square_half_button.set_icon_name("square_half".to_string());
+        square_half_button.set_icon_offset(vec2i(-1, -1));
+
         let mut patreon_button = TheMenubarButton::new(TheId::named("Patreon"));
         patreon_button.set_status_text("Visit my Patreon page.");
         patreon_button.set_icon_name("patreon".to_string());
@@ -190,6 +200,9 @@ impl TheTrait for Editor {
         hlayout.add_widget(Box::new(play_button));
         hlayout.add_widget(Box::new(pause_button));
         hlayout.add_widget(Box::new(stop_button));
+        hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
+        hlayout.add_widget(Box::new(square_button));
+        hlayout.add_widget(Box::new(square_half_button));
 
         hlayout.add_widget(Box::new(patreon_button));
 
@@ -204,7 +217,7 @@ impl TheTrait for Editor {
             .init_ui(ui, ctx, &mut self.project, &mut self.server);
 
         // Panels
-        self.panels.init_ui(ui, ctx, &mut self.project);
+        let bottom_panels = self.panels.init_ui(ui, ctx, &mut self.project);
 
         // Editor
         let mut tab_canvas: TheCanvas = TheCanvas::new();
@@ -217,7 +230,27 @@ impl TheTrait for Editor {
         tab_layout.add_canvas(str!("Screen"), screen_canvas);
 
         tab_canvas.set_layout(tab_layout);
-        ui.canvas.set_center(tab_canvas);
+
+        let mut vsplitlayout = TheSharedVLayout::new(TheId::named("Shared VLayout"));
+        vsplitlayout.add_canvas(tab_canvas);
+        vsplitlayout.add_canvas(bottom_panels);
+        vsplitlayout.set_shared_ratio(0.6);
+        vsplitlayout.set_mode(TheSharedVLayoutMode::Shared);
+
+        let mut shared_canvas = TheCanvas::new();
+        shared_canvas.set_layout(vsplitlayout);
+
+        ui.canvas.set_center(shared_canvas);
+
+        let mut status_canvas = TheCanvas::new();
+        let mut statusbar = TheStatusbar::new(TheId::named("Statusbar"));
+        statusbar.set_text(
+            "Welcome to Eldiron! Visit Eldiron.com for information and example projects."
+                .to_string(),
+        );
+        status_canvas.set_widget(statusbar);
+
+        ui.canvas.set_bottom(status_canvas);
 
         // -
 
@@ -806,7 +839,24 @@ impl TheTrait for Editor {
                     TheEvent::StateChanged(id, _state) => {
                         // Open / Save Project
 
-                        if id.name == "Logo" {
+                        if id.name == "Square" {
+                            if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                                if layout.mode() == TheSharedVLayoutMode::Top {
+                                    layout.set_mode(TheSharedVLayoutMode::Bottom);
+                                    ctx.ui.relayout = true;
+                                } else {
+                                    layout.set_mode(TheSharedVLayoutMode::Top);
+                                    ctx.ui.relayout = true;
+                                }
+                                redraw = true;
+                            }
+                        } else if id.name == "Square Half" {
+                            if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                                layout.set_mode(TheSharedVLayoutMode::Shared);
+                                ctx.ui.relayout = true;
+                                redraw = true;
+                            }
+                        } else if id.name == "Logo" {
                             _ = open::that("https://eldiron.com");
                             ctx.ui
                                 .set_widget_state("Logo".to_string(), TheWidgetState::None);

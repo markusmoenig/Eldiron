@@ -124,6 +124,7 @@ impl RegionInstance {
         if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
             for character in update.characters.values_mut() {
                 character.moving = None;
+                character.facing_anim = None;
                 character.move_delta = 0.0;
             }
             update.daylight = self.draw_settings.daylight;
@@ -429,6 +430,9 @@ impl RegionInstance {
 
         let mut o = TheCodeObject::new();
         o.id = character.id;
+        o.set(str!("mode"), TheValue::Text(str!("Map")));
+        // Faces north by default
+        o.set(str!("facing"), TheValue::Direction(vec3f(0.0, 0.0, -1.0)));
         o.set(str!("_type"), TheValue::Text(str!("Character")));
         o.set(str!("inventory"), TheValue::List(vec![]));
 

@@ -11,7 +11,7 @@ pub struct RegionUpdate {
     pub items: FxHashMap<Uuid, ItemUpdate>,
 
     #[serde(skip)]
-    // The pixel position of the characters with their tile id.
+    // The pixel position of the characters with their tile id and facing
     pub characters_pixel_pos: Vec<(Vec2i, Uuid, Uuid, Vec2f)>,
 
     pub server_tick: i64,
@@ -83,6 +83,28 @@ impl RegionUpdate {
                 )
             };
 
+            let facing = if let Some((start, end)) = &mut character.facing_anim {
+                // pub fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
+                //     let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
+                //     t * t * (3.0 - 2.0 * t)
+                // }
+
+                let sum = (draw_settings.delta + character.move_delta).clamp(0.0, 1.0);
+                // let d = smoothstep(0.0, 1.0, sum);//.clamp(0.0, 1.0);
+                let d = sum;
+                // let d = if sum < 0.5 {
+                //     2.0 * sum * sum
+                // } else {
+                //     1.0 - (-2.0 * sum + 2.0).powi(2) / 2.0
+                // };
+                let x = start.x * (1.0 - d) + end.x * d;
+                let y = start.y * (1.0 - d) + end.y * d;
+                character.move_delta = sum;
+                vec2f(x, y)
+            } else {
+                character.facing
+            };
+
             if Some(*id) == draw_settings.center_on_character {
                 let center_x = (buffer_size.x as f32 / 2.0) as i32 - grid_size as i32 / 2;
                 let center_y = (buffer_size.y as f32 / 2.0) as i32 + grid_size as i32 / 2;
@@ -93,13 +115,13 @@ impl RegionUpdate {
                     0.5,
                     draw_pos.y as f32 / grid_size,
                 );
-                draw_settings.facing_3d = vec3f(character.facing.x, 0.0, character.facing.y);
+                draw_settings.facing_3d = vec3f(facing.x, 0.0, facing.y);
             }
 
             // Find the tile id for the character.
             for (id, tile) in tiles {
                 if tile.name == character.tile_name {
-                    characters_pixel_pos.push((draw_pos, *id, character.id, character.facing));
+                    characters_pixel_pos.push((draw_pos, *id, character.id, facing));
                 }
             }
         }
@@ -134,7 +156,7 @@ pub struct CharacterUpdate {
     pub moving: Option<(Vec2f, Vec2f)>,
 
     pub facing: Vec2f,
-    pub facing_target: Option<Vec2f>,
+    pub facing_anim: Option<(Vec2f, Vec2f)>,
 
     #[serde(skip)]
     pub move_delta: f32,
@@ -158,7 +180,7 @@ impl CharacterUpdate {
             moving: None,
 
             facing: vec2f(0.0, -1.0),
-            facing_target: None,
+            facing_anim: None,
 
             move_delta: 0.0,
         }

@@ -95,6 +95,11 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                     self_instance_id = object.id;
                     // self_package_id = object.package_id;
 
+                    // Set the facing direction to the direction we are moving to
+                    if let Some(TheValue::Direction(dir)) = object.get_mut(&"facing".into()) {
+                        *dir = vec3f(by.x, 0.0, by.y);
+                    }
+
                     if let Some(TheValue::Position(p)) = object.get_mut(&"position".into()) {
                         let x = p.x + by.x;
                         let z = p.z + by.y;
@@ -163,6 +168,42 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                                 .insert("target".to_string(), self_instance_id);
                             on_contact.execute(sandbox);
                             sandbox.aliases = prev_aliases;
+                        }
+                    }
+                }
+            }
+            TheCodeNodeCallResult::Continue
+        },
+        vec![TheValue::Float2(vec2f(0.0, 0.0))],
+    );
+
+    // Rotate
+    compiler.add_external_call(
+        "Rotate".to_string(),
+        |stack, _data, sandbox| {
+            let region_id = sandbox.id;
+
+            let mut angle: f32 = 0.0;
+            if let Some(v) = stack.pop() {
+                if let Some(f) = v.to_f32() {
+                    angle = f;
+                }
+            }
+
+            if let Some(object) = sandbox.get_self_mut() {
+                if let Some(TheValue::Direction(dir)) = object.get_mut(&"facing".into()) {
+                    let new_dir_2d = rotate_2d(vec2f(dir.x, dir.z), angle.to_radians());
+
+                    if let Some(update) = UPDATES.write().unwrap().get_mut(&region_id) {
+                        let old_direction = dir.clone();
+                        *dir = vec3f(new_dir_2d.x, dir.y, new_dir_2d.y);
+
+                        if let Some(cu) = update.characters.get_mut(&object.id) {
+                            cu.facing = new_dir_2d;
+                            cu.facing_anim = Some((old_direction.xz(), cu.facing));
+
+                            //     cu.facing = by;
+                            cu.move_delta = 0.0;
                         }
                     }
                 }

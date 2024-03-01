@@ -78,7 +78,7 @@ impl Renderer {
                         vec2f(0.0, 0.0),
                     );
 
-                    pixel.copy_from_slice(&self.render_pixel(ray));
+                    pixel.copy_from_slice(&self.render_pixel(ray, settings));
                 }
             });
 
@@ -87,7 +87,7 @@ impl Renderer {
     }
 
     #[inline(always)]
-    pub fn render_pixel(&self, ray: Ray) -> RGBA {
+    pub fn render_pixel(&self, ray: Ray, settings: &RegionDrawSettings) -> RGBA {
         //let mut set : FxHashSet<Vec3i> = FxHashSet::default();
         //set.insert(vec3i(0, 0, 0));
 
@@ -127,7 +127,8 @@ impl Renderer {
                 let uv = self.get_uv(normal, ray.at(dist));
                 //pixel = [(uv.x * 255.0) as u8, (uv.y * 255.0) as u8, 0, 255];
                 if let Some(texture) = self.textures.get(tile) {
-                    if let Some(p) = texture.buffer[0].at_f(uv) {
+                    let index = settings.anim_counter % texture.buffer.len();
+                    if let Some(p) = texture.buffer[index].at_f(uv) {
                         pixel = p;
                     }
                 }
