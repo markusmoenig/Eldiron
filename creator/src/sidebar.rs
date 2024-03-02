@@ -197,7 +197,7 @@ impl Sidebar {
         drop_down.set_status_text(
             "On region size changes the region will grow or shrink from the given corner.",
         );
-        text_layout.add_pair("Grow / Shrink From".to_string(), Box::new(drop_down));
+        text_layout.add_pair("Grow / Shrink".to_string(), Box::new(drop_down));
         let mut width_edit = TheTextLineEdit::new(TheId::named("Region Width Edit"));
         width_edit.set_range(TheValue::RangeI32(1..=100000));
         width_edit.set_status_text("The width of the region in grid units.");
@@ -222,6 +222,22 @@ impl Sidebar {
         maxbr.set_continuous(true);
         maxbr.set_status_text("The maximum brightness of the region for the daylight cycle.");
         text_layout.add_pair("Max. Brightness".to_string(), Box::new(maxbr));
+
+        let mut region1 = TheTextLineEdit::new(TheId::named("Region Property 1"));
+        region1.set_status_text("The region property #1 you can query from CodeGridFX.");
+        text_layout.add_pair("Property #1".to_string(), Box::new(region1));
+
+        let mut region2 = TheTextLineEdit::new(TheId::named("Region Property 2"));
+        region2.set_status_text("The region property #2 you can query from CodeGridFX.");
+        text_layout.add_pair("Property #2".to_string(), Box::new(region2));
+
+        let mut region3 = TheTextLineEdit::new(TheId::named("Region Property 3"));
+        region3.set_status_text("The region property #3 you can query from CodeGridFX.");
+        text_layout.add_pair("Property #3".to_string(), Box::new(region3));
+
+        let mut region4 = TheTextLineEdit::new(TheId::named("Region Property 4"));
+        region4.set_status_text("The region property #4 you can query from CodeGridFX.");
+        text_layout.add_pair("Property #4".to_string(), Box::new(region4));
 
         settings_canvas.set_layout(text_layout);
         region_tab.add_canvas("Settings".to_string(), settings_canvas);
@@ -804,7 +820,35 @@ impl Sidebar {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "Palette Color Picker" {
+                if id.name == "Region Property 1" {
+                    if let Some(text) = value.to_string() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.property_1 = text;
+                            server.update_region(region);
+                        }
+                    }
+                } else if id.name == "Region Property 2" {
+                    if let Some(text) = value.to_string() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.property_2 = text;
+                            server.update_region(region);
+                        }
+                    }
+                } else if id.name == "Region Property 3" {
+                    if let Some(text) = value.to_string() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.property_3 = text;
+                            server.update_region(region);
+                        }
+                    }
+                } else if id.name == "Region Property 4" {
+                    if let Some(text) = value.to_string() {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.property_4 = text;
+                            server.update_region(region);
+                        }
+                    }
+                } else if id.name == "Palette Color Picker" {
                     if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
                         if let Some(color) = value.to_color() {
                             palette_picker.set_color(color.clone());
@@ -2624,6 +2668,58 @@ impl Sidebar {
                     rgba.set_grid(Some(region.grid_size));
                 }
                 rgba_layout.scroll_to(region.scroll_offset);
+            }
+        }
+
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Region Property 1".to_string()), None)
+        {
+            if let Some(region) = region {
+                widget.set_value(TheValue::Text(region.property_1.clone()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Region Property 2".to_string()), None)
+        {
+            if let Some(region) = region {
+                widget.set_value(TheValue::Text(region.property_2.clone()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Region Property 3".to_string()), None)
+        {
+            if let Some(region) = region {
+                widget.set_value(TheValue::Text(region.property_3.clone()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Region Property 4".to_string()), None)
+        {
+            if let Some(region) = region {
+                widget.set_value(TheValue::Text(region.property_4.clone()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
             }
         }
     }

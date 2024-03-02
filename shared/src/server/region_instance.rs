@@ -430,7 +430,6 @@ impl RegionInstance {
 
         let mut o = TheCodeObject::new();
         o.id = character.id;
-        o.set(str!("mode"), TheValue::Text(str!("Map")));
         // Faces north by default
         o.set(str!("facing"), TheValue::Direction(vec3f(0.0, 0.0, -1.0)));
         o.set(str!("_type"), TheValue::Text(str!("Character")));

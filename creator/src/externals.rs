@@ -15,6 +15,22 @@ pub fn set_server_externals() {
     ));
 
     codeeditor.add_external(TheExternalCode::new(
+        "Region".to_string(),
+        "Returns the selected region property.".to_string(),
+        vec!["Property".to_string()],
+        vec![TheValue::TextList(
+            0,
+            vec![
+                "Property #1".to_string(),
+                "Property #2".to_string(),
+                "Property #3".to_string(),
+                "Property #4".to_string(),
+            ],
+        )],
+        Some(TheValue::Text("".to_string())),
+    ));
+
+    codeeditor.add_external(TheExternalCode::new(
         "Tell".to_string(),
         "Tells the current target the given text.".to_string(),
         vec![str!("Text")],

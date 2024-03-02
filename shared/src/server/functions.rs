@@ -18,6 +18,37 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
         },
         vec![],
     );
+
+    // Region
+    compiler.add_external_call(
+        "Region".to_string(),
+        |stack, _data, sandbox| {
+            let region_id = sandbox.id;
+
+            let mut property: i32 = 0;
+            if let Some(v) = stack.pop() {
+                if let Some(f) = v.to_i32() {
+                    property = f;
+                }
+            }
+
+            if let Some(region) = REGIONS.read().unwrap().get(&region_id) {
+                if property == 0 {
+                    stack.push(TheValue::Text(region.property_1.clone()));
+                } else if property == 1 {
+                    stack.push(TheValue::Text(region.property_2.clone()));
+                } else if property == 2 {
+                    stack.push(TheValue::Text(region.property_3.to_string()));
+                } else if property == 3 {
+                    stack.push(TheValue::Text(region.property_4.to_string()));
+                } else {
+                    stack.push(TheValue::Empty);
+                }
+            }
+            TheCodeNodeCallResult::Continue
+        },
+        vec![TheValue::Float2(vec2f(0.0, 0.0))],
+    );
     /*
     // RandWalk
     compiler.add_external_call(

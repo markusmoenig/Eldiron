@@ -44,6 +44,15 @@ pub struct Region {
 
     #[serde(default = "default_max_brightness")]
     pub max_brightness: f32,
+
+    #[serde(default)]
+    pub property_1: String,
+    #[serde(default)]
+    pub property_2: String,
+    #[serde(default)]
+    pub property_3: String,
+    #[serde(default)]
+    pub property_4: String,
 }
 
 impl Default for Region {
@@ -73,6 +82,11 @@ impl Region {
 
             min_brightness: 0.3,
             max_brightness: 1.0,
+
+            property_1: String::default(),
+            property_2: String::default(),
+            property_3: String::default(),
+            property_4: String::default(),
         }
     }
 
