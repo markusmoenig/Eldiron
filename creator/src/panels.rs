@@ -1,4 +1,6 @@
-use crate::editor::{CODEEDITOR, TILEDRAWER, TILEFXEDITOR, TILEMAPEDITOR, TILEPICKER};
+use crate::editor::{
+    CODEEDITOR, REGIONMODELER, REGIONRENDER, TILEDRAWER, TILEFXEDITOR, TILEMAPEDITOR, TILEPICKER,
+};
 use crate::prelude::*;
 
 pub struct Panels {
@@ -40,6 +42,8 @@ impl Panels {
         left_stack.add_canvas(CODEEDITOR.lock().unwrap().build_canvas(ctx));
         left_stack.add_canvas(TILEMAPEDITOR.lock().unwrap().build());
         left_stack.add_canvas(TILEFXEDITOR.lock().unwrap().build(ctx));
+        left_stack.add_canvas(REGIONMODELER.lock().unwrap().build());
+        left_stack.add_canvas(REGIONRENDER.lock().unwrap().build());
 
         left_stack.set_index(0);
 
@@ -252,7 +256,23 @@ impl Panels {
                 }
             }
             TheEvent::Custom(id, _) => {
-                if id.name == "Set Region Panel" {
+                if id.name == "Set Region Modeler" {
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 4));
+                    if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                        layout.set_mode(TheSharedHLayoutMode::Left);
+                        ctx.ui.relayout = true;
+                        redraw = true;
+                    }
+                } else if id.name == "Set Region Render" {
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 5));
+                    if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                        layout.set_mode(TheSharedHLayoutMode::Left);
+                        ctx.ui.relayout = true;
+                        redraw = true;
+                    }
+                } else if id.name == "Set Region Panel" {
                     let mut shared_left = true;
 
                     if let Some(character) = server_ctx.curr_character_instance {

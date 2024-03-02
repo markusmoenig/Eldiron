@@ -14,6 +14,8 @@ enum EditorMode {
     Pick,
     Erase,
     Select,
+    Modeler,
+    Render,
 }
 
 pub struct TileEditor {
@@ -196,7 +198,17 @@ impl TileEditor {
             "Select an area in the region.".to_string(),
             "selection".to_string(),
         );
-        gb.set_item_width(65);
+        gb.add_text_status_icon(
+            "Model".to_string(),
+            "Model and texture the region.".to_string(),
+            "cube".to_string(),
+        );
+        gb.add_text_status_icon(
+            "Render".to_string(),
+            "Display the render settings of the region.".to_string(),
+            "camera".to_string(),
+        );
+        gb.set_item_width(70);
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
@@ -302,7 +314,21 @@ impl TileEditor {
                         self.editor_mode = EditorMode::Select;
                     }
 
-                    if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
+                    if *index == 4 {
+                        self.editor_mode = EditorMode::Modeler;
+                        server_ctx.tile_selection = None;
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Set Region Modeler"),
+                            TheValue::Empty,
+                        ));
+                    } else if *index == 5 {
+                        self.editor_mode = EditorMode::Render;
+                        server_ctx.tile_selection = None;
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Set Region Render"),
+                            TheValue::Empty,
+                        ));
+                    } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
                         || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
                     {
                         ctx.ui.send(TheEvent::Custom(

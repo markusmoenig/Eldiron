@@ -6,6 +6,8 @@ pub mod editor;
 pub mod externals;
 pub mod misc;
 pub mod panels;
+pub mod regionmodeler;
+pub mod regionrender;
 pub mod screeneditor;
 pub mod sidebar;
 pub mod tileeditor;
@@ -29,6 +31,8 @@ pub mod prelude {
     pub use crate::externals::*;
     pub use crate::misc::*;
     pub use crate::panels::*;
+    pub use crate::regionmodeler::*;
+    pub use crate::regionrender::*;
     pub use crate::screeneditor::*;
     pub use crate::sidebar::*;
     pub use crate::tileeditor::*;

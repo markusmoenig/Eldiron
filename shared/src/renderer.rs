@@ -78,6 +78,13 @@ impl Renderer {
                         vec2f(0.0, 0.0),
                     );
 
+                    // let camera = Camera::new(ro + vec3f(0.0, 3.0, 4.0), ro, 30.0);
+                    // let ray = camera.create_iso_ray(
+                    //     vec2f(xx / width_f, yy / height_f),
+                    //     vec2f(width_f, height_f),
+                    //     vec2f(0.0, 0.0),
+                    // );
+
                     pixel.copy_from_slice(&self.render_pixel(ray, settings));
                 }
             });
@@ -116,7 +123,7 @@ impl Renderer {
 
         let mut key: Vec3<i32>; // = Vec3i::zero();
 
-        for _ii in 0..10 {
+        for _ii in 0..50 {
             key = Vec3i::from(i);
 
             //println!("{}", key);
