@@ -516,6 +516,8 @@ impl TileEditor {
                     }
                     // Check for an item at the given position.
                     else if let Some(c) = server.get_item_at(server_ctx.curr_region, *coord) {
+                        server_ctx.curr_character_instance = None;
+                        server_ctx.curr_character = None;
                         server_ctx.curr_item_instance = Some(c.0);
                         server_ctx.curr_item = Some(c.1);
                         server_ctx.curr_area = None;
@@ -750,6 +752,8 @@ impl TileEditor {
                         // If it's a character instance, center it in the region editor.
                         server_ctx.curr_character_instance = Some(id.uuid);
                         server_ctx.curr_character = Some(character_id);
+                        server_ctx.curr_item_instance = None;
+                        server_ctx.curr_item = None;
                         server_ctx.curr_area = None;
 
                         self.editor_mode = EditorMode::Pick;
@@ -777,6 +781,8 @@ impl TileEditor {
                         server.get_item_property(server_ctx.curr_region, id.uuid, "position".into())
                     {
                         // If it's a character instance, center it in the region editor.
+                        server_ctx.curr_character_instance = None;
+                        server_ctx.curr_character = None;
                         server_ctx.curr_item_instance = Some(id.uuid);
                         server_ctx.curr_item = Some(character_id);
                         server_ctx.curr_area = None;
@@ -805,6 +811,8 @@ impl TileEditor {
                         if let Some(area) = region.areas.get(&id.uuid) {
                             server_ctx.curr_character_instance = None;
                             server_ctx.curr_character = None;
+                            server_ctx.curr_item_instance = None;
+                            server_ctx.curr_item = None;
                             server_ctx.curr_area = Some(area.id);
 
                             self.editor_mode = EditorMode::Pick;
