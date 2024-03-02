@@ -674,6 +674,21 @@ impl RegionInstance {
         None
     }
 
+    /// Sets the value of the given character instance property.
+    pub fn set_character_property(
+        &mut self,
+        character_id: Uuid,
+        property: String,
+        value: TheValue,
+    ) {
+        for (id, c) in &mut self.sandbox.objects {
+            if *id == character_id {
+                c.set(property, value);
+                break;
+            }
+        }
+    }
+
     /// Returns the value of the given item instance property along with its item id.
     pub fn get_item_property(&self, item_id: Uuid, property: String) -> Option<(TheValue, Uuid)> {
         for (id, c) in &self.sandbox.items {

@@ -568,6 +568,19 @@ impl Server {
         }
     }
 
+    /// Sets the property value of the character instance for the given region.
+    pub fn set_character_property(
+        &mut self,
+        region: Uuid,
+        character_id: Uuid,
+        property: String,
+        value: TheValue,
+    ) {
+        if let Some(instance) = self.instances.get_mut(&region) {
+            instance.set_character_property(character_id, property, value);
+        }
+    }
+
     /// Returns the property of the item instance for the given region along with its item id.
     pub fn get_item_property(
         &self,

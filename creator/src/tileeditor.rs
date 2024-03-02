@@ -485,6 +485,23 @@ impl TileEditor {
                         server_ctx.curr_item_instance = None;
                         server_ctx.curr_item = None;
 
+                        let draw_mode = *RENDERMODE.lock().unwrap();
+                        if draw_mode == EditorDrawMode::Draw2D {
+                            server.set_character_property(
+                                server_ctx.curr_region,
+                                c.0,
+                                str!("mode"),
+                                TheValue::Text(str!("Map")),
+                            )
+                        } else {
+                            server.set_character_property(
+                                server_ctx.curr_region,
+                                c.0,
+                                str!("mode"),
+                                TheValue::Text(str!("FirstP")),
+                            )
+                        }
+
                         if let Some(layout) = ui.get_list_layout("Region Content List") {
                             layout.select_item(c.0, ctx, false);
                         }

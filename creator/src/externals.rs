@@ -49,6 +49,26 @@ pub fn set_server_externals() {
     ));
 
     codeeditor.add_external(TheExternalCode::new(
+        "Walk".to_string(),
+        "Walks the character in the given direction relative to the direction he is facing."
+            .to_string(),
+        vec!["Direction".to_string(), "Distance".to_string()],
+        vec![
+            TheValue::TextList(
+                0,
+                vec![
+                    "Forward".to_string(),
+                    "Backward".to_string(),
+                    "Left".to_string(),
+                    "Right".to_string(),
+                ],
+            ),
+            TheValue::Float(1.0),
+        ],
+        Some(TheValue::Bool(false)),
+    ));
+
+    codeeditor.add_external(TheExternalCode::new(
         "Rotate".to_string(),
         "Rotates the character in 2D by the specified angle.".to_string(),
         vec!["Angle".to_string()],
