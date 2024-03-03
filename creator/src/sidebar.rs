@@ -2697,6 +2697,20 @@ impl Sidebar {
             }
         }
 
+        if let Some(widget) = ui.get_drop_down_menu("Camera Type") {
+            if let Some(region) = region {
+                if region.camera_type == CameraType::Orthogonal {
+                    widget.set_selected_index(1);
+                } else {
+                    widget.set_selected_index(0);
+                }
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+
         if let Some(widget) = ui
             .canvas
             .get_widget(Some(&"Region Property 3".to_string()), None)
@@ -2716,6 +2730,84 @@ impl Sidebar {
         {
             if let Some(region) = region {
                 widget.set_value(TheValue::Text(region.property_4.clone()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Camera Origin X".to_string()), None)
+        {
+            if let Some(region) = region {
+                widget.set_value(TheValue::Text(region.camera_origin_offset.x.to_string()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Camera Origin Y".to_string()), None)
+        {
+            if let Some(region) = region {
+                widget.set_value(TheValue::Text(region.camera_origin_offset.y.to_string()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Camera Origin Z".to_string()), None)
+        {
+            if let Some(region) = region {
+                widget.set_value(TheValue::Text(region.camera_origin_offset.z.to_string()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Camera Center X".to_string()), None)
+        {
+            if let Some(region) = region {
+                widget.set_value(TheValue::Text(region.camera_center_offset.x.to_string()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Camera Center Y".to_string()), None)
+        {
+            if let Some(region) = region {
+                widget.set_value(TheValue::Text(region.camera_center_offset.y.to_string()));
+                widget.set_disabled(false);
+            } else {
+                widget.set_value(TheValue::Empty);
+                widget.set_disabled(true);
+            }
+        }
+
+        if let Some(widget) = ui
+            .canvas
+            .get_widget(Some(&"Camera Center Z".to_string()), None)
+        {
+            if let Some(region) = region {
+                widget.set_value(TheValue::Text(region.camera_center_offset.z.to_string()));
                 widget.set_disabled(false);
             } else {
                 widget.set_value(TheValue::Empty);

@@ -206,7 +206,7 @@ impl TileEditor {
         gb.add_text_status_icon(
             "Render".to_string(),
             "Display the render settings of the region.".to_string(),
-            "camera".to_string(),
+            "faders".to_string(),
         );
         gb.set_item_width(70);
 

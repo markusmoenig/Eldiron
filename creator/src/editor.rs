@@ -164,6 +164,7 @@ impl TheTrait for Editor {
         let mut play_button = TheMenubarButton::new(TheId::named("Play"));
         play_button.set_status_text("Start the server for live editing and debugging.");
         play_button.set_icon_name("play".to_string());
+        //play_button.set_fixed_size(vec2i(28, 28));
 
         let mut pause_button = TheMenubarButton::new(TheId::named("Pause"));
         pause_button.set_status_text("Pause. Click for single stepping the server.");
@@ -175,17 +176,19 @@ impl TheTrait for Editor {
 
         let mut square_button = TheMenubarButton::new(TheId::named("Square"));
         square_button.set_status_text("Display full content.");
-        square_button.set_icon_name("square".to_string());
+        square_button.set_icon_name("frame_corners".to_string());
         square_button.set_icon_offset(vec2i(-1, -1));
 
         let mut square_half_button = TheMenubarButton::new(TheId::named("Square Half"));
         square_half_button.set_status_text("Display content 60/40.");
-        square_half_button.set_icon_name("square_half".to_string());
+        square_half_button.set_icon_name("square_half_bottom".to_string());
         square_half_button.set_icon_offset(vec2i(-1, -1));
 
         let mut patreon_button = TheMenubarButton::new(TheId::named("Patreon"));
         patreon_button.set_status_text("Visit my Patreon page.");
         patreon_button.set_icon_name("patreon".to_string());
+        // patreon_button.set_fixed_size(vec2i(36, 36));
+        patreon_button.set_icon_offset(vec2i(-4, -2));
 
         let mut hlayout = TheHLayout::new(TheId::named("Menu Layout"));
         hlayout.set_background_color(None);
@@ -441,6 +444,16 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
                 if TILEFXEDITOR.lock().unwrap().handle_event(
+                    &event,
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.server,
+                    &mut self.server_ctx,
+                ) {
+                    redraw = true;
+                }
+                if REGIONRENDER.lock().unwrap().handle_event(
                     &event,
                     ui,
                     ctx,

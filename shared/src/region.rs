@@ -9,9 +9,25 @@ fn default_max_brightness() -> f32 {
     1.0
 }
 
+fn default_fov() -> f32 {
+    1.0
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub enum RegionType {
     Region2D,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
+pub enum CameraType {
+    Pinhole,
+    Orthogonal,
+}
+
+impl Default for CameraType {
+    fn default() -> Self {
+        CameraType::Pinhole
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -53,6 +69,16 @@ pub struct Region {
     pub property_3: String,
     #[serde(default)]
     pub property_4: String,
+
+    // Camera
+    #[serde(default)]
+    pub camera_type: CameraType,
+    #[serde(default)]
+    pub camera_origin_offset: Vec3f,
+    #[serde(default)]
+    pub camera_center_offset: Vec3f,
+    #[serde(default = "default_fov")]
+    pub camera_fov: f32,
 }
 
 impl Default for Region {
@@ -87,6 +113,11 @@ impl Region {
             property_2: String::default(),
             property_3: String::default(),
             property_4: String::default(),
+
+            camera_type: CameraType::Pinhole,
+            camera_origin_offset: Vec3f::zero(),
+            camera_center_offset: Vec3f::zero(),
+            camera_fov: 70.0,
         }
     }
 

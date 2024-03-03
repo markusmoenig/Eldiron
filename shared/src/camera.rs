@@ -174,7 +174,7 @@ impl Camera {
         Ray::new(self.origin, normalize(dir))
     }
 
-    pub fn create_iso_ray(&self, uv: Vec2f, screen: Vec2f, offset: Vec2f) -> Ray {
+    pub fn create_ortho_ray(&self, uv: Vec2f, screen: Vec2f, offset: Vec2f) -> Ray {
         let ratio = screen.x / screen.y;
         let pixel_size = Vec2f::new(1.0 / screen.x, 1.0 / screen.y);
 

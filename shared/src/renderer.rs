@@ -68,15 +68,24 @@ impl Renderer {
                     let xx = (i % width) as f32;
                     let yy = (i / width) as f32;
 
-                    let ro = vec3f(position.x + 0.5, 0.5, position.z + 0.5);
-                    let rd = ro + facing * 2.0;
+                    let mut ro = vec3f(position.x + 0.5, 0.5, position.z + 0.5);
+                    ro += region.camera_origin_offset;
+                    let rd = ro + (facing * 2.0 + region.camera_center_offset);
 
                     let camera = Camera::new(ro, rd, 70.0);
-                    let ray = camera.create_ray(
-                        vec2f(xx / width_f, yy / height_f),
-                        vec2f(width_f, height_f),
-                        vec2f(0.0, 0.0),
-                    );
+                    let ray = if region.camera_type == CameraType::Pinhole {
+                        camera.create_ray(
+                            vec2f(xx / width_f, yy / height_f),
+                            vec2f(width_f, height_f),
+                            vec2f(0.0, 0.0),
+                        )
+                    } else {
+                        camera.create_ortho_ray(
+                            vec2f(xx / width_f, yy / height_f),
+                            vec2f(width_f, height_f),
+                            vec2f(0.0, 0.0),
+                        )
+                    };
 
                     // let camera = Camera::new(ro + vec3f(0.0, 3.0, 4.0), ro, 30.0);
                     // let ray = camera.create_iso_ray(
@@ -136,10 +145,12 @@ impl Renderer {
                 if let Some(texture) = self.textures.get(tile) {
                     let index = settings.anim_counter % texture.buffer.len();
                     if let Some(p) = texture.buffer[index].at_f(uv) {
+                        //if p[3] == 255 {
                         pixel = p;
+                        break;
+                        //}
                     }
                 }
-                break;
             }
             // if let Some(tile) = self.project.tiles.get(&(key.x, key.y, key.z)) {
 
