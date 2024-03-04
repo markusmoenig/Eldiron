@@ -151,8 +151,10 @@ impl TileEditor {
 
         let mut time_slider = TheTimeSlider::new(TheId::named("Server Time Slider"));
         time_slider.set_continuous(true);
+        time_slider.limiter_mut().set_max_width(400);
+
         let mut spacer = TheSpacer::new(TheId::empty());
-        spacer.limiter_mut().set_max_width(70);
+        spacer.limiter_mut().set_max_width(40);
 
         let mut zoom = TheSlider::new(TheId::named("Region Editor Zoom"));
         zoom.set_value(TheValue::Float(1.0));

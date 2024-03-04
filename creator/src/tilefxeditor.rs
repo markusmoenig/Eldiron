@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub struct TileFXEditor {
     pub curr_timeline: TheTimeline,
     pub curr_collection: TheCollection,
-
+    pub curr_marker: Option<TheTime>,
     pub preview_size: i32,
 }
 
@@ -13,6 +13,7 @@ impl TileFXEditor {
         Self {
             curr_timeline: TheTimeline::default(),
             curr_collection: TheCollection::default(),
+            curr_marker: None,
 
             preview_size: 192,
         }
@@ -33,14 +34,15 @@ impl TileFXEditor {
         time_slider.limiter_mut().set_max_width(400);
         toolbar_hlayout.add_widget(Box::new(time_slider));
 
-        let mut add_button = TheTraybarButton::new(TheId::named("TileFX Add"));
+        let mut add_button = TheTraybarButton::new(TheId::named("TileFX Clear Marker"));
         //add_button.set_icon_name("icon_role_add".to_string());
-        add_button.set_text(str!("Add FX"));
-        add_button.set_status_text("Add the effect to the timeline.");
+        add_button.set_text(str!("Clear Marker"));
+        add_button.set_status_text("Clears the currently selected marker.");
+
         let mut clear_button = TheTraybarButton::new(TheId::named("TileFX Clear"));
         //add_button.set_icon_name("icon_role_add".to_string());
-        clear_button.set_text(str!("Clear FX"));
-        clear_button.set_status_text("Clear the timeline.");
+        clear_button.set_text(str!("Clear All"));
+        clear_button.set_status_text("Clears the timeline.");
 
         let mut clear_mask_button = TheTraybarButton::new(TheId::named("TileFX Clear Mask"));
         clear_mask_button.set_text(str!("Clear Mask"));
@@ -139,6 +141,12 @@ impl TileFXEditor {
         let mut redraw = false;
 
         match event {
+            TheEvent::TimelineMarkerSelected(id, time) => {
+                if id.name == "TileFX Timeline" {
+                    self.curr_marker = Some(*time);
+                    redraw = true;
+                }
+            }
             TheEvent::TileSelectionChanged(id) => {
                 if id.name == "TileFX RGBA" {
                     if let Some(widget) = ui.get_widget("TileFX RGBA") {
@@ -178,6 +186,18 @@ impl TileFXEditor {
                         }
 
                         self.curr_collection.set(name, value);
+
+                        if let Some(time_slider) = ui.get_time_slider("TileFX Timeline") {
+                            if let TheValue::Time(time) = time_slider.value() {
+                                self.curr_timeline.add(time, self.curr_collection.clone());
+                                if let Some(names) =
+                                    self.curr_timeline.get_collection_names_at(&time)
+                                {
+                                    time_slider.add_marker(time, names);
+                                }
+                                redraw = true;
+                            }
+                        }
                     }
                 }
             }
@@ -192,13 +212,14 @@ impl TileFXEditor {
                             redraw = true;
                         }
                     }
-                } else if id.name == "TileFX Add" && *state == TheWidgetState::Clicked {
+                } else if id.name == "TileFX Clear Marker" && *state == TheWidgetState::Clicked {
                     if let Some(time_slider) = ui.get_time_slider("TileFX Timeline") {
-                        if let TheValue::Time(time) = time_slider.value() {
-                            self.curr_timeline.add(time, self.curr_collection.clone());
-                            time_slider.add_marker(time);
-                            redraw = true;
+                        if let Some(marker_time) = self.curr_marker {
+                            self.curr_timeline.remove(&marker_time);
+                            time_slider.remove_marker(marker_time);
+                            self.curr_marker = None;
                         }
+                        redraw = true;
                     }
                 } else if id.name == "TileFX Clear" && *state == TheWidgetState::Clicked {
                     self.curr_timeline.clear();
@@ -297,7 +318,9 @@ impl TileFXEditor {
         if let Some(time_slider) = ui.get_time_slider("TileFX Timeline") {
             time_slider.clear_marker();
             for time in self.curr_timeline.events.keys() {
-                time_slider.add_marker(*time);
+                if let Some(names) = self.curr_timeline.get_collection_names_at(time) {
+                    time_slider.add_marker(*time, names);
+                }
             }
         }
     }
