@@ -9,6 +9,7 @@ pub mod item;
 pub mod level;
 pub mod project;
 pub mod region;
+pub mod regionfx;
 pub mod renderer;
 pub mod screen;
 pub mod server;
@@ -33,6 +34,7 @@ pub mod prelude {
     pub use crate::level::Level;
     pub use crate::project::Project;
     pub use crate::region::{CameraType, Layer2DRole, Region, RegionTile};
+    pub use crate::regionfx::*;
     pub use crate::renderer::Renderer;
     pub use crate::screen::*;
     pub use crate::server::context::ServerContext;

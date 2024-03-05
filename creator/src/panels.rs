@@ -1,5 +1,5 @@
 use crate::editor::{
-    CODEEDITOR, REGIONMODELER, REGIONRENDER, TILEDRAWER, TILEFXEDITOR, TILEMAPEDITOR, TILEPICKER,
+    CODEEDITOR, REGIONFXEDITOR, REGIONMODELER, TILEDRAWER, TILEFXEDITOR, TILEMAPEDITOR, TILEPICKER,
 };
 use crate::prelude::*;
 
@@ -43,7 +43,7 @@ impl Panels {
         left_stack.add_canvas(TILEMAPEDITOR.lock().unwrap().build());
         left_stack.add_canvas(TILEFXEDITOR.lock().unwrap().build(ctx));
         left_stack.add_canvas(REGIONMODELER.lock().unwrap().build());
-        left_stack.add_canvas(REGIONRENDER.lock().unwrap().build());
+        left_stack.add_canvas(REGIONFXEDITOR.lock().unwrap().build(ctx));
 
         left_stack.set_index(0);
 

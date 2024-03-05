@@ -70,15 +70,8 @@ pub struct Region {
     #[serde(default)]
     pub property_4: String,
 
-    // Camera
     #[serde(default)]
-    pub camera_type: CameraType,
-    #[serde(default)]
-    pub camera_origin_offset: Vec3f,
-    #[serde(default)]
-    pub camera_center_offset: Vec3f,
-    #[serde(default = "default_fov")]
-    pub camera_fov: f32,
+    pub regionfx: TheTimeline,
 }
 
 impl Default for Region {
@@ -114,10 +107,7 @@ impl Region {
             property_3: String::default(),
             property_4: String::default(),
 
-            camera_type: CameraType::Pinhole,
-            camera_origin_offset: Vec3f::zero(),
-            camera_center_offset: Vec3f::zero(),
-            camera_fov: 70.0,
+            regionfx: TheTimeline::default(),
         }
     }
 

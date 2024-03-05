@@ -1,25 +1,20 @@
 use crate::prelude::*;
 
-pub struct TileFXEditor {
-    pub curr_timeline: TheTimeline,
+pub struct RegionFXEditor {
     pub curr_collection: TheCollection,
     pub curr_marker: Option<TheTime>,
-    pub preview_size: i32,
 }
 
 #[allow(clippy::new_without_default)]
-impl TileFXEditor {
+impl RegionFXEditor {
     pub fn new() -> Self {
         Self {
-            curr_timeline: TheTimeline::default(),
             curr_collection: TheCollection::default(),
             curr_marker: None,
-
-            preview_size: 192,
         }
     }
 
-    /// Build the tile fx UI
+    /// Build the UI
     pub fn build(&self, ctx: &mut TheContext) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
@@ -27,31 +22,26 @@ impl TileFXEditor {
         let mut toolbar_canvas = TheCanvas::default();
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.limiter_mut().set_max_height(25);
-        toolbar_hlayout.set_margin(vec4i(120, 2, 5, 3));
+        toolbar_hlayout.set_margin(vec4i(100, 2, 5, 3));
 
-        let mut time_slider = TheTimeSlider::new(TheId::named("TileFX Timeline"));
-        time_slider.set_status_text("The timeline for the tile based effects.");
+        let mut time_slider = TheTimeSlider::new(TheId::named("RegionFX Timeline"));
+        time_slider.set_status_text("The timeline for region based image effects.");
         time_slider.limiter_mut().set_max_width(400);
         toolbar_hlayout.add_widget(Box::new(time_slider));
 
-        let mut add_button = TheTraybarButton::new(TheId::named("TileFX Clear Marker"));
+        let mut add_button = TheTraybarButton::new(TheId::named("RegionFX Clear Marker"));
         //add_button.set_icon_name("icon_role_add".to_string());
         add_button.set_text(str!("Clear"));
         add_button.set_status_text("Clears the currently selected marker.");
 
-        let mut clear_button = TheTraybarButton::new(TheId::named("TileFX Clear"));
+        let mut clear_button = TheTraybarButton::new(TheId::named("RegionFX Clear All"));
         //add_button.set_icon_name("icon_role_add".to_string());
         clear_button.set_text(str!("Clear All"));
         clear_button.set_status_text("Clears all markers from the timeline.");
 
-        let mut clear_mask_button = TheTraybarButton::new(TheId::named("TileFX Clear Mask"));
-        clear_mask_button.set_text(str!("Clear Mask"));
-        clear_mask_button.set_status_text("Clear the pixel mask. If there are pixels selected the FX will only be applied to those pixels.");
-
         toolbar_hlayout.add_widget(Box::new(add_button));
         toolbar_hlayout.add_widget(Box::new(clear_button));
-        toolbar_hlayout.add_widget(Box::new(clear_mask_button));
-        toolbar_hlayout.set_reverse_index(Some(1));
+        // toolbar_hlayout.set_reverse_index(Some(1));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
 
@@ -60,22 +50,14 @@ impl TileFXEditor {
         // Left FX List
 
         let mut list_canvas = TheCanvas::default();
-        let mut list_layout = TheListLayout::new(TheId::named("TileFX List"));
+        let mut list_layout = TheListLayout::new(TheId::named("RegionFX List"));
 
-        let mut item = TheListItem::new(TheId::named("TileFX Brightness"));
-        item.set_text(str!("Brightness"));
+        let mut item = TheListItem::new(TheId::named("RegionFX Camera"));
+        item.set_text(str!("Camera"));
         list_layout.add_item(item, ctx);
 
-        let mut item = TheListItem::new(TheId::named("TileFX Daylight"));
-        item.set_text(str!("Daylight"));
-        list_layout.add_item(item, ctx);
-
-        let mut item = TheListItem::new(TheId::named("TileFX Light Emitter"));
-        item.set_text(str!("Light Emitter"));
-        list_layout.add_item(item, ctx);
-
-        let mut item = TheListItem::new(TheId::named("TileFX Mirror"));
-        item.set_text(str!("Mirror"));
+        let mut item = TheListItem::new(TheId::named("RegionFX Saturation"));
+        item.set_text(str!("Saturation"));
         list_layout.add_item(item, ctx);
 
         list_layout.limiter_mut().set_max_width(130);
@@ -84,47 +66,22 @@ impl TileFXEditor {
 
         canvas.set_left(list_canvas);
 
-        // Tile FX Center
+        // RegionFX Center
 
         let mut center_canvas = TheCanvas::default();
 
-        let mut text_layout = TheTextLayout::new(TheId::named("TileFX Settings"));
+        let mut text_layout = TheTextLayout::new(TheId::named("RegionFX Settings"));
         text_layout.limiter_mut().set_max_width(300);
         center_canvas.set_layout(text_layout);
 
         let mut center_color_canvas = TheCanvas::default();
-        let mut color_layout = TheVLayout::new(TheId::named("TileFX Color Settings"));
+        let mut color_layout = TheVLayout::new(TheId::named("RegionFX Color Settings"));
         color_layout.limiter_mut().set_max_width(140);
         color_layout.set_background_color(Some(ListLayoutBackground));
         center_color_canvas.set_layout(color_layout);
 
         center_canvas.set_right(center_color_canvas);
         canvas.set_center(center_canvas);
-
-        // Tile Preview
-
-        let mut preview_canvas = TheCanvas::default();
-        let mut tile_rgba = TheRGBAView::new(TheId::named("TileFX RGBA"));
-        tile_rgba.set_mode(TheRGBAViewMode::TileSelection);
-        tile_rgba.set_grid(Some(self.preview_size / 24));
-        tile_rgba.set_grid_color([40, 40, 40, 255]);
-        tile_rgba.set_buffer(TheRGBABuffer::new(TheDim::new(
-            0,
-            0,
-            self.preview_size,
-            self.preview_size,
-        )));
-        tile_rgba
-            .limiter_mut()
-            .set_max_size(vec2i(self.preview_size, self.preview_size));
-
-        let mut vlayout = TheVLayout::new(TheId::empty());
-        vlayout.limiter_mut().set_max_width(200);
-        vlayout.add_widget(Box::new(tile_rgba));
-
-        preview_canvas.set_layout(vlayout);
-
-        canvas.set_right(preview_canvas);
 
         canvas
     }
@@ -134,40 +91,22 @@ impl TileFXEditor {
         event: &TheEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
-        _server: &mut Server,
-        _server_ctx: &mut ServerContext,
+        project: &mut Project,
+        server: &mut Server,
+        server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
 
         match event {
             TheEvent::TimelineMarkerSelected(id, time) => {
-                if id.name == "TileFX Timeline" {
+                if id.name == "RegionFX Timeline" {
                     self.curr_marker = Some(*time);
                     redraw = true;
                 }
             }
-            TheEvent::TileSelectionChanged(id) => {
-                if id.name == "TileFX RGBA" {
-                    if let Some(widget) = ui.get_widget("TileFX RGBA") {
-                        if let Some(tile_rgba) = widget.as_rgba_view() {
-                            let selection = tile_rgba.selection();
-
-                            let mut lt = TheTileMask::default();
-                            for s in &selection {
-                                lt.add_pixel(vec2i(s.0, s.1), true);
-                            }
-                            self.curr_collection.set("Mask", TheValue::TileMask(lt));
-
-                            tile_rgba.set_needs_redraw(true);
-                            redraw = true;
-                        }
-                    }
-                }
-            }
             TheEvent::ValueChanged(id, value) => {
-                if id.name.starts_with(":TILEFX:") {
-                    if let Some(name) = id.name.strip_prefix(":TILEFX: ") {
+                if id.name.starts_with(":REGIONFX:") {
+                    if let Some(name) = id.name.strip_prefix(":REGIONFX: ") {
                         let mut value = value.clone();
 
                         // Correct values to their range variants if necessary as TheSlider strips them
@@ -187,13 +126,18 @@ impl TileFXEditor {
 
                         self.curr_collection.set(name, value);
 
-                        if let Some(time_slider) = ui.get_time_slider("TileFX Timeline") {
+                        if let Some(time_slider) = ui.get_time_slider("RegionFX Timeline") {
                             if let TheValue::Time(time) = time_slider.value() {
-                                self.curr_timeline.add(time, self.curr_collection.clone());
-                                if let Some(names) =
-                                    self.curr_timeline.get_collection_names_at(&time)
+                                if let Some(region) =
+                                    project.get_region_mut(&server_ctx.curr_region)
                                 {
-                                    time_slider.add_marker(time, names);
+                                    region.regionfx.add(time, self.curr_collection.clone());
+                                    server.update_region(region);
+                                    if let Some(names) =
+                                        region.regionfx.get_collection_names_at(&time)
+                                    {
+                                        time_slider.add_marker(time, names);
+                                    }
                                 }
                                 redraw = true;
                             }
@@ -202,56 +146,58 @@ impl TileFXEditor {
                 }
             }
             TheEvent::StateChanged(id, state) => {
-                if id.name == "TileFX Clear Mask" && *state == TheWidgetState::Clicked {
-                    if let Some(widget) = ui.get_widget("TileFX RGBA") {
-                        if let Some(tile_rgba) = widget.as_rgba_view() {
-                            tile_rgba.set_selection(FxHashSet::default());
-                            self.curr_collection
-                                .set("Mask", TheValue::TileMask(TheTileMask::default()));
-                            tile_rgba.set_needs_redraw(true);
-                            redraw = true;
-                        }
-                    }
-                } else if id.name == "TileFX Clear Marker" && *state == TheWidgetState::Clicked {
-                    if let Some(time_slider) = ui.get_time_slider("TileFX Timeline") {
+                if id.name == "RegionFX Clear Marker" && *state == TheWidgetState::Clicked {
+                    if let Some(time_slider) = ui.get_time_slider("RegionFX Timeline") {
                         if let Some(marker_time) = self.curr_marker {
-                            self.curr_timeline.remove(&marker_time);
-                            time_slider.remove_marker(marker_time);
-                            self.curr_marker = None;
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                region.regionfx.remove(&marker_time);
+                                time_slider.remove_marker(marker_time);
+                                self.curr_marker = None;
+                                server.update_region(region);
+                            }
                         }
                         redraw = true;
                     }
-                } else if id.name == "TileFX Clear" && *state == TheWidgetState::Clicked {
-                    self.curr_timeline.clear();
-                    if let Some(time_slider) = ui.get_time_slider("TileFX Timeline") {
+                } else if id.name == "RegionFX Clear All" && *state == TheWidgetState::Clicked {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        region.regionfx.clear();
+                        server.update_region(region);
+                        server.update_region(region);
+                    }
+                    if let Some(time_slider) = ui.get_time_slider("RegionFX Timeline") {
                         time_slider.clear_marker();
                         redraw = true;
                     }
-                } else if id.name.starts_with("TileFX ") && *state == TheWidgetState::Selected {
-                    let fx_name = id.name.strip_prefix("TileFX ").unwrap();
-                    let c = self
-                        .curr_timeline
-                        .get_collection_at(&TheTime::default(), fx_name.to_string());
+                } else if id.name.starts_with("RegionFX ") && *state == TheWidgetState::Selected {
+                    let fx_name = id.name.strip_prefix("RegionFX ").unwrap();
+                    let mut c = None;
 
-                    let fx = Some(TileFX::new_fx(fx_name, c));
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        c = region
+                            .regionfx
+                            .get_collection_at(&TheTime::default(), fx_name.to_string());
+                    }
+                    let fx = Some(RegionFX::new_fx(fx_name, c));
 
                     if let Some(fx) = fx {
                         if let Some(collection) = fx.collection() {
                             self.curr_collection = collection.clone();
-                            if let Some(text_layout) = ui.get_text_layout("TileFX Settings") {
+                            if let Some(text_layout) = ui.get_text_layout("RegionFX Settings") {
                                 text_layout.clear();
                                 for (name, value) in &collection.keys {
                                     if let TheValue::FloatRange(value, range) = value {
                                         let mut slider = TheSlider::new(TheId::named(
-                                            (":TILEFX: ".to_owned() + name).as_str(),
+                                            (":REGIONFX: ".to_owned() + name).as_str(),
                                         ));
                                         slider.set_value(TheValue::Float(*value));
+                                        slider.set_default_value(TheValue::Float(0.0));
                                         slider.set_range(TheValue::RangeF32(range.clone()));
+                                        slider.set_continuous(true);
                                         slider.set_status_text(fx.get_description(name).as_str());
                                         text_layout.add_pair(name.clone(), Box::new(slider));
                                     } else if let TheValue::IntRange(value, range) = value {
                                         let mut slider = TheSlider::new(TheId::named(
-                                            (":TILEFX: ".to_owned() + name).as_str(),
+                                            (":REGIONFX: ".to_owned() + name).as_str(),
                                         ));
                                         slider.set_value(TheValue::Int(*value));
                                         slider.set_range(TheValue::RangeI32(range.clone()));
@@ -259,7 +205,7 @@ impl TileFXEditor {
                                         text_layout.add_pair(name.clone(), Box::new(slider));
                                     } else if let TheValue::TextList(index, list) = value {
                                         let mut dropdown = TheDropdownMenu::new(TheId::named(
-                                            (":TILEFX: ".to_owned() + name).as_str(),
+                                            (":REGIONFX: ".to_owned() + name).as_str(),
                                         ));
                                         for item in list {
                                             dropdown.add_option(item.clone());
@@ -272,12 +218,12 @@ impl TileFXEditor {
                                 redraw = true;
                                 ctx.ui.relayout = true;
                             }
-                            if let Some(vlayout) = ui.get_vlayout("TileFX Color Settings") {
+                            if let Some(vlayout) = ui.get_vlayout("RegionFX Color Settings") {
                                 vlayout.clear();
                                 for (name, value) in &collection.keys {
                                     if let TheValue::ColorObject(color, _) = value {
                                         let mut color_picker = TheColorPicker::new(TheId::named(
-                                            (":TILEFX: ".to_owned() + name).as_str(),
+                                            (":REGIONFX: ".to_owned() + name).as_str(),
                                         ));
                                         color_picker.limiter_mut().set_max_size(vec2i(120, 120));
                                         color_picker.set_color(color.to_vec3f());
@@ -286,21 +232,6 @@ impl TileFXEditor {
                                 }
                                 redraw = true;
                                 ctx.ui.relayout = true;
-                            }
-                        }
-
-                        if let Some(TheValue::TileMask(mask)) = self.curr_collection.get("Mask") {
-                            if let Some(widget) = ui.get_widget("TileFX RGBA") {
-                                if let Some(tile_rgba) = widget.as_rgba_view() {
-                                    let mut set = FxHashSet::default();
-
-                                    for (index, value) in mask.pixels.iter() {
-                                        if *value {
-                                            set.insert((index.x, index.y));
-                                        }
-                                    }
-                                    tile_rgba.set_selection(set);
-                                }
                             }
                         }
                     }
@@ -313,12 +244,11 @@ impl TileFXEditor {
     }
 
     /// Set the timeline from the picker
-    pub fn set_timeline(&mut self, timeline: TheTimeline, ui: &mut TheUI) {
-        self.curr_timeline = timeline;
-        if let Some(time_slider) = ui.get_time_slider("TileFX Timeline") {
+    pub fn set_region(&mut self, region: &Region, ui: &mut TheUI) {
+        if let Some(time_slider) = ui.get_time_slider("RegionFX Timeline") {
             time_slider.clear_marker();
-            for time in self.curr_timeline.events.keys() {
-                if let Some(names) = self.curr_timeline.get_collection_names_at(time) {
+            for time in region.regionfx.events.keys() {
+                if let Some(names) = region.regionfx.get_collection_names_at(time) {
                     time_slider.add_marker(*time, names);
                 }
             }

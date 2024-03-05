@@ -58,6 +58,87 @@ impl Renderer {
             facing = settings.facing_3d;
         }
 
+        // Get the camera settings
+
+        let mut camera_type = CameraType::Pinhole;
+        let mut origin_offset = Vec3f::zero();
+        let mut center_offset = Vec3f::zero();
+        let mut fov = 70.0;
+
+        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("Camera Type"),
+            &settings.time,
+            TheInterpolation::Switch,
+        ) {
+            if value == 1 {
+                camera_type = CameraType::Orthogonal;
+            }
+        }
+
+        if let Some(TheValue::FloatRange(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("FoV"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            fov = value;
+        }
+
+        if let Some(TheValue::FloatRange(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("Origin X"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            origin_offset.x = value;
+        }
+
+        if let Some(TheValue::FloatRange(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("Origin Y"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            origin_offset.y = value;
+        }
+
+        if let Some(TheValue::FloatRange(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("Origin Z"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            origin_offset.z = value;
+        }
+
+        if let Some(TheValue::FloatRange(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("Center X"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            center_offset.x = value;
+        }
+
+        if let Some(TheValue::FloatRange(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("Center Y"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            center_offset.y = value;
+        }
+
+        if let Some(TheValue::FloatRange(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("Center Z"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            center_offset.z = value;
+        }
+
         pixels
             .par_rchunks_exact_mut(width * 4)
             .enumerate()
@@ -68,12 +149,11 @@ impl Renderer {
                     let xx = (i % width) as f32;
                     let yy = (i / width) as f32;
 
-                    let mut ro = vec3f(position.x + 0.5, 0.5, position.z + 0.5);
-                    ro += region.camera_origin_offset;
-                    let rd = ro + (facing * 2.0 + region.camera_center_offset);
+                    let ro = vec3f(position.x + 0.5, 0.5, position.z + 0.5) + origin_offset;
+                    let rd = ro + (facing * 0.01 + center_offset / 100.0);
 
-                    let camera = Camera::new(ro, rd, 70.0);
-                    let ray = if region.camera_type == CameraType::Pinhole {
+                    let camera = Camera::new(ro, rd, fov);
+                    let ray = if camera_type == CameraType::Pinhole {
                         camera.create_ray(
                             vec2f(xx / width_f, yy / height_f),
                             vec2f(width_f, height_f),
