@@ -1,10 +1,10 @@
 use crate::prelude::*;
 use rayon::prelude::*;
-use theframework::prelude::*;
+use theframework::{prelude::*, theui::theflattenedmap::TheFlattenedMap3D};
 
 pub struct Renderer {
     pub textures: FxHashMap<Uuid, TheRGBATile>,
-    pub tiles: FxHashMap<(i32, i32, i32), Uuid>,
+    pub tiles: TheFlattenedMap3D<Uuid>,
     pub position: Vec3f,
 }
 
@@ -13,7 +13,7 @@ impl Renderer {
     pub fn new() -> Self {
         Self {
             textures: FxHashMap::default(),
-            tiles: FxHashMap::default(),
+            tiles: TheFlattenedMap3D::new((0, -1, 0), (80, 2, 80)),
             position: Vec3f::zero(),
         }
     }
@@ -76,67 +76,81 @@ impl Renderer {
             }
         }
 
-        if let Some(TheValue::FloatRange(value, _)) = region.regionfx.get(
+        if let Some(v) = region.regionfx.get(
             str!("Camera"),
             str!("FoV"),
             &settings.time,
             TheInterpolation::Linear,
         ) {
-            fov = value;
+            if let Some(value) = v.to_f32() {
+                fov = value;
+            }
         }
 
-        if let Some(TheValue::FloatRange(value, _)) = region.regionfx.get(
+        if let Some(v) = region.regionfx.get(
             str!("Camera"),
             str!("Origin X"),
             &settings.time,
             TheInterpolation::Linear,
         ) {
-            origin_offset.x = value;
+            if let Some(value) = v.to_f32() {
+                origin_offset.x = value;
+            }
         }
 
-        if let Some(TheValue::FloatRange(value, _)) = region.regionfx.get(
+        if let Some(v) = region.regionfx.get(
             str!("Camera"),
             str!("Origin Y"),
             &settings.time,
             TheInterpolation::Linear,
         ) {
-            origin_offset.y = value;
+            if let Some(value) = v.to_f32() {
+                origin_offset.y = value;
+            }
         }
 
-        if let Some(TheValue::FloatRange(value, _)) = region.regionfx.get(
+        if let Some(v) = region.regionfx.get(
             str!("Camera"),
             str!("Origin Z"),
             &settings.time,
             TheInterpolation::Linear,
         ) {
-            origin_offset.z = value;
+            if let Some(value) = v.to_f32() {
+                origin_offset.z = value;
+            }
         }
 
-        if let Some(TheValue::FloatRange(value, _)) = region.regionfx.get(
+        if let Some(v) = region.regionfx.get(
             str!("Camera"),
             str!("Center X"),
             &settings.time,
             TheInterpolation::Linear,
         ) {
-            center_offset.x = value;
+            if let Some(value) = v.to_f32() {
+                center_offset.x = value;
+            }
         }
 
-        if let Some(TheValue::FloatRange(value, _)) = region.regionfx.get(
+        if let Some(v) = region.regionfx.get(
             str!("Camera"),
             str!("Center Y"),
             &settings.time,
             TheInterpolation::Linear,
         ) {
-            center_offset.y = value;
+            if let Some(value) = v.to_f32() {
+                center_offset.y = value;
+            }
         }
 
-        if let Some(TheValue::FloatRange(value, _)) = region.regionfx.get(
+        if let Some(v) = region.regionfx.get(
             str!("Camera"),
             str!("Center Z"),
             &settings.time,
             TheInterpolation::Linear,
         ) {
-            center_offset.z = value;
+            if let Some(value) = v.to_f32() {
+                center_offset.z = value;
+            }
         }
 
         pixels
@@ -167,14 +181,7 @@ impl Renderer {
                         )
                     };
 
-                    // let camera = Camera::new(ro + vec3f(0.0, 3.0, 4.0), ro, 30.0);
-                    // let ray = camera.create_iso_ray(
-                    //     vec2f(xx / width_f, yy / height_f),
-                    //     vec2f(width_f, height_f),
-                    //     vec2f(0.0, 0.0),
-                    // );
-
-                    pixel.copy_from_slice(&self.render_pixel(ray, settings));
+                    pixel.copy_from_slice(&self.render_pixel(ray, region, settings));
                 }
             });
 
@@ -183,13 +190,8 @@ impl Renderer {
     }
 
     #[inline(always)]
-    pub fn render_pixel(&self, ray: Ray, settings: &RegionDrawSettings) -> RGBA {
-        //let mut set : FxHashSet<Vec3i> = FxHashSet::default();
-        //set.insert(vec3i(0, 0, 0));
-
-        let mut pixel = BLACK;
-
-        // Based on https://www.shadertoy.com/view/ct33Rn
+    pub fn render_pixel(&self, ray: Ray, region: &Region, settings: &RegionDrawSettings) -> RGBA {
+        let mut color = vec4f(0.0, 0.0, 0.0, 1.0);
 
         fn equal(l: f32, r: Vec3f) -> Vec3f {
             vec3f(
@@ -210,23 +212,21 @@ impl Renderer {
 
         let rdi = 1.0 / (2.0 * rd);
 
-        let mut key: Vec3<i32>; // = Vec3i::zero();
+        let mut key: Vec3<i32>;
 
         for _ii in 0..50 {
             key = Vec3i::from(i);
-
-            //println!("{}", key);
-
-            //if key.x == 0 && key.y == 0 && key.z == 0 {
-            // if key.y <= -1 {
-            if let Some(tile) = self.tiles.get(&(key.x, key.y, key.z)) {
+            if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                 let uv = self.get_uv(normal, ray.at(dist));
                 //pixel = [(uv.x * 255.0) as u8, (uv.y * 255.0) as u8, 0, 255];
                 if let Some(texture) = self.textures.get(tile) {
                     let index = settings.anim_counter % texture.buffer.len();
-                    if let Some(p) = texture.buffer[index].at_f(uv) {
+                    if let Some(p) = texture.buffer[index].at_f_vec4f(uv) {
                         //if p[3] == 255 {
-                        pixel = p;
+                        color.x = p.x * settings.daylight.x;
+                        color.y = p.y * settings.daylight.y;
+                        color.z = p.z * settings.daylight.z;
+                        color.w = p.w;
                         break;
                         //}
                     }
@@ -253,7 +253,27 @@ impl Renderer {
             i += normal;
         }
 
-        pixel
+        // let p = region.regionfx.get(
+        //     str!("Saturation"),
+        //     str!("Saturation"),
+        //     &settings.time,
+        //     TheInterpolation::Linear,
+        // );
+
+        if let Some(v) = region.regionfx.get(
+            str!("Saturation"),
+            str!("Saturation"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_f32() {
+                let mut hsl = TheColor::from_vec4f(color).as_hsl();
+                hsl.y *= value;
+                color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec4f();
+            }
+        }
+
+        TheColor::from_vec4f(color).to_u8_array()
     }
 
     #[inline(always)]
@@ -289,15 +309,15 @@ impl Renderer {
             for i in 0..tile.layers.len() {
                 if i == 0 {
                     if let Some(tile_uuid) = tile.layers[i] {
-                        self.tiles.insert((pos.0, -1, pos.1), tile_uuid);
+                        self.tiles.set((pos.0, -1, pos.1), tile_uuid);
                     }
                 } else if i == 1 {
                     if let Some(tile_uuid) = tile.layers[i] {
-                        self.tiles.insert((pos.0, 0, pos.1), tile_uuid);
+                        self.tiles.set((pos.0, 0, pos.1), tile_uuid);
                     }
                 } else if i == 2 {
                     if let Some(tile_uuid) = tile.layers[i] {
-                        self.tiles.insert((pos.0, 1, pos.1), tile_uuid);
+                        self.tiles.set((pos.0, 1, pos.1), tile_uuid);
                     }
                 }
             }

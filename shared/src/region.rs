@@ -9,10 +9,6 @@ fn default_max_brightness() -> f32 {
     1.0
 }
 
-fn default_fov() -> f32 {
-    1.0
-}
-
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub enum RegionType {
     Region2D,

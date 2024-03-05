@@ -184,43 +184,47 @@ impl TileDrawer {
 
                         // Check for FX
                         if let Some(tilefx) = &tile.tilefx {
-                            if let Some(TheValue::FloatRange(value, _)) = tilefx.get(
+                            if let Some(v) = tilefx.get(
                                 str!("Daylight"),
                                 str!("Attenuation"),
                                 &settings.time,
                                 TheInterpolation::Linear,
                             ) {
-                                if let Some(TheValue::TileMask(tile)) = tilefx.get(
-                                    str!("Daylight"),
-                                    str!("Mask"),
-                                    &settings.time,
-                                    TheInterpolation::Linear,
-                                ) {
-                                    if tile.contains(vec2i(xx, yy)) {
-                                        color[0] += ((daylight.x * value) * 255.0) as u8;
-                                        color[1] += ((daylight.y * value) * 255.0) as u8;
-                                        color[2] += ((daylight.z * value) * 255.0) as u8;
-                                        color[3] = 255;
+                                if let Some(value) = v.to_f32() {
+                                    if let Some(TheValue::TileMask(tile)) = tilefx.get(
+                                        str!("Daylight"),
+                                        str!("Mask"),
+                                        &settings.time,
+                                        TheInterpolation::Linear,
+                                    ) {
+                                        if tile.contains(vec2i(xx, yy)) {
+                                            color[0] += ((daylight.x * value) * 255.0) as u8;
+                                            color[1] += ((daylight.y * value) * 255.0) as u8;
+                                            color[2] += ((daylight.z * value) * 255.0) as u8;
+                                            color[3] = 255;
+                                        }
                                     }
                                 }
                             }
-                            if let Some(TheValue::FloatRange(brightness, _)) = tilefx.get(
+                            if let Some(v) = tilefx.get(
                                 str!("Brightness"),
                                 str!("Brightness"),
                                 &settings.time,
                                 TheInterpolation::Linear,
                             ) {
-                                if let Some(TheValue::TileMask(tile)) = tilefx.get(
-                                    str!("Brightness"),
-                                    str!("Mask"),
-                                    &settings.time,
-                                    TheInterpolation::Linear,
-                                ) {
-                                    if tile.is_empty() || tile.contains(vec2i(xx, yy)) {
+                                if let Some(brightness) = v.to_f32() {
+                                    if let Some(TheValue::TileMask(tile)) = tilefx.get(
+                                        str!("Brightness"),
+                                        str!("Mask"),
+                                        &settings.time,
+                                        TheInterpolation::Linear,
+                                    ) {
+                                        if tile.is_empty() || tile.contains(vec2i(xx, yy)) {
+                                            daylight *= brightness;
+                                        }
+                                    } else {
                                         daylight *= brightness;
                                     }
-                                } else {
-                                    daylight *= brightness;
                                 }
                             }
                             if let Some(TheValue::IntRange(range, _)) = tilefx.get(
