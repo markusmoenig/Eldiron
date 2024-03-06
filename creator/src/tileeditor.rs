@@ -408,6 +408,11 @@ impl TileEditor {
                 }
             }
             TheEvent::TileEditorClicked(_id, coord) | TheEvent::TileEditorDragged(_id, coord) => {
+                RENDERER
+                    .lock()
+                    .unwrap()
+                    .set_position(vec3i(coord.x, 0, coord.y));
+
                 if self.editor_mode == EditorMode::Select {
                     let p = (coord.x, coord.y);
 
@@ -752,11 +757,6 @@ impl TileEditor {
                         break;
                     }
                 }
-
-                RENDERER
-                    .lock()
-                    .unwrap()
-                    .set_position(vec3i(coord.x, 0, coord.y));
             }
             TheEvent::ValueChanged(id, value) => {
                 if id.name == "Region Editor Zoom" {

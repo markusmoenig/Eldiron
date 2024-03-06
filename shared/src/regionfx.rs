@@ -18,44 +18,21 @@ impl RegionFX {
                 } else {
                     coll.set(
                         "Camera Type",
-                        TheValue::TextList(0, vec![str!("Pinhole"), str!("Orthogonal")]),
+                        TheValue::TextList(1, vec![str!("First Person"), str!("Top Down")]),
                     );
 
-                    coll.set("Origin X", TheValue::FloatRange(0.0, -1.0..=5.0));
-                    coll.set("Origin Y", TheValue::FloatRange(0.0, -1.0..=5.0));
-                    coll.set("Origin Z", TheValue::FloatRange(0.0, -1.0..=5.0));
+                    coll.set("First Person Height", TheValue::FloatRange(0.5, 0.0..=1.0));
+                    coll.set("First Person FoV", TheValue::FloatRange(70.0, 1.0..=140.0));
 
-                    coll.set("Center X", TheValue::FloatRange(0.0, -1.0..=5.0));
-                    coll.set("Center Y", TheValue::FloatRange(0.0, -1.0..=5.0));
-                    coll.set("Center Z", TheValue::FloatRange(0.0, -1.0..=5.0));
-
-                    coll.set("FoV", TheValue::FloatRange(70.0, 1.0..=140.0));
-
-                    /*
-                    coll.set("Emission Strength", TheValue::FloatRange(1.0, 0.1..=3.0));
-                    coll.set("Maximum Distance", TheValue::IntRange(10, 1..=20));
-                    coll.set("Samples #", TheValue::IntRange(5, 1..=7));
-                    coll.set("Sample Offset", TheValue::FloatRange(0.5, 0.01..=0.5));
                     coll.set(
-                        "Limit Direction",
-                        TheValue::TextList(
-                            0,
-                            vec![
-                                str!("No"),
-                                str!("Only North"),
-                                str!("Only East"),
-                                str!("Only South"),
-                                str!("Only West"),
-                            ],
-                        ),
+                        "Top Down Camera",
+                        TheValue::TextList(1, vec![str!("Pinhole"), str!("Orthogonal")]),
                     );
-                    coll.set(
-                        "Light Color",
-                        TheValue::TextList(0, vec![str!("Color"), str!("Daylight")]),
-                    );
-                    coll.set("Color", TheValue::ColorObject(TheColor::white(), 0.0));
-                    coll.set("Mask", TheValue::TileMask(TheTileMask::default()));
-                    */
+
+                    coll.set("Top Down Height", TheValue::FloatRange(4.0, 0.0..=20.0));
+                    coll.set("Top Down X Offset", TheValue::FloatRange(-5.00, -5.0..=5.0));
+                    coll.set("Top Down Z Offset", TheValue::FloatRange(5.00, -5.0..=5.0));
+                    coll.set("Top Down FoV", TheValue::FloatRange(55.0, 1.0..=140.0));
                 }
                 let mut meta = RegionFXMetaData::new();
                 meta.set_description("Emission Strength", str!("The strength of the light."));

@@ -11,7 +11,7 @@ pub struct RegionUpdate {
     pub items: FxHashMap<Uuid, ItemUpdate>,
 
     #[serde(skip)]
-    // The pixel position of the characters with their tile id and facing
+    // The pixel position of the characters, their tile id, their character id and facing.
     pub characters_pixel_pos: Vec<(Vec2i, Uuid, Uuid, Vec2f)>,
 
     pub server_tick: i64,

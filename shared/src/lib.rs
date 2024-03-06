@@ -33,7 +33,7 @@ pub mod prelude {
     pub use crate::item::Item;
     pub use crate::level::Level;
     pub use crate::project::Project;
-    pub use crate::region::{CameraType, Layer2DRole, Region, RegionTile};
+    pub use crate::region::{CameraMode, CameraType, Layer2DRole, Region, RegionTile};
     pub use crate::regionfx::*;
     pub use crate::renderer::Renderer;
     pub use crate::screen::*;

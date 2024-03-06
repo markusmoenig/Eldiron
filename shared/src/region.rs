@@ -16,14 +16,14 @@ pub enum RegionType {
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub enum CameraType {
-    Pinhole,
-    Orthogonal,
+    FirstPerson,
+    TopDown,
 }
 
-impl Default for CameraType {
-    fn default() -> Self {
-        CameraType::Pinhole
-    }
+#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
+pub enum CameraMode {
+    Pinhole,
+    Orthogonal,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
