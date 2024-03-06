@@ -37,7 +37,7 @@
 
         <DirectoryRef Id="INSTALLDIR">
             <Component Id="EldironExe" Guid="*">
-                <File Id="EldironExeFile" Source=".\eldiron.exe" Name="eldiron.exe" KeyPath="yes" Checksum="yes"/>
+                <File Id="EldironExeFile" Source=".\eldiron-x86_64-pc-windows-msvc.exe" Name="eldiron.exe" KeyPath="yes" Checksum="yes"/>
             </Component>
         </DirectoryRef>
 

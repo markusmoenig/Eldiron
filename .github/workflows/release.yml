@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
 
 jobs:
   linux_build:
@@ -19,12 +19,11 @@ jobs:
           sudo apt-get install libgtk-3-dev
           cd creator
           cargo build --verbose --release
-          cd ..
 
       - name: Move Resources
         run: |
           mkdir output
-          mv target/release/creator output/creator
+          mv target/release/eldiron output/eldiron-x86_64-unknown-linux-gnu
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -42,12 +41,11 @@ jobs:
         run: |
           cd creator
           cargo build --verbose --release
-          cd ..
 
       - name: Move Resources
         run: |
           mkdir output
-          mv target/release/creator.exe output/creator.exe
+          mv target/release/eldiron.exe output/eldiron-x86_64-pc-windows-msvc.exe
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -57,30 +55,39 @@ jobs:
 
   linux_release:
     runs-on: ubuntu-latest
+    needs: linux_build
+    env:
+      CARGO_BUNDLE_SKIP_BUILD: true
     permissions:
       contents: write
 
     steps:
       - uses: actions/checkout@v3
 
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: Linux
+
       - name: Install Dependencies
         run: cargo install cargo-bundle
 
-      - name: Build
+      - name: Create Deb
         run: |
-          sudo apt-get update
-          sudo apt-get install libasound2-dev
-          pkg-config --libs --cflags alsa
-          sudo apt-get install libgtk-3-dev
+          mkdir -p target/release
+          cp eldiron-x86_64-unknown-linux-gnu target/release/eldiron
           cd creator
-          cargo bundle --release
-          cd ..
-          mv target/release/bundle/deb/*.deb Eldiron.deb
+          cargo bundle --release --bin eldiron
+
+      - name: Rename
+        run: mv target/release/bundle/deb/*.deb Eldiron.deb
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          files: Eldiron.deb
+          files: |
+            Eldiron.deb
+            eldiron-x86_64-unknown-linux-gnu
 
   windows_release:
     runs-on: windows-latest
@@ -99,27 +106,19 @@ jobs:
         with:
           name: Windows
 
-      - name: Move Artifacts
-        run: |
-          mkdir output
-          mv creator.exe eldiron.exe
-
       - name: Install WiX
         run: nuget install WiX -Version 3.11.2
 
       - name: Create MSI Installer
         run: |
-          ./WiX.*/tools/heat.exe dir "output" -dr INSTALLDIR -ag -cg DynamicFragment \
-            -ke -srd -sfrag -nologo -pog:Binaries -pog:Documents -pog: Satellites \
-            -pog:Sources -pog:Content -out "./resources.wxs"
           ./WiX.*/tools/candle.exe -arch "x64" -ext WixUIExtension -ext WixUtilExtension \
             -out "./eldiron.wixobj" "./build/windows/wix/eldiron.wxs"
-          ./WiX.*/tools/candle.exe -arch "x64" -ext WixUIExtension -ext WixUtilExtension \
-            -out "./resources.wixobj" "./resources.wxs"
           ./WiX.*/tools/light.exe -ext WixUIExtension -ext WixUtilExtension \
-            -out "./Eldiron.msi" -sice:ICE61 -sice:ICE91 "./eldiron.wixobj" "./resources.wixobj"
+            -out "./Eldiron.msi" -sice:ICE61 -sice:ICE91 "./eldiron.wixobj"
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          files: Eldiron.msi
+          files: |
+            Eldiron.msi
+            eldiron-x86_64-pc-windows-msvc.exe

@@ -5,6 +5,10 @@ edition = "2021"
 authors = ["Markus Moenig"]
 description = "A game creator for retro RPGs."
 
+[[bin]]
+name = "eldiron"
+path = "src/main.rs"
+
 [dependencies]
 # theframework = { path = "../../TheFramework", features = ["ui", "code"] }
 theframework = { git = "https://github.com/markusmoenig/TheFramework", features = [
@@ -24,7 +28,7 @@ png = "0.17"
 open = "5.0.1"
 fontdue = "0.8.0"
 
-[package.metadata.bundle]
+[package.metadata.bundle.bin.eldiron]
 name = "Eldiron"
 identifier = "com.moenig.eldiron"
 icon = ["../build/Eldiron.icns"]
