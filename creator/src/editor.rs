@@ -1,10 +1,16 @@
 use crate::prelude::*;
+use crate::self_update::SelfUpdateEvent;
+use crate::self_update::SelfUpdater;
 use crate::Embedded;
 use lazy_static::lazy_static;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
+use std::sync::mpsc::Sender;
+use std::sync::Arc;
 use std::sync::Mutex;
+use std::thread;
 
 lazy_static! {
     pub static ref CODEEDITOR: Mutex<TheCodeEditor> = Mutex::new(TheCodeEditor::new());
@@ -43,6 +49,10 @@ pub struct Editor {
 
     update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
+
+    self_update_rx: Receiver<SelfUpdateEvent>,
+    self_update_tx: Sender<SelfUpdateEvent>,
+    self_updater: Arc<Mutex<SelfUpdater>>,
 }
 
 impl TheTrait for Editor {
@@ -54,6 +64,8 @@ impl TheTrait for Editor {
         server.debug_mode = true;
 
         let client = Client::new();
+
+        let (self_update_tx, self_update_rx) = channel();
 
         Self {
             project: Project::new(),
@@ -72,6 +84,14 @@ impl TheTrait for Editor {
 
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
+
+            self_update_rx,
+            self_update_tx,
+            self_updater: Arc::new(Mutex::new(SelfUpdater::new(
+                "markusmoenig",
+                "Eldiron",
+                "eldiron",
+            ))),
         }
     }
 
@@ -184,6 +204,10 @@ impl TheTrait for Editor {
         square_half_button.set_icon_name("square_half_bottom".to_string());
         square_half_button.set_icon_offset(vec2i(-1, -1));
 
+        let mut update_button = TheMenubarButton::new(TheId::named("Update"));
+        update_button.set_status_text("Update application.");
+        update_button.set_icon_name("arrows-clockwise".to_string());
+
         let mut patreon_button = TheMenubarButton::new(TheId::named("Patreon"));
         patreon_button.set_status_text("Visit my Patreon page.");
         patreon_button.set_icon_name("patreon".to_string());
@@ -209,9 +233,11 @@ impl TheTrait for Editor {
         hlayout.add_widget(Box::new(square_button));
         hlayout.add_widget(Box::new(square_half_button));
 
+        hlayout.add_widget(Box::new(update_button));
+        hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
         hlayout.add_widget(Box::new(patreon_button));
 
-        hlayout.set_reverse_index(Some(1));
+        hlayout.set_reverse_index(Some(3));
 
         top_canvas.set_widget(menubar);
         top_canvas.set_layout(hlayout);
@@ -619,6 +645,48 @@ impl TheTrait for Editor {
                                 }
                             }
                             self.server_ctx.tile_selection = None;
+                        } else if name == "Update Eldiron" {
+                            if role == TheDialogButtonRole::Accept {
+                                let updater = self.self_updater.lock().unwrap();
+
+                                if updater.has_newer_release() {
+                                    let release = updater.latest_release().cloned().unwrap();
+
+                                    let updater = Arc::clone(&self.self_updater);
+                                    let tx = self.self_update_tx.clone();
+
+                                    self.self_update_tx
+                                        .send(SelfUpdateEvent::UpdateStart(release.clone()))
+                                        .unwrap();
+
+                                    thread::spawn(move || {
+                                        match updater.lock().unwrap().update_latest() {
+                                            Ok(status) => match status {
+                                                self_update::Status::UpToDate(_) => {
+                                                    tx.send(SelfUpdateEvent::AlreadyUpToDate)
+                                                        .unwrap();
+                                                }
+                                                self_update::Status::Updated(_) => {
+                                                    tx.send(SelfUpdateEvent::UpdateCompleted(
+                                                        release,
+                                                    ))
+                                                    .unwrap();
+                                                }
+                                            },
+                                            Err(err) => {
+                                                tx.send(SelfUpdateEvent::UpdateError(
+                                                    err.to_string(),
+                                                ))
+                                                .unwrap();
+                                            }
+                                        }
+                                    });
+                                } else {
+                                    self.self_update_tx
+                                        .send(SelfUpdateEvent::AlreadyUpToDate)
+                                        .unwrap();
+                                }
+                            }
                         }
                     }
                     TheEvent::TileEditorDrop(_id, location, drop) => {
@@ -883,6 +951,52 @@ impl TheTrait for Editor {
                                 .set_widget_state("Patreon".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
                             redraw = true;
+                        } else if id.name == "Update" {
+                            let updater = self.self_updater.lock().unwrap();
+
+                            if updater.has_newer_release() {
+                                self.self_update_tx
+                                    .send(SelfUpdateEvent::UpdateConfirm(
+                                        updater.latest_release().cloned().unwrap(),
+                                    ))
+                                    .unwrap();
+                            } else {
+                                if let Some(statusbar) = ui.get_widget("Statusbar") {
+                                    statusbar
+                                        .as_statusbar()
+                                        .unwrap()
+                                        .set_text("Checking updates...".to_string());
+                                }
+
+                                let updater = Arc::clone(&self.self_updater);
+                                let tx = self.self_update_tx.clone();
+
+                                thread::spawn(move || {
+                                    let mut updater = updater.lock().unwrap();
+
+                                    match updater.fetch_release_list() {
+                                        Ok(_) => {
+                                            if updater.has_newer_release() {
+                                                tx.send(SelfUpdateEvent::UpdateConfirm(
+                                                    updater.latest_release().cloned().unwrap(),
+                                                ))
+                                                .unwrap();
+                                            } else {
+                                                tx.send(SelfUpdateEvent::AlreadyUpToDate).unwrap();
+                                            }
+                                        }
+                                        Err(err) => {
+                                            tx.send(SelfUpdateEvent::UpdateError(err.to_string()))
+                                                .unwrap();
+                                        }
+                                    }
+                                });
+                            }
+
+                            ctx.ui
+                                .set_widget_state("Update".to_string(), TheWidgetState::None);
+                            ctx.ui.clear_hover();
+                            redraw = true;
                         } else if id.name == "Open" {
                             ctx.ui.open_file_requester(
                                 TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
@@ -1017,6 +1131,71 @@ impl TheTrait for Editor {
                 }
             }
         }
+
+        while let Ok(event) = self.self_update_rx.try_recv() {
+            match event {
+                SelfUpdateEvent::AlreadyUpToDate => {
+                    if let Some(statusbar) = ui.get_widget("Statusbar") {
+                        statusbar
+                            .as_statusbar()
+                            .unwrap()
+                            .set_text("Eldiron is already up-to-date.".to_string());
+                    }
+                }
+                SelfUpdateEvent::UpdateCompleted(release) => {
+                    if let Some(statusbar) = ui.get_widget("Statusbar") {
+                        statusbar.as_statusbar().unwrap().set_text(format!(
+                            "Updated to version {}. Please restart the application to enjoy the new features.",
+                            release.version
+                        ));
+                    }
+                }
+                SelfUpdateEvent::UpdateConfirm(release) => {
+                    let text = &format!("Update to version {}?", release.version);
+                    let uuid = Uuid::new_v4();
+
+                    let width = 300;
+                    let height = 100;
+
+                    let mut canvas = TheCanvas::new();
+                    canvas.limiter_mut().set_max_size(vec2i(width, height));
+
+                    let mut hlayout: TheHLayout = TheHLayout::new(TheId::empty());
+                    hlayout.limiter_mut().set_max_width(width);
+
+                    let mut text_widget = TheText::new(TheId::named_with_id("Dialog Value", uuid));
+                    text_widget.set_text(text.to_string());
+                    text_widget.limiter_mut().set_max_width(200);
+                    hlayout.add_widget(Box::new(text_widget));
+
+                    canvas.set_layout(hlayout);
+
+                    ui.show_dialog(
+                        "Update Eldiron",
+                        canvas,
+                        vec![TheDialogButtonRole::Accept, TheDialogButtonRole::Reject],
+                        ctx,
+                    );
+                }
+                SelfUpdateEvent::UpdateError(err) => {
+                    if let Some(statusbar) = ui.get_widget("Statusbar") {
+                        statusbar
+                            .as_statusbar()
+                            .unwrap()
+                            .set_text(format!("Failed to update Eldiron: {}", err));
+                    }
+                }
+                SelfUpdateEvent::UpdateStart(release) => {
+                    if let Some(statusbar) = ui.get_widget("Statusbar") {
+                        statusbar
+                            .as_statusbar()
+                            .unwrap()
+                            .set_text(format!("Updating to version {}...", release.version));
+                    }
+                }
+            }
+        }
+
         if update_server_icons {
             self.update_server_state_icons(ui);
             redraw = true;
