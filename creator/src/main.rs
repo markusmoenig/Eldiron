@@ -9,6 +9,7 @@ pub mod panels;
 pub mod regionmodeler;
 pub mod regionrender;
 pub mod screeneditor;
+pub mod self_update;
 pub mod sidebar;
 pub mod tileeditor;
 pub mod tilefxeditor;
