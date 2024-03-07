@@ -219,6 +219,7 @@ impl RegionInstance {
 
                 self.draw_settings.anim_counter = *anim_counter;
                 self.draw_settings.center_on_character = server_ctx.curr_character_instance;
+                renderer.set_position(region.editing_position_3d);
 
                 renderer.render(
                     buffer,

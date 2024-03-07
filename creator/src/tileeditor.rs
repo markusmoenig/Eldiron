@@ -246,6 +246,16 @@ impl TileEditor {
     ) -> bool {
         let mut redraw = false;
         match event {
+            TheEvent::RenderViewScrollBy(id, amount) => {
+                if id.name == "RenderView" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        region.editing_position_3d.x += amount.x as f32 / region.grid_size as f32;
+                        region.editing_position_3d.z += amount.y as f32 / region.grid_size as f32;
+                        server.set_editing_position_3d(region.editing_position_3d);
+                        redraw = true;
+                    }
+                }
+            }
             TheEvent::ContextMenuSelected(_widget_id, item_id) => {
                 if item_id.name == "Create Area" {
                     open_text_dialog(
@@ -408,10 +418,10 @@ impl TileEditor {
                 }
             }
             TheEvent::TileEditorClicked(_id, coord) | TheEvent::TileEditorDragged(_id, coord) => {
-                RENDERER
-                    .lock()
-                    .unwrap()
-                    .set_position(vec3i(coord.x, 0, coord.y));
+                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    region.editing_position_3d = vec3i(coord.x, 0, coord.y).into();
+                    server.set_editing_position_3d(region.editing_position_3d);
+                }
 
                 if self.editor_mode == EditorMode::Select {
                     let p = (coord.x, coord.y);

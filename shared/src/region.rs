@@ -51,6 +51,9 @@ pub struct Region {
     pub scroll_offset: Vec2i,
     pub zoom: f32,
 
+    #[serde(default)]
+    pub editing_position_3d: Vec3f,
+
     #[serde(default = "default_min_brightness")]
     pub min_brightness: f32,
 
@@ -94,6 +97,8 @@ impl Region {
             grid_size: 24,
             scroll_offset: Vec2i::zero(),
             zoom: 1.0,
+
+            editing_position_3d: Vec3f::zero(),
 
             min_brightness: 0.3,
             max_brightness: 1.0,

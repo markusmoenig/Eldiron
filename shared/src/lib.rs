@@ -19,6 +19,7 @@ pub mod tilefx;
 pub mod tilemap;
 pub mod update;
 pub mod widget;
+pub mod modelfx;
 
 pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
@@ -35,6 +36,7 @@ pub mod prelude {
     pub use crate::project::Project;
     pub use crate::region::{CameraMode, CameraType, Layer2DRole, Region, RegionTile};
     pub use crate::regionfx::*;
+    pub use crate::modelfx::*;
     pub use crate::renderer::Renderer;
     pub use crate::screen::*;
     pub use crate::server::context::ServerContext;

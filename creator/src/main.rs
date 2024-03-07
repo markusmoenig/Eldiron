@@ -5,9 +5,9 @@ use theframework::*;
 pub mod editor;
 pub mod externals;
 pub mod misc;
+pub mod modelfxeditor;
 pub mod panels;
 pub mod regionfxeditor;
-pub mod regionmodeler;
 pub mod screeneditor;
 pub mod self_update;
 pub mod sidebar;
@@ -31,9 +31,9 @@ pub mod prelude {
 
     pub use crate::externals::*;
     pub use crate::misc::*;
+    pub use crate::modelfxeditor::*;
     pub use crate::panels::*;
     pub use crate::regionfxeditor::*;
-    pub use crate::regionmodeler::*;
     pub use crate::screeneditor::*;
     pub use crate::sidebar::*;
     pub use crate::tileeditor::*;

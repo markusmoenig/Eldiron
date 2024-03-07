@@ -51,112 +51,6 @@ impl Renderer {
             );
         }
 
-        let mut position = self.position;
-        let mut facing = vec3f(0.0, 0.0, -1.0);
-        if settings.center_on_character.is_some() {
-            position = settings.center_3d;
-            facing = settings.facing_3d;
-        }
-
-        // Get the camera settings
-
-        let mut camera_type = CameraType::TopDown;
-        let mut top_down_camera_mode = CameraMode::Orthogonal;
-        let mut first_person_height = 0.5;
-        let mut top_down_height = 4.0;
-        let mut top_down_x_offset = -5.0;
-        let mut top_down_z_offset = 5.0;
-        let mut first_person_fov = 70.0;
-        let mut top_down_fov = 55.0;
-
-        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
-            str!("Camera"),
-            str!("Camera Type"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if value == 0 {
-                camera_type = CameraType::FirstPerson;
-            }
-        }
-
-        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
-            str!("Camera"),
-            str!("Top Down Camera"),
-            &settings.time,
-            TheInterpolation::Switch,
-        ) {
-            if value == 0 {
-                top_down_camera_mode = CameraMode::Pinhole;
-            }
-        }
-
-        if let Some(v) = region.regionfx.get(
-            str!("Camera"),
-            str!("First Person FoV"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_f32() {
-                first_person_fov = value;
-            }
-        }
-
-        if let Some(v) = region.regionfx.get(
-            str!("Camera"),
-            str!("Top Down FoV"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_f32() {
-                top_down_fov = value;
-            }
-        }
-
-        if let Some(v) = region.regionfx.get(
-            str!("Camera"),
-            str!("First Person Height"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_f32() {
-                first_person_height = value;
-            }
-        }
-
-        if let Some(v) = region.regionfx.get(
-            str!("Camera"),
-            str!("Top Down Height"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_f32() {
-                top_down_height = value;
-            }
-        }
-
-        if let Some(v) = region.regionfx.get(
-            str!("Camera"),
-            str!("Top Down X Offset"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_f32() {
-                top_down_x_offset = value;
-            }
-        }
-
-        if let Some(v) = region.regionfx.get(
-            str!("Camera"),
-            str!("Top Down Z Offset"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_f32() {
-                top_down_z_offset = value;
-            }
-        }
-
         let mut saturation = None;
         if let Some(v) = region.regionfx.get(
             str!("Saturation"),
@@ -169,26 +63,7 @@ impl Renderer {
             }
         }
 
-        // Camera
-
-        let mut ro = vec3f(position.x + 0.5, 0.5, position.z + 0.5);
-        let rd;
-        let fov;
-        let mut camera_mode = CameraMode::Pinhole;
-
-        if camera_type == CameraType::TopDown {
-            rd = ro;
-            ro.y = top_down_height;
-            ro.x += top_down_x_offset;
-            ro.z += top_down_z_offset;
-            fov = top_down_fov;
-            camera_mode = top_down_camera_mode;
-        } else {
-            // First person
-            ro.y = first_person_height;
-            rd = ro + facing * 2.0;
-            fov = first_person_fov;
-        }
+        let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
 
         pixels
             .par_rchunks_exact_mut(width * 4)
@@ -592,8 +467,144 @@ impl Renderer {
         self.textures = tiles;
     }
 
-    pub fn set_position(&mut self, position: Vec3i) {
-        self.position = position.into();
+    pub fn set_position(&mut self, position: Vec3f) {
+        self.position = position;
+    }
+
+    /// Create the camera setup.
+    pub fn create_camera_setup(
+        &mut self,
+        region: &Region,
+        settings: &mut RegionDrawSettings,
+    ) -> (Vec3f, Vec3f, f32, CameraMode, CameraType) {
+        let mut position = self.position;
+        let mut facing = vec3f(0.0, 0.0, -1.0);
+        if settings.center_on_character.is_some() {
+            position = settings.center_3d;
+            facing = settings.facing_3d;
+        }
+
+        // Get the camera settings
+
+        let mut camera_type = CameraType::TopDown;
+        let mut top_down_camera_mode = CameraMode::Orthogonal;
+        let mut first_person_height = 0.5;
+        let mut top_down_height = 4.0;
+        let mut top_down_x_offset = -5.0;
+        let mut top_down_z_offset = 5.0;
+        let mut first_person_fov = 70.0;
+        let mut top_down_fov = 55.0;
+
+        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("Camera Type"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if value == 0 {
+                camera_type = CameraType::FirstPerson;
+            }
+        }
+
+        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("Top Down Camera"),
+            &settings.time,
+            TheInterpolation::Switch,
+        ) {
+            if value == 0 {
+                top_down_camera_mode = CameraMode::Pinhole;
+            }
+        }
+
+        if let Some(v) = region.regionfx.get(
+            str!("Camera"),
+            str!("First Person FoV"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_f32() {
+                first_person_fov = value;
+            }
+        }
+
+        if let Some(v) = region.regionfx.get(
+            str!("Camera"),
+            str!("Top Down FoV"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_f32() {
+                top_down_fov = value;
+            }
+        }
+
+        if let Some(v) = region.regionfx.get(
+            str!("Camera"),
+            str!("First Person Height"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_f32() {
+                first_person_height = value;
+            }
+        }
+
+        if let Some(v) = region.regionfx.get(
+            str!("Camera"),
+            str!("Top Down Height"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_f32() {
+                top_down_height = value;
+            }
+        }
+
+        if let Some(v) = region.regionfx.get(
+            str!("Camera"),
+            str!("Top Down X Offset"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_f32() {
+                top_down_x_offset = value;
+            }
+        }
+
+        if let Some(v) = region.regionfx.get(
+            str!("Camera"),
+            str!("Top Down Z Offset"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_f32() {
+                top_down_z_offset = value;
+            }
+        }
+
+        // Camera
+
+        let mut ro = vec3f(position.x + 0.5, 0.5, position.z + 0.5);
+        let rd;
+        let fov;
+        let mut camera_mode = CameraMode::Pinhole;
+
+        if camera_type == CameraType::TopDown {
+            rd = ro;
+            ro.y = top_down_height;
+            ro.x += top_down_x_offset;
+            ro.z += top_down_z_offset;
+            fov = top_down_fov;
+            camera_mode = top_down_camera_mode;
+        } else {
+            // First person
+            ro.y = first_person_height;
+            rd = ro + facing * 2.0;
+            fov = first_person_fov;
+        }
+
+        (ro, rd, fov, camera_mode, camera_type)
     }
 
     /// Gets the current time in milliseconds

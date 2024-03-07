@@ -667,6 +667,13 @@ impl Server {
         }
     }
 
+    /// Sets the current 3d editing postion.
+    pub fn set_editing_position_3d(&mut self, position: Vec3f) {
+        for region in REGIONS.write().unwrap().values_mut() {
+            region.editing_position_3d = position;
+        }
+    }
+
     /// Get the current interactions.
     pub fn get_interactions(&self) -> Vec<Interaction> {
         INTERACTIONS.read().unwrap().clone()
