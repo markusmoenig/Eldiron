@@ -1,3 +1,4 @@
+use crate::editor::RENDERER;
 use crate::prelude::*;
 
 pub struct TilePicker {
@@ -145,6 +146,17 @@ impl TilePicker {
         vlayout.add_widget(Box::new(text));
         vlayout.add_widget(Box::new(blocking));
 
+        let mut billboard_text = TheText::new(TheId::empty());
+        billboard_text.set_text_size(12.0);
+        billboard_text.set_text("Render in 3D".to_string());
+        vlayout.add_widget(Box::new(billboard_text));
+
+        let mut render_drop_down =
+            TheDropdownMenu::new(TheId::named(&self.make_id(" Tile Billboard")));
+        render_drop_down.add_option("As Cube".to_string());
+        render_drop_down.add_option("As Billboard".to_string());
+        vlayout.add_widget(Box::new(render_drop_down));
+
         details_canvas.set_layout(vlayout);
 
         //
@@ -219,6 +231,7 @@ impl TilePicker {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
+        server: &mut Server,
     ) -> bool {
         let mut redraw = false;
 
@@ -299,12 +312,23 @@ impl TilePicker {
                             }
                         }
                     }
-                }
-                if id.name == self.make_id(" Tile Blocking") {
+                } else if id.name == self.make_id(" Tile Blocking") {
                     if let Some(tile_id) = self.curr_tile {
                         if let Some(tile) = project.get_tile_mut(&tile_id) {
                             if let TheValue::Int(role) = value {
                                 tile.blocking = *role == 1;
+                            }
+                        }
+                    }
+                } else if id.name == self.make_id(" Tile Billboard") {
+                    if let Some(tile_id) = self.curr_tile {
+                        if let Some(tile) = project.get_tile_mut(&tile_id) {
+                            if let TheValue::Int(billboard) = value {
+                                tile.billboard = *billboard == 1;
+
+                                let tiles = project.extract_tiles();
+                                RENDERER.lock().unwrap().set_textures(tiles.clone());
+                                server.update_tiles(tiles);
                             }
                         }
                     }
@@ -358,6 +382,15 @@ impl TilePicker {
         if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Blocking")) {
             if let Some(tile) = tile {
                 widget.set_selected_index(if tile.blocking { 1 } else { 0 });
+                widget.set_disabled(false);
+            } else {
+                widget.set_disabled(true);
+            }
+        }
+
+        if let Some(widget) = ui.get_drop_down_menu(&self.make_id(" Tile Billboard")) {
+            if let Some(tile) = tile {
+                widget.set_selected_index(if tile.billboard { 1 } else { 0 });
                 widget.set_disabled(false);
             } else {
                 widget.set_disabled(true);

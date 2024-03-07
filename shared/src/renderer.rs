@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use rayon::prelude::*;
-use theframework::{prelude::*, theui::theflattenedmap::TheFlattenedMap3D};
+use theframework::prelude::*;
 
 pub struct Renderer {
     pub textures: FxHashMap<Uuid, TheRGBATile>,
@@ -169,6 +169,27 @@ impl Renderer {
             }
         }
 
+        // Camera
+
+        let mut ro = vec3f(position.x + 0.5, 0.5, position.z + 0.5);
+        let rd;
+        let fov;
+        let mut camera_mode = CameraMode::Pinhole;
+
+        if camera_type == CameraType::TopDown {
+            rd = ro;
+            ro.y = top_down_height;
+            ro.x += top_down_x_offset;
+            ro.z += top_down_z_offset;
+            fov = top_down_fov;
+            camera_mode = top_down_camera_mode;
+        } else {
+            // First person
+            ro.y = first_person_height;
+            rd = ro + facing * 2.0;
+            fov = first_person_fov;
+        }
+
         pixels
             .par_rchunks_exact_mut(width * 4)
             .enumerate()
@@ -178,25 +199,6 @@ impl Renderer {
 
                     let xx = (i % width) as f32;
                     let yy = (i / width) as f32;
-
-                    let mut ro = vec3f(position.x + 0.5, 0.5, position.z + 0.5);
-                    let rd;
-                    let fov;
-                    let mut camera_mode = CameraMode::Pinhole;
-
-                    if camera_type == CameraType::TopDown {
-                        rd = ro;
-                        ro.y = top_down_height;
-                        ro.x += top_down_x_offset;
-                        ro.z += top_down_z_offset;
-                        fov = top_down_fov;
-                        camera_mode = top_down_camera_mode;
-                    } else {
-                        // First person
-                        ro.y = first_person_height;
-                        rd = ro + facing * 2.0;
-                        fov = first_person_fov;
-                    }
 
                     let camera = Camera::new(ro, rd, fov);
                     let ray = if camera_mode == CameraMode::Pinhole {
@@ -262,21 +264,87 @@ impl Renderer {
         let mut key: Vec3<i32>;
         let mut hit = false;
 
-        for _ii in 0..50 {
+        for _ii in 0..30 {
             key = Vec3i::from(i);
 
             // Test against world tile
             if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                 let uv = self.get_uv(normal, ray.at(dist));
                 //pixel = [(uv.x * 255.0) as u8, (uv.y * 255.0) as u8, 0, 255];
-                if let Some(texture) = self.textures.get(tile) {
-                    let index = settings.anim_counter % texture.buffer.len();
-                    if let Some(p) = texture.buffer[index].at_f_vec4f(uv) {
-                        //if p[3] == 255 {
-                        color = p;
-                        hit = true;
-                        break;
-                        //}
+                if let Some(data) = self.textures.get(tile) {
+                    let index = settings.anim_counter % data.buffer.len();
+                    if !data.billboard {
+                        if let Some(p) = data.buffer[index].at_f_vec4f(uv) {
+                            //if p[3] == 255 {
+                            color = p;
+                            hit = true;
+                            break;
+                            //}
+                        }
+                    } else {
+                        let xx = i.x + 0.5;
+                        let zz = i.z + 0.5;
+
+                        let plane_pos = vec3f(xx, 0.5, zz);
+
+                        let mut plane_normal = normalize(plane_pos - ray.o);
+                        plane_normal.y = 0.0;
+                        let denom = dot(plane_normal, ray.d);
+
+                        if denom > 0.0001 {
+                            let t = dot(plane_pos - ray.o, plane_normal) / denom;
+                            if t >= 0.0 && !hit || (hit && t < dist) {
+                                let hit_pos = ray.at(t);
+                                if (xx - hit_pos.x).abs() <= 0.5
+                                    && (zz - hit_pos.z).abs() <= 0.5
+                                    && hit_pos.y >= 0.0
+                                    && hit_pos.y <= 1.0
+                                {
+                                    #[inline(always)]
+                                    fn compute_primary(normal: Vec3f) -> Vec3f {
+                                        let a = cross(normal, vec3f(1.0, 0.0, 0.0));
+                                        let b = cross(normal, vec3f(0.0, 1.0, 0.0));
+
+                                        let max_ab = if dot(a, a) < dot(b, b) { b } else { a };
+
+                                        let c = cross(normal, vec3f(0.0, 0.0, 1.0));
+
+                                        normalize(if dot(max_ab, max_ab) < dot(c, c) {
+                                            c
+                                        } else {
+                                            max_ab
+                                        })
+                                    }
+                                    let index = settings.anim_counter % data.buffer.len();
+
+                                    let plane_vector_u = compute_primary(plane_normal);
+                                    let plane_vector_v = cross(plane_vector_u, rd);
+
+                                    let relative = hit_pos - plane_pos;
+                                    let u_dot = dot(relative, plane_vector_u);
+                                    let v_dot = dot(relative, plane_vector_v);
+
+                                    let u = 0.5 + u_dot;
+                                    let v = 0.5 + v_dot;
+
+                                    //println!("{}, {}", u, v);
+
+                                    let x = (u * data.buffer[index].dim().width as f32) as i32;
+                                    let y =
+                                        ((1.0 - v) * data.buffer[index].dim().height as f32) as i32;
+                                    if let Some(c) = data.buffer[index].at(vec2i(x, y)) {
+                                        if c[3] == 255 {
+                                            let col = TheColor::from_u8_array(c).to_vec4f();
+                                            color = col;
+                                            dist = t;
+                                            normal = vec3f(0.0, 0.0, 1.0);
+                                            hit = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

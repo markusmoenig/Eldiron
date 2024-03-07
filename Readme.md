@@ -17,20 +17,20 @@ Eldiron is currently under active development and a v1 is planned for the first 
 
 ## Features of v1
 
-* Support games similar to Ultima 4 / 5 or any game which uses a rectangular grid layout.
-* Eldiron has an easy to use, grid based, visual scripting language for creating the game logic with visual feedback and debugging.
-* Either render 2D tiles directly or in 3D. Games can switch between the two modes at runtime or display both at the same time (for example use the tiles view as a mini-map).
-* Eldiron comes with integrated tile-maps or your can use your own square tiles with up to four levels of transparency.
-* Single-player or multi-player experiences. Eldiron has a sophisticated multi-threaded server architecture to allow for as many player or NPC characters as possible.
-* Cross platform. Eldiron is written in Rust and can nearly run everywhere, i.e. on the Web, macOS, Windows, Linux, iOS, Android etc. Eldiron Creator can run on any desktop.
+- Support games similar to Ultima 4 / 5 or any game which uses a rectangular grid layout.
+- Eldiron has an easy to use, grid based, visual scripting language for creating the game logic with visual feedback and debugging.
+- Either render 2D tiles directly or in 3D. Games can switch between the two modes at runtime or display both at the same time (for example use the tiles view as a mini-map).
+- Eldiron comes with integrated tile-maps or your can use your own square tiles with up to four levels of transparency.
+- Single-player or multi-player experiences. Eldiron has a sophisticated multi-threaded server architecture to allow for as many player or NPC characters as possible.
+- Cross platform. Eldiron is written in Rust and can nearly run everywhere, i.e. on the Web, macOS, Windows, Linux, iOS, Android etc. Eldiron Creator can run on any desktop.
 
 Join the community on [Discord](https://discord.gg/ZrNj6baSZU) to get in contact.
 
 ## Goals
 
-* Being able to create games similar to the RPGs of the 80's and 90's.
-* Support single-player or multi-player games and even MMOs.
-* Support 2D tiles and over time integrate procedural systems for tiles, particles and 3D objects and characters.
+- Being able to create games similar to the RPGs of the 80's and 90's.
+- Support single-player or multi-player games and even MMOs.
+- Support 2D tiles and over time integrate procedural systems for tiles, particles and 3D objects and characters.
 
 ## Installation
 
@@ -39,6 +39,7 @@ You can download the current pre-release in [Releases](https://github.com/markus
 On macOS you can get access to the current Beta via a public [TestFlight Link](https://testflight.apple.com/join/50oZ5yds).
 
 For ArchLinux users, simply add Eldiron from AUR:
+
 ```
 yay -S eldiron-bin
 ```
@@ -46,11 +47,11 @@ yay -S eldiron-bin
 ## Building Eldiron Locally
 
 If you have [Rust installed](https://www.rust-lang.org/tools/install), you can build Eldiron Creator simply via
-```cargo build --release --bin creator```
+`cargo build --release --bin eldiron`
 
 Linux:
 
- Make sure these dependencies are installed: `libasound2-dev` `libatk1.0-dev` `libgtk-3-dev`
+Make sure these dependencies are installed: `libasound2-dev` `libatk1.0-dev` `libgtk-3-dev`
 
 ## Supporting Eldiron
 
@@ -62,9 +63,9 @@ The source and all assets I commissioned for Eldiron are licensed under the MIT.
 
 Unless explicitly stated otherwise, any contribution intentionally submitted for inclusion in Eldiron, shall be MIT licensed as above, without any additional terms or conditions.
 
-  ## Acknowledgements
+## Acknowledgements
 
-* [Aleksandr Makarov](https://twitter.com/iknowkingrabbit) created the tilemaps which are currently shipped with Eldiron, you can see his work on [Twitch](https://iknowkingrabbit.itch.io).
+- [Aleksandr Makarov](https://twitter.com/iknowkingrabbit) created the tilemaps which are currently shipped with Eldiron, you can see his work on [Twitch](https://iknowkingrabbit.itch.io).
 
 ## Sponsors
 

@@ -138,7 +138,7 @@ impl Panels {
         if TILEPICKER
             .lock()
             .unwrap()
-            .handle_event(event, ui, ctx, project)
+            .handle_event(event, ui, ctx, project, server)
         {
             redraw = true;
         }

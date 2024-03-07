@@ -126,6 +126,9 @@ pub struct Tile {
 
     pub sequence: TheRGBARegionSequence,
     pub blocking: bool,
+
+    #[serde(default)]
+    pub billboard: bool,
 }
 
 impl Default for Tile {
@@ -143,6 +146,7 @@ impl Tile {
 
             sequence: TheRGBARegionSequence::new(),
             blocking: false,
+            billboard: false,
         }
     }
 }

@@ -250,6 +250,7 @@ impl Project {
                 rgba_tile.buffer = tilemap.buffer.extract_sequence(&tile.sequence);
                 rgba_tile.role = tile.role as u8;
                 rgba_tile.blocking = tile.blocking;
+                rgba_tile.billboard = tile.billboard;
                 tiles.insert(tile.id, rgba_tile);
             }
         }
@@ -267,6 +268,7 @@ impl Project {
                 rgba_tile.buffer = tilemap.buffer.extract_sequence(&tile.sequence);
                 rgba_tile.role = tile.role as u8;
                 rgba_tile.blocking = tile.blocking;
+                rgba_tile.billboard = tile.billboard;
                 tiles.push(rgba_tile);
             }
         }
@@ -284,6 +286,7 @@ impl Project {
                     rgba_tile.buffer = tilemap.buffer.extract_sequence(&tile.sequence);
                     rgba_tile.role = tile.role as u8;
                     rgba_tile.blocking = tile.blocking;
+                    rgba_tile.billboard = tile.billboard;
                     return Some(rgba_tile);
                 }
             }
