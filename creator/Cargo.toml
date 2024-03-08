@@ -27,7 +27,10 @@ rust-embed = { version = "8", default-features = true, features = [
 png = "0.17"
 open = "5.0.1"
 fontdue = "0.8.0"
-self_update = "0.39.0"
+self_update = { version = "0.39.0", features = [
+    "archive-tar",
+    "compression-flate2",
+] }
 
 [package.metadata.bundle.bin.eldiron]
 name = "Eldiron"

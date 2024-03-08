@@ -22,8 +22,10 @@ jobs:
 
       - name: Move Resources
         run: |
+          mv target/release/eldiron .
+          tar -zcvf eldiron-x86_64-unknown-linux-gnu.tar.gz eldiron
           mkdir output
-          mv target/release/eldiron output/eldiron-x86_64-unknown-linux-gnu
+          mv eldiron-*.gz output/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -44,8 +46,10 @@ jobs:
 
       - name: Move Resources
         run: |
+          mv target/release/eldiron.exe .
+          tar -zcvf eldiron-x86_64-pc-windows-msvc.tar.gz eldiron.exe
           mkdir output
-          mv target/release/eldiron.exe output/eldiron-x86_64-pc-windows-msvc.exe
+          mv eldiron-*.gz output/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -69,13 +73,17 @@ jobs:
         with:
           name: Linux
 
+      - name: Extract Artifacts
+        run: |
+          tar -zxvf eldiron-*.gz
+
       - name: Install Dependencies
         run: cargo install cargo-bundle
 
       - name: Create Deb
         run: |
           mkdir -p target/release
-          cp eldiron-x86_64-unknown-linux-gnu target/release/eldiron
+          cp eldiron target/release
           cd creator
           cargo bundle --release --bin eldiron
 
@@ -87,7 +95,7 @@ jobs:
         with:
           files: |
             Eldiron.deb
-            eldiron-x86_64-unknown-linux-gnu
+            eldiron-*.gz
 
   windows_release:
     runs-on: windows-latest
@@ -106,6 +114,10 @@ jobs:
         with:
           name: Windows
 
+      - name: Extract Artifacts
+        run: |
+          tar -zxvf eldiron-*.gz
+
       - name: Install WiX
         run: nuget install WiX -Version 3.11.2
 
@@ -121,4 +133,4 @@ jobs:
         with:
           files: |
             Eldiron.msi
-            eldiron-x86_64-pc-windows-msvc.exe
+            eldiron-*.gz
