@@ -1135,12 +1135,31 @@ impl TheTrait for Editor {
         while let Ok(event) = self.self_update_rx.try_recv() {
             match event {
                 SelfUpdateEvent::AlreadyUpToDate => {
-                    if let Some(statusbar) = ui.get_widget("Statusbar") {
-                        statusbar
-                            .as_statusbar()
-                            .unwrap()
-                            .set_text("Eldiron is already up-to-date.".to_string());
-                    }
+                    let text = &format!("Eldiron is already up-to-date.");
+                    let uuid = Uuid::new_v4();
+
+                    let width = 300;
+                    let height = 100;
+
+                    let mut canvas = TheCanvas::new();
+                    canvas.limiter_mut().set_max_size(vec2i(width, height));
+
+                    let mut hlayout: TheHLayout = TheHLayout::new(TheId::empty());
+                    hlayout.limiter_mut().set_max_width(width);
+
+                    let mut text_widget = TheText::new(TheId::named_with_id("Dialog Value", uuid));
+                    text_widget.set_text(text.to_string());
+                    text_widget.limiter_mut().set_max_width(200);
+                    hlayout.add_widget(Box::new(text_widget));
+
+                    canvas.set_layout(hlayout);
+
+                    ui.show_dialog(
+                        "Eldiron Up-to-Date",
+                        canvas,
+                        vec![TheDialogButtonRole::Accept],
+                        ctx,
+                    );
                 }
                 SelfUpdateEvent::UpdateCompleted(release) => {
                     if let Some(statusbar) = ui.get_widget("Statusbar") {
