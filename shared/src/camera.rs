@@ -1,39 +1,7 @@
-use theframework::prelude::*;
-
+use crate::prelude::*;
 use core::f32;
 use std::f32::consts::PI;
-
-/// Ray
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct Ray {
-    pub o: Vec3f,
-    pub d: Vec3f,
-
-    pub inv_direction: Vec3f,
-
-    pub sign_x: usize,
-    pub sign_y: usize,
-    pub sign_z: usize,
-}
-
-impl Ray {
-    pub fn new(o: Vec3f, d: Vec3f) -> Self {
-        Self {
-            o,
-            d,
-
-            inv_direction: Vec3f::new(1.0 / d.x, 1.0 / d.y, 1.0 / d.z),
-            sign_x: (d.x < 0.0) as usize,
-            sign_y: (d.y < 0.0) as usize,
-            sign_z: (d.z < 0.0) as usize,
-        }
-    }
-
-    /// Returns the position on the ray at the given distance
-    pub fn at(&self, d: f32) -> Vec3f {
-        self.o + self.d * d
-    }
-}
+use theframework::prelude::*;
 
 /// Camera
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]

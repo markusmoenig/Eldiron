@@ -162,7 +162,6 @@ impl RegionFXEditor {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                         region.regionfx.clear();
                         server.update_region(region);
-                        server.update_region(region);
                     }
                     if let Some(time_slider) = ui.get_time_slider("RegionFX Timeline") {
                         time_slider.clear_marker();

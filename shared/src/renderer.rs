@@ -5,6 +5,7 @@ use theframework::prelude::*;
 pub struct Renderer {
     pub textures: FxHashMap<Uuid, TheRGBATile>,
     pub tiles: TheFlattenedMap3D<Uuid>,
+    pub models: FxHashMap<(i32, i32), TheTimeline>,
     pub position: Vec3f,
 }
 
@@ -14,6 +15,7 @@ impl Renderer {
         Self {
             textures: FxHashMap::default(),
             tiles: TheFlattenedMap3D::new((0, -1, 0), (80, 2, 80)),
+            models: FxHashMap::default(),
             position: Vec3f::zero(),
         }
     }
@@ -49,6 +51,13 @@ impl Renderer {
                 region_height,
                 settings,
             );
+        }
+
+        let mut models = FxHashMap::default();
+        for (pos, timeline) in &self.models {
+            //self.models.set((pos.0, 0, pos.1), timeline.clone());
+            let timeline = ModelFX::parse_timeline(&settings.time, timeline);
+            models.insert(*pos, timeline);
         }
 
         let mut saturation = None;
@@ -96,6 +105,7 @@ impl Renderer {
                         update,
                         settings,
                         camera_type,
+                        &models,
                         &saturation,
                     ));
                 }
@@ -113,6 +123,7 @@ impl Renderer {
         update: &RegionUpdate,
         settings: &RegionDrawSettings,
         camera_type: CameraType,
+        models: &FxHashMap<(i32, i32), Vec<ModelFX>>,
         saturation: &Option<f32>,
     ) -> RGBA {
         let mut color = vec4f(0.0, 0.0, 0.0, 1.0);
@@ -142,7 +153,31 @@ impl Renderer {
         for _ii in 0..30 {
             key = Vec3i::from(i);
 
-            // Test against world tile
+            if let Some(models) = models.get(&(key.x, key.z)) {
+                let mut lro = ray.at(dist);
+                lro -= Vec3f::from(key);
+                //lro *= tile.size as f32;
+                lro = lro - rd * 0.01;
+
+                let mut r = ray.clone();
+                r.o = lro;
+
+                if let Some(hit_struct) = ModelFX::hit_array(&r, models) {
+                    if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
+                        if let Some(data) = self.textures.get(tile) {
+                            let index = settings.anim_counter % data.buffer.len();
+                            if let Some(p) = data.buffer[index].at_f_vec4f(hit_struct.uv) {
+                                color = p;
+                                hit = true;
+                                normal = hit_struct.normal;
+                                dist = hit_struct.distance;
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else
+            // Test against world tiles
             if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                 let uv = self.get_uv(normal, ray.at(dist));
                 //pixel = [(uv.x * 255.0) as u8, (uv.y * 255.0) as u8, 0, 255];
@@ -436,7 +471,7 @@ impl Renderer {
         // Calculate UV coordinates based on the face
         match face_index {
             0 => Vec2f::new(frac(hp.z), 1.0 - frac(hp.y)), // X-axis face
-            1 => Vec2f::new(frac(hp.x), 1.0 - frac(hp.z)), // Y-axis face
+            1 => Vec2f::new(frac(hp.x), frac(hp.z)),       // Y-axis face
             2 => Vec2f::new(frac(hp.x), 1.0 - frac(hp.y)), // Z-axis face
             _ => Vec2f::zero(),
         }
@@ -444,6 +479,8 @@ impl Renderer {
 
     pub fn set_region(&mut self, region: &Region) {
         self.tiles.clear();
+        self.models = region.models.clone();
+
         for (pos, tile) in &region.tiles {
             for i in 0..tile.layers.len() {
                 if i == 0 {

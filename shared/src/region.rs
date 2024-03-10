@@ -37,6 +37,10 @@ pub struct Region {
     pub tiles: FxHashMap<(i32, i32), RegionTile>,
 
     #[serde(default)]
+    #[serde(with = "vectorize")]
+    pub models: FxHashMap<(i32, i32), TheTimeline>,
+
+    #[serde(default)]
     pub areas: FxHashMap<Uuid, Area>,
 
     #[serde(default)]
@@ -87,6 +91,7 @@ impl Region {
 
             name: "New Region".to_string(),
             tiles: FxHashMap::default(),
+            models: FxHashMap::default(),
 
             areas: FxHashMap::default(),
             characters: FxHashMap::default(),

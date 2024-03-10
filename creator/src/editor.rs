@@ -479,6 +479,16 @@ impl TheTrait for Editor {
                 ) {
                     redraw = true;
                 }
+                if MODELFXEDITOR.lock().unwrap().handle_event(
+                    &event,
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.server,
+                    &mut self.server_ctx,
+                ) {
+                    redraw = true;
+                }
                 if REGIONFXEDITOR.lock().unwrap().handle_event(
                     &event,
                     ui,

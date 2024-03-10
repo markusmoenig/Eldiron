@@ -1,4 +1,6 @@
-use crate::editor::{CODEEDITOR, RENDERER, RENDERMODE, SIDEBARMODE, TILEDRAWER, TILEFXEDITOR};
+use crate::editor::{
+    CODEEDITOR, MODELFXEDITOR, RENDERER, RENDERMODE, SIDEBARMODE, TILEDRAWER, TILEFXEDITOR,
+};
 use crate::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -423,7 +425,13 @@ impl TileEditor {
                     server.set_editing_position_3d(region.editing_position_3d);
                 }
 
-                if self.editor_mode == EditorMode::Select {
+                if self.editor_mode == EditorMode::Modeler {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        let timeline = MODELFXEDITOR.lock().unwrap().curr_timeline.clone();
+                        region.models.insert((coord.x, coord.y), timeline);
+                        RENDERER.lock().unwrap().set_region(&region);
+                    }
+                } else if self.editor_mode == EditorMode::Select {
                     let p = (coord.x, coord.y);
 
                     if let Some(tilearea) = &mut server_ctx.tile_selection {
