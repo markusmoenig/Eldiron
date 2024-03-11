@@ -56,6 +56,10 @@ impl RegionFXEditor {
         item.set_text(str!("Camera"));
         list_layout.add_item(item, ctx);
 
+        let mut item = TheListItem::new(TheId::named("RegionFX Distance / Fog"));
+        item.set_text(str!("Distance / Fog"));
+        list_layout.add_item(item, ctx);
+
         let mut item = TheListItem::new(TheId::named("RegionFX Saturation"));
         item.set_text(str!("Saturation"));
         list_layout.add_item(item, ctx);

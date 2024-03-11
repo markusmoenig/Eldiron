@@ -47,7 +47,7 @@ pub mod prelude {
     pub use crate::tilemap::{Tile, TileRole, Tilemap};
     pub use crate::update::*;
     pub use crate::widget::*;
-    pub use crate::{Hit, Ray};
+    pub use crate::{Hit, HitFace, Ray};
     pub use rand::prelude::*;
 }
 
@@ -85,8 +85,18 @@ impl Ray {
     }
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub enum HitFace {
+    XFace,
+    YFace,
+    ZFace,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Hit {
     pub distance: f32,
+    pub hit_point: Vec3f,
     pub normal: Vec3f,
     pub uv: Vec2f,
+    pub face: HitFace,
 }

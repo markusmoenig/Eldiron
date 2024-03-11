@@ -5,6 +5,7 @@ use theframework::prelude::*;
 pub enum RegionFX {
     None,
     Camera(TheCollection, RegionFXMetaData),
+    RenderDistanceFog(TheCollection, RegionFXMetaData),
     Saturation(TheCollection, RegionFXMetaData),
 }
 
@@ -54,6 +55,19 @@ impl RegionFX {
                 );
                 RegionFX::Camera(coll, meta)
             }
+            "Distance / Fog" => {
+                if let Some(collection) = collection {
+                    coll = collection;
+                } else {
+                    coll.set("Maximum Render Distance", TheValue::IntRange(10, 1..=30));
+                }
+                let mut meta = RegionFXMetaData::new();
+                meta.set_description(
+                    "Maximum Render Distance",
+                    str!("The maximum render distance."),
+                );
+                RegionFX::Saturation(coll, meta)
+            }
             "Saturation" => {
                 if let Some(collection) = collection {
                     coll = collection;
@@ -73,6 +87,7 @@ impl RegionFX {
         match self {
             RegionFX::None => str!("None"),
             RegionFX::Camera(_, _) => str!("Camera"),
+            RegionFX::RenderDistanceFog(_, _) => str!("Saturation"),
             RegionFX::Saturation(_, _) => str!("Saturation"),
         }
     }
@@ -82,6 +97,7 @@ impl RegionFX {
         match self {
             RegionFX::None => None,
             RegionFX::Camera(collection, _) => Some(collection),
+            RegionFX::RenderDistanceFog(collection, _) => Some(collection),
             RegionFX::Saturation(collection, _) => Some(collection),
         }
     }
@@ -91,6 +107,7 @@ impl RegionFX {
         match self {
             RegionFX::None => TheCollection::default(),
             RegionFX::Camera(collection, _) => collection.clone(),
+            RegionFX::RenderDistanceFog(collection, _) => collection.clone(),
             RegionFX::Saturation(collection, _) => collection.clone(),
         }
     }
@@ -100,6 +117,7 @@ impl RegionFX {
         match self {
             RegionFX::None => None,
             RegionFX::Camera(_, meta) => Some(meta),
+            RegionFX::RenderDistanceFog(_, meta) => Some(meta),
             RegionFX::Saturation(_, meta) => Some(meta),
         }
     }

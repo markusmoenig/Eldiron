@@ -55,9 +55,20 @@ impl Renderer {
 
         let mut models = FxHashMap::default();
         for (pos, timeline) in &self.models {
-            //self.models.set((pos.0, 0, pos.1), timeline.clone());
             let timeline = ModelFX::parse_timeline(&settings.time, timeline);
             models.insert(*pos, timeline);
+        }
+
+        let mut max_render_distance = 10;
+        if let Some(v) = region.regionfx.get(
+            str!("Distance / Fog"),
+            str!("Maximum Render Distance"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_i32() {
+                max_render_distance = value;
+            }
         }
 
         let mut saturation = None;
@@ -72,6 +83,10 @@ impl Renderer {
             }
         }
 
+        // Fill the code level with the blocking info and collect lights
+        let mut level = Level::new(region.width, region.height, settings.time);
+        region.fill_code_level(&mut level, &self.textures, update);
+
         let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
 
         pixels
@@ -85,7 +100,7 @@ impl Renderer {
                     let yy = (i / width) as f32;
 
                     let camera = Camera::new(ro, rd, fov);
-                    let ray = if camera_mode == CameraMode::Pinhole {
+                    let mut ray = if camera_mode == CameraMode::Pinhole {
                         camera.create_ray(
                             vec2f(xx / width_f, yy / height_f),
                             vec2f(width_f, height_f),
@@ -99,6 +114,20 @@ impl Renderer {
                         )
                     };
 
+                    // In top down view, intersect ray with plane at 1.1 y
+                    // to speed up the ray / voxel casting
+                    if camera_type == CameraType::TopDown {
+                        let plane_normal = vec3f(0.0, 1.0, 0.0);
+                        let denom = dot(plane_normal, ray.d);
+
+                        if denom.abs() > 0.0001 {
+                            let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
+                            if t >= 0.0 {
+                                ray.o = ray.o + ray.d * t;
+                            }
+                        }
+                    }
+
                     pixel.copy_from_slice(&self.render_pixel(
                         ray,
                         region,
@@ -106,7 +135,9 @@ impl Renderer {
                         settings,
                         camera_type,
                         &models,
+                        &level,
                         &saturation,
+                        max_render_distance,
                     ));
                 }
             });
@@ -124,7 +155,9 @@ impl Renderer {
         settings: &RegionDrawSettings,
         camera_type: CameraType,
         models: &FxHashMap<(i32, i32), Vec<ModelFX>>,
+        level: &Level,
         saturation: &Option<f32>,
+        max_render_distance: i32,
     ) -> RGBA {
         let mut color = vec4f(0.0, 0.0, 0.0, 1.0);
 
@@ -150,8 +183,12 @@ impl Renderer {
         let mut key: Vec3<i32>;
         let mut hit = false;
 
-        for _ii in 0..30 {
+        for _ii in 0..max_render_distance {
             key = Vec3i::from(i);
+
+            if key.y < -1 {
+                break;
+            }
 
             if let Some(models) = models.get(&(key.x, key.z)) {
                 let mut lro = ray.at(dist);
@@ -166,12 +203,52 @@ impl Renderer {
                     if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                         if let Some(data) = self.textures.get(tile) {
                             let index = settings.anim_counter % data.buffer.len();
-                            if let Some(p) = data.buffer[index].at_f_vec4f(hit_struct.uv) {
-                                color = p;
-                                hit = true;
-                                normal = hit_struct.normal;
-                                dist = hit_struct.distance;
-                                break;
+                            let mut uv = hit_struct.uv;
+                            // TODO apply alpha correctly for WallFX blends
+                            let mut alpha: f32 = 1.0;
+
+                            if hit_struct.face != HitFace::YFace {
+                                // WallFX
+                                if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
+                                    let mut valid = true;
+                                    let mut xx = 0;
+                                    let mut yy = 0;
+                                    let d = (update.server_tick - wallfx.at_tick) as f32
+                                        + settings.delta_in_tick
+                                        - 1.0;
+                                    if d < 1.0 {
+                                        let t = (d * region.grid_size as f32) as i32;
+                                        if wallfx.prev_fx != WallFX::Normal {
+                                            wallfx.prev_fx.apply(
+                                                &mut xx,
+                                                &mut yy,
+                                                &mut alpha,
+                                                &(region.grid_size - t),
+                                                &(1.0 - d),
+                                            );
+                                        } else {
+                                            wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
+                                        }
+                                    } else if wallfx.fx != WallFX::Normal {
+                                        valid = false;
+                                    }
+
+                                    if valid {
+                                        uv.x += xx as f32 / region.grid_size as f32;
+                                        uv.y += yy as f32 / region.grid_size as f32;
+                                    } else {
+                                        uv = vec2f(-1.0, -1.0);
+                                    }
+                                }
+                            }
+                            if let Some(p) = data.buffer[index].at_f_vec4f(uv) {
+                                if p[3] == 1.0 {
+                                    color = p;
+                                    hit = true;
+                                    normal = hit_struct.normal;
+                                    dist = hit_struct.distance;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -179,10 +256,46 @@ impl Renderer {
             } else
             // Test against world tiles
             if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
-                let uv = self.get_uv(normal, ray.at(dist));
+                let mut uv = self.get_uv(normal, ray.at(dist));
                 //pixel = [(uv.x * 255.0) as u8, (uv.y * 255.0) as u8, 0, 255];
                 if let Some(data) = self.textures.get(tile) {
                     let index = settings.anim_counter % data.buffer.len();
+
+                    // TODO apply alpha correctly for WallFX blends
+                    let mut alpha: f32 = 1.0;
+
+                    if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
+                        let mut valid = true;
+                        let mut xx = 0;
+                        let mut yy = 0;
+                        let d = (update.server_tick - wallfx.at_tick) as f32
+                            + settings.delta_in_tick
+                            - 1.0;
+                        if d < 1.0 {
+                            let t = (d * region.grid_size as f32) as i32;
+                            if wallfx.prev_fx != WallFX::Normal {
+                                wallfx.prev_fx.apply(
+                                    &mut xx,
+                                    &mut yy,
+                                    &mut alpha,
+                                    &(region.grid_size - t),
+                                    &(1.0 - d),
+                                );
+                            } else {
+                                wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
+                            }
+                        } else if wallfx.fx != WallFX::Normal {
+                            valid = false;
+                        }
+
+                        if valid {
+                            uv.x += xx as f32 / region.grid_size as f32;
+                            uv.y += yy as f32 / region.grid_size as f32;
+                        } else {
+                            uv = vec2f(-1.0, -1.0);
+                        }
+                    }
+
                     if !data.billboard {
                         if let Some(p) = data.buffer[index].at_f_vec4f(uv) {
                             //if p[3] == 255 {
@@ -301,11 +414,11 @@ impl Renderer {
             if denom > 0.0001 {
                 let t = dot(plane_pos - ray.o, plane_normal) / denom;
                 if t >= 0.0 && !hit || (hit && t < dist) {
-                    let hit = ray.at(t);
-                    if (xx - hit.x).abs() <= 0.5
-                        && (zz - hit.z).abs() <= 0.5
-                        && hit.y >= 0.0
-                        && hit.y <= 1.0
+                    let hit_point = ray.at(t);
+                    if (xx - hit_point.x).abs() <= 0.5
+                        && (zz - hit_point.z).abs() <= 0.5
+                        && hit_point.y >= 0.0
+                        && hit_point.y <= 1.0
                     {
                         if let Some(data) = self.textures.get(tile_id) {
                             #[inline(always)]
@@ -331,7 +444,7 @@ impl Renderer {
                             let plane_vector_u = compute_primary(plane_normal);
                             let plane_vector_v = cross(plane_vector_u, rd);
 
-                            let relative = hit - plane_pos;
+                            let relative = hit_point - plane_pos;
                             let u_dot = dot(relative, plane_vector_u);
                             let v_dot = dot(relative, plane_vector_v);
 
@@ -348,97 +461,122 @@ impl Renderer {
                                     color = col;
                                     dist = t;
                                     normal = vec3f(0.0, 0.0, 1.0);
+                                    hit = true;
                                 }
                             }
                         }
                     }
                 }
             }
-
-            /*
-            // Alternative to billboarding: Auto face to North / South or East / West
-            if facing.y.abs() > facing.x.abs() {
-                // Character is north / south aligned
-
-                let plane_normal = vec3f(0.0, 0.0, 1.0);
-                let denom = dot(plane_normal, ray.d);
-
-                let xx = pos.x as f32 / region.grid_size as f32 + 0.5;
-                let zz = pos.y as f32 / region.grid_size as f32 + 0.5;
-
-                if denom.abs() > 0.0001 {
-                    let t = dot(vec3f(xx, 0.0, zz) - ray.o, plane_normal) / denom;
-                    if t >= 0.0 && !hit || (hit && t < dist) {
-                        let hit = ray.at(t);
-                        if (xx - hit.x).abs() <= 0.5
-                            && (zz - hit.z).abs() <= 0.5
-                            && hit.y >= 0.0
-                            && hit.y <= 1.0
-                        {
-                            if let Some(data) = self.textures.get(tile_id) {
-                                //color.x = 1.0;
-                                let index = settings.anim_counter % data.buffer.len();
-                                let x = ((hit.x - xx + 0.5) * data.buffer[index].dim().width as f32)
-                                    as i32;
-                                let y =
-                                    ((1.0 - hit.y) * data.buffer[index].dim().height as f32) as i32;
-                                if let Some(c) = data.buffer[index].at(vec2i(x, y)) {
-                                    if c[3] == 255 {
-                                        let col = TheColor::from_u8_array(c).to_vec4f();
-                                        color = col;
-                                        dist = t;
-                                        normal = vec3f(0.0, 0.0, 1.0);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                // Character is east / west aligned
-
-                let plane_normal = vec3f(1.0, 0.0, 0.0);
-                let denom = dot(plane_normal, ray.d);
-
-                let xx = pos.x as f32 / region.grid_size as f32 + 0.5;
-                let zz = pos.y as f32 / region.grid_size as f32 + 0.5;
-
-                if denom.abs() > 0.0001 {
-                    let t = dot(vec3f(xx, 0.0, zz) - ray.o, plane_normal) / denom;
-                    if t >= 0.0 && !hit || (hit && t < dist) {
-                        let hit = ray.at(t);
-                        if (xx - hit.x).abs() <= 0.5
-                            && (zz - hit.z).abs() <= 0.5
-                            && hit.y >= 0.0
-                            && hit.y <= 1.0
-                        {
-                            if let Some(data) = self.textures.get(tile_id) {
-                                //color.x = 1.0;
-                                let index = settings.anim_counter % data.buffer.len();
-                                let x = ((hit.z - zz + 0.5) * data.buffer[index].dim().width as f32)
-                                    as i32;
-                                let y =
-                                    ((1.0 - hit.y) * data.buffer[index].dim().height as f32) as i32;
-                                if let Some(c) = data.buffer[index].at(vec2i(x, y)) {
-                                    if c[3] == 255 {
-                                        let col = TheColor::from_u8_array(c).to_vec4f();
-                                        color = col;
-                                        dist = t;
-                                        normal = vec3f(0.0, 0.0, 1.0);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                }*/
         }
 
+        // Light Sampling
+        //
         if hit {
-            // We hit something
-            color.x *= settings.daylight.x;
-            color.y *= settings.daylight.y;
-            color.z *= settings.daylight.z;
+            let daylight = vec4f(
+                settings.daylight.x,
+                settings.daylight.y,
+                settings.daylight.z,
+                1.0,
+            );
+
+            if level.lights.is_empty() {
+                color *= daylight;
+            } else {
+                // Sample the lights
+                let mut total_light = Vec3f::new(0.0, 0.0, 0.0);
+                for (light_grid, light_coll) in &level.lights {
+                    let light_pos = Vec2f::from(*light_grid) + vec2f(0.5, 0.5);
+                    let light_max_distance =
+                        light_coll.get_i32_default("Maximum Distance", 10) as f32;
+                    let mut light_strength = light_coll.get_f32_default("Emission Strength", 1.0);
+                    let light_sampling_off = light_coll.get_f32_default("Sample Offset", 0.5);
+                    let light_samples = light_coll.get_i32_default("Samples #", 5) as usize;
+                    let light_color_type = light_coll.get_i32_default("Light Color", 0);
+                    let light_color = light_coll.get_float3_default("Color", vec3f(1.0, 1.0, 1.0));
+                    let light_limiter = light_coll.get_i32_default("Limit Direction", 0);
+
+                    if light_color_type == 1 {
+                        light_strength = daylight.x;
+                    }
+
+                    let ro = ray.at(dist);
+
+                    if light_limiter == 1 && ro.y > light_pos.y {
+                        continue;
+                    }
+                    if light_limiter == 2 && ro.x < light_pos.x {
+                        continue;
+                    }
+                    if light_limiter == 3 && ro.y < light_pos.y {
+                        continue;
+                    }
+                    if light_limiter == 4 && ro.x > light_pos.x {
+                        continue;
+                    }
+
+                    let y = 0.5;
+                    let offsets = [
+                        ro,
+                        ro - vec3f(0.0, y, light_sampling_off),
+                        ro - vec3f(light_sampling_off, y, 0.0),
+                        ro + vec3f(light_sampling_off, y, 0.0),
+                        ro + vec3f(0.0, y, light_sampling_off),
+                        ro - vec3f(light_sampling_off, y, light_sampling_off),
+                        ro + vec3f(light_sampling_off, y, light_sampling_off),
+                    ];
+
+                    for s in offsets.iter().take(light_samples) {
+                        let ro = s;
+
+                        let mut light_dir = vec3f(light_pos.x, y, light_pos.y) - ro;
+                        let light_dist = length(light_dir);
+
+                        if light_dist < light_max_distance {
+                            light_dir = normalize(light_dir);
+
+                            let mut t = 0.0;
+                            let max_t = light_dist;
+
+                            let mut hit = false;
+
+                            while t < max_t {
+                                let pos = ro + light_dir * t;
+                                let tile = vec2i(pos.x as i32, pos.z as i32);
+
+                                if tile == *light_grid {
+                                    hit = true;
+                                    break;
+                                }
+                                if level.is_blocking((tile.x, tile.y)) {
+                                    hit = false;
+                                    break;
+                                }
+
+                                t += 1.0 / 4.0;
+                            }
+
+                            if hit {
+                                let intensity = 1.0 - (max_t / light_max_distance).clamp(0.0, 1.0);
+                                //intensity *= if s == 0 { 2.0 } else { 1.0 };
+                                let mut light =
+                                    Vec3f::from(intensity * light_strength / light_samples as f32);
+                                if light_color_type == 0 {
+                                    light *= light_color
+                                }
+                                total_light += light;
+                            }
+                        }
+                    }
+                }
+
+                color = clamp(
+                    color * daylight
+                        + color * vec4f(total_light.x, total_light.y, total_light.z, 1.0),
+                    color * daylight,
+                    color,
+                );
+            }
         }
 
         if let Some(saturation) = saturation {
@@ -662,3 +800,81 @@ impl Renderer {
         time
     }
 }
+
+/*
+// Alternative to billboarding: Auto face to North / South or East / West
+if facing.y.abs() > facing.x.abs() {
+    // Character is north / south aligned
+
+    let plane_normal = vec3f(0.0, 0.0, 1.0);
+    let denom = dot(plane_normal, ray.d);
+
+    let xx = pos.x as f32 / region.grid_size as f32 + 0.5;
+    let zz = pos.y as f32 / region.grid_size as f32 + 0.5;
+
+    if denom.abs() > 0.0001 {
+        let t = dot(vec3f(xx, 0.0, zz) - ray.o, plane_normal) / denom;
+        if t >= 0.0 && !hit || (hit && t < dist) {
+            let hit = ray.at(t);
+            if (xx - hit.x).abs() <= 0.5
+                && (zz - hit.z).abs() <= 0.5
+                && hit.y >= 0.0
+                && hit.y <= 1.0
+            {
+                if let Some(data) = self.textures.get(tile_id) {
+                    //color.x = 1.0;
+                    let index = settings.anim_counter % data.buffer.len();
+                    let x = ((hit.x - xx + 0.5) * data.buffer[index].dim().width as f32)
+                        as i32;
+                    let y =
+                        ((1.0 - hit.y) * data.buffer[index].dim().height as f32) as i32;
+                    if let Some(c) = data.buffer[index].at(vec2i(x, y)) {
+                        if c[3] == 255 {
+                            let col = TheColor::from_u8_array(c).to_vec4f();
+                            color = col;
+                            dist = t;
+                            normal = vec3f(0.0, 0.0, 1.0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+} else {
+    // Character is east / west aligned
+
+    let plane_normal = vec3f(1.0, 0.0, 0.0);
+    let denom = dot(plane_normal, ray.d);
+
+    let xx = pos.x as f32 / region.grid_size as f32 + 0.5;
+    let zz = pos.y as f32 / region.grid_size as f32 + 0.5;
+
+    if denom.abs() > 0.0001 {
+        let t = dot(vec3f(xx, 0.0, zz) - ray.o, plane_normal) / denom;
+        if t >= 0.0 && !hit || (hit && t < dist) {
+            let hit = ray.at(t);
+            if (xx - hit.x).abs() <= 0.5
+                && (zz - hit.z).abs() <= 0.5
+                && hit.y >= 0.0
+                && hit.y <= 1.0
+            {
+                if let Some(data) = self.textures.get(tile_id) {
+                    //color.x = 1.0;
+                    let index = settings.anim_counter % data.buffer.len();
+                    let x = ((hit.z - zz + 0.5) * data.buffer[index].dim().width as f32)
+                        as i32;
+                    let y =
+                        ((1.0 - hit.y) * data.buffer[index].dim().height as f32) as i32;
+                    if let Some(c) = data.buffer[index].at(vec2i(x, y)) {
+                        if c[3] == 255 {
+                            let col = TheColor::from_u8_array(c).to_vec4f();
+                            color = col;
+                            dist = t;
+                            normal = vec3f(0.0, 0.0, 1.0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    }*/
