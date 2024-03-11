@@ -128,10 +128,6 @@ impl RegionInstance {
                 character.move_delta = 0.0;
             }
             update.daylight = self.draw_settings.daylight;
-
-            // if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
-            //     region.fill_code_level(&mut self.sandbox.level, &TILES.read().unwrap(), update);
-            // }
         }
 
         // We iterate over all character instances and execute their main function
@@ -364,10 +360,6 @@ impl RegionInstance {
             self.sandbox.clear_runtime_states();
             self.sandbox.aliases.insert("self".to_string(), *id);
             character.execute("init".to_string(), &mut self.sandbox);
-
-            if let Some(inst) = self.character_instances.get_mut(id) {
-                inst.execute("init".to_string(), &mut self.sandbox);
-            }
         }
 
         for id in instance_ids {
@@ -538,6 +530,11 @@ impl RegionInstance {
 
             self.sandbox.clear_runtime_states();
             self.sandbox.aliases.insert("self".to_string(), character);
+
+            // Clear the inventory
+            if let Some(object) = self.sandbox.objects.get_mut(&character) {
+                object.set(str!("inventory"), TheValue::List(vec![]));
+            }
 
             package.execute("init".to_string(), &mut self.sandbox);
 
