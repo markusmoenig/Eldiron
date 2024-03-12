@@ -257,7 +257,7 @@ impl Renderer {
                 }
             }
             // Test against world tiles
-            if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
+            else if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                 let mut uv = self.get_uv(normal, ray.at(dist));
                 //pixel = [(uv.x * 255.0) as u8, (uv.y * 255.0) as u8, 0, 255];
                 if let Some(data) = self.textures.get(tile) {

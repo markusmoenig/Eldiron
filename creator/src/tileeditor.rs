@@ -798,9 +798,11 @@ impl TileEditor {
     ) -> bool {
         let mut redraw = false;
 
-        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-            region.editing_position_3d = vec3i(coord.x, 0, coord.y).into();
-            server.set_editing_position_3d(region.editing_position_3d);
+        if self.editor_mode == EditorMode::Pick {
+            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                region.editing_position_3d = vec3i(coord.x, 0, coord.y).into();
+                server.set_editing_position_3d(region.editing_position_3d);
+            }
         }
 
         if self.editor_mode == EditorMode::Modeler {
