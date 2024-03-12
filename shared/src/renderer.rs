@@ -591,8 +591,11 @@ impl Renderer {
 
         if let Some(hover) = self.hover_pos {
             let hp = ray.at(dist);
+
             if hp.x as i32 == hover.x && hp.z as i32 == hover.z {
-                color = vec4f(1.0, 1.0, 1.0, 1.0);
+                color = TheColor::from_vec4f(color)
+                    .mix(&TheColor::white(), 0.5)
+                    .to_vec4f();
             }
         }
 
@@ -666,7 +669,7 @@ impl Renderer {
         let mut position = self.position;
         let mut facing = vec3f(0.0, 0.0, -1.0);
         if settings.center_on_character.is_some() {
-            position = settings.center_3d;
+            position = settings.center_3d + self.position;
             facing = settings.facing_3d;
         }
 

@@ -915,6 +915,12 @@ impl TileEditor {
                 server_ctx.curr_item_instance = None;
                 server_ctx.curr_item = None;
 
+                // Set 3D editing position to Zero.
+                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    region.editing_position_3d = Vec3f::zero();
+                    server.set_editing_position_3d(region.editing_position_3d);
+                }
+
                 if let Some(layout) = ui.get_list_layout("Region Content List") {
                     layout.select_item(c.0, ctx, false);
                 }
