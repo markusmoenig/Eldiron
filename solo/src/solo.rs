@@ -158,7 +158,7 @@ impl TheTrait for Solo {
             let _debug = self.server.tick();
             //let interactions = self.server.get_interactions();
             // self.server_ctx.add_interactions(interactions);
-            if let Some(update) = self.server.get_region_update(self.curr_region) {
+            if let Some(update) = self.server.get_region_update_json(self.curr_region) {
                 self.client.set_region_update(update);
             }
         }

@@ -43,7 +43,7 @@ pub struct RegionInstance {
 
     last_tick: i64,
 
-    draw_settings: RegionDrawSettings,
+    pub draw_settings: RegionDrawSettings,
     time: TheTime,
 }
 

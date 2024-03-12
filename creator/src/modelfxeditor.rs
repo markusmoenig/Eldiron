@@ -97,9 +97,9 @@ impl ModelFXEditor {
         event: &TheEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &mut Project,
-        server: &mut Server,
-        server_ctx: &mut ServerContext,
+        _project: &mut Project,
+        _server: &mut Server,
+        _server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
 
@@ -165,7 +165,7 @@ impl ModelFXEditor {
                     }
                 } else if id.name.starts_with("ModelFX ") && *state == TheWidgetState::Selected {
                     let fx_name = id.name.strip_prefix("ModelFX ").unwrap();
-                    let mut c = self
+                    let c = self
                         .curr_timeline
                         .get_collection_at(&TheTime::default(), fx_name.to_string());
                     let fx = Some(ModelFX::new_fx(fx_name, c));

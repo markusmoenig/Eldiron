@@ -640,8 +640,17 @@ impl Server {
         }
     }
 
-    /// Get the update for the given region.
-    pub fn get_region_update(&self, region_id: Uuid) -> Option<String> {
+    /// Returns the draw settings of the given region instance.
+    pub fn get_instance_draw_settings(&mut self, region: Uuid) -> RegionDrawSettings {
+        if let Some(instance) = self.instances.get_mut(&region) {
+            instance.draw_settings.clone()
+        } else {
+            RegionDrawSettings::new()
+        }
+    }
+
+    /// Get the update for the given region as json.
+    pub fn get_region_update_json(&self, region_id: Uuid) -> Option<String> {
         UPDATES
             .read()
             .unwrap()

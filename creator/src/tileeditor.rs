@@ -258,6 +258,54 @@ impl TileEditor {
                     }
                 }
             }
+            TheEvent::RenderViewLostHover(_) => {
+                RENDERER.lock().unwrap().hover_pos = None;
+            }
+            TheEvent::RenderViewHoverChanged(_, coord) => {
+                if let Some(render_view) = ui.get_render_view("RenderView") {
+                    let dim = render_view.dim();
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        let pos = RENDERER.lock().unwrap().get_hit_position_at(
+                            *coord,
+                            region,
+                            &mut server.get_instance_draw_settings(server_ctx.curr_region),
+                            dim.width as usize,
+                            dim.height as usize,
+                        );
+                        if let Some(pos) = pos {
+                            RENDERER.lock().unwrap().hover_pos = Some(pos);
+                        }
+                    }
+                }
+            }
+            TheEvent::RenderViewClicked(_, coord) | TheEvent::RenderViewDragged(_, coord) => {
+                if let Some(render_view) = ui.get_render_view("RenderView") {
+                    let dim = render_view.dim();
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        let pos = RENDERER.lock().unwrap().get_hit_position_at(
+                            *coord,
+                            region,
+                            &mut server.get_instance_draw_settings(server_ctx.curr_region),
+                            dim.width as usize,
+                            dim.height as usize,
+                        );
+
+                        if let Some(pos) = pos {
+                            redraw = self.action_at(
+                                vec2i(pos.x, pos.z),
+                                ui,
+                                ctx,
+                                project,
+                                server,
+                                server_ctx,
+                            );
+                        }
+                    }
+                }
+            }
+            TheEvent::TileEditorClicked(_id, coord) | TheEvent::TileEditorDragged(_id, coord) => {
+                redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx);
+            }
             TheEvent::ContextMenuSelected(_widget_id, item_id) => {
                 if item_id.name == "Create Area" {
                     open_text_dialog(
@@ -352,411 +400,10 @@ impl TileEditor {
                     }
                 }
             }
-            /*
-            TheEvent::TileEditorDelete(_id, keys) => {
-                if self.editor_mode == EditorMode::Pick {
-                    // If there is a character instance at the position we delete the instance.
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        let mut changed = false;
-                        let mut undo = TheUndo::new(TheId::named("RegionChanged"));
-                        undo.set_undo_data(region.to_json());
-
-                        for k in keys {
-                            if let Some(c) =
-                                server.get_character_at(server_ctx.curr_region, vec2i(k.0, k.1))
-                            {
-                                if region.characters.remove(&c.0).is_some() {
-                                    changed = true;
-                                    server.remove_character_instance(region.id, c.0);
-                                    server_ctx.curr_character_instance = None;
-                                    server_ctx.curr_character = None;
-                                    redraw = true;
-                                    // Remove from the content list
-                                    if let Some(list) = ui.get_list_layout("Region Content List") {
-                                        list.remove(TheId::named_with_id(
-                                            "Region Content List Item",
-                                            c.0,
-                                        ));
-                                    }
-                                }
-                            }
-                        }
-
-                        if changed {
-                            undo.set_redo_data(region.to_json());
-                            ctx.ui.undo_stack.add(undo);
-                            server.update_region(region);
-                            redraw = true;
-                        }
-                    }
-                } else if self.editor_mode == EditorMode::Draw {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        let mut undo = TheUndo::new(TheId::named("RegionChanged"));
-                        undo.set_undo_data(region.to_json());
-                        let mut changed = false;
-                        let mut p = vec2i(0, 0);
-                        for k in keys {
-                            if region.tiles.contains_key(k) {
-                                region.tiles.remove(k);
-                                changed = true;
-                                p = vec2i(k.0, k.1);
-                            }
-                        }
-                        if changed {
-                            undo.set_redo_data(region.to_json());
-                            ctx.ui.undo_stack.add(undo);
-                            server.update_region(region);
-                            self.set_icon_previews(region, p, ui);
-                            redraw = true;
-                        }
-                    }
-                }
-            }*/
             TheEvent::TileEditorUp(_id) => {
                 if self.editor_mode == EditorMode::Select {
                     if let Some(tilearea) = &mut server_ctx.tile_selection {
                         tilearea.ongoing = false;
-                    }
-                }
-            }
-            TheEvent::TileEditorClicked(_id, coord) | TheEvent::TileEditorDragged(_id, coord) => {
-                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                    region.editing_position_3d = vec3i(coord.x, 0, coord.y).into();
-                    server.set_editing_position_3d(region.editing_position_3d);
-                }
-
-                if self.editor_mode == EditorMode::Modeler {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        let timeline = MODELFXEDITOR.lock().unwrap().curr_timeline.clone();
-                        region.models.insert((coord.x, coord.y), timeline);
-                        RENDERER.lock().unwrap().set_region(&region);
-                    }
-                } else if self.editor_mode == EditorMode::Select {
-                    let p = (coord.x, coord.y);
-
-                    if let Some(tilearea) = &mut server_ctx.tile_selection {
-                        if !tilearea.ongoing {
-                            tilearea.start = p;
-                            tilearea.end = p;
-                            tilearea.ongoing = true;
-                        } else {
-                            tilearea.grow_by(p);
-                        }
-                    } else {
-                        let tilearea = TileArea {
-                            start: p,
-                            end: p,
-                            ..Default::default()
-                        };
-                        server_ctx.tile_selection = Some(tilearea);
-                    }
-                } else if self.editor_mode == EditorMode::Erase {
-                    // If there is a character instance at the position we delete the instance.
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if let Some(c) =
-                            server.get_character_at(server_ctx.curr_region, vec2i(coord.x, coord.y))
-                        {
-                            // Delete the character at the given position.
-
-                            if let Some((value, _)) =
-                                server.get_character_property(region.id, c.0, "name".to_string())
-                            {
-                                open_delete_confirmation_dialog(
-                                    "Delete Character Instance ?",
-                                    format!("Permanently delete '{}' ?", value.describe()).as_str(),
-                                    c.0,
-                                    ui,
-                                    ctx,
-                                );
-                            }
-                        } else if let Some(c) =
-                            server.get_item_at(server_ctx.curr_region, vec2i(coord.x, coord.y))
-                        {
-                            // Delete the item at the given position.
-
-                            if let Some((value, _)) =
-                                server.get_character_property(region.id, c.0, "name".to_string())
-                            {
-                                open_delete_confirmation_dialog(
-                                    "Delete Item Instance ?",
-                                    format!("Permanently delete '{}' ?", value.describe()).as_str(),
-                                    c.0,
-                                    ui,
-                                    ctx,
-                                );
-                            }
-                        } else {
-                            let mut area_id = None;
-
-                            // Check for area at the given position.
-                            for area in region.areas.values() {
-                                if area.area.contains(&(coord.x, coord.y)) {
-                                    // Ask to delete it.
-                                    open_delete_confirmation_dialog(
-                                        "Delete Area ?",
-                                        format!("Permanently delete area '{}' ?", area.name)
-                                            .as_str(),
-                                        area.id,
-                                        ui,
-                                        ctx,
-                                    );
-                                    area_id = Some(area.id);
-                                    break;
-                                }
-                            }
-
-                            if area_id.is_none() {
-                                // Delete the tile at the given position.
-                                let mut undo = TheUndo::new(TheId::named("RegionChanged"));
-                                undo.set_undo_data(region.to_json());
-
-                                if self.curr_layer_role == Layer2DRole::FX {
-                                    if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
-                                        tile.tilefx = None;
-                                    }
-                                } else if region.tiles.contains_key(&(coord.x, coord.y)) {
-                                    region.tiles.remove(&(coord.x, coord.y));
-                                }
-
-                                undo.set_redo_data(region.to_json());
-                                ctx.ui.undo_stack.add(undo);
-                                server.update_region(region);
-                                self.set_icon_previews(region, *coord, ui);
-                                //self.redraw_region(ui, server, ctx, server_ctx);
-                                redraw = true;
-                            }
-                        }
-                    }
-                } else if self.editor_mode == EditorMode::Pick {
-                    // Check for character at the given position.
-                    if let Some(c) = server.get_character_at(server_ctx.curr_region, *coord) {
-                        server_ctx.curr_character_instance = Some(c.0);
-                        server_ctx.curr_character = Some(c.1);
-                        server_ctx.curr_area = None;
-                        server_ctx.curr_item_instance = None;
-                        server_ctx.curr_item = None;
-
-                        if let Some(layout) = ui.get_list_layout("Region Content List") {
-                            layout.select_item(c.0, ctx, false);
-                        }
-
-                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
-                            || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
-                        {
-                            // In Region mode, we need to set the character bundle of the current character instance.
-                            if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                                if let Some(character) = region.characters.get(&c.0) {
-                                    for grid in character.instance.grids.values() {
-                                        if grid.name == "init" {
-                                            CODEEDITOR
-                                                .lock()
-                                                .unwrap()
-                                                .set_codegrid(grid.clone(), ui);
-                                            ctx.ui.send(TheEvent::Custom(
-                                                TheId::named("Set CodeGrid Panel"),
-                                                TheValue::Empty,
-                                            ));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        //else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
-                        // In Character mode, we need to set the character bundle of the current character.
-                        //}
-                    }
-                    // Check for an item at the given position.
-                    else if let Some(c) = server.get_item_at(server_ctx.curr_region, *coord) {
-                        server_ctx.curr_character_instance = None;
-                        server_ctx.curr_character = None;
-                        server_ctx.curr_item_instance = Some(c.0);
-                        server_ctx.curr_item = Some(c.1);
-                        server_ctx.curr_area = None;
-
-                        if let Some(layout) = ui.get_list_layout("Region Content List") {
-                            layout.select_item(c.0, ctx, false);
-                        }
-
-                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
-                            || *SIDEBARMODE.lock().unwrap() == SidebarMode::Item
-                        {
-                            // In Region mode, we need to set the character bundle of the current character instance.
-                            if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                                if let Some(item) = region.items.get(&c.0) {
-                                    for grid in item.instance.grids.values() {
-                                        if grid.name == "init" {
-                                            CODEEDITOR
-                                                .lock()
-                                                .unwrap()
-                                                .set_codegrid(grid.clone(), ui);
-                                            ctx.ui.send(TheEvent::Custom(
-                                                TheId::named("Set CodeGrid Panel"),
-                                                TheValue::Empty,
-                                            ));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        //else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
-                        // In Character mode, we need to set the character bundle of the current character.
-                        //}
-                    } else if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                        let mut found_area = false;
-
-                        // Check for area at the given position.
-                        for area in region.areas.values() {
-                            if area.area.contains(&(coord.x, coord.y)) {
-                                for grid in area.bundle.grids.values() {
-                                    if grid.name == "main" {
-                                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
-                                            || *SIDEBARMODE.lock().unwrap()
-                                                == SidebarMode::Character
-                                        {
-                                            CODEEDITOR
-                                                .lock()
-                                                .unwrap()
-                                                .set_codegrid(grid.clone(), ui);
-                                            ctx.ui.send(TheEvent::Custom(
-                                                TheId::named("Set CodeGrid Panel"),
-                                                TheValue::Empty,
-                                            ));
-                                        }
-                                        found_area = true;
-                                        server_ctx.curr_character_instance = None;
-                                        server_ctx.curr_character = None;
-                                        server_ctx.curr_area = Some(area.id);
-                                        if let Some(layout) =
-                                            ui.get_list_layout("Region Content List")
-                                        {
-                                            layout.select_item(area.id, ctx, false);
-                                        }
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-
-                        if !found_area {
-                            // No area, set the tile.
-                            server_ctx.curr_character_instance = None;
-                            if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
-                                if self.curr_layer_role == Layer2DRole::FX {
-                                    // Set the tile preview.
-                                    if let Some(widget) = ui.get_widget("TileFX RGBA") {
-                                        if let Some(tile_rgba) = widget.as_rgba_view() {
-                                            if let Some(tile) = project.extract_region_tile(
-                                                server_ctx.curr_region,
-                                                (coord.x, coord.y),
-                                            ) {
-                                                let preview_size =
-                                                    TILEFXEDITOR.lock().unwrap().preview_size;
-                                                tile_rgba.set_grid(Some(
-                                                    preview_size / tile.buffer[0].dim().width,
-                                                ));
-                                                tile_rgba.set_buffer(
-                                                    tile.buffer[0]
-                                                        .scaled(preview_size, preview_size),
-                                                );
-                                            }
-                                        }
-                                    }
-                                    if let Some(timeline) = &tile.tilefx {
-                                        TILEFXEDITOR
-                                            .lock()
-                                            .unwrap()
-                                            .set_timeline(timeline.clone(), ui);
-                                    }
-                                } else {
-                                    for uuid in tile.layers.iter().flatten() {
-                                        if TILEDRAWER.lock().unwrap().tiles.contains_key(uuid) {
-                                            ctx.ui.send(TheEvent::StateChanged(
-                                                TheId::named_with_id("Tilemap Tile", *uuid),
-                                                TheWidgetState::Selected,
-                                            ));
-
-                                            // Switch mode to draw, disabled for now
-                                            // self.editor_mode = EditorMode::Draw;
-                                            // if let Some(button) = ui.get_group_button("Editor Group") {
-                                            //     button.set_index(0);
-                                            //     redraw = true;
-                                            // }
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
-                        || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
-                    {
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Set Region Panel"),
-                            TheValue::Empty,
-                        ));
-                    }
-                } else if self.editor_mode == EditorMode::Draw {
-                    if let Some(curr_tile_uuid) = self.curr_tile_uuid {
-                        if TILEDRAWER
-                            .lock()
-                            .unwrap()
-                            .tiles
-                            .contains_key(&curr_tile_uuid)
-                        {
-                            if self.curr_layer_role == Layer2DRole::FX {
-                                // Set the tile preview.
-                                if let Some(widget) = ui.get_widget("TileFX RGBA") {
-                                    if let Some(tile_rgba) = widget.as_rgba_view() {
-                                        if let Some(tile) = project.extract_region_tile(
-                                            server_ctx.curr_region,
-                                            (coord.x, coord.y),
-                                        ) {
-                                            let preview_size =
-                                                TILEFXEDITOR.lock().unwrap().preview_size;
-                                            tile_rgba.set_grid(Some(
-                                                preview_size / tile.buffer[0].dim().width,
-                                            ));
-                                            tile_rgba.set_buffer(
-                                                tile.buffer[0].scaled(preview_size, preview_size),
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-
-                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                                let mut undo = TheUndo::new(TheId::named("RegionChanged"));
-                                undo.set_undo_data(region.to_json());
-
-                                if self.curr_layer_role == Layer2DRole::FX {
-                                    if !TILEFXEDITOR.lock().unwrap().curr_timeline.is_empty() {
-                                        region.set_tilefx(
-                                            (coord.x, coord.y),
-                                            TILEFXEDITOR.lock().unwrap().curr_timeline.clone(),
-                                        )
-                                    } else if let Some(tile) =
-                                        region.tiles.get_mut(&(coord.x, coord.y))
-                                    {
-                                        tile.tilefx = None;
-                                    }
-                                } else {
-                                    region.set_tile(
-                                        (coord.x, coord.y),
-                                        self.curr_layer_role,
-                                        self.curr_tile_uuid,
-                                    );
-                                }
-                                undo.set_redo_data(region.to_json());
-                                self.set_icon_previews(region, *coord, ui);
-
-                                server.update_region(region);
-                                RENDERER.lock().unwrap().set_region(region);
-
-                                ctx.ui.undo_stack.add(undo);
-                            }
-                        }
-                        //self.redraw_region(ui, server, ctx, server_ctx);
                     }
                 }
             }
@@ -1137,5 +784,340 @@ impl TileEditor {
                 }
             }
         }
+    }
+
+    /// Perform the given click action at the given coordinate.
+    pub fn action_at(
+        &mut self,
+        coord: Vec2i,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server: &mut Server,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        let mut redraw = false;
+
+        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+            region.editing_position_3d = vec3i(coord.x, 0, coord.y).into();
+            server.set_editing_position_3d(region.editing_position_3d);
+        }
+
+        if self.editor_mode == EditorMode::Modeler {
+            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                let timeline = MODELFXEDITOR.lock().unwrap().curr_timeline.clone();
+                region.models.insert((coord.x, coord.y), timeline);
+                RENDERER.lock().unwrap().set_region(&region);
+            }
+        } else if self.editor_mode == EditorMode::Select {
+            let p = (coord.x, coord.y);
+
+            if let Some(tilearea) = &mut server_ctx.tile_selection {
+                if !tilearea.ongoing {
+                    tilearea.start = p;
+                    tilearea.end = p;
+                    tilearea.ongoing = true;
+                } else {
+                    tilearea.grow_by(p);
+                }
+            } else {
+                let tilearea = TileArea {
+                    start: p,
+                    end: p,
+                    ..Default::default()
+                };
+                server_ctx.tile_selection = Some(tilearea);
+            }
+        } else if self.editor_mode == EditorMode::Erase {
+            // If there is a character instance at the position we delete the instance.
+            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                if let Some(c) =
+                    server.get_character_at(server_ctx.curr_region, vec2i(coord.x, coord.y))
+                {
+                    // Delete the character at the given position.
+
+                    if let Some((value, _)) =
+                        server.get_character_property(region.id, c.0, "name".to_string())
+                    {
+                        open_delete_confirmation_dialog(
+                            "Delete Character Instance ?",
+                            format!("Permanently delete '{}' ?", value.describe()).as_str(),
+                            c.0,
+                            ui,
+                            ctx,
+                        );
+                    }
+                } else if let Some(c) =
+                    server.get_item_at(server_ctx.curr_region, vec2i(coord.x, coord.y))
+                {
+                    // Delete the item at the given position.
+
+                    if let Some((value, _)) =
+                        server.get_character_property(region.id, c.0, "name".to_string())
+                    {
+                        open_delete_confirmation_dialog(
+                            "Delete Item Instance ?",
+                            format!("Permanently delete '{}' ?", value.describe()).as_str(),
+                            c.0,
+                            ui,
+                            ctx,
+                        );
+                    }
+                } else {
+                    let mut area_id = None;
+
+                    // Check for area at the given position.
+                    for area in region.areas.values() {
+                        if area.area.contains(&(coord.x, coord.y)) {
+                            // Ask to delete it.
+                            open_delete_confirmation_dialog(
+                                "Delete Area ?",
+                                format!("Permanently delete area '{}' ?", area.name).as_str(),
+                                area.id,
+                                ui,
+                                ctx,
+                            );
+                            area_id = Some(area.id);
+                            break;
+                        }
+                    }
+
+                    if area_id.is_none() {
+                        // Delete the tile at the given position.
+                        let mut undo = TheUndo::new(TheId::named("RegionChanged"));
+                        undo.set_undo_data(region.to_json());
+
+                        if self.curr_layer_role == Layer2DRole::FX {
+                            if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
+                                tile.tilefx = None;
+                            }
+                        } else if region.tiles.contains_key(&(coord.x, coord.y)) {
+                            region.tiles.remove(&(coord.x, coord.y));
+                        }
+
+                        undo.set_redo_data(region.to_json());
+                        ctx.ui.undo_stack.add(undo);
+                        server.update_region(region);
+                        self.set_icon_previews(region, coord, ui);
+                        //self.redraw_region(ui, server, ctx, server_ctx);
+                        redraw = true;
+                    }
+                }
+            }
+        } else if self.editor_mode == EditorMode::Pick {
+            // Check for character at the given position.
+            if let Some(c) = server.get_character_at(server_ctx.curr_region, coord) {
+                server_ctx.curr_character_instance = Some(c.0);
+                server_ctx.curr_character = Some(c.1);
+                server_ctx.curr_area = None;
+                server_ctx.curr_item_instance = None;
+                server_ctx.curr_item = None;
+
+                if let Some(layout) = ui.get_list_layout("Region Content List") {
+                    layout.select_item(c.0, ctx, false);
+                }
+
+                if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
+                    || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
+                {
+                    // In Region mode, we need to set the character bundle of the current character instance.
+                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                        if let Some(character) = region.characters.get(&c.0) {
+                            for grid in character.instance.grids.values() {
+                                if grid.name == "init" {
+                                    CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Set CodeGrid Panel"),
+                                        TheValue::Empty,
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+                //else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                // In Character mode, we need to set the character bundle of the current character.
+                //}
+            }
+            // Check for an item at the given position.
+            else if let Some(c) = server.get_item_at(server_ctx.curr_region, coord) {
+                server_ctx.curr_character_instance = None;
+                server_ctx.curr_character = None;
+                server_ctx.curr_item_instance = Some(c.0);
+                server_ctx.curr_item = Some(c.1);
+                server_ctx.curr_area = None;
+
+                if let Some(layout) = ui.get_list_layout("Region Content List") {
+                    layout.select_item(c.0, ctx, false);
+                }
+
+                if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
+                    || *SIDEBARMODE.lock().unwrap() == SidebarMode::Item
+                {
+                    // In Region mode, we need to set the character bundle of the current character instance.
+                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                        if let Some(item) = region.items.get(&c.0) {
+                            for grid in item.instance.grids.values() {
+                                if grid.name == "init" {
+                                    CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Set CodeGrid Panel"),
+                                        TheValue::Empty,
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+                //else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
+                // In Character mode, we need to set the character bundle of the current character.
+                //}
+            } else if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                let mut found_area = false;
+
+                // Check for area at the given position.
+                for area in region.areas.values() {
+                    if area.area.contains(&(coord.x, coord.y)) {
+                        for grid in area.bundle.grids.values() {
+                            if grid.name == "main" {
+                                if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
+                                    || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
+                                {
+                                    CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Set CodeGrid Panel"),
+                                        TheValue::Empty,
+                                    ));
+                                }
+                                found_area = true;
+                                server_ctx.curr_character_instance = None;
+                                server_ctx.curr_character = None;
+                                server_ctx.curr_area = Some(area.id);
+                                if let Some(layout) = ui.get_list_layout("Region Content List") {
+                                    layout.select_item(area.id, ctx, false);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if !found_area {
+                    // No area, set the tile.
+                    server_ctx.curr_character_instance = None;
+                    if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
+                        if self.curr_layer_role == Layer2DRole::FX {
+                            // Set the tile preview.
+                            if let Some(widget) = ui.get_widget("TileFX RGBA") {
+                                if let Some(tile_rgba) = widget.as_rgba_view() {
+                                    if let Some(tile) = project.extract_region_tile(
+                                        server_ctx.curr_region,
+                                        (coord.x, coord.y),
+                                    ) {
+                                        let preview_size =
+                                            TILEFXEDITOR.lock().unwrap().preview_size;
+                                        tile_rgba.set_grid(Some(
+                                            preview_size / tile.buffer[0].dim().width,
+                                        ));
+                                        tile_rgba.set_buffer(
+                                            tile.buffer[0].scaled(preview_size, preview_size),
+                                        );
+                                    }
+                                }
+                            }
+                            if let Some(timeline) = &tile.tilefx {
+                                TILEFXEDITOR
+                                    .lock()
+                                    .unwrap()
+                                    .set_timeline(timeline.clone(), ui);
+                            }
+                        } else {
+                            for uuid in tile.layers.iter().flatten() {
+                                if TILEDRAWER.lock().unwrap().tiles.contains_key(uuid) {
+                                    ctx.ui.send(TheEvent::StateChanged(
+                                        TheId::named_with_id("Tilemap Tile", *uuid),
+                                        TheWidgetState::Selected,
+                                    ));
+
+                                    // Switch mode to draw, disabled for now
+                                    // self.editor_mode = EditorMode::Draw;
+                                    // if let Some(button) = ui.get_group_button("Editor Group") {
+                                    //     button.set_index(0);
+                                    //     redraw = true;
+                                    // }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
+                || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
+            {
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Set Region Panel"),
+                    TheValue::Empty,
+                ));
+            }
+        } else if self.editor_mode == EditorMode::Draw {
+            if let Some(curr_tile_uuid) = self.curr_tile_uuid {
+                if TILEDRAWER
+                    .lock()
+                    .unwrap()
+                    .tiles
+                    .contains_key(&curr_tile_uuid)
+                {
+                    if self.curr_layer_role == Layer2DRole::FX {
+                        // Set the tile preview.
+                        if let Some(widget) = ui.get_widget("TileFX RGBA") {
+                            if let Some(tile_rgba) = widget.as_rgba_view() {
+                                if let Some(tile) = project
+                                    .extract_region_tile(server_ctx.curr_region, (coord.x, coord.y))
+                                {
+                                    let preview_size = TILEFXEDITOR.lock().unwrap().preview_size;
+                                    tile_rgba
+                                        .set_grid(Some(preview_size / tile.buffer[0].dim().width));
+                                    tile_rgba.set_buffer(
+                                        tile.buffer[0].scaled(preview_size, preview_size),
+                                    );
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        let mut undo = TheUndo::new(TheId::named("RegionChanged"));
+                        undo.set_undo_data(region.to_json());
+
+                        if self.curr_layer_role == Layer2DRole::FX {
+                            if !TILEFXEDITOR.lock().unwrap().curr_timeline.is_empty() {
+                                region.set_tilefx(
+                                    (coord.x, coord.y),
+                                    TILEFXEDITOR.lock().unwrap().curr_timeline.clone(),
+                                )
+                            } else if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
+                                tile.tilefx = None;
+                            }
+                        } else {
+                            region.set_tile(
+                                (coord.x, coord.y),
+                                self.curr_layer_role,
+                                self.curr_tile_uuid,
+                            );
+                        }
+                        undo.set_redo_data(region.to_json());
+                        self.set_icon_previews(region, coord, ui);
+
+                        server.update_region(region);
+                        RENDERER.lock().unwrap().set_region(region);
+
+                        ctx.ui.undo_stack.add(undo);
+                    }
+                }
+                //self.redraw_region(ui, server, ctx, server_ctx);
+            }
+        }
+        redraw
     }
 }

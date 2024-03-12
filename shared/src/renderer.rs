@@ -7,6 +7,7 @@ pub struct Renderer {
     pub tiles: TheFlattenedMap3D<Uuid>,
     pub models: FxHashMap<(i32, i32), TheTimeline>,
     pub position: Vec3f,
+    pub hover_pos: Option<Vec3i>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -17,6 +18,7 @@ impl Renderer {
             tiles: TheFlattenedMap3D::new((0, -1, 0), (80, 2, 80)),
             models: FxHashMap::default(),
             position: Vec3f::zero(),
+            hover_pos: None,
         }
     }
 
@@ -143,7 +145,7 @@ impl Renderer {
             });
 
         let _stop = self.get_time();
-        println!("render time {:?}", _stop - start);
+        //println!("render time {:?}", _stop - start);
     }
 
     #[inline(always)]
@@ -207,7 +209,7 @@ impl Renderer {
                             // TODO apply alpha correctly for WallFX blends
                             let mut alpha: f32 = 1.0;
 
-                            if hit_struct.face != HitFace::YFace {
+                            if hit_struct.face != HitFace::YFace && key.y == 0 {
                                 // WallFX
                                 if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
                                     let mut valid = true;
@@ -253,7 +255,7 @@ impl Renderer {
                         }
                     }
                 }
-            } else
+            }
             // Test against world tiles
             if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                 let mut uv = self.get_uv(normal, ray.at(dist));
@@ -264,35 +266,37 @@ impl Renderer {
                     // TODO apply alpha correctly for WallFX blends
                     let mut alpha: f32 = 1.0;
 
-                    if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
-                        let mut valid = true;
-                        let mut xx = 0;
-                        let mut yy = 0;
-                        let d = (update.server_tick - wallfx.at_tick) as f32
-                            + settings.delta_in_tick
-                            - 1.0;
-                        if d < 1.0 {
-                            let t = (d * region.grid_size as f32) as i32;
-                            if wallfx.prev_fx != WallFX::Normal {
-                                wallfx.prev_fx.apply(
-                                    &mut xx,
-                                    &mut yy,
-                                    &mut alpha,
-                                    &(region.grid_size - t),
-                                    &(1.0 - d),
-                                );
-                            } else {
-                                wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
+                    if key.y == 0 {
+                        if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
+                            let mut valid = true;
+                            let mut xx = 0;
+                            let mut yy = 0;
+                            let d = (update.server_tick - wallfx.at_tick) as f32
+                                + settings.delta_in_tick
+                                - 1.0;
+                            if d < 1.0 {
+                                let t = (d * region.grid_size as f32) as i32;
+                                if wallfx.prev_fx != WallFX::Normal {
+                                    wallfx.prev_fx.apply(
+                                        &mut xx,
+                                        &mut yy,
+                                        &mut alpha,
+                                        &(region.grid_size - t),
+                                        &(1.0 - d),
+                                    );
+                                } else {
+                                    wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
+                                }
+                            } else if wallfx.fx != WallFX::Normal {
+                                valid = false;
                             }
-                        } else if wallfx.fx != WallFX::Normal {
-                            valid = false;
-                        }
 
-                        if valid {
-                            uv.x += xx as f32 / region.grid_size as f32;
-                            uv.y += yy as f32 / region.grid_size as f32;
-                        } else {
-                            uv = vec2f(-1.0, -1.0);
+                            if valid {
+                                uv.x += xx as f32 / region.grid_size as f32;
+                                uv.y += yy as f32 / region.grid_size as f32;
+                            } else {
+                                uv = vec2f(-1.0, -1.0);
+                            }
                         }
                     }
 
@@ -395,11 +399,11 @@ impl Renderer {
 
         // Test against characters
         for (pos, tile_id, character_id, _facing) in &update.characters_pixel_pos {
-            if camera_type == CameraType::FirstPerson {
-                if Some(*character_id) == settings.center_on_character {
-                    // Skip the character itself in first person mode.
-                    continue;
-                }
+            if camera_type == CameraType::FirstPerson
+                && Some(*character_id) == settings.center_on_character
+            {
+                // Skip the character itself in first person mode.
+                continue;
             }
 
             let xx = pos.x as f32 / region.grid_size as f32 + 0.5;
@@ -583,6 +587,13 @@ impl Renderer {
             let mut hsl = TheColor::from_vec4f(color).as_hsl();
             hsl.y *= saturation;
             color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec4f();
+        }
+
+        if let Some(hover) = self.hover_pos {
+            let hp = ray.at(dist);
+            if hp.x as i32 == hover.x && hp.z as i32 == hover.z {
+                color = vec4f(1.0, 1.0, 1.0, 1.0);
+            }
         }
 
         TheColor::from_vec4f(color).to_u8_array()
@@ -798,6 +809,85 @@ impl Renderer {
             time = web_sys::window().unwrap().performance().unwrap().now() as u128;
         }
         time
+    }
+
+    /// Returns the terrain hit position at the given screen coordinate (if any).
+    pub fn get_hit_position_at(
+        &mut self,
+        screen_coord: Vec2i,
+        region: &Region,
+        settings: &mut RegionDrawSettings,
+        width: usize,
+        height: usize,
+    ) -> Option<Vec3i> {
+        let (ro, rd, fov, camera_mode, _) = self.create_camera_setup(region, settings);
+
+        let width_f = width as f32;
+        let height_f = height as f32;
+
+        let camera = Camera::new(ro, rd, fov);
+        let ray = if camera_mode == CameraMode::Pinhole {
+            camera.create_ray(
+                vec2f(
+                    screen_coord.x as f32 / width_f,
+                    1.0 - screen_coord.y as f32 / height_f,
+                ),
+                vec2f(width_f, height_f),
+                vec2f(0.0, 0.0),
+            )
+        } else {
+            camera.create_ortho_ray(
+                vec2f(
+                    screen_coord.x as f32 / width_f,
+                    1.0 - screen_coord.y as f32 / height_f,
+                ),
+                vec2f(width_f, height_f),
+                vec2f(0.0, 0.0),
+            )
+        };
+
+        fn equal(l: f32, r: Vec3f) -> Vec3f {
+            vec3f(
+                if l == r.x { 1.0 } else { 0.0 },
+                if l == r.y { 1.0 } else { 0.0 },
+                if l == r.z { 1.0 } else { 0.0 },
+            )
+        }
+
+        let ro = ray.o;
+        let rd = ray.d;
+
+        let mut i = floor(ro);
+        let mut dist;
+
+        let mut normal;
+        let srd = signum(rd);
+
+        let rdi = 1.0 / (2.0 * rd);
+
+        let mut key: Vec3<i32>;
+
+        for _ii in 0..50 {
+            key = Vec3i::from(i);
+
+            if key.y < -1 {
+                break;
+            }
+
+            if let Some(_) = region.models.get(&(key.x, key.z)) {
+                return Some(vec3i(key.x, 0, key.z));
+            }
+            // Test against world tiles
+            if let Some(_) = self.tiles.get((key.x, key.y, key.z)) {
+                return Some(vec3i(key.x, 0, key.z));
+            }
+
+            let plain = (1.0 + srd - 2.0 * (ro - i)) * rdi;
+            dist = min(plain.x, min(plain.y, plain.z));
+            normal = equal(dist, plain) * srd;
+            i += normal;
+        }
+        None
     }
 }
 

@@ -340,7 +340,10 @@ impl TheTrait for Editor {
                 self.server_ctx.add_interactions(interactions);
                 self.panels
                     .update_code_object(ui, ctx, &mut self.server, &mut self.server_ctx);
-                if let Some(update) = self.server.get_region_update(self.server_ctx.curr_region) {
+                if let Some(update) = self
+                    .server
+                    .get_region_update_json(self.server_ctx.curr_region)
+                {
                     self.client.set_region_update(update);
                 }
 
@@ -1098,6 +1101,7 @@ impl TheTrait for Editor {
                                         for (index, r) in self.project.regions.iter().enumerate() {
                                             if r.id == region.id {
                                                 self.server.update_region(&region);
+                                                RENDERER.lock().unwrap().set_region(&region);
                                                 self.project.regions[index] = region;
                                                 break;
                                             }

@@ -1,6 +1,8 @@
 v 0.8.9 (WiP)
 -------
 
+- Basic 3D editing for changing shapes.
+- 3D rendering (first person, top down, isometric, etc.) with character / item billboarding.
 - Basic interactions between characters.
 - TileFX (tile effects, like lighting, brightness adjustment, etc.) with timeline support.
 - Daytime / Nighttime cycle via a timeline.
