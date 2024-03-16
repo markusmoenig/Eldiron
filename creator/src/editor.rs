@@ -298,7 +298,7 @@ impl TheTrait for Editor {
         let mut vsplitlayout = TheSharedVLayout::new(TheId::named("Shared VLayout"));
         vsplitlayout.add_canvas(tab_canvas);
         vsplitlayout.add_canvas(bottom_panels);
-        vsplitlayout.set_shared_ratio(0.6);
+        vsplitlayout.set_shared_ratio(0.62);
         vsplitlayout.set_mode(TheSharedVLayoutMode::Shared);
 
         let mut shared_canvas = TheCanvas::new();

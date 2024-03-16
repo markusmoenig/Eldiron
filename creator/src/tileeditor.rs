@@ -136,6 +136,7 @@ impl TileEditor {
         vlayout.add_widget(Box::new(spacer));
 
         let mut text = TheText::new(TheId::named("Cursor Position"));
+        text.set_text("()".to_string());
         text.set_text_color([200, 200, 200, 255]);
         vlayout.add_widget(Box::new(text));
 
@@ -809,7 +810,7 @@ impl TileEditor {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 let timeline = MODELFXEDITOR.lock().unwrap().curr_timeline.clone();
                 region.models.insert((coord.x, coord.y), timeline);
-                RENDERER.lock().unwrap().set_region(&region);
+                RENDERER.lock().unwrap().set_region(region);
             }
         } else if self.editor_mode == EditorMode::Select {
             let p = (coord.x, coord.y);
