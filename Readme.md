@@ -12,8 +12,7 @@ Classic RPG Creation
 
 Eldiron is currently under active development and a v1 is planned for the first half of 2024. Eldiron is open source and licensed under the MIT.
 
-![Screenshot](images/character_screenshot.png)
-![Screenshot](images/tilemap.png)
+![Screenshot](images/eldiron_screenshot.png)
 
 ## Features of v1
 
