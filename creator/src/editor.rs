@@ -180,6 +180,29 @@ impl TheTrait for Editor {
         menu.add_context_menu(file_menu);
         menu.add_context_menu(edit_menu);
 
+        let mut code_menu = TheContextMenu::named(str!("Code"));
+        code_menu.add(
+            CODEEDITOR
+                .lock()
+                .unwrap()
+                .create_keywords_context_menu_item(),
+        );
+        code_menu.add(
+            CODEEDITOR
+                .lock()
+                .unwrap()
+                .create_operators_context_menu_item(),
+        );
+        code_menu.add(CODEEDITOR.lock().unwrap().create_values_context_menu_item());
+        code_menu.add(
+            CODEEDITOR
+                .lock()
+                .unwrap()
+                .create_functions_context_menu_item(),
+        );
+        CODEEDITOR.lock().unwrap().init_menu_selection(ctx);
+
+        menu.add_context_menu(code_menu);
         menu_canvas.set_widget(menu);
 
         // Menubar
@@ -536,6 +559,14 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
                 match event {
+                    TheEvent::ContextMenuSelected(_, action) => {
+                        if action.name.starts_with("Code") {
+                            CODEEDITOR
+                                .lock()
+                                .unwrap()
+                                .insert_context_menu_id(action, ui, ctx);
+                        }
+                    }
                     TheEvent::IndexChanged(id, index) => {
                         if id.name == "Editor Tab Tabbar" {
                             if index == 0 {
@@ -691,47 +722,40 @@ impl TheTrait for Editor {
                                 }
                             }
                             self.server_ctx.tile_selection = None;
-                        } else if name == "Update Eldiron" {
-                            if role == TheDialogButtonRole::Accept {
-                                let updater = self.self_updater.lock().unwrap();
+                        } else if name == "Update Eldiron" && role == TheDialogButtonRole::Accept {
+                            let updater = self.self_updater.lock().unwrap();
 
-                                if updater.has_newer_release() {
-                                    let release = updater.latest_release().cloned().unwrap();
+                            if updater.has_newer_release() {
+                                let release = updater.latest_release().cloned().unwrap();
 
-                                    let updater = Arc::clone(&self.self_updater);
-                                    let tx = self.self_update_tx.clone();
+                                let updater = Arc::clone(&self.self_updater);
+                                let tx = self.self_update_tx.clone();
 
-                                    self.self_update_tx
-                                        .send(SelfUpdateEvent::UpdateStart(release.clone()))
-                                        .unwrap();
+                                self.self_update_tx
+                                    .send(SelfUpdateEvent::UpdateStart(release.clone()))
+                                    .unwrap();
 
-                                    thread::spawn(move || {
-                                        match updater.lock().unwrap().update_latest() {
-                                            Ok(status) => match status {
-                                                self_update::Status::UpToDate(_) => {
-                                                    tx.send(SelfUpdateEvent::AlreadyUpToDate)
-                                                        .unwrap();
-                                                }
-                                                self_update::Status::Updated(_) => {
-                                                    tx.send(SelfUpdateEvent::UpdateCompleted(
-                                                        release,
-                                                    ))
-                                                    .unwrap();
-                                                }
-                                            },
-                                            Err(err) => {
-                                                tx.send(SelfUpdateEvent::UpdateError(
-                                                    err.to_string(),
-                                                ))
-                                                .unwrap();
+                                thread::spawn(move || {
+                                    match updater.lock().unwrap().update_latest() {
+                                        Ok(status) => match status {
+                                            self_update::Status::UpToDate(_) => {
+                                                tx.send(SelfUpdateEvent::AlreadyUpToDate).unwrap();
                                             }
+                                            self_update::Status::Updated(_) => {
+                                                tx.send(SelfUpdateEvent::UpdateCompleted(release))
+                                                    .unwrap();
+                                            }
+                                        },
+                                        Err(err) => {
+                                            tx.send(SelfUpdateEvent::UpdateError(err.to_string()))
+                                                .unwrap();
                                         }
-                                    });
-                                } else {
-                                    self.self_update_tx
-                                        .send(SelfUpdateEvent::AlreadyUpToDate)
-                                        .unwrap();
-                                }
+                                    }
+                                });
+                            } else {
+                                self.self_update_tx
+                                    .send(SelfUpdateEvent::AlreadyUpToDate)
+                                    .unwrap();
                             }
                         }
                     }
@@ -1182,7 +1206,7 @@ impl TheTrait for Editor {
         while let Ok(event) = self.self_update_rx.try_recv() {
             match event {
                 SelfUpdateEvent::AlreadyUpToDate => {
-                    let text = &format!("Eldiron is already up-to-date.");
+                    let text = str!("Eldiron is already up-to-date.");
                     let uuid = Uuid::new_v4();
 
                     let width = 300;

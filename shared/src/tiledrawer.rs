@@ -97,7 +97,7 @@ impl TileDrawer {
         }
 
         let mut offset = settings.offset;
-        if region_height == buffer.dim().height as i32 {
+        if region_height == buffer.dim().height {
             offset = Vec2i::zero();
         }
 
@@ -315,6 +315,7 @@ impl TileDrawer {
         //println!("draw time {:?}", _stop - _start);
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[inline(always)]
     /// Sample the lights and apply all TileFX for the pixel.
     pub fn render(
@@ -359,8 +360,8 @@ impl TileDrawer {
                     if let Some(data) = self.tiles.get(tile_id) {
                         let index = settings.anim_counter % data.buffer.len();
 
-                        let w = data.buffer[index].dim().width as i32;
-                        let h = data.buffer[index].dim().height as i32;
+                        let w = data.buffer[index].dim().width;
+                        let h = data.buffer[index].dim().height;
 
                         let mut xx = (pos.x * grid_size) as i32 - character_pos.x;
                         let mut yy = (pos.y * grid_size) as i32 - character_pos.y;

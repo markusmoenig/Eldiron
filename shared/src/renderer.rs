@@ -21,7 +21,7 @@ impl Renderer {
             hover_pos: None,
         }
     }
-
+    #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
         buffer: &mut TheRGBABuffer,
@@ -32,7 +32,7 @@ impl Renderer {
         height: usize,
         compute_delta: bool,
     ) {
-        let start = self.get_time();
+        let _start = self.get_time();
 
         //let stride = buffer.stride();
         let pixels = buffer.pixels_mut();
@@ -125,7 +125,7 @@ impl Renderer {
                         if denom.abs() > 0.0001 {
                             let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
                             if t >= 0.0 {
-                                ray.o = ray.o + ray.d * t;
+                                ray.o += ray.d * t;
                             }
                         }
                     }
@@ -149,6 +149,7 @@ impl Renderer {
     }
 
     #[inline(always)]
+    #[allow(clippy::too_many_arguments)]
     pub fn render_pixel(
         &self,
         ray: Ray,
@@ -196,7 +197,7 @@ impl Renderer {
                 let mut lro = ray.at(dist);
                 lro -= Vec3f::from(key);
                 //lro *= tile.size as f32;
-                lro = lro - rd * 0.01;
+                lro -= rd * 0.01;
 
                 let mut r = ray.clone();
                 r.o = lro;
@@ -247,7 +248,7 @@ impl Renderer {
                                 if p[3] == 1.0 {
                                     color = p;
                                     hit = true;
-                                    normal = hit_struct.normal;
+                                    //normal = hit_struct.normal;
                                     dist = hit_struct.distance;
                                     break;
                                 }
@@ -364,7 +365,7 @@ impl Renderer {
                                             let col = TheColor::from_u8_array(c).to_vec4f();
                                             color = col;
                                             dist = t;
-                                            normal = vec3f(0.0, 0.0, 1.0);
+                                            //normal = vec3f(0.0, 0.0, 1.0);
                                             hit = true;
                                             break;
                                         }
@@ -464,7 +465,7 @@ impl Renderer {
                                     let col = TheColor::from_u8_array(c).to_vec4f();
                                     color = col;
                                     dist = t;
-                                    normal = vec3f(0.0, 0.0, 1.0);
+                                    //normal = vec3f(0.0, 0.0, 1.0);
                                     hit = true;
                                 }
                             }
@@ -877,11 +878,11 @@ impl Renderer {
                 break;
             }
 
-            if let Some(_) = region.models.get(&(key.x, key.z)) {
+            if region.models.get(&(key.x, key.z)).is_some() {
                 return Some(vec3i(key.x, 0, key.z));
             }
             // Test against world tiles
-            if let Some(_) = self.tiles.get((key.x, key.y, key.z)) {
+            if self.tiles.get((key.x, key.y, key.z)).is_some() {
                 return Some(vec3i(key.x, 0, key.z));
             }
 

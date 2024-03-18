@@ -347,7 +347,7 @@ pub fn add_compiler_functions(compiler: &mut TheCompiler) {
                     let new_dir_2d = rotate_2d(vec2f(dir.x, dir.z), angle.to_radians());
 
                     if let Some(update) = UPDATES.write().unwrap().get_mut(&region_id) {
-                        let old_direction = dir.clone();
+                        let old_direction = *dir;
                         *dir = vec3f(new_dir_2d.x, dir.y, new_dir_2d.y);
 
                         if let Some(cu) = update.characters.get_mut(&object.id) {
