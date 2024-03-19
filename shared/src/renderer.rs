@@ -690,7 +690,7 @@ impl Renderer {
         let mut top_down_z_offset = 5.0;
         let mut first_person_fov = 70.0;
         let mut top_down_fov = 55.0;
-        let mut tilted_iso_height = 3.0;
+        let tilted_iso_height = 3.0;
         let mut tilted_iso_fov = 70.0;
 
         if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
@@ -783,16 +783,16 @@ impl Renderer {
             }
         }
 
-        if let Some(v) = region.regionfx.get(
-            str!("Camera"),
-            str!("Tilted Iso Height"),
-            &settings.time,
-            TheInterpolation::Linear,
-        ) {
-            if let Some(value) = v.to_f32() {
-                tilted_iso_height = value;
-            }
-        }
+        // if let Some(v) = region.regionfx.get(
+        //     str!("Camera"),
+        //     str!("Tilted Iso Height"),
+        //     &settings.time,
+        //     TheInterpolation::Linear,
+        // ) {
+        //     if let Some(value) = v.to_f32() {
+        //         tilted_iso_height = value;
+        //     }
+        // }
 
         if let Some(v) = region.regionfx.get(
             str!("Camera"),

@@ -187,14 +187,14 @@ impl Camera {
         let v = cross(w, u);
 
         let horizontal = u * half_width * 2.0;
-        let vertical = v * half_height * 6.0;
+        let vertical = v * half_height * 2.0;
 
         let mut out_origin = cam_origin;
-        out_origin += horizontal * (pixel_size.x * offset.x + uv.x) - 0.5;
-        out_origin += vertical * (pixel_size.y * offset.y + uv.y) - 0.5;
-        out_origin.z = cam_origin.z;
+        out_origin += horizontal * (pixel_size.x * offset.x + uv.x - 0.5);
+        out_origin += vertical * (pixel_size.y * offset.y + uv.y - 0.5);
+        out_origin.y = cam_origin.y;
 
-        Ray::new(out_origin, normalize(vec3f(-0.35, -0.35, -1.0)))
+        Ray::new(out_origin, normalize(vec3f(-0.35, -1.0, -0.35)))
     }
 
     /// Computes the orbi camera vectors. Based on https://www.shadertoy.com/view/ttfyzN
