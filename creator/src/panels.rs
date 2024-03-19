@@ -30,7 +30,7 @@ impl Panels {
 
         let mut shared_layout = TheSharedHLayout::new(TheId::named("Shared Panel Layout"));
         //shared_layout.limiter_mut().set_max_height(275);
-        shared_layout.set_shared_ratio(0.75);
+        shared_layout.set_shared_ratio(0.70);
         //shared_layout.set_mode(TheSharedLayoutMode::Shared);
 
         // Left Stack

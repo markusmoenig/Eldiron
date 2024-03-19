@@ -19,7 +19,14 @@ impl RegionFX {
                 } else {
                     coll.set(
                         "Camera Type",
-                        TheValue::TextList(1, vec![str!("First Person"), str!("Top Down")]),
+                        TheValue::TextList(
+                            1,
+                            vec![
+                                str!("First Person"),
+                                str!("Top Down"),
+                                str!("Tilted Isometric"),
+                            ],
+                        ),
                     );
 
                     coll.set("First Person Height", TheValue::FloatRange(0.5, 0.0..=1.0));
@@ -33,7 +40,12 @@ impl RegionFX {
                     coll.set("Top Down Height", TheValue::FloatRange(4.0, 0.0..=20.0));
                     coll.set("Top Down X Offset", TheValue::FloatRange(-5.00, -5.0..=5.0));
                     coll.set("Top Down Z Offset", TheValue::FloatRange(5.00, -5.0..=5.0));
-                    coll.set("Top Down FoV", TheValue::FloatRange(55.0, 1.0..=140.0));
+                    coll.set("Top Down FoV", TheValue::FloatRange(55.0, 1.0..=80.0));
+
+                    coll.set("", TheValue::Empty);
+
+                    coll.set("Tilted Iso Height", TheValue::FloatRange(3.0, 0.0..=20.0));
+                    coll.set("Tilted Iso FoV", TheValue::FloatRange(70.0, 0.0..=80.0));
                 }
                 let mut meta = RegionFXMetaData::new();
                 meta.set_description("Emission Strength", str!("The strength of the light."));
@@ -53,6 +65,7 @@ impl RegionFX {
                     "Limit Direction",
                     str!("Limits the light distribution to the given direction. Useful for example for windows."),
                 );
+                meta.second_column_ids = vec![str!("Top Down")];
                 RegionFX::Camera(coll, meta)
             }
             "Distance / Fog" => {
@@ -136,6 +149,7 @@ impl RegionFX {
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct RegionFXMetaData {
     description: IndexMap<String, String>,
+    second_column_ids: Vec<String>,
 }
 
 impl Default for RegionFXMetaData {
@@ -148,10 +162,20 @@ impl RegionFXMetaData {
     pub fn new() -> Self {
         Self {
             description: IndexMap::default(),
+            second_column_ids: vec![],
         }
     }
 
     pub fn set_description(&mut self, key: &str, description: String) {
         self.description.insert(str!(key), description);
+    }
+
+    pub fn is_second_column(&self, key: &str) -> bool {
+        for id in &self.second_column_ids {
+            if key.contains(id) {
+                return true;
+            }
+        }
+        false
     }
 }

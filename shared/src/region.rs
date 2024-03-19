@@ -18,6 +18,7 @@ pub enum RegionType {
 pub enum CameraType {
     FirstPerson,
     TopDown,
+    TiltedIso,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]

@@ -168,14 +168,16 @@ impl Camera {
         Ray::new(out_origin, normalize(-w))
     }
 
-    pub fn create_tilted_isometric_ray(&self, mut uv: Vec2f, screen: Vec2f, offset: Vec2f) -> Ray {
+    pub fn create_tilted_isometric_ray(&self, uv: Vec2f, screen: Vec2f, offset: Vec2f) -> Ray {
         let ratio = screen.x / screen.y;
         let pixel_size = Vec2f::new(1.0 / screen.x, 1.0 / screen.y);
 
         let cam_origin = self.origin;
         let cam_look_at = self.center;
 
-        let half_width = ((self.fov + 100.0).to_radians() * 0.5).tan();
+        let fov = self.fov + 100.0;
+
+        let half_width = (fov.to_radians() * 0.5).tan();
         let half_height = half_width / ratio;
 
         let up_vector = Vec3f::new(0.0, 1.0, 0.0);
@@ -185,19 +187,13 @@ impl Camera {
         let v = cross(w, u);
 
         let horizontal = u * half_width * 2.0;
-        let vertical = v * half_height * 2.0;
-
-        uv /= 2.0;
+        let vertical = v * half_height * 6.0;
 
         let mut out_origin = cam_origin;
-        out_origin += 6.0 * horizontal * (pixel_size.x * offset.x + uv.x - 0.5);
-        out_origin += 2.0 * vertical * (pixel_size.y * offset.y + uv.y - 0.5);
+        out_origin += horizontal * (pixel_size.x * offset.x + uv.x) - 0.5;
+        out_origin += vertical * (pixel_size.y * offset.y + uv.y) - 0.5;
         out_origin.z = cam_origin.z;
 
-        //let xy = 6.0 * (2.0 * uv - screen) / screen.y;
-        //out_origin = vec3f(xy.x + self.origin.x, xy.y + self.origin.y, self.origin.z); //    ray start
-        //D = normalize(vec3( -.35, -.35 ,1));
-        // Ray::new(out_origin, normalize(-w))
         Ray::new(out_origin, normalize(vec3f(-0.35, -0.35, -1.0)))
     }
 

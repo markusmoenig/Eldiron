@@ -102,23 +102,29 @@ impl Renderer {
                     let yy = (i / width) as f32;
 
                     let camera = Camera::new(ro, rd, fov);
-                    let mut ray = if camera_mode == CameraMode::Pinhole {
+                    let mut ray = if camera_type == CameraType::TiltedIso {
+                        camera.create_tilted_isometric_ray(
+                            vec2f(xx / width_f, yy / height_f),
+                            vec2f(width_f, height_f),
+                            vec2f(1.0, 1.0),
+                        )
+                    } else if camera_mode == CameraMode::Pinhole {
                         camera.create_ray(
                             vec2f(xx / width_f, yy / height_f),
                             vec2f(width_f, height_f),
-                            vec2f(0.0, 0.0),
+                            vec2f(1.0, 1.0),
                         )
                     } else {
                         camera.create_ortho_ray(
                             vec2f(xx / width_f, yy / height_f),
                             vec2f(width_f, height_f),
-                            vec2f(0.0, 0.0),
+                            vec2f(1.0, 1.0),
                         )
                     };
 
                     // In top down view, intersect ray with plane at 1.1 y
                     // to speed up the ray / voxel casting
-                    if camera_type == CameraType::TopDown {
+                    if camera_type != CameraType::FirstPerson {
                         let plane_normal = vec3f(0.0, 1.0, 0.0);
                         let denom = dot(plane_normal, ray.d);
 
@@ -684,6 +690,8 @@ impl Renderer {
         let mut top_down_z_offset = 5.0;
         let mut first_person_fov = 70.0;
         let mut top_down_fov = 55.0;
+        let mut tilted_iso_height = 3.0;
+        let mut tilted_iso_fov = 70.0;
 
         if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
             str!("Camera"),
@@ -693,6 +701,8 @@ impl Renderer {
         ) {
             if value == 0 {
                 camera_type = CameraType::FirstPerson;
+            } else if value == 2 {
+                camera_type = CameraType::TiltedIso;
             }
         }
 
@@ -773,6 +783,28 @@ impl Renderer {
             }
         }
 
+        if let Some(v) = region.regionfx.get(
+            str!("Camera"),
+            str!("Tilted Iso Height"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_f32() {
+                tilted_iso_height = value;
+            }
+        }
+
+        if let Some(v) = region.regionfx.get(
+            str!("Camera"),
+            str!("Tilted Iso FoV"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_f32() {
+                tilted_iso_fov = value;
+            }
+        }
+
         // Camera
 
         let mut ro = vec3f(position.x + 0.5, 0.5, position.z + 0.5);
@@ -787,11 +819,18 @@ impl Renderer {
             ro.z += top_down_z_offset;
             fov = top_down_fov;
             camera_mode = top_down_camera_mode;
-        } else {
+        } else if camera_type == CameraType::FirstPerson {
             // First person
             ro.y = first_person_height;
             rd = ro + facing * 2.0;
             fov = first_person_fov;
+        } else {
+            // Tilted iso
+            rd = ro;
+            ro.y = tilted_iso_height;
+            ro.z += 1.0;
+            fov = tilted_iso_fov;
+            camera_mode = top_down_camera_mode;
         }
 
         (ro, rd, fov, camera_mode, camera_type)
@@ -824,20 +863,29 @@ impl Renderer {
         width: usize,
         height: usize,
     ) -> Option<Vec3i> {
-        let (ro, rd, fov, camera_mode, _) = self.create_camera_setup(region, settings);
+        let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
 
         let width_f = width as f32;
         let height_f = height as f32;
 
         let camera = Camera::new(ro, rd, fov);
-        let ray = if camera_mode == CameraMode::Pinhole {
+        let ray = if camera_type == CameraType::TiltedIso {
+            camera.create_tilted_isometric_ray(
+                vec2f(
+                    screen_coord.x as f32 / width_f,
+                    1.0 - screen_coord.y as f32 / height_f,
+                ),
+                vec2f(width_f, height_f),
+                vec2f(1.0, 1.0),
+            )
+        } else if camera_mode == CameraMode::Pinhole {
             camera.create_ray(
                 vec2f(
                     screen_coord.x as f32 / width_f,
                     1.0 - screen_coord.y as f32 / height_f,
                 ),
                 vec2f(width_f, height_f),
-                vec2f(0.0, 0.0),
+                vec2f(1.0, 1.0),
             )
         } else {
             camera.create_ortho_ray(
@@ -846,7 +894,7 @@ impl Renderer {
                     1.0 - screen_coord.y as f32 / height_f,
                 ),
                 vec2f(width_f, height_f),
-                vec2f(0.0, 0.0),
+                vec2f(1.0, 1.0),
             )
         };
 
