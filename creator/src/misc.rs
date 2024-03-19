@@ -1,4 +1,62 @@
+use crate::editor::CODEEDITOR;
+use crate::prelude::*;
 use std::time::{Duration, Instant};
+use theframework::prelude::*;
+
+pub fn create_code_menu(ctx: &mut TheContext) -> TheContextMenu {
+    let mut code_menu = TheContextMenu::named(str!("Code"));
+
+    code_menu.add(
+        CODEEDITOR
+            .lock()
+            .unwrap()
+            .create_keywords_context_menu_item(),
+    );
+    code_menu.add(
+        CODEEDITOR
+            .lock()
+            .unwrap()
+            .create_operators_context_menu_item(),
+    );
+    code_menu.add(CODEEDITOR.lock().unwrap().create_values_context_menu_item());
+
+    let mut function_menu = TheContextMenu::new();
+
+    let mut function_item =
+        TheContextMenuItem::new(str!("Functions"), TheId::named("Code Functions"));
+
+    let mut server_item = CODEEDITOR
+        .lock()
+        .unwrap()
+        .create_functions_context_menu_item();
+    server_item.name = "Server".to_string();
+    function_menu.add(server_item);
+
+    set_client_externals();
+
+    let mut client_item = CODEEDITOR
+        .lock()
+        .unwrap()
+        .create_functions_context_menu_item();
+    client_item.name = "Client".to_string();
+    function_menu.add(client_item);
+
+    function_item.set_sub_menu(function_menu);
+    code_menu.add(function_item);
+
+    set_server_externals();
+
+    code_menu.add(
+        CODEEDITOR
+            .lock()
+            .unwrap()
+            .create_modules_context_menu_item(),
+    );
+
+    CODEEDITOR.lock().unwrap().init_menu_selection(ctx);
+
+    code_menu
+}
 
 pub struct UpdateTracker {
     //update_counter: u32,

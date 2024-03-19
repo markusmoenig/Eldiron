@@ -1996,6 +1996,10 @@ impl Sidebar {
                                         bundle.id,
                                         module,
                                     );
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Update Code Menu"),
+                                        TheValue::Empty,
+                                    ));
                                 } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Screen {
                                     if let Some(screen) =
                                         project.screens.get_mut(&server_ctx.curr_screen)

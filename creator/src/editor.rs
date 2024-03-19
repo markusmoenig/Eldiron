@@ -180,27 +180,7 @@ impl TheTrait for Editor {
         menu.add_context_menu(file_menu);
         menu.add_context_menu(edit_menu);
 
-        let mut code_menu = TheContextMenu::named(str!("Code"));
-        code_menu.add(
-            CODEEDITOR
-                .lock()
-                .unwrap()
-                .create_keywords_context_menu_item(),
-        );
-        code_menu.add(
-            CODEEDITOR
-                .lock()
-                .unwrap()
-                .create_operators_context_menu_item(),
-        );
-        code_menu.add(CODEEDITOR.lock().unwrap().create_values_context_menu_item());
-        code_menu.add(
-            CODEEDITOR
-                .lock()
-                .unwrap()
-                .create_functions_context_menu_item(),
-        );
-        CODEEDITOR.lock().unwrap().init_menu_selection(ctx);
+        let code_menu = create_code_menu(ctx);
 
         menu.add_context_menu(code_menu);
         menu_canvas.set_widget(menu);
@@ -559,6 +539,14 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
                 match event {
+                    TheEvent::Custom(id, _) => {
+                        if id.name == "Update Code Menu" {
+                            let codemenu = create_code_menu(ctx);
+                            if let Some(menu) = ui.get_menu("Menu") {
+                                menu.replace_context_menu(codemenu);
+                            }
+                        }
+                    }
                     TheEvent::ContextMenuSelected(_, action) => {
                         if action.name.starts_with("Code") {
                             CODEEDITOR
