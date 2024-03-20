@@ -168,7 +168,13 @@ impl Camera {
         Ray::new(out_origin, normalize(-w))
     }
 
-    pub fn create_tilted_isometric_ray(&self, uv: Vec2f, screen: Vec2f, offset: Vec2f) -> Ray {
+    pub fn create_tilted_isometric_ray(
+        &self,
+        uv: Vec2f,
+        screen: Vec2f,
+        offset: Vec2f,
+        alignment: i32,
+    ) -> Ray {
         let ratio = screen.x / screen.y;
         let pixel_size = Vec2f::new(1.0 / screen.x, 1.0 / screen.y);
 
@@ -194,7 +200,14 @@ impl Camera {
         out_origin += vertical * (pixel_size.y * offset.y + uv.y - 0.5);
         out_origin.y = cam_origin.y;
 
-        Ray::new(out_origin, normalize(vec3f(-0.35, -1.0, -0.35)))
+        Ray::new(
+            out_origin,
+            normalize(vec3f(
+                if alignment == 0 { -0.35 } else { 0.35 },
+                -1.0,
+                -0.35,
+            )),
+        )
     }
 
     /// Computes the orbi camera vectors. Based on https://www.shadertoy.com/view/ttfyzN

@@ -44,7 +44,10 @@ impl RegionFX {
 
                     coll.set("", TheValue::Empty);
 
-                    //coll.set("Tilted Iso Height", TheValue::FloatRange(3.0, 0.0..=20.0));
+                    coll.set(
+                        "Tilted Iso Alignment",
+                        TheValue::TextList(0, vec![str!("Right"), str!("Left")]),
+                    );
                     coll.set("Tilted Iso FoV", TheValue::FloatRange(70.0, 0.0..=80.0));
                 }
                 let mut meta = RegionFXMetaData::new();

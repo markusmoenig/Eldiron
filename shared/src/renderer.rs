@@ -85,6 +85,16 @@ impl Renderer {
             }
         }
 
+        let mut tilted_iso_alignment = 0;
+        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("Tilted Iso Alignment"),
+            &settings.time,
+            TheInterpolation::Switch,
+        ) {
+            tilted_iso_alignment = value;
+        }
+
         // Fill the code level with the blocking info and collect lights
         let mut level = Level::new(region.width, region.height, settings.time);
         region.fill_code_level(&mut level, &self.textures, update);
@@ -107,6 +117,7 @@ impl Renderer {
                             vec2f(xx / width_f, yy / height_f),
                             vec2f(width_f, height_f),
                             vec2f(1.0, 1.0),
+                            tilted_iso_alignment,
                         )
                     } else if camera_mode == CameraMode::Pinhole {
                         camera.create_ray(
@@ -783,17 +794,6 @@ impl Renderer {
             }
         }
 
-        // if let Some(v) = region.regionfx.get(
-        //     str!("Camera"),
-        //     str!("Tilted Iso Height"),
-        //     &settings.time,
-        //     TheInterpolation::Linear,
-        // ) {
-        //     if let Some(value) = v.to_f32() {
-        //         tilted_iso_height = value;
-        //     }
-        // }
-
         if let Some(v) = region.regionfx.get(
             str!("Camera"),
             str!("Tilted Iso FoV"),
@@ -868,6 +868,16 @@ impl Renderer {
         let width_f = width as f32;
         let height_f = height as f32;
 
+        let mut tilted_iso_alignment = 0;
+        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("Tilted Iso Alignment"),
+            &settings.time,
+            TheInterpolation::Switch,
+        ) {
+            tilted_iso_alignment = value;
+        }
+
         let camera = Camera::new(ro, rd, fov);
         let ray = if camera_type == CameraType::TiltedIso {
             camera.create_tilted_isometric_ray(
@@ -877,6 +887,7 @@ impl Renderer {
                 ),
                 vec2f(width_f, height_f),
                 vec2f(1.0, 1.0),
+                tilted_iso_alignment,
             )
         } else if camera_mode == CameraMode::Pinhole {
             camera.create_ray(
