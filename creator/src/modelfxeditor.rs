@@ -4,6 +4,8 @@ pub struct ModelFXEditor {
     pub curr_timeline: TheTimeline,
     pub curr_collection: TheCollection,
     pub curr_marker: Option<TheTime>,
+
+    pub fx_text: FxHashMap<(i32, i32), String>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -13,6 +15,8 @@ impl ModelFXEditor {
             curr_timeline: TheTimeline::default(),
             curr_collection: TheCollection::default(),
             curr_marker: None,
+
+            fx_text: FxHashMap::default(),
         }
     }
 
@@ -50,7 +54,7 @@ impl ModelFXEditor {
         canvas.set_top(toolbar_canvas);
 
         // Left FX List
-
+        /*
         let mut list_canvas = TheCanvas::default();
         let mut list_layout = TheListLayout::new(TheId::named("ModelFX List"));
 
@@ -69,8 +73,26 @@ impl ModelFXEditor {
         list_layout.limiter_mut().set_max_width(130);
         list_layout.select_first_item(ctx);
         list_canvas.set_layout(list_layout);
+        */
 
-        canvas.set_left(list_canvas);
+        let mut rgba_canvas = TheCanvas::default();
+
+        let mut rgba_layout = TheRGBALayout::new(TheId::named("ModelFX RGBA Layout"));
+        rgba_layout.limiter_mut().set_max_width(130);
+
+        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+            rgba_view.set_grid(Some(24));
+            rgba_view.set_mode(TheRGBAViewMode::TilePicker);
+            let mut c = WHITE;
+            c[3] = 128;
+            rgba_view.set_hover_color(Some(c));
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Render ModelFX Previews"),
+                TheValue::Empty,
+            ));
+        }
+        rgba_canvas.set_layout(rgba_layout);
+        canvas.set_left(rgba_canvas);
 
         // ModelFX Center
 
@@ -228,9 +250,137 @@ impl ModelFXEditor {
                     }
                 }
             }
+            TheEvent::Custom(id, _) => {
+                if id.name == "Render ModelFX Previews" {
+                    self.render_modelfx_previews(ui, ctx);
+                }
+            }
+            TheEvent::TilePicked(id, pos) => {
+                if id.name == "ModelFX RGBA Layout View" {
+                    if let Some(fx_name) = self.fx_text.get(&(pos.x, pos.y)) {
+                        let c = self
+                            .curr_timeline
+                            .get_collection_at(&TheTime::default(), fx_name.to_string());
+                        let fx = Some(ModelFX::new_fx(fx_name, c));
+
+                        if let Some(fx) = fx {
+                            if let Some(collection) = fx.collection() {
+                                self.curr_collection = collection.clone();
+                                if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
+                                    text_layout.clear();
+                                    for (name, value) in &collection.keys {
+                                        if let TheValue::FloatRange(value, range) = value {
+                                            let mut slider = TheSlider::new(TheId::named(
+                                                (":MODELFX: ".to_owned() + name).as_str(),
+                                            ));
+                                            slider.set_value(TheValue::Float(*value));
+                                            slider.set_default_value(TheValue::Float(0.0));
+                                            slider.set_range(TheValue::RangeF32(range.clone()));
+                                            slider.set_continuous(true);
+                                            slider
+                                                .set_status_text(fx.get_description(name).as_str());
+                                            text_layout.add_pair(name.clone(), Box::new(slider));
+                                        } else if let TheValue::IntRange(value, range) = value {
+                                            let mut slider = TheSlider::new(TheId::named(
+                                                (":MODELFX: ".to_owned() + name).as_str(),
+                                            ));
+                                            slider.set_value(TheValue::Int(*value));
+                                            slider.set_range(TheValue::RangeI32(range.clone()));
+                                            slider
+                                                .set_status_text(fx.get_description(name).as_str());
+                                            text_layout.add_pair(name.clone(), Box::new(slider));
+                                        } else if let TheValue::TextList(index, list) = value {
+                                            let mut dropdown = TheDropdownMenu::new(TheId::named(
+                                                (":MODELFX: ".to_owned() + name).as_str(),
+                                            ));
+                                            for item in list {
+                                                dropdown.add_option(item.clone());
+                                            }
+                                            dropdown.set_selected_index(*index);
+                                            dropdown
+                                                .set_status_text(fx.get_description(name).as_str());
+                                            text_layout.add_pair(name.clone(), Box::new(dropdown));
+                                        }
+                                    }
+                                    redraw = true;
+                                    ctx.ui.relayout = true;
+                                }
+                                if let Some(vlayout) = ui.get_vlayout("ModelFX Color Settings") {
+                                    vlayout.clear();
+                                    for (name, value) in &collection.keys {
+                                        if let TheValue::ColorObject(color, _) = value {
+                                            let mut color_picker =
+                                                TheColorPicker::new(TheId::named(
+                                                    (":MODELFX: ".to_owned() + name).as_str(),
+                                                ));
+                                            color_picker
+                                                .limiter_mut()
+                                                .set_max_size(vec2i(120, 120));
+                                            color_picker.set_color(color.to_vec3f());
+                                            vlayout.add_widget(Box::new(color_picker));
+                                        }
+                                    }
+                                    redraw = true;
+                                    ctx.ui.relayout = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            TheEvent::TileEditorHoverChanged(id, pos) => {
+                if id.name == "ModelFX RGBA Layout View" {
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        id.clone(),
+                        self.fx_text
+                            .get(&(pos.x, pos.y))
+                            .unwrap_or(&"".to_string())
+                            .to_string(),
+                    ));
+                }
+            }
             _ => {}
         }
 
         redraw
+    }
+
+    /// Render the model previews.
+    pub fn render_modelfx_previews(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.fx_text.clear();
+        if let Some(editor) = ui.get_rgba_layout("ModelFX RGBA Layout") {
+            let fx_array = ModelFX::fx_array();
+
+            let grid = 48;
+            let width = grid * 2; //130 - 16; //editor.dim().width - 16;
+            let height = fx_array.len() as i32 * 48 / 2;
+
+            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                rgba_view.set_grid(Some(grid));
+
+                let tiles_per_row = width / grid;
+                let lines = fx_array.len() as i32 / tiles_per_row + 1;
+
+                let mut buffer =
+                    TheRGBABuffer::new(TheDim::sized(width, max(lines * grid, height)));
+
+                for (i, fx) in fx_array.iter().enumerate() {
+                    let x = i as i32 % tiles_per_row;
+                    let y = i as i32 / tiles_per_row;
+
+                    self.fx_text.insert((x, y), fx.to_kind());
+
+                    let mut rgba = TheRGBABuffer::new(TheDim::sized(grid, grid));
+
+                    ModelFX::render_preview(&mut rgba, fx);
+
+                    buffer.copy_into(x * grid, y * grid, &rgba);
+                    //buffer.copy_into(x * grid, y * grid, &tile.buffer[0].scaled(grid, grid));
+                }
+
+                rgba_view.set_buffer(buffer);
+            }
+            editor.relayout(ctx);
+        }
     }
 }

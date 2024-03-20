@@ -30,39 +30,39 @@ impl Panels {
 
         let mut shared_layout = TheSharedHLayout::new(TheId::named("Shared Panel Layout"));
         //shared_layout.limiter_mut().set_max_height(275);
-        shared_layout.set_shared_ratio(0.70);
-        //shared_layout.set_mode(TheSharedLayoutMode::Shared);
+        shared_layout.set_shared_ratio(0.30);
+        shared_layout.set_mode(TheSharedHLayoutMode::Right);
 
-        // Left Stack
+        // Main Stack
 
-        let mut left_canvas = TheCanvas::new();
-        let mut left_stack = TheStackLayout::new(TheId::named("Left Stack"));
+        let mut main_canvas = TheCanvas::new();
+        let mut main_stack = TheStackLayout::new(TheId::named("Main Stack"));
 
-        left_stack.add_canvas(TILEPICKER.lock().unwrap().build(false));
-        left_stack.add_canvas(CODEEDITOR.lock().unwrap().build_canvas(ctx));
-        left_stack.add_canvas(TILEMAPEDITOR.lock().unwrap().build());
-        left_stack.add_canvas(TILEFXEDITOR.lock().unwrap().build(ctx));
-        left_stack.add_canvas(MODELFXEDITOR.lock().unwrap().build(ctx));
-        left_stack.add_canvas(REGIONFXEDITOR.lock().unwrap().build(ctx));
+        main_stack.add_canvas(TILEPICKER.lock().unwrap().build(false));
+        main_stack.add_canvas(CODEEDITOR.lock().unwrap().build_canvas(ctx));
+        main_stack.add_canvas(TILEMAPEDITOR.lock().unwrap().build());
+        main_stack.add_canvas(TILEFXEDITOR.lock().unwrap().build(ctx));
+        main_stack.add_canvas(MODELFXEDITOR.lock().unwrap().build(ctx));
+        main_stack.add_canvas(REGIONFXEDITOR.lock().unwrap().build(ctx));
 
-        left_stack.set_index(0);
+        main_stack.set_index(0);
 
         let tilemap_editor = TheRGBALayout::new(TheId::named("Tilemap Editor"));
         let mut tilemap_canvas = TheCanvas::new();
         tilemap_canvas.set_layout(tilemap_editor);
-        left_stack.add_canvas(tilemap_canvas);
+        main_stack.add_canvas(tilemap_canvas);
 
-        left_canvas.set_layout(left_stack);
+        main_canvas.set_layout(main_stack);
 
-        // Right Stack
+        // Details Stack
 
-        let mut right_canvas = TheCanvas::new();
-        let mut right_stack = TheStackLayout::new(TheId::named("Right Stack"));
+        let mut details_canvas = TheCanvas::new();
+        let mut details_stack = TheStackLayout::new(TheId::named("Details Stack"));
 
         // Context Group
 
         let mut context_group: TheGroupButton =
-            TheGroupButton::new(TheId::named("Right Stack Group"));
+            TheGroupButton::new(TheId::named("Details Stack Group"));
         context_group.add_text_status(
             "Context".to_string(),
             "Shows the visual context of the selected code.".to_string(),
@@ -84,7 +84,7 @@ impl Panels {
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
         toolbar_canvas.set_layout(toolbar_hlayout);
-        right_canvas.set_top(toolbar_canvas);
+        details_canvas.set_top(toolbar_canvas);
 
         // Context
 
@@ -92,7 +92,7 @@ impl Panels {
         let codecontext_layout = TheListLayout::new(TheId::named("CodeObject Context Layout"));
         codecontext_canvas.set_layout(codecontext_layout);
 
-        right_stack.add_canvas(codecontext_canvas);
+        details_stack.add_canvas(codecontext_canvas);
 
         // Object
 
@@ -100,7 +100,7 @@ impl Panels {
         let codeobject_layout = TheListLayout::new(TheId::named("CodeObject Layout"));
         codeobject_canvas.set_layout(codeobject_layout);
 
-        right_stack.add_canvas(codeobject_canvas);
+        details_stack.add_canvas(codeobject_canvas);
 
         // Out
 
@@ -109,16 +109,16 @@ impl Panels {
         let codeobject_layout = TheListLayout::new(TheId::named("CodeObject Output Layout"));
         out_canvas.set_layout(codeobject_layout);
 
-        right_stack.add_canvas(out_canvas);
+        details_stack.add_canvas(out_canvas);
 
         //
 
-        right_canvas.set_layout(right_stack);
+        details_canvas.set_layout(details_stack);
 
         //
 
-        shared_layout.add_canvas(left_canvas);
-        shared_layout.add_canvas(right_canvas);
+        shared_layout.add_canvas(details_canvas);
+        shared_layout.add_canvas(main_canvas);
 
         canvas.set_layout(shared_layout);
 
@@ -225,11 +225,11 @@ impl Panels {
                     set_to.set_layout(layout);
                 } else {
                     ctx.ui
-                        .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 0));
-                    ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(0));
+                        .send(TheEvent::SetStackIndex(TheId::named("Details Stack"), 0));
+                    ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(0));
                 }
 
-                if let Some(stack) = ui.get_stack_layout("Right Stack") {
+                if let Some(stack) = ui.get_stack_layout("Details Stack") {
                     if let Some(replace) = stack.canvas_at_mut(0) {
                         *replace = set_to;
                         ctx.ui.relayout = true;
@@ -247,8 +247,8 @@ impl Panels {
                 }
             }
             TheEvent::IndexChanged(id, index) => {
-                if id.name == "Right Stack Group" {
-                    if let Some(stack) = ui.get_stack_layout("Right Stack") {
+                if id.name == "Details Stack Group" {
+                    if let Some(stack) = ui.get_stack_layout("Details Stack") {
                         stack.set_index(*index);
                         redraw = true;
                         ctx.ui.relayout = true;
@@ -258,17 +258,17 @@ impl Panels {
             TheEvent::Custom(id, _) => {
                 if id.name == "Set Region Modeler" {
                     ctx.ui
-                        .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 4));
+                        .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 4));
                     if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
-                        layout.set_mode(TheSharedHLayoutMode::Left);
+                        layout.set_mode(TheSharedHLayoutMode::Right);
                         ctx.ui.relayout = true;
                         redraw = true;
                     }
                 } else if id.name == "Set Region Render" {
                     ctx.ui
-                        .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 5));
+                        .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 5));
                     if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
-                        layout.set_mode(TheSharedHLayoutMode::Left);
+                        layout.set_mode(TheSharedHLayoutMode::Right);
                         ctx.ui.relayout = true;
                         redraw = true;
                     }
@@ -278,15 +278,15 @@ impl Panels {
                     if let Some(character) = server_ctx.curr_character_instance {
                         // Character
                         ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 1));
-                        ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(1));
+                            .send(TheEvent::SetStackIndex(TheId::named("Details Stack"), 1));
+                        ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
 
                         shared_left = false;
 
                         // If in Pick mode show the instance
                         if self.get_editor_group_index(ui) == 1 {
                             ctx.ui
-                                .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
 
                             if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
                                 layout.set_mode(TheSharedHLayoutMode::Shared);
@@ -294,7 +294,7 @@ impl Panels {
                                 redraw = true;
                             }
 
-                            ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(1));
+                            ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
 
                             if let Some((name, _)) = server.get_character_property(
                                 server_ctx.curr_region,
@@ -311,15 +311,15 @@ impl Panels {
                     } else if let Some(item) = server_ctx.curr_item_instance {
                         // Item
                         ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 1));
-                        ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(1));
+                            .send(TheEvent::SetStackIndex(TheId::named("Details Stack"), 1));
+                        ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
 
                         shared_left = false;
 
                         // If in Pick mode show the instance
                         if self.get_editor_group_index(ui) == 1 {
                             ctx.ui
-                                .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
 
                             if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
                                 layout.set_mode(TheSharedHLayoutMode::Shared);
@@ -327,7 +327,7 @@ impl Panels {
                                 redraw = true;
                             }
 
-                            ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(1));
+                            ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
 
                             if let Some((name, _)) = server.get_item_property(
                                 server_ctx.curr_region,
@@ -344,12 +344,12 @@ impl Panels {
                     } else if let Some(area_id) = server_ctx.curr_area {
                         // Area
                         ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Right Stack"), 1));
+                            .send(TheEvent::SetStackIndex(TheId::named("Details Stack"), 1));
 
                         // If in Pick mode show the instance
                         if self.get_editor_group_index(ui) == 1 {
                             ctx.ui
-                                .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
 
                             if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
                                 layout.set_mode(TheSharedHLayoutMode::Shared);
@@ -358,7 +358,7 @@ impl Panels {
                                 shared_left = false;
                             }
 
-                            ui.set_widget_value("Right Stack Group", ctx, TheValue::Int(1));
+                            ui.set_widget_value("Details Stack Group", ctx, TheValue::Int(1));
 
                             if let Some(region) = project.get_region(&server_ctx.curr_region) {
                                 if let Some(area) = region.areas.get(&area_id) {
@@ -373,16 +373,16 @@ impl Panels {
                     } else if !self.tilefx_visible {
                         // Tile Picker
                         ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 0));
+                            .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
                     } else {
                         // Tile CC
                         ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 3));
+                            .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
                     }
 
                     if shared_left {
                         if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
-                            layout.set_mode(TheSharedHLayoutMode::Left);
+                            layout.set_mode(TheSharedHLayoutMode::Right);
                             ctx.ui.relayout = true;
                             redraw = true;
                         }
@@ -390,7 +390,7 @@ impl Panels {
                 } else if id.name == "Set CodeGrid Panel" {
                     //println!("Set CodeGrid Panel");
                     ctx.ui
-                        .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 1));
+                        .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
                     // if *SIDEBARMODE.lock().unwrap() != SidebarMode::Region {
                     //     if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
                     //         layout.set_mode(TheSharedLayoutMode::Left);
@@ -401,9 +401,9 @@ impl Panels {
                 } else if id.name == "Set Tilemap Panel" {
                     //println!("Set Tilemap Panel");
                     ctx.ui
-                        .send(TheEvent::SetStackIndex(TheId::named("Left Stack"), 2));
+                        .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 2));
                     if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
-                        layout.set_mode(TheSharedHLayoutMode::Left);
+                        layout.set_mode(TheSharedHLayoutMode::Right);
                         ctx.ui.relayout = true;
                         redraw = true;
                     }

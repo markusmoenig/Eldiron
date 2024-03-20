@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use indexmap::IndexMap;
+use rayon::prelude::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -38,6 +39,15 @@ impl ModelFX {
                 ModelFX::Cube(coll, meta)
             }
         }
+    }
+
+    /// Create an array of all models.
+    pub fn fx_array() -> Vec<ModelFX> {
+        vec![
+            ModelFX::new_fx("Cube", None),
+            ModelFX::new_fx("Wall Horizontal", None),
+            ModelFX::new_fx("Wall Vertical", None),
+        ]
     }
 
     /// Parse the timeline and extract all models.
@@ -203,6 +213,91 @@ impl ModelFX {
         } else {
             None
         }
+    }
+
+    pub fn render_preview(buffer: &mut TheRGBABuffer, fx: &ModelFX) {
+        let width = buffer.dim().width as usize;
+        let height = buffer.dim().height as usize;
+
+        let ro = vec3f(2.0, 2.0, 2.0);
+        let rd = vec3f(0.0, 0.0, 0.0);
+
+        let aa = 2;
+        let aa_f = aa as f32;
+
+        let camera = Camera::new(ro, rd, 160.0);
+
+        buffer
+            .pixels_mut()
+            .par_rchunks_exact_mut(width * 4)
+            .enumerate()
+            .for_each(|(j, line)| {
+                for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
+                    let i = j * width + i;
+
+                    let xx = (i % width) as f32;
+                    let yy = (i / width) as f32;
+
+                    let mut total = Vec4f::zero();
+
+                    for m in 0..aa {
+                        for n in 0..aa {
+                            let camera_offset =
+                                vec2f(m as f32 / aa_f, n as f32 / aa_f) - vec2f(0.5, 0.5);
+
+                            let mut color = vec4f(0.01, 0.01, 0.01, 1.0);
+
+                            let ray = camera.create_ortho_ray(
+                                vec2f(xx / width as f32, 1.0 - yy / height as f32),
+                                vec2f(width as f32, height as f32),
+                                camera_offset,
+                            );
+
+                            if let Some(hit) = fx.hit(&ray) {
+                                //color = vec4f(1.0, 0.0, 0.0, 1.0);
+                                //float dif = dot(n, normalize(vec3(1,2,3)))*.5+.5;
+                                let c =
+                                    dot(hit.normal, normalize(vec3f(1.0, 2.0, 3.0))) * 0.5 + 0.5;
+                                color.x = c;
+                                color.y = c;
+                                color.z = c;
+                            }
+
+                            total += color;
+                        }
+                    }
+
+                    let aa_aa = aa_f * aa_f;
+                    total[0] /= aa_aa;
+                    total[1] /= aa_aa;
+                    total[2] /= aa_aa;
+                    total[3] /= aa_aa;
+
+                    pixel.copy_from_slice(&TheColor::from_vec4f(total).to_u8_array());
+                }
+            });
+
+        /*
+        for y in 0..height {
+            for x in 0..width {
+                let uv = vec2f(x as f32 / width as f32, y as f32 / height as f32);
+                let mut color = vec4f(0.01, 0.01, 0.01, 1.0);
+
+                let ray =
+                    camera.create_ortho_ray(uv, vec2f(width as f32, height as f32), Vec2f::one());
+
+                if let Some(hit) = fx.hit(&ray) {
+                    //color = vec4f(1.0, 0.0, 0.0, 1.0);
+                    //float dif = dot(n, normalize(vec3(1,2,3)))*.5+.5;
+                    let c = dot(hit.normal, normalize(vec3f(1.0, 2.0, 3.0))) * 0.5 + 0.5;
+                    color.x = c;
+                    color.y = c;
+                    color.z = c;
+                }
+
+                buffer.set_pixel(x, y, TheColor::from_vec4f(color).to_u8_array());
+            }
+            }*/
     }
 }
 

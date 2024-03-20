@@ -213,7 +213,7 @@ impl TileEditor {
             "Display the render settings of the region.".to_string(),
             "faders".to_string(),
         );
-        gb.set_item_width(70);
+        gb.set_item_width(73);
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
@@ -408,19 +408,21 @@ impl TileEditor {
                     }
                 }
             }
-            TheEvent::TileEditorHoverChanged(_id, coord) => {
-                if let Some(text) = ui.get_text("Cursor Position") {
-                    text.set_text(format!("({}, {})", coord.x, coord.y));
-                    redraw = true;
-                    if let Some(layout) = ui.get_layout("Editor Icon Layout") {
-                        layout.relayout(ctx);
+            TheEvent::TileEditorHoverChanged(id, coord) => {
+                if id.name == "Region Editor View" {
+                    if let Some(text) = ui.get_text("Cursor Position") {
+                        text.set_text(format!("({}, {})", coord.x, coord.y));
+                        redraw = true;
+                        if let Some(layout) = ui.get_layout("Editor Icon Layout") {
+                            layout.relayout(ctx);
+                        }
                     }
-                }
 
-                for r in &mut project.regions {
-                    if r.id == server_ctx.curr_region {
-                        self.set_icon_previews(r, *coord, ui);
-                        break;
+                    for r in &mut project.regions {
+                        if r.id == server_ctx.curr_region {
+                            self.set_icon_previews(r, *coord, ui);
+                            break;
+                        }
                     }
                 }
             }
