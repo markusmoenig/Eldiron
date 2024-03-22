@@ -312,7 +312,7 @@ impl TileDrawer {
             });
 
         let _stop = self.get_time();
-        //println!("draw time {:?}", _stop - _start);
+        // println!("draw time {:?}", _stop - _start);
     }
 
     #[allow(clippy::too_many_arguments)]

@@ -7,7 +7,7 @@ pub mod fx;
 pub mod interaction;
 pub mod item;
 pub mod level;
-pub mod modelfx;
+pub mod modelfxwall;
 pub mod project;
 pub mod region;
 pub mod regionfx;
@@ -33,7 +33,7 @@ pub mod prelude {
     pub use crate::interaction::*;
     pub use crate::item::Item;
     pub use crate::level::Level;
-    pub use crate::modelfx::*;
+    pub use crate::modelfxwall::*;
     pub use crate::project::Project;
     pub use crate::region::{CameraMode, CameraType, Layer2DRole, Region, RegionTile};
     pub use crate::regionfx::*;

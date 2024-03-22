@@ -584,16 +584,28 @@ impl TileEditor {
                     self.set_icon_colors(ui);
                     server_ctx.show_fx_marker = false;
                     redraw = true;
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Ground Selected"),
+                        TheValue::Empty,
+                    ));
                 } else if id.name == "Wall Icon" {
                     self.curr_layer_role = Layer2DRole::Wall;
                     self.set_icon_colors(ui);
                     server_ctx.show_fx_marker = false;
                     redraw = true;
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Wall Selected"),
+                        TheValue::Empty,
+                    ));
                 } else if id.name == "Ceiling Icon" {
                     self.curr_layer_role = Layer2DRole::Ceiling;
                     self.set_icon_colors(ui);
                     server_ctx.show_fx_marker = false;
                     redraw = true;
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Cei;ing Selected"),
+                        TheValue::Empty,
+                    ));
                 } else if id.name == "Tile FX Icon" {
                     self.curr_layer_role = Layer2DRole::FX;
                     self.set_icon_colors(ui);
@@ -721,18 +733,54 @@ impl TileEditor {
         server_ctx: &ServerContext,
         compute_delta: bool,
     ) {
+        // Redraw complete region
+        // if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
+        //     if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
+        //         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+        //             server.draw_region(
+        //                 &server_ctx.curr_region,
+        //                 rgba_view.buffer_mut(),
+        //                 &TILEDRAWER.lock().unwrap(),
+        //                 ctx,
+        //                 server_ctx,
+        //                 compute_delta,
+        //                 vec2i(0, 0),
+        //             );
+        //             rgba_view.set_needs_redraw(true);
+        //         }
+        //     }
+        // }
+
+        // Redraw partial region
         if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
             if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
                 if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                    server.draw_region(
-                        &server_ctx.curr_region,
-                        rgba_view.buffer_mut(),
-                        &TILEDRAWER.lock().unwrap(),
-                        ctx,
-                        server_ctx,
-                        compute_delta,
-                    );
-                    rgba_view.set_needs_redraw(true);
+                    let rect = rgba_view.visible_rect();
+                    let dest_dim = rgba_view.buffer().dim();
+
+                    if rect.x + rect.width < dest_dim.width
+                        && rect.y + rect.height < dest_dim.height
+                    {
+                        let mut b = TheRGBABuffer::new(rect);
+
+                        server.draw_region(
+                            &server_ctx.curr_region,
+                            &mut b,
+                            &TILEDRAWER.lock().unwrap(),
+                            server_ctx,
+                            compute_delta,
+                            vec2i(rect.x, dest_dim.height - (rect.y + rect.height)),
+                        );
+                        rgba_view.buffer_mut().copy_into(rect.x, rect.y, &b);
+                        server.draw_region_selections(
+                            &server_ctx.curr_region,
+                            rgba_view.buffer_mut(),
+                            &TILEDRAWER.lock().unwrap(),
+                            ctx,
+                            server_ctx,
+                        );
+                        rgba_view.set_needs_redraw(true);
+                    }
                 }
             }
         }
@@ -770,22 +818,6 @@ impl TileEditor {
                 server_ctx,
                 compute_delta,
             );
-        }
-
-        if let Some(rgba_layout) = ui.canvas.get_layout(Some(&"Region Editor".into()), None) {
-            if let Some(rgba_layout) = rgba_layout.as_rgba_layout() {
-                if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                    server.draw_region(
-                        &server_ctx.curr_region,
-                        rgba_view.buffer_mut(),
-                        &TILEDRAWER.lock().unwrap(),
-                        ctx,
-                        server_ctx,
-                        compute_delta,
-                    );
-                    rgba_view.set_needs_redraw(true);
-                }
-            }
         }
     }
 

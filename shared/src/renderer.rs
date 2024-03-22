@@ -57,7 +57,7 @@ impl Renderer {
 
         let mut models = FxHashMap::default();
         for (pos, timeline) in &self.models {
-            let timeline = ModelFX::parse_timeline(&settings.time, timeline);
+            let timeline = ModelFXWall::parse_timeline(&settings.time, timeline);
             models.insert(*pos, timeline);
         }
 
@@ -174,7 +174,7 @@ impl Renderer {
         update: &RegionUpdate,
         settings: &RegionDrawSettings,
         camera_type: CameraType,
-        models: &FxHashMap<(i32, i32), Vec<ModelFX>>,
+        models: &FxHashMap<(i32, i32), Vec<ModelFXWall>>,
         level: &Level,
         saturation: &Option<f32>,
         max_render_distance: i32,
@@ -219,7 +219,7 @@ impl Renderer {
                 let mut r = ray.clone();
                 r.o = lro;
 
-                if let Some(hit_struct) = ModelFX::hit_array(&r, models) {
+                if let Some(hit_struct) = ModelFXWall::hit_array(&r, models) {
                     if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                         if let Some(data) = self.textures.get(tile) {
                             let index = settings.anim_counter % data.buffer.len();

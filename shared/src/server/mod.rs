@@ -326,19 +326,33 @@ impl Server {
         uuid: &Uuid,
         buffer: &mut TheRGBABuffer,
         tiledrawer: &TileDrawer,
-        ctx: &mut TheContext,
         server_ctx: &ServerContext,
         compute_delta: bool,
+        offset: Vec2i,
     ) {
         if let Some(instance) = self.instances.get_mut(uuid) {
             instance.draw(
                 buffer,
                 tiledrawer,
                 &self.anim_counter,
-                ctx,
                 server_ctx,
                 compute_delta,
+                offset,
             );
+        }
+    }
+
+    /// Draw the region selections into the buffer.
+    pub fn draw_region_selections(
+        &mut self,
+        uuid: &Uuid,
+        buffer: &mut TheRGBABuffer,
+        tiledrawer: &TileDrawer,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) {
+        if let Some(instance) = self.instances.get_mut(uuid) {
+            instance.draw_selections(buffer, tiledrawer, ctx, server_ctx);
         }
     }
 

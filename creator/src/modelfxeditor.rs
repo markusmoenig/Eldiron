@@ -53,31 +53,13 @@ impl ModelFXEditor {
 
         canvas.set_top(toolbar_canvas);
 
-        // Left FX List
-        /*
-        let mut list_canvas = TheCanvas::default();
-        let mut list_layout = TheListLayout::new(TheId::named("ModelFX List"));
+        // RGBA Stack
 
-        let mut item = TheListItem::new(TheId::named("ModelFX Cube"));
-        item.set_text(str!("Cube"));
-        list_layout.add_item(item, ctx);
-
-        let mut item = TheListItem::new(TheId::named("ModelFX Wall Horizontal"));
-        item.set_text(str!("Wall Horizontal"));
-        list_layout.add_item(item, ctx);
-
-        let mut item = TheListItem::new(TheId::named("ModelFX Wall Vertical"));
-        item.set_text(str!("Wall Vertical"));
-        list_layout.add_item(item, ctx);
-
-        list_layout.limiter_mut().set_max_width(130);
-        list_layout.select_first_item(ctx);
-        list_canvas.set_layout(list_layout);
-        */
+        let mut stack_canvas = TheCanvas::new();
+        let mut stack_layout = TheStackLayout::new(TheId::named("ModelFX Stack Layout"));
 
         let mut rgba_canvas = TheCanvas::default();
-
-        let mut rgba_layout = TheRGBALayout::new(TheId::named("ModelFX RGBA Layout"));
+        let mut rgba_layout = TheRGBALayout::new(TheId::named("ModelFX Ground RGBA Layout"));
         rgba_layout.limiter_mut().set_max_width(130);
 
         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
@@ -87,12 +69,52 @@ impl ModelFXEditor {
             c[3] = 128;
             rgba_view.set_hover_color(Some(c));
             ctx.ui.send(TheEvent::Custom(
-                TheId::named("Render ModelFX Previews"),
+                TheId::named("Render Ground ModelFX Previews"),
                 TheValue::Empty,
             ));
         }
         rgba_canvas.set_layout(rgba_layout);
-        canvas.set_left(rgba_canvas);
+        stack_layout.add_canvas(rgba_canvas);
+        stack_layout.limiter_mut().set_max_width(130);
+
+        let mut rgba_canvas = TheCanvas::default();
+        let mut rgba_layout = TheRGBALayout::new(TheId::named("ModelFX Wall RGBA Layout"));
+        rgba_layout.limiter_mut().set_max_width(130);
+
+        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+            rgba_view.set_grid(Some(24));
+            rgba_view.set_mode(TheRGBAViewMode::TilePicker);
+            let mut c = WHITE;
+            c[3] = 128;
+            rgba_view.set_hover_color(Some(c));
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Render Wall ModelFX Previews"),
+                TheValue::Empty,
+            ));
+        }
+        rgba_canvas.set_layout(rgba_layout);
+        stack_layout.add_canvas(rgba_canvas);
+
+        let mut rgba_canvas = TheCanvas::default();
+        let mut rgba_layout = TheRGBALayout::new(TheId::named("ModelFX Ceiling RGBA Layout"));
+        rgba_layout.limiter_mut().set_max_width(130);
+
+        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+            rgba_view.set_grid(Some(24));
+            rgba_view.set_mode(TheRGBAViewMode::TilePicker);
+            let mut c = WHITE;
+            c[3] = 128;
+            rgba_view.set_hover_color(Some(c));
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Render Ceiling ModelFX Previews"),
+                TheValue::Empty,
+            ));
+        }
+        rgba_canvas.set_layout(rgba_layout);
+        stack_layout.add_canvas(rgba_canvas);
+
+        stack_canvas.set_layout(stack_layout);
+        canvas.set_left(stack_canvas);
 
         // ModelFX Center
 
@@ -110,6 +132,8 @@ impl ModelFXEditor {
 
         center_canvas.set_right(center_color_canvas);
         canvas.set_center(center_canvas);
+
+        //
 
         canvas
     }
@@ -190,7 +214,7 @@ impl ModelFXEditor {
                     let c = self
                         .curr_timeline
                         .get_collection_at(&TheTime::default(), fx_name.to_string());
-                    let fx = Some(ModelFX::new_fx(fx_name, c));
+                    let fx = Some(ModelFXWall::new_fx(fx_name, c));
 
                     if let Some(fx) = fx {
                         if let Some(collection) = fx.collection() {
@@ -251,17 +275,35 @@ impl ModelFXEditor {
                 }
             }
             TheEvent::Custom(id, _) => {
-                if id.name == "Render ModelFX Previews" {
-                    self.render_modelfx_previews(ui, ctx);
+                if id.name == "Ground Selected" {
+                    if let Some(stack) = ui.get_stack_layout("ModelFX Stack Layout") {
+                        stack.set_index(0);
+                        redraw = true;
+                        ctx.ui.relayout = true;
+                    }
+                } else if id.name == "Wall Selected" {
+                    if let Some(stack) = ui.get_stack_layout("ModelFX Stack Layout") {
+                        stack.set_index(1);
+                        redraw = true;
+                        ctx.ui.relayout = true;
+                    }
+                } else if id.name == "Ceiling Selected" {
+                    if let Some(stack) = ui.get_stack_layout("ModelFX Stack Layout") {
+                        stack.set_index(2);
+                        redraw = true;
+                        ctx.ui.relayout = true;
+                    }
+                } else if id.name == "Render Wall ModelFX Previews" {
+                    self.render_modelfx_wall_previews(ui, ctx);
                 }
             }
             TheEvent::TilePicked(id, pos) => {
-                if id.name == "ModelFX RGBA Layout View" {
+                if id.name == "ModelFX Wall RGBA Layout View" {
                     if let Some(fx_name) = self.fx_text.get(&(pos.x, pos.y)) {
                         let c = self
                             .curr_timeline
                             .get_collection_at(&TheTime::default(), fx_name.to_string());
-                        let fx = Some(ModelFX::new_fx(fx_name, c));
+                        let fx = Some(ModelFXWall::new_fx(fx_name, c));
 
                         if let Some(fx) = fx {
                             if let Some(collection) = fx.collection() {
@@ -329,7 +371,7 @@ impl ModelFXEditor {
                 }
             }
             TheEvent::TileEditorHoverChanged(id, pos) => {
-                if id.name == "ModelFX RGBA Layout View" {
+                if id.name == "ModelFX Wall RGBA Layout View" {
                     ctx.ui.send(TheEvent::SetStatusText(
                         id.clone(),
                         self.fx_text
@@ -346,10 +388,10 @@ impl ModelFXEditor {
     }
 
     /// Render the model previews.
-    pub fn render_modelfx_previews(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+    pub fn render_modelfx_wall_previews(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         self.fx_text.clear();
-        if let Some(editor) = ui.get_rgba_layout("ModelFX RGBA Layout") {
-            let fx_array = ModelFX::fx_array();
+        if let Some(editor) = ui.get_rgba_layout("ModelFX Wall RGBA Layout") {
+            let fx_array = ModelFXWall::fx_array();
 
             let grid = 48;
             let width = grid * 2; //130 - 16; //editor.dim().width - 16;
@@ -372,7 +414,7 @@ impl ModelFXEditor {
 
                     let mut rgba = TheRGBABuffer::new(TheDim::sized(grid, grid));
 
-                    ModelFX::render_preview(&mut rgba, fx);
+                    ModelFXWall::render_preview(&mut rgba, fx);
 
                     buffer.copy_into(x * grid, y * grid, &rgba);
                     //buffer.copy_into(x * grid, y * grid, &tile.buffer[0].scaled(grid, grid));

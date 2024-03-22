@@ -4,14 +4,14 @@ use rayon::prelude::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-pub enum ModelFX {
-    Cube(TheCollection, ModelFXMetaData),
-    WallHorizontal(TheCollection, ModelFXMetaData),
-    WallVertical(TheCollection, ModelFXMetaData),
+pub enum ModelFXWall {
+    Cube(TheCollection, ModelFXWallMetaData),
+    WallHorizontal(TheCollection, ModelFXWallMetaData),
+    WallVertical(TheCollection, ModelFXWallMetaData),
 }
 
-impl ModelFX {
-    pub fn new_fx(name: &str, collection: Option<TheCollection>) -> ModelFX {
+impl ModelFXWall {
+    pub fn new_fx(name: &str, collection: Option<TheCollection>) -> Self {
         let mut coll = TheCollection::named(name.into());
         match name {
             "Wall Horizontal" => {
@@ -20,9 +20,9 @@ impl ModelFX {
                 } else {
                     coll.set("Depth", TheValue::FloatRange(0.25, 0.0..=1.0));
                 }
-                let mut meta = ModelFXMetaData::new();
+                let mut meta = ModelFXWallMetaData::new();
                 meta.set_description("Depth", str!("The depth of the wall."));
-                ModelFX::WallHorizontal(coll, meta)
+                Self::WallHorizontal(coll, meta)
             }
             "Wall Vertical" => {
                 if let Some(collection) = collection {
@@ -30,32 +30,32 @@ impl ModelFX {
                 } else {
                     coll.set("Depth", TheValue::FloatRange(0.25, 0.0..=1.0));
                 }
-                let mut meta = ModelFXMetaData::new();
+                let mut meta = ModelFXWallMetaData::new();
                 meta.set_description("Depth", str!("The depth of the wall."));
-                ModelFX::WallVertical(coll, meta)
+                Self::WallVertical(coll, meta)
             }
             _ => {
-                let meta = ModelFXMetaData::new();
-                ModelFX::Cube(coll, meta)
+                let meta = ModelFXWallMetaData::new();
+                Self::Cube(coll, meta)
             }
         }
     }
 
     /// Create an array of all models.
-    pub fn fx_array() -> Vec<ModelFX> {
+    pub fn fx_array() -> Vec<Self> {
         vec![
-            ModelFX::new_fx("Cube", None),
-            ModelFX::new_fx("Wall Horizontal", None),
-            ModelFX::new_fx("Wall Vertical", None),
+            Self::new_fx("Cube", None),
+            Self::new_fx("Wall Horizontal", None),
+            Self::new_fx("Wall Vertical", None),
         ]
     }
 
     /// Parse the timeline and extract all models.
-    pub fn parse_timeline(time: &TheTime, timeline: &TheTimeline) -> Vec<ModelFX> {
+    pub fn parse_timeline(time: &TheTime, timeline: &TheTimeline) -> Vec<Self> {
         let mut models = vec![];
         let collections = timeline.adjust_for_time(time);
         for c in collections {
-            let fx = ModelFX::new_fx(&c.name, Some(c.clone()));
+            let fx = Self::new_fx(&c.name, Some(c.clone()));
             models.push(fx);
         }
 
@@ -63,7 +63,7 @@ impl ModelFX {
     }
 
     /// Ray hit test for the ModelFX array.
-    pub fn hit_array(ray: &Ray, array: &Vec<ModelFX>) -> Option<Hit> {
+    pub fn hit_array(ray: &Ray, array: &Vec<Self>) -> Option<Hit> {
         let mut hit: Option<Hit> = None;
         for fx in array {
             if let Some(h) = fx.hit(ray) {
@@ -82,18 +82,18 @@ impl ModelFX {
     /// Ray hit test for the ModelFX.
     pub fn hit(&self, ray: &Ray) -> Option<Hit> {
         match self {
-            ModelFX::Cube(_, _) => {
+            Self::Cube(_, _) => {
                 let aabb_min = Vec3f::new(0.0, 0.0, 0.0);
                 let aabb_max = Vec3f::new(1.0, 1.0, 1.0);
                 self.ray_aabb(ray, aabb_min, aabb_max)
             }
-            ModelFX::WallHorizontal(collection, _) => {
+            Self::WallHorizontal(collection, _) => {
                 let depth = collection.get_f32_default("Depth", 0.25);
                 let aabb_min = Vec3f::new(0.0, 0.0, 0.5 - depth / 2.0);
                 let aabb_max = Vec3f::new(1.0, 1.0, 0.5 + depth / 2.0);
                 self.ray_aabb(ray, aabb_min, aabb_max)
             }
-            ModelFX::WallVertical(collection, _) => {
+            Self::WallVertical(collection, _) => {
                 let depth = collection.get_f32_default("Depth", 0.25);
                 let aabb_min = Vec3f::new(0.5 - depth / 2.0, 0.0, 0.0);
                 let aabb_max = Vec3f::new(0.5 + depth / 2.0, 1.0, 1.0);
@@ -105,36 +105,36 @@ impl ModelFX {
     /// Convert to kind.
     pub fn to_kind(&self) -> String {
         match self {
-            ModelFX::Cube(_, _) => str!("Cube"),
-            ModelFX::WallHorizontal(_, _) => str!("Wall Horizontal"),
-            ModelFX::WallVertical(_, _) => str!("Wall Vertical"),
+            Self::Cube(_, _) => str!("Cube"),
+            Self::WallHorizontal(_, _) => str!("Wall Horizontal"),
+            Self::WallVertical(_, _) => str!("Wall Vertical"),
         }
     }
 
     /// Reference to the collection.
     pub fn collection(&self) -> Option<&TheCollection> {
         match self {
-            ModelFX::Cube(collection, _) => Some(collection),
-            ModelFX::WallHorizontal(collection, _) => Some(collection),
-            ModelFX::WallVertical(collection, _) => Some(collection),
+            Self::Cube(collection, _) => Some(collection),
+            Self::WallHorizontal(collection, _) => Some(collection),
+            Self::WallVertical(collection, _) => Some(collection),
         }
     }
 
     /// Convert to cloned collection.
     pub fn collection_cloned(&self) -> TheCollection {
         match self {
-            ModelFX::Cube(collection, _) => collection.clone(),
-            ModelFX::WallHorizontal(collection, _) => collection.clone(),
-            ModelFX::WallVertical(collection, _) => collection.clone(),
+            Self::Cube(collection, _) => collection.clone(),
+            Self::WallHorizontal(collection, _) => collection.clone(),
+            Self::WallVertical(collection, _) => collection.clone(),
         }
     }
 
     /// Get a reference to the meta data.
-    pub fn meta_data(&self) -> Option<&ModelFXMetaData> {
+    pub fn meta_data(&self) -> Option<&ModelFXWallMetaData> {
         match self {
-            ModelFX::Cube(_, meta) => Some(meta),
-            ModelFX::WallHorizontal(_, meta) => Some(meta),
-            ModelFX::WallVertical(_, meta) => Some(meta),
+            Self::Cube(_, meta) => Some(meta),
+            Self::WallHorizontal(_, meta) => Some(meta),
+            Self::WallVertical(_, meta) => Some(meta),
         }
     }
 
@@ -215,7 +215,7 @@ impl ModelFX {
         }
     }
 
-    pub fn render_preview(buffer: &mut TheRGBABuffer, fx: &ModelFX) {
+    pub fn render_preview(buffer: &mut TheRGBABuffer, fx: &ModelFXWall) {
         let width = buffer.dim().width as usize;
         let height = buffer.dim().height as usize;
 
@@ -302,17 +302,17 @@ impl ModelFX {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-pub struct ModelFXMetaData {
+pub struct ModelFXWallMetaData {
     description: IndexMap<String, String>,
 }
 
-impl Default for ModelFXMetaData {
+impl Default for ModelFXWallMetaData {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ModelFXMetaData {
+impl ModelFXWallMetaData {
     pub fn new() -> Self {
         Self {
             description: IndexMap::default(),

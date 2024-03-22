@@ -236,17 +236,15 @@ impl RegionInstance {
         buffer: &mut TheRGBABuffer,
         tiledrawer: &TileDrawer,
         anim_counter: &usize,
-        ctx: &mut TheContext,
         server_ctx: &ServerContext,
         compute_delta: bool,
+        offset: Vec2i,
     ) {
         let delta = self.redraw_ms as f32 / self.tick_ms as f32;
 
         self.draw_settings.show_fx_marker = server_ctx.show_fx_marker;
 
         if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
-            let grid_size = region.grid_size as f32;
-
             if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
                 if compute_delta {
                     let server_tick = update.server_tick;
@@ -259,6 +257,7 @@ impl RegionInstance {
                 }
 
                 self.draw_settings.anim_counter = *anim_counter;
+                self.draw_settings.offset = offset;
 
                 tiledrawer.draw_region(
                     buffer,
@@ -267,7 +266,23 @@ impl RegionInstance {
                     &mut self.draw_settings,
                     compute_delta,
                 );
+            }
+        }
+    }
 
+    /// Draw the current
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_selections(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        tiledrawer: &TileDrawer,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) {
+        if let Some(region) = REGIONS.read().unwrap().get(&self.id) {
+            let grid_size = region.grid_size as f32;
+
+            if let Some(update) = UPDATES.write().unwrap().get_mut(&self.id) {
                 // Draw selected character outline
                 if let Some(curr_character_instance) = server_ctx.curr_character_instance {
                     for (position, _, character_id, _) in &update.characters_pixel_pos {
