@@ -215,7 +215,7 @@ impl ModelFXWall {
         }
     }
 
-    pub fn render_preview(buffer: &mut TheRGBABuffer, fx: &ModelFXWall) {
+    pub fn render_preview(buffer: &mut TheRGBABuffer, fx: Vec<ModelFXWall>) {
         let width = buffer.dim().width as usize;
         let height = buffer.dim().height as usize;
 
@@ -253,9 +253,21 @@ impl ModelFXWall {
                                 camera_offset,
                             );
 
-                            if let Some(hit) = fx.hit(&ray) {
-                                //color = vec4f(1.0, 0.0, 0.0, 1.0);
-                                //float dif = dot(n, normalize(vec3(1,2,3)))*.5+.5;
+                            let mut hit: Option<Hit> = None;
+
+                            for fx in fx.iter() {
+                                if let Some(h) = fx.hit(&ray) {
+                                    if let Some(chit) = hit.clone() {
+                                        if h.distance < chit.distance {
+                                            hit = Some(h);
+                                        }
+                                    } else {
+                                        hit = Some(h);
+                                    }
+                                }
+                            }
+
+                            if let Some(hit) = hit {
                                 let c =
                                     dot(hit.normal, normalize(vec3f(1.0, 2.0, 3.0))) * 0.5 + 0.5;
                                 color.x = c;

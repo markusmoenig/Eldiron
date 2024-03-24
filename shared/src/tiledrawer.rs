@@ -9,6 +9,7 @@ pub struct RegionDrawSettings {
     pub anim_counter: usize,
     pub delta_in_tick: f32,
     pub offset: Vec2i,
+    pub display_offset: Vec2i,
     pub delta: f32,
     pub daylight: Vec3f,
 
@@ -28,6 +29,7 @@ impl RegionDrawSettings {
             anim_counter: 0,
             delta_in_tick: 0.0,
             offset: Vec2i::zero(),
+            display_offset: Vec2i::zero(),
             delta: 0.0,
             daylight: Vec3f::one(),
 
@@ -96,7 +98,11 @@ impl TileDrawer {
             );
         }
 
-        let mut offset = settings.offset;
+        let mut offset = if settings.display_offset != Vec2i::zero() {
+            settings.display_offset
+        } else {
+            settings.offset
+        };
         if region_height == buffer.dim().height {
             offset = Vec2i::zero();
         }

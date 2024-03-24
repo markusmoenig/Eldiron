@@ -284,7 +284,7 @@ impl Panels {
                         shared_left = false;
 
                         // If in Pick mode show the instance
-                        if self.get_editor_group_index(ui) == 1 {
+                        if self.get_editor_group_index(ui) == EditorMode::Pick as i32 {
                             ctx.ui
                                 .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
 
@@ -317,7 +317,7 @@ impl Panels {
                         shared_left = false;
 
                         // If in Pick mode show the instance
-                        if self.get_editor_group_index(ui) == 1 {
+                        if self.get_editor_group_index(ui) == EditorMode::Pick as i32 {
                             ctx.ui
                                 .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
 
@@ -347,7 +347,7 @@ impl Panels {
                             .send(TheEvent::SetStackIndex(TheId::named("Details Stack"), 1));
 
                         // If in Pick mode show the instance
-                        if self.get_editor_group_index(ui) == 1 {
+                        if self.get_editor_group_index(ui) == EditorMode::Pick as i32 {
                             ctx.ui
                                 .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
 

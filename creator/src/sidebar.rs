@@ -1607,7 +1607,7 @@ impl Sidebar {
                     }
 
                     if let Some(button) = ui.get_group_button("Editor Group") {
-                        if button.index() == 1 {
+                        if button.index() == EditorMode::Pick as i32 {
                             ctx.ui.send(TheEvent::IndexChanged(button.id().clone(), 1));
                         }
                     }
@@ -2084,7 +2084,7 @@ impl Sidebar {
             }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Editor Group" {
-                    if *index == 0 {
+                    if *index == EditorMode::Draw as usize {
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Set Region Panel"),
                             TheValue::Empty,

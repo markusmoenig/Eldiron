@@ -224,7 +224,7 @@ impl RegionFXEditor {
                                         }
                                     }
                                 } else if let TheValue::IntRange(value, range) = value {
-                                    let mut slider = TheSlider::new(TheId::named(
+                                    let mut slider = TheTextLineEdit::new(TheId::named(
                                         (":REGIONFX: ".to_owned() + name).as_str(),
                                     ));
                                     slider.set_value(TheValue::Int(*value));

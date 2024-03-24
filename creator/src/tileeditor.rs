@@ -11,12 +11,13 @@ pub enum EditorDrawMode {
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
-enum EditorMode {
+pub enum EditorMode {
     Draw,
     Pick,
+    Model,
+    Texture,
     Erase,
     Select,
-    Modeler,
     Render,
 }
 
@@ -194,6 +195,16 @@ impl TileEditor {
             "pick".to_string(),
         );
         gb.add_text_status_icon(
+            "Model".to_string(),
+            "Model the region.".to_string(),
+            "cube".to_string(),
+        );
+        gb.add_text_status_icon(
+            "Texture".to_string(),
+            "Texture the models of the region.".to_string(),
+            "wall".to_string(),
+        );
+        gb.add_text_status_icon(
             "Erase".to_string(),
             "Delete content in the region.".to_string(),
             "eraser".to_string(),
@@ -204,16 +215,11 @@ impl TileEditor {
             "selection".to_string(),
         );
         gb.add_text_status_icon(
-            "Model".to_string(),
-            "Model and texture the region.".to_string(),
-            "cube".to_string(),
-        );
-        gb.add_text_status_icon(
             "Render".to_string(),
             "Display the render settings of the region.".to_string(),
             "faders".to_string(),
         );
-        gb.set_item_width(73);
+        gb.set_item_width(76);
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
@@ -351,19 +357,19 @@ impl TileEditor {
                         }
                     }
                 } else if id.name == "Editor Group" {
-                    if *index == 0 {
+                    if *index == EditorMode::Draw as usize {
                         self.editor_mode = EditorMode::Draw;
                         server_ctx.tile_selection = None;
                         server_ctx.curr_character_instance = None;
                         server_ctx.curr_item_instance = None;
                         server_ctx.curr_area = None;
-                    } else if *index == 1 {
+                    } else if *index == EditorMode::Pick as usize {
                         self.editor_mode = EditorMode::Pick;
                         server_ctx.tile_selection = None;
-                    } else if *index == 2 {
+                    } else if *index == EditorMode::Erase as usize {
                         self.editor_mode = EditorMode::Erase;
                         server_ctx.tile_selection = None;
-                    } else if *index == 3 {
+                    } else if *index == EditorMode::Select as usize {
                         ui.set_widget_context_menu(
                             "Region Editor View",
                             Some(TheContextMenu {
@@ -377,14 +383,14 @@ impl TileEditor {
                         self.editor_mode = EditorMode::Select;
                     }
 
-                    if *index == 4 {
-                        self.editor_mode = EditorMode::Modeler;
+                    if *index == EditorMode::Model as usize {
+                        self.editor_mode = EditorMode::Model;
                         server_ctx.tile_selection = None;
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Set Region Modeler"),
                             TheValue::Empty,
                         ));
-                    } else if *index == 5 {
+                    } else if *index == EditorMode::Render as usize {
                         self.editor_mode = EditorMode::Render;
                         server_ctx.tile_selection = None;
                         ctx.ui.send(TheEvent::Custom(
@@ -454,8 +460,17 @@ impl TileEditor {
 
                         self.editor_mode = EditorMode::Pick;
                         if let Some(button) = ui.get_group_button("Editor Group") {
-                            button.set_index(1);
-                            ctx.ui.send(TheEvent::IndexChanged(button.id().clone(), 1));
+                            button.set_index(EditorMode::Pick as i32);
+                            ctx.ui.send(TheEvent::IndexChanged(
+                                button.id().clone(),
+                                EditorMode::Pick as usize,
+                            ));
+                        }
+
+                        // Set 3D editing position to Zero.
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.editing_position_3d = Vec3f::zero();
+                            server.set_editing_position_3d(region.editing_position_3d);
                         }
 
                         ctx.ui.send(TheEvent::Custom(
@@ -473,20 +488,23 @@ impl TileEditor {
                             }
                         }
                     }
-                    if let Some((TheValue::Position(p), character_id)) =
+                    if let Some((TheValue::Position(p), item_id)) =
                         server.get_item_property(server_ctx.curr_region, id.uuid, "position".into())
                     {
                         // If it's a character instance, center it in the region editor.
                         server_ctx.curr_character_instance = None;
                         server_ctx.curr_character = None;
                         server_ctx.curr_item_instance = Some(id.uuid);
-                        server_ctx.curr_item = Some(character_id);
+                        server_ctx.curr_item = Some(item_id);
                         server_ctx.curr_area = None;
 
                         self.editor_mode = EditorMode::Pick;
                         if let Some(button) = ui.get_group_button("Editor Group") {
-                            button.set_index(1);
-                            ctx.ui.send(TheEvent::IndexChanged(button.id().clone(), 1));
+                            button.set_index(EditorMode::Pick as i32);
+                            ctx.ui.send(TheEvent::IndexChanged(
+                                button.id().clone(),
+                                EditorMode::Pick as usize,
+                            ));
                         }
 
                         ctx.ui.send(TheEvent::Custom(
@@ -494,9 +512,11 @@ impl TileEditor {
                             TheValue::Empty,
                         ));
 
-                        if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
-                            rgba_layout.scroll_to_grid(vec2i(p.x as i32, p.z as i32));
-                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            region.editing_position_3d = vec3f(p.x, 0.0, p.z);
+                            server.set_editing_position_3d(region.editing_position_3d);
+                            if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
+                                rgba_layout.scroll_to_grid(vec2i(p.x as i32, p.z as i32));
                                 region.scroll_offset = vec2i(
                                     p.x as i32 * region.grid_size,
                                     p.z as i32 * region.grid_size,
@@ -513,8 +533,11 @@ impl TileEditor {
 
                             self.editor_mode = EditorMode::Pick;
                             if let Some(button) = ui.get_group_button("Editor Group") {
-                                button.set_index(1);
-                                ctx.ui.send(TheEvent::IndexChanged(button.id().clone(), 1));
+                                button.set_index(EditorMode::Pick as i32);
+                                ctx.ui.send(TheEvent::IndexChanged(
+                                    button.id().clone(),
+                                    EditorMode::Pick as usize,
+                                ));
                             }
 
                             ctx.ui.send(TheEvent::Custom(
@@ -526,6 +549,8 @@ impl TileEditor {
                             server.insert_area(region.id, area.clone());
 
                             if let Some(p) = area.center() {
+                                region.editing_position_3d = vec3f(p.0 as f32, 0.0, p.1 as f32);
+                                server.set_editing_position_3d(region.editing_position_3d);
                                 if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
                                     rgba_layout.scroll_to_grid(vec2i(p.0, p.1));
                                     region.scroll_offset =
@@ -840,7 +865,7 @@ impl TileEditor {
             }
         }
 
-        if self.editor_mode == EditorMode::Modeler {
+        if self.editor_mode == EditorMode::Model {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 let timeline = MODELFXEDITOR.lock().unwrap().curr_timeline.clone();
                 region.models.insert((coord.x, coord.y), timeline);

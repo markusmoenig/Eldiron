@@ -120,18 +120,34 @@ impl ModelFXEditor {
 
         let mut center_canvas = TheCanvas::default();
 
-        let mut text_layout = TheTextLayout::new(TheId::named("ModelFX Settings"));
-        text_layout.limiter_mut().set_max_width(300);
+        let text_layout = TheTextLayout::new(TheId::named("ModelFX Settings"));
+        //text_layout.limiter_mut().set_max_width(220);
         center_canvas.set_layout(text_layout);
 
-        let mut center_color_canvas = TheCanvas::default();
-        let mut color_layout = TheVLayout::new(TheId::named("ModelFX Color Settings"));
-        color_layout.limiter_mut().set_max_width(140);
-        color_layout.set_background_color(Some(ListLayoutBackground));
-        center_color_canvas.set_layout(color_layout);
+        let mut center_material_canvas = TheCanvas::default();
+        let mut material_layout = TheTextLayout::new(TheId::named("ModelFX Material Settings"));
+        material_layout.limiter_mut().set_max_width(240);
+        material_layout.set_background_color(Some(ListLayoutBackground));
+        center_material_canvas.set_layout(material_layout);
 
-        center_canvas.set_right(center_color_canvas);
+        center_canvas.set_right(center_material_canvas);
         canvas.set_center(center_canvas);
+
+        // Model Preview
+
+        let mut preview_canvas = TheCanvas::default();
+        let mut model_preview_render = TheRenderView::new(TheId::named("ModelFX Preview"));
+        *model_preview_render.render_buffer_mut() = TheRGBABuffer::new(TheDim::sized(192, 192));
+        model_preview_render
+            .limiter_mut()
+            .set_max_size(vec2i(192, 192));
+
+        let mut vlayout = TheVLayout::new(TheId::empty());
+        vlayout.limiter_mut().set_max_width(200);
+        vlayout.add_widget(Box::new(model_preview_render));
+
+        preview_canvas.set_layout(vlayout);
+        canvas.set_right(preview_canvas);
 
         //
 
@@ -165,15 +181,21 @@ impl ModelFXEditor {
                         // of the range
                         if let Some(TheValue::FloatRange(_, range)) = self.curr_collection.get(name)
                         {
-                            value = TheValue::FloatRange(value.to_f32().unwrap(), range.clone());
+                            if let Some(v) = value.to_f32() {
+                                value = TheValue::FloatRange(v, range.clone());
+                            }
                         } else if let Some(TheValue::IntRange(_, range)) =
                             self.curr_collection.get(name)
                         {
-                            value = TheValue::IntRange(value.to_i32().unwrap(), range.clone());
+                            if let Some(v) = value.to_i32() {
+                                value = TheValue::IntRange(v, range.clone());
+                            }
                         } else if let Some(TheValue::TextList(_, list)) =
                             self.curr_collection.get(name)
                         {
-                            value = TheValue::TextList(value.to_i32().unwrap(), list.clone());
+                            if let Some(v) = value.to_i32() {
+                                value = TheValue::TextList(v, list.clone());
+                            }
                         }
 
                         self.curr_collection.set(name, value);
@@ -190,6 +212,7 @@ impl ModelFXEditor {
                                 redraw = true;
                             }
                         }
+                        self.render_preview(ui, ctx);
                     }
                 }
             }
@@ -208,69 +231,6 @@ impl ModelFXEditor {
                     if let Some(time_slider) = ui.get_time_slider("ModelFX Timeline") {
                         time_slider.clear_marker();
                         redraw = true;
-                    }
-                } else if id.name.starts_with("ModelFX ") && *state == TheWidgetState::Selected {
-                    let fx_name = id.name.strip_prefix("ModelFX ").unwrap();
-                    let c = self
-                        .curr_timeline
-                        .get_collection_at(&TheTime::default(), fx_name.to_string());
-                    let fx = Some(ModelFXWall::new_fx(fx_name, c));
-
-                    if let Some(fx) = fx {
-                        if let Some(collection) = fx.collection() {
-                            self.curr_collection = collection.clone();
-                            if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
-                                text_layout.clear();
-                                for (name, value) in &collection.keys {
-                                    if let TheValue::FloatRange(value, range) = value {
-                                        let mut slider = TheSlider::new(TheId::named(
-                                            (":MODELFX: ".to_owned() + name).as_str(),
-                                        ));
-                                        slider.set_value(TheValue::Float(*value));
-                                        slider.set_default_value(TheValue::Float(0.0));
-                                        slider.set_range(TheValue::RangeF32(range.clone()));
-                                        slider.set_continuous(true);
-                                        slider.set_status_text(fx.get_description(name).as_str());
-                                        text_layout.add_pair(name.clone(), Box::new(slider));
-                                    } else if let TheValue::IntRange(value, range) = value {
-                                        let mut slider = TheSlider::new(TheId::named(
-                                            (":MODELFX: ".to_owned() + name).as_str(),
-                                        ));
-                                        slider.set_value(TheValue::Int(*value));
-                                        slider.set_range(TheValue::RangeI32(range.clone()));
-                                        slider.set_status_text(fx.get_description(name).as_str());
-                                        text_layout.add_pair(name.clone(), Box::new(slider));
-                                    } else if let TheValue::TextList(index, list) = value {
-                                        let mut dropdown = TheDropdownMenu::new(TheId::named(
-                                            (":MODELFX: ".to_owned() + name).as_str(),
-                                        ));
-                                        for item in list {
-                                            dropdown.add_option(item.clone());
-                                        }
-                                        dropdown.set_selected_index(*index);
-                                        dropdown.set_status_text(fx.get_description(name).as_str());
-                                        text_layout.add_pair(name.clone(), Box::new(dropdown));
-                                    }
-                                }
-                                redraw = true;
-                                ctx.ui.relayout = true;
-                            }
-                            if let Some(vlayout) = ui.get_vlayout("ModelFX Color Settings") {
-                                vlayout.clear();
-                                for (name, value) in &collection.keys {
-                                    if let TheValue::ColorObject(color, _) = value {
-                                        let mut color_picker = TheColorPicker::new(TheId::named(
-                                            (":MODELFX: ".to_owned() + name).as_str(),
-                                        ));
-                                        color_picker.limiter_mut().set_max_size(vec2i(120, 120));
-                                        color_picker.set_color(color.to_vec3f());
-                                        vlayout.add_widget(Box::new(color_picker));
-                                    }
-                                }
-                                redraw = true;
-                                ctx.ui.relayout = true;
-                            }
-                        }
                     }
                 }
             }
@@ -312,18 +272,18 @@ impl ModelFXEditor {
                                     text_layout.clear();
                                     for (name, value) in &collection.keys {
                                         if let TheValue::FloatRange(value, range) = value {
-                                            let mut slider = TheSlider::new(TheId::named(
+                                            let mut slider = TheTextLineEdit::new(TheId::named(
                                                 (":MODELFX: ".to_owned() + name).as_str(),
                                             ));
                                             slider.set_value(TheValue::Float(*value));
-                                            slider.set_default_value(TheValue::Float(0.0));
+                                            //slider.set_default_value(TheValue::Float(0.0));
                                             slider.set_range(TheValue::RangeF32(range.clone()));
                                             slider.set_continuous(true);
                                             slider
                                                 .set_status_text(fx.get_description(name).as_str());
                                             text_layout.add_pair(name.clone(), Box::new(slider));
                                         } else if let TheValue::IntRange(value, range) = value {
-                                            let mut slider = TheSlider::new(TheId::named(
+                                            let mut slider = TheTextLineEdit::new(TheId::named(
                                                 (":MODELFX: ".to_owned() + name).as_str(),
                                             ));
                                             slider.set_value(TheValue::Int(*value));
@@ -387,9 +347,25 @@ impl ModelFXEditor {
         redraw
     }
 
+    /// Render the preview.
+    pub fn render_preview(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) {
+        let mut time = TheTime::default();
+        if let Some(time_slider) = ui.get_time_slider("ModelFX Timeline") {
+            if let TheValue::Time(t) = time_slider.value() {
+                time = t;
+            }
+        }
+        if let Some(render) = ui.get_render_view("ModelFX Preview") {
+            let buffer = render.render_buffer_mut();
+            let fx = ModelFXWall::parse_timeline(&time, &self.curr_timeline);
+            ModelFXWall::render_preview(buffer, fx);
+        }
+    }
+
     /// Render the model previews.
     pub fn render_modelfx_wall_previews(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         self.fx_text.clear();
+
         if let Some(editor) = ui.get_rgba_layout("ModelFX Wall RGBA Layout") {
             let fx_array = ModelFXWall::fx_array();
 
@@ -414,7 +390,7 @@ impl ModelFXEditor {
 
                     let mut rgba = TheRGBABuffer::new(TheDim::sized(grid, grid));
 
-                    ModelFXWall::render_preview(&mut rgba, fx);
+                    ModelFXWall::render_preview(&mut rgba, vec![fx.clone()]);
 
                     buffer.copy_into(x * grid, y * grid, &rgba);
                     //buffer.copy_into(x * grid, y * grid, &tile.buffer[0].scaled(grid, grid));

@@ -257,7 +257,7 @@ impl RegionInstance {
                 }
 
                 self.draw_settings.anim_counter = *anim_counter;
-                self.draw_settings.offset = offset;
+                self.draw_settings.display_offset = offset;
 
                 tiledrawer.draw_region(
                     buffer,
