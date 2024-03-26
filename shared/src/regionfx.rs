@@ -20,7 +20,7 @@ impl RegionFX {
                     coll.set(
                         "Camera Type",
                         TheValue::TextList(
-                            1,
+                            2,
                             vec![
                                 str!("First Person"),
                                 str!("Top Down"),
@@ -48,7 +48,7 @@ impl RegionFX {
                         "Tilted Iso Alignment",
                         TheValue::TextList(0, vec![str!("Right"), str!("Left")]),
                     );
-                    coll.set("Tilted Iso FoV", TheValue::FloatRange(70.0, 0.0..=80.0));
+                    coll.set("Tilted Iso FoV", TheValue::FloatRange(75.0, 0.0..=80.0));
                 }
                 let mut meta = RegionFXMetaData::new();
                 meta.set_description("Emission Strength", str!("The strength of the light."));

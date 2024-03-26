@@ -56,7 +56,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
             let mut buffer = WIDGETBUFFER.write().unwrap();
 
             let mut color = TheColor::default();
-            if let Some(TheValue::ColorObject(c, _r)) = stack.pop() {
+            if let Some(TheValue::ColorObject(c, _)) = stack.pop() {
                 color = c;
             }
 

@@ -1,92 +1,32 @@
 use crate::prelude::*;
-use indexmap::IndexMap;
 use rayon::prelude::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-pub enum ModelFXWall {
-    Empty(TheCollection, ModelFXMetaData),
-    WallHorizontal(TheCollection, ModelFXMetaData),
-    WallVertical(TheCollection, ModelFXMetaData),
+pub enum ModelFXFloor {
+    Floor(TheCollection, ModelFXMetaData),
 }
 
-impl ModelFXWall {
+impl ModelFXFloor {
     pub fn new_fx(name: &str, collection: Option<TheCollection>) -> Self {
         let mut coll = TheCollection::named(name.into());
         match name {
-            "Wall Horizontal" => {
-                let mut meta = ModelFXMetaData::new();
+            _ => {
                 if let Some(collection) = collection {
                     coll = collection;
                 } else {
-                    coll.set("Position", TheValue::FloatRange(0.5, 0.0..=1.0));
-                    coll.set("Depth", TheValue::FloatRange(0.2, 0.0..=1.0));
-                    coll.set(
-                        "Pattern",
-                        TheValue::TextList(
-                            0,
-                            vec![str!("Tile"), str!("Color"), str!("Brick"), str!("Stripes")],
-                        ),
-                    );
-                    ModelFXWall::add_pattern(&mut coll, &mut meta);
+                    coll.set("Height", TheValue::FloatRange(0.25, 0.0..=1.0));
                 }
-                meta.set_description("Position", str!("The position of the wall."));
-                meta.set_description("Depth", str!("The depth of the wall."));
-                Self::WallHorizontal(coll, meta)
-            }
-            "Wall Vertical" => {
                 let mut meta = ModelFXMetaData::new();
-                if let Some(collection) = collection {
-                    coll = collection;
-                } else {
-                    coll.set("Position", TheValue::FloatRange(0.5, 0.0..=1.0));
-                    coll.set("Depth", TheValue::FloatRange(0.2, 0.0..=1.0));
-                    coll.set(
-                        "Pattern",
-                        TheValue::TextList(
-                            0,
-                            vec![str!("Tile"), str!("Color"), str!("Brick"), str!("Stripes")],
-                        ),
-                    );
-                    ModelFXWall::add_pattern(&mut coll, &mut meta);
-                }
-                meta.set_description("Depth", str!("The depth of the wall."));
-                Self::WallVertical(coll, meta)
+                meta.set_description("Height", str!("The height of the floor."));
+                Self::Floor(coll, meta)
             }
-            _ => Self::Empty(TheCollection::new(), ModelFXMetaData::new()),
-        }
-    }
-
-    /// Add the pattern properties to the collection.
-    pub fn add_pattern(coll: &mut TheCollection, _meta: &mut ModelFXMetaData) {
-        coll.set("Pattern Size", TheValue::FloatRange(0.5, 0.0..=1.0));
-
-        coll.set("Color #1", TheValue::ColorObject(TheColor::black(), 0.0));
-        coll.set("Color #2", TheValue::ColorObject(TheColor::white(), 0.0));
-    }
-
-    /// Returns the unsupported pattern properties for the collection.
-    pub fn unsupported(coll: &TheCollection) -> Vec<String> {
-        let pattern = coll.get_i32_default("Pattern", 0);
-
-        if pattern == 1 {
-            // Color
-            vec![str!("Pattern Size"), str!("Color #2")]
-        } else if pattern == 2 {
-            // Brick
-            vec![]
-        } else {
-            // Tile
-            vec![str!("Pattern Size"), str!("Color #1"), str!("Color #2")]
         }
     }
 
     /// Create an array of all models.
     pub fn fx_array() -> Vec<Self> {
-        vec![
-            Self::new_fx("Wall Horizontal", None),
-            Self::new_fx("Wall Vertical", None),
-        ]
+        vec![Self::new_fx("Floor", None)]
     }
 
     /// Parse the timeline and extract all models.
@@ -126,81 +66,40 @@ impl ModelFXWall {
     /// Ray hit test for the ModelFX.
     pub fn hit(&self, ray: &Ray) -> Option<Hit> {
         match self {
-            Self::WallHorizontal(collection, _) => {
-                let position = collection.get_f32_default("Position", 0.5);
-                let depth = collection.get_f32_default("Depth", 0.2);
-                let mut min = position - depth / 2.0;
-                let mut max = position + depth / 2.0;
-                if min < 0.0 {
-                    let adjustment = 0.0 - min;
-                    min += adjustment;
-                    max += adjustment;
-                }
-                if max > 1.0 {
-                    let adjustment = max - 1.0;
-                    min -= adjustment;
-                    max -= adjustment;
-                }
-                let aabb_min = Vec3f::new(0.0, 0.0, min);
-                let aabb_max = Vec3f::new(1.0, 1.0, max);
+            Self::Floor(collection, _) => {
+                let depth = collection.get_f32_default("Height", 0.25);
+                let aabb_min = Vec3f::new(0.0, 0.0, 0.0);
+                let aabb_max = Vec3f::new(1.0, depth, 1.0);
                 self.ray_aabb(ray, aabb_min, aabb_max)
             }
-            Self::WallVertical(collection, _) => {
-                let position = collection.get_f32_default("Position", 0.5);
-                let depth = collection.get_f32_default("Depth", 0.2);
-                let mut min = position - depth / 2.0;
-                let mut max = position + depth / 2.0;
-                if min < 0.0 {
-                    let adjustment = 0.0 - min;
-                    min += adjustment;
-                    max += adjustment;
-                }
-                if max > 1.0 {
-                    let adjustment = max - 1.0;
-                    min -= adjustment;
-                    max -= adjustment;
-                }
-                let aabb_min = Vec3f::new(min, 0.0, 0.0);
-                let aabb_max = Vec3f::new(max, 1.0, 1.0);
-                self.ray_aabb(ray, aabb_min, aabb_max)
-            }
-            _ => None,
         }
     }
 
     /// Convert to kind.
     pub fn to_kind(&self) -> String {
         match self {
-            Self::WallHorizontal(_, _) => str!("Wall Horizontal"),
-            Self::WallVertical(_, _) => str!("Wall Vertical"),
-            _ => str!("Empty"),
+            Self::Floor(_, _) => str!("Floor"),
         }
     }
 
     /// Reference to the collection.
-    pub fn collection(&self) -> &TheCollection {
+    pub fn collection(&self) -> Option<&TheCollection> {
         match self {
-            Self::Empty(collection, _) => collection,
-            Self::WallHorizontal(collection, _) => collection,
-            Self::WallVertical(collection, _) => collection,
+            Self::Floor(collection, _) => Some(collection),
         }
     }
 
     /// Convert to cloned collection.
     pub fn collection_cloned(&self) -> TheCollection {
         match self {
-            Self::Empty(collection, _) => collection.clone(),
-            Self::WallHorizontal(collection, _) => collection.clone(),
-            Self::WallVertical(collection, _) => collection.clone(),
+            Self::Floor(collection, _) => collection.clone(),
         }
     }
 
     /// Get a reference to the meta data.
     pub fn meta_data(&self) -> Option<&ModelFXMetaData> {
         match self {
-            Self::Empty(_, meta) => Some(meta),
-            Self::WallHorizontal(_, meta) => Some(meta),
-            Self::WallVertical(_, meta) => Some(meta),
+            Self::Floor(_, meta) => Some(meta),
         }
     }
 
@@ -281,7 +180,7 @@ impl ModelFXWall {
         }
     }
 
-    pub fn render_preview(buffer: &mut TheRGBABuffer, fx: Vec<ModelFXWall>) {
+    pub fn render_preview(buffer: &mut TheRGBABuffer, fx: Vec<ModelFXFloor>) {
         let width = buffer.dim().width as usize;
         let height = buffer.dim().height as usize;
 
@@ -376,36 +275,5 @@ impl ModelFXWall {
                 buffer.set_pixel(x, y, TheColor::from_vec4f(color).to_u8_array());
             }
             }*/
-    }
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-pub struct ModelFXMetaData {
-    pub description: IndexMap<String, String>,
-}
-
-impl Default for ModelFXMetaData {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ModelFXMetaData {
-    pub fn new() -> Self {
-        Self {
-            description: IndexMap::default(),
-        }
-    }
-
-    pub fn set_description(&mut self, key: &str, description: String) {
-        self.description.insert(str!(key), description);
-    }
-
-    /// Get the description of a key.
-    pub fn get_description(&self, name: &str) -> String {
-        if let Some(description) = self.description.get(name) {
-            return description.clone();
-        }
-        str!("")
     }
 }

@@ -15,7 +15,6 @@ pub enum EditorMode {
     Draw,
     Pick,
     Model,
-    Texture,
     Erase,
     Select,
     Render,
@@ -198,11 +197,6 @@ impl TileEditor {
             "Model".to_string(),
             "Model the region.".to_string(),
             "cube".to_string(),
-        );
-        gb.add_text_status_icon(
-            "Texture".to_string(),
-            "Texture the models of the region.".to_string(),
-            "wall".to_string(),
         );
         gb.add_text_status_icon(
             "Erase".to_string(),
@@ -610,7 +604,7 @@ impl TileEditor {
                     server_ctx.show_fx_marker = false;
                     redraw = true;
                     ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Ground Selected"),
+                        TheId::named("Floor Selected"),
                         TheValue::Empty,
                     ));
                 } else if id.name == "Wall Icon" {

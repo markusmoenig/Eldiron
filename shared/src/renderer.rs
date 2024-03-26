@@ -693,7 +693,7 @@ impl Renderer {
 
         // Get the camera settings
 
-        let mut camera_type = CameraType::TopDown;
+        let mut camera_type = CameraType::TiltedIso;
         let mut top_down_camera_mode = CameraMode::Orthogonal;
         let mut first_person_height = 0.5;
         let mut top_down_height = 4.0;
@@ -702,7 +702,7 @@ impl Renderer {
         let mut first_person_fov = 70.0;
         let mut top_down_fov = 55.0;
         let tilted_iso_height = 3.0;
-        let mut tilted_iso_fov = 70.0;
+        let mut tilted_iso_fov = 75.0;
 
         if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
             str!("Camera"),
