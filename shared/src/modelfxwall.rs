@@ -61,8 +61,8 @@ impl ModelFXWall {
     pub fn add_pattern(coll: &mut TheCollection, _meta: &mut ModelFXMetaData) {
         coll.set("Pattern Size", TheValue::FloatRange(0.5, 0.0..=1.0));
 
-        coll.set("Color #1", TheValue::ColorObject(TheColor::black(), 0.0));
-        coll.set("Color #2", TheValue::ColorObject(TheColor::white(), 0.0));
+        coll.set("Color #1", TheValue::PaletteIndex(0));
+        coll.set("Color #2", TheValue::PaletteIndex(1));
     }
 
     /// Returns the unsupported pattern properties for the collection.

@@ -19,6 +19,8 @@ pub struct ModelFXEditor {
 
     pub curr_tile_id: TheId,
     pub curr_tile_pos: Vec2i,
+
+    pub palette_indices: FxHashMap<String, Vec<u16>>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -35,6 +37,8 @@ impl ModelFXEditor {
 
             curr_tile_id: TheId::empty(),
             curr_tile_pos: Vec2i::zero(),
+
+            palette_indices: FxHashMap::default(),
         }
     }
 
@@ -191,13 +195,56 @@ impl ModelFXEditor {
         event: &TheEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         _server: &mut Server,
         _server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
 
         match event {
+            TheEvent::ColorButtonClicked(id) => {
+                // When a color button is clicked, copy over the current palette index.
+                if id.name.starts_with(":MODELFX:") {
+                    if let Some(name) = id.name.strip_prefix(":MODELFX: ") {
+                        if let Some(color) = project.palette.get_current_color() {
+                            let mut old_index = None;
+                            if let Some(TheValue::PaletteIndex(index)) =
+                                self.curr_collection.get(name)
+                            {
+                                old_index = Some(*index);
+                            }
+                            self.curr_collection
+                                .set(name, TheValue::PaletteIndex(project.palette.current_index));
+
+                            if let Some(time_slider) = ui.get_time_slider("ModelFX Timeline") {
+                                if let TheValue::Time(time) = time_slider.value() {
+                                    time_slider.add_marker(time, vec![]);
+                                    self.curr_timeline.add(time, self.curr_collection.clone());
+                                }
+                            }
+
+                            if let Some(widget) = ui.get_widget(&id.name) {
+                                widget.set_value(TheValue::ColorObject(color, 0.0));
+                            }
+
+                            if let Some(old_index) = old_index {
+                                // Insert the new relationship
+                                let new_index = project.palette.current_index;
+                                if let Some(indices) = self.palette_indices.get_mut(&id.name) {
+                                    for index in indices.iter_mut() {
+                                        if *index == old_index {
+                                            *index = new_index;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            redraw = true;
+                        }
+                    }
+                }
+                self.render_preview(ui, &project.palette);
+            }
             TheEvent::TimelineMarkerSelected(id, time) => {
                 if id.name == "ModelFX Timeline" {
                     self.curr_marker = Some(*time);
@@ -205,7 +252,23 @@ impl ModelFXEditor {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name.starts_with(":MODELFX:") {
+                if id.name == "Palette Color Picker" {
+                    let index = project.palette.current_index;
+                    let mut widget_ids = Vec::new();
+                    for (id, indices) in &self.palette_indices {
+                        if indices.contains(&index) {
+                            widget_ids.push(id.clone());
+                        }
+                    }
+                    for widget_id in widget_ids {
+                        if let Some(widget) = ui.get_widget(&widget_id) {
+                            if let TheValue::ColorObject(color, _) = value {
+                                widget.set_value(TheValue::ColorObject(color.clone(), 0.0));
+                            }
+                        }
+                    }
+                    self.render_preview(ui, &project.palette);
+                } else if id.name.starts_with(":MODELFX:") {
                     if let Some(name) = id.name.strip_prefix(":MODELFX: ") {
                         let mut value = value.clone();
 
@@ -250,7 +313,7 @@ impl ModelFXEditor {
                                 self.curr_tile_pos,
                             ));
                         }
-                        self.render_preview(ui, ctx);
+                        self.render_preview(ui, &project.palette);
                     }
                 }
             }
@@ -309,6 +372,8 @@ impl ModelFXEditor {
                     } else {
                         self.fx_text_wall.get(&(pos.x, pos.y)).cloned()
                     };
+
+                    self.palette_indices.clear();
 
                     self.curr_tile_id = id.clone();
                     self.curr_tile_pos = *pos;
@@ -394,13 +459,23 @@ impl ModelFXEditor {
                                         if unsupported.contains(name) {
                                             continue;
                                         }
-                                        if let TheValue::ColorObject(color, _) = value {
+                                        if let TheValue::PaletteIndex(index) = value {
+                                            let name_id = ":MODELFX: ".to_owned() + name;
                                             let mut color_picker =
-                                                TheColorPicker::new(TheId::named(
-                                                    (":MODELFX: ".to_owned() + name).as_str(),
-                                                ));
-                                            color_picker.limiter_mut().set_max_size(vec2i(90, 90));
-                                            color_picker.set_color(color.to_vec3f());
+                                                TheColorButton::new(TheId::named(name_id.as_str()));
+                                            color_picker.limiter_mut().set_max_size(vec2i(80, 20));
+                                            if let Some(color) = &project.palette[*index as usize] {
+                                                color_picker.set_color(color.to_u8_array());
+                                            }
+
+                                            if let Some(indices) =
+                                                self.palette_indices.get_mut(&name_id)
+                                            {
+                                                indices.push(*index);
+                                            } else {
+                                                self.palette_indices
+                                                    .insert(name_id.to_string(), vec![*index]);
+                                            }
                                             text_layout
                                                 .add_pair(name.clone(), Box::new(color_picker));
                                         }
@@ -441,7 +516,7 @@ impl ModelFXEditor {
     }
 
     /// Render the preview.
-    pub fn render_preview(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) {
+    pub fn render_preview(&mut self, ui: &mut TheUI, palette: &ThePalette) {
         let mut time = TheTime::default();
         if let Some(time_slider) = ui.get_time_slider("ModelFX Timeline") {
             if let TheValue::Time(t) = time_slider.value() {
@@ -493,15 +568,18 @@ impl ModelFXEditor {
                                 );
 
                                 let mut hit: Option<Hit> = None;
+                                let mut coll: Option<&TheCollection> = None;
 
                                 for fx in floor_fx.iter() {
                                     if let Some(h) = fx.hit(&ray) {
                                         if let Some(chit) = hit.clone() {
                                             if h.distance < chit.distance {
                                                 hit = Some(h);
+                                                coll = fx.collection();
                                             }
                                         } else {
                                             hit = Some(h);
+                                            coll = fx.collection();
                                         }
                                     }
                                 }
@@ -511,19 +589,38 @@ impl ModelFXEditor {
                                         if let Some(chit) = hit.clone() {
                                             if h.distance < chit.distance {
                                                 hit = Some(h);
+                                                coll = Some(fx.collection());
                                             }
                                         } else {
                                             hit = Some(h);
+                                            coll = Some(fx.collection());
                                         }
                                     }
                                 }
 
                                 if let Some(hit) = hit {
-                                    let c = dot(hit.normal, normalize(vec3f(1.0, 2.0, 3.0))) * 0.5
-                                        + 0.5;
-                                    color.x = c;
-                                    color.y = c;
-                                    color.z = c;
+                                    if let Some(coll) = coll {
+                                        let pattern = coll.get_i32_default("Pattern", 0);
+
+                                        if pattern == 0 {
+                                            let c =
+                                                dot(hit.normal, normalize(vec3f(1.0, 2.0, 3.0)))
+                                                    * 0.5
+                                                    + 0.5;
+                                            color.x = c;
+                                            color.y = c;
+                                            color.z = c;
+                                        } else if pattern == 1 {
+                                            if let Some(TheValue::PaletteIndex(index)) =
+                                                coll.get("Color #1")
+                                            {
+                                                if let Some(col) = &palette.colors[*index as usize]
+                                                {
+                                                    color = col.to_vec4f();
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
 
                                 total += color;

@@ -657,14 +657,14 @@ impl Sidebar {
         picker_canvas.set_top(toolbar_canvas);
         picker_layout
             .limiter_mut()
-            .set_max_size(vec2i(self.width, 260));
+            .set_max_size(vec2i(self.width, 240));
         //toolbar_hlayout.add_widget(Box::new(screen_add_button));
         //toolbar_hlayout.add_widget(Box::new(screen_remove_button));
 
         let w = TheColorPicker::new(TheId::named("Palette Color Picker"));
         //w.set_value(TheValue::ColorObject(color.clone(), 0.0));
         picker_layout.set_background_color(Some(ListLayoutBackground));
-        picker_layout.set_margin(vec4i(20, 20, 20, 20));
+        picker_layout.set_margin(vec4i(20, 10, 20, 10));
         picker_layout.add_widget(Box::new(w));
         picker_canvas.set_layout(picker_layout);
 
@@ -712,6 +712,14 @@ impl Sidebar {
             TheEvent::Custom(id, _) => {
                 if id.name == "Update Tiles" {
                     self.update_tiles(ui, ctx, project, server);
+                }
+            }
+            TheEvent::PaletteIndexChanged(_, index) => {
+                project.palette.current_index = *index;
+                if let Some(widget) = ui.get_widget("Palette Color Picker") {
+                    if let Some(color) = &project.palette[*index as usize] {
+                        widget.set_value(TheValue::ColorObject(color.clone(), 0.0));
+                    }
                 }
             }
             TheEvent::DialogValueOnClose(role, name, uuid, value) => {
