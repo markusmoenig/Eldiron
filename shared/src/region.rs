@@ -39,7 +39,7 @@ pub struct Region {
 
     #[serde(default)]
     #[serde(with = "vectorize")]
-    pub models: FxHashMap<(i32, i32), TheTimeline>,
+    pub models: FxHashMap<(i32, i32), ModelFX>,
 
     #[serde(default)]
     pub areas: FxHashMap<Uuid, Area>,

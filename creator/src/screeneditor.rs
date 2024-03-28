@@ -309,14 +309,14 @@ impl ScreenEditor {
                                     "Fill".to_string(),
                                     "Fills the widget with the given color.".to_string(),
                                     vec![str!("Color")],
-                                    vec![TheValue::ColorObject(TheColor::default(), 0.0)],
+                                    vec![TheValue::ColorObject(TheColor::default())],
                                     None,
                                 ),
                             );
 
                             draw.insert_atom(
                                 (2, 0),
-                                TheCodeAtom::Value(TheValue::ColorObject(TheColor::default(), 0.0)),
+                                TheCodeAtom::Value(TheValue::ColorObject(TheColor::default())),
                             );
 
                             widget.bundle.insert_grid(draw);

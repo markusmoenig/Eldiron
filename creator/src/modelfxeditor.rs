@@ -20,6 +20,8 @@ pub struct ModelFXEditor {
     pub curr_tile_id: TheId,
     pub curr_tile_pos: Vec2i,
 
+    pub modelfx: ModelFX,
+
     pub palette_indices: FxHashMap<String, Vec<u16>>,
 }
 
@@ -38,6 +40,8 @@ impl ModelFXEditor {
             curr_tile_id: TheId::empty(),
             curr_tile_pos: Vec2i::zero(),
 
+            modelfx: ModelFX::default(),
+
             palette_indices: FxHashMap::default(),
         }
     }
@@ -50,8 +54,36 @@ impl ModelFXEditor {
         let mut toolbar_canvas = TheCanvas::default();
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.limiter_mut().set_max_height(25);
-        toolbar_hlayout.set_margin(vec4i(100, 2, 5, 3));
+        toolbar_hlayout.set_margin(vec4i(10, 2, 5, 3));
 
+        let mut add_wall_button = TheTraybarButton::new(TheId::named("ModelFX Add Wall"));
+        //add_button.set_icon_name("icon_role_add".to_string());
+        add_wall_button.set_text(str!("Add Wall"));
+        add_wall_button.set_status_text("Clears the currently selected marker.");
+
+        add_wall_button.set_context_menu(Some(TheContextMenu {
+            items: vec![
+                TheContextMenuItem::new(
+                    "Wall Horizontal".to_string(),
+                    TheId::named("Wall Horizontal"),
+                ),
+                TheContextMenuItem::new("Vertical Wall".to_string(), TheId::named("Vertical Wall")),
+            ],
+            ..Default::default()
+        }));
+
+        let mut zoom = TheSlider::new(TheId::named("ModelFX Zoom"));
+        zoom.set_value(TheValue::Float(1.0));
+        zoom.set_default_value(TheValue::Float(1.0));
+        zoom.set_range(TheValue::RangeF32(0.5..=5.0));
+        zoom.set_continuous(true);
+        zoom.limiter_mut().set_max_width(120);
+
+        toolbar_hlayout.add_widget(Box::new(add_wall_button));
+        toolbar_hlayout.add_widget(Box::new(zoom));
+        toolbar_hlayout.set_reverse_index(Some(1));
+
+        /*
         let mut time_slider = TheTimeSlider::new(TheId::named("ModelFX Timeline"));
         time_slider.set_status_text("The timeline for models.");
         time_slider.limiter_mut().set_max_width(400);
@@ -70,6 +102,7 @@ impl ModelFXEditor {
         toolbar_hlayout.add_widget(Box::new(add_button));
         toolbar_hlayout.add_widget(Box::new(clear_button));
         // toolbar_hlayout.set_reverse_index(Some(1));
+        */
 
         toolbar_canvas.set_layout(toolbar_hlayout);
 
@@ -77,6 +110,7 @@ impl ModelFXEditor {
 
         // RGBA Stack
 
+        /*
         let mut stack_canvas = TheCanvas::new();
         let mut stack_layout = TheStackLayout::new(TheId::named("ModelFX Stack Layout"));
 
@@ -137,20 +171,16 @@ impl ModelFXEditor {
 
         stack_canvas.set_layout(stack_layout);
         canvas.set_left(stack_canvas);
+        */
 
-        // ModelFX Center
+        // ModelFX Settings (Right)
 
-        let mut center_canvas = TheCanvas::default();
+        let mut settings_canvas = TheCanvas::default();
 
         let mut text_layout = TheTextLayout::new(TheId::named("ModelFX Settings"));
         text_layout.set_fixed_text_width(90);
-        //text_layout.limiter_mut().set_max_width(220);
-        center_canvas.set_layout(text_layout);
-
-        let mut center_texture_canvas = TheCanvas::default();
-        let mut texture_layout = TheTextLayout::new(TheId::named("ModelFX Pattern Settings"));
-        texture_layout.limiter_mut().set_max_width(190);
-        texture_layout.set_background_color(Some(ListLayoutBackground));
+        text_layout.limiter_mut().set_max_width(220);
+        settings_canvas.set_layout(text_layout);
 
         /*
         let mut color_picker = TheColorPicker::new(TheId::named("Pattern Color 1"));
@@ -164,13 +194,10 @@ impl ModelFXEditor {
         texture_layout.add_pair(str!("Color 2"), Box::new(color_picker));
         */
 
-        center_texture_canvas.set_layout(texture_layout);
+        canvas.set_right(settings_canvas);
 
-        center_canvas.set_right(center_texture_canvas);
-        canvas.set_center(center_canvas);
-
-        // Model Preview
-
+        // ModelFX Preview (Left)
+        /*
         let mut preview_canvas = TheCanvas::default();
         let mut model_preview_render = TheRenderView::new(TheId::named("ModelFX Preview"));
         *model_preview_render.render_buffer_mut() = TheRGBABuffer::new(TheDim::sized(192, 192));
@@ -183,7 +210,13 @@ impl ModelFXEditor {
         vlayout.add_widget(Box::new(model_preview_render));
 
         preview_canvas.set_layout(vlayout);
-        canvas.set_right(preview_canvas);
+        canvas.set_left(preview_canvas);
+        */
+        // - ModelFX View
+
+        let modelfx_canvas = ModelFX::build_ui(ctx);
+
+        canvas.set_center(modelfx_canvas);
 
         //
 
@@ -202,6 +235,35 @@ impl ModelFXEditor {
         let mut redraw = false;
 
         match event {
+            TheEvent::ContextMenuSelected(id, item) => {
+                //println!("{:?}, {:?}", id, item);
+                if id.name == "ModelFX Add Wall" && self.modelfx.add(item.name.clone()) {
+                    self.modelfx.draw(ui, ctx);
+                    redraw = true;
+                }
+            }
+            TheEvent::TileEditorClicked(id, coord) => {
+                if id.name == "ModelFX RGBA Layout View" && self.modelfx.clicked(*coord, ui, ctx) {
+                    self.modelfx.draw(ui, ctx);
+                    redraw = true;
+                }
+            }
+            TheEvent::TileEditorDragged(id, coord) => {
+                if id.name == "ModelFX RGBA Layout View" && self.modelfx.dragged(*coord, ui, ctx) {
+                    self.modelfx.draw(ui, ctx);
+                    redraw = true;
+                }
+            }
+            TheEvent::TileEditorUp(id) => {
+                if id.name == "ModelFX RGBA Layout View" {
+                    self.modelfx.released(ui, ctx);
+                }
+            }
+            TheEvent::TileEditorHoverChanged(id, coord) => {
+                if id.name == "ModelFX RGBA Layout View" && self.modelfx.hovered(*coord, ui, ctx) {
+                    redraw = true;
+                }
+            }
             TheEvent::ColorButtonClicked(id) => {
                 // When a color button is clicked, copy over the current palette index.
                 if id.name.starts_with(":MODELFX:") {
@@ -224,7 +286,7 @@ impl ModelFXEditor {
                             }
 
                             if let Some(widget) = ui.get_widget(&id.name) {
-                                widget.set_value(TheValue::ColorObject(color, 0.0));
+                                widget.set_value(TheValue::ColorObject(color));
                             }
 
                             if let Some(old_index) = old_index {
@@ -252,7 +314,13 @@ impl ModelFXEditor {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "Palette Color Picker" {
+                if id.name == "ModelFX Zoom" {
+                    if let TheValue::Float(value) = value {
+                        self.modelfx.zoom = *value;
+                        self.modelfx.draw(ui, ctx);
+                        redraw = true;
+                    }
+                } else if id.name == "Palette Color Picker" {
                     let index = project.palette.current_index;
                     let mut widget_ids = Vec::new();
                     for (id, indices) in &self.palette_indices {
@@ -262,8 +330,8 @@ impl ModelFXEditor {
                     }
                     for widget_id in widget_ids {
                         if let Some(widget) = ui.get_widget(&widget_id) {
-                            if let TheValue::ColorObject(color, _) = value {
-                                widget.set_value(TheValue::ColorObject(color.clone(), 0.0));
+                            if let TheValue::ColorObject(color) = value {
+                                widget.set_value(TheValue::ColorObject(color.clone()));
                             }
                         }
                     }
@@ -387,21 +455,21 @@ impl ModelFXEditor {
                         let mut meta: Option<ModelFXMetaData> = None;
                         let mut unsupported: Vec<String> = vec![];
 
-                        if self.mode == ModelFXMode::Floor {
-                            let fx = ModelFXFloor::new_fx(&fx_name, c);
-                            collection = Some(fx.collection_cloned());
-                            if let Some(m) = fx.meta_data() {
-                                meta = Some(m.clone());
-                            }
-                        } else if self.mode == ModelFXMode::Wall {
-                            let fx = ModelFXWall::new_fx(&fx_name, c);
-                            let cc = fx.collection_cloned();
-                            unsupported = ModelFXWall::unsupported(&cc);
-                            collection = Some(cc);
-                            if let Some(m) = fx.meta_data() {
-                                meta = Some(m.clone());
-                            }
-                        }
+                        // if self.mode == ModelFXMode::Floor {
+                        //     let fx = ModelFXFloor::new_fx(&fx_name, c);
+                        //     collection = Some(fx.collection_cloned());
+                        //     if let Some(m) = fx.meta_data() {
+                        //         meta = Some(m.clone());
+                        //     }
+                        // } else if self.mode == ModelFXMode::Wall {
+                        //     let fx = ModelFXWall::new_fx(&fx_name, c);
+                        //     let cc = fx.collection_cloned();
+                        //     unsupported = ModelFXWall::unsupported(&cc);
+                        //     collection = Some(cc);
+                        //     if let Some(m) = fx.meta_data() {
+                        //         meta = Some(m.clone());
+                        //     }
+                        // }
 
                         if let Some(collection) = collection {
                             if let Some(meta) = meta {
@@ -524,8 +592,8 @@ impl ModelFXEditor {
             }
         }
 
-        let floor_fx = ModelFXFloor::parse_timeline(&time, &self.curr_timeline);
-        let wall_fx = ModelFXWall::parse_timeline(&time, &self.curr_timeline);
+        //let floor_fx = ModelFXFloor::parse_timeline(&time, &self.curr_timeline);
+        //let wall_fx = ModelFXWall::parse_timeline(&time, &self.curr_timeline);
 
         if let Some(render) = ui.get_render_view("ModelFX Preview") {
             let buffer = render.render_buffer_mut();
@@ -570,6 +638,7 @@ impl ModelFXEditor {
                                 let mut hit: Option<Hit> = None;
                                 let mut coll: Option<&TheCollection> = None;
 
+                                /*
                                 for fx in floor_fx.iter() {
                                     if let Some(h) = fx.hit(&ray) {
                                         if let Some(chit) = hit.clone() {
@@ -596,7 +665,7 @@ impl ModelFXEditor {
                                             coll = Some(fx.collection());
                                         }
                                     }
-                                }
+                                    }*/
 
                                 if let Some(hit) = hit {
                                     if let Some(coll) = coll {
@@ -707,7 +776,7 @@ impl ModelFXEditor {
 
                     let mut rgba = TheRGBABuffer::new(TheDim::sized(grid, grid));
 
-                    ModelFXWall::render_preview(&mut rgba, vec![fx.clone()]);
+                    //ModelFXWall::render_preview(&mut rgba, vec![fx.clone()]);
 
                     buffer.copy_into(x * grid, y * grid, &rgba);
                     //buffer.copy_into(x * grid, y * grid, &tile.buffer[0].scaled(grid, grid));

@@ -55,12 +55,6 @@ impl Renderer {
             );
         }
 
-        let mut models = FxHashMap::default();
-        for (pos, timeline) in &self.models {
-            let timeline = ModelFXWall::parse_timeline(&settings.time, timeline);
-            models.insert(*pos, timeline);
-        }
-
         let mut max_render_distance = 10;
         if let Some(v) = region.regionfx.get(
             str!("Distance / Fog"),
@@ -153,7 +147,6 @@ impl Renderer {
                         update,
                         settings,
                         camera_type,
-                        &models,
                         &level,
                         &saturation,
                         max_render_distance,
@@ -162,7 +155,7 @@ impl Renderer {
             });
 
         let _stop = self.get_time();
-        //println!("render time {:?}", _stop - start);
+        println!("render time {:?}", _stop - _start);
     }
 
     #[inline(always)]
@@ -174,7 +167,6 @@ impl Renderer {
         update: &RegionUpdate,
         settings: &RegionDrawSettings,
         camera_type: CameraType,
-        models: &FxHashMap<(i32, i32), Vec<ModelFXWall>>,
         level: &Level,
         saturation: &Option<f32>,
         max_render_distance: i32,
@@ -210,7 +202,7 @@ impl Renderer {
                 break;
             }
 
-            if let Some(models) = models.get(&(key.x, key.z)) {
+            if let Some(model) = region.models.get(&(key.x, key.z)) {
                 let mut lro = ray.at(dist);
                 lro -= Vec3f::from(key);
                 //lro *= tile.size as f32;
@@ -219,7 +211,7 @@ impl Renderer {
                 let mut r = ray.clone();
                 r.o = lro;
 
-                if let Some(hit_struct) = ModelFXWall::hit_array(&r, models) {
+                if let Some(hit_struct) = model.hit(&r) {
                     if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                         if let Some(data) = self.textures.get(tile) {
                             let index = settings.anim_counter % data.buffer.len();
@@ -649,7 +641,7 @@ impl Renderer {
 
     pub fn set_region(&mut self, region: &Region) {
         self.tiles.clear();
-        self.models = region.models.clone();
+        //self.models = region.models.clone();
 
         for (pos, tile) in &region.tiles {
             for i in 0..tile.layers.len() {
@@ -694,7 +686,6 @@ impl Renderer {
         // Get the camera settings
 
         let mut camera_type = CameraType::TiltedIso;
-        let mut top_down_camera_mode = CameraMode::Orthogonal;
         let mut first_person_height = 0.5;
         let mut top_down_height = 4.0;
         let mut top_down_x_offset = -5.0;
@@ -702,7 +693,7 @@ impl Renderer {
         let mut first_person_fov = 70.0;
         let mut top_down_fov = 55.0;
         let tilted_iso_height = 3.0;
-        let mut tilted_iso_fov = 75.0;
+        let mut tilted_iso_fov = 74.0;
 
         if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
             str!("Camera"),
@@ -712,19 +703,8 @@ impl Renderer {
         ) {
             if value == 0 {
                 camera_type = CameraType::FirstPerson;
-            } else if value == 2 {
-                camera_type = CameraType::TiltedIso;
-            }
-        }
-
-        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
-            str!("Camera"),
-            str!("Top Down Camera"),
-            &settings.time,
-            TheInterpolation::Switch,
-        ) {
-            if value == 0 {
-                top_down_camera_mode = CameraMode::Pinhole;
+            } else if value == 1 {
+                camera_type = CameraType::TopDown;
             }
         }
 
@@ -818,7 +798,7 @@ impl Renderer {
             ro.x += top_down_x_offset;
             ro.z += top_down_z_offset;
             fov = top_down_fov;
-            camera_mode = top_down_camera_mode;
+            camera_mode = CameraMode::Orthogonal;
         } else if camera_type == CameraType::FirstPerson {
             // First person
             ro.y = first_person_height;
@@ -830,7 +810,7 @@ impl Renderer {
             ro.y = tilted_iso_height;
             ro.z += 1.0;
             fov = tilted_iso_fov;
-            camera_mode = top_down_camera_mode;
+            camera_mode = CameraMode::Orthogonal;
         }
 
         (ro, rd, fov, camera_mode, camera_type)

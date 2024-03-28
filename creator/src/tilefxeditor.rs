@@ -275,7 +275,7 @@ impl TileFXEditor {
                             if let Some(vlayout) = ui.get_vlayout("TileFX Color Settings") {
                                 vlayout.clear();
                                 for (name, value) in &collection.keys {
-                                    if let TheValue::ColorObject(color, _) = value {
+                                    if let TheValue::ColorObject(color) = value {
                                         let mut color_picker = TheColorPicker::new(TheId::named(
                                             (":TILEFX: ".to_owned() + name).as_str(),
                                         ));

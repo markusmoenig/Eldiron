@@ -155,7 +155,7 @@ pub fn set_client_externals() {
         "Fill".to_string(),
         "Fills the widget rectangle with the given color.".to_string(),
         vec![str!("Color")],
-        vec![TheValue::ColorObject(TheColor::default(), 0.0)],
+        vec![TheValue::ColorObject(TheColor::default())],
         None,
     ));
 

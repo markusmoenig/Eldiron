@@ -194,11 +194,11 @@ impl Panels {
                         set_to.set_widget(w);
                         set_already = true;
                     }
-                    if let TheCodeAtom::Value(TheValue::ColorObject(color, _)) = &atom {
+                    if let TheCodeAtom::Value(TheValue::ColorObject(color)) = &atom {
                         let mut vlayout = TheVLayout::new(TheId::empty());
 
                         let mut w = TheColorPicker::new(TheId::named("Atom Color Picker"));
-                        w.set_value(TheValue::ColorObject(color.clone(), 0.0));
+                        w.set_value(TheValue::ColorObject(color.clone()));
                         vlayout.set_background_color(Some(ListLayoutBackground));
                         vlayout.set_margin(vec4i(20, 20, 20, 20));
                         vlayout.add_widget(Box::new(w));

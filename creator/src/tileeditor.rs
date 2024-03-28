@@ -162,7 +162,7 @@ impl TileEditor {
         let mut zoom = TheSlider::new(TheId::named("Region Editor Zoom"));
         zoom.set_value(TheValue::Float(1.0));
         zoom.set_default_value(TheValue::Float(1.0));
-        zoom.set_range(TheValue::RangeF32(0.5..=5.0));
+        zoom.set_range(TheValue::RangeF32(1.0..=5.0));
         zoom.set_continuous(true);
         zoom.limiter_mut().set_max_width(120);
 
@@ -861,8 +861,8 @@ impl TileEditor {
 
         if self.editor_mode == EditorMode::Model {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                let timeline = MODELFXEDITOR.lock().unwrap().curr_timeline.clone();
-                region.models.insert((coord.x, coord.y), timeline);
+                //let timeline = MODELFXEDITOR.lock().unwrap().curr_timeline.clone();
+                //region.models.insert((coord.x, coord.y), timeline);
                 RENDERER.lock().unwrap().set_region(region);
             }
         } else if self.editor_mode == EditorMode::Select {
@@ -920,7 +920,7 @@ impl TileEditor {
                         );
                     }
                 } else {
-                    let mut area_id = None;
+                    let mut area_id: Option<Uuid> = None;
 
                     // Check for area at the given position.
                     for area in region.areas.values() {
@@ -947,6 +947,8 @@ impl TileEditor {
                             if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
                                 tile.tilefx = None;
                             }
+                        } else if region.models.contains_key(&(coord.x, coord.y)) {
+                            region.models.remove(&(coord.x, coord.y));
                         } else if region.tiles.contains_key(&(coord.x, coord.y)) {
                             region.tiles.remove(&(coord.x, coord.y));
                         }

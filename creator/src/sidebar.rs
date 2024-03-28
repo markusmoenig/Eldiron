@@ -718,7 +718,7 @@ impl Sidebar {
                 project.palette.current_index = *index;
                 if let Some(widget) = ui.get_widget("Palette Color Picker") {
                     if let Some(color) = &project.palette[*index as usize] {
-                        widget.set_value(TheValue::ColorObject(color.clone(), 0.0));
+                        widget.set_value(TheValue::ColorObject(color.clone()));
                     }
                 }
             }

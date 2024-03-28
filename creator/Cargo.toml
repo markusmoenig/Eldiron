@@ -24,6 +24,7 @@ vectorize = "0.2.0"
 rust-embed = { version = "8", default-features = true, features = [
     "include-exclude",
 ] }
+rayon = "1"
 png = "0.17"
 open = "5.0.1"
 fontdue = "0.8.0"

@@ -32,11 +32,6 @@ impl RegionFX {
                     coll.set("First Person Height", TheValue::FloatRange(0.5, 0.0..=1.0));
                     coll.set("First Person FoV", TheValue::FloatRange(70.0, 1.0..=140.0));
 
-                    coll.set(
-                        "Top Down Camera",
-                        TheValue::TextList(1, vec![str!("Pinhole"), str!("Orthogonal")]),
-                    );
-
                     coll.set("Top Down Height", TheValue::FloatRange(4.0, 0.0..=20.0));
                     coll.set("Top Down X Offset", TheValue::FloatRange(-5.00, -5.0..=5.0));
                     coll.set("Top Down Z Offset", TheValue::FloatRange(5.00, -5.0..=5.0));
@@ -48,7 +43,7 @@ impl RegionFX {
                         "Tilted Iso Alignment",
                         TheValue::TextList(0, vec![str!("Right"), str!("Left")]),
                     );
-                    coll.set("Tilted Iso FoV", TheValue::FloatRange(75.0, 0.0..=80.0));
+                    coll.set("Tilted Iso FoV", TheValue::FloatRange(74.0, 0.0..=80.0));
                 }
                 let mut meta = RegionFXMetaData::new();
                 meta.set_description("Emission Strength", str!("The strength of the light."));
