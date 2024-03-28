@@ -518,7 +518,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
- "theframework 0.1.20 (git+https://github.com/markusmoenig/TheFramework)",
+ "theframework",
  "vectorize",
 ]
 
@@ -2508,7 +2508,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
- "theframework 0.1.20",
+ "theframework",
  "vectorize",
 ]
 
@@ -2593,7 +2593,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
- "theframework 0.1.20",
+ "theframework",
  "vectorize",
 ]
 
@@ -2739,38 +2739,6 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
-dependencies = [
- "console_error_panic_hook",
- "console_log",
- "env_logger",
- "flate2",
- "fontdue",
- "futures",
- "indexmap 2.0.2",
- "log",
- "maths-rs",
- "pixels",
- "png",
- "rand",
- "rayon",
- "rfd",
- "rust-embed",
- "rustc-hash",
- "serde",
- "serde_json",
- "uuid",
- "vectorize",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "winit",
- "winit_input_helper",
-]
-
-[[package]]
-name = "theframework"
-version = "0.1.20"
-source = "git+https://github.com/markusmoenig/TheFramework#f21ceb6d889f336bb2c2894ebd6aa61927ebc0c8"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
