@@ -35,20 +35,27 @@ impl ModelFXEditor {
         let mut toolbar_canvas = TheCanvas::default();
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.limiter_mut().set_max_height(25);
-        toolbar_hlayout.set_margin(vec4i(10, 2, 5, 3));
+        toolbar_hlayout.set_margin(vec4i(70, 2, 5, 3));
 
-        let mut add_wall_button = TheTraybarButton::new(TheId::named("ModelFX Add Wall"));
+        let mut floors_button = TheTraybarButton::new(TheId::named("ModelFX Add Floor"));
         //add_button.set_icon_name("icon_role_add".to_string());
-        add_wall_button.set_text(str!("Add Wall"));
-        add_wall_button.set_status_text("Clears the currently selected marker.");
+        floors_button.set_text(str!("Floor & Furniture"));
+        floors_button.set_status_text("Nodes which model floors and furniture like tables.");
 
-        add_wall_button.set_context_menu(Some(TheContextMenu {
+        let mut walls_button = TheTraybarButton::new(TheId::named("ModelFX Add Wall"));
+        //add_button.set_icon_name("icon_role_add".to_string());
+        walls_button.set_text(str!("Wall & Components"));
+        walls_button.set_status_text(
+            "Nodes which model walls and components like windows, doors and decoration.",
+        );
+
+        walls_button.set_context_menu(Some(TheContextMenu {
             items: vec![
                 TheContextMenuItem::new(
                     "Wall Horizontal".to_string(),
                     TheId::named("Wall Horizontal"),
                 ),
-                TheContextMenuItem::new("Vertical Wall".to_string(), TheId::named("Vertical Wall")),
+                TheContextMenuItem::new("Wall Vertical".to_string(), TheId::named("Wall Vertical")),
             ],
             ..Default::default()
         }));
@@ -60,7 +67,8 @@ impl ModelFXEditor {
         zoom.set_continuous(true);
         zoom.limiter_mut().set_max_width(120);
 
-        toolbar_hlayout.add_widget(Box::new(add_wall_button));
+        toolbar_hlayout.add_widget(Box::new(floors_button));
+        toolbar_hlayout.add_widget(Box::new(walls_button));
         toolbar_hlayout.add_widget(Box::new(zoom));
         toolbar_hlayout.set_reverse_index(Some(1));
 

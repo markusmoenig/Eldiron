@@ -314,23 +314,23 @@ impl ModelFX {
                                 camera_offset,
                             );
 
-                            let mut hit: Option<Hit> = None;
+                            let max_t = 3.0 * 1.732;
+                            let mut t = 0.0;
 
-                            for fx in self.nodes.iter() {
-                                if let Some(h) = fx.hit(&ray) {
-                                    if let Some(chit) = hit.clone() {
-                                        if h.distance < chit.distance {
-                                            hit = Some(h);
-                                        }
-                                    } else {
-                                        hit = Some(h);
-                                    }
+                            let mut p = ray.at(t);
+
+                            while t < max_t {
+                                let d = self.distance(p);
+                                if d < 0.001 {
+                                    break;
                                 }
+                                t += d;
+                                p = ray.at(t);
                             }
 
-                            if let Some(hit) = hit {
-                                let c =
-                                    dot(hit.normal, normalize(vec3f(1.0, 2.0, 3.0))) * 0.5 + 0.5;
+                            if t < max_t {
+                                let normal = self.normal(p);
+                                let c = dot(normal, normalize(vec3f(1.0, 2.0, 3.0))) * 0.5 + 0.5;
                                 color.x = c;
                                 color.y = c;
                                 color.z = c;
@@ -391,8 +391,40 @@ impl ModelFX {
                                 camera_offset,
                             );
 
-                            let hit: Option<Hit> = node.hit(&ray);
+                            let max_t = 3.0 * 1.732;
+                            let mut t = 0.0;
 
+                            let mut p = ray.at(t);
+
+                            while t < max_t {
+                                let d = node.distance(p);
+                                if d < 0.001 {
+                                    break;
+                                }
+                                t += d;
+                                p = ray.at(t);
+                            }
+
+                            if t < max_t {
+                                let normal = self.normal_node(p, node);
+
+                                let nx = normal.x.abs();
+                                let ny = normal.y.abs();
+                                let nz = normal.z.abs();
+
+                                if nx > ny && nx > nz {
+                                    // X-face
+                                    color = TheColor::from_u8_array(RED).to_vec4f();
+                                } else if ny > nx && ny > nz {
+                                    // Y-face
+                                    color = TheColor::from_u8_array(YELLOW).to_vec4f();
+                                } else {
+                                    // Z-face
+                                    color = TheColor::from_u8_array(BLUE).to_vec4f();
+                                }
+                            }
+
+                            /*
                             if let Some(hit) = hit {
                                 if hit.face == HitFace::XFace {
                                     color = TheColor::from_u8_array(RED).to_vec4f();
@@ -404,6 +436,7 @@ impl ModelFX {
                                     color = TheColor::from_u8_array(BLUE).to_vec4f();
                                 }
                             }
+                            */
 
                             total += color;
                         }
@@ -418,5 +451,51 @@ impl ModelFX {
                     pixel.copy_from_slice(&TheColor::from_vec4f(total).to_u8_array());
                 }
             });
+    }
+
+    /// Get the distance at the given position for all nodes.
+    #[inline(always)]
+    pub fn distance(&self, p: Vec3f) -> f32 {
+        let mut d = f32::MAX;
+        for fx in self.nodes.iter() {
+            d = d.min(fx.distance(p));
+        }
+        d
+    }
+
+    pub fn normal(&self, p: Vec3f) -> Vec3f {
+        let scale = 0.5773 * 0.0005;
+        let e = vec2f(1.0 * scale, -1.0 * scale);
+
+        // IQs normal function
+
+        let e1 = vec3f(e.x, e.y, e.y);
+        let e2 = vec3f(e.y, e.y, e.x);
+        let e3 = vec3f(e.y, e.x, e.y);
+        let e4 = vec3f(e.x, e.x, e.x);
+
+        let n = e1 * self.distance(p + e1)
+            + e2 * self.distance(p + e2)
+            + e3 * self.distance(p + e3)
+            + e4 * self.distance(p + e4);
+        normalize(n)
+    }
+
+    pub fn normal_node(&self, p: Vec3f, node: &ModelFXNode) -> Vec3f {
+        let scale = 0.5773 * 0.0005;
+        let e = vec2f(1.0 * scale, -1.0 * scale);
+
+        // IQs normal function
+
+        let e1 = vec3f(e.x, e.y, e.y);
+        let e2 = vec3f(e.y, e.y, e.x);
+        let e3 = vec3f(e.y, e.x, e.y);
+        let e4 = vec3f(e.x, e.x, e.x);
+
+        let n = e1 * node.distance(p + e1)
+            + e2 * node.distance(p + e2)
+            + e3 * node.distance(p + e3)
+            + e4 * node.distance(p + e4);
+        normalize(n)
     }
 }

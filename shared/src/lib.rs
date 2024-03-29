@@ -15,6 +15,7 @@ pub mod regionfx;
 pub mod renderer;
 pub mod renderer_utils;
 pub mod screen;
+pub mod sdf3d;
 pub mod server;
 pub mod tilearea;
 pub mod tiledrawer;
@@ -43,6 +44,7 @@ pub mod prelude {
     pub use crate::renderer::Renderer;
     //pub use crate::renderer_utils::*;
     pub use crate::screen::*;
+    pub use crate::sdf3d::*;
     pub use crate::server::context::ServerContext;
     pub use crate::server::{Server, ServerState};
     pub use crate::tilearea::TileArea;
