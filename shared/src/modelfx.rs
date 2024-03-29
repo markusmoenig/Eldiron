@@ -2,10 +2,25 @@ use crate::prelude::*;
 use rayon::prelude::*;
 use theframework::prelude::*;
 
-const RED: RGBA = [209, 42, 42, 255];
+//const RED: RGBA = [209, 42, 42, 255];
 // const GREEN: RGBA = [10, 245, 5, 255];
-const YELLOW: RGBA = [238, 251, 28, 255];
-const BLUE: RGBA = [44, 52, 214, 255];
+//const YELLOW: RGBA = [238, 251, 28, 255];
+//const BLUE: RGBA = [44, 52, 214, 255];
+const RED: RGBA = [212, 128, 77, 255];
+const YELLOW: RGBA = [224, 200, 114, 255];
+//const PALE_YELLOW: RGBA = [217, 172, 139, 255];
+const BLUE: RGBA = [36, 61, 92, 255];
+
+// const COLOR1: [u8; 4] = [217, 172, 139, 255];
+// const COLOR2: [u8; 4] = [62, 105, 88, 255];
+// const COLOR3: [u8; 4] = [177, 165, 141, 255];
+// const COLOR4: [u8; 4] = [98, 76, 60, 255];
+// const COLOR5: [u8; 4] = [36, 61, 92, 255];
+// const COLOR6: [u8; 4] = [224, 200, 114, 255];
+// const COLOR7: [u8; 4] = [176, 58, 72, 255];
+// const COLOR8: [u8; 4] = [212, 128, 77, 255];
+// const COLOR9: [u8; 4] = [92, 139, 147, 255];
+// const COLOR10: [u8; 4] = [227, 207, 180, 255];
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ModelFXNodeAction {
@@ -61,6 +76,7 @@ impl ModelFX {
         if let Some(mut node) = ModelFXNode::new_node(&fx, None) {
             node.collection_mut()
                 .set("_pos", TheValue::Int2(vec2i(10, 10)));
+            self.selected_node = Some(self.nodes.len());
             self.nodes.push(node);
             return true;
         }
@@ -146,9 +162,9 @@ impl ModelFX {
                         );
 
                         let border_color = if Some(i) == self.selected_node {
-                            [255, 255, 255, 255]
+                            [218, 218, 218, 255]
                         } else {
-                            [28, 28, 28, 255]
+                            [65, 65, 65, 255]
                         };
 
                         ctx.draw.rounded_rect_with_border(

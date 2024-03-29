@@ -1,5 +1,5 @@
 use crate::editor::{
-    CODEEDITOR, MODELFXEDITOR, RENDERER, RENDERMODE, SIDEBARMODE, TILEDRAWER, TILEFXEDITOR,
+    CODEEDITOR, /*MODELFXEDITOR,*/ RENDERER, RENDERMODE, SIDEBARMODE, TILEDRAWER, TILEFXEDITOR,
 };
 use crate::prelude::*;
 
@@ -13,8 +13,8 @@ pub enum EditorDrawMode {
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum EditorMode {
     Draw,
-    Pick,
     Model,
+    Pick,
     Erase,
     Select,
     Render,
@@ -132,7 +132,7 @@ impl TileEditor {
         vlayout.add_widget(Box::new(cc_icon));
 
         let mut spacer = TheIconView::new(TheId::empty());
-        spacer.limiter_mut().set_max_height(5);
+        spacer.limiter_mut().set_max_height(2);
         vlayout.add_widget(Box::new(spacer));
 
         let mut text = TheText::new(TheId::named("Cursor Position"));
@@ -189,14 +189,14 @@ impl TileEditor {
             "draw".to_string(),
         );
         gb.add_text_status_icon(
-            "Pick".to_string(),
-            "Pick content in the region.".to_string(),
-            "pick".to_string(),
-        );
-        gb.add_text_status_icon(
             "Model".to_string(),
             "Model the region.".to_string(),
             "cube".to_string(),
+        );
+        gb.add_text_status_icon(
+            "Pick".to_string(),
+            "Pick content in the region.".to_string(),
+            "pick".to_string(),
         );
         gb.add_text_status_icon(
             "Erase".to_string(),
