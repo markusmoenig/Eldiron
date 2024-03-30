@@ -63,7 +63,7 @@ impl ModelFXEditor {
         let mut zoom = TheSlider::new(TheId::named("ModelFX Zoom"));
         zoom.set_value(TheValue::Float(1.0));
         zoom.set_default_value(TheValue::Float(1.0));
-        zoom.set_range(TheValue::RangeF32(0.5..=5.0));
+        zoom.set_range(TheValue::RangeF32(1.0..=5.0));
         zoom.set_continuous(true);
         zoom.limiter_mut().set_max_width(120);
 
@@ -153,8 +153,8 @@ impl ModelFXEditor {
                 }
             }
             TheEvent::TileEditorUp(id) => {
-                if id.name == "ModelFX RGBA Layout View" {
-                    self.modelfx.released(ui, ctx);
+                if id.name == "ModelFX RGBA Layout View" && self.modelfx.released(ui, ctx) {
+                    redraw = true;
                 }
             }
             TheEvent::TileEditorHoverChanged(id, coord) => {

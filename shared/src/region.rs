@@ -118,6 +118,35 @@ impl Region {
         }
     }
 
+    /// Calculate the min / max positions of the tiles.
+    pub fn min_max(&self) -> Option<(Vec2i, Vec2i)> {
+        if self.tiles.is_empty() {
+            return None;
+        }
+
+        let mut min_x = i32::MAX;
+        let mut max_x = i32::MIN;
+        let mut min_y = i32::MAX;
+        let mut max_y = i32::MIN;
+
+        for &(x, y) in self.tiles.keys() {
+            if x < min_x {
+                min_x = x;
+            }
+            if x > max_x {
+                max_x = x;
+            }
+            if y < min_y {
+                min_y = y;
+            }
+            if y > max_y {
+                max_y = y;
+            }
+        }
+
+        Some((Vec2i::new(min_x, min_y), Vec2i::new(max_x, max_y)))
+    }
+
     /// Set the tile of the given position and role.
     pub fn set_tile(&mut self, pos: (i32, i32), role: Layer2DRole, tile: Option<Uuid>) {
         if role == Layer2DRole::FX {

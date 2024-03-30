@@ -2,30 +2,11 @@ use crate::prelude::*;
 use rayon::prelude::*;
 use theframework::prelude::*;
 
-//const RED: RGBA = [209, 42, 42, 255];
-// const GREEN: RGBA = [10, 245, 5, 255];
-//const YELLOW: RGBA = [238, 251, 28, 255];
-//const BLUE: RGBA = [44, 52, 214, 255];
-const RED: RGBA = [212, 128, 77, 255];
-const YELLOW: RGBA = [224, 200, 114, 255];
-//const PALE_YELLOW: RGBA = [217, 172, 139, 255];
-const BLUE: RGBA = [36, 61, 92, 255];
-
-// const COLOR1: [u8; 4] = [217, 172, 139, 255];
-// const COLOR2: [u8; 4] = [62, 105, 88, 255];
-// const COLOR3: [u8; 4] = [177, 165, 141, 255];
-// const COLOR4: [u8; 4] = [98, 76, 60, 255];
-// const COLOR5: [u8; 4] = [36, 61, 92, 255];
-// const COLOR6: [u8; 4] = [224, 200, 114, 255];
-// const COLOR7: [u8; 4] = [176, 58, 72, 255];
-// const COLOR8: [u8; 4] = [212, 128, 77, 255];
-// const COLOR9: [u8; 4] = [92, 139, 147, 255];
-// const COLOR10: [u8; 4] = [227, 207, 180, 255];
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ModelFXNodeAction {
     None,
     DragNode,
+    ConnectingTerminal(Vec3i),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -34,8 +15,13 @@ pub struct ModelFX {
 
     pub nodes: Vec<ModelFXNode>,
 
+    // Source node index, source terminal, dest node index, dest terminal
+    pub connections: Vec<(u16, u8, u16, u8)>,
+
     #[serde(skip)]
     pub node_rects: Vec<(usize, usize, usize, usize)>,
+    #[serde(skip)]
+    pub terminal_rects: Vec<(Vec3i, (usize, usize, usize, usize))>,
     pub zoom: f32,
 
     pub selected_node: Option<usize>,
@@ -58,7 +44,10 @@ impl ModelFX {
             action: ModelFXNodeAction::None,
 
             nodes: vec![],
+            connections: vec![],
+
             node_rects: vec![],
+            terminal_rects: vec![],
             zoom: 1.0,
 
             selected_node: None,
@@ -81,6 +70,34 @@ impl ModelFX {
             return true;
         }
         false
+    }
+
+    /// Deletes the selected node and deletes / adjusts connections involving the node.
+    pub fn delete(&mut self) {
+        if let Some(deleted_node_index) = self.selected_node {
+            self.nodes.remove(deleted_node_index);
+
+            // Filter out connections involving the deleted node and adjust indices for others
+            self.connections
+                .retain_mut(|(src_node_idx, _, dest_node_idx, _)| {
+                    let src_index = *src_node_idx as usize;
+                    let dest_index = *dest_node_idx as usize;
+
+                    if src_index == deleted_node_index || dest_index == deleted_node_index {
+                        // Connection involves the deleted node, so remove it
+                        false
+                    } else {
+                        // Adjust indices for remaining connections
+                        if src_index > deleted_node_index {
+                            *src_node_idx -= 1;
+                        }
+                        if dest_index > deleted_node_index {
+                            *dest_node_idx -= 1;
+                        }
+                        true
+                    }
+                });
+        }
     }
 
     pub fn build_ui(_ctx: &mut TheContext) -> TheCanvas {
@@ -131,6 +148,7 @@ impl ModelFX {
         let mut width = (max_x - min_x).max(20);
         let mut height = (max_y - min_y).max(20);
         self.node_rects.clear();
+        self.terminal_rects.clear();
 
         if let Some(node_layout) = ui.get_rgba_layout("ModelFX RGBA Layout") {
             if let Some(node_view) = node_layout.rgba_view_mut().as_rgba_view() {
@@ -149,6 +167,8 @@ impl ModelFX {
                         &preview_buffer,
                     )
                 }
+
+                let scaled = |s: usize| -> usize { (s as f32 * zoom) as usize };
 
                 for (i, node) in self.nodes.iter().enumerate() {
                     if let Some(TheValue::Int2(v)) = node.collection().get("_pos") {
@@ -179,7 +199,7 @@ impl ModelFX {
                                 5.0 * self.zoom,
                             ),
                             &border_color,
-                            1.5,
+                            1.5 * zoom,
                         );
 
                         let mut preview_buffer = TheRGBABuffer::new(TheDim::sized(
@@ -201,8 +221,43 @@ impl ModelFX {
                             width as usize,
                         );
 
+                        // Output Terminals
+
+                        let terminals = node.output_terminals();
+                        let terminal_size = scaled(10);
+                        let trf = scaled(2) as f32;
+                        for (j, terminal) in terminals.iter().enumerate() {
+                            let terminal_color = terminal.color.color().to_u8_array();
+                            let terminal_x = rect.0 + rect.2 - terminal_size / 2 - scaled(1);
+                            let terminal_y = rect.1 + scaled(8) + scaled(15) * j;
+                            let terminal_rect =
+                                (terminal_x, terminal_y, terminal_size, terminal_size);
+                            ctx.draw.rounded_rect_with_border(
+                                buffer.pixels_mut(),
+                                &terminal_rect,
+                                width as usize,
+                                &[128, 128, 128, 255],
+                                &(trf, trf, trf, trf),
+                                &terminal_color,
+                                2.0 * zoom,
+                            );
+
+                            self.terminal_rects
+                                .push((vec3i(i as i32, j as i32, 1), terminal_rect));
+                        }
+
                         self.node_rects.push(rect);
                     }
+                }
+
+                if let ModelFXNodeAction::ConnectingTerminal(_) = self.action {
+                    buffer.draw_line(
+                        self.drag_start.x,
+                        self.drag_start.y,
+                        self.drag_offset.x,
+                        self.drag_offset.y,
+                        WHITE,
+                    )
                 }
 
                 node_view.set_buffer(buffer);
@@ -213,7 +268,11 @@ impl ModelFX {
 
     pub fn clicked(&mut self, coord: Vec2i, _ui: &mut TheUI, _ctx: &mut TheContext) -> bool {
         let mut redraw = false;
-        if let Some(index) = self.get_node_at(coord) {
+        if let Some(terminal) = self.get_terminal_at(coord) {
+            self.drag_start = coord;
+            self.action = ModelFXNodeAction::ConnectingTerminal(terminal);
+            redraw = true;
+        } else if let Some(index) = self.get_node_at(coord) {
             self.drag_start = coord;
             self.action = ModelFXNodeAction::DragNode;
             if Some(index) != self.selected_node {
@@ -225,7 +284,10 @@ impl ModelFX {
     }
     pub fn dragged(&mut self, coord: Vec2i, _ui: &mut TheUI, _ctx: &mut TheContext) -> bool {
         let mut redraw = false;
-        if self.action == ModelFXNodeAction::DragNode {
+        if let ModelFXNodeAction::ConnectingTerminal(_) = self.action {
+            self.drag_offset = coord;
+            redraw = true;
+        } else if self.action == ModelFXNodeAction::DragNode {
             if let Some(index) = self.selected_node {
                 let collection = self.nodes[index].collection_mut();
                 if let Some(TheValue::Int2(value)) = collection.get("_pos") {
@@ -242,7 +304,36 @@ impl ModelFX {
         }
         redraw
     }
-    pub fn released(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext) {}
+    pub fn released(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext) -> bool {
+        let mut redraw = false;
+        if let ModelFXNodeAction::ConnectingTerminal(source) = self.action {
+            if let Some(dest) = self.get_terminal_at(self.drag_offset) {
+                if source.x != dest.x && source.z != dest.z {
+                    // Make sure output terminal is always listed first
+                    if source.z == 0 {
+                        // Dest is output terminal
+                        self.connections.push((
+                            dest.x as u16,
+                            dest.y as u8,
+                            source.x as u16,
+                            source.y as u8,
+                        ));
+                    } else {
+                        // Source it output terminal
+                        self.connections.push((
+                            source.x as u16,
+                            source.y as u8,
+                            dest.x as u16,
+                            dest.y as u8,
+                        ));
+                    }
+                }
+            }
+            self.action = ModelFXNodeAction::None;
+            redraw = true;
+        }
+        redraw
+    }
     pub fn hovered(&mut self, coord: Vec2i, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
         if let Some(node_layout) = ui.get_rgba_layout("ModelFX RGBA Layout") {
             if let Some(node_view) = node_layout.rgba_view_mut().as_rgba_view() {
@@ -269,6 +360,20 @@ impl ModelFX {
                 && coord.y <= rect.1 as i32 + rect.3 as i32
             {
                 return Some(i);
+            }
+        }
+        None
+    }
+
+    /// Get the terminal index at the given coordinate.
+    pub fn get_terminal_at(&self, coord: Vec2i) -> Option<Vec3i> {
+        for (terminal, rect) in self.terminal_rects.iter() {
+            if rect.0 as i32 <= coord.x
+                && coord.x <= rect.0 as i32 + rect.2 as i32
+                && rect.1 as i32 <= coord.y
+                && coord.y <= rect.1 as i32 + rect.3 as i32
+            {
+                return Some(*terminal);
             }
         }
         None
@@ -407,36 +512,8 @@ impl ModelFX {
 
                             if t < max_t {
                                 let normal = self.normal_node(p, node);
-
-                                let nx = normal.x.abs();
-                                let ny = normal.y.abs();
-                                let nz = normal.z.abs();
-
-                                if nx > ny && nx > nz {
-                                    // X-face
-                                    color = TheColor::from_u8_array(RED).to_vec4f();
-                                } else if ny > nx && ny > nz {
-                                    // Y-face
-                                    color = TheColor::from_u8_array(YELLOW).to_vec4f();
-                                } else {
-                                    // Z-face
-                                    color = TheColor::from_u8_array(BLUE).to_vec4f();
-                                }
+                                color = node.color_for_normal(normal).color().to_vec4f();
                             }
-
-                            /*
-                            if let Some(hit) = hit {
-                                if hit.face == HitFace::XFace {
-                                    color = TheColor::from_u8_array(RED).to_vec4f();
-                                }
-                                if hit.face == HitFace::YFace {
-                                    color = TheColor::from_u8_array(YELLOW).to_vec4f();
-                                }
-                                if hit.face == HitFace::ZFace {
-                                    color = TheColor::from_u8_array(BLUE).to_vec4f();
-                                }
-                            }
-                            */
 
                             total += color;
                         }

@@ -1,6 +1,7 @@
 use crate::prelude::*;
 //use indexmap::IndexMap;
 //use rayon::prelude::*;
+use crate::modelfxterminal::ModelFXTerminalRole::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -39,6 +40,40 @@ impl ModelFXNode {
                 Some(Self::WallVertical(coll))
             }
             _ => None,
+        }
+    }
+
+    /// Get a reference to the collection.
+    pub fn output_terminals(&self) -> Vec<ModelFXTerminal> {
+        match self {
+            Self::WallHorizontal(_) | Self::WallVertical(_) => {
+                vec![
+                    ModelFXTerminal::new(Face, 6),
+                    ModelFXTerminal::new(Face, 7),
+                    ModelFXTerminal::new(Face, 4),
+                ]
+            }
+        }
+    }
+
+    pub fn color_for_normal(&self, normal: Vec3f) -> ModelFXColor {
+        match self {
+            Self::WallHorizontal(_) | Self::WallVertical(_) => {
+                let nx = normal.x.abs();
+                let ny = normal.y.abs();
+                let nz = normal.z.abs();
+
+                if nx > ny && nx > nz {
+                    // X-face
+                    ModelFXColor::create(6)
+                } else if ny > nx && ny > nz {
+                    // Y-face
+                    ModelFXColor::create(7)
+                } else {
+                    // Z-face
+                    ModelFXColor::create(4)
+                }
+            }
         }
     }
 
