@@ -518,7 +518,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
- "theframework",
+ "theframework 0.1.20",
  "vectorize",
 ]
 
@@ -1423,6 +1423,15 @@ checksum = "c571b676ddfc9a8c12f1f3d3085a7b163966a8fd8098a90640953ce5f6170161"
 dependencies = [
  "cfg-if",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "line_drawing"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d1478a313008a3e6c8149995e90a99ee9094034b5c5c3da1eeb81183cb61d1d"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
@@ -2504,11 +2513,12 @@ dependencies = [
  "fontdue",
  "indexmap 2.0.2",
  "lazy_static",
+ "line_drawing",
  "rand",
  "rayon",
  "serde",
  "serde_json",
- "theframework",
+ "theframework 0.1.20 (git+https://github.com/markusmoenig/TheFramework)",
  "vectorize",
 ]
 
@@ -2593,7 +2603,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
- "theframework",
+ "theframework 0.1.20",
  "vectorize",
 ]
 
@@ -2739,6 +2749,38 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
+dependencies = [
+ "console_error_panic_hook",
+ "console_log",
+ "env_logger",
+ "flate2",
+ "fontdue",
+ "futures",
+ "indexmap 2.0.2",
+ "log",
+ "maths-rs",
+ "pixels",
+ "png",
+ "rand",
+ "rayon",
+ "rfd",
+ "rust-embed",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "uuid",
+ "vectorize",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "winit",
+ "winit_input_helper",
+]
+
+[[package]]
+name = "theframework"
+version = "0.1.20"
+source = "git+https://github.com/markusmoenig/TheFramework#9611e26adb0f3f92e0d4910b3f2c082c201c1217"
 dependencies = [
  "console_error_panic_hook",
  "console_log",

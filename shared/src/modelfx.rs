@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use line_drawing::Bresenham;
 use rayon::prelude::*;
 use theframework::prelude::*;
 
@@ -169,6 +170,9 @@ impl ModelFX {
                     )
                 }
 
+                let mut terminal_colors: FxHashMap<(i32, i32, i32), TheColor> =
+                    FxHashMap::default();
+
                 let scaled = |s: usize| -> usize { (s as f32 * zoom) as usize };
 
                 for (i, node) in self.nodes.iter().enumerate() {
@@ -230,6 +234,10 @@ impl ModelFX {
                         for (j, terminal) in terminals.iter().enumerate() {
                             let is_in_use = self.terminal_is_in_use(i, j, false);
                             let terminal_color = terminal.color.color().to_u8_array();
+
+                            terminal_colors
+                                .insert((i as i32, j as i32, 0), terminal.color.color().clone());
+
                             let terminal_x = rect.0 - terminal_size / 2 + scaled(1);
                             let terminal_y = rect.1 + scaled(8) + scaled(15) * j;
                             let terminal_rect =
@@ -260,6 +268,10 @@ impl ModelFX {
                         for (j, terminal) in terminals.iter().enumerate() {
                             let is_in_use = self.terminal_is_in_use(i, j, true);
                             let terminal_color = terminal.color.color().to_u8_array();
+
+                            terminal_colors
+                                .insert((i as i32, j as i32, 1), terminal.color.color().clone());
+
                             let terminal_x = rect.0 + rect.2 - terminal_size / 2 - scaled(1);
                             let terminal_y = rect.1 + scaled(8) + scaled(15) * j;
                             let terminal_rect =
@@ -290,19 +302,35 @@ impl ModelFX {
                     if let Some(from_rect) =
                         self.get_terminal_rect(vec3i(c.0 as i32, c.1 as i32, 1))
                     {
+                        let mut from_color = TheColor::white();
+                        if let Some(color) = terminal_colors.get(&(c.0 as i32, c.1 as i32, 1)) {
+                            from_color = color.clone();
+                        }
+
                         if let Some(to_rect) =
                             self.get_terminal_rect(vec3i(c.2 as i32, c.3 as i32, 0))
                         {
-                            let from_center =
-                                (from_rect.0 + from_rect.2 / 2, from_rect.1 + from_rect.3 / 2);
-                            let to_center = (to_rect.0 + to_rect.2 / 2, to_rect.1 + to_rect.3 / 2);
-                            buffer.draw_line(
-                                from_center.0 as i32,
-                                from_center.1 as i32,
-                                to_center.0 as i32,
-                                to_center.1 as i32,
-                                WHITE,
+                            let mut to_color = TheColor::white();
+                            if let Some(color) = terminal_colors.get(&(c.2 as i32, c.3 as i32, 0)) {
+                                to_color = color.clone();
+                            }
+
+                            let from_center = (
+                                (from_rect.0 + from_rect.2 / 2) as i32,
+                                (from_rect.1 + from_rect.3 / 2) as i32,
                             );
+                            let to_center = (
+                                (to_rect.0 + to_rect.2 / 2) as i32,
+                                (to_rect.1 + to_rect.3 / 2) as i32,
+                            );
+
+                            let line: Vec<(i32, i32)> =
+                                Bresenham::new(from_center, to_center).collect();
+                            for (index, (x, y)) in line.iter().enumerate() {
+                                let color =
+                                    from_color.mix(&to_color, index as f32 / line.len() as f32);
+                                buffer.set_pixel(*x, *y, &color.to_u8_array());
+                            }
                         }
                     }
                 }
