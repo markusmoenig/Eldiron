@@ -5,9 +5,20 @@ use crate::modelfxterminal::ModelFXTerminalRole::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub enum ModelFXNodeRole {
+    Geometry,
+    Material,
+}
+
+use ModelFXNodeRole::*;
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum ModelFXNode {
+    // Geometry
     WallHorizontal(TheCollection),
     WallVertical(TheCollection),
+    // Material
+    Material(TheCollection),
 }
 
 impl ModelFXNode {
@@ -39,11 +50,31 @@ impl ModelFXNode {
                 }
                 Some(Self::WallVertical(coll))
             }
+            "Material" => {
+                if let Some(collection) = collection {
+                    coll = collection;
+                } else {
+                    coll.set("Color", TheValue::PaletteIndex(0));
+                }
+                Some(Self::Material(coll))
+            }
             _ => None,
         }
     }
 
-    /// Get a reference to the collection.
+    /// List of input terminals.
+    pub fn input_terminals(&self) -> Vec<ModelFXTerminal> {
+        match self {
+            Self::Material(_) => {
+                vec![ModelFXTerminal::new(UV, 0)]
+            }
+            _ => {
+                vec![]
+            }
+        }
+    }
+
+    /// List of output terminals.
     pub fn output_terminals(&self) -> Vec<ModelFXTerminal> {
         match self {
             Self::WallHorizontal(_) | Self::WallVertical(_) => {
@@ -53,27 +84,47 @@ impl ModelFXNode {
                     ModelFXTerminal::new(Face, 4),
                 ]
             }
+            _ => {
+                vec![]
+            }
         }
     }
 
-    pub fn color_for_normal(&self, normal: Vec3f) -> ModelFXColor {
+    /// Return the color and terminal index for the given hit position.
+    pub fn color_index_for_hit(&self, hit: &Hit) -> (u8, u8) {
         match self {
             Self::WallHorizontal(_) | Self::WallVertical(_) => {
-                let nx = normal.x.abs();
-                let ny = normal.y.abs();
-                let nz = normal.z.abs();
+                let nx = hit.normal.x.abs();
+                let ny = hit.normal.y.abs();
+                let nz = hit.normal.z.abs();
 
                 if nx > ny && nx > nz {
                     // X-face
-                    ModelFXColor::create(6)
+                    (6, 0)
                 } else if ny > nx && ny > nz {
                     // Y-face
-                    ModelFXColor::create(7)
+                    (7, 1)
                 } else {
                     // Z-face
-                    ModelFXColor::create(4)
+                    (4, 2)
                 }
             }
+            _ => (0, 0),
+        }
+    }
+
+    /// Handle the material node for the given terminal.
+    pub fn material(&self, _in_terminal: &u8, hit: &mut Hit, palette: &ThePalette) -> Option<u8> {
+        match self {
+            Self::Material(collection) => {
+                if let Some(TheValue::PaletteIndex(index)) = collection.get("Color") {
+                    if let Some(color) = &palette.colors[*index as usize] {
+                        hit.color = color.to_vec4f();
+                    }
+                }
+                None
+            }
+            _ => None,
         }
     }
 
@@ -82,6 +133,7 @@ impl ModelFXNode {
         match self {
             Self::WallHorizontal(collection) => collection,
             Self::WallVertical(collection) => collection,
+            Self::Material(collection) => collection,
         }
     }
 
@@ -90,6 +142,7 @@ impl ModelFXNode {
         match self {
             Self::WallHorizontal(collection) => collection,
             Self::WallVertical(collection) => collection,
+            Self::Material(collection) => collection,
         }
     }
 
@@ -141,14 +194,25 @@ impl ModelFXNode {
                     vec3f((max - min) / 2.0, 0.5, 0.5),
                 )
             }
+            _ => 0.0,
         }
     }
 
-    /// Convert to kind.
-    pub fn to_kind(&self) -> String {
+    /// Role
+    pub fn role(&self) -> ModelFXNodeRole {
+        match self {
+            Self::WallHorizontal(_) => Geometry,
+            Self::WallVertical(_) => Geometry,
+            Self::Material(_) => Material,
+        }
+    }
+
+    /// Name
+    pub fn name(&self) -> String {
         match self {
             Self::WallHorizontal(_) => str!("Wall Horizontal"),
             Self::WallVertical(_) => str!("Wall Vertical"),
+            Self::Material(_) => str!("Material"),
         }
     }
 }

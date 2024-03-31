@@ -7,6 +7,7 @@ pub enum ModelFXNodeAction {
     None,
     DragNode,
     ConnectingTerminal(Vec3i),
+    CutConnection,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -116,7 +117,7 @@ impl ModelFX {
         canvas
     }
 
-    pub fn draw(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+    pub fn draw(&mut self, ui: &mut TheUI, ctx: &mut TheContext, palette: &ThePalette) {
         let min_x = 0; //std::i32::MAX;
         let min_y = 0; //std::i32::MAX;
         let mut max_x = std::i32::MIN;
@@ -126,7 +127,7 @@ impl ModelFX {
         let node_size = 60;
         let node_size_scaled = (node_size as f32 * zoom) as i32;
         let preview_border_scaled = (4.0 * zoom) as i32;
-        let preview_size_scaled = node_size_scaled - 2 * preview_border_scaled;
+        let preview_size_scaled = (node_size as f32 * zoom - 2.0 * 4.0 * zoom) as i32 - 1;
 
         let mut preview_buffer: Option<TheRGBABuffer> = None;
 
@@ -141,7 +142,7 @@ impl ModelFX {
             }
 
             let mut buffer = TheRGBABuffer::new(TheDim::sized(120, 120));
-            self.render_preview(&mut buffer);
+            self.render_preview(&mut buffer, palette);
             preview_buffer = Some(buffer);
         }
 
@@ -207,7 +208,7 @@ impl ModelFX {
                             preview_size_scaled,
                         ));
 
-                        self.render_node_preview(&mut preview_buffer, node);
+                        self.render_node_preview(&mut preview_buffer, node, palette);
                         let preview_rect = (
                             rect.0 + preview_border_scaled as usize,
                             rect.1 + preview_border_scaled as usize,
@@ -221,12 +222,43 @@ impl ModelFX {
                             width as usize,
                         );
 
+                        // Input Terminals
+
+                        let terminals = node.input_terminals();
+                        let terminal_size = scaled(10);
+                        let trf = scaled(2) as f32;
+                        for (j, terminal) in terminals.iter().enumerate() {
+                            let is_in_use = self.terminal_is_in_use(i, j, false);
+                            let terminal_color = terminal.color.color().to_u8_array();
+                            let terminal_x = rect.0 - terminal_size / 2 + scaled(1);
+                            let terminal_y = rect.1 + scaled(8) + scaled(15) * j;
+                            let terminal_rect =
+                                (terminal_x, terminal_y, terminal_size, terminal_size);
+                            ctx.draw.rounded_rect_with_border(
+                                buffer.pixels_mut(),
+                                &terminal_rect,
+                                width as usize,
+                                if is_in_use {
+                                    &terminal_color
+                                } else {
+                                    &[128, 128, 128, 255]
+                                },
+                                &(trf, trf, trf, trf),
+                                &terminal_color,
+                                1.5 * zoom,
+                            );
+
+                            self.terminal_rects
+                                .push((vec3i(i as i32, j as i32, 0), terminal_rect));
+                        }
+
                         // Output Terminals
 
                         let terminals = node.output_terminals();
                         let terminal_size = scaled(10);
                         let trf = scaled(2) as f32;
                         for (j, terminal) in terminals.iter().enumerate() {
+                            let is_in_use = self.terminal_is_in_use(i, j, true);
                             let terminal_color = terminal.color.color().to_u8_array();
                             let terminal_x = rect.0 + rect.2 - terminal_size / 2 - scaled(1);
                             let terminal_y = rect.1 + scaled(8) + scaled(15) * j;
@@ -236,10 +268,14 @@ impl ModelFX {
                                 buffer.pixels_mut(),
                                 &terminal_rect,
                                 width as usize,
-                                &[128, 128, 128, 255],
+                                if is_in_use {
+                                    &terminal_color
+                                } else {
+                                    &[128, 128, 128, 255]
+                                },
                                 &(trf, trf, trf, trf),
                                 &terminal_color,
-                                2.0 * zoom,
+                                1.5 * zoom,
                             );
 
                             self.terminal_rects
@@ -250,6 +286,27 @@ impl ModelFX {
                     }
                 }
 
+                for c in self.connections.iter() {
+                    if let Some(from_rect) =
+                        self.get_terminal_rect(vec3i(c.0 as i32, c.1 as i32, 1))
+                    {
+                        if let Some(to_rect) =
+                            self.get_terminal_rect(vec3i(c.2 as i32, c.3 as i32, 0))
+                        {
+                            let from_center =
+                                (from_rect.0 + from_rect.2 / 2, from_rect.1 + from_rect.3 / 2);
+                            let to_center = (to_rect.0 + to_rect.2 / 2, to_rect.1 + to_rect.3 / 2);
+                            buffer.draw_line(
+                                from_center.0 as i32,
+                                from_center.1 as i32,
+                                to_center.0 as i32,
+                                to_center.1 as i32,
+                                WHITE,
+                            );
+                        }
+                    }
+                }
+
                 if let ModelFXNodeAction::ConnectingTerminal(_) = self.action {
                     buffer.draw_line(
                         self.drag_start.x,
@@ -257,6 +314,14 @@ impl ModelFX {
                         self.drag_offset.x,
                         self.drag_offset.y,
                         WHITE,
+                    )
+                } else if let ModelFXNodeAction::CutConnection = self.action {
+                    buffer.draw_line(
+                        self.drag_start.x,
+                        self.drag_start.y,
+                        self.drag_offset.x,
+                        self.drag_offset.y,
+                        [209, 42, 42, 255],
                     )
                 }
 
@@ -270,6 +335,11 @@ impl ModelFX {
         let mut redraw = false;
         if let Some(terminal) = self.get_terminal_at(coord) {
             self.drag_start = coord;
+            self.drag_offset = coord;
+            if let Some(rect) = self.get_terminal_rect(terminal) {
+                self.drag_start = vec2i((rect.0 + rect.2 / 2) as i32, (rect.1 + rect.3 / 2) as i32);
+                self.drag_offset = self.drag_start;
+            }
             self.action = ModelFXNodeAction::ConnectingTerminal(terminal);
             redraw = true;
         } else if let Some(index) = self.get_node_at(coord) {
@@ -279,12 +349,18 @@ impl ModelFX {
                 self.selected_node = Some(index);
                 redraw = true;
             }
+        } else {
+            self.action = ModelFXNodeAction::CutConnection;
+            self.drag_start = coord;
         }
         redraw
     }
     pub fn dragged(&mut self, coord: Vec2i, _ui: &mut TheUI, _ctx: &mut TheContext) -> bool {
         let mut redraw = false;
-        if let ModelFXNodeAction::ConnectingTerminal(_) = self.action {
+        if let ModelFXNodeAction::CutConnection = self.action {
+            self.drag_offset = coord;
+            redraw = true;
+        } else if let ModelFXNodeAction::ConnectingTerminal(_) = self.action {
             self.drag_offset = coord;
             redraw = true;
         } else if self.action == ModelFXNodeAction::DragNode {
@@ -306,7 +382,33 @@ impl ModelFX {
     }
     pub fn released(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext) -> bool {
         let mut redraw = false;
-        if let ModelFXNodeAction::ConnectingTerminal(source) = self.action {
+        if let ModelFXNodeAction::CutConnection = self.action {
+            redraw = true;
+            let mut new_connections = vec![];
+            for c in self.connections.iter() {
+                if let Some(from_rect) = self.get_terminal_rect(vec3i(c.0 as i32, c.1 as i32, 1)) {
+                    if let Some(to_rect) = self.get_terminal_rect(vec3i(c.2 as i32, c.3 as i32, 0))
+                    {
+                        let from_center = (
+                            (from_rect.0 + from_rect.2 / 2) as i32,
+                            (from_rect.1 + from_rect.3 / 2) as i32,
+                        );
+                        let to_center = (
+                            (to_rect.0 + to_rect.2 / 2) as i32,
+                            (to_rect.1 + to_rect.3 / 2) as i32,
+                        );
+
+                        let cut_start = (self.drag_start.x, self.drag_start.y);
+                        let cut_end = (self.drag_offset.x, self.drag_offset.y);
+
+                        if !do_intersect(from_center, to_center, cut_start, cut_end) {
+                            new_connections.push(*c);
+                        }
+                    }
+                }
+            }
+            self.connections = new_connections;
+        } else if let ModelFXNodeAction::ConnectingTerminal(source) = self.action {
             if let Some(dest) = self.get_terminal_at(self.drag_offset) {
                 if source.x != dest.x && source.z != dest.z {
                     // Make sure output terminal is always listed first
@@ -329,9 +431,9 @@ impl ModelFX {
                     }
                 }
             }
-            self.action = ModelFXNodeAction::None;
             redraw = true;
         }
+        self.action = ModelFXNodeAction::None;
         redraw
     }
     pub fn hovered(&mut self, coord: Vec2i, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
@@ -340,7 +442,7 @@ impl ModelFX {
                 if let Some(index) = self.get_node_at(coord) {
                     ctx.ui.send(TheEvent::SetStatusText(
                         node_view.id().clone(),
-                        self.nodes[index].to_kind(),
+                        self.nodes[index].name(),
                     ));
                 } else {
                     ctx.ui
@@ -379,7 +481,52 @@ impl ModelFX {
         None
     }
 
-    pub fn render_preview(&mut self, buffer: &mut TheRGBABuffer) {
+    /// Get the terminal rect for the given terminal.
+    pub fn get_terminal_rect(&self, terminal: Vec3i) -> Option<(usize, usize, usize, usize)> {
+        for (t, rect) in self.terminal_rects.iter() {
+            if *t == terminal {
+                return Some(*rect);
+            }
+        }
+        None
+    }
+
+    /// Returns true if the given terminal is in use.
+    pub fn terminal_is_in_use(&self, node: usize, terminal_index: usize, output: bool) -> bool {
+        if output {
+            for (o, ot, _, _) in &self.connections {
+                if *o == node as u16 && *ot == terminal_index as u8 {
+                    return true;
+                }
+            }
+        } else {
+            for (_, _, i, it) in &self.connections {
+                if *i == node as u16 && *it == terminal_index as u8 {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// After exiting a geometry node follow the trail of material nodes to calculate the final color.
+    pub fn follow_trail(
+        &self,
+        node: usize,
+        terminal_index: usize,
+        hit: &mut Hit,
+        palette: &ThePalette,
+    ) {
+        for (o, ot, i, it) in &self.connections {
+            if *o == node as u16 && *ot == terminal_index as u8 {
+                if let Some(ot) = self.nodes[*i as usize].material(it, hit, palette) {
+                    self.follow_trail(*i as usize, ot as usize, hit, palette);
+                }
+            }
+        }
+    }
+
+    pub fn render_preview(&mut self, buffer: &mut TheRGBABuffer, palette: &ThePalette) {
         //}, palette: &ThePalette) {
         let width = buffer.dim().width as usize;
         let height = buffer.dim().height as usize;
@@ -423,10 +570,12 @@ impl ModelFX {
                             let mut t = 0.0;
 
                             let mut p = ray.at(t);
+                            let mut hit = Hit::default();
 
                             while t < max_t {
-                                let d = self.distance(p);
+                                let d = self.distance_hit(p, &mut hit);
                                 if d < 0.001 {
+                                    hit.distance = t;
                                     break;
                                 }
                                 t += d;
@@ -434,11 +583,22 @@ impl ModelFX {
                             }
 
                             if t < max_t {
-                                let normal = self.normal(p);
-                                let c = dot(normal, normalize(vec3f(1.0, 2.0, 3.0))) * 0.5 + 0.5;
-                                color.x = c;
-                                color.y = c;
-                                color.z = c;
+                                hit.normal = self.normal(p);
+
+                                let c =
+                                    dot(hit.normal, normalize(vec3f(1.0, 2.0, 3.0))) * 0.5 + 0.5;
+                                hit.color = vec4f(c, c, c, 1.0);
+
+                                let terminal_index =
+                                    self.nodes[hit.node].color_index_for_hit(&hit).1;
+
+                                self.follow_trail(
+                                    hit.node,
+                                    terminal_index as usize,
+                                    &mut hit,
+                                    palette,
+                                );
+                                color = hit.color;
                             }
 
                             total += color;
@@ -456,7 +616,12 @@ impl ModelFX {
             });
     }
 
-    pub fn render_node_preview(&self, buffer: &mut TheRGBABuffer, node: &ModelFXNode) {
+    pub fn render_node_preview(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        node: &ModelFXNode,
+        palette: &ThePalette,
+    ) {
         //}, palette: &ThePalette) {
         let width = buffer.dim().width as usize;
         let height = buffer.dim().height as usize;
@@ -483,59 +648,96 @@ impl ModelFX {
 
                     let mut total = Vec4f::zero();
 
-                    for m in 0..aa {
-                        for n in 0..aa {
-                            let camera_offset =
-                                vec2f(m as f32 / aa_f, n as f32 / aa_f) - vec2f(0.5, 0.5);
+                    if node.role() == ModelFXNodeRole::Geometry {
+                        for m in 0..aa {
+                            for n in 0..aa {
+                                let camera_offset =
+                                    vec2f(m as f32 / aa_f, n as f32 / aa_f) - vec2f(0.5, 0.5);
 
-                            let mut color = vec4f(bgc, bgc, bgc, 1.0);
+                                let mut color = vec4f(bgc, bgc, bgc, 1.0);
 
-                            let ray = camera.create_ortho_ray(
-                                vec2f(xx / width as f32, 1.0 - yy / height as f32),
-                                vec2f(width as f32, height as f32),
-                                camera_offset,
-                            );
+                                let ray = camera.create_ortho_ray(
+                                    vec2f(xx / width as f32, 1.0 - yy / height as f32),
+                                    vec2f(width as f32, height as f32),
+                                    camera_offset,
+                                );
 
-                            let max_t = 3.0 * 1.732;
-                            let mut t = 0.0;
+                                let max_t = 3.0 * 1.732;
+                                let mut t = 0.0;
 
-                            let mut p = ray.at(t);
+                                let mut p = ray.at(t);
 
-                            while t < max_t {
-                                let d = node.distance(p);
-                                if d < 0.001 {
-                                    break;
+                                while t < max_t {
+                                    let d = node.distance(p);
+                                    if d < 0.001 {
+                                        break;
+                                    }
+                                    t += d;
+                                    p = ray.at(t);
                                 }
-                                t += d;
-                                p = ray.at(t);
-                            }
 
-                            if t < max_t {
-                                let normal = self.normal_node(p, node);
-                                color = node.color_for_normal(normal).color().to_vec4f();
-                            }
+                                if t < max_t {
+                                    let hit = Hit {
+                                        normal: self.normal_node(p, node),
+                                        ..Default::default()
+                                    };
+                                    let c = ModelFXColor::create(node.color_index_for_hit(&hit).0);
+                                    color = c.color().to_vec4f();
+                                }
 
-                            total += color;
+                                total += color;
+                            }
+                        }
+
+                        let aa_aa = aa_f * aa_f;
+                        total[0] /= aa_aa;
+                        total[1] /= aa_aa;
+                        total[2] /= aa_aa;
+                        total[3] /= aa_aa;
+                    } else {
+                        // Material node
+                        let mut hit = Hit {
+                            uv: vec2f(xx, yy),
+                            ..Default::default()
+                        };
+                        if let ModelFXNode::Material(_coll) = node {
+                            node.material(&0, &mut hit, palette);
+                            total = hit.color;
+                        } else {
+                            let c = ModelFXColor::create(node.color_index_for_hit(&hit).0);
+                            total = c.color().to_vec4f();
                         }
                     }
-
-                    let aa_aa = aa_f * aa_f;
-                    total[0] /= aa_aa;
-                    total[1] /= aa_aa;
-                    total[2] /= aa_aa;
-                    total[3] /= aa_aa;
 
                     pixel.copy_from_slice(&TheColor::from_vec4f(total).to_u8_array());
                 }
             });
     }
 
-    /// Get the distance at the given position for all nodes.
+    /// Get the distance at the given position for all nodes and save the closest node in the hit structure.
+    #[inline(always)]
+    pub fn distance_hit(&self, p: Vec3f, hit: &mut Hit) -> f32 {
+        let mut d = f32::MAX;
+        for (index, node) in self.nodes.iter().enumerate() {
+            if node.role() == ModelFXNodeRole::Geometry {
+                let dist = node.distance(p);
+                if dist < d {
+                    d = dist;
+                    hit.node = index;
+                }
+            }
+        }
+        d
+    }
+
+    /// Get the distance at the given position for all geometry nodes.
     #[inline(always)]
     pub fn distance(&self, p: Vec3f) -> f32 {
         let mut d = f32::MAX;
-        for fx in self.nodes.iter() {
-            d = d.min(fx.distance(p));
+        for node in self.nodes.iter() {
+            if node.role() == ModelFXNodeRole::Geometry {
+                d = d.min(node.distance(p));
+            }
         }
         d
     }

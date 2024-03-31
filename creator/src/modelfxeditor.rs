@@ -60,6 +60,21 @@ impl ModelFXEditor {
             ..Default::default()
         }));
 
+        let mut material_button = TheTraybarButton::new(TheId::named("ModelFX Add Material"));
+        //add_button.set_icon_name("icon_role_add".to_string());
+        material_button.set_text(str!("Material Related"));
+        material_button.set_status_text(
+            "Nodes which model walls and components like windows, doors and decoration.",
+        );
+
+        material_button.set_context_menu(Some(TheContextMenu {
+            items: vec![TheContextMenuItem::new(
+                "Material".to_string(),
+                TheId::named("Material"),
+            )],
+            ..Default::default()
+        }));
+
         let mut zoom = TheSlider::new(TheId::named("ModelFX Zoom"));
         zoom.set_value(TheValue::Float(1.0));
         zoom.set_default_value(TheValue::Float(1.0));
@@ -69,6 +84,7 @@ impl ModelFXEditor {
 
         toolbar_hlayout.add_widget(Box::new(floors_button));
         toolbar_hlayout.add_widget(Box::new(walls_button));
+        toolbar_hlayout.add_widget(Box::new(material_button));
         toolbar_hlayout.add_widget(Box::new(zoom));
         toolbar_hlayout.set_reverse_index(Some(1));
 
@@ -133,27 +149,30 @@ impl ModelFXEditor {
         match event {
             TheEvent::ContextMenuSelected(id, item) => {
                 //println!("{:?}, {:?}", id, item);
-                if id.name == "ModelFX Add Wall" && self.modelfx.add(item.name.clone()) {
-                    self.modelfx.draw(ui, ctx);
+                if (id.name == "ModelFX Add Wall" || id.name == "ModelFX Add Material")
+                    && self.modelfx.add(item.name.clone())
+                {
+                    self.modelfx.draw(ui, ctx, &project.palette);
                     self.set_selected_node_ui(ui, ctx, project);
                     redraw = true;
                 }
             }
             TheEvent::TileEditorClicked(id, coord) => {
                 if id.name == "ModelFX RGBA Layout View" && self.modelfx.clicked(*coord, ui, ctx) {
-                    self.modelfx.draw(ui, ctx);
+                    self.modelfx.draw(ui, ctx, &project.palette);
                     self.set_selected_node_ui(ui, ctx, project);
                     redraw = true;
                 }
             }
             TheEvent::TileEditorDragged(id, coord) => {
                 if id.name == "ModelFX RGBA Layout View" && self.modelfx.dragged(*coord, ui, ctx) {
-                    self.modelfx.draw(ui, ctx);
+                    self.modelfx.draw(ui, ctx, &project.palette);
                     redraw = true;
                 }
             }
             TheEvent::TileEditorUp(id) => {
                 if id.name == "ModelFX RGBA Layout View" && self.modelfx.released(ui, ctx) {
+                    self.modelfx.draw(ui, ctx, &project.palette);
                     redraw = true;
                 }
             }
@@ -195,6 +214,7 @@ impl ModelFXEditor {
                                         }
                                     }
                                 }
+                                self.modelfx.draw(ui, ctx, &project.palette);
                                 redraw = true;
                             }
                         }
@@ -212,7 +232,7 @@ impl ModelFXEditor {
                 if id.name == "ModelFX Zoom" {
                     if let TheValue::Float(value) = value {
                         self.modelfx.zoom = *value;
-                        self.modelfx.draw(ui, ctx);
+                        self.modelfx.draw(ui, ctx, &project.palette);
                         redraw = true;
                     }
                 } else if id.name == "Palette Color Picker" {
@@ -230,6 +250,7 @@ impl ModelFXEditor {
                             }
                         }
                     }
+                    self.modelfx.draw(ui, ctx, &project.palette);
                 } else if id.name.starts_with(":MODELFX:") {
                     if let Some(name) = id.name.strip_prefix(":MODELFX: ") {
                         let mut value = value.clone();
@@ -256,7 +277,7 @@ impl ModelFXEditor {
 
                             collection.set(name, value);
 
-                            self.modelfx.draw(ui, ctx);
+                            self.modelfx.draw(ui, ctx, &project.palette);
                             redraw = true;
                         }
                     }
