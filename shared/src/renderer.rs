@@ -31,6 +31,7 @@ impl Renderer {
         width: usize,
         height: usize,
         compute_delta: bool,
+        palette: &ThePalette,
     ) {
         let _start = self.get_time();
 
@@ -150,6 +151,7 @@ impl Renderer {
                         &level,
                         &saturation,
                         max_render_distance,
+                        palette,
                     ));
                 }
             });
@@ -170,6 +172,7 @@ impl Renderer {
         level: &Level,
         saturation: &Option<f32>,
         max_render_distance: i32,
+        palette: &ThePalette,
     ) -> RGBA {
         let mut color = vec4f(0.0, 0.0, 0.0, 1.0);
 
@@ -202,15 +205,22 @@ impl Renderer {
                 break;
             }
 
-            if let Some(model) = region.models.get(&(key.x, key.z)) {
+            if let Some(model) = region.models.get(&(key.x, key.y, key.z)) {
                 let mut lro = ray.at(dist);
                 lro -= Vec3f::from(key);
-                //lro *= tile.size as f32;
                 lro -= rd * 0.01;
 
                 let mut r = ray.clone();
                 r.o = lro;
 
+                if let Some(hit_struct) = model.render(&r, 1.01, palette) {
+                    color = hit_struct.color;
+                    hit = true;
+                    //normal = hit_struct.normal;
+                    dist = hit_struct.distance;
+                    break;
+                }
+                /*
                 if let Some(hit_struct) = model.hit(&r) {
                     if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                         if let Some(data) = self.textures.get(tile) {
@@ -264,7 +274,7 @@ impl Renderer {
                             }
                         }
                     }
-                }
+                    }*/
             }
             // Test against world tiles
             else if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
@@ -917,8 +927,8 @@ impl Renderer {
                 break;
             }
 
-            if region.models.get(&(key.x, key.z)).is_some() {
-                return Some(vec3i(key.x, 0, key.z));
+            if region.models.get(&(key.x, key.y, key.z)).is_some() {
+                return Some(vec3i(key.x, key.y, key.z));
             }
             // Test against world tiles
             if self.tiles.get((key.x, key.y, key.z)).is_some() {

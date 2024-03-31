@@ -1,5 +1,5 @@
 use crate::editor::{
-    CODEEDITOR, /*MODELFXEDITOR,*/ RENDERER, RENDERMODE, SIDEBARMODE, TILEDRAWER, TILEFXEDITOR,
+    CODEEDITOR, MODELFXEDITOR, RENDERER, RENDERMODE, SIDEBARMODE, TILEDRAWER, TILEFXEDITOR,
 };
 use crate::prelude::*;
 
@@ -861,8 +861,9 @@ impl TileEditor {
 
         if self.editor_mode == EditorMode::Model {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                //let timeline = MODELFXEDITOR.lock().unwrap().curr_timeline.clone();
-                //region.models.insert((coord.x, coord.y), timeline);
+                let timeline = MODELFXEDITOR.lock().unwrap().modelfx.clone();
+                region.models.insert((coord.x, 0, coord.y), timeline);
+                server.update_region(region);
                 RENDERER.lock().unwrap().set_region(region);
             }
         } else if self.editor_mode == EditorMode::Select {
@@ -947,8 +948,8 @@ impl TileEditor {
                             if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
                                 tile.tilefx = None;
                             }
-                        } else if region.models.contains_key(&(coord.x, coord.y)) {
-                            region.models.remove(&(coord.x, coord.y));
+                        } else if region.models.contains_key(&(coord.x, 0, coord.y)) {
+                            region.models.remove(&(coord.x, 0, coord.y));
                         } else if region.tiles.contains_key(&(coord.x, coord.y)) {
                             region.tiles.remove(&(coord.x, coord.y));
                         }

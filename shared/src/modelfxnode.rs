@@ -66,7 +66,7 @@ impl ModelFXNode {
     pub fn input_terminals(&self) -> Vec<ModelFXTerminal> {
         match self {
             Self::Material(_) => {
-                vec![ModelFXTerminal::new(UV, 0)]
+                vec![ModelFXTerminal::new(UV, 2)]
             }
             _ => {
                 vec![]

@@ -862,6 +862,7 @@ impl Sidebar {
                             palette_picker.set_color(color.clone());
                             redraw = true;
                             project.palette[palette_picker.index()] = Some(color);
+                            server.set_palette(&project.palette);
                         }
                     }
                 } else if id.name == "Screen Aspect Ratio Dropdown" {

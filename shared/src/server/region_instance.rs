@@ -45,6 +45,8 @@ pub struct RegionInstance {
 
     pub draw_settings: RegionDrawSettings,
     time: TheTime,
+
+    pub palette: ThePalette,
 }
 
 impl Default for RegionInstance {
@@ -83,6 +85,7 @@ impl RegionInstance {
             time: TheTime::default(),
 
             daylight: Daylight::default(),
+            palette: ThePalette::default(),
         }
     }
 
@@ -105,6 +108,7 @@ impl RegionInstance {
         self.redraw_ms = 1000 / project.target_fps;
 
         self.draw_settings.delta = self.redraw_ms as f32 / self.tick_ms as f32;
+        self.palette = project.palette.clone();
     }
 
     /// Tick. Compute the next frame.
@@ -225,6 +229,7 @@ impl RegionInstance {
                     buffer.dim().width as usize,
                     buffer.dim().height as usize,
                     compute_delta,
+                    &self.palette,
                 );
             }
         }

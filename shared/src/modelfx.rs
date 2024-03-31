@@ -554,6 +554,38 @@ impl ModelFX {
         }
     }
 
+    pub fn render(&self, ray: &Ray, max_distance: f32, palette: &ThePalette) -> Option<Hit> {
+        let max_t = max_distance * 1.732;
+        let mut t = 0.0;
+
+        let mut hit = Hit::default();
+        let mut p = ray.at(t);
+
+        while t < max_t {
+            let d = self.distance_hit(p, &mut hit);
+            if d < 0.001 {
+                hit.distance = t;
+                break;
+            }
+            t += d;
+            p = ray.at(t);
+        }
+
+        if t < max_t {
+            hit.normal = self.normal(p);
+
+            let c = dot(hit.normal, normalize(vec3f(1.0, 2.0, 3.0))) * 0.5 + 0.5;
+            hit.color = vec4f(c, c, c, 1.0);
+
+            let terminal_index = self.nodes[hit.node].color_index_for_hit(&hit).1;
+            self.follow_trail(hit.node, terminal_index as usize, &mut hit, palette);
+
+            Some(hit)
+        } else {
+            None
+        }
+    }
+
     pub fn render_preview(&mut self, buffer: &mut TheRGBABuffer, palette: &ThePalette) {
         //}, palette: &ThePalette) {
         let width = buffer.dim().width as usize;
@@ -594,38 +626,7 @@ impl ModelFX {
                                 camera_offset,
                             );
 
-                            let max_t = 3.0 * 1.732;
-                            let mut t = 0.0;
-
-                            let mut p = ray.at(t);
-                            let mut hit = Hit::default();
-
-                            while t < max_t {
-                                let d = self.distance_hit(p, &mut hit);
-                                if d < 0.001 {
-                                    hit.distance = t;
-                                    break;
-                                }
-                                t += d;
-                                p = ray.at(t);
-                            }
-
-                            if t < max_t {
-                                hit.normal = self.normal(p);
-
-                                let c =
-                                    dot(hit.normal, normalize(vec3f(1.0, 2.0, 3.0))) * 0.5 + 0.5;
-                                hit.color = vec4f(c, c, c, 1.0);
-
-                                let terminal_index =
-                                    self.nodes[hit.node].color_index_for_hit(&hit).1;
-
-                                self.follow_trail(
-                                    hit.node,
-                                    terminal_index as usize,
-                                    &mut hit,
-                                    palette,
-                                );
+                            if let Some(hit) = self.render(&ray, 3.0, palette) {
                                 color = hit.color;
                             }
 

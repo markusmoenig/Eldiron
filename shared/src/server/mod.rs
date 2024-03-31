@@ -701,4 +701,11 @@ impl Server {
     pub fn get_interactions(&self) -> Vec<Interaction> {
         INTERACTIONS.read().unwrap().clone()
     }
+
+    /// Set an updated palette
+    pub fn set_palette(&mut self, palette: &ThePalette) {
+        for instance in self.instances.values_mut() {
+            instance.palette = palette.clone();
+        }
+    }
 }
