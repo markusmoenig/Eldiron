@@ -95,6 +95,23 @@ impl TheTrait for Editor {
         }
     }
 
+    fn init(&mut self, ctx: &mut TheContext) {
+        let updater = Arc::clone(&self.self_updater);
+        let tx = self.self_update_tx.clone();
+
+        thread::spawn(move || {
+            let mut updater = updater.lock().unwrap();
+
+            match updater.fetch_release_list() {
+                Err(err) => {
+                    tx.send(SelfUpdateEvent::UpdateError(err.to_string()))
+                        .unwrap();
+                },
+                _ => {}
+            }
+        });
+    }
+
     fn window_title(&self) -> String {
         "Eldiron Creator".to_string()
     }

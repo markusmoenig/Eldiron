@@ -28,7 +28,7 @@ pub struct SelfUpdater {
 
 impl SelfUpdater {
     pub fn new(repo_owner: &str, repo_name: &str, bin_name: &str) -> Self {
-        let mut updater = SelfUpdater {
+        Self {
             bin_name: bin_name.to_string(),
             current_version: cargo_crate_version!().to_string(),
             latest_release: None,
@@ -36,11 +36,7 @@ impl SelfUpdater {
             release_list: vec![],
             repo_name: repo_name.to_string(),
             repo_owner: repo_owner.to_string(),
-        };
-
-        updater.fetch_release_list().unwrap();
-
-        updater
+        }
     }
 
     pub fn current_version(&self) -> &str {
@@ -56,29 +52,34 @@ impl SelfUpdater {
 
         self.locked = true;
 
-        self.release_list = self_update::backends::github::ReleaseList::configure()
+        let release_list = self_update::backends::github::ReleaseList::configure()
             .repo_owner(&self.repo_owner)
             .repo_name(&self.repo_name)
             .build()
-            .unwrap()
-            .fetch()
-            .unwrap();
-
-        self.latest_release = self
-            .release_list
-            .iter()
-            .reduce(|acc, release| {
-                if bump_is_greater(&acc.version, &release.version).unwrap() {
-                    return release;
-                }
-
-                acc
-            })
-            .cloned();
+            .and_then(|release_list| release_list.fetch());
 
         self.locked = false;
 
-        Ok(())
+        if let Ok(release_list) = release_list {
+            self.release_list = release_list;
+
+            self.latest_release = self
+                .release_list
+                .iter()
+                .reduce(|acc, release| {
+                    if bump_is_greater(&acc.version, &release.version).unwrap() {
+                        return release;
+                    }
+    
+                    acc
+                })
+                .cloned();
+
+            return Ok(())
+        }
+
+
+        release_list.and(Ok(()))
     }
 
     pub fn get_release_by_version(&self, version_tag: &str) -> Option<&Release> {
@@ -116,7 +117,8 @@ impl SelfUpdater {
 
         self.locked = true;
 
-        let result = self.build_update(&release.name).update();
+        let result = self.build_update(&release.name)
+            .and_then(|release_update| release_update.update());
 
         if result.is_ok() {
             self.current_version = release.version.clone();
@@ -135,7 +137,7 @@ impl SelfUpdater {
         Err(Error::Release("Latest release not found.".to_string()))
     }
 
-    fn build_update(&self, version_tag: &str) -> Box<dyn ReleaseUpdate> {
+    fn build_update(&self, version_tag: &str) -> Result<Box<dyn ReleaseUpdate>, Error> {
         self_update::backends::github::Update::configure()
             .repo_owner(&self.repo_owner)
             .repo_name(&self.repo_name)
@@ -144,6 +146,5 @@ impl SelfUpdater {
             .no_confirm(true)
             .target_version_tag(version_tag)
             .build()
-            .unwrap()
     }
 }
