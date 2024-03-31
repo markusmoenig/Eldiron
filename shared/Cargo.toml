@@ -17,4 +17,5 @@ rayon = "1"
 lazy_static = "1.4"
 rand = "0.8.5"
 fontdue = "0.8.0"
+line_drawing = "1.0.0"
 indexmap = { version = "2", features = ["serde"], default-features = true }
