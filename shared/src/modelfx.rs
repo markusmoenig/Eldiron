@@ -66,7 +66,7 @@ impl ModelFX {
     pub fn add(&mut self, fx: String) -> bool {
         if let Some(mut node) = ModelFXNode::new_node(&fx, None) {
             node.collection_mut()
-                .set("_pos", TheValue::Int2(vec2i(10, 10)));
+                .set("_pos", TheValue::Int2(vec2i(200, 10)));
             self.selected_node = Some(self.nodes.len());
             self.nodes.push(node);
             return true;
@@ -483,7 +483,7 @@ impl ModelFX {
 
     /// Get the node index at the given coordinate.
     pub fn get_node_at(&self, coord: Vec2i) -> Option<usize> {
-        for (i, rect) in self.node_rects.iter().enumerate() {
+        for (i, rect) in self.node_rects.iter().enumerate().rev() {
             if rect.0 as i32 <= coord.x
                 && coord.x <= rect.0 as i32 + rect.2 as i32
                 && rect.1 as i32 <= coord.y
@@ -497,7 +497,7 @@ impl ModelFX {
 
     /// Get the terminal index at the given coordinate.
     pub fn get_terminal_at(&self, coord: Vec2i) -> Option<Vec3i> {
-        for (terminal, rect) in self.terminal_rects.iter() {
+        for (terminal, rect) in self.terminal_rects.iter().rev() {
             if rect.0 as i32 <= coord.x
                 && coord.x <= rect.0 as i32 + rect.2 as i32
                 && rect.1 as i32 <= coord.y
@@ -573,11 +573,12 @@ impl ModelFX {
 
         if t < max_t {
             hit.normal = self.normal(p);
+            hit.hit_point = p;
 
             let c = dot(hit.normal, normalize(vec3f(1.0, 2.0, 3.0))) * 0.5 + 0.5;
             hit.color = vec4f(c, c, c, 1.0);
 
-            let terminal_index = self.nodes[hit.node].color_index_for_hit(&hit).1;
+            let terminal_index = self.nodes[hit.node].color_index_for_hit(&mut hit).1;
             self.follow_trail(hit.node, terminal_index as usize, &mut hit, palette);
 
             Some(hit)
@@ -651,7 +652,6 @@ impl ModelFX {
         node: &ModelFXNode,
         palette: &ThePalette,
     ) {
-        //}, palette: &ThePalette) {
         let width = buffer.dim().width as usize;
         let height = buffer.dim().height as usize;
 
@@ -706,11 +706,13 @@ impl ModelFX {
                                 }
 
                                 if t < max_t {
-                                    let hit = Hit {
+                                    let mut hit = Hit {
+                                        uv: vec2f(xx / width as f32, yy / height as f32),
                                         normal: self.normal_node(p, node),
                                         ..Default::default()
                                     };
-                                    let c = ModelFXColor::create(node.color_index_for_hit(&hit).0);
+                                    let c =
+                                        ModelFXColor::create(node.color_index_for_hit(&mut hit).0);
                                     color = c.color().to_vec4f();
                                 }
 
@@ -726,14 +728,14 @@ impl ModelFX {
                     } else {
                         // Material node
                         let mut hit = Hit {
-                            uv: vec2f(xx, yy),
+                            uv: vec2f(xx / width as f32, yy / height as f32) * 2.5,
                             ..Default::default()
                         };
                         if let ModelFXNode::Material(_coll) = node {
                             node.material(&0, &mut hit, palette);
                             total = hit.color;
                         } else {
-                            let c = ModelFXColor::create(node.color_index_for_hit(&hit).0);
+                            let c = ModelFXColor::create(node.color_index_for_hit(&mut hit).0);
                             total = c.color().to_vec4f();
                         }
                     }

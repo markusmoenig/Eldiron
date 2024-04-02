@@ -35,7 +35,16 @@ impl ModelFXEditor {
         let mut toolbar_canvas = TheCanvas::default();
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.limiter_mut().set_max_height(25);
-        toolbar_hlayout.set_margin(vec4i(70, 2, 5, 3));
+        toolbar_hlayout.set_margin(vec4i(10, 2, 5, 3));
+
+        let mut clear_button: TheTraybarButton =
+            TheTraybarButton::new(TheId::named("ModelFX Clear"));
+        clear_button.set_icon_name("trash".to_string());
+        clear_button.set_status_text("Clears the model, deleting all nodes.");
+
+        let mut move_button: TheTraybarButton = TheTraybarButton::new(TheId::named("ModelFX Move"));
+        move_button.set_icon_name("move".to_string());
+        move_button.set_status_text("Moves the model to the library.");
 
         let mut floors_button = TheTraybarButton::new(TheId::named("ModelFX Add Floor"));
         //add_button.set_icon_name("icon_role_add".to_string());
@@ -68,10 +77,10 @@ impl ModelFXEditor {
         );
 
         material_button.set_context_menu(Some(TheContextMenu {
-            items: vec![TheContextMenuItem::new(
-                "Material".to_string(),
-                TheId::named("Material"),
-            )],
+            items: vec![
+                TheContextMenuItem::new("Bricks".to_string(), TheId::named("Bricks")),
+                TheContextMenuItem::new("Material".to_string(), TheId::named("Material")),
+            ],
             ..Default::default()
         }));
 
@@ -81,6 +90,13 @@ impl ModelFXEditor {
         zoom.set_range(TheValue::RangeF32(1.0..=5.0));
         zoom.set_continuous(true);
         zoom.limiter_mut().set_max_width(120);
+
+        toolbar_hlayout.add_widget(Box::new(clear_button));
+        toolbar_hlayout.add_widget(Box::new(move_button));
+
+        let mut spacer = TheSpacer::new(TheId::empty());
+        spacer.limiter_mut().set_max_size(vec2i(40, 5));
+        toolbar_hlayout.add_widget(Box::new(spacer));
 
         toolbar_hlayout.add_widget(Box::new(floors_button));
         toolbar_hlayout.add_widget(Box::new(walls_button));
@@ -119,7 +135,7 @@ impl ModelFXEditor {
 
         let mut text_layout = TheTextLayout::new(TheId::named("ModelFX Settings"));
         //text_layout.set_fixed_text_width(90);
-        text_layout.limiter_mut().set_max_width(220);
+        text_layout.limiter_mut().set_max_width(240);
         settings_canvas.set_layout(text_layout);
 
         canvas.set_right(settings_canvas);
@@ -147,6 +163,13 @@ impl ModelFXEditor {
         let mut redraw = false;
 
         match event {
+            TheEvent::StateChanged(id, state) => {
+                if id.name == "ModelFX Clear" && state == &TheWidgetState::Clicked {
+                    self.modelfx = ModelFX::default();
+                    self.modelfx.draw(ui, ctx, &project.palette);
+                    redraw = true;
+                }
+            }
             TheEvent::ContextMenuSelected(id, item) => {
                 //println!("{:?}, {:?}", id, item);
                 if (id.name == "ModelFX Add Wall" || id.name == "ModelFX Add Material")
@@ -178,6 +201,13 @@ impl ModelFXEditor {
             }
             TheEvent::TileEditorHoverChanged(id, coord) => {
                 if id.name == "ModelFX RGBA Layout View" && self.modelfx.hovered(*coord, ui, ctx) {
+                    redraw = true;
+                }
+            }
+            TheEvent::TileEditorDelete(id, _) => {
+                if id.name == "ModelFX RGBA Layout View" {
+                    self.modelfx.delete();
+                    self.modelfx.draw(ui, ctx, &project.palette);
                     redraw = true;
                 }
             }

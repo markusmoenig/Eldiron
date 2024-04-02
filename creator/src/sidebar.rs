@@ -10,6 +10,7 @@ pub enum SidebarMode {
     Module,
     Screen,
     Asset,
+    Model,
     Debug,
     Palette,
 }
@@ -49,33 +50,61 @@ impl Sidebar {
         let mut region_sectionbar_button = TheSectionbarButton::new(TheId::named("Region Section"));
         region_sectionbar_button.set_text("Region".to_string());
         region_sectionbar_button.set_state(TheWidgetState::Selected);
+        region_sectionbar_button.set_status_text(
+            "Edit and manage the regions available in the game. Regions can contain 2D and 3D content.",
+        );
 
         let mut character_sectionbar_button =
             TheSectionbarButton::new(TheId::named("Character Section"));
         character_sectionbar_button.set_text("Character".to_string());
+        character_sectionbar_button.set_status_text(
+            "Edit and manage the characers (and their behavior) available in the game.",
+        );
 
         let mut item_sectionbar_button = TheSectionbarButton::new(TheId::named("Item Section"));
         item_sectionbar_button.set_text("Item".to_string());
+        item_sectionbar_button.set_status_text("Edit and manage the items available in the game.");
 
         let mut tilemap_sectionbar_button =
             TheSectionbarButton::new(TheId::named("Tilemap Section"));
         tilemap_sectionbar_button.set_text("Tilemap".to_string());
+        tilemap_sectionbar_button.set_status_text(
+            "Edit and manage your tilemaps. A tilemap is an image containing square tile elements.",
+        );
 
         let mut module_sectionbar_button = TheSectionbarButton::new(TheId::named("Module Section"));
         module_sectionbar_button.set_text("Module".to_string());
+        module_sectionbar_button.set_status_text(
+            "Edit and manage your games code modules. Code modules are reusable code functions.",
+        );
 
         let mut screen_sectionbar_button = TheSectionbarButton::new(TheId::named("Screen Section"));
         screen_sectionbar_button.set_text("Screen".to_string());
+        screen_sectionbar_button.set_status_text(
+            "Edit and manage your game screens. Screens are the visible areas of your game.",
+        );
 
         let mut asset_sectionbar_button = TheSectionbarButton::new(TheId::named("Asset Section"));
         asset_sectionbar_button.set_text("Asset".to_string());
+        asset_sectionbar_button.set_status_text(
+            "Manage assets in the asset library, such as images, sounds, and fonts.",
+        );
+
+        let mut model_sectionbar_button = TheSectionbarButton::new(TheId::named("Model Section"));
+        model_sectionbar_button.set_text("Model".to_string());
+        model_sectionbar_button.set_status_text("Add and manage models in the model library.");
 
         let mut debug_sectionbar_button = TheSectionbarButton::new(TheId::named("Debug Section"));
         debug_sectionbar_button.set_text("Debug".to_string());
+        debug_sectionbar_button.set_status_text(
+            "See debug messages and warnings and errors produced by the game code.",
+        );
 
         let mut palette_sectionbar_button =
             TheSectionbarButton::new(TheId::named("Palette Section"));
         palette_sectionbar_button.set_text("Palette".to_string());
+        palette_sectionbar_button
+            .set_status_text("Edit the color palette which contains the colors used in the game.");
 
         let mut vlayout = TheVLayout::new(TheId::named("Section Buttons"));
         vlayout.add_widget(Box::new(region_sectionbar_button));
@@ -85,6 +114,7 @@ impl Sidebar {
         vlayout.add_widget(Box::new(module_sectionbar_button));
         vlayout.add_widget(Box::new(screen_sectionbar_button));
         vlayout.add_widget(Box::new(asset_sectionbar_button));
+        vlayout.add_widget(Box::new(model_sectionbar_button));
         vlayout.add_widget(Box::new(debug_sectionbar_button));
         vlayout.add_widget(Box::new(palette_sectionbar_button));
         vlayout.set_margin(vec4i(5, 10, 5, 5));
@@ -567,6 +597,42 @@ impl Sidebar {
         screens_canvas.set_bottom(empty);
 
         stack_layout.add_canvas(screens_canvas);
+
+        // Model
+
+        let model_canvas = TheCanvas::default();
+
+        stack_layout.add_canvas(model_canvas);
+
+        /*
+                let mut list_layout = TheListLayout::new(TheId::named("Screen List"));
+                list_layout
+                    .limiter_mut()
+                    .set_max_size(vec2i(self.width, 200));
+                let mut list_canvas = TheCanvas::default();
+                list_canvas.set_layout(list_layout);
+
+                let mut screen_add_button = TheTraybarButton::new(TheId::named("Screen Add"));
+                screen_add_button.set_icon_name("icon_role_add".to_string());
+                screen_add_button.set_status_text("Add a new screen.");
+
+                let mut screen_remove_button = TheTraybarButton::new(TheId::named("Screen Remove"));
+                screen_remove_button.set_icon_name("icon_role_remove".to_string());
+                screen_remove_button.set_status_text("Remove the current screen.");
+                screen_remove_button.set_disabled(true);
+
+                let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+                toolbar_hlayout.set_background_color(None);
+                toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+                toolbar_hlayout.add_widget(Box::new(screen_add_button));
+                toolbar_hlayout.add_widget(Box::new(screen_remove_button));
+                //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+
+                let mut toolbar_canvas = TheCanvas::default();
+                toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+                toolbar_canvas.set_layout(toolbar_hlayout);
+                list_canvas.set_bottom(toolbar_canvas);
+        */
 
         // Asset
 
@@ -1842,7 +1908,7 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Palette".to_string()));
                     }
 
-                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Debug;
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Palette;
 
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),

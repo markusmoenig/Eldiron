@@ -18,6 +18,7 @@ pub enum ModelFXNode {
     WallHorizontal(TheCollection),
     WallVertical(TheCollection),
     // Material
+    Bricks(TheCollection),
     Material(TheCollection),
 }
 
@@ -30,6 +31,9 @@ impl ModelFXNode {
                     coll = collection;
                 } else {
                     coll.set("Position", TheValue::FloatRange(0.5, 0.0..=1.0));
+                    coll.set("Offset", TheValue::FloatRange(0.5, 0.0..=1.0));
+                    coll.set("Width", TheValue::FloatRange(1.0, 0.0..=1.0));
+                    coll.set("Height", TheValue::FloatRange(1.0, 0.0..=1.0));
                     coll.set("Depth", TheValue::FloatRange(0.2, 0.0..=1.0));
                 }
                 Some(Self::WallHorizontal(coll))
@@ -39,6 +43,9 @@ impl ModelFXNode {
                     coll = collection;
                 } else {
                     coll.set("Position", TheValue::FloatRange(0.5, 0.0..=1.0));
+                    coll.set("Offset", TheValue::FloatRange(0.5, 0.0..=1.0));
+                    coll.set("Width", TheValue::FloatRange(1.0, 0.0..=1.0));
+                    coll.set("Height", TheValue::FloatRange(1.0, 0.0..=1.0));
                     coll.set("Depth", TheValue::FloatRange(0.2, 0.0..=1.0));
                     coll.set(
                         "Pattern",
@@ -49,6 +56,22 @@ impl ModelFXNode {
                     );
                 }
                 Some(Self::WallVertical(coll))
+            }
+            "Bricks" => {
+                if let Some(collection) = collection {
+                    coll = collection;
+                } else {
+                    coll.set("Ratio", TheValue::FloatRange(2.0, 1.0..=10.0));
+                    coll.set("Rounding", TheValue::FloatRange(0.0, 0.0..=0.5));
+                    coll.set("Bevel", TheValue::FloatRange(0.0, 0.0..=0.5));
+                    coll.set("Gap", TheValue::FloatRange(0.08, 0.0..=0.5));
+                    coll.set("Cell", TheValue::FloatRange(6.0, 0.0..=15.0));
+                    coll.set(
+                        "Mode",
+                        TheValue::TextList(0, vec![str!("Bricks"), str!("Tiles")]),
+                    );
+                }
+                Some(Self::Bricks(coll))
             }
             "Material" => {
                 if let Some(collection) = collection {
@@ -65,8 +88,8 @@ impl ModelFXNode {
     /// List of input terminals.
     pub fn input_terminals(&self) -> Vec<ModelFXTerminal> {
         match self {
-            Self::Material(_) => {
-                vec![ModelFXTerminal::new(UV, 2)]
+            Self::Material(_) | Self::Bricks(_) => {
+                vec![ModelFXTerminal::new(UV, 4)]
             }
             _ => {
                 vec![]
@@ -79,10 +102,13 @@ impl ModelFXNode {
         match self {
             Self::WallHorizontal(_) | Self::WallVertical(_) => {
                 vec![
-                    ModelFXTerminal::new(Face, 6),
-                    ModelFXTerminal::new(Face, 7),
-                    ModelFXTerminal::new(Face, 4),
+                    ModelFXTerminal::new(Face, 0),
+                    ModelFXTerminal::new(Face, 1),
+                    ModelFXTerminal::new(Face, 2),
                 ]
+            }
+            Self::Bricks(_) => {
+                vec![ModelFXTerminal::new(Face, 0), ModelFXTerminal::new(Face, 5)]
             }
             _ => {
                 vec![]
@@ -91,7 +117,7 @@ impl ModelFXNode {
     }
 
     /// Return the color and terminal index for the given hit position.
-    pub fn color_index_for_hit(&self, hit: &Hit) -> (u8, u8) {
+    pub fn color_index_for_hit(&self, hit: &mut Hit) -> (u8, u8) {
         match self {
             Self::WallHorizontal(_) | Self::WallVertical(_) => {
                 let nx = hit.normal.x.abs();
@@ -99,15 +125,22 @@ impl ModelFXNode {
                 let nz = hit.normal.z.abs();
 
                 if nx > ny && nx > nz {
-                    // X-face
-                    (6, 0)
+                    hit.face = HitFace::XFace;
+                    hit.uv = hit.hit_point.yz();
+                    (0, 0)
                 } else if ny > nx && ny > nz {
-                    // Y-face
-                    (7, 1)
+                    hit.face = HitFace::YFace;
+                    hit.uv = hit.hit_point.xz();
+                    (1, 1)
                 } else {
-                    // Z-face
-                    (4, 2)
+                    hit.face = HitFace::ZFace;
+                    hit.uv = hit.hit_point.xy();
+                    (2, 2)
                 }
+            }
+            Self::Bricks(coll) => {
+                let uv = hit.uv / 3.0;
+                bricks(coll, uv)
             }
             _ => (0, 0),
         }
@@ -124,6 +157,10 @@ impl ModelFXNode {
                 }
                 None
             }
+            Self::Bricks(collection) => {
+                let (_, terminal) = bricks(collection, hit.uv);
+                Some(terminal)
+            }
             _ => None,
         }
     }
@@ -133,6 +170,7 @@ impl ModelFXNode {
         match self {
             Self::WallHorizontal(collection) => collection,
             Self::WallVertical(collection) => collection,
+            Self::Bricks(collection) => collection,
             Self::Material(collection) => collection,
         }
     }
@@ -142,6 +180,7 @@ impl ModelFXNode {
         match self {
             Self::WallHorizontal(collection) => collection,
             Self::WallVertical(collection) => collection,
+            Self::Bricks(collection) => collection,
             Self::Material(collection) => collection,
         }
     }
@@ -151,6 +190,9 @@ impl ModelFXNode {
         match self {
             Self::WallHorizontal(collection) => {
                 let position = collection.get_f32_default("Position", 0.5);
+                let offset = collection.get_f32_default("Offset", 0.5);
+                let width = collection.get_f32_default("Width", 1.0);
+                let height = collection.get_f32_default("Height", 1.0);
                 let depth = collection.get_f32_default("Depth", 0.2);
                 let mut min = position - depth / 2.0;
                 let mut max = position + depth / 2.0;
@@ -164,15 +206,28 @@ impl ModelFXNode {
                     min -= adjustment;
                     max -= adjustment;
                 }
-                // let aabb_min = Vec3f::new(0.0, 0.0, min);
-                // let aabb_max = Vec3f::new(1.0, 1.0, max);
+                let mut min_o = offset - width / 2.0;
+                let mut max_o = offset + width / 2.0;
+                if min_o < 0.0 {
+                    let adjustment = 0.0 - min_o;
+                    min_o += adjustment;
+                    max_o += adjustment;
+                }
+                if max_o > 1.0 {
+                    let adjustment = max_o - 1.0;
+                    min_o -= adjustment;
+                    max_o -= adjustment;
+                }
                 sd_box(
-                    p - vec3f(0.5, 0.5, (min + max) / 2.0),
-                    vec3f(0.5, 0.5, (max - min) / 2.0),
+                    p - vec3f((min_o + max_o) / 2.0, height / 2.0, (min + max) / 2.0),
+                    vec3f((max_o - min_o) / 2.0, height / 2.0, (max - min) / 2.0),
                 )
             }
             Self::WallVertical(collection) => {
                 let position = collection.get_f32_default("Position", 0.5);
+                let offset = collection.get_f32_default("Offset", 0.5);
+                let width = collection.get_f32_default("Width", 1.0);
+                let height = collection.get_f32_default("Height", 1.0);
                 let depth = collection.get_f32_default("Depth", 0.2);
                 let mut min = position - depth / 2.0;
                 let mut max = position + depth / 2.0;
@@ -186,12 +241,21 @@ impl ModelFXNode {
                     min -= adjustment;
                     max -= adjustment;
                 }
-                //let aabb_min = Vec3f::new(min, 0.0, 0.0);
-                //let aabb_max = Vec3f::new(max, 1.0, 1.0);
-                //self.ray_aabb(ray, aabb_min, aabb_max)
+                let mut min_o = offset - width / 2.0;
+                let mut max_o = offset + width / 2.0;
+                if min_o < 0.0 {
+                    let adjustment = 0.0 - min_o;
+                    min_o += adjustment;
+                    max_o += adjustment;
+                }
+                if max_o > 1.0 {
+                    let adjustment = max_o - 1.0;
+                    min_o -= adjustment;
+                    max_o -= adjustment;
+                }
                 sd_box(
-                    p - vec3f((min + max) / 2.0, 0.5, 0.5),
-                    vec3f((max - min) / 2.0, 0.5, 0.5),
+                    p - vec3f((min + max) / 2.0, height / 2.0, (min_o + max_o) / 2.0),
+                    vec3f((max - min) / 2.0, height / 2.0, (max_o - min_o) / 2.0),
                 )
             }
             _ => 0.0,
@@ -203,6 +267,7 @@ impl ModelFXNode {
         match self {
             Self::WallHorizontal(_) => Geometry,
             Self::WallVertical(_) => Geometry,
+            Self::Bricks(_) => Material,
             Self::Material(_) => Material,
         }
     }
@@ -212,6 +277,7 @@ impl ModelFXNode {
         match self {
             Self::WallHorizontal(_) => str!("Wall Horizontal"),
             Self::WallVertical(_) => str!("Wall Vertical"),
+            Self::Bricks(_) => str!("Bricks"),
             Self::Material(_) => str!("Material"),
         }
     }

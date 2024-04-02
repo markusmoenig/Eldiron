@@ -15,16 +15,12 @@ pub enum ModelFXColor {
 impl ModelFXColor {
     pub fn create(index: u8) -> Self {
         Self::Color(match index {
-            0 => TheColor::from_hex("#d9ac8b"),
-            1 => TheColor::from_hex("#3e6958"),
-            2 => TheColor::from_hex("#b1a58d"),
-            3 => TheColor::from_hex("#624c3c"),
-            4 => TheColor::from_hex("#243d5c"),
-            5 => TheColor::from_hex("#e0c872"),
-            6 => TheColor::from_hex("#b03a48"),
-            7 => TheColor::from_hex("#d4804d"),
-            8 => TheColor::from_hex("#5c8b93"),
-            _ => TheColor::from_hex("#e3cfb4"),
+            0 => TheColor::from_hex("#cf0000"),
+            1 => TheColor::from_hex("#eefb1c"),
+            2 => TheColor::from_hex("#2c34d6"),
+            3 => TheColor::from_hex("#0af505"),
+            4 => TheColor::from_hex("#7bc4f5"),
+            _ => TheColor::from_hex("#d1d1d1"),
         })
     }
     pub fn color(&self) -> &TheColor {
