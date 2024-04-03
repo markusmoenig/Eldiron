@@ -107,6 +107,9 @@ pub enum HitFace {
 pub struct Hit {
     pub node: usize,
 
+    pub key: Vec3f,
+    pub hash: f32,
+
     pub distance: f32,
     pub hit_point: Vec3f,
     pub normal: Vec3f,
@@ -126,6 +129,10 @@ impl Hit {
     pub fn new() -> Self {
         Self {
             node: 0,
+
+            key: Vec3f::zero(),
+            hash: 0.0,
+
             distance: f32::MAX,
             hit_point: Vec3f::zero(),
             normal: Vec3f::zero(),

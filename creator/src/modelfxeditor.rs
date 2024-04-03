@@ -1,3 +1,4 @@
+use crate::editor::SIDEBARMODE;
 use crate::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -167,6 +168,7 @@ impl ModelFXEditor {
                 if id.name == "ModelFX Clear" && state == &TheWidgetState::Clicked {
                     self.modelfx = ModelFX::default();
                     self.modelfx.draw(ui, ctx, &project.palette);
+                    self.render_preview(ui, &project.palette);
                     redraw = true;
                 }
             }
@@ -177,6 +179,7 @@ impl ModelFXEditor {
                 {
                     self.modelfx.draw(ui, ctx, &project.palette);
                     self.set_selected_node_ui(ui, ctx, project);
+                    self.render_preview(ui, &project.palette);
                     redraw = true;
                 }
             }
@@ -184,6 +187,7 @@ impl ModelFXEditor {
                 if id.name == "ModelFX RGBA Layout View" && self.modelfx.clicked(*coord, ui, ctx) {
                     self.modelfx.draw(ui, ctx, &project.palette);
                     self.set_selected_node_ui(ui, ctx, project);
+                    self.render_preview(ui, &project.palette);
                     redraw = true;
                 }
             }
@@ -196,6 +200,7 @@ impl ModelFXEditor {
             TheEvent::TileEditorUp(id) => {
                 if id.name == "ModelFX RGBA Layout View" && self.modelfx.released(ui, ctx) {
                     self.modelfx.draw(ui, ctx, &project.palette);
+                    self.render_preview(ui, &project.palette);
                     redraw = true;
                 }
             }
@@ -208,6 +213,7 @@ impl ModelFXEditor {
                 if id.name == "ModelFX RGBA Layout View" {
                     self.modelfx.delete();
                     self.modelfx.draw(ui, ctx, &project.palette);
+                    self.render_preview(ui, &project.palette);
                     redraw = true;
                 }
             }
@@ -244,7 +250,9 @@ impl ModelFXEditor {
                                         }
                                     }
                                 }
+                                self.modelfx.clear_previews();
                                 self.modelfx.draw(ui, ctx, &project.palette);
+                                self.render_preview(ui, &project.palette);
                                 redraw = true;
                             }
                         }
@@ -280,7 +288,9 @@ impl ModelFXEditor {
                             }
                         }
                     }
+                    self.modelfx.clear_previews();
                     self.modelfx.draw(ui, ctx, &project.palette);
+                    self.render_preview(ui, &project.palette);
                 } else if id.name.starts_with(":MODELFX:") {
                     if let Some(name) = id.name.strip_prefix(":MODELFX: ") {
                         let mut value = value.clone();
@@ -307,7 +317,9 @@ impl ModelFXEditor {
 
                             collection.set(name, value);
 
+                            self.modelfx.remove_current_node_preview();
                             self.modelfx.draw(ui, ctx, &project.palette);
+                            self.render_preview(ui, &project.palette);
                             redraw = true;
                         }
                     }
@@ -420,6 +432,23 @@ impl ModelFXEditor {
                 }
                 ctx.ui.relayout = true;
             }
+        }
+    }
+
+    pub fn render_preview(&mut self, ui: &mut TheUI, palette: &ThePalette) {
+        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Model {
+            if let Some(widget) = ui.get_render_view("ModelFX Library Preview") {
+                let buffer = widget.render_buffer_mut();
+
+                self.modelfx.render_preview(buffer, palette);
+            }
+        }
+
+        if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
+            let mut buffer = TheRGBABuffer::new(TheDim::sized(70, 70));
+            self.modelfx.render_preview(&mut buffer, palette);
+            let tile = TheRGBATile::buffer(buffer);
+            icon_view.set_rgba_tile(tile);
         }
     }
 }

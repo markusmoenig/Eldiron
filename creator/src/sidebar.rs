@@ -598,42 +598,6 @@ impl Sidebar {
 
         stack_layout.add_canvas(screens_canvas);
 
-        // Model
-
-        let model_canvas = TheCanvas::default();
-
-        stack_layout.add_canvas(model_canvas);
-
-        /*
-                let mut list_layout = TheListLayout::new(TheId::named("Screen List"));
-                list_layout
-                    .limiter_mut()
-                    .set_max_size(vec2i(self.width, 200));
-                let mut list_canvas = TheCanvas::default();
-                list_canvas.set_layout(list_layout);
-
-                let mut screen_add_button = TheTraybarButton::new(TheId::named("Screen Add"));
-                screen_add_button.set_icon_name("icon_role_add".to_string());
-                screen_add_button.set_status_text("Add a new screen.");
-
-                let mut screen_remove_button = TheTraybarButton::new(TheId::named("Screen Remove"));
-                screen_remove_button.set_icon_name("icon_role_remove".to_string());
-                screen_remove_button.set_status_text("Remove the current screen.");
-                screen_remove_button.set_disabled(true);
-
-                let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
-                toolbar_hlayout.set_background_color(None);
-                toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
-                toolbar_hlayout.add_widget(Box::new(screen_add_button));
-                toolbar_hlayout.add_widget(Box::new(screen_remove_button));
-                //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
-
-                let mut toolbar_canvas = TheCanvas::default();
-                toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
-                toolbar_canvas.set_layout(toolbar_hlayout);
-                list_canvas.set_bottom(toolbar_canvas);
-        */
-
         // Asset
 
         let mut asset_canvas = TheCanvas::default();
@@ -686,6 +650,36 @@ impl Sidebar {
         asset_canvas.set_center(list_canvas);
 
         stack_layout.add_canvas(asset_canvas);
+
+        // Model
+
+        let mut model_canvas = TheCanvas::default();
+
+        let mut rgba_model_canvas = TheCanvas::default();
+        let mut rgba_layout = TheRGBALayout::new(TheId::named("ModelFX Library RGBA Layout"));
+        rgba_layout.limiter_mut().set_max_width(self.width);
+        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+            rgba_view.set_grid(Some(40));
+            rgba_view.set_mode(TheRGBAViewMode::TilePicker);
+            let mut c = WHITE;
+            c[3] = 128;
+            let buffer = TheRGBABuffer::new(TheDim::sized(6 * 40, 8 * 40));
+            rgba_view.set_buffer(buffer);
+            rgba_view.set_hover_color(Some(c));
+        }
+
+        rgba_model_canvas.set_layout(rgba_layout);
+
+        let mut model_preview_canvas = TheCanvas::default();
+        let mut preview_view = TheRenderView::new(TheId::named("ModelFX Library Preview"));
+        preview_view.limiter_mut().set_max_size(vec2i(260, 260));
+        *preview_view.render_buffer_mut() = TheRGBABuffer::new(TheDim::sized(260, 260));
+        model_preview_canvas.set_widget(preview_view);
+
+        model_canvas.set_center(rgba_model_canvas);
+        model_canvas.set_bottom(model_preview_canvas);
+
+        stack_layout.add_canvas(model_canvas);
 
         // Debug
 
@@ -1878,6 +1872,23 @@ impl Sidebar {
                     ctx.ui.send(TheEvent::SetStackIndex(
                         self.stack_layout_id.clone(),
                         SidebarMode::Asset as usize,
+                    ));
+                    redraw = true;
+                } else if id.name == "Model Section" && *state == TheWidgetState::Selected {
+                    self.deselect_sections_buttons(ui, id.name.clone());
+
+                    if let Some(widget) = ui
+                        .canvas
+                        .get_widget(Some(&"Switchbar Section Header".into()), None)
+                    {
+                        widget.set_value(TheValue::Text("Model".to_string()));
+                    }
+
+                    *SIDEBARMODE.lock().unwrap() = SidebarMode::Model;
+
+                    ctx.ui.send(TheEvent::SetStackIndex(
+                        self.stack_layout_id.clone(),
+                        SidebarMode::Model as usize,
                     ));
                     redraw = true;
                 } else if id.name == "Debug Section" && *state == TheWidgetState::Selected {

@@ -90,13 +90,13 @@ impl TileEditor {
 
         let mut icon_preview = TheIconView::new(TheId::named("Icon Preview"));
         icon_preview.set_alpha_mode(false);
-        icon_preview.limiter_mut().set_max_size(vec2i(60, 60));
+        icon_preview.limiter_mut().set_max_size(vec2i(70, 70));
         icon_preview.set_border_color(Some([100, 100, 100, 255]));
         vlayout.add_widget(Box::new(icon_preview));
 
-        let mut spacer = TheIconView::new(TheId::empty());
-        spacer.limiter_mut().set_max_height(5);
-        vlayout.add_widget(Box::new(spacer));
+        // let mut spacer = TheIconView::new(TheId::empty());
+        // spacer.limiter_mut().set_max_height(5);
+        // vlayout.add_widget(Box::new(spacer));
 
         let mut ground_icon = TheIconView::new(TheId::named("Ground Icon"));
         ground_icon.set_text(Some("FLOOR".to_string()));

@@ -78,6 +78,7 @@ impl ModelFXNode {
                     coll = collection;
                 } else {
                     coll.set("Color", TheValue::PaletteIndex(0));
+                    coll.set("Randomness", TheValue::FloatRange(0.0, 0.0..=1.0));
                 }
                 Some(Self::Material(coll))
             }
@@ -126,7 +127,7 @@ impl ModelFXNode {
 
                 if nx > ny && nx > nz {
                     hit.face = HitFace::XFace;
-                    hit.uv = hit.hit_point.yz();
+                    hit.uv = hit.hit_point.zy();
                     (0, 0)
                 } else if ny > nx && ny > nz {
                     hit.face = HitFace::YFace;
@@ -140,7 +141,7 @@ impl ModelFXNode {
             }
             Self::Bricks(coll) => {
                 let uv = hit.uv / 3.0;
-                bricks(coll, uv)
+                bricks(coll, uv, hit)
             }
             _ => (0, 0),
         }
@@ -151,14 +152,23 @@ impl ModelFXNode {
         match self {
             Self::Material(collection) => {
                 if let Some(TheValue::PaletteIndex(index)) = collection.get("Color") {
+                    let randomness = collection.get_f32_default("Randomness", 0.0);
                     if let Some(color) = &palette.colors[*index as usize] {
-                        hit.color = color.to_vec4f();
+                        if randomness == 0.0 {
+                            hit.color = color.to_vec4f();
+                        } else {
+                            let random_factor = hash21(hit.uv * 1000.0) * randomness;
+                            let r = (color.r + random_factor).clamp(0.0, 1.0);
+                            let g = (color.g + random_factor).clamp(0.0, 1.0);
+                            let b = (color.b + random_factor).clamp(0.0, 1.0);
+                            hit.color = vec4f(r, g, b, color.a);
+                        }
                     }
                 }
                 None
             }
             Self::Bricks(collection) => {
-                let (_, terminal) = bricks(collection, hit.uv);
+                let (_, terminal) = bricks(collection, hit.uv, hit);
                 Some(terminal)
             }
             _ => None,

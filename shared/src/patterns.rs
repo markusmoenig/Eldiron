@@ -1,7 +1,19 @@
-//use crate::prelude::*;
+use crate::prelude::*;
 use theframework::prelude::*;
 
-pub fn bricks(coll: &TheCollection, uv: Vec2f) -> (u8, u8) {
+/// 2D hash, taken from https://www.shadertoy.com/view/4djSRW
+#[inline(always)]
+pub fn hash21(p: Vec2f) -> f32 {
+    let mut p3 = frac(vec3f(p.x * 0.1031, p.y * 0.1031, p.x * 0.1031));
+    let dot = dot(p3, vec3f(p3.y + 33.333, p3.z + 33.333, p3.x + 33.333));
+
+    p3.x += dot;
+    p3.y += dot;
+    p3.z += dot;
+    ((p3.x + p3.y) * p3.z).fract()
+}
+
+pub fn bricks(coll: &TheCollection, uv: Vec2f, hit: &mut Hit) -> (u8, u8) {
     //let uv = hit.uv / 100.0;
 
     let ratio = coll.get_f32_default("Ratio", 2.0);
@@ -21,7 +33,11 @@ pub fn bricks(coll: &TheCollection, uv: Vec2f) -> (u8, u8) {
         u.x += 0.5 * u.y.floor() % 2.0;
     }
 
-    let t = frac(u) - vec2f(1.0, 1.0) / 2.0;
+    let new_uv = frac(u);
+    hit.uv = new_uv;
+    hit.hash = hash21(floor(u));
+
+    let t = new_uv - vec2f(1.0, 1.0) / 2.0;
     let s = w * t;
 
     let a = w / 2.0 - gap - abs(s);

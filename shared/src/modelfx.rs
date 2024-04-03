@@ -21,6 +21,9 @@ pub struct ModelFX {
     pub connections: Vec<(u16, u8, u16, u8)>,
 
     #[serde(skip)]
+    pub node_previews: Vec<Option<TheRGBABuffer>>,
+
+    #[serde(skip)]
     pub node_rects: Vec<(usize, usize, usize, usize)>,
     #[serde(skip)]
     pub terminal_rects: Vec<(Vec3i, (usize, usize, usize, usize))>,
@@ -48,6 +51,8 @@ impl ModelFX {
             nodes: vec![],
             connections: vec![],
 
+            node_previews: vec![],
+
             node_rects: vec![],
             terminal_rects: vec![],
             zoom: 1.0,
@@ -69,6 +74,7 @@ impl ModelFX {
                 .set("_pos", TheValue::Int2(vec2i(200, 10)));
             self.selected_node = Some(self.nodes.len());
             self.nodes.push(node);
+            self.node_previews.push(None);
             return true;
         }
         false
@@ -78,6 +84,7 @@ impl ModelFX {
     pub fn delete(&mut self) {
         if let Some(deleted_node_index) = self.selected_node {
             self.nodes.remove(deleted_node_index);
+            self.node_previews.remove(deleted_node_index);
 
             // Filter out connections involving the deleted node and adjust indices for others
             self.connections
@@ -99,6 +106,20 @@ impl ModelFX {
                         true
                     }
                 });
+        }
+    }
+
+    /// Clears all node previews.
+    pub fn clear_previews(&mut self) {
+        for preview in &mut self.node_previews {
+            *preview = None;
+        }
+    }
+
+    /// Remove the preview of the selected node.
+    pub fn remove_current_node_preview(&mut self) {
+        if let Some(selected_node) = self.selected_node {
+            self.node_previews[selected_node] = None;
         }
     }
 
@@ -130,8 +151,6 @@ impl ModelFX {
         let preview_border_scaled = (4.0 * zoom) as i32;
         let preview_size_scaled = (node_size as f32 * zoom - 2.0 * 4.0 * zoom) as i32 - 1;
 
-        let mut preview_buffer: Option<TheRGBABuffer> = None;
-
         if !self.nodes.is_empty() {
             for node in &self.nodes {
                 if let Some(TheValue::Int2(v)) = node.collection().get("_pos") {
@@ -141,10 +160,6 @@ impl ModelFX {
                     max_y = max_y.max(v.y + node_size_scaled + 10);
                 }
             }
-
-            let mut buffer = TheRGBABuffer::new(TheDim::sized(120, 120));
-            self.render_preview(&mut buffer, palette);
-            preview_buffer = Some(buffer);
         }
 
         let mut width = (max_x - min_x).max(20);
@@ -161,14 +176,6 @@ impl ModelFX {
 
                 let mut buffer = TheRGBABuffer::new(TheDim::sized(width, height));
                 buffer.fill([74, 74, 74, 255]);
-
-                if let Some(preview_buffer) = preview_buffer {
-                    buffer.copy_into(
-                        width - preview_buffer.dim().width,
-                        0, //height - preview_buffer.dim().height,
-                        &preview_buffer,
-                    )
-                }
 
                 let mut terminal_colors: FxHashMap<(i32, i32, i32), TheColor> =
                     FxHashMap::default();
@@ -207,24 +214,40 @@ impl ModelFX {
                             1.5 * zoom,
                         );
 
-                        let mut preview_buffer = TheRGBABuffer::new(TheDim::sized(
-                            preview_size_scaled,
-                            preview_size_scaled,
-                        ));
+                        // Remove preview buffer if size has changed
+                        if let Some(preview_buffer) = &self.node_previews[i] {
+                            if preview_buffer.dim().width != preview_size_scaled
+                                && preview_buffer.dim().height != preview_size_scaled
+                            {
+                                self.node_previews[i] = None;
+                            }
+                        }
 
-                        self.render_node_preview(&mut preview_buffer, node, palette);
-                        let preview_rect = (
-                            rect.0 + preview_border_scaled as usize,
-                            rect.1 + preview_border_scaled as usize,
-                            preview_size_scaled as usize,
-                            preview_size_scaled as usize,
-                        );
-                        ctx.draw.copy_slice(
-                            buffer.pixels_mut(),
-                            preview_buffer.pixels(),
-                            &preview_rect,
-                            width as usize,
-                        );
+                        // Create preview if it doesn't exist
+                        if self.node_previews[i].is_none() {
+                            let mut preview_buffer = TheRGBABuffer::new(TheDim::sized(
+                                preview_size_scaled,
+                                preview_size_scaled,
+                            ));
+                            self.render_node_preview(&mut preview_buffer, node, palette);
+                            self.node_previews[i] = Some(preview_buffer);
+                        }
+
+                        // Copy preview
+                        if let Some(preview_buffer) = &self.node_previews[i] {
+                            let preview_rect = (
+                                rect.0 + preview_border_scaled as usize,
+                                rect.1 + preview_border_scaled as usize,
+                                preview_size_scaled as usize,
+                                preview_size_scaled as usize,
+                            );
+                            ctx.draw.copy_slice(
+                                buffer.pixels_mut(),
+                                preview_buffer.pixels(),
+                                &preview_rect,
+                                width as usize,
+                            );
+                        }
 
                         // Input Terminals
 
@@ -545,10 +568,29 @@ impl ModelFX {
         hit: &mut Hit,
         palette: &ThePalette,
     ) {
+        let mut connections = vec![];
+
         for (o, ot, i, it) in &self.connections {
             if *o == node as u16 && *ot == terminal_index as u8 {
-                if let Some(ot) = self.nodes[*i as usize].material(it, hit, palette) {
-                    self.follow_trail(*i as usize, ot as usize, hit, palette);
+                connections.push((*i, *it));
+            }
+        }
+
+        match connections.len() {
+            0 => {}
+            1 => {
+                let o = connections[0].0 as usize;
+                if let Some(ot) = self.nodes[o].material(&connections[0].1, hit, palette) {
+                    self.follow_trail(o, ot as usize, hit, palette);
+                }
+            }
+            _ => {
+                let index = (hit.hash * connections.len() as f32).floor() as usize;
+                if let Some(random_connection) = connections.get(index) {
+                    let o = random_connection.0 as usize;
+                    if let Some(ot) = self.nodes[o].material(&random_connection.1, hit, palette) {
+                        self.follow_trail(o, ot as usize, hit, palette);
+                    }
                 }
             }
         }
@@ -807,5 +849,20 @@ impl ModelFX {
             + e3 * node.distance(p + e3)
             + e4 * node.distance(p + e4);
         normalize(n)
+    }
+
+    /// Load a model from a JSON string.
+    pub fn from_json(json: &str) -> Self {
+        let mut modelfx: ModelFX = serde_json::from_str(json).unwrap_or_default();
+        let cnt = modelfx.nodes.len();
+        for _ in 0..cnt {
+            modelfx.node_previews.push(None);
+        }
+        modelfx
+    }
+
+    /// Convert the model to a JSON string.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self).unwrap_or_default()
     }
 }
