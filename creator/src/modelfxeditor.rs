@@ -170,6 +170,16 @@ impl ModelFXEditor {
                     self.modelfx.draw(ui, ctx, &project.palette);
                     self.render_preview(ui, &project.palette);
                     redraw = true;
+                } else if id.name == "ModelFX Move" && state == &TheWidgetState::Clicked {
+                    if !self.modelfx.nodes.is_empty() {
+                        project.models.push(self.modelfx.clone());
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("ModelFX Redraw Library"),
+                            TheValue::Empty,
+                        ));
+                        self.redraw_modelfx_library(project, ui, ctx);
+                    }
+                    redraw = true;
                 }
             }
             TheEvent::ContextMenuSelected(id, item) => {
@@ -181,6 +191,18 @@ impl ModelFXEditor {
                     self.set_selected_node_ui(ui, ctx, project);
                     self.render_preview(ui, &project.palette);
                     redraw = true;
+                }
+            }
+            TheEvent::TilePicked(id, coord) => {
+                if id.name == "ModelFX Library RGBA Layout View" {
+                    let index = coord.x + coord.y * 4;
+                    if let Some(model) = project.models.get(index as usize) {
+                        self.modelfx = model.clone();
+                        self.modelfx.draw(ui, ctx, &project.palette);
+                        self.set_selected_node_ui(ui, ctx, project);
+                        self.render_preview(ui, &project.palette);
+                        redraw = true;
+                    }
                 }
             }
             TheEvent::TileEditorClicked(id, coord) => {
@@ -209,8 +231,15 @@ impl ModelFXEditor {
                     redraw = true;
                 }
             }
-            TheEvent::TileEditorDelete(id, _) => {
-                if id.name == "ModelFX RGBA Layout View" {
+            TheEvent::TileEditorDelete(id, selected) => {
+                if id.name == "ModelFX Library RGBA Layout View" {
+                    for pos in selected {
+                        let index = (pos.0 + pos.1 * 4) as usize;
+                        project.models.remove(index);
+                    }
+                    self.redraw_modelfx_library(project, ui, ctx);
+                    redraw = true;
+                } else if id.name == "ModelFX RGBA Layout View" {
                     self.modelfx.delete();
                     self.modelfx.draw(ui, ctx, &project.palette);
                     self.render_preview(ui, &project.palette);
@@ -445,10 +474,60 @@ impl ModelFXEditor {
         }
 
         if let Some(icon_view) = ui.get_icon_view("Icon Preview") {
-            let mut buffer = TheRGBABuffer::new(TheDim::sized(70, 70));
+            let mut buffer = TheRGBABuffer::new(TheDim::sized(65, 65));
             self.modelfx.render_preview(&mut buffer, palette);
+            self.modelfx.preview_buffer = buffer.clone();
             let tile = TheRGBATile::buffer(buffer);
             icon_view.set_rgba_tile(tile);
+        }
+    }
+
+    pub fn set_model(
+        &mut self,
+        model: ModelFX,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        palette: &ThePalette,
+    ) {
+        self.modelfx = model;
+        self.modelfx.draw(ui, ctx, palette);
+        self.render_preview(ui, palette);
+    }
+
+    /// Set the library models.
+    pub fn redraw_modelfx_library(
+        &mut self,
+        project: &Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        if let Some(editor) = ui.get_rgba_layout("ModelFX Library RGBA Layout") {
+            //println!("{}", editor.dim().width);
+            let width = 275; //editor.dim().width - 16;
+            let height = editor.dim().height - 16;
+
+            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                let grid = 65;
+
+                rgba_view.set_grid(Some(grid));
+
+                let tiles_per_row = width / grid;
+                let lines = project.models.len() as i32 / tiles_per_row + 1;
+
+                let mut buffer =
+                    TheRGBABuffer::new(TheDim::sized(width, max(lines * grid, height)));
+                buffer.fill([74, 74, 74, 255]);
+
+                for (i, model) in project.models.iter().enumerate() {
+                    let x = i as i32 % tiles_per_row;
+                    let y = i as i32 / tiles_per_row;
+
+                    buffer.copy_into(x * grid, y * grid, &model.preview_buffer);
+                }
+
+                rgba_view.set_buffer(buffer);
+            }
+            editor.relayout(ctx);
         }
     }
 }

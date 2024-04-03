@@ -213,7 +213,7 @@ impl Renderer {
                 let mut r = ray.clone();
                 r.o = lro;
 
-                if let Some(hit_struct) = model.render(&r, 1.01, palette) {
+                if let Some(hit_struct) = model.render(&r, 1.01, i, palette) {
                     color = hit_struct.color;
                     hit = true;
                     //normal = hit_struct.normal;

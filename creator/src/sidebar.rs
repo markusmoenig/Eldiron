@@ -1,4 +1,6 @@
-use crate::editor::{CODEEDITOR, REGIONFXEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR};
+use crate::editor::{
+    CODEEDITOR, MODELFXEDITOR, REGIONFXEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR,
+};
 use crate::prelude::*;
 
 #[derive(PartialEq, Debug)]
@@ -663,7 +665,9 @@ impl Sidebar {
             rgba_view.set_mode(TheRGBAViewMode::TilePicker);
             let mut c = WHITE;
             c[3] = 128;
-            let buffer = TheRGBABuffer::new(TheDim::sized(6 * 40, 8 * 40));
+            let mut buffer = TheRGBABuffer::new(TheDim::sized(275, 8 * 65));
+            buffer.fill([74, 74, 74, 255]);
+            rgba_view.set_background([74, 74, 74, 255]);
             rgba_view.set_buffer(buffer);
             rgba_view.set_hover_color(Some(c));
         }
@@ -1890,6 +1894,16 @@ impl Sidebar {
                         self.stack_layout_id.clone(),
                         SidebarMode::Model as usize,
                     ));
+
+                    MODELFXEDITOR
+                        .lock()
+                        .unwrap()
+                        .render_preview(ui, &project.palette);
+                    MODELFXEDITOR
+                        .lock()
+                        .unwrap()
+                        .redraw_modelfx_library(project, ui, ctx);
+
                     redraw = true;
                 } else if id.name == "Debug Section" && *state == TheWidgetState::Selected {
                     self.deselect_sections_buttons(ui, id.name.clone());

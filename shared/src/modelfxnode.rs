@@ -64,7 +64,7 @@ impl ModelFXNode {
                     coll.set("Ratio", TheValue::FloatRange(2.0, 1.0..=10.0));
                     coll.set("Rounding", TheValue::FloatRange(0.0, 0.0..=0.5));
                     coll.set("Bevel", TheValue::FloatRange(0.0, 0.0..=0.5));
-                    coll.set("Gap", TheValue::FloatRange(0.08, 0.0..=0.5));
+                    coll.set("Gap", TheValue::FloatRange(0.1, 0.0..=0.5));
                     coll.set("Cell", TheValue::FloatRange(6.0, 0.0..=15.0));
                     coll.set(
                         "Mode",

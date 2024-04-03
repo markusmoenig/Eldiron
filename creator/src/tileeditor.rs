@@ -90,7 +90,7 @@ impl TileEditor {
 
         let mut icon_preview = TheIconView::new(TheId::named("Icon Preview"));
         icon_preview.set_alpha_mode(false);
-        icon_preview.limiter_mut().set_max_size(vec2i(70, 70));
+        icon_preview.limiter_mut().set_max_size(vec2i(65, 65));
         icon_preview.set_border_color(Some([100, 100, 100, 255]));
         vlayout.add_widget(Box::new(icon_preview));
 
@@ -391,14 +391,14 @@ impl TileEditor {
                             TheId::named("Set Region Render"),
                             TheValue::Empty,
                         ));
-                    } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
-                        || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
-                    {
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Set Region Panel"),
-                            TheValue::Empty,
-                        ));
-                    }
+                    } /*else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
+                          || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
+                      {
+                          ctx.ui.send(TheEvent::Custom(
+                              TheId::named("Set Region Panel"),
+                              TheValue::Empty,
+                          ));
+                          }*/
                 }
             }
             TheEvent::TileEditorUp(_id) => {
@@ -964,6 +964,7 @@ impl TileEditor {
                 }
             }
         } else if self.editor_mode == EditorMode::Pick {
+            let mut clicked_model = false;
             // Check for character at the given position.
             if let Some(c) = server.get_character_at(server_ctx.curr_region, coord) {
                 server_ctx.curr_character_instance = Some(c.0);
@@ -1070,7 +1071,19 @@ impl TileEditor {
                 if !found_area {
                     // No area, set the tile.
                     server_ctx.curr_character_instance = None;
-                    if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
+                    if let Some(model) = region.models.get(&(coord.x, 0, coord.y)) {
+                        MODELFXEDITOR.lock().unwrap().set_model(
+                            model.clone(),
+                            ui,
+                            ctx,
+                            &project.palette,
+                        );
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Set Region Modeler"),
+                            TheValue::Empty,
+                        ));
+                        clicked_model = true;
+                    } else if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
                         if self.curr_layer_role == Layer2DRole::FX {
                             // Set the tile preview.
                             if let Some(widget) = ui.get_widget("TileFX RGBA") {
@@ -1117,8 +1130,9 @@ impl TileEditor {
                     }
                 }
             }
-            if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
-                || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
+            if !clicked_model
+                && (*SIDEBARMODE.lock().unwrap() == SidebarMode::Region
+                    || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character)
             {
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Set Region Panel"),

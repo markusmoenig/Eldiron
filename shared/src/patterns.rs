@@ -19,7 +19,7 @@ pub fn bricks(coll: &TheCollection, uv: Vec2f, hit: &mut Hit) -> (u8, u8) {
     let ratio = coll.get_f32_default("Ratio", 2.0);
     let round = coll.get_f32_default("Rounding", 0.0);
     let bevel = coll.get_f32_default("Bevel", 0.0);
-    let gap = coll.get_f32_default("Gap", 0.08);
+    let gap = coll.get_f32_default("Gap", 0.1);
     let mode = coll.get_i32_default("Mode", 0);
 
     let mut u = uv; // + vec2f(10000.0, 10000.0);

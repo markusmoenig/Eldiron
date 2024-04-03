@@ -20,6 +20,9 @@ pub struct ModelFX {
     // Source node index, source terminal, dest node index, dest terminal
     pub connections: Vec<(u16, u8, u16, u8)>,
 
+    // 70 x 70
+    pub preview_buffer: TheRGBABuffer,
+
     #[serde(skip)]
     pub node_previews: Vec<Option<TheRGBABuffer>>,
 
@@ -51,6 +54,7 @@ impl ModelFX {
             nodes: vec![],
             connections: vec![],
 
+            preview_buffer: TheRGBABuffer::new(TheDim::sized(65, 65)),
             node_previews: vec![],
 
             node_rects: vec![],
@@ -596,7 +600,13 @@ impl ModelFX {
         }
     }
 
-    pub fn render(&self, ray: &Ray, max_distance: f32, palette: &ThePalette) -> Option<Hit> {
+    pub fn render(
+        &self,
+        ray: &Ray,
+        max_distance: f32,
+        key: Vec3f,
+        palette: &ThePalette,
+    ) -> Option<Hit> {
         let max_t = max_distance * 1.732;
         let mut t = 0.0;
 
@@ -615,7 +625,7 @@ impl ModelFX {
 
         if t < max_t {
             hit.normal = self.normal(p);
-            hit.hit_point = p;
+            hit.hit_point = p + key;
 
             let c = dot(hit.normal, normalize(vec3f(1.0, 2.0, 3.0))) * 0.5 + 0.5;
             hit.color = vec4f(c, c, c, 1.0);
@@ -669,7 +679,7 @@ impl ModelFX {
                                 camera_offset,
                             );
 
-                            if let Some(hit) = self.render(&ray, 3.0, palette) {
+                            if let Some(hit) = self.render(&ray, 3.0, Vec3f::zero(), palette) {
                                 color = hit.color;
                             }
 
