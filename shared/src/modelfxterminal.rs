@@ -5,6 +5,7 @@ use theframework::prelude::*;
 pub enum ModelFXTerminalRole {
     Face,
     UV,
+    Noise,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -20,7 +21,8 @@ impl ModelFXColor {
             2 => TheColor::from_hex("#2c34d6"),
             3 => TheColor::from_hex("#0af505"),
             4 => TheColor::from_hex("#7bc4f5"),
-            _ => TheColor::from_hex("#d1d1d1"),
+            5 => TheColor::from_hex("#d1d1d1"),
+            _ => TheColor::from_hex("#e5b316"),
         })
     }
     pub fn color(&self) -> &TheColor {

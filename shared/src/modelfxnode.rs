@@ -2,12 +2,14 @@ use crate::prelude::*;
 //use indexmap::IndexMap;
 //use rayon::prelude::*;
 use crate::modelfxterminal::ModelFXTerminalRole::*;
+use noiselib::prelude::*;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum ModelFXNodeRole {
     Geometry,
     Material,
+    Noise,
 }
 
 use ModelFXNodeRole::*;
@@ -20,6 +22,8 @@ pub enum ModelFXNode {
     // Material
     Bricks(TheCollection),
     Material(TheCollection),
+    // Noise
+    Noise3D(TheCollection),
 }
 
 impl ModelFXNode {
@@ -78,9 +82,23 @@ impl ModelFXNode {
                     coll = collection;
                 } else {
                     coll.set("Color", TheValue::PaletteIndex(0));
-                    coll.set("Randomness", TheValue::FloatRange(0.0, 0.0..=1.0));
                 }
                 Some(Self::Material(coll))
+            }
+            "Noise3D" => {
+                if let Some(collection) = collection {
+                    coll = collection;
+                } else {
+                    coll.set(
+                        "Type",
+                        TheValue::TextList(
+                            0,
+                            vec![str!("Perlin"), str!("Musgrave"), str!("Simplex")],
+                        ),
+                    );
+                    coll.set("Scale", TheValue::FloatRange(1.0, 0.0..=20.0));
+                }
+                Some(Self::Noise3D(coll))
             }
             _ => None,
         }
@@ -90,7 +108,10 @@ impl ModelFXNode {
     pub fn input_terminals(&self) -> Vec<ModelFXTerminal> {
         match self {
             Self::Material(_) | Self::Bricks(_) => {
-                vec![ModelFXTerminal::new(UV, 4)]
+                vec![
+                    ModelFXTerminal::new(UV, 4),
+                    ModelFXTerminal::new(ModelFXTerminalRole::Noise, 6),
+                ]
             }
             _ => {
                 vec![]
@@ -110,6 +131,9 @@ impl ModelFXNode {
             }
             Self::Bricks(_) => {
                 vec![ModelFXTerminal::new(Face, 0), ModelFXTerminal::new(Face, 5)]
+            }
+            Self::Noise3D(_) => {
+                vec![ModelFXTerminal::new(ModelFXTerminalRole::Noise, 6)]
             }
             _ => {
                 vec![]
@@ -148,21 +172,21 @@ impl ModelFXNode {
     }
 
     /// Handle the material node for the given terminal.
-    pub fn material(&self, _in_terminal: &u8, hit: &mut Hit, palette: &ThePalette) -> Option<u8> {
+    pub fn material(
+        &self,
+        _in_terminal: &u8,
+        hit: &mut Hit,
+        palette: &ThePalette,
+        noise: f32,
+    ) -> Option<u8> {
         match self {
             Self::Material(collection) => {
                 if let Some(TheValue::PaletteIndex(index)) = collection.get("Color") {
-                    let randomness = collection.get_f32_default("Randomness", 0.0);
                     if let Some(color) = &palette.colors[*index as usize] {
-                        if randomness == 0.0 {
-                            hit.color = color.to_vec4f();
-                        } else {
-                            let random_factor = hash21(hit.uv * 1000.0) * randomness;
-                            let r = (color.r + random_factor).clamp(0.0, 1.0);
-                            let g = (color.g + random_factor).clamp(0.0, 1.0);
-                            let b = (color.b + random_factor).clamp(0.0, 1.0);
-                            hit.color = vec4f(r, g, b, color.a);
-                        }
+                        hit.color.x = color.r * noise;
+                        hit.color.y = color.g * noise;
+                        hit.color.z = color.b * noise;
+                        hit.color.w = 1.0;
                     }
                 }
                 None
@@ -175,6 +199,49 @@ impl ModelFXNode {
         }
     }
 
+    /// Noise.
+    pub fn noise(&self, hit: &Hit) -> f32 {
+        match self {
+            Self::Noise3D(collection) => {
+                let noise_type = collection.get_i32_default("Type", 0);
+                let scale = collection.get_f32_default("Scale", 1.0);
+                let mut value = 0.0;
+                let seed = 1;
+                let mut rng = UniformRandomGen::new(seed);
+
+                if noise_type == 0 {
+                    value = perlin_noise_3d(
+                        &mut rng,
+                        hit.hit_point.x * scale,
+                        hit.hit_point.y * scale,
+                        hit.hit_point.z * scale,
+                        seed,
+                    );
+                } else if noise_type == 1 {
+                    value = musgrave_noise_3d(
+                        &mut rng,
+                        hit.hit_point.x * scale,
+                        hit.hit_point.y * scale,
+                        hit.hit_point.z * scale,
+                        seed,
+                    );
+                }
+                if noise_type == 2 {
+                    value = simplex_noise_3d(
+                        &mut rng,
+                        hit.hit_point.x * scale,
+                        hit.hit_point.y * scale,
+                        hit.hit_point.z * scale,
+                        seed,
+                    );
+                }
+
+                value
+            }
+            _ => 0.0,
+        }
+    }
+
     /// Get a reference to the collection.
     pub fn collection(&self) -> &TheCollection {
         match self {
@@ -182,6 +249,7 @@ impl ModelFXNode {
             Self::WallVertical(collection) => collection,
             Self::Bricks(collection) => collection,
             Self::Material(collection) => collection,
+            Self::Noise3D(collection) => collection,
         }
     }
 
@@ -192,6 +260,7 @@ impl ModelFXNode {
             Self::WallVertical(collection) => collection,
             Self::Bricks(collection) => collection,
             Self::Material(collection) => collection,
+            Self::Noise3D(collection) => collection,
         }
     }
 
@@ -279,6 +348,7 @@ impl ModelFXNode {
             Self::WallVertical(_) => Geometry,
             Self::Bricks(_) => Material,
             Self::Material(_) => Material,
+            Self::Noise3D(_) => ModelFXNodeRole::Noise,
         }
     }
 
@@ -289,6 +359,7 @@ impl ModelFXNode {
             Self::WallVertical(_) => str!("Wall Vertical"),
             Self::Bricks(_) => str!("Bricks"),
             Self::Material(_) => str!("Material"),
+            Self::Noise3D(_) => str!("Noise"),
         }
     }
 }

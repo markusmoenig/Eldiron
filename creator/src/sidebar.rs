@@ -665,7 +665,7 @@ impl Sidebar {
             rgba_view.set_mode(TheRGBAViewMode::TilePicker);
             let mut c = WHITE;
             c[3] = 128;
-            let mut buffer = TheRGBABuffer::new(TheDim::sized(275, 8 * 65));
+            let mut buffer = TheRGBABuffer::new(TheDim::sized(275, 5 * 65));
             buffer.fill([74, 74, 74, 255]);
             rgba_view.set_background([74, 74, 74, 255]);
             rgba_view.set_buffer(buffer);
@@ -2343,6 +2343,12 @@ impl Sidebar {
                 list_layout.add_item(item, ctx);
             }
         }
+
+        MODELFXEDITOR
+            .lock()
+            .unwrap()
+            .redraw_modelfx_library(project, ui, ctx);
+
         ui.select_first_list_item("Region List", ctx);
         ui.select_first_list_item("Character List", ctx);
         ui.select_first_list_item("Item List", ctx);

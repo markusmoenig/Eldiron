@@ -120,10 +120,17 @@ impl ModelFX {
         }
     }
 
-    /// Remove the preview of the selected node.
+    /// Remove the preview of the selected node and all connected nodes.
     pub fn remove_current_node_preview(&mut self) {
         if let Some(selected_node) = self.selected_node {
             self.node_previews[selected_node] = None;
+
+            // Remove previews of downstream connected nodes
+            for (src_node_idx, _, dest_node_idx, _) in &self.connections {
+                if *src_node_idx as usize == selected_node {
+                    self.node_previews[*dest_node_idx as usize] = None;
+                }
+            }
         }
     }
 
@@ -218,6 +225,10 @@ impl ModelFX {
                             1.5 * zoom,
                         );
 
+                        if i >= self.node_previews.len() {
+                            self.node_previews.resize(i + 1, None);
+                        }
+
                         // Remove preview buffer if size has changed
                         if let Some(preview_buffer) = &self.node_previews[i] {
                             if preview_buffer.dim().width != preview_size_scaled
@@ -233,7 +244,7 @@ impl ModelFX {
                                 preview_size_scaled,
                                 preview_size_scaled,
                             ));
-                            self.render_node_preview(&mut preview_buffer, node, palette);
+                            self.render_node_preview(&mut preview_buffer, i, palette);
                             self.node_previews[i] = Some(preview_buffer);
                         }
 
@@ -564,6 +575,16 @@ impl ModelFX {
         false
     }
 
+    /// Returns the connected output node for the given input node and terminal.
+    pub fn find_connected_output_node(&self, node: usize, terminal_index: usize) -> Option<usize> {
+        for (o, _, i, it) in &self.connections {
+            if *i == node as u16 && *it == terminal_index as u8 {
+                return Some(*o as usize);
+            }
+        }
+        None
+    }
+
     /// After exiting a geometry node follow the trail of material nodes to calculate the final color.
     pub fn follow_trail(
         &self,
@@ -584,7 +605,20 @@ impl ModelFX {
             0 => {}
             1 => {
                 let o = connections[0].0 as usize;
-                if let Some(ot) = self.nodes[o].material(&connections[0].1, hit, palette) {
+
+                let mut noise = 1.0;
+                if let Some(noise_index) = self.find_connected_output_node(o, 1) {
+                    if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
+                        noise = (self.nodes[noise_index].noise(hit) + 1.0) / 2.0;
+                        hit.uv += 7.23;
+                        let noise2 = (self.nodes[noise_index].noise(hit) + 1.0) / 2.0;
+                        let wobble = vec2f(noise, noise2);
+                        hit.uv -= 7.23;
+                        hit.uv += wobble * 0.5;
+                    }
+                }
+
+                if let Some(ot) = self.nodes[o].material(&connections[0].1, hit, palette, noise) {
                     self.follow_trail(o, ot as usize, hit, palette);
                 }
             }
@@ -592,7 +626,15 @@ impl ModelFX {
                 let index = (hit.hash * connections.len() as f32).floor() as usize;
                 if let Some(random_connection) = connections.get(index) {
                     let o = random_connection.0 as usize;
-                    if let Some(ot) = self.nodes[o].material(&random_connection.1, hit, palette) {
+                    let mut noise = 1.0;
+                    if let Some(noise_index) = self.find_connected_output_node(o, 1) {
+                        if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
+                            noise = (self.nodes[noise_index].noise(hit) + 1.0) / 2.0;
+                        }
+                    }
+                    if let Some(ot) =
+                        self.nodes[o].material(&random_connection.1, hit, palette, noise)
+                    {
                         self.follow_trail(o, ot as usize, hit, palette);
                     }
                 }
@@ -701,7 +743,7 @@ impl ModelFX {
     pub fn render_node_preview(
         &self,
         buffer: &mut TheRGBABuffer,
-        node: &ModelFXNode,
+        node_index: usize,
         palette: &ThePalette,
     ) {
         let width = buffer.dim().width as usize;
@@ -729,7 +771,8 @@ impl ModelFX {
 
                     let mut total = Vec4f::zero();
 
-                    if node.role() == ModelFXNodeRole::Geometry {
+                    let role = self.nodes[node_index].role();
+                    if role == ModelFXNodeRole::Geometry {
                         for m in 0..aa {
                             for n in 0..aa {
                                 let camera_offset =
@@ -749,7 +792,7 @@ impl ModelFX {
                                 let mut p = ray.at(t);
 
                                 while t < max_t {
-                                    let d = node.distance(p);
+                                    let d = self.nodes[node_index].distance(p);
                                     if d < 0.001 {
                                         break;
                                     }
@@ -760,11 +803,12 @@ impl ModelFX {
                                 if t < max_t {
                                     let mut hit = Hit {
                                         uv: vec2f(xx / width as f32, yy / height as f32),
-                                        normal: self.normal_node(p, node),
+                                        normal: self.normal_node(p, &self.nodes[node_index]),
                                         ..Default::default()
                                     };
-                                    let c =
-                                        ModelFXColor::create(node.color_index_for_hit(&mut hit).0);
+                                    let c = ModelFXColor::create(
+                                        self.nodes[node_index].color_index_for_hit(&mut hit).0,
+                                    );
                                     color = c.color().to_vec4f();
                                 }
 
@@ -777,18 +821,52 @@ impl ModelFX {
                         total[1] /= aa_aa;
                         total[2] /= aa_aa;
                         total[3] /= aa_aa;
-                    } else {
+                    } else if role == ModelFXNodeRole::Material {
                         // Material node
+
+                        let mut noise = 1.0;
+                        let mut wobble = Vec2f::zero();
+
+                        if let Some(noise_index) = self.find_connected_output_node(node_index, 1) {
+                            if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
+                                let uv = vec2f(xx / width as f32, yy / height as f32);
+                                let mut hit = Hit {
+                                    uv: uv * 2.5,
+                                    hit_point: vec3f(uv.x, 0.0, uv.y) * 2.5,
+                                    ..Default::default()
+                                };
+                                noise = (self.nodes[noise_index].noise(&hit) + 1.0) / 2.0;
+                                hit.uv += 7.23;
+                                let noise2 = (self.nodes[noise_index].noise(&hit) + 1.0) / 2.0;
+                                wobble = vec2f(noise, noise2);
+                            }
+                        }
+
                         let mut hit = Hit {
                             uv: vec2f(xx / width as f32, yy / height as f32) * 2.5,
                             ..Default::default()
                         };
-                        if let ModelFXNode::Material(_coll) = node {
-                            node.material(&0, &mut hit, palette);
+                        hit.uv += wobble * 0.5;
+                        if let ModelFXNode::Material(_coll) = &self.nodes[node_index] {
+                            self.nodes[node_index].material(&0, &mut hit, palette, noise);
                             total = hit.color;
                         } else {
-                            let c = ModelFXColor::create(node.color_index_for_hit(&mut hit).0);
+                            let c = ModelFXColor::create(
+                                self.nodes[node_index].color_index_for_hit(&mut hit).0,
+                            );
                             total = c.color().to_vec4f();
+                        }
+                    } else if role == ModelFXNodeRole::Noise {
+                        // Noise node
+                        let uv = vec2f(xx / width as f32, yy / height as f32);
+                        let hit = Hit {
+                            uv: uv * 2.5,
+                            hit_point: vec3f(uv.x, 0.0, uv.y) * 2.5,
+                            ..Default::default()
+                        };
+                        if let ModelFXNode::Noise3D(_coll) = &self.nodes[node_index] {
+                            let n = (self.nodes[node_index].noise(&hit) + 1.0) / 2.0;
+                            total = vec4f(n, n, n, 1.0);
                         }
                     }
 

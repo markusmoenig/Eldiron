@@ -518,7 +518,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
- "theframework",
+ "theframework 0.1.20",
  "vectorize",
 ]
 
@@ -1649,6 +1649,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "noiselib"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90327daba7ce2edfe2f6ec188d3d9bfeb454f20c7e05797a802990d70d7be148"
+
+[[package]]
 name = "nom"
 version = "7.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2514,11 +2520,12 @@ dependencies = [
  "indexmap 2.0.2",
  "lazy_static",
  "line_drawing",
+ "noiselib",
  "rand",
  "rayon",
  "serde",
  "serde_json",
- "theframework",
+ "theframework 0.1.20 (git+https://github.com/markusmoenig/TheFramework)",
  "vectorize",
 ]
 
@@ -2603,7 +2610,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
- "theframework",
+ "theframework 0.1.20",
  "vectorize",
 ]
 
@@ -2749,6 +2756,38 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
+dependencies = [
+ "console_error_panic_hook",
+ "console_log",
+ "env_logger",
+ "flate2",
+ "fontdue",
+ "futures",
+ "indexmap 2.0.2",
+ "log",
+ "maths-rs",
+ "pixels",
+ "png",
+ "rand",
+ "rayon",
+ "rfd",
+ "rust-embed",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "uuid",
+ "vectorize",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "winit",
+ "winit_input_helper",
+]
+
+[[package]]
+name = "theframework"
+version = "0.1.20"
+source = "git+https://github.com/markusmoenig/TheFramework#9611e26adb0f3f92e0d4910b3f2c082c201c1217"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
