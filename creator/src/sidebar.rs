@@ -1859,11 +1859,6 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Assets".to_string()));
                     }
 
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Set CodeGrid Panel"),
-                        TheValue::Empty,
-                    ));
-
                     if let Some(list_layout) = ui.get_list_layout("Asset List") {
                         if let Some(selected) = list_layout.selected() {
                             ctx.ui
@@ -2341,6 +2336,18 @@ impl Sidebar {
                     ..Default::default()
                 }));
                 list_layout.add_item(item, ctx);
+            }
+        }
+
+        // Adjust Palette and Color Picker
+        if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
+            palette_picker.set_palette(project.palette.clone());
+            let index = palette_picker.index();
+
+            if let Some(widget) = ui.get_widget("Palette Color Picker") {
+                if let Some(color) = &project.palette[index] {
+                    widget.set_value(TheValue::ColorObject(color.clone()));
+                }
             }
         }
 

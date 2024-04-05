@@ -17,6 +17,7 @@ use ModelFXNodeRole::*;
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum ModelFXNode {
     // Geometry
+    Floor(TheCollection),
     WallHorizontal(TheCollection),
     WallVertical(TheCollection),
     // Material
@@ -30,6 +31,14 @@ impl ModelFXNode {
     pub fn new_node(name: &str, collection: Option<TheCollection>) -> Option<Self> {
         let mut coll = TheCollection::named(name.into());
         match name {
+            "Floor" => {
+                if let Some(collection) = collection {
+                    coll = collection;
+                } else {
+                    coll.set("Height", TheValue::FloatRange(0.01, 0.0..=1.0));
+                }
+                Some(Self::Floor(coll))
+            }
             "Wall Horizontal" => {
                 if let Some(collection) = collection {
                     coll = collection;
@@ -96,7 +105,14 @@ impl ModelFXNode {
                             vec![str!("Perlin"), str!("Musgrave"), str!("Simplex")],
                         ),
                     );
-                    coll.set("Scale", TheValue::FloatRange(1.0, 0.0..=20.0));
+                    coll.set("Seed", TheValue::IntRange(0, 0..=100));
+                    coll.set("UV Scale", TheValue::FloatRange(1.0, 0.0..=20.0));
+                    coll.set("Out Scale", TheValue::FloatRange(1.0, 0.0..=1.0));
+                    coll.set("Octaves", TheValue::IntRange(1, 1..=4));
+                    coll.set(
+                        "Fractal",
+                        TheValue::TextList(0, vec![str!("Add"), str!("Add Abs"), str!("Mul")]),
+                    );
                 }
                 Some(Self::Noise3D(coll))
             }
@@ -122,7 +138,7 @@ impl ModelFXNode {
     /// List of output terminals.
     pub fn output_terminals(&self) -> Vec<ModelFXTerminal> {
         match self {
-            Self::WallHorizontal(_) | Self::WallVertical(_) => {
+            Self::WallHorizontal(_) | Self::WallVertical(_) | Self::Floor(_) => {
                 vec![
                     ModelFXTerminal::new(Face, 0),
                     ModelFXTerminal::new(Face, 1),
@@ -144,7 +160,7 @@ impl ModelFXNode {
     /// Return the color and terminal index for the given hit position.
     pub fn color_index_for_hit(&self, hit: &mut Hit) -> (u8, u8) {
         match self {
-            Self::WallHorizontal(_) | Self::WallVertical(_) => {
+            Self::WallHorizontal(_) | Self::WallVertical(_) | Self::Floor(_) => {
                 let nx = hit.normal.x.abs();
                 let ny = hit.normal.y.abs();
                 let nz = hit.normal.z.abs();
@@ -203,40 +219,171 @@ impl ModelFXNode {
     pub fn noise(&self, hit: &Hit) -> f32 {
         match self {
             Self::Noise3D(collection) => {
+                let seed = collection.get_i32_default("Seed", 0) as u32;
                 let noise_type = collection.get_i32_default("Type", 0);
-                let scale = collection.get_f32_default("Scale", 1.0);
+                let scale = collection.get_f32_default("UV Scale", 1.0);
+                let out_scale = collection.get_f32_default("Out Scale", 1.0);
+                let octaves = collection.get_i32_default("Octaves", 0);
                 let mut value = 0.0;
-                let seed = 1;
                 let mut rng = UniformRandomGen::new(seed);
 
                 if noise_type == 0 {
-                    value = perlin_noise_3d(
-                        &mut rng,
-                        hit.hit_point.x * scale,
-                        hit.hit_point.y * scale,
-                        hit.hit_point.z * scale,
-                        seed,
-                    );
+                    if octaves == 1 {
+                        value = perlin_noise_3d(
+                            &mut rng,
+                            hit.hit_point.x * scale,
+                            hit.hit_point.y * scale,
+                            hit.hit_point.z * scale,
+                            seed,
+                        );
+                    } else {
+                        let fractal = collection.get_i32_default("Fractal", 0);
+
+                        if fractal == 0 {
+                            value = fractal_noise_add_3d(
+                                &mut rng,
+                                hit.hit_point.x * scale,
+                                hit.hit_point.y * scale,
+                                hit.hit_point.z * scale,
+                                perlin_noise_3d,
+                                octaves,
+                                0.5,
+                                2.0,
+                                seed,
+                            );
+                        } else if fractal == 1 {
+                            value = fractal_noise_add_abs_3d(
+                                &mut rng,
+                                hit.hit_point.x * scale,
+                                hit.hit_point.y * scale,
+                                hit.hit_point.z * scale,
+                                perlin_noise_3d,
+                                octaves,
+                                0.5,
+                                2.0,
+                                seed,
+                            );
+                        } else {
+                            value = fractal_noise_mul_3d(
+                                &mut rng,
+                                hit.hit_point.x * scale,
+                                hit.hit_point.y * scale,
+                                hit.hit_point.z * scale,
+                                perlin_noise_3d,
+                                octaves,
+                                0.5,
+                                2.0,
+                                1.5,
+                                seed,
+                            );
+                        }
+                    }
                 } else if noise_type == 1 {
-                    value = musgrave_noise_3d(
-                        &mut rng,
-                        hit.hit_point.x * scale,
-                        hit.hit_point.y * scale,
-                        hit.hit_point.z * scale,
-                        seed,
-                    );
+                    if octaves == 1 {
+                        value = musgrave_noise_3d(
+                            &mut rng,
+                            hit.hit_point.x * scale,
+                            hit.hit_point.y * scale,
+                            hit.hit_point.z * scale,
+                            seed,
+                        );
+                    } else {
+                        let fractal = collection.get_i32_default("Fractal", 0);
+
+                        if fractal == 0 {
+                            value = fractal_noise_add_3d(
+                                &mut rng,
+                                hit.hit_point.x * scale,
+                                hit.hit_point.y * scale,
+                                hit.hit_point.z * scale,
+                                musgrave_noise_3d,
+                                octaves,
+                                0.5,
+                                2.0,
+                                seed,
+                            );
+                        } else if fractal == 1 {
+                            value = fractal_noise_add_abs_3d(
+                                &mut rng,
+                                hit.hit_point.x * scale,
+                                hit.hit_point.y * scale,
+                                hit.hit_point.z * scale,
+                                musgrave_noise_3d,
+                                octaves,
+                                0.5,
+                                2.0,
+                                seed,
+                            );
+                        } else {
+                            value = fractal_noise_mul_3d(
+                                &mut rng,
+                                hit.hit_point.x * scale,
+                                hit.hit_point.y * scale,
+                                hit.hit_point.z * scale,
+                                musgrave_noise_3d,
+                                octaves,
+                                0.5,
+                                2.0,
+                                1.5,
+                                seed,
+                            );
+                        }
+                    }
                 }
                 if noise_type == 2 {
-                    value = simplex_noise_3d(
-                        &mut rng,
-                        hit.hit_point.x * scale,
-                        hit.hit_point.y * scale,
-                        hit.hit_point.z * scale,
-                        seed,
-                    );
+                    if octaves == 1 {
+                        value = simplex_noise_3d(
+                            &mut rng,
+                            hit.hit_point.x * scale,
+                            hit.hit_point.y * scale,
+                            hit.hit_point.z * scale,
+                            seed,
+                        );
+                    } else {
+                        let fractal = collection.get_i32_default("Fractal", 0);
+
+                        if fractal == 0 {
+                            value = fractal_noise_add_3d(
+                                &mut rng,
+                                hit.hit_point.x * scale,
+                                hit.hit_point.y * scale,
+                                hit.hit_point.z * scale,
+                                simplex_noise_3d,
+                                octaves,
+                                0.5,
+                                2.0,
+                                seed,
+                            );
+                        } else if fractal == 1 {
+                            value = fractal_noise_add_abs_3d(
+                                &mut rng,
+                                hit.hit_point.x * scale,
+                                hit.hit_point.y * scale,
+                                hit.hit_point.z * scale,
+                                simplex_noise_3d,
+                                octaves,
+                                0.5,
+                                2.0,
+                                seed,
+                            );
+                        } else {
+                            value = fractal_noise_mul_3d(
+                                &mut rng,
+                                hit.hit_point.x * scale,
+                                hit.hit_point.y * scale,
+                                hit.hit_point.z * scale,
+                                simplex_noise_3d,
+                                octaves,
+                                0.5,
+                                2.0,
+                                1.5,
+                                seed,
+                            );
+                        }
+                    }
                 }
 
-                value
+                value * out_scale
             }
             _ => 0.0,
         }
@@ -245,6 +392,7 @@ impl ModelFXNode {
     /// Get a reference to the collection.
     pub fn collection(&self) -> &TheCollection {
         match self {
+            Self::Floor(collection) => collection,
             Self::WallHorizontal(collection) => collection,
             Self::WallVertical(collection) => collection,
             Self::Bricks(collection) => collection,
@@ -256,6 +404,7 @@ impl ModelFXNode {
     /// Get a mutable reference to the collection.
     pub fn collection_mut(&mut self) -> &mut TheCollection {
         match self {
+            Self::Floor(collection) => collection,
             Self::WallHorizontal(collection) => collection,
             Self::WallVertical(collection) => collection,
             Self::Bricks(collection) => collection,
@@ -267,6 +416,13 @@ impl ModelFXNode {
     /// Returns the distance to p.
     pub fn distance(&self, p: Vec3f) -> f32 {
         match self {
+            Self::Floor(collection) => {
+                let height = collection.get_f32_default("Height", 0.01);
+                sd_box(
+                    p - vec3f(0.5, height / 2.0, 0.5),
+                    vec3f(0.5, height / 2.0, 0.5),
+                )
+            }
             Self::WallHorizontal(collection) => {
                 let position = collection.get_f32_default("Position", 0.5);
                 let offset = collection.get_f32_default("Offset", 0.5);
@@ -344,6 +500,7 @@ impl ModelFXNode {
     /// Role
     pub fn role(&self) -> ModelFXNodeRole {
         match self {
+            Self::Floor(_) => Geometry,
             Self::WallHorizontal(_) => Geometry,
             Self::WallVertical(_) => Geometry,
             Self::Bricks(_) => Material,
@@ -355,6 +512,7 @@ impl ModelFXNode {
     /// Name
     pub fn name(&self) -> String {
         match self {
+            Self::Floor(_) => str!("Floor"),
             Self::WallHorizontal(_) => str!("Wall Horizontal"),
             Self::WallVertical(_) => str!("Wall Vertical"),
             Self::Bricks(_) => str!("Bricks"),

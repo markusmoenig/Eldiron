@@ -47,12 +47,20 @@ impl ModelFXEditor {
         move_button.set_icon_name("move".to_string());
         move_button.set_status_text("Moves the model to the library.");
 
-        let mut floors_button = TheTraybarButton::new(TheId::named("ModelFX Add Floor"));
+        let mut floors_button = TheTraybarButton::new(TheId::named("ModelFX Nodes Floor"));
         //add_button.set_icon_name("icon_role_add".to_string());
         floors_button.set_text(str!("Floor & Furniture"));
         floors_button.set_status_text("Nodes which model floors and furniture like tables.");
 
-        let mut walls_button = TheTraybarButton::new(TheId::named("ModelFX Add Wall"));
+        floors_button.set_context_menu(Some(TheContextMenu {
+            items: vec![TheContextMenuItem::new(
+                "Floor".to_string(),
+                TheId::named("Floor"),
+            )],
+            ..Default::default()
+        }));
+
+        let mut walls_button = TheTraybarButton::new(TheId::named("ModelFX Nodes Wall"));
         //add_button.set_icon_name("icon_role_add".to_string());
         walls_button.set_text(str!("Wall & Components"));
         walls_button.set_status_text(
@@ -70,7 +78,7 @@ impl ModelFXEditor {
             ..Default::default()
         }));
 
-        let mut material_button = TheTraybarButton::new(TheId::named("ModelFX Add Material"));
+        let mut material_button = TheTraybarButton::new(TheId::named("ModelFX Nodes Material"));
         //add_button.set_icon_name("icon_role_add".to_string());
         material_button.set_text(str!("Material Related"));
         material_button.set_status_text(
@@ -79,7 +87,17 @@ impl ModelFXEditor {
 
         material_button.set_context_menu(Some(TheContextMenu {
             items: vec![
-                TheContextMenuItem::new("Bricks".to_string(), TheId::named("Bricks")),
+                TheContextMenuItem::new_submenu(
+                    "Patterns".to_string(),
+                    TheId::named("ModelFX Nodes Patterns"),
+                    TheContextMenu {
+                        items: vec![TheContextMenuItem::new(
+                            "Bricks & Tiles".to_string(),
+                            TheId::named("Bricks"),
+                        )],
+                        ..Default::default()
+                    },
+                ),
                 TheContextMenuItem::new("Noise".to_string(), TheId::named("Noise3D")),
                 TheContextMenuItem::new("Material".to_string(), TheId::named("Material")),
             ],
@@ -183,11 +201,11 @@ impl ModelFXEditor {
                     redraw = true;
                 }
             }
-            TheEvent::ContextMenuSelected(id, item) => {
+            TheEvent::ContextMenuSelected(_id, item) => {
                 //println!("{:?}, {:?}", id, item);
-                if (id.name == "ModelFX Add Wall" || id.name == "ModelFX Add Material")
-                    && self.modelfx.add(item.name.clone())
-                {
+                if
+                /*id.name.starts_with("ModelFX Node") &&*/
+                self.modelfx.add(item.name.clone()) {
                     self.modelfx.draw(ui, ctx, &project.palette);
                     self.set_selected_node_ui(ui, ctx, project);
                     self.render_preview(ui, &project.palette);
@@ -433,6 +451,7 @@ impl ModelFXEditor {
                         ));
                         slider.set_value(TheValue::Int(*value));
                         slider.set_range(TheValue::RangeI32(range.clone()));
+                        slider.set_continuous(true);
                         text_layout.add_pair(name.clone(), Box::new(slider));
                     } else if let TheValue::TextList(index, list) = value {
                         let mut dropdown = TheDropdownMenu::new(TheId::named(
@@ -506,7 +525,6 @@ impl ModelFXEditor {
             //println!("{}", editor.dim().width);
             let width = 275; //editor.dim().width - 16;
             let height = editor.dim().height - 16;
-
             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
                 let grid = 65;
 
@@ -525,7 +543,6 @@ impl ModelFXEditor {
 
                     buffer.copy_into(x * grid, y * grid, &model.preview_buffer);
                 }
-
                 rgba_view.set_buffer(buffer);
             }
             editor.relayout(ctx);

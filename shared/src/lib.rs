@@ -9,6 +9,7 @@ pub mod item;
 pub mod level;
 pub mod modelfx;
 pub mod modelfxnode;
+pub mod modelfxstore;
 pub mod modelfxterminal;
 pub mod patterns;
 pub mod project;
@@ -46,6 +47,7 @@ pub mod prelude {
     pub use crate::regionfx::*;
     pub use crate::renderer::Renderer;
     //pub use crate::renderer_utils::*;
+    pub use crate::modelfxstore::ModelFXStore;
     pub use crate::modelfxterminal::*;
     pub use crate::patterns::*;
     pub use crate::screen::*;

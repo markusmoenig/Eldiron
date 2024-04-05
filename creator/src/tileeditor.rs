@@ -861,8 +861,26 @@ impl TileEditor {
 
         if self.editor_mode == EditorMode::Model {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                let timeline = MODELFXEDITOR.lock().unwrap().modelfx.clone();
-                region.models.insert((coord.x, 0, coord.y), timeline);
+                let model = MODELFXEDITOR.lock().unwrap().modelfx.clone();
+                if let Some(modelstore) = region.models.get_mut(&(coord.x, 0, coord.y)) {
+                    if self.curr_layer_role == Layer2DRole::Ground {
+                        modelstore.floor = model;
+                    } else if self.curr_layer_role == Layer2DRole::Wall {
+                        modelstore.wall = model;
+                    } else if self.curr_layer_role == Layer2DRole::Ceiling {
+                        modelstore.ceiling = model;
+                    }
+                } else {
+                    let mut modelstore = ModelFXStore::default();
+                    if self.curr_layer_role == Layer2DRole::Ground {
+                        modelstore.floor = model;
+                    } else if self.curr_layer_role == Layer2DRole::Wall {
+                        modelstore.wall = model;
+                    } else if self.curr_layer_role == Layer2DRole::Ceiling {
+                        modelstore.ceiling = model;
+                    }
+                    region.models.insert((coord.x, 0, coord.y), modelstore);
+                }
                 server.update_region(region);
                 RENDERER.lock().unwrap().set_region(region);
             }
@@ -1071,7 +1089,15 @@ impl TileEditor {
                 if !found_area {
                     // No area, set the tile.
                     server_ctx.curr_character_instance = None;
-                    if let Some(model) = region.models.get(&(coord.x, 0, coord.y)) {
+                    if let Some(store) = region.models.get(&(coord.x, 0, coord.y)) {
+                        let mut model = ModelFX::default();
+                        if self.curr_layer_role == Layer2DRole::Ground {
+                            model = store.floor.clone();
+                        } else if self.curr_layer_role == Layer2DRole::Wall {
+                            model = store.wall.clone();
+                        } else if self.curr_layer_role == Layer2DRole::Ceiling {
+                            model = store.ceiling.clone();
+                        }
                         MODELFXEDITOR.lock().unwrap().set_model(
                             model.clone(),
                             ui,

@@ -217,7 +217,7 @@ impl Renderer {
                     color = hit_struct.color;
                     hit = true;
                     //normal = hit_struct.normal;
-                    dist = hit_struct.distance;
+                    //dist = hit_struct.distance;
                     break;
                 }
                 /*
