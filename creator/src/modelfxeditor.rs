@@ -214,6 +214,19 @@ impl ModelFXEditor {
             }
             TheEvent::TilePicked(id, coord) => {
                 if id.name == "ModelFX Library RGBA Layout View" {
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Set Region Modeler"),
+                        TheValue::Empty,
+                    ));
+
+                    if let Some(button) = ui.get_group_button("Editor Group") {
+                        button.set_index(EditorMode::Model as i32);
+                        ctx.ui.send(TheEvent::IndexChanged(
+                            button.id().clone(),
+                            EditorMode::Model as usize,
+                        ));
+                    }
+
                     let index = coord.x + coord.y * 4;
                     if let Some(model) = project.models.get(index as usize) {
                         self.modelfx = model.clone();

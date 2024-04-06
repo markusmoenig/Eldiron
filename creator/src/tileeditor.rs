@@ -259,22 +259,26 @@ impl TileEditor {
                     }
                 }
             }
-            TheEvent::RenderViewLostHover(_) => {
-                RENDERER.lock().unwrap().hover_pos = None;
+            TheEvent::RenderViewLostHover(id) => {
+                if id.name == "RenderView" {
+                    RENDERER.lock().unwrap().hover_pos = None;
+                }
             }
-            TheEvent::RenderViewHoverChanged(_, coord) => {
-                if let Some(render_view) = ui.get_render_view("RenderView") {
-                    let dim = render_view.dim();
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        let pos = RENDERER.lock().unwrap().get_hit_position_at(
-                            *coord,
-                            region,
-                            &mut server.get_instance_draw_settings(server_ctx.curr_region),
-                            dim.width as usize,
-                            dim.height as usize,
-                        );
-                        if let Some(pos) = pos {
-                            RENDERER.lock().unwrap().hover_pos = Some(pos);
+            TheEvent::RenderViewHoverChanged(id, coord) => {
+                if id.name == "RenderView" {
+                    if let Some(render_view) = ui.get_render_view("RenderView") {
+                        let dim = render_view.dim();
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            let pos = RENDERER.lock().unwrap().get_hit_position_at(
+                                *coord,
+                                region,
+                                &mut server.get_instance_draw_settings(server_ctx.curr_region),
+                                dim.width as usize,
+                                dim.height as usize,
+                            );
+                            if let Some(pos) = pos {
+                                RENDERER.lock().unwrap().hover_pos = Some(pos);
+                            }
                         }
                     }
                 }
@@ -304,8 +308,10 @@ impl TileEditor {
                     }
                 }
             }
-            TheEvent::TileEditorClicked(_id, coord) | TheEvent::TileEditorDragged(_id, coord) => {
-                redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx);
+            TheEvent::TileEditorClicked(id, coord) | TheEvent::TileEditorDragged(id, coord) => {
+                if id.name == "Region Editor View" {
+                    redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx);
+                }
             }
             TheEvent::ContextMenuSelected(_widget_id, item_id) => {
                 if item_id.name == "Create Area" {
@@ -851,7 +857,6 @@ impl TileEditor {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
-
         if self.editor_mode == EditorMode::Pick {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 region.editing_position_3d = vec3i(coord.x, 0, coord.y).into();

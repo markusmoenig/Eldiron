@@ -952,7 +952,32 @@ impl TheTrait for Editor {
                         }
                     }
                     TheEvent::FileRequesterResult(id, paths) => {
-                        if id.name == "Open" {
+                        // Load a palette from a file
+                        if id.name == "Palette Import" {
+                            for p in paths {
+                                let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
+                                self.project.palette.load_from_txt(contents);
+                                if let Some(palette_picker) =
+                                    ui.get_palette_picker("Palette Picker")
+                                {
+                                    let index = palette_picker.index();
+
+                                    palette_picker.set_palette(self.project.palette.clone());
+                                    if let Some(widget) = ui.get_widget("Palette Color Picker") {
+                                        if let Some(color) = &self.project.palette[index] {
+                                            widget.set_value(TheValue::ColorObject(color.clone()));
+                                        }
+                                    }
+                                    if let Some(widget) = ui.get_widget("Palette Hex Edit") {
+                                        if let Some(color) = &self.project.palette[index] {
+                                            widget.set_value(TheValue::Text(color.to_hex()));
+                                        }
+                                    }
+                                }
+                                self.server.set_palette(&self.project.palette);
+                                redraw = true;
+                            }
+                        } else if id.name == "Open" {
                             for p in paths {
                                 self.project_path = Some(p.clone());
                                 let contents = std::fs::read_to_string(p).unwrap_or("".to_string());

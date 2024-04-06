@@ -664,12 +664,13 @@ impl Sidebar {
             rgba_view.set_grid(Some(40));
             rgba_view.set_mode(TheRGBAViewMode::TilePicker);
             let mut c = WHITE;
-            c[3] = 128;
+            c[3] = 64;
             let mut buffer = TheRGBABuffer::new(TheDim::sized(275, 5 * 65));
             buffer.fill([74, 74, 74, 255]);
             rgba_view.set_background([74, 74, 74, 255]);
             rgba_view.set_buffer(buffer);
             rgba_view.set_hover_color(Some(c));
+            rgba_view.set_selection_color(c);
         }
 
         rgba_model_canvas.set_layout(rgba_layout);
@@ -680,6 +681,14 @@ impl Sidebar {
         *preview_view.render_buffer_mut() = TheRGBABuffer::new(TheDim::sized(260, 260));
         model_preview_canvas.set_widget(preview_view);
 
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        toolbar_canvas.set_layout(toolbar_hlayout);
+
+        rgba_model_canvas.set_bottom(toolbar_canvas);
         model_canvas.set_center(rgba_model_canvas);
         model_canvas.set_bottom(model_preview_canvas);
 
@@ -701,11 +710,7 @@ impl Sidebar {
         // Palette
 
         let mut palette_canvas = TheCanvas::default();
-        //let mut palette_layout = TheVLayout::new(TheId::named("Palette Layout"));
-
         let palette_picker = ThePalettePicker::new(TheId::named("Palette Picker"));
-        //palette_layout.add_widget(Box::new(palette_picker));
-
         palette_canvas.set_widget(palette_picker);
 
         let mut picker_canvas = TheCanvas::default();
@@ -715,7 +720,20 @@ impl Sidebar {
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
 
+        let mut hex_edit = TheTextLineEdit::new(TheId::named("Palette Hex Edit"));
+        hex_edit.limiter_mut().set_max_width(100);
+        hex_edit.set_status_text("Edit the color in hex format.");
+
+        let mut import_button: TheTraybarButton =
+            TheTraybarButton::new(TheId::named("Palette Import"));
+        import_button.set_icon_name("import".to_string());
+        import_button.set_status_text("Import a palette in .txt format.");
+
         let mut picker_layout = TheVLayout::new(TheId::empty());
+
+        toolbar_hlayout.add_widget(Box::new(hex_edit));
+        toolbar_hlayout.add_widget(Box::new(import_button));
+        toolbar_hlayout.set_reverse_index(Some(1));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
         picker_canvas.set_top(toolbar_canvas);
@@ -783,6 +801,11 @@ impl Sidebar {
                 if let Some(widget) = ui.get_widget("Palette Color Picker") {
                     if let Some(color) = &project.palette[*index as usize] {
                         widget.set_value(TheValue::ColorObject(color.clone()));
+                    }
+                }
+                if let Some(widget) = ui.get_widget("Palette Hex Edit") {
+                    if let Some(color) = &project.palette[*index as usize] {
+                        widget.set_value(TheValue::Text(color.to_hex()));
                     }
                 }
             }
@@ -920,6 +943,20 @@ impl Sidebar {
                             server.update_region(region);
                         }
                     }
+                } else if id.name == "Palette Hex Edit" {
+                    if let Some(hex) = value.to_string() {
+                        let color = TheColor::from_hex(&hex);
+
+                        if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
+                            palette_picker.set_color(color.clone());
+                            redraw = true;
+                            project.palette[palette_picker.index()] = Some(color.clone());
+                            server.set_palette(&project.palette);
+                        }
+                        if let Some(widget) = ui.get_widget("Palette Color Picker") {
+                            widget.set_value(TheValue::ColorObject(color.clone()));
+                        }
+                    }
                 } else if id.name == "Palette Color Picker" {
                     if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
                         if let Some(color) = value.to_color() {
@@ -927,6 +964,11 @@ impl Sidebar {
                             redraw = true;
                             project.palette[palette_picker.index()] = Some(color);
                             server.set_palette(&project.palette);
+                        }
+                    }
+                    if let Some(widget) = ui.get_widget("Palette Hex Edit") {
+                        if let Some(color) = value.to_color() {
+                            widget.set_value(TheValue::Text(color.to_hex()));
                         }
                     }
                 } else if id.name == "Screen Aspect Ratio Dropdown" {
@@ -1225,7 +1267,20 @@ impl Sidebar {
                 }
             }
             TheEvent::StateChanged(id, state) => {
-                if id.name == "Tilemap Import" {
+                if id.name == "Palette Import" {
+                    ctx.ui.open_file_requester(
+                        TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
+                        "Open".into(),
+                        TheFileExtension::new(
+                            "Palette (*.txt)".into(),
+                            vec!["txt".to_string(), "TXT".to_string()],
+                        ),
+                    );
+                    ctx.ui
+                        .set_widget_state("".to_string(), TheWidgetState::None);
+                    ctx.ui.clear_hover();
+                    redraw = true;
+                } else if id.name == "Tilemap Import" {
                     ctx.ui.open_file_requester(
                         TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                         "Open".into(),
@@ -1238,8 +1293,7 @@ impl Sidebar {
                         .set_widget_state("".to_string(), TheWidgetState::None);
                     ctx.ui.clear_hover();
                     redraw = true;
-                }
-                if id.name == "Tilemap Export" {
+                } else if id.name == "Tilemap Export" {
                     if let Some(curr_tilemap_uuid) = self.curr_tilemap_uuid {
                         if let Some(tilemap) = project.get_tilemap(curr_tilemap_uuid) {
                             ctx.ui.save_file_requester(
@@ -2347,6 +2401,11 @@ impl Sidebar {
             if let Some(widget) = ui.get_widget("Palette Color Picker") {
                 if let Some(color) = &project.palette[index] {
                     widget.set_value(TheValue::ColorObject(color.clone()));
+                }
+            }
+            if let Some(widget) = ui.get_widget("Palette Hex Edit") {
+                if let Some(color) = &project.palette[index] {
+                    widget.set_value(TheValue::Text(color.to_hex()));
                 }
             }
         }
