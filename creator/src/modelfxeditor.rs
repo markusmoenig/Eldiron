@@ -91,10 +91,16 @@ impl ModelFXEditor {
                     "Patterns".to_string(),
                     TheId::named("ModelFX Nodes Patterns"),
                     TheContextMenu {
-                        items: vec![TheContextMenuItem::new(
-                            "Bricks & Tiles".to_string(),
-                            TheId::named("Bricks"),
-                        )],
+                        items: vec![
+                            TheContextMenuItem::new(
+                                "Bricks & Tiles".to_string(),
+                                TheId::named("Bricks"),
+                            ),
+                            TheContextMenuItem::new(
+                                "Subdivide".to_string(),
+                                TheId::named("Subdivide"),
+                            ),
+                        ],
                         ..Default::default()
                     },
                 ),

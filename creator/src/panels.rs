@@ -372,8 +372,17 @@ impl Panels {
                         }
                     } else if !self.tilefx_visible {
                         // Tile Picker
-                        ctx.ui
-                            .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
+                        let editor_group_index = self.get_editor_group_index(ui);
+                        if editor_group_index == EditorMode::Draw as i32 {
+                            ctx.ui
+                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
+                        } else if editor_group_index == EditorMode::Model as i32 {
+                            ctx.ui
+                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 4));
+                        } else if editor_group_index == EditorMode::Render as i32 {
+                            ctx.ui
+                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 5));
+                        }
                     } else {
                         // Tile CC
                         ctx.ui

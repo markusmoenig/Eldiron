@@ -831,8 +831,8 @@ impl ModelFX {
                             if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
                                 let uv = vec2f(xx / width as f32, yy / height as f32);
                                 let mut hit = Hit {
-                                    uv: uv * 2.5,
-                                    hit_point: vec3f(uv.x, 0.0, uv.y) * 2.5,
+                                    uv: uv * 3.0,
+                                    hit_point: vec3f(uv.x, 0.0, uv.y) * 3.0,
                                     ..Default::default()
                                 };
                                 noise = (self.nodes[noise_index].noise(&hit) + 1.0) / 2.0;
@@ -843,7 +843,7 @@ impl ModelFX {
                         }
 
                         let mut hit = Hit {
-                            uv: vec2f(xx / width as f32, yy / height as f32) * 2.5,
+                            uv: vec2f(xx / width as f32, yy / height as f32) * 3.0,
                             ..Default::default()
                         };
                         hit.uv += wobble * 0.5;
@@ -860,8 +860,8 @@ impl ModelFX {
                         // Noise node
                         let uv = vec2f(xx / width as f32, yy / height as f32);
                         let hit = Hit {
-                            uv: uv * 2.5,
-                            hit_point: vec3f(uv.x, 0.0, uv.y) * 2.5,
+                            uv: uv * 3.0,
+                            hit_point: vec3f(uv.x, 0.0, uv.y) * 3.0,
                             ..Default::default()
                         };
                         if let ModelFXNode::Noise3D(_coll) = &self.nodes[node_index] {

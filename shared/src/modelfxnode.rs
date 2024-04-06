@@ -21,6 +21,7 @@ pub enum ModelFXNode {
     WallHorizontal(TheCollection),
     WallVertical(TheCollection),
     // Material
+    Subdivide(TheCollection),
     Bricks(TheCollection),
     Material(TheCollection),
     // Noise
@@ -69,6 +70,18 @@ impl ModelFXNode {
                     );
                 }
                 Some(Self::WallVertical(coll))
+            }
+            "Subdivide" => {
+                if let Some(collection) = collection {
+                    coll = collection;
+                } else {
+                    coll.set(
+                        "Mode",
+                        TheValue::TextList(0, vec![str!("Vertical"), str!("Horizontal")]),
+                    );
+                    coll.set("Offset", TheValue::FloatRange(0.5, 0.0..=1.0));
+                }
+                Some(Self::Subdivide(coll))
             }
             "Bricks" => {
                 if let Some(collection) = collection {
@@ -123,7 +136,7 @@ impl ModelFXNode {
     /// List of input terminals.
     pub fn input_terminals(&self) -> Vec<ModelFXTerminal> {
         match self {
-            Self::Material(_) | Self::Bricks(_) => {
+            Self::Material(_) | Self::Bricks(_) | Self::Subdivide(_) => {
                 vec![
                     ModelFXTerminal::new(UV, 4),
                     ModelFXTerminal::new(ModelFXTerminalRole::Noise, 6),
@@ -144,6 +157,9 @@ impl ModelFXNode {
                     ModelFXTerminal::new(Face, 1),
                     ModelFXTerminal::new(Face, 2),
                 ]
+            }
+            Self::Subdivide(_) => {
+                vec![ModelFXTerminal::new(Face, 0), ModelFXTerminal::new(Face, 1)]
             }
             Self::Bricks(_) => {
                 vec![ModelFXTerminal::new(Face, 0), ModelFXTerminal::new(Face, 5)]
@@ -179,6 +195,10 @@ impl ModelFXNode {
                     (2, 2)
                 }
             }
+            Self::Subdivide(coll) => {
+                let uv = hit.uv / 3.0;
+                subdivide(coll, uv, hit)
+            }
             Self::Bricks(coll) => {
                 let uv = hit.uv / 3.0;
                 bricks(coll, uv, hit)
@@ -206,6 +226,10 @@ impl ModelFXNode {
                     }
                 }
                 None
+            }
+            Self::Subdivide(collection) => {
+                let (_, terminal) = subdivide(collection, hit.uv, hit);
+                Some(terminal)
             }
             Self::Bricks(collection) => {
                 let (_, terminal) = bricks(collection, hit.uv, hit);
@@ -395,6 +419,7 @@ impl ModelFXNode {
             Self::Floor(collection) => collection,
             Self::WallHorizontal(collection) => collection,
             Self::WallVertical(collection) => collection,
+            Self::Subdivide(collection) => collection,
             Self::Bricks(collection) => collection,
             Self::Material(collection) => collection,
             Self::Noise3D(collection) => collection,
@@ -407,6 +432,7 @@ impl ModelFXNode {
             Self::Floor(collection) => collection,
             Self::WallHorizontal(collection) => collection,
             Self::WallVertical(collection) => collection,
+            Self::Subdivide(collection) => collection,
             Self::Bricks(collection) => collection,
             Self::Material(collection) => collection,
             Self::Noise3D(collection) => collection,
@@ -503,6 +529,7 @@ impl ModelFXNode {
             Self::Floor(_) => Geometry,
             Self::WallHorizontal(_) => Geometry,
             Self::WallVertical(_) => Geometry,
+            Self::Subdivide(_) => Material,
             Self::Bricks(_) => Material,
             Self::Material(_) => Material,
             Self::Noise3D(_) => ModelFXNodeRole::Noise,
@@ -515,6 +542,7 @@ impl ModelFXNode {
             Self::Floor(_) => str!("Floor"),
             Self::WallHorizontal(_) => str!("Wall Horizontal"),
             Self::WallVertical(_) => str!("Wall Vertical"),
+            Self::Subdivide(_) => str!("Bricks"),
             Self::Bricks(_) => str!("Bricks"),
             Self::Material(_) => str!("Material"),
             Self::Noise3D(_) => str!("Noise"),
