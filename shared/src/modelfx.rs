@@ -609,9 +609,9 @@ impl ModelFX {
                 let mut noise = 1.0;
                 if let Some(noise_index) = self.find_connected_output_node(o, 1) {
                     if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
-                        noise = (self.nodes[noise_index].noise(hit) + 1.0) / 2.0;
+                        noise = self.nodes[noise_index].noise(hit);
                         hit.uv += 7.23;
-                        let noise2 = (self.nodes[noise_index].noise(hit) + 1.0) / 2.0;
+                        let noise2 = self.nodes[noise_index].noise(hit);
                         let wobble = vec2f(noise, noise2);
                         hit.uv -= 7.23;
                         hit.uv += wobble * 0.5;
@@ -629,7 +629,7 @@ impl ModelFX {
                     let mut noise = 1.0;
                     if let Some(noise_index) = self.find_connected_output_node(o, 1) {
                         if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
-                            noise = (self.nodes[noise_index].noise(hit) + 1.0) / 2.0;
+                            noise = self.nodes[noise_index].noise(hit);
                         }
                     }
                     if let Some(ot) =
@@ -835,9 +835,9 @@ impl ModelFX {
                                     hit_point: vec3f(uv.x, 0.0, uv.y) * 3.0,
                                     ..Default::default()
                                 };
-                                noise = (self.nodes[noise_index].noise(&hit) + 1.0) / 2.0;
+                                noise = self.nodes[noise_index].noise(&hit);
                                 hit.uv += 7.23;
-                                let noise2 = (self.nodes[noise_index].noise(&hit) + 1.0) / 2.0;
+                                let noise2 = self.nodes[noise_index].noise(&hit);
                                 wobble = vec2f(noise, noise2);
                             }
                         }
@@ -865,7 +865,7 @@ impl ModelFX {
                             ..Default::default()
                         };
                         if let ModelFXNode::Noise3D(_coll) = &self.nodes[node_index] {
-                            let n = (self.nodes[node_index].noise(&hit) + 1.0) / 2.0;
+                            let n = self.nodes[node_index].noise(&hit);
                             total = vec4f(n, n, n, 1.0);
                         }
                     }

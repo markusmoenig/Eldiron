@@ -219,9 +219,9 @@ impl ModelFXNode {
             Self::Material(collection) => {
                 if let Some(TheValue::PaletteIndex(index)) = collection.get("Color") {
                     if let Some(color) = &palette.colors[*index as usize] {
-                        hit.color.x = color.r * noise;
-                        hit.color.y = color.g * noise;
-                        hit.color.z = color.b * noise;
+                        hit.color.x = color.r + noise;
+                        hit.color.y = color.g + noise;
+                        hit.color.z = color.b + noise;
                         hit.color.w = 1.0;
                     }
                 }
