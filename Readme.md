@@ -21,7 +21,7 @@ Eldiron aims to revolutionize the creation and experience of classical role-play
 
 ### Grid based Visual Coding System
 
-![Screenshot](images/randomwalk.gif)
+![Screenshot](images/RandomwWalk.gif)
 
 Code character and game behavior in a grid based visual node system. Combining the power and speed of real code with the ease of use and visual debugging of a true node system.
 
