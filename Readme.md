@@ -10,26 +10,63 @@ Classic RPG Creation
 
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/) [![version](https://img.shields.io/badge/version-0.8.9-yellow.svg)](https://shields.io/) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Patreon](https://badgen.net/badge/icon/patreon?icon=patreon&label)](https://patreon.com/eldiron) [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/EldironRPG)
 
-Eldiron is currently under active development and a v1 is planned for the first half of 2024. Eldiron is open source and licensed under the MIT.
+
+# Eldiron: A Next-Generation Classical RPG Creator
+
+## Vision
+
+Eldiron aims to revolutionize the creation and experience of classical role-playing games (RPGs) by blending the nostalgic charm of timeless RPGs with the cutting-edge capabilities of modern technology. My mission is to empower creators with an intuitive, yet profoundly flexible platform, while enchanting players with immersive, dynamic worlds that breathe life into every adventure.
+
+## Core Features:
+
+### Grid based Visual Coding System
+
+![Screenshot](images/randomwalk.gif)
+
+Code character and game behavior in a grid based visual node system. Combining the power and speed of real code with the ease of use and visual debugging of a true node system.
+
+### Create worlds using tiles or model with nodes.
+
+Either draw in pixel-perfect precision using 2D tilemaps or model worlds procedurally with an integrated powerful node system.
+
+Both ways allow you to create world regions in both 2D and 3D. Eldiron ships with an integrated Ultima like tilemap to get you started.
+
+![Model](images/model.png)
+
+### Visual effects made easy
+
+You can easily add visual effects to your world. Imagine placing light sources, animating gates or adding mirror effects. To name just a few.
+
+![Effects](images/effects.png).
+
+### Time based behavior
+
+Everyting in Eldiron is driven by a 24 hour timeline. Define time based character behavior, open gates or passages at given times or modify the world by estinguishing light sources during the day.
+
+Worls created by Eldiron are not static but dynamic in every possible way.
+
+![Timeline](images/timeline.png)
+
+### Render your worlds the way you like it
+
+Eldiron provides a vast array of rendering options, either classical 2D tiles or fan favourite first person or top down perspectives like isometric top down views or even tilted perspectives like in Ultima 6 / 7.
+
+Define rendering options per region to be able to seamlessly switch between different views.
 
 ![Screenshot](images/eldiron_screenshot.png)
 
-## Features of v1
+... and much more like the upcoming multi-player / server support.
 
-- Support games similar to Ultima 4 / 5 or any game which uses a rectangular grid layout.
-- Eldiron has an easy to use, grid based, visual scripting language for creating the game logic with visual feedback and debugging.
-- Either render 2D tiles directly or in 3D. Games can switch between the two modes at runtime or display both at the same time (for example use the tiles view as a mini-map).
-- Eldiron comes with integrated tile-maps or your can use your own square tiles with up to four levels of transparency.
-- Single-player or multi-player experiences. Eldiron has a sophisticated multi-threaded server architecture to allow for as many player or NPC characters as possible.
-- Cross platform. Eldiron is written in Rust and can nearly run everywhere, i.e. on the Web, macOS, Windows, Linux, iOS, Android etc. Eldiron Creator can run on any desktop.
 
-Join the community on [Discord](https://discord.gg/ZrNj6baSZU) to get in contact.
+### Supporting Eldiron
 
-## Goals
+If you want to help me on my Eldiron mission, please consider becoming a [Patreon](https://patreon.com/eldiron) or a [GitHub Sponsor](https://github.com/sponsors/markusmoenig).
 
-- Being able to create games similar to the RPGs of the 80's and 90's.
-- Support single-player or multi-player games and even MMOs.
-- Support 2D tiles and over time integrate procedural systems for tiles, particles and 3D objects and characters.
+---
+
+I will start documenting the Eldiron progress and provide tutorials soon on YouTube. So please make sure to like and subscribe to my [channel](https://www.youtube.com/channel/UCCmrO356zLQv_m8dPEqBUfA).
+
+Also consider joining the community on [Discord](https://discord.gg/ZrNj6baSZU) to get in contact.
 
 ## Installation
 
@@ -51,10 +88,6 @@ If you have [Rust installed](https://www.rust-lang.org/tools/install), you can b
 Linux:
 
 Make sure these dependencies are installed: `libasound2-dev` `libatk1.0-dev` `libgtk-3-dev`
-
-## Supporting Eldiron
-
-You can support the Eldiron project by becoming a [Patreon](https://patreon.com/eldiron) or a [GitHub Sponsor](https://github.com/sponsors/markusmoenig).
 
 ## License
 
