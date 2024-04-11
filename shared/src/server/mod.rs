@@ -708,4 +708,11 @@ impl Server {
             instance.palette = palette.clone();
         }
     }
+
+    /// Set the current zoom level for the given region.
+    pub fn set_zoom(&mut self, region: Uuid, zoom: f32) {
+        if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
+            region.zoom = zoom;
+        }
+    }
 }

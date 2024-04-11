@@ -3,6 +3,16 @@ use core::f32;
 use std::f32::consts::PI;
 use theframework::prelude::*;
 
+pub struct PrerenderedCamera {
+    pub ratio: f32,
+    pub pixel_size: Vec2f,
+    pub half_width: f32,
+    pub half_height: f32,
+    pub w: Vec3f,
+    pub u: Vec3f,
+    pub v: Vec3f,
+}
+
 /// Camera
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Camera {
@@ -168,6 +178,19 @@ impl Camera {
         Ray::new(out_origin, normalize(-w))
     }
 
+    pub fn create_ortho_ray_prerendered(&self, uv: Vec2f, prerender: &PrerenderedCamera) -> Ray {
+        let cam_origin = self.origin;
+
+        let horizontal = prerender.u * prerender.half_width;
+        let vertical = prerender.v * prerender.half_height;
+
+        let mut out_origin = cam_origin;
+        out_origin += horizontal * (uv.x - 0.5);
+        out_origin += vertical * (uv.y - 0.5);
+
+        Ray::new(out_origin, -prerender.w)
+    }
+
     pub fn create_tilted_isometric_ray(
         &self,
         uv: Vec2f,
@@ -181,9 +204,7 @@ impl Camera {
         let cam_origin = self.origin;
         let cam_look_at = self.center;
 
-        let fov = self.fov + 100.0;
-
-        let half_width = (fov.to_radians() * 0.5).tan();
+        let half_width = ((self.fov + 100.0).to_radians() * 0.5).tan();
         let half_height = half_width / ratio;
 
         let up_vector = Vec3f::new(0.0, 1.0, 0.0);
@@ -208,6 +229,58 @@ impl Camera {
                 -0.35,
             )),
         )
+    }
+
+    pub fn create_tilted_isometric_ray_prerendered(
+        &self,
+        uv: Vec2f,
+        alignment: i32,
+        prerender: &PrerenderedCamera,
+    ) -> Ray {
+        let cam_origin = self.origin;
+
+        let horizontal = prerender.u * prerender.half_width;
+        let vertical = prerender.v * prerender.half_height;
+
+        let mut out_origin = cam_origin;
+        out_origin += horizontal * (uv.x - 0.5);
+        out_origin += vertical * (uv.y - 0.5);
+        out_origin.y = cam_origin.y;
+
+        Ray::new(
+            out_origin,
+            //normalize(
+            vec3f(
+                if alignment == 0 { -0.35 } else { 0.35 },
+                -1.0,
+                -0.35,
+                //    )
+            ),
+        )
+    }
+
+    pub fn prerender(origin: Vec3f, center: Vec3f, screen: Vec2f, fov: f32) -> PrerenderedCamera {
+        let ratio = screen.x / screen.y;
+        let pixel_size = Vec2f::new(1.0 / screen.x, 1.0 / screen.y);
+
+        let half_width = ((fov + 100.0).to_radians() * 0.5).tan();
+        let half_height = half_width / ratio;
+
+        let up_vector = Vec3f::new(0.0, 1.0, 0.0);
+
+        let w = normalize(origin - center);
+        let u = cross(up_vector, w);
+        let v = cross(w, u);
+
+        PrerenderedCamera {
+            ratio,
+            half_width: half_width * 2.0,
+            half_height: half_height * 2.0,
+            pixel_size,
+            w,
+            u,
+            v,
+        }
     }
 
     /// Computes the orbi camera vectors. Based on https://www.shadertoy.com/view/ttfyzN

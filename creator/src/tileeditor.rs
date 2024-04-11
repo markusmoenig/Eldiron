@@ -159,16 +159,17 @@ impl TileEditor {
         let mut spacer = TheSpacer::new(TheId::empty());
         spacer.limiter_mut().set_max_width(40);
 
-        let mut zoom = TheSlider::new(TheId::named("Region Editor Zoom"));
+        let mut zoom = TheTextLineEdit::new(TheId::named("Region Editor Zoom"));
         zoom.set_value(TheValue::Float(1.0));
-        zoom.set_default_value(TheValue::Float(1.0));
+        //zoom.set_default_value(TheValue::Float(1.0));
         zoom.set_range(TheValue::RangeF32(1.0..=5.0));
         zoom.set_continuous(true);
         zoom.limiter_mut().set_max_width(120);
+        zoom.set_status_text("Set the camera zoom.");
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 4, 5, 4));
+        toolbar_hlayout.set_margin(vec4i(10, 4, 10, 4));
         toolbar_hlayout.add_widget(Box::new(gb));
         toolbar_hlayout.add_widget(Box::new(spacer));
         toolbar_hlayout.add_widget(Box::new(time_slider));
@@ -215,10 +216,31 @@ impl TileEditor {
         );
         gb.set_item_width(76);
 
+        let mut camera_button = TheTraybarButton::new(TheId::named("Camera Button"));
+        camera_button.set_icon_name("camera".to_string());
+        camera_button.set_status_text("Set the camera type for the 3D Map.");
+
+        camera_button.set_context_menu(Some(TheContextMenu {
+            items: vec![
+                TheContextMenuItem::new(
+                    "First Person Camera".to_string(),
+                    TheId::named("Camera First Person"),
+                ),
+                TheContextMenuItem::new(
+                    "Top Down Iso".to_string(),
+                    TheId::named("Camera Top Down"),
+                ),
+                TheContextMenuItem::new("Tilted Iso".to_string(), TheId::named("Camera Tilted")),
+            ],
+            ..Default::default()
+        }));
+
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 4, 5, 4));
+        toolbar_hlayout.set_margin(vec4i(10, 4, 10, 4));
         toolbar_hlayout.add_widget(Box::new(gb));
+        toolbar_hlayout.add_widget(Box::new(camera_button));
+        toolbar_hlayout.set_reverse_index(Some(1));
 
         bottom_toolbar.set_layout(toolbar_hlayout);
         center.set_bottom(bottom_toolbar);
@@ -313,8 +335,19 @@ impl TileEditor {
                     redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx);
                 }
             }
-            TheEvent::ContextMenuSelected(_widget_id, item_id) => {
-                if item_id.name == "Create Area" {
+            TheEvent::ContextMenuSelected(widget_id, item_id) => {
+                if widget_id.name == "Camera Button" {
+                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if item_id.name == "Camera First Person" {
+                            region.camera_type = CameraType::FirstPerson;
+                        } else if item_id.name == "Camera Top Down" {
+                            region.camera_type = CameraType::TopDown;
+                        } else if item_id.name == "Camera Tilted" {
+                            region.camera_type = CameraType::TiltedIso;
+                        }
+                        server.update_region(region);
+                    }
+                } else if item_id.name == "Create Area" {
                     open_text_dialog(
                         "New Area Name",
                         "Area Name",
@@ -336,6 +369,12 @@ impl TileEditor {
                         if *index == 0 {
                             shared.set_mode(TheSharedHLayoutMode::Left);
                             *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                if let Some(layout) = ui.get_rgba_layout("Region Editor") {
+                                    layout.set_zoom(region.zoom);
+                                    layout.relayout(ctx);
+                                }
+                            }
                         } else if *index == 1 {
                             shared.set_mode(TheSharedHLayoutMode::Shared);
                             *RENDERMODE.lock().unwrap() = EditorDrawMode::DrawMixed;
@@ -436,6 +475,7 @@ impl TileEditor {
                 if id.name == "Region Editor Zoom" {
                     if let Some(v) = value.to_f32() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            server.set_zoom(region.id, v);
                             region.zoom = v;
                         }
                         if let Some(layout) = ui.get_rgba_layout("Region Editor") {
@@ -818,16 +858,16 @@ impl TileEditor {
         server: &mut Server,
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
-        project: &Project,
+        _project: &Project,
         compute_delta: bool,
     ) {
         if let Some(render_view) = ui.get_render_view("RenderView") {
             let dim = render_view.dim();
 
-            let mut zoom: f32 = 1.0;
-            if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                zoom = region.zoom;
-            }
+            let zoom: f32 = 1.0;
+            // if let Some(region) = project.get_region(&server_ctx.curr_region) {
+            //     zoom = region.zoom;
+            // }
 
             let width = (dim.width as f32 / zoom) as i32;
             let height = (dim.height as f32 / zoom) as i32;

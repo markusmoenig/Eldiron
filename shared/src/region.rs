@@ -14,10 +14,12 @@ pub enum RegionType {
     Region2D,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug, Default)]
+
 pub enum CameraType {
     FirstPerson,
     TopDown,
+    #[default]
     TiltedIso,
 }
 
@@ -33,6 +35,9 @@ pub struct Region {
     pub region_type: RegionType,
 
     pub name: String,
+
+    #[serde(default)]
+    pub camera_type: CameraType,
 
     #[serde(with = "vectorize")]
     pub tiles: FxHashMap<(i32, i32), RegionTile>,
@@ -91,6 +96,9 @@ impl Region {
             region_type: RegionType::Region2D,
 
             name: "New Region".to_string(),
+
+            camera_type: CameraType::TiltedIso,
+
             tiles: FxHashMap::default(),
             models: FxHashMap::default(),
 

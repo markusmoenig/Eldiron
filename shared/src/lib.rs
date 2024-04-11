@@ -15,7 +15,6 @@ pub mod patterns;
 pub mod project;
 pub mod region;
 pub mod regionfx;
-pub mod renderedregion;
 pub mod renderer;
 pub mod renderer_utils;
 pub mod screen;
@@ -50,6 +49,7 @@ pub mod prelude {
     pub use crate::modelfxstore::ModelFXStore;
     pub use crate::modelfxterminal::*;
     pub use crate::patterns::*;
+    pub use crate::renderer_utils::*;
     pub use crate::screen::*;
     pub use crate::sdf3d::*;
     pub use crate::server::context::ServerContext;
@@ -60,36 +60,22 @@ pub mod prelude {
     pub use crate::tilemap::{Tile, TileRole, Tilemap};
     pub use crate::update::*;
     pub use crate::widget::*;
-    pub use crate::{do_intersect, Hit, HitFace, Ray};
+    pub use crate::{do_intersect, Hit, HitFace, Ray, Rendered, RenderedMap};
     pub use rand::prelude::*;
 }
 
 use theframework::prelude::*;
 
 /// Ray
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]
 pub struct Ray {
     pub o: Vec3f,
     pub d: Vec3f,
-
-    pub inv_direction: Vec3f,
-
-    pub sign_x: usize,
-    pub sign_y: usize,
-    pub sign_z: usize,
 }
 
 impl Ray {
     pub fn new(o: Vec3f, d: Vec3f) -> Self {
-        Self {
-            o,
-            d,
-
-            inv_direction: Vec3f::new(1.0 / d.x, 1.0 / d.y, 1.0 / d.z),
-            sign_x: (d.x < 0.0) as usize,
-            sign_y: (d.y < 0.0) as usize,
-            sign_z: (d.z < 0.0) as usize,
-        }
+        Self { o, d }
     }
 
     /// Returns the position on the ray at the given distance
@@ -142,6 +128,103 @@ impl Hit {
             face: HitFace::XFace,
             color: Vec4f::zero(),
         }
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]
+pub struct Rendered {
+    pub hitpoint: Vec3f,
+    pub color: [u8; 4],
+}
+
+impl Default for Rendered {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Rendered {
+    pub fn new() -> Self {
+        Self {
+            hitpoint: Vec3f::zero(),
+            color: BLACK,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct RenderedMap {
+    pub id: Uuid,
+    pub width: i32,
+    pub height: i32,
+    pub map: Vec<Rendered>,
+}
+
+impl Default for RenderedMap {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
+impl RenderedMap {
+    pub fn new(id: Uuid, width: i32, height: i32) -> Self {
+        Self {
+            id,
+            width,
+            height,
+            map: vec![Rendered::default(); (width * height) as usize],
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            id: Uuid::nil(),
+            width: 0,
+            height: 0,
+            map: vec![],
+        }
+    }
+
+    pub fn get(&self, x: i32, y: i32) -> &Rendered {
+        &self.map[(y * self.width + x) as usize]
+    }
+
+    pub fn set(&mut self, x: i32, y: i32, rendered: Rendered) {
+        self.map[(y * self.width + x) as usize] = rendered;
+    }
+
+    pub fn get_safe(&self, x: i32, y: i32) -> Option<&Rendered> {
+        if x < 0 || y < 0 || x >= self.width || y >= self.height {
+            None
+        } else {
+            let index = (y * self.width + x) as usize;
+            self.map.get(index)
+        }
+    }
+
+    pub fn set_safe(&mut self, x: i32, y: i32, rendered: Rendered) -> Option<()> {
+        if x < 0 || y < 0 || x >= self.width || y >= self.height {
+            None
+        } else {
+            let index = (y * self.width + x) as usize;
+            if let Some(elem) = self.map.get_mut(index) {
+                *elem = rendered;
+                Some(())
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.map.clear();
+    }
+
+    pub fn resize(&mut self, width: i32, height: i32) {
+        self.width = width;
+        self.height = height;
+        self.map
+            .resize((width * height) as usize, Rendered::default());
     }
 }
 
