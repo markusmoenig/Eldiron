@@ -47,7 +47,6 @@ pub struct RegionInstance {
     time: TheTime,
 
     pub palette: ThePalette,
-    rendered_map: RenderedMap,
 }
 
 impl Default for RegionInstance {
@@ -87,7 +86,6 @@ impl RegionInstance {
 
             daylight: Daylight::default(),
             palette: ThePalette::default(),
-            rendered_map: RenderedMap::default(),
         }
     }
 

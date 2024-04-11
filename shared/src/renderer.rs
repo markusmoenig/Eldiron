@@ -8,6 +8,8 @@ pub struct Renderer {
     pub models: FxHashMap<(i32, i32), TheTimeline>,
     pub position: Vec3f,
     pub hover_pos: Option<Vec3i>,
+
+    pub prerendered: FxHashMap<(i32, i32, i32), RenderedTile>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -19,6 +21,8 @@ impl Renderer {
             models: FxHashMap::default(),
             position: Vec3f::zero(),
             hover_pos: None,
+
+            prerendered: FxHashMap::default(),
         }
     }
     #[allow(clippy::too_many_arguments)]
@@ -97,6 +101,15 @@ impl Renderer {
         let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
         let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
         let camera = Camera::new(ro, rd, fov);
+
+        /*
+        for (pos, model) in &region.models {
+            if !self.prerendered.contains_key(pos) {
+                let rendered = model.prerender(24, palette);
+                self.prerendered.insert(*pos, rendered);
+                break;
+            }
+            }*/
 
         pixels
             .par_rchunks_exact_mut(width * 4)
@@ -204,89 +217,42 @@ impl Renderer {
                 break;
             }
 
-            if key.y < 1 {
-                if let Some(model) = region.models.get(&(key.x, key.y, key.z)) {
-                    let mut lro = ray.at(dist);
-                    lro -= Vec3f::from(key);
-                    lro -= rd * 0.01;
-
-                    let mut r = ray;
-                    r.o = lro;
-
-                    if let Some(hit_struct) = model.render(&r, 1.01, i, palette) {
-                        color = hit_struct.color;
+            if let Some(rendered_tile) = self.prerendered.get(&(key.x, key.y, key.z)) {
+                let (uv, face_index) = self.get_uv_face(normal, ray.at(dist));
+                if let Some(face) = rendered_tile.faces.get(face_index) {
+                    let x = (uv.x * face.size as f32) as u16;
+                    let y = (uv.y * face.size as f32) as u16;
+                    if let Some(rendered) = face.get_safe(x, y) {
+                        color = TheColor::from_u8_array(rendered.color).to_vec4f();
                         hit = true;
-                        //normal = hit_struct.normal;
-                        dist += hit_struct.distance;
-                        break;
                     }
-                /*
-                if let Some(hit_struct) = model.hit(&r) {
-                    if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
-                        if let Some(data) = self.textures.get(tile) {
-                            let index = settings.anim_counter % data.buffer.len();
-                            let mut uv = hit_struct.uv;
-                            // TODO apply alpha correctly for WallFX blends
-                            let mut alpha: f32 = 1.0;
-
-                            if hit_struct.face != HitFace::YFace && key.y == 0 {
-                                // WallFX
-                                if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
-                                    let mut valid = true;
-                                    let mut xx = 0;
-                                    let mut yy = 0;
-                                    let d = (update.server_tick - wallfx.at_tick) as f32
-                                        + settings.delta_in_tick
-                                        - 1.0;
-                                    if d < 1.0 {
-                                        let t = (d * region.grid_size as f32) as i32;
-                                        if wallfx.prev_fx != WallFX::Normal {
-                                            wallfx.prev_fx.apply(
-                                                &mut xx,
-                                                &mut yy,
-                                                &mut alpha,
-                                                &(region.grid_size - t),
-                                                &(1.0 - d),
-                                            );
-                                        } else {
-                                            wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
-                                        }
-                                    } else if wallfx.fx != WallFX::Normal {
-                                        valid = false;
-                                    }
-
-                                    if valid {
-                                        uv.x += xx as f32 / region.grid_size as f32;
-                                        uv.y += yy as f32 / region.grid_size as f32;
-                                    } else {
-                                        uv = vec2f(-1.0, -1.0);
-                                    }
-                                }
-                            }
-                            if let Some(p) = data.buffer[index].at_f_vec4f(uv) {
-                                if p[3] == 1.0 {
-                                    color = p;
-                                    hit = true;
-                                    //normal = hit_struct.normal;
-                                    dist = hit_struct.distance;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    }*/
                 }
-                // Test against world tiles
-                else if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
-                    let mut uv = self.get_uv(normal, ray.at(dist));
-                    //pixel = [(uv.x * 255.0) as u8, (uv.y * 255.0) as u8, 0, 255];
+            } else if let Some(model) = region.models.get(&(key.x, key.y, key.z)) {
+                let mut lro = ray.at(dist);
+                lro -= Vec3f::from(key);
+                lro -= rd * 0.01;
+
+                let mut r = ray;
+                r.o = lro;
+
+                if let Some(hit_struct) = model.render(&r, 1.01, i, palette) {
+                    color = hit_struct.color;
+                    hit = true;
+                    //normal = hit_struct.normal;
+                    dist += hit_struct.distance;
+                    break;
+                }
+            /*
+            if let Some(hit_struct) = model.hit(&r) {
+                if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
                     if let Some(data) = self.textures.get(tile) {
                         let index = settings.anim_counter % data.buffer.len();
-
+                        let mut uv = hit_struct.uv;
                         // TODO apply alpha correctly for WallFX blends
                         let mut alpha: f32 = 1.0;
 
-                        if key.y == 0 {
+                        if hit_struct.face != HitFace::YFace && key.y == 0 {
+                            // WallFX
                             if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
                                 let mut valid = true;
                                 let mut xx = 0;
@@ -319,75 +285,130 @@ impl Renderer {
                                 }
                             }
                         }
-
-                        if !data.billboard {
-                            if let Some(p) = data.buffer[index].at_f_vec4f(uv) {
-                                //if p[3] == 255 {
+                        if let Some(p) = data.buffer[index].at_f_vec4f(uv) {
+                            if p[3] == 1.0 {
                                 color = p;
                                 hit = true;
+                                //normal = hit_struct.normal;
+                                dist = hit_struct.distance;
                                 break;
-                                //}
                             }
-                        } else {
-                            let xx = i.x + 0.5;
-                            let zz = i.z + 0.5;
+                        }
+                    }
+                }
+                }*/
+            }
+            // Test against world tiles
+            else if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
+                let mut uv = self.get_uv_face(normal, ray.at(dist)).0;
+                //pixel = [(uv.x * 255.0) as u8, (uv.y * 255.0) as u8, 0, 255];
+                if let Some(data) = self.textures.get(tile) {
+                    let index = settings.anim_counter % data.buffer.len();
 
-                            let plane_pos = vec3f(xx, 0.5, zz);
+                    // TODO apply alpha correctly for WallFX blends
+                    let mut alpha: f32 = 1.0;
 
-                            let mut plane_normal = normalize(plane_pos - ray.o);
-                            plane_normal.y = 0.0;
-                            let denom = dot(plane_normal, ray.d);
+                    if key.y == 0 {
+                        if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
+                            let mut valid = true;
+                            let mut xx = 0;
+                            let mut yy = 0;
+                            let d = (update.server_tick - wallfx.at_tick) as f32
+                                + settings.delta_in_tick
+                                - 1.0;
+                            if d < 1.0 {
+                                let t = (d * region.grid_size as f32) as i32;
+                                if wallfx.prev_fx != WallFX::Normal {
+                                    wallfx.prev_fx.apply(
+                                        &mut xx,
+                                        &mut yy,
+                                        &mut alpha,
+                                        &(region.grid_size - t),
+                                        &(1.0 - d),
+                                    );
+                                } else {
+                                    wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
+                                }
+                            } else if wallfx.fx != WallFX::Normal {
+                                valid = false;
+                            }
 
-                            if denom > 0.0001 {
-                                let t = dot(plane_pos - ray.o, plane_normal) / denom;
-                                if t >= 0.0 && !hit || (hit && t < dist) {
-                                    let hit_pos = ray.at(t);
-                                    if (xx - hit_pos.x).abs() <= 0.5
-                                        && (zz - hit_pos.z).abs() <= 0.5
-                                        && hit_pos.y >= 0.0
-                                        && hit_pos.y <= 1.0
-                                    {
-                                        #[inline(always)]
-                                        fn compute_primary(normal: Vec3f) -> Vec3f {
-                                            let a = cross(normal, vec3f(1.0, 0.0, 0.0));
-                                            let b = cross(normal, vec3f(0.0, 1.0, 0.0));
+                            if valid {
+                                uv.x += xx as f32 / region.grid_size as f32;
+                                uv.y += yy as f32 / region.grid_size as f32;
+                            } else {
+                                uv = vec2f(-1.0, -1.0);
+                            }
+                        }
+                    }
 
-                                            let max_ab = if dot(a, a) < dot(b, b) { b } else { a };
+                    if !data.billboard {
+                        if let Some(p) = data.buffer[index].at_f_vec4f(uv) {
+                            //if p[3] == 255 {
+                            color = p;
+                            hit = true;
+                            break;
+                            //}
+                        }
+                    } else {
+                        let xx = i.x + 0.5;
+                        let zz = i.z + 0.5;
 
-                                            let c = cross(normal, vec3f(0.0, 0.0, 1.0));
+                        let plane_pos = vec3f(xx, 0.5, zz);
 
-                                            normalize(if dot(max_ab, max_ab) < dot(c, c) {
-                                                c
-                                            } else {
-                                                max_ab
-                                            })
-                                        }
-                                        let index = settings.anim_counter % data.buffer.len();
+                        let mut plane_normal = normalize(plane_pos - ray.o);
+                        plane_normal.y = 0.0;
+                        let denom = dot(plane_normal, ray.d);
 
-                                        let plane_vector_u = compute_primary(plane_normal);
-                                        let plane_vector_v = cross(plane_vector_u, rd);
+                        if denom > 0.0001 {
+                            let t = dot(plane_pos - ray.o, plane_normal) / denom;
+                            if t >= 0.0 && !hit || (hit && t < dist) {
+                                let hit_pos = ray.at(t);
+                                if (xx - hit_pos.x).abs() <= 0.5
+                                    && (zz - hit_pos.z).abs() <= 0.5
+                                    && hit_pos.y >= 0.0
+                                    && hit_pos.y <= 1.0
+                                {
+                                    #[inline(always)]
+                                    fn compute_primary(normal: Vec3f) -> Vec3f {
+                                        let a = cross(normal, vec3f(1.0, 0.0, 0.0));
+                                        let b = cross(normal, vec3f(0.0, 1.0, 0.0));
 
-                                        let relative = hit_pos - plane_pos;
-                                        let u_dot = dot(relative, plane_vector_u);
-                                        let v_dot = dot(relative, plane_vector_v);
+                                        let max_ab = if dot(a, a) < dot(b, b) { b } else { a };
 
-                                        let u = 0.5 + u_dot;
-                                        let v = 0.5 + v_dot;
+                                        let c = cross(normal, vec3f(0.0, 0.0, 1.0));
 
-                                        //println!("{}, {}", u, v);
+                                        normalize(if dot(max_ab, max_ab) < dot(c, c) {
+                                            c
+                                        } else {
+                                            max_ab
+                                        })
+                                    }
+                                    let index = settings.anim_counter % data.buffer.len();
 
-                                        let x = (u * data.buffer[index].dim().width as f32) as i32;
-                                        let y = ((1.0 - v) * data.buffer[index].dim().height as f32)
-                                            as i32;
-                                        if let Some(c) = data.buffer[index].at(vec2i(x, y)) {
-                                            if c[3] == 255 {
-                                                let col = TheColor::from_u8_array(c).to_vec4f();
-                                                color = col;
-                                                dist = t;
-                                                //normal = vec3f(0.0, 0.0, 1.0);
-                                                hit = true;
-                                                break;
-                                            }
+                                    let plane_vector_u = compute_primary(plane_normal);
+                                    let plane_vector_v = cross(plane_vector_u, rd);
+
+                                    let relative = hit_pos - plane_pos;
+                                    let u_dot = dot(relative, plane_vector_u);
+                                    let v_dot = dot(relative, plane_vector_v);
+
+                                    let u = 0.5 + u_dot;
+                                    let v = 0.5 + v_dot;
+
+                                    //println!("{}, {}", u, v);
+
+                                    let x = (u * data.buffer[index].dim().width as f32) as i32;
+                                    let y =
+                                        ((1.0 - v) * data.buffer[index].dim().height as f32) as i32;
+                                    if let Some(c) = data.buffer[index].at(vec2i(x, y)) {
+                                        if c[3] == 255 {
+                                            let col = TheColor::from_u8_array(c).to_vec4f();
+                                            color = col;
+                                            dist = t;
+                                            //normal = vec3f(0.0, 0.0, 1.0);
+                                            hit = true;
+                                            break;
                                         }
                                     }
                                 }
@@ -624,7 +645,7 @@ impl Renderer {
     }
 
     #[inline(always)]
-    pub fn get_uv(&self, normal: Vec3f, hp: Vec3f) -> Vec2f {
+    pub fn get_uv_face(&self, normal: Vec3f, hp: Vec3f) -> (Vec2f, usize) {
         // Calculate the absolute values of the normal components
         let abs_normal = abs(normal);
 
@@ -643,10 +664,10 @@ impl Renderer {
 
         // Calculate UV coordinates based on the face
         match face_index {
-            0 => Vec2f::new(frac(hp.z), 1.0 - frac(hp.y)), // X-axis face
-            1 => Vec2f::new(frac(hp.x), frac(hp.z)),       // Y-axis face
-            2 => Vec2f::new(frac(hp.x), 1.0 - frac(hp.y)), // Z-axis face
-            _ => Vec2f::zero(),
+            0 => (Vec2f::new(frac(hp.z), 1.0 - frac(hp.y)), 0), // X-axis face
+            1 => (Vec2f::new(frac(hp.x), frac(hp.z)), 1),       // Y-axis face
+            2 => (Vec2f::new(frac(hp.x), 1.0 - frac(hp.y)), 2), // Z-axis face
+            _ => (Vec2f::zero(), 0),
         }
     }
 

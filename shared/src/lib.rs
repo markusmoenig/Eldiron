@@ -60,7 +60,7 @@ pub mod prelude {
     pub use crate::tilemap::{Tile, TileRole, Tilemap};
     pub use crate::update::*;
     pub use crate::widget::*;
-    pub use crate::{do_intersect, Hit, HitFace, Ray, Rendered, RenderedMap};
+    pub use crate::{do_intersect, Hit, HitFace, Ray, Rendered, RenderedFace, RenderedTile};
     pub use rand::prelude::*;
 }
 
@@ -153,60 +153,54 @@ impl Rendered {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct RenderedMap {
-    pub id: Uuid,
-    pub width: i32,
-    pub height: i32,
+pub struct RenderedFace {
+    pub size: u16,
     pub map: Vec<Rendered>,
 }
 
-impl Default for RenderedMap {
+impl Default for RenderedFace {
     fn default() -> Self {
         Self::empty()
     }
 }
 
-impl RenderedMap {
-    pub fn new(id: Uuid, width: i32, height: i32) -> Self {
+impl RenderedFace {
+    pub fn new(size: u16) -> Self {
         Self {
-            id,
-            width,
-            height,
-            map: vec![Rendered::default(); (width * height) as usize],
+            size,
+            map: vec![Rendered::default(); (size * size) as usize],
         }
     }
 
     pub fn empty() -> Self {
         Self {
-            id: Uuid::nil(),
-            width: 0,
-            height: 0,
+            size: 0,
             map: vec![],
         }
     }
 
-    pub fn get(&self, x: i32, y: i32) -> &Rendered {
-        &self.map[(y * self.width + x) as usize]
+    pub fn get(&self, x: u16, y: u16) -> &Rendered {
+        &self.map[(y * self.size + x) as usize]
     }
 
-    pub fn set(&mut self, x: i32, y: i32, rendered: Rendered) {
-        self.map[(y * self.width + x) as usize] = rendered;
+    pub fn set(&mut self, x: u16, y: u16, rendered: Rendered) {
+        self.map[(y * self.size + x) as usize] = rendered;
     }
 
-    pub fn get_safe(&self, x: i32, y: i32) -> Option<&Rendered> {
-        if x < 0 || y < 0 || x >= self.width || y >= self.height {
+    pub fn get_safe(&self, x: u16, y: u16) -> Option<&Rendered> {
+        if x >= self.size || y >= self.size {
             None
         } else {
-            let index = (y * self.width + x) as usize;
+            let index = (y * self.size + x) as usize;
             self.map.get(index)
         }
     }
 
-    pub fn set_safe(&mut self, x: i32, y: i32, rendered: Rendered) -> Option<()> {
-        if x < 0 || y < 0 || x >= self.width || y >= self.height {
+    pub fn set_safe(&mut self, x: u16, y: u16, rendered: Rendered) -> Option<()> {
+        if x >= self.size || y >= self.size {
             None
         } else {
-            let index = (y * self.width + x) as usize;
+            let index = (y * self.size + x) as usize;
             if let Some(elem) = self.map.get_mut(index) {
                 *elem = rendered;
                 Some(())
@@ -220,11 +214,26 @@ impl RenderedMap {
         self.map.clear();
     }
 
-    pub fn resize(&mut self, width: i32, height: i32) {
-        self.width = width;
-        self.height = height;
-        self.map
-            .resize((width * height) as usize, Rendered::default());
+    pub fn resize(&mut self, size: u16) {
+        self.size = size;
+        self.map.resize((size * size) as usize, Rendered::default());
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct RenderedTile {
+    pub faces: [RenderedFace; 3],
+}
+
+impl RenderedTile {
+    pub fn new(size: u16) -> Self {
+        Self {
+            faces: [
+                RenderedFace::new(size),
+                RenderedFace::new(size),
+                RenderedFace::new(size),
+            ],
+        }
     }
 }
 
