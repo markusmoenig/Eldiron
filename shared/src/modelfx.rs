@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use line_drawing::Bresenham;
 use rayon::prelude::*;
+use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
 
 fn default_density() -> u8 {
@@ -671,7 +672,10 @@ impl ModelFX {
         let density = density as i32;
         let density_f = density as f32;
 
-        for z in 0..density {
+        let new_voxels = Arc::new(Mutex::new(FxHashMap::default()));
+
+        (0..density).into_par_iter().for_each(|z| {
+            let mut layer_voxels = FxHashMap::default();
             for y in 0..density {
                 for x in 0..density {
                     let p = vec3f(
@@ -696,11 +700,14 @@ impl ModelFX {
                             color: [c[0], c[1], c[2]],
                         };
 
-                        self.voxels.insert((x as u8, y as u8, z as u8), voxel);
+                        layer_voxels.insert((x as u8, y as u8, z as u8), voxel);
                     }
                 }
             }
-        }
+            let mut new_voxels = new_voxels.lock().unwrap();
+            new_voxels.extend(layer_voxels);
+        });
+        self.voxels = Arc::try_unwrap(new_voxels).unwrap().into_inner().unwrap();
     }
 
     pub fn render(
@@ -742,8 +749,7 @@ impl ModelFX {
         }
     }
 
-    pub fn render_preview(&mut self, buffer: &mut TheRGBABuffer, palette: &ThePalette) {
-        //}, palette: &ThePalette) {
+    pub fn render_preview(&mut self, buffer: &mut TheRGBABuffer, _palette: &ThePalette) {
         let width = buffer.dim().width as usize;
         let height = buffer.dim().height as usize;
 
@@ -782,10 +788,67 @@ impl ModelFX {
                                 camera_offset,
                             );
 
-                            if let Some(hit) = self.render(&ray, 3.0, Vec3f::zero(), palette) {
-                                color = hit.color;
+                            // if let Some(hit) = self.render(&ray, 3.0, Vec3f::zero(), palette) {
+                            //     color = hit.color;
+                            // }
+
+                            fn equal(l: f32, r: Vec3f) -> Vec3f {
+                                vec3f(
+                                    if l == r.x { 1.0 } else { 0.0 },
+                                    if l == r.y { 1.0 } else { 0.0 },
+                                    if l == r.z { 1.0 } else { 0.0 },
+                                )
                             }
 
+                            let mut ro = ray.o;
+                            ro *= self.density as f32;
+
+                            let rd = ray.d;
+
+                            let mut i = floor(ro);
+                            let mut dist;
+
+                            let mut normal;
+                            let srd = signum(rd);
+
+                            let rdi = 1.0 / (2.0 * rd);
+
+                            //let density_f = self.density as f32;
+
+                            loop {
+                                if i.x < 0.0 || i.y < 0.0 || i.z < 0.0
+                                // || i.x > density_f
+                                // || i.y > density_f
+                                // || i.z > density_f
+                                {
+                                    break;
+                                }
+
+                                let x = i.x as u8;
+                                let y = i.y as u8;
+                                let z = i.z as u8;
+
+                                if let Some(voxel) = self.voxels.get(&(x, y, z)) {
+                                    //let mut hit = Hit::default();
+                                    let c = TheColor::from_u8_array([
+                                        voxel.color[0],
+                                        voxel.color[1],
+                                        voxel.color[2],
+                                        255,
+                                    ]);
+                                    // hit.color = c.to_vec4f();
+                                    // hit.distance = dist;
+                                    // hit.normal = normal;
+
+                                    color = c.to_vec4f();
+                                    break;
+                                }
+
+                                let plain = (1.0 + srd - 2.0 * (ro - i)) * rdi;
+                                dist = min(plain.x, min(plain.y, plain.z));
+                                normal = equal(dist, plain) * srd;
+                                i += normal;
+                            }
                             total += color;
                         }
                     }

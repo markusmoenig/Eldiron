@@ -504,6 +504,8 @@ impl ModelFXEditor {
     }
 
     pub fn render_preview(&mut self, ui: &mut TheUI, palette: &ThePalette) {
+        self.modelfx.create_voxels(24, &Vec3f::zero(), palette);
+
         if *SIDEBARMODE.lock().unwrap() == SidebarMode::Model {
             if let Some(widget) = ui.get_render_view("ModelFX Library Preview") {
                 let buffer = widget.render_buffer_mut();

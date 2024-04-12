@@ -74,6 +74,7 @@ impl ModelFXStore {
         self.ceiling.create_voxels(density, key, palette);
     }
 
+    /// Voxel dda
     pub fn dda(&self, ray: &Ray) -> Option<Hit> {
         fn equal(l: f32, r: Vec3f) -> Vec3f {
             vec3f(
@@ -85,7 +86,6 @@ impl ModelFXStore {
 
         let mut ro = ray.o;
         ro *= self.density as f32;
-        //ro -= ray.d * 0.01;
 
         let rd = ray.d;
 
