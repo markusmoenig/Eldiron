@@ -715,4 +715,11 @@ impl Server {
             region.zoom = zoom;
         }
     }
+
+    /// Set a voxelized model to the region.
+    pub fn set_voxelized_model(&mut self, region: Uuid, key: Vec3i, model: ModelFXStore) {
+        if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
+            region.models.insert((key.x, key.y, key.z), model);
+        }
+    }
 }

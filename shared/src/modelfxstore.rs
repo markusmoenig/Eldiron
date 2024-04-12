@@ -85,7 +85,7 @@ impl ModelFXStore {
 
         let mut ro = ray.o;
         ro *= self.density as f32;
-        ro -= ray.d * 0.01;
+        //ro -= ray.d * 0.01;
 
         let rd = ray.d;
 

@@ -24,6 +24,7 @@ lazy_static! {
     pub static ref TILEFXEDITOR: Mutex<TileFXEditor> = Mutex::new(TileFXEditor::new());
     pub static ref MODELFXEDITOR: Mutex<ModelFXEditor> = Mutex::new(ModelFXEditor::new());
     pub static ref REGIONFXEDITOR: Mutex<RegionFXEditor> = Mutex::new(RegionFXEditor::new());
+    pub static ref VOXELTHREAD: Mutex<VoxelThread> = Mutex::new(VoxelThread::default());
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -336,6 +337,9 @@ impl TheTrait for Editor {
         // -
 
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
+
+        // Startup the voxel render thread.
+        VOXELTHREAD.lock().unwrap().startup();
     }
 
     /// Set the command line arguments
@@ -438,6 +442,16 @@ impl TheTrait for Editor {
                         .set_debug_module(TheDebugModule::default(), ui);
                 }
             }
+        }
+
+        if let Some(VoxelRenderResult::VoxelizedModel(id, key, model)) =
+            VOXELTHREAD.lock().unwrap().receive()
+        {
+            if let Some(region) = self.project.get_region_mut(&id) {
+                region.models.insert((key.x, key.y, key.z), model.clone());
+            }
+            self.server.set_voxelized_model(id, key, model);
+            redraw = true;
         }
 
         if self.active_editor == ActiveEditor::TileEditor
@@ -985,13 +999,10 @@ impl TheTrait for Editor {
                                     serde_json::from_str(&contents).unwrap_or(Project::new());
 
                                 for region in &mut self.project.regions {
-                                    for (key, model) in region.models.iter_mut() {
-                                        model.create_voxels(
-                                            region.grid_size as u8,
-                                            &vec3f(key.0 as f32, key.1 as f32, key.2 as f32),
-                                            &self.project.palette,
-                                        )
-                                    }
+                                    VOXELTHREAD.lock().unwrap().voxelize_region_models(
+                                        region.clone(),
+                                        self.project.palette.clone(),
+                                    );
                                 }
 
                                 self.sidebar.load_from_project(ui, ctx, &self.project);
