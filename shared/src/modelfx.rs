@@ -3,8 +3,13 @@ use line_drawing::Bresenham;
 use rayon::prelude::*;
 use theframework::prelude::*;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+fn default_density() -> u8 {
+    24
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
 pub enum ModelFXNodeAction {
+    #[default]
     None,
     DragNode,
     ConnectingTerminal(Vec3i),
@@ -13,12 +18,23 @@ pub enum ModelFXNodeAction {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ModelFX {
+    #[serde(skip)]
     pub action: ModelFXNodeAction,
 
+    /// The nodes which make up the model.
     pub nodes: Vec<ModelFXNode>,
 
-    // Source node index, source terminal, dest node index, dest terminal
+    /// The node connections: Source node index, source terminal, dest node index, dest terminal
     pub connections: Vec<(u16, u8, u16, u8)>,
+
+    /// The density of the voxel grid.
+    #[serde(default = "default_density")]
+    pub density: u8,
+
+    /// The voxel grid which is the voxelized state of the model and used for rendering.
+    #[serde(skip)]
+    #[serde(with = "vectorize")]
+    pub voxels: FxHashMap<(u8, u8, u8), Voxel>,
 
     // 70 x 70
     pub preview_buffer: TheRGBABuffer,
@@ -53,6 +69,9 @@ impl ModelFX {
 
             nodes: vec![],
             connections: vec![],
+
+            density: 24,
+            voxels: FxHashMap::default(),
 
             preview_buffer: TheRGBABuffer::new(TheDim::sized(65, 65)),
             node_previews: vec![],
@@ -636,6 +655,46 @@ impl ModelFX {
                         self.nodes[o].material(&random_connection.1, hit, palette, noise)
                     {
                         self.follow_trail(o, ot as usize, hit, palette);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Create the voxels for the model in the given density.
+    pub fn create_voxels(&mut self, density: u8, key: &Vec3f, palette: &ThePalette) {
+        self.density = density;
+        self.voxels.clear();
+
+        let density = density as i32;
+        let density_f = density as f32;
+
+        for z in 0..density {
+            for y in 0..density {
+                for x in 0..density {
+                    let p = vec3f(
+                        x as f32 / density_f,
+                        y as f32 / density_f,
+                        z as f32 / density_f,
+                    );
+                    let mut hit = Hit::default();
+                    let d = self.distance_hit(p, &mut hit);
+
+                    if d < 0.05 {
+                        hit.normal = self.normal(p);
+                        hit.hit_point = p + key;
+                        hit.key = *key;
+
+                        let terminal_index = self.nodes[hit.node].color_index_for_hit(&mut hit).1;
+                        self.follow_trail(hit.node, terminal_index as usize, &mut hit, palette);
+
+                        let c = TheColor::from_vec4f(hit.color).to_u8_array();
+
+                        let voxel = Voxel {
+                            color: [c[0], c[1], c[2]],
+                        };
+
+                        self.voxels.insert((x as u8, y as u8, z as u8), voxel);
                     }
                 }
             }

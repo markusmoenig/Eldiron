@@ -983,6 +983,17 @@ impl TheTrait for Editor {
                                 let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
                                 self.project =
                                     serde_json::from_str(&contents).unwrap_or(Project::new());
+
+                                for region in &mut self.project.regions {
+                                    for (key, model) in region.models.iter_mut() {
+                                        model.create_voxels(
+                                            region.grid_size as u8,
+                                            &vec3f(key.0 as f32, key.1 as f32, key.2 as f32),
+                                            &self.project.palette,
+                                        )
+                                    }
+                                }
+
                                 self.sidebar.load_from_project(ui, ctx, &self.project);
                                 self.tileeditor.load_from_project(ui, ctx, &self.project);
                                 let packages = self.server.set_project(self.project.clone());
