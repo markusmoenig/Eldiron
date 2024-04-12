@@ -3,6 +3,7 @@ use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
 use crate::Embedded;
 use lazy_static::lazy_static;
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::mpsc::channel;
@@ -994,30 +995,35 @@ impl TheTrait for Editor {
                         } else if id.name == "Open" {
                             for p in paths {
                                 self.project_path = Some(p.clone());
-                                let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
-                                self.project =
-                                    serde_json::from_str(&contents).unwrap_or(Project::new());
+                                //let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
+                                if let Ok(contents) = std::fs::read(p) {
+                                    if let Ok(project) =
+                                        postcard::from_bytes::<Project>(contents.deref())
+                                    {
+                                        self.project = project;
+                                        for region in &mut self.project.regions {
+                                            VOXELTHREAD.lock().unwrap().voxelize_region_models(
+                                                region.clone(),
+                                                self.project.palette.clone(),
+                                            );
+                                        }
 
-                                for region in &mut self.project.regions {
-                                    VOXELTHREAD.lock().unwrap().voxelize_region_models(
-                                        region.clone(),
-                                        self.project.palette.clone(),
-                                    );
+                                        self.sidebar.load_from_project(ui, ctx, &self.project);
+                                        self.tileeditor.load_from_project(ui, ctx, &self.project);
+                                        let packages =
+                                            self.server.set_project(self.project.clone());
+                                        self.client.set_project(self.project.clone());
+                                        CODEEDITOR.lock().unwrap().set_packages(packages);
+                                        self.server.state = ServerState::Stopped;
+                                        update_server_icons = true;
+                                        redraw = true;
+                                        self.server_ctx.clear();
+                                        ctx.ui.send(TheEvent::SetStatusText(
+                                            TheId::empty(),
+                                            "Project loaded successfully.".to_string(),
+                                        ))
+                                    }
                                 }
-
-                                self.sidebar.load_from_project(ui, ctx, &self.project);
-                                self.tileeditor.load_from_project(ui, ctx, &self.project);
-                                let packages = self.server.set_project(self.project.clone());
-                                self.client.set_project(self.project.clone());
-                                CODEEDITOR.lock().unwrap().set_packages(packages);
-                                self.server.state = ServerState::Stopped;
-                                update_server_icons = true;
-                                redraw = true;
-                                self.server_ctx.clear();
-                                ctx.ui.send(TheEvent::SetStatusText(
-                                    TheId::empty(),
-                                    "Project loaded successfully.".to_string(),
-                                ))
                             }
                         } else if id.name == "Save As" {
                             for p in paths {
@@ -1131,19 +1137,22 @@ impl TheTrait for Editor {
                             redraw = true;
                         } else if id.name == "Save" {
                             if let Some(path) = &self.project_path {
-                                let json = serde_json::to_string(&self.project);
-                                if let Ok(json) = json {
-                                    if std::fs::write(path, json).is_ok() {
+                                let mut success = false;
+                                if let Ok(output) = postcard::to_allocvec(&self.project) {
+                                    if std::fs::write(path, output).is_ok() {
                                         ctx.ui.send(TheEvent::SetStatusText(
                                             TheId::empty(),
                                             "Project saved successfully.".to_string(),
-                                        ))
-                                    } else {
-                                        ctx.ui.send(TheEvent::SetStatusText(
-                                            TheId::empty(),
-                                            "Unable to save project!".to_string(),
-                                        ))
+                                        ));
+                                        success = true;
                                     }
+                                }
+
+                                if !success {
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Unable to save project!".to_string(),
+                                    ))
                                 }
                             }
                         } else if id.name == "Save As" {

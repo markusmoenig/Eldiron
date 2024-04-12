@@ -34,6 +34,8 @@ pub struct ModelFX {
     /// The voxel grid which is the voxelized state of the model and used for rendering.
     #[serde(skip)]
     #[serde(with = "vectorize")]
+    // #[serde(skip_deserializing)]
+    // #[serde(skip_serializing)]
     pub voxels: FxHashMap<(u8, u8, u8), Voxel>,
 
     // 70 x 70
