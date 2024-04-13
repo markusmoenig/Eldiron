@@ -83,11 +83,30 @@ impl ModelFXStore {
                 if l == r.z { 1.0 } else { 0.0 },
             )
         }
+        let density_f = self.density as f32;
 
         let mut ro = ray.o;
         ro *= self.density as f32;
-
         let rd = ray.d;
+
+        let max_y = max(self.floor.max_y_voxel, self.wall.max_y_voxel);
+
+        // Check if the ray hits the plane of the max_y voxel.If yes, advance the ro to the plane.
+        // If not we do not need to render as the ray passes over the voxel grid.
+        // This optimization is especially important for first person view.
+        if max_y < self.density - 1 {
+            let plane_normal = vec3f(0.0, 1.0, 0.0);
+            let denom = dot(plane_normal, rd);
+
+            if denom.abs() > 0.0001 {
+                let t = dot(vec3f(0.0, max_y as f32, 0.0) - ro, plane_normal) / denom;
+                if t >= 0.0 {
+                    ro += rd * t;
+                } else {
+                    return None;
+                }
+            }
+        }
 
         let mut i = floor(ro);
         let mut dist = 0.0;
@@ -96,8 +115,6 @@ impl ModelFXStore {
         let srd = signum(rd);
 
         let rdi = 1.0 / (2.0 * rd);
-
-        let density_f = self.density as f32;
 
         loop {
             if i.x < 0.0

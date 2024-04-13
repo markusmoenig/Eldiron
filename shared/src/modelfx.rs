@@ -39,6 +39,9 @@ pub struct ModelFX {
     // #[serde(skip_serializing)]
     pub voxels: FxHashMap<(u8, u8, u8), Voxel>,
 
+    #[serde(skip)]
+    pub max_y_voxel: u8,
+
     // 70 x 70
     pub preview_buffer: TheRGBABuffer,
 
@@ -75,6 +78,8 @@ impl ModelFX {
 
             density: 24,
             voxels: FxHashMap::default(),
+
+            max_y_voxel: 255,
 
             preview_buffer: TheRGBABuffer::new(TheDim::sized(65, 65)),
             node_previews: vec![],
@@ -672,10 +677,12 @@ impl ModelFX {
         let density = density as i32;
         let density_f = density as f32;
 
+        let max_y = Arc::new(Mutex::new(0));
         let new_voxels = Arc::new(Mutex::new(FxHashMap::default()));
 
         (0..density).into_par_iter().for_each(|z| {
             let mut layer_voxels = FxHashMap::default();
+            let mut local_max_y = 0;
             for y in 0..density {
                 for x in 0..density {
                     let p = vec3f(
@@ -701,13 +708,29 @@ impl ModelFX {
                         };
 
                         layer_voxels.insert((x as u8, y as u8, z as u8), voxel);
+
+                        // Update local minimum y value
+                        if y > local_max_y {
+                            local_max_y = y;
+                        }
                     }
                 }
             }
+
+            // Lock min_y mutex and update if necessary
+            let mut max_y = max_y.lock().unwrap();
+            if local_max_y > *max_y {
+                *max_y = local_max_y;
+            }
+
             let mut new_voxels = new_voxels.lock().unwrap();
             new_voxels.extend(layer_voxels);
         });
+
+        let max_y_value = *max_y.lock().unwrap();
+        println!("Maximum y value: {}", max_y_value);
         self.voxels = Arc::try_unwrap(new_voxels).unwrap().into_inner().unwrap();
+        self.max_y_voxel = max_y_value as u8;
     }
 
     pub fn render(

@@ -445,7 +445,7 @@ impl TheTrait for Editor {
             }
         }
 
-        if let Some(VoxelRenderResult::VoxelizedModel(id, key, model)) =
+        while let Some(VoxelRenderResult::VoxelizedModel(id, key, model)) =
             VOXELTHREAD.lock().unwrap().receive()
         {
             if let Some(region) = self.project.get_region_mut(&id) {
