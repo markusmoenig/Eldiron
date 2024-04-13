@@ -45,7 +45,7 @@ pub mod prelude {
     pub use crate::modelfxstore::ModelFXStore;
     pub use crate::modelfxterminal::*;
     pub use crate::patterns::*;
-    pub use crate::project::Project;
+    pub use crate::project::{MapMode, Project};
     pub use crate::region::{CameraMode, CameraType, Layer2DRole, Region, RegionTile};
     pub use crate::regionfx::*;
     pub use crate::renderer::Renderer;

@@ -59,6 +59,19 @@ pub fn bricks(coll: &TheCollection, uv: Vec2f, hit: &mut Hit) -> (u8, u8) {
     }
 }
 
+pub fn steps(coll: &TheCollection, _uv: Vec2f, hit: &mut Hit) -> (u8, u8) {
+    let mat2 = coll.get_f32_default("Mat 2", 0.5);
+    let mat3 = coll.get_f32_default("Mat 3", 0.8);
+
+    if hit.hit_point.y < mat2 {
+        (0, 0)
+    } else if hit.hit_point.y < mat3 {
+        (1, 1)
+    } else {
+        (2, 2)
+    }
+}
+
 pub fn subdivide(coll: &TheCollection, uv: Vec2f, hit: &mut Hit) -> (u8, u8) {
     let mode = coll.get_i32_default("Mode", 0);
     let offset = coll.get_f32_default("Offset", 0.5);

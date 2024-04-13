@@ -633,7 +633,7 @@ impl ModelFX {
             1 => {
                 let o = connections[0].0 as usize;
 
-                let mut noise = 1.0;
+                let mut noise = 0.0;
                 if let Some(noise_index) = self.find_connected_output_node(o, 1) {
                     if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
                         noise = self.nodes[noise_index].noise(hit);
@@ -653,7 +653,7 @@ impl ModelFX {
                 let index = (hit.hash * connections.len() as f32).floor() as usize;
                 if let Some(random_connection) = connections.get(index) {
                     let o = random_connection.0 as usize;
-                    let mut noise = 1.0;
+                    let mut noise = 0.0;
                     if let Some(noise_index) = self.find_connected_output_node(o, 1) {
                         if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
                             noise = self.nodes[noise_index].noise(hit);
@@ -971,7 +971,7 @@ impl ModelFX {
                     } else if role == ModelFXNodeRole::Material {
                         // Material node
 
-                        let mut noise = 1.0;
+                        let mut noise = 0.0;
                         let mut wobble = Vec2f::zero();
 
                         if let Some(noise_index) = self.find_connected_output_node(node_index, 1) {

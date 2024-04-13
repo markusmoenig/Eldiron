@@ -367,6 +367,7 @@ impl TileEditor {
                 if id.name == "2D3D Group" {
                     if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {
                         if *index == 0 {
+                            project.map_mode = MapMode::TwoD;
                             shared.set_mode(TheSharedHLayoutMode::Left);
                             *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw2D;
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -376,9 +377,11 @@ impl TileEditor {
                                 }
                             }
                         } else if *index == 1 {
+                            project.map_mode = MapMode::Mixed;
                             shared.set_mode(TheSharedHLayoutMode::Shared);
                             *RENDERMODE.lock().unwrap() = EditorDrawMode::DrawMixed;
                         } else if *index == 2 {
+                            project.map_mode = MapMode::ThreeD;
                             shared.set_mode(TheSharedHLayoutMode::Right);
                             *RENDERMODE.lock().unwrap() = EditorDrawMode::Draw3D;
                         }

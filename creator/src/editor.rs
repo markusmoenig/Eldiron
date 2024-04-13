@@ -3,7 +3,6 @@ use crate::self_update::SelfUpdateEvent;
 use crate::self_update::SelfUpdater;
 use crate::Embedded;
 use lazy_static::lazy_static;
-use std::ops::Deref;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::mpsc::channel;
@@ -996,16 +995,47 @@ impl TheTrait for Editor {
                             for p in paths {
                                 self.project_path = Some(p.clone());
                                 //let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
-                                if let Ok(contents) = std::fs::read(p) {
-                                    if let Ok(project) =
-                                        postcard::from_bytes::<Project>(contents.deref())
-                                    {
+                                // if let Ok(contents) = std::fs::read(p) {
+                                if let Ok(contents) = std::fs::read_to_string(p) {
+                                    //if let Ok(project) =
+                                    //    postcard::from_bytes::<Project>(contents.deref())
+                                    if let Ok(project) = serde_json::from_str(&contents) {
                                         self.project = project;
                                         for region in &mut self.project.regions {
                                             VOXELTHREAD.lock().unwrap().voxelize_region_models(
                                                 region.clone(),
                                                 self.project.palette.clone(),
                                             );
+                                        }
+
+                                        if let Some(widget) = ui.get_widget("Server Time Slider") {
+                                            widget.set_value(TheValue::Time(self.project.time));
+                                        }
+                                        self.server.set_time(self.project.time);
+
+                                        if let Some(widget) = ui.get_group_button("2D3D Group") {
+                                            widget.set_index(self.project.map_mode as i32);
+                                        }
+
+                                        if let Some(shared) = ui.get_sharedhlayout("Editor Shared")
+                                        {
+                                            match self.project.map_mode {
+                                                MapMode::TwoD => {
+                                                    *RENDERMODE.lock().unwrap() =
+                                                        EditorDrawMode::Draw2D;
+                                                    shared.set_mode(TheSharedHLayoutMode::Left);
+                                                }
+                                                MapMode::Mixed => {
+                                                    *RENDERMODE.lock().unwrap() =
+                                                        EditorDrawMode::DrawMixed;
+                                                    shared.set_mode(TheSharedHLayoutMode::Shared);
+                                                }
+                                                MapMode::ThreeD => {
+                                                    *RENDERMODE.lock().unwrap() =
+                                                        EditorDrawMode::Draw3D;
+                                                    shared.set_mode(TheSharedHLayoutMode::Right);
+                                                }
+                                            }
                                         }
 
                                         self.sidebar.load_from_project(ui, ctx, &self.project);
@@ -1138,7 +1168,8 @@ impl TheTrait for Editor {
                         } else if id.name == "Save" {
                             if let Some(path) = &self.project_path {
                                 let mut success = false;
-                                if let Ok(output) = postcard::to_allocvec(&self.project) {
+                                // if let Ok(output) = postcard::to_allocvec(&self.project) {
+                                if let Ok(output) = serde_json::to_string(&self.project) {
                                     if std::fs::write(path, output).is_ok() {
                                         ctx.ui.send(TheEvent::SetStatusText(
                                             TheId::empty(),
@@ -1253,6 +1284,7 @@ impl TheTrait for Editor {
                         if id.name == "Server Time Slider" {
                             if let TheValue::Time(time) = value {
                                 self.server.set_time(time);
+                                self.project.time = time;
                             }
                         }
                     }

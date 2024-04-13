@@ -11,11 +11,25 @@ fn default_tick_ms() -> u32 {
     250
 }
 
+#[derive(Serialize, Deserialize, Default, Copy, Clone, Debug)]
+pub enum MapMode {
+    #[default]
+    TwoD,
+    Mixed,
+    ThreeD,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Project {
     pub name: String,
     pub regions: Vec<Region>,
     pub tilemaps: Vec<Tilemap>,
+
+    #[serde(default)]
+    pub time: TheTime,
+
+    #[serde(default)]
+    pub map_mode: MapMode,
 
     #[serde(default)]
     pub characters: FxHashMap<Uuid, TheCodeBundle>,
@@ -56,6 +70,9 @@ impl Project {
 
             regions: vec![],
             tilemaps: vec![],
+
+            time: TheTime::default(),
+            map_mode: MapMode::default(),
 
             characters: FxHashMap::default(),
             items: FxHashMap::default(),
