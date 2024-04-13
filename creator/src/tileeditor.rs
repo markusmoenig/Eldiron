@@ -516,6 +516,28 @@ impl TileEditor {
                             server.set_editing_position_3d(region.editing_position_3d);
                         }
 
+                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
+                            || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
+                        {
+                            // In Region mode, we need to set the character bundle of the current character instance.
+                            if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                                if let Some(character) = region.characters.get(&id.uuid) {
+                                    for grid in character.instance.grids.values() {
+                                        if grid.name == "init" {
+                                            CODEEDITOR
+                                                .lock()
+                                                .unwrap()
+                                                .set_codegrid(grid.clone(), ui);
+                                            ctx.ui.send(TheEvent::Custom(
+                                                TheId::named("Set CodeGrid Panel"),
+                                                TheValue::Empty,
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Set Region Panel"),
                             TheValue::Empty,
