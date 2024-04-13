@@ -89,6 +89,8 @@ impl ModelFXStore {
         ro *= self.density as f32;
         let rd = ray.d;
 
+        let mut dist = 0.0;
+
         let max_y = max(self.floor.max_y_voxel, self.wall.max_y_voxel);
 
         // Check if the ray hits the plane of the max_y voxel.If yes, advance the ro to the plane.
@@ -102,6 +104,7 @@ impl ModelFXStore {
                 let t = dot(vec3f(0.0, max_y as f32, 0.0) - ro, plane_normal) / denom;
                 if t >= 0.0 {
                     ro += rd * t;
+                    dist = t;
                 } else {
                     return None;
                 }
@@ -109,7 +112,6 @@ impl ModelFXStore {
         }
 
         let mut i = floor(ro);
-        let mut dist = 0.0;
 
         let mut normal = Vec3f::zero();
         let srd = signum(rd);
@@ -136,7 +138,7 @@ impl ModelFXStore {
                 let c =
                     TheColor::from_u8_array([voxel.color[0], voxel.color[1], voxel.color[2], 255]);
                 hit.color = c.to_vec4f();
-                hit.distance = dist;
+                hit.distance = dist / density_f;
                 hit.normal = normal;
                 return Some(hit);
             }

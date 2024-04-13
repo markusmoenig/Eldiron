@@ -56,7 +56,7 @@ impl RegionFX {
                 if let Some(collection) = collection {
                     coll = collection;
                 } else {
-                    coll.set("Maximum Render Distance", TheValue::IntRange(10, 1..=30));
+                    coll.set("Maximum Render Distance", TheValue::IntRange(20, 1..=100));
                 }
                 let mut meta = RegionFXMetaData::new();
                 meta.set_description(

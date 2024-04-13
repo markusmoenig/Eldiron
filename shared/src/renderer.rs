@@ -56,7 +56,7 @@ impl Renderer {
             );
         }
 
-        let mut max_render_distance = 5;
+        let mut max_render_distance = 20;
         if let Some(v) = region.regionfx.get(
             str!("Distance / Fog"),
             str!("Maximum Render Distance"),

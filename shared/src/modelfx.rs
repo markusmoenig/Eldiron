@@ -728,7 +728,6 @@ impl ModelFX {
         });
 
         let max_y_value = *max_y.lock().unwrap();
-        println!("Maximum y value: {}", max_y_value);
         self.voxels = Arc::try_unwrap(new_voxels).unwrap().into_inner().unwrap();
         self.max_y_voxel = max_y_value as u8;
     }
