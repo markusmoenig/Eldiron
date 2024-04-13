@@ -350,21 +350,6 @@ impl Renderer {
                 }
             }
 
-            // if let Some(tile) = self.project.tiles.get(&(key.x, key.y, key.z)) {
-
-            //     let mut lro = ray.at(dist);
-            //     lro -= Vec3f::from(key);
-            //     lro *= tile.size as f32;
-            //     lro = lro - rd * 0.01;
-
-            //     if let Some(mut hit) = tile.dda(&Ray::new(lro, rd)) {
-            //         hit.key = key;
-            //         hit.hitpoint = ray.at(dist + hit.distance / (tile.size as f32));
-            //         hit.distance = dist;
-            //         return Some(hit);
-            //     }
-            // }
-
             let plain = (1.0 + srd - 2.0 * (ro - i)) * rdi;
             dist = min(plain.x, min(plain.y, plain.z));
             normal = equal(dist, plain) * srd;

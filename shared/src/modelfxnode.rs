@@ -142,6 +142,9 @@ impl ModelFXNode {
                     ModelFXTerminal::new(ModelFXTerminalRole::Noise, 6),
                 ]
             }
+            Self::WallHorizontal(_) | Self::WallVertical(_) | Self::Floor(_) => {
+                vec![ModelFXTerminal::new(ModelFXTerminalRole::Noise, 6)]
+            }
             _ => {
                 vec![]
             }
@@ -440,14 +443,11 @@ impl ModelFXNode {
     }
 
     /// Returns the distance to p.
-    pub fn distance(&self, p: Vec3f) -> f32 {
+    pub fn distance(&self, p: Vec3f, noise: f32) -> f32 {
         match self {
             Self::Floor(collection) => {
                 let height = collection.get_f32_default("Height", 0.01);
-                sd_box(
-                    p - vec3f(0.5, height / 2.0, 0.5),
-                    vec3f(0.5, height / 2.0, 0.5),
-                )
+                p.y - height - noise
             }
             Self::WallHorizontal(collection) => {
                 let position = collection.get_f32_default("Position", 0.5);
@@ -482,7 +482,7 @@ impl ModelFXNode {
                 sd_box(
                     p - vec3f((min_o + max_o) / 2.0, height / 2.0, (min + max) / 2.0),
                     vec3f((max_o - min_o) / 2.0, height / 2.0, (max - min) / 2.0),
-                )
+                ) - noise
             }
             Self::WallVertical(collection) => {
                 let position = collection.get_f32_default("Position", 0.5);
@@ -517,7 +517,7 @@ impl ModelFXNode {
                 sd_box(
                     p - vec3f((min + max) / 2.0, height / 2.0, (min_o + max_o) / 2.0),
                     vec3f((max - min) / 2.0, height / 2.0, (max_o - min_o) / 2.0),
-                )
+                ) - noise
             }
             _ => 0.0,
         }

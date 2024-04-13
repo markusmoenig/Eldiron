@@ -690,11 +690,12 @@ impl ModelFX {
                         y as f32 / density_f,
                         z as f32 / density_f,
                     );
-                    let mut hit = Hit::default();
+                    let mut hit = Hit::new();
+                    hit.key = *key;
                     let d = self.distance_hit(p, &mut hit);
 
                     if d < 0.05 {
-                        hit.normal = self.normal(p);
+                        hit.normal = self.normal(p, hit.geometry_noise);
                         hit.hit_point = p + key;
                         hit.key = *key;
 
@@ -756,7 +757,7 @@ impl ModelFX {
         }
 
         if t < max_t {
-            hit.normal = self.normal(p);
+            hit.normal = self.normal(p, hit.geometry_noise);
             hit.hit_point = p + key;
 
             let c = dot(hit.normal, normalize(vec3f(1.0, 2.0, 3.0))) * 0.5 + 0.5;
@@ -938,7 +939,7 @@ impl ModelFX {
                                 let mut p = ray.at(t);
 
                                 while t < max_t {
-                                    let d = self.nodes[node_index].distance(p);
+                                    let d = self.nodes[node_index].distance(p, 0.0);
                                     if d < 0.001 {
                                         break;
                                     }
@@ -1027,9 +1028,17 @@ impl ModelFX {
         let mut d = f32::MAX;
         for (index, node) in self.nodes.iter().enumerate() {
             if node.role() == ModelFXNodeRole::Geometry {
-                let dist = node.distance(p);
+                let mut noise = 0.0;
+                if let Some(noise_index) = self.find_connected_output_node(index, 0) {
+                    if let ModelFXNode::Noise3D(_coll) = &self.nodes[noise_index] {
+                        hit.hit_point = p + hit.key;
+                        noise = self.nodes[noise_index].noise(hit);
+                    }
+                }
+                let dist = node.distance(p, noise);
                 if dist < d {
                     d = dist;
+                    hit.geometry_noise = noise;
                     hit.node = index;
                 }
             }
@@ -1039,17 +1048,17 @@ impl ModelFX {
 
     /// Get the distance at the given position for all geometry nodes.
     #[inline(always)]
-    pub fn distance(&self, p: Vec3f) -> f32 {
+    pub fn distance(&self, p: Vec3f, noise: f32) -> f32 {
         let mut d = f32::MAX;
         for node in self.nodes.iter() {
             if node.role() == ModelFXNodeRole::Geometry {
-                d = d.min(node.distance(p));
+                d = d.min(node.distance(p, noise));
             }
         }
         d
     }
 
-    pub fn normal(&self, p: Vec3f) -> Vec3f {
+    pub fn normal(&self, p: Vec3f, noise: f32) -> Vec3f {
         let scale = 0.5773 * 0.0005;
         let e = vec2f(1.0 * scale, -1.0 * scale);
 
@@ -1060,10 +1069,10 @@ impl ModelFX {
         let e3 = vec3f(e.y, e.x, e.y);
         let e4 = vec3f(e.x, e.x, e.x);
 
-        let n = e1 * self.distance(p + e1)
-            + e2 * self.distance(p + e2)
-            + e3 * self.distance(p + e3)
-            + e4 * self.distance(p + e4);
+        let n = e1 * self.distance(p + e1, noise)
+            + e2 * self.distance(p + e2, noise)
+            + e3 * self.distance(p + e3, noise)
+            + e4 * self.distance(p + e4, noise);
         normalize(n)
     }
 
@@ -1078,10 +1087,10 @@ impl ModelFX {
         let e3 = vec3f(e.y, e.x, e.y);
         let e4 = vec3f(e.x, e.x, e.x);
 
-        let n = e1 * node.distance(p + e1)
-            + e2 * node.distance(p + e2)
-            + e3 * node.distance(p + e3)
-            + e4 * node.distance(p + e4);
+        let n = e1 * node.distance(p + e1, 0.0)
+            + e2 * node.distance(p + e2, 0.0)
+            + e3 * node.distance(p + e3, 0.0)
+            + e4 * node.distance(p + e4, 0.0);
         normalize(n)
     }
 

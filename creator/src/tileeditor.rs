@@ -905,8 +905,14 @@ impl TileEditor {
         }
 
         if self.editor_mode == EditorMode::Model {
+            let palette = project.palette.clone();
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                let model = MODELFXEDITOR.lock().unwrap().modelfx.clone();
+                let mut model = MODELFXEDITOR.lock().unwrap().modelfx.clone();
+                model.create_voxels(
+                    region.grid_size as u8,
+                    &vec3f(coord.x as f32, 0.0, coord.y as f32),
+                    &palette,
+                );
                 if let Some(modelstore) = region.models.get_mut(&(coord.x, 0, coord.y)) {
                     if self.curr_layer_role == Layer2DRole::Ground {
                         modelstore.floor = model;
