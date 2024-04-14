@@ -419,50 +419,44 @@ impl TileDrawer {
         } else {
             // Sample the lights
             let mut total_light = Vec3f::new(0.0, 0.0, 0.0);
-            for (light_grid, light_coll) in &level.lights {
+            for (light_grid, light) in &level.lights {
                 let light_pos = Vec2f::from(*light_grid) + vec2f(0.5, 0.5);
-                let light_max_distance = light_coll.get_i32_default("Maximum Distance", 10) as f32;
-                let mut light_strength = light_coll.get_f32_default("Emission Strength", 1.0);
-                let light_sampling_off = light_coll.get_f32_default("Sample Offset", 0.5);
-                let light_samples = light_coll.get_i32_default("Samples #", 5) as usize;
-                let light_color_type = light_coll.get_i32_default("Light Color", 0);
-                let light_color = light_coll.get_float3_default("Color", vec3f(1.0, 1.0, 1.0));
-                let light_limiter = light_coll.get_i32_default("Limit Direction", 0);
+                let mut light_strength = light.strength;
 
-                if light_color_type == 1 {
+                if light.color_type == 1 {
                     light_strength = daylight.x;
                 }
 
-                if light_limiter == 1 && ro.y > light_pos.y {
+                if light.limiter == 1 && ro.y > light_pos.y {
                     continue;
                 }
-                if light_limiter == 2 && ro.x < light_pos.x {
+                if light.limiter == 2 && ro.x < light_pos.x {
                     continue;
                 }
-                if light_limiter == 3 && ro.y < light_pos.y {
+                if light.limiter == 3 && ro.y < light_pos.y {
                     continue;
                 }
-                if light_limiter == 4 && ro.x > light_pos.x {
+                if light.limiter == 4 && ro.x > light_pos.x {
                     continue;
                 }
 
                 let offsets = [
                     ro,
-                    ro - vec2f(0.0, light_sampling_off),
-                    ro - vec2f(light_sampling_off, 0.0),
-                    ro + vec2f(light_sampling_off, 0.0),
-                    ro + vec2f(0.0, light_sampling_off),
-                    ro - vec2f(light_sampling_off, light_sampling_off),
-                    ro + vec2f(light_sampling_off, light_sampling_off),
+                    ro - vec2f(0.0, light.sampling_offset),
+                    ro - vec2f(light.sampling_offset, 0.0),
+                    ro + vec2f(light.sampling_offset, 0.0),
+                    ro + vec2f(0.0, light.sampling_offset),
+                    ro - vec2f(light.sampling_offset, light.sampling_offset),
+                    ro + vec2f(light.sampling_offset, light.sampling_offset),
                 ];
 
-                for s in offsets.iter().take(light_samples) {
+                for s in offsets.iter().take(light.samples) {
                     let ro = s;
 
                     let mut light_dir = light_pos - ro;
                     let light_dist = length(light_dir);
 
-                    if light_dist < light_max_distance {
+                    if light_dist < light.max_distance {
                         light_dir = normalize(light_dir);
 
                         let mut t = 0.0;
@@ -487,14 +481,14 @@ impl TileDrawer {
                         }
 
                         if hit {
-                            let intensity = 1.0 - (max_t / light_max_distance).clamp(0.0, 1.0);
+                            let intensity = 1.0 - (max_t / light.max_distance).clamp(0.0, 1.0);
                             //intensity *= if s == 0 { 2.0 } else { 1.0 };
-                            let mut light =
-                                Vec3f::from(intensity * light_strength / light_samples as f32);
-                            if light_color_type == 0 {
-                                light *= light_color
+                            let mut light_color =
+                                Vec3f::from(intensity * light_strength / light.samples as f32);
+                            if light.color_type == 0 {
+                                light_color *= light.color
                             }
-                            total_light += light;
+                            total_light += light_color;
                         }
                     }
                 }
