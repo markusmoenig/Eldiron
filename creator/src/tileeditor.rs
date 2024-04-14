@@ -300,6 +300,16 @@ impl TileEditor {
                             );
                             if let Some(pos) = pos {
                                 RENDERER.lock().unwrap().hover_pos = Some(pos);
+
+                                if let Some(text) = ui.get_text("Cursor Position") {
+                                    text.set_text(format!("({}, {})", pos.x, pos.z));
+                                    redraw = true;
+                                    if let Some(layout) = ui.get_layout("Editor Icon Layout") {
+                                        layout.relayout(ctx);
+                                    }
+                                }
+
+                                self.set_icon_previews(region, *coord, ui);
                             }
                         }
                     }

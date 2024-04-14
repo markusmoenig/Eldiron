@@ -188,6 +188,7 @@ impl Renderer {
 
         let mut i = floor(ro);
         let mut dist = 0.0;
+        let mut dda_dist = 0.0;
 
         let mut normal = Vec3f::zero();
         let srd = signum(rd);
@@ -211,6 +212,7 @@ impl Renderer {
                 if let Some(hit_struct) = model.dda(&Ray::new(lro, ray.d)) {
                     hit = true;
                     color = hit_struct.color;
+                    dda_dist = dist;
                     dist += hit_struct.distance;
                     break;
                 }
@@ -279,6 +281,7 @@ impl Renderer {
                             //if p[3] == 255 {
                             color = p;
                             hit = true;
+                            dda_dist = dist;
                             break;
                             //}
                         }
@@ -337,6 +340,7 @@ impl Renderer {
                                         if c[3] == 255 {
                                             let col = TheColor::from_u8_array(c).to_vec4f();
                                             color = col;
+                                            dda_dist = dist;
                                             dist = t;
                                             //normal = vec3f(0.0, 0.0, 1.0);
                                             hit = true;
@@ -456,7 +460,7 @@ impl Renderer {
                         light_strength = daylight.x;
                     }
 
-                    let ro = ray.at(dist);
+                    let ro = ray.at(dda_dist);
 
                     if light.limiter == 1 && ro.y > light_pos.y {
                         continue;
@@ -541,13 +545,21 @@ impl Renderer {
             color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec4f();
         }
 
+        // Show hover
         if let Some(hover) = self.hover_pos {
-            let hp = ray.at(dist);
+            let plane_normal = vec3f(0.0, 1.0, 0.0);
+            let denom = dot(plane_normal, ray.d);
 
-            if hp.x as i32 == hover.x && hp.z as i32 == hover.z {
-                color = TheColor::from_vec4f(color)
-                    .mix(&TheColor::white(), 0.5)
-                    .to_vec4f();
+            if denom.abs() > 0.0001 {
+                let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
+                if t >= 0.0 {
+                    let hp = Vec3i::from(ray.at(t));
+                    if hp == hover {
+                        color = TheColor::from_vec4f(color)
+                            .mix(&TheColor::white(), 0.5)
+                            .to_vec4f();
+                    }
+                }
             }
         }
 
@@ -806,6 +818,29 @@ impl Renderer {
             )
         };
 
+        let plane_normal = vec3f(0.0, 1.0, 0.0);
+        let denom = dot(plane_normal, ray.d);
+
+        if denom.abs() > 0.0001 {
+            let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
+            if t >= 0.0 {
+                let hit = ray.o + ray.d * t;
+                //Some(Vec3i::from(hit))
+
+                let key = Vec3i::from(hit);
+
+                if region.models.get(&(key.x, key.y, key.z)).is_some() {
+                    return Some(vec3i(key.x, key.y, key.z));
+                }
+                // Test against world tiles
+                if region.tiles.get(&(key.x, key.z)).is_some() {
+                    return Some(vec3i(key.x, 0, key.z));
+                }
+            }
+        }
+        None
+
+        /*
         fn equal(l: f32, r: Vec3f) -> Vec3f {
             vec3f(
                 if l == r.x { 1.0 } else { 0.0 },
@@ -847,7 +882,7 @@ impl Renderer {
             normal = equal(dist, plain) * srd;
             i += normal;
         }
-        None
+        None*/
     }
 }
 
