@@ -690,7 +690,7 @@ impl ModelFX {
                     hit.key = *key;
                     let d = self.distance_hit(p, &mut hit);
 
-                    if d < 0.09 {
+                    if d < 0.09 && d > -0.09 {
                         hit.hit_point = p + key;
                         hit.normal = self.normal(p, &hit);
                         hit.key = *key;
@@ -762,6 +762,7 @@ impl ModelFX {
         }
 
         if t < max_t {
+            hit.key = key;
             hit.normal = self.normal(p, &hit);
             hit.hit_point = p + key;
 

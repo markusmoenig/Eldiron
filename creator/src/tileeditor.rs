@@ -1025,8 +1025,9 @@ impl TileEditor {
                         );
                     }
                 } else {
-                    let mut area_id: Option<Uuid> = None;
+                    let area_id: Option<Uuid> = None;
 
+                    /*
                     // Check for area at the given position.
                     for area in region.areas.values() {
                         if area.area.contains(&(coord.x, coord.y)) {
@@ -1041,7 +1042,7 @@ impl TileEditor {
                             area_id = Some(area.id);
                             break;
                         }
-                    }
+                        }*/
 
                     if area_id.is_none() {
                         // Delete the tile at the given position.
@@ -1053,7 +1054,17 @@ impl TileEditor {
                                 tile.tilefx = None;
                             }
                         } else if region.models.contains_key(&(coord.x, 0, coord.y)) {
-                            region.models.remove(&(coord.x, 0, coord.y));
+                            if let Some(model_store) = region.models.get_mut(&(coord.x, 0, coord.y))
+                            {
+                                if self.curr_layer_role == Layer2DRole::Ground {
+                                    model_store.floor = ModelFX::default();
+                                } else if self.curr_layer_role == Layer2DRole::Wall {
+                                    model_store.wall = ModelFX::default();
+                                } else if self.curr_layer_role == Layer2DRole::Ceiling {
+                                    model_store.ceiling = ModelFX::default();
+                                }
+                            }
+                            //region.models.remove(&(coord.x, 0, coord.y));
                         } else if region.tiles.contains_key(&(coord.x, coord.y)) {
                             region.tiles.remove(&(coord.x, coord.y));
                         }
@@ -1143,8 +1154,9 @@ impl TileEditor {
                 // In Character mode, we need to set the character bundle of the current character.
                 //}
             } else if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                let mut found_area = false;
+                let found_area = false;
 
+                /*
                 // Check for area at the given position.
                 for area in region.areas.values() {
                     if area.area.contains(&(coord.x, coord.y)) {
@@ -1170,7 +1182,7 @@ impl TileEditor {
                             }
                         }
                     }
-                }
+                    }*/
 
                 if !found_area {
                     // No area, set the tile.
