@@ -24,6 +24,7 @@ pub enum ModelFXNode {
     Subdivide(TheCollection),
     Bricks(TheCollection),
     Material(TheCollection),
+    Steepness(TheCollection),
     // Noise
     Noise3D(TheCollection),
 }
@@ -83,6 +84,15 @@ impl ModelFXNode {
                 }
                 Some(Self::Subdivide(coll))
             }
+            "Steepness" => {
+                if let Some(collection) = collection {
+                    coll = collection;
+                } else {
+                    coll.set("Angle #1", TheValue::FloatRange(10.0, 0.0..=90.0));
+                    coll.set("Angle #2", TheValue::FloatRange(30.0, 0.0..=90.0));
+                }
+                Some(Self::Steepness(coll))
+            }
             "Bricks" => {
                 if let Some(collection) = collection {
                     coll = collection;
@@ -136,7 +146,7 @@ impl ModelFXNode {
     /// List of input terminals.
     pub fn input_terminals(&self) -> Vec<ModelFXTerminal> {
         match self {
-            Self::Material(_) | Self::Bricks(_) | Self::Subdivide(_) => {
+            Self::Material(_) | Self::Bricks(_) | Self::Subdivide(_) | Self::Steepness(_) => {
                 vec![
                     ModelFXTerminal::new(UV, 4),
                     ModelFXTerminal::new(ModelFXTerminalRole::Noise, 6),
@@ -154,7 +164,10 @@ impl ModelFXNode {
     /// List of output terminals.
     pub fn output_terminals(&self) -> Vec<ModelFXTerminal> {
         match self {
-            Self::WallHorizontal(_) | Self::WallVertical(_) | Self::Floor(_) => {
+            Self::WallHorizontal(_)
+            | Self::WallVertical(_)
+            | Self::Floor(_)
+            | Self::Steepness(_) => {
                 vec![
                     ModelFXTerminal::new(Face, 0),
                     ModelFXTerminal::new(Face, 1),
@@ -198,6 +211,10 @@ impl ModelFXNode {
                     (2, 2)
                 }
             }
+            Self::Steepness(coll) => {
+                let uv = hit.uv / 3.0;
+                steepness(coll, uv, hit)
+            }
             Self::Subdivide(coll) => {
                 let uv = hit.uv / 3.0;
                 subdivide(coll, uv, hit)
@@ -229,6 +246,10 @@ impl ModelFXNode {
                     }
                 }
                 None
+            }
+            Self::Steepness(collection) => {
+                let (_, terminal) = steepness(collection, hit.uv, hit);
+                Some(terminal)
             }
             Self::Subdivide(collection) => {
                 let (_, terminal) = subdivide(collection, hit.uv, hit);
@@ -426,6 +447,7 @@ impl ModelFXNode {
             Self::Bricks(collection) => collection,
             Self::Material(collection) => collection,
             Self::Noise3D(collection) => collection,
+            Self::Steepness(collection) => collection,
         }
     }
 
@@ -439,6 +461,7 @@ impl ModelFXNode {
             Self::Bricks(collection) => collection,
             Self::Material(collection) => collection,
             Self::Noise3D(collection) => collection,
+            Self::Steepness(collection) => collection,
         }
     }
 
@@ -533,6 +556,7 @@ impl ModelFXNode {
             Self::Bricks(_) => Material,
             Self::Material(_) => Material,
             Self::Noise3D(_) => ModelFXNodeRole::Noise,
+            Self::Steepness(_) => ModelFXNodeRole::Noise,
         }
     }
 
@@ -546,6 +570,7 @@ impl ModelFXNode {
             Self::Bricks(_) => str!("Bricks"),
             Self::Material(_) => str!("Material"),
             Self::Noise3D(_) => str!("Noise"),
+            Self::Steepness(_) => str!("Steepness"),
         }
     }
 }

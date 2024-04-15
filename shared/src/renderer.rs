@@ -156,7 +156,7 @@ impl Renderer {
             });
 
         let _stop = self.get_time();
-        println!("render time {:?}", _stop - _start);
+        //println!("render time {:?}", _stop - _start);
     }
 
     #[inline(always)]
@@ -828,14 +828,7 @@ impl Renderer {
                 //Some(Vec3i::from(hit))
 
                 let key = Vec3i::from(hit);
-
-                if region.models.get(&(key.x, key.y, key.z)).is_some() {
-                    return Some(vec3i(key.x, key.y, key.z));
-                }
-                // Test against world tiles
-                if region.tiles.get(&(key.x, key.z)).is_some() {
-                    return Some(vec3i(key.x, 0, key.z));
-                }
+                return Some(vec3i(key.x, key.y, key.z));
             }
         }
         None

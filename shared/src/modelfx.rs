@@ -95,10 +95,6 @@ impl ModelFX {
         }
     }
 
-    pub fn hit(&self, _ray: &Ray) -> Option<Hit> {
-        None
-    }
-
     pub fn add(&mut self, fx: String) -> bool {
         if let Some(mut node) = ModelFXNode::new_node(&fx, None) {
             node.collection_mut()
@@ -694,18 +690,27 @@ impl ModelFX {
                     hit.key = *key;
                     let d = self.distance_hit(p, &mut hit);
 
-                    if d < 0.05 {
-                        hit.normal = self.normal(p, hit.geometry_noise);
+                    if d < 0.09 {
                         hit.hit_point = p + key;
+                        hit.normal = self.normal(p, &hit);
                         hit.key = *key;
+
+                        let mut ao = self.compute_ao(&hit);
+                        ao = (ao + 0.1).clamp(0.0, 1.0);
 
                         let terminal_index = self.nodes[hit.node].color_index_for_hit(&mut hit).1;
                         self.follow_trail(hit.node, terminal_index as usize, &mut hit, palette);
 
-                        let c = TheColor::from_vec4f(hit.color).to_u8_array();
+                        let mut color = TheColor::from_vec4f(hit.color).to_vec3f();
+
+                        color *= ao;
 
                         let voxel = Voxel {
-                            color: [c[0], c[1], c[2]],
+                            color: [
+                                (color.x * 255.0) as u8,
+                                (color.y * 255.0) as u8,
+                                (color.z * 255.0) as u8,
+                            ],
                         };
 
                         layer_voxels.insert((x as u8, y as u8, z as u8), voxel);
@@ -757,7 +762,7 @@ impl ModelFX {
         }
 
         if t < max_t {
-            hit.normal = self.normal(p, hit.geometry_noise);
+            hit.normal = self.normal(p, &hit);
             hit.hit_point = p + key;
 
             let c = dot(hit.normal, normalize(vec3f(1.0, 2.0, 3.0))) * 0.5 + 0.5;
@@ -1012,7 +1017,7 @@ impl ModelFX {
                             ..Default::default()
                         };
                         if let ModelFXNode::Noise3D(_coll) = &self.nodes[node_index] {
-                            let n = self.nodes[node_index].noise(&hit);
+                            let n = self.nodes[node_index].noise(&hit) * 0.5 + 0.5;
                             total = vec4f(n, n, n, 1.0);
                         }
                     }
@@ -1038,7 +1043,6 @@ impl ModelFX {
                 let dist = node.distance(p, noise);
                 if dist < d {
                     d = dist;
-                    hit.geometry_noise = noise;
                     hit.node = index;
                 }
             }
@@ -1058,7 +1062,8 @@ impl ModelFX {
         d
     }
 
-    pub fn normal(&self, p: Vec3f, noise: f32) -> Vec3f {
+    /// Compute the normal at the given position.
+    pub fn normal(&self, p: Vec3f, hit: &Hit) -> Vec3f {
         let scale = 0.5773 * 0.0005;
         let e = vec2f(1.0 * scale, -1.0 * scale);
 
@@ -1069,13 +1074,16 @@ impl ModelFX {
         let e3 = vec3f(e.y, e.x, e.y);
         let e4 = vec3f(e.x, e.x, e.x);
 
-        let n = e1 * self.distance(p + e1, noise)
-            + e2 * self.distance(p + e2, noise)
-            + e3 * self.distance(p + e3, noise)
-            + e4 * self.distance(p + e4, noise);
+        let mut hit = hit.clone();
+
+        let n = e1 * self.distance_hit(p + e1, &mut hit)
+            + e2 * self.distance_hit(p + e2, &mut hit)
+            + e3 * self.distance_hit(p + e3, &mut hit)
+            + e4 * self.distance_hit(p + e4, &mut hit);
         normalize(n)
     }
 
+    /// Compute the normal for the given node only.
     pub fn normal_node(&self, p: Vec3f, node: &ModelFXNode) -> Vec3f {
         let scale = 0.5773 * 0.0005;
         let e = vec2f(1.0 * scale, -1.0 * scale);
@@ -1092,6 +1100,28 @@ impl ModelFX {
             + e3 * node.distance(p + e3, 0.0)
             + e4 * node.distance(p + e4, 0.0);
         normalize(n)
+    }
+
+    /// Compute the ambient occlusion based on the hitpoint and the normal.
+    pub fn compute_ao(&self, hit: &Hit) -> f32 {
+        // https://iquilezles.org/articles/nvscene2008/rwwtt.pdf
+        let pos = hit.hit_point;
+        let nor = hit.normal;
+
+        let mut hit = hit.clone();
+
+        let mut occ = 0.0;
+        let mut sca = 1.0;
+        for i in 0..5 {
+            let h = 0.01 + 0.12 * i as f32 / 4.0;
+            let d = self.distance_hit(pos + h * nor, &mut hit);
+            occ += (h - d) * sca;
+            sca *= 0.95;
+            if occ > 0.35 {
+                break;
+            }
+        }
+        clamp(1.0 - 3.0 * occ, 0.0, 1.0) * (0.5 + 0.5 * nor.y)
     }
 
     /// Load a model from a JSON string.

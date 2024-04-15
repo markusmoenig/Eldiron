@@ -97,6 +97,10 @@ impl ModelFXEditor {
                                 TheId::named("Bricks"),
                             ),
                             TheContextMenuItem::new(
+                                "Steepness".to_string(),
+                                TheId::named("Steepness"),
+                            ),
+                            TheContextMenuItem::new(
                                 "Subdivide".to_string(),
                                 TheId::named("Subdivide"),
                             ),

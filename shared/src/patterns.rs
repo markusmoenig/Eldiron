@@ -59,13 +59,15 @@ pub fn bricks(coll: &TheCollection, uv: Vec2f, hit: &mut Hit) -> (u8, u8) {
     }
 }
 
-pub fn steps(coll: &TheCollection, _uv: Vec2f, hit: &mut Hit) -> (u8, u8) {
-    let mat2 = coll.get_f32_default("Mat 2", 0.5);
-    let mat3 = coll.get_f32_default("Mat 3", 0.8);
+pub fn steepness(coll: &TheCollection, _uv: Vec2f, hit: &mut Hit) -> (u8, u8) {
+    let angle1 = coll.get_f32_default("Angle #1", 10.0);
+    let angle2 = coll.get_f32_default("Angle #2", 30.0);
 
-    if hit.hit_point.y < mat2 {
+    let slope_angle = acos(dot(hit.normal, vec3f(0.0, 1.0, 0.0)));
+
+    if slope_angle < angle1.to_radians() {
         (0, 0)
-    } else if hit.hit_point.y < mat3 {
+    } else if slope_angle < angle2.to_radians() {
         (1, 1)
     } else {
         (2, 2)

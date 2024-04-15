@@ -99,8 +99,6 @@ pub struct Hit {
     pub key: Vec3f,
     pub hash: f32,
 
-    pub geometry_noise: f32,
-
     pub distance: f32,
     pub hit_point: Vec3f,
     pub normal: Vec3f,
@@ -123,8 +121,6 @@ impl Hit {
 
             key: Vec3f::zero(),
             hash: 0.0,
-
-            geometry_noise: 0.0,
 
             distance: f32::MAX,
             hit_point: Vec3f::zero(),
