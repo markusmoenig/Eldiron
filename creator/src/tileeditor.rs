@@ -336,6 +336,7 @@ impl TileEditor {
                                 project,
                                 server,
                                 server_ctx,
+                                true,
                             );
                         }
                     }
@@ -343,7 +344,7 @@ impl TileEditor {
             }
             TheEvent::TileEditorClicked(id, coord) | TheEvent::TileEditorDragged(id, coord) => {
                 if id.name == "Region Editor View" {
-                    redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx);
+                    redraw = self.action_at(*coord, ui, ctx, project, server, server_ctx, false);
                 }
             }
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
@@ -923,6 +924,7 @@ impl TileEditor {
     }
 
     /// Perform the given click action at the given coordinate.
+    #[allow(clippy::too_many_arguments)]
     pub fn action_at(
         &mut self,
         coord: Vec2i,
@@ -931,6 +933,7 @@ impl TileEditor {
         project: &mut Project,
         server: &mut Server,
         server_ctx: &mut ServerContext,
+        three_d: bool,
     ) -> bool {
         let mut redraw = false;
         if self.editor_mode == EditorMode::Pick {
@@ -1070,40 +1073,51 @@ impl TileEditor {
                             if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
                                 tile.tilefx = None;
                             }
-                        } else if region.models.contains_key(&(coord.x, 0, coord.y)) {
-                            if let Some(model_store) = region.models.get_mut(&(coord.x, 0, coord.y))
-                            {
-                                let prev = Some(model_store.clone());
-                                if self.curr_layer_role == Layer2DRole::Ground {
-                                    model_store.floor = ModelFX::default();
-                                } else if self.curr_layer_role == Layer2DRole::Wall {
-                                    model_store.wall = ModelFX::default();
-                                } else if self.curr_layer_role == Layer2DRole::Ceiling {
-                                    model_store.ceiling = ModelFX::default();
+                        }
+
+                        if three_d {
+                            if region.models.contains_key(&(coord.x, 0, coord.y)) {
+                                if let Some(model_store) =
+                                    region.models.get_mut(&(coord.x, 0, coord.y))
+                                {
+                                    let prev = Some(model_store.clone());
+                                    if self.curr_layer_role == Layer2DRole::Ground {
+                                        model_store.floor = ModelFX::default();
+                                    } else if self.curr_layer_role == Layer2DRole::Wall {
+                                        model_store.wall = ModelFX::default();
+                                    } else if self.curr_layer_role == Layer2DRole::Ceiling {
+                                        model_store.ceiling = ModelFX::default();
+                                    }
+                                    let undo = RegionUndoAtom::ModelFXEdit(
+                                        vec3i(coord.x, 0, coord.y),
+                                        prev,
+                                        Some(model_store.clone()),
+                                    );
+                                    UNDOMANAGER
+                                        .lock()
+                                        .unwrap()
+                                        .add_region_undo(&region.id, undo, ctx);
                                 }
-                                let undo = RegionUndoAtom::ModelFXEdit(
-                                    vec3i(coord.x, 0, coord.y),
-                                    prev,
-                                    Some(model_store.clone()),
-                                );
-                                UNDOMANAGER
-                                    .lock()
-                                    .unwrap()
-                                    .add_region_undo(&region.id, undo, ctx);
+                                //region.models.remove(&(coord.x, 0, coord.y));
                             }
-                            //region.models.remove(&(coord.x, 0, coord.y));
-                        } else if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
+                        } else if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
+                            let prev = Some(tile.clone());
+                            if self.curr_layer_role == Layer2DRole::Ground {
+                                tile.layers[0] = None;
+                            } else if self.curr_layer_role == Layer2DRole::Wall {
+                                tile.layers[1] = None;
+                            } else if self.curr_layer_role == Layer2DRole::Ceiling {
+                                tile.layers[2] = None;
+                            }
                             let undo = RegionUndoAtom::RegionTileEdit(
                                 vec2i(coord.x, coord.y),
+                                prev,
                                 Some(tile.clone()),
-                                None,
                             );
                             UNDOMANAGER
                                 .lock()
                                 .unwrap()
                                 .add_region_undo(&region.id, undo, ctx);
-
-                            region.tiles.remove(&(coord.x, coord.y));
                         }
 
                         server.update_region(region);

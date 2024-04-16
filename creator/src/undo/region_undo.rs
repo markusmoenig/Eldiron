@@ -53,11 +53,6 @@ pub struct RegionUndo {
 }
 
 impl Default for RegionUndo {
-    /// Creates a new `TheUndoStack` instance with default values.
-    ///
-    /// # Returns
-    ///
-    /// A new instance of `TheUndoStack` with empty stack and index set to -1.
     fn default() -> Self {
         Self::new()
     }
@@ -69,6 +64,10 @@ impl RegionUndo {
             stack: vec![],
             index: -1,
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.stack.is_empty()
     }
 
     pub fn clear(&mut self) {
@@ -109,21 +108,4 @@ impl RegionUndo {
             self.stack[self.index as usize].redo(region);
         }
     }
-
-    // pub fn undo(&mut self) -> (TheId, String) {
-    //     let rc = (
-    //         self.stack[self.index as usize].id.clone(),
-    //         self.stack[self.index as usize].undo_data.clone(),
-    //     );
-    //     self.index -= 1;
-    //     rc
-    // }
-
-    // pub fn redo(&mut self) -> (TheId, String) {
-    //     self.index += 1;
-    //     (
-    //         self.stack[self.index as usize].id.clone(),
-    //         self.stack[self.index as usize].redo_data.clone(),
-    //     )
-    // }
 }

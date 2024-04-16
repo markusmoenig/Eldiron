@@ -287,9 +287,6 @@ pub enum Layer2DRole {
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct RegionTile {
-    // WallFX (name, position, alpha, delta)
-    pub wallfx: Option<(String, Vec2f, f32, f32)>,
-
     // TileFX Timeline
     pub tilefx: Option<TheTimeline>,
 
@@ -306,7 +303,6 @@ impl Default for RegionTile {
 impl RegionTile {
     pub fn new() -> Self {
         Self {
-            wallfx: None,
             tilefx: None,
             layers: vec![None, None, None],
         }

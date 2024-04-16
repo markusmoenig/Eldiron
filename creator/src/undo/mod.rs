@@ -34,6 +34,7 @@ impl UndoManager {
         let region_undo = self.regions.entry(*region).or_default();
         region_undo.add(atom);
         ctx.ui.set_enabled("Undo");
+        self.can_save(ctx);
     }
 
     pub fn undo(&mut self, context_id: Uuid, project: &mut Project, ctx: &mut TheContext) {
@@ -62,6 +63,7 @@ impl UndoManager {
             }
             _ => {}
         }
+        self.can_save(ctx);
     }
 
     pub fn redo(&mut self, context_id: Uuid, project: &mut Project, ctx: &mut TheContext) {
@@ -90,5 +92,27 @@ impl UndoManager {
             }
             _ => {}
         }
+        self.can_save(ctx);
+    }
+
+    /// Checks if the undo manager is empty and disables the save buttons if it is.
+    pub fn can_save(&self, ctx: &mut TheContext) {
+        if self.has_undo() {
+            ctx.ui.set_disabled("Save");
+            ctx.ui.set_disabled("Save As");
+        } else {
+            ctx.ui.set_enabled("Save");
+            ctx.ui.set_enabled("Save As");
+        }
+    }
+
+    /// Checks if the undo manager has any undoable actions.
+    pub fn has_undo(&self) -> bool {
+        for region_undo in self.regions.values() {
+            if region_undo.has_undo() {
+                return false;
+            }
+        }
+        true
     }
 }
