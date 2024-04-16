@@ -595,8 +595,6 @@ impl Renderer {
 
     pub fn set_region(&mut self, region: &Region) {
         self.tiles.clear();
-        //self.models = region.models.clone();
-
         for (pos, tile) in &region.tiles {
             for i in 0..tile.layers.len() {
                 if i == 0 {

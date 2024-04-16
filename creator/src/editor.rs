@@ -1261,6 +1261,7 @@ impl TheTrait for Editor {
                                         self.project.get_region(&self.server_ctx.curr_region)
                                     {
                                         self.server.update_region(region);
+                                        RENDERER.lock().unwrap().set_region(region);
                                     }
                                 }
                             }

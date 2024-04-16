@@ -3,12 +3,20 @@ use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum RegionUndoAtom {
+    RegionTileEdit(Vec2i, Option<RegionTile>, Option<RegionTile>),
     ModelFXEdit(Vec3i, Option<ModelFXStore>, Option<ModelFXStore>),
 }
 
 impl RegionUndoAtom {
     pub fn undo(&self, region: &mut Region) {
         match self {
+            RegionUndoAtom::RegionTileEdit(pos, prev, _) => {
+                if let Some(prev) = prev {
+                    region.tiles.insert((pos.x, pos.y), prev.clone());
+                } else {
+                    region.tiles.remove(&(pos.x, pos.y));
+                }
+            }
             RegionUndoAtom::ModelFXEdit(pos, prev, _) => {
                 if let Some(prev) = prev {
                     region.models.insert((pos.x, pos.y, pos.z), prev.clone());
@@ -20,6 +28,13 @@ impl RegionUndoAtom {
     }
     pub fn redo(&self, region: &mut Region) {
         match self {
+            RegionUndoAtom::RegionTileEdit(pos, _, next) => {
+                if let Some(next) = next {
+                    region.tiles.insert((pos.x, pos.y), next.clone());
+                } else {
+                    region.tiles.remove(&(pos.x, pos.y));
+                }
+            }
             RegionUndoAtom::ModelFXEdit(pos, _, next) => {
                 if let Some(next) = next {
                     region.models.insert((pos.x, pos.y, pos.z), next.clone());

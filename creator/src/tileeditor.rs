@@ -1065,8 +1065,6 @@ impl TileEditor {
 
                     if area_id.is_none() {
                         // Delete the tile at the given position.
-                        let mut undo = TheUndo::new(TheId::named("RegionChanged"));
-                        undo.set_undo_data(region.to_json());
 
                         if self.curr_layer_role == Layer2DRole::FX {
                             if let Some(tile) = region.tiles.get_mut(&(coord.x, coord.y)) {
@@ -1094,15 +1092,23 @@ impl TileEditor {
                                     .add_region_undo(&region.id, undo, ctx);
                             }
                             //region.models.remove(&(coord.x, 0, coord.y));
-                        } else if region.tiles.contains_key(&(coord.x, coord.y)) {
+                        } else if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
+                            let undo = RegionUndoAtom::RegionTileEdit(
+                                vec2i(coord.x, coord.y),
+                                Some(tile.clone()),
+                                None,
+                            );
+                            UNDOMANAGER
+                                .lock()
+                                .unwrap()
+                                .add_region_undo(&region.id, undo, ctx);
+
                             region.tiles.remove(&(coord.x, coord.y));
                         }
 
-                        undo.set_redo_data(region.to_json());
-                        ctx.ui.undo_stack.add(undo);
                         server.update_region(region);
+                        RENDERER.lock().unwrap().set_region(region);
                         self.set_icon_previews(region, coord, ui);
-                        //self.redraw_region(ui, server, ctx, server_ctx);
                         redraw = true;
                     }
                 }
@@ -1319,9 +1325,6 @@ impl TileEditor {
                     }
 
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        let mut undo = TheUndo::new(TheId::named("RegionChanged"));
-                        undo.set_undo_data(region.to_json());
-
                         if self.curr_layer_role == Layer2DRole::FX {
                             if !TILEFXEDITOR.lock().unwrap().curr_timeline.is_empty() {
                                 region.set_tilefx(
@@ -1332,19 +1335,34 @@ impl TileEditor {
                                 tile.tilefx = None;
                             }
                         } else {
+                            let mut prev = None;
+                            if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
+                                prev = Some(tile.clone());
+                            }
+
                             region.set_tile(
                                 (coord.x, coord.y),
                                 self.curr_layer_role,
                                 self.curr_tile_uuid,
                             );
+
+                            if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
+                                let undo = RegionUndoAtom::RegionTileEdit(
+                                    vec2i(coord.x, coord.y),
+                                    prev,
+                                    Some(tile.clone()),
+                                );
+
+                                UNDOMANAGER
+                                    .lock()
+                                    .unwrap()
+                                    .add_region_undo(&region.id, undo, ctx);
+                            }
                         }
-                        undo.set_redo_data(region.to_json());
                         self.set_icon_previews(region, coord, ui);
 
                         server.update_region(region);
                         RENDERER.lock().unwrap().set_region(region);
-
-                        ctx.ui.undo_stack.add(undo);
                     }
                 }
                 //self.redraw_region(ui, server, ctx, server_ctx);
