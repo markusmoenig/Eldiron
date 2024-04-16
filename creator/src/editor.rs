@@ -25,6 +25,7 @@ lazy_static! {
     pub static ref MODELFXEDITOR: Mutex<ModelFXEditor> = Mutex::new(ModelFXEditor::new());
     pub static ref REGIONFXEDITOR: Mutex<RegionFXEditor> = Mutex::new(RegionFXEditor::new());
     pub static ref VOXELTHREAD: Mutex<VoxelThread> = Mutex::new(VoxelThread::default());
+    pub static ref UNDOMANAGER: Mutex<UndoManager> = Mutex::new(UndoManager::default());
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -335,6 +336,11 @@ impl TheTrait for Editor {
         ui.canvas.set_bottom(status_canvas);
 
         // -
+
+        ctx.ui.set_disabled("Save");
+        ctx.ui.set_disabled("Save As");
+        ctx.ui.set_disabled("Undo");
+        ctx.ui.set_disabled("Redo");
 
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
 
@@ -1232,6 +1238,34 @@ impl TheTrait for Editor {
                             self.server.stop();
                             update_server_icons = true;
                         } else {
+                            // TODO: UNDO
+
+                            if id.name == "Undo" || id.name == "Redo" {
+                                let mut manager = UNDOMANAGER.lock().unwrap();
+
+                                if manager.context == UndoManagerContext::Region {
+                                    if id.name == "Undo" {
+                                        manager.undo(
+                                            self.server_ctx.curr_region,
+                                            &mut self.project,
+                                            ctx,
+                                        );
+                                    } else {
+                                        manager.redo(
+                                            self.server_ctx.curr_region,
+                                            &mut self.project,
+                                            ctx,
+                                        );
+                                    }
+                                    if let Some(region) =
+                                        self.project.get_region(&self.server_ctx.curr_region)
+                                    {
+                                        self.server.update_region(region);
+                                    }
+                                }
+                            }
+
+                            /*
                             let mut data: Option<(TheId, String)> = None;
                             if id.name == "Undo" && ctx.ui.undo_stack.has_undo() {
                                 data = Some(ctx.ui.undo_stack.undo());
@@ -1256,7 +1290,7 @@ impl TheTrait for Editor {
                                     _ => {}
                                 }
                                 redraw = true;
-                            }
+                                }*/
                         }
                     }
                     TheEvent::ImageDecodeResult(id, name, buffer) => {

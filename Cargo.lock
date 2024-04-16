@@ -2835,7 +2835,7 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
-source = "git+https://github.com/markusmoenig/TheFramework#8dd0121b46394f098ffaf4af87d05d37c0f2c075"
+source = "git+https://github.com/markusmoenig/TheFramework#59e84e4cb3e1afd8dc92d1bc50d22be9b592417b"
 dependencies = [
  "arboard",
  "console_error_panic_hook",

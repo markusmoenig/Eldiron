@@ -1,5 +1,6 @@
 use crate::editor::{
     CODEEDITOR, MODELFXEDITOR, RENDERER, RENDERMODE, SIDEBARMODE, TILEDRAWER, TILEFXEDITOR,
+    UNDOMANAGER,
 };
 use crate::prelude::*;
 
@@ -943,12 +944,16 @@ impl TileEditor {
             let palette = project.palette.clone();
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 let mut model = MODELFXEDITOR.lock().unwrap().modelfx.clone();
+
                 model.create_voxels(
                     region.grid_size as u8,
                     &vec3f(coord.x as f32, 0.0, coord.y as f32),
                     &palette,
                 );
+
+                let undo;
                 if let Some(modelstore) = region.models.get_mut(&(coord.x, 0, coord.y)) {
+                    let prev = Some(modelstore.clone());
                     if self.curr_layer_role == Layer2DRole::Ground {
                         modelstore.floor = model;
                     } else if self.curr_layer_role == Layer2DRole::Wall {
@@ -956,6 +961,11 @@ impl TileEditor {
                     } else if self.curr_layer_role == Layer2DRole::Ceiling {
                         modelstore.ceiling = model;
                     }
+                    undo = RegionUndoAtom::ModelFXEdit(
+                        vec3i(coord.x, 0, coord.y),
+                        prev,
+                        Some(modelstore.clone()),
+                    );
                 } else {
                     let mut modelstore = ModelFXStore::default();
                     if self.curr_layer_role == Layer2DRole::Ground {
@@ -965,8 +975,17 @@ impl TileEditor {
                     } else if self.curr_layer_role == Layer2DRole::Ceiling {
                         modelstore.ceiling = model;
                     }
+                    undo = RegionUndoAtom::ModelFXEdit(
+                        vec3i(coord.x, 0, coord.y),
+                        None,
+                        Some(modelstore.clone()),
+                    );
                     region.models.insert((coord.x, 0, coord.y), modelstore);
                 }
+                UNDOMANAGER
+                    .lock()
+                    .unwrap()
+                    .add_region_undo(&region.id, undo, ctx);
                 server.update_region(region);
                 RENDERER.lock().unwrap().set_region(region);
             }
@@ -1056,6 +1075,7 @@ impl TileEditor {
                         } else if region.models.contains_key(&(coord.x, 0, coord.y)) {
                             if let Some(model_store) = region.models.get_mut(&(coord.x, 0, coord.y))
                             {
+                                let prev = Some(model_store.clone());
                                 if self.curr_layer_role == Layer2DRole::Ground {
                                     model_store.floor = ModelFX::default();
                                 } else if self.curr_layer_role == Layer2DRole::Wall {
@@ -1063,6 +1083,15 @@ impl TileEditor {
                                 } else if self.curr_layer_role == Layer2DRole::Ceiling {
                                     model_store.ceiling = ModelFX::default();
                                 }
+                                let undo = RegionUndoAtom::ModelFXEdit(
+                                    vec3i(coord.x, 0, coord.y),
+                                    prev,
+                                    Some(model_store.clone()),
+                                );
+                                UNDOMANAGER
+                                    .lock()
+                                    .unwrap()
+                                    .add_region_undo(&region.id, undo, ctx);
                             }
                             //region.models.remove(&(coord.x, 0, coord.y));
                         } else if region.tiles.contains_key(&(coord.x, coord.y)) {

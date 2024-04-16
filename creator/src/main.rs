@@ -15,6 +15,7 @@ pub mod tileeditor;
 pub mod tilefxeditor;
 pub mod tilemapeditor;
 pub mod tilepicker;
+pub mod undo;
 
 use rust_embed::RustEmbed;
 #[derive(RustEmbed)]
@@ -40,6 +41,8 @@ pub mod prelude {
     pub use crate::tilefxeditor::*;
     pub use crate::tilemapeditor::*;
     pub use crate::tilepicker::*;
+    pub use crate::undo::region_undo::*;
+    pub use crate::undo::*;
 }
 
 use crate::editor::Editor;
