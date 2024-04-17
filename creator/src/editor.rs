@@ -1263,6 +1263,16 @@ impl TheTrait for Editor {
                                         self.server.update_region(region);
                                         RENDERER.lock().unwrap().set_region(region);
                                     }
+                                } else if manager.context == UndoManagerContext::ModelFX {
+                                    if id.name == "Undo" {
+                                        manager.undo(Uuid::nil(), &mut self.project, ctx);
+                                    } else {
+                                        manager.redo(Uuid::nil(), &mut self.project, ctx);
+                                    }
+                                    let mut model_editor = MODELFXEDITOR.lock().unwrap();
+                                    model_editor.modelfx.draw(ui, ctx, &self.project.palette);
+                                    model_editor.set_selected_node_ui(ui, ctx, &self.project);
+                                    model_editor.render_preview(ui, &self.project.palette);
                                 }
                             }
 

@@ -1,18 +1,26 @@
+pub mod modelfx_undo;
 pub mod region_undo;
 
 use crate::prelude::*;
+
+use crate::editor::MODELFXEDITOR;
+
+use self::modelfx_undo::ModelFXUndo;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum UndoManagerContext {
     None,
     Region,
+    ModelFX,
     CodeGridFX,
 }
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct UndoManager {
     pub context: UndoManagerContext,
+
     regions: FxHashMap<Uuid, RegionUndo>,
+    modelfx: ModelFXUndo,
 }
 
 impl Default for UndoManager {
@@ -25,7 +33,9 @@ impl UndoManager {
     pub fn new() -> Self {
         Self {
             context: UndoManagerContext::None,
+
             regions: FxHashMap::default(),
+            modelfx: ModelFXUndo::default(),
         }
     }
 
@@ -33,6 +43,13 @@ impl UndoManager {
         self.context = UndoManagerContext::Region;
         let region_undo = self.regions.entry(*region).or_default();
         region_undo.add(atom);
+        ctx.ui.set_enabled("Undo");
+        self.can_save(ctx);
+    }
+
+    pub fn add_modelfx_undo(&mut self, atom: ModelFXUndoAtom, ctx: &mut TheContext) {
+        self.context = UndoManagerContext::ModelFX;
+        self.modelfx.add(atom);
         ctx.ui.set_enabled("Undo");
         self.can_save(ctx);
     }
@@ -59,6 +76,22 @@ impl UndoManager {
                             ctx.ui.set_enabled("Redo");
                         }
                     }
+                }
+            }
+            UndoManagerContext::ModelFX => {
+                self.modelfx
+                    .undo(&mut MODELFXEDITOR.lock().unwrap().modelfx);
+
+                if !self.modelfx.has_undo() {
+                    ctx.ui.set_disabled("Undo");
+                } else {
+                    ctx.ui.set_enabled("Undo");
+                }
+
+                if !self.modelfx.has_redo() {
+                    ctx.ui.set_disabled("Redo");
+                } else {
+                    ctx.ui.set_enabled("Redo");
                 }
             }
             _ => {}
@@ -90,6 +123,22 @@ impl UndoManager {
                     }
                 }
             }
+            UndoManagerContext::ModelFX => {
+                self.modelfx
+                    .redo(&mut MODELFXEDITOR.lock().unwrap().modelfx);
+
+                if !self.modelfx.has_undo() {
+                    ctx.ui.set_disabled("Undo");
+                } else {
+                    ctx.ui.set_enabled("Undo");
+                }
+
+                if !self.modelfx.has_redo() {
+                    ctx.ui.set_disabled("Redo");
+                } else {
+                    ctx.ui.set_enabled("Redo");
+                }
+            }
             _ => {}
         }
         self.can_save(ctx);
@@ -114,5 +163,10 @@ impl UndoManager {
             }
         }
         true
+    }
+
+    /// Clears the ModelFX undo.
+    pub fn clear_modelfx(&mut self) {
+        self.modelfx.clear();
     }
 }

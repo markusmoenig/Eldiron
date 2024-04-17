@@ -500,6 +500,13 @@ impl TileEditor {
                     }
                 }
             }
+            TheEvent::GainedFocus(id) => {
+                if id.name == "Region Editor View" || id.name == "RenderView" {
+                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::Region;
+                } else if id.name == "ModelFX RGBA Layout View" {
+                    UNDOMANAGER.lock().unwrap().context = UndoManagerContext::ModelFX;
+                }
+            }
             TheEvent::StateChanged(id, _state) => {
                 // Region Content List Selection
                 if id.name == "Region Content List Item" {
@@ -946,7 +953,7 @@ impl TileEditor {
         if self.editor_mode == EditorMode::Model {
             let palette = project.palette.clone();
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                let mut model = MODELFXEDITOR.lock().unwrap().modelfx.clone();
+                let mut model = MODELFXEDITOR.lock().unwrap().get_model();
 
                 model.create_voxels(
                     region.grid_size as u8,

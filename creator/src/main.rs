@@ -41,6 +41,7 @@ pub mod prelude {
     pub use crate::tilefxeditor::*;
     pub use crate::tilemapeditor::*;
     pub use crate::tilepicker::*;
+    pub use crate::undo::modelfx_undo::*;
     pub use crate::undo::region_undo::*;
     pub use crate::undo::*;
 }

@@ -1,4 +1,4 @@
-use crate::editor::SIDEBARMODE;
+use crate::editor::{SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -212,13 +212,15 @@ impl ModelFXEditor {
                 }
             }
             TheEvent::ContextMenuSelected(_id, item) => {
-                //println!("{:?}, {:?}", id, item);
+                let prev = self.modelfx.to_json();
                 if
                 /*id.name.starts_with("ModelFX Node") &&*/
                 self.modelfx.add(item.name.clone()) {
                     self.modelfx.draw(ui, ctx, &project.palette);
                     self.set_selected_node_ui(ui, ctx, project);
                     self.render_preview(ui, &project.palette);
+                    let undo = ModelFXUndoAtom::AddNode(prev, self.modelfx.to_json());
+                    UNDOMANAGER.lock().unwrap().add_modelfx_undo(undo, ctx);
                     redraw = true;
                 }
             }
@@ -262,9 +264,12 @@ impl ModelFXEditor {
                 }
             }
             TheEvent::TileEditorUp(id) => {
+                let prev = self.modelfx.to_json();
                 if id.name == "ModelFX RGBA Layout View" && self.modelfx.released(ui, ctx) {
                     self.modelfx.draw(ui, ctx, &project.palette);
                     self.render_preview(ui, &project.palette);
+                    let undo = ModelFXUndoAtom::Edit(prev, self.modelfx.to_json());
+                    UNDOMANAGER.lock().unwrap().add_modelfx_undo(undo, ctx);
                     redraw = true;
                 }
             }
@@ -275,22 +280,29 @@ impl ModelFXEditor {
             }
             TheEvent::TileEditorDelete(id, selected) => {
                 if id.name == "ModelFX Library RGBA Layout View" {
+                    let prev = self.modelfx.to_json();
                     for pos in selected {
                         let index = (pos.0 + pos.1 * 4) as usize;
                         project.models.remove(index);
                     }
                     self.redraw_modelfx_library(project, ui, ctx);
+                    let undo = ModelFXUndoAtom::Edit(prev, self.modelfx.to_json());
+                    UNDOMANAGER.lock().unwrap().add_modelfx_undo(undo, ctx);
                     redraw = true;
                 } else if id.name == "ModelFX RGBA Layout View" {
+                    let prev = self.modelfx.to_json();
                     self.modelfx.delete();
                     self.modelfx.draw(ui, ctx, &project.palette);
                     self.render_preview(ui, &project.palette);
+                    let undo = ModelFXUndoAtom::Edit(prev, self.modelfx.to_json());
+                    UNDOMANAGER.lock().unwrap().add_modelfx_undo(undo, ctx);
                     redraw = true;
                 }
             }
             TheEvent::ColorButtonClicked(id) => {
                 // When a color button is clicked, copy over the current palette index.
                 if id.name.starts_with(":MODELFX:") {
+                    let prev = self.modelfx.to_json();
                     if let Some(name) = id.name.strip_prefix(":MODELFX: ") {
                         if let Some(selected_index) = self.modelfx.selected_node {
                             let collection = self.modelfx.nodes[selected_index].collection_mut();
@@ -300,6 +312,7 @@ impl ModelFXEditor {
                                 if let Some(TheValue::PaletteIndex(index)) = collection.get(name) {
                                     old_index = Some(*index);
                                 }
+
                                 collection.set(
                                     name,
                                     TheValue::PaletteIndex(project.palette.current_index),
@@ -324,6 +337,8 @@ impl ModelFXEditor {
                                 self.modelfx.clear_previews();
                                 self.modelfx.draw(ui, ctx, &project.palette);
                                 self.render_preview(ui, &project.palette);
+                                let undo = ModelFXUndoAtom::Edit(prev, self.modelfx.to_json());
+                                UNDOMANAGER.lock().unwrap().add_modelfx_undo(undo, ctx);
                                 redraw = true;
                             }
                         }
@@ -366,6 +381,7 @@ impl ModelFXEditor {
                     if let Some(name) = id.name.strip_prefix(":MODELFX: ") {
                         let mut value = value.clone();
 
+                        let prev = self.modelfx.to_json();
                         if let Some(selected_index) = self.modelfx.selected_node {
                             let collection = self.modelfx.nodes[selected_index].collection_mut();
 
@@ -391,6 +407,8 @@ impl ModelFXEditor {
                             self.modelfx.remove_current_node_preview();
                             self.modelfx.draw(ui, ctx, &project.palette);
                             self.render_preview(ui, &project.palette);
+                            let undo = ModelFXUndoAtom::Edit(prev, self.modelfx.to_json());
+                            UNDOMANAGER.lock().unwrap().add_modelfx_undo(undo, ctx);
                             redraw = true;
                         }
                     }
@@ -504,6 +522,8 @@ impl ModelFXEditor {
                 }
                 ctx.ui.relayout = true;
             }
+        } else if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
+            text_layout.clear();
         }
     }
 
@@ -527,6 +547,10 @@ impl ModelFXEditor {
         }
     }
 
+    pub fn get_model(&self) -> ModelFX {
+        self.modelfx.clone()
+    }
+
     pub fn set_model(
         &mut self,
         model: ModelFX,
@@ -536,6 +560,7 @@ impl ModelFXEditor {
     ) {
         self.modelfx = model;
         self.modelfx.draw(ui, ctx, palette);
+        UNDOMANAGER.lock().unwrap().clear_modelfx();
         self.render_preview(ui, palette);
     }
 
