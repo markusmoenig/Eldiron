@@ -20,6 +20,7 @@ pub enum ModelFXNode {
     Floor(TheCollection),
     WallHorizontal(TheCollection),
     WallVertical(TheCollection),
+    Capsule(TheCollection),
     // Material
     Subdivide(TheCollection),
     Bricks(TheCollection),
@@ -71,6 +72,23 @@ impl ModelFXNode {
                     );
                 }
                 Some(Self::WallVertical(coll))
+            }
+            "Capsule" => {
+                if let Some(collection) = collection {
+                    coll = collection;
+                } else {
+                    coll.set(
+                        "Direction",
+                        TheValue::TextList(0, vec![str!("Vertical"), str!("Horizontal")]),
+                    );
+
+                    coll.set("X", TheValue::FloatRange(0.5, 0.0..=1.0));
+                    coll.set("Y", TheValue::FloatRange(0.5, 0.0..=1.0));
+                    coll.set("Z", TheValue::FloatRange(0.5, 0.0..=1.0));
+                    coll.set("Height", TheValue::FloatRange(0.5, 0.0..=1.0));
+                    coll.set("Radius", TheValue::FloatRange(0.1, 0.0..=1.0));
+                }
+                Some(Self::Capsule(coll))
             }
             "Subdivide" => {
                 if let Some(collection) = collection {
@@ -152,7 +170,7 @@ impl ModelFXNode {
                     ModelFXTerminal::new(ModelFXTerminalRole::Noise, 6),
                 ]
             }
-            Self::WallHorizontal(_) | Self::WallVertical(_) | Self::Floor(_) => {
+            Self::WallHorizontal(_) | Self::WallVertical(_) | Self::Floor(_) | Self::Capsule(_) => {
                 vec![ModelFXTerminal::new(ModelFXTerminalRole::Noise, 6)]
             }
             _ => {
@@ -173,6 +191,9 @@ impl ModelFXNode {
                     ModelFXTerminal::new(Face, 1),
                     ModelFXTerminal::new(Face, 2),
                 ]
+            }
+            Self::Capsule(_) => {
+                vec![ModelFXTerminal::new(Face, 0)]
             }
             Self::Subdivide(_) => {
                 vec![ModelFXTerminal::new(Face, 0), ModelFXTerminal::new(Face, 1)]
@@ -443,6 +464,7 @@ impl ModelFXNode {
             Self::Floor(collection) => collection,
             Self::WallHorizontal(collection) => collection,
             Self::WallVertical(collection) => collection,
+            Self::Capsule(collection) => collection,
             Self::Subdivide(collection) => collection,
             Self::Bricks(collection) => collection,
             Self::Material(collection) => collection,
@@ -457,6 +479,7 @@ impl ModelFXNode {
             Self::Floor(collection) => collection,
             Self::WallHorizontal(collection) => collection,
             Self::WallVertical(collection) => collection,
+            Self::Capsule(collection) => collection,
             Self::Subdivide(collection) => collection,
             Self::Bricks(collection) => collection,
             Self::Material(collection) => collection,
@@ -542,7 +565,16 @@ impl ModelFXNode {
                     vec3f((max - min) / 2.0, height / 2.0, (max_o - min_o) / 2.0),
                 ) - noise
             }
-            _ => 0.0,
+            Self::Capsule(collection) => {
+                let x = collection.get_f32_default("X", 0.5);
+                let y = collection.get_f32_default("Y", 0.5);
+                let z = collection.get_f32_default("Z", 0.5);
+                let height = collection.get_f32_default("Height", 0.5);
+                let radius = collection.get_f32_default("Radius", 0.1) / 100.0;
+
+                sd_vertical_capsule(p - vec3f(x, y, z), height, radius) - noise
+            }
+            _ => f32::MAX,
         }
     }
 
@@ -552,6 +584,7 @@ impl ModelFXNode {
             Self::Floor(_) => Geometry,
             Self::WallHorizontal(_) => Geometry,
             Self::WallVertical(_) => Geometry,
+            Self::Capsule(_) => ModelFXNodeRole::Geometry,
             Self::Subdivide(_) => Material,
             Self::Bricks(_) => Material,
             Self::Material(_) => Material,
@@ -566,6 +599,7 @@ impl ModelFXNode {
             Self::Floor(_) => str!("Floor"),
             Self::WallHorizontal(_) => str!("Wall Horizontal"),
             Self::WallVertical(_) => str!("Wall Vertical"),
+            Self::Capsule(_) => str!("Capsule"),
             Self::Subdivide(_) => str!("Bricks"),
             Self::Bricks(_) => str!("Bricks"),
             Self::Material(_) => str!("Material"),

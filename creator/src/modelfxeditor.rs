@@ -69,6 +69,17 @@ impl ModelFXEditor {
 
         walls_button.set_context_menu(Some(TheContextMenu {
             items: vec![
+                TheContextMenuItem::new_submenu(
+                    "Shapes".to_string(),
+                    TheId::named("ModelFX Nodes Patterns"),
+                    TheContextMenu {
+                        items: vec![TheContextMenuItem::new(
+                            "Capsule".to_string(),
+                            TheId::named("Capsule"),
+                        )],
+                        ..Default::default()
+                    },
+                ),
                 TheContextMenuItem::new(
                     "Wall Horizontal".to_string(),
                     TheId::named("Wall Horizontal"),
