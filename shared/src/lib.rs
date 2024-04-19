@@ -39,7 +39,7 @@ pub mod prelude {
     pub use crate::fx::*;
     pub use crate::interaction::*;
     pub use crate::item::Item;
-    pub use crate::level::Level;
+    pub use crate::level::*;
     pub use crate::modelfx::ModelFX;
     pub use crate::modelfxnode::*;
     pub use crate::modelfxstore::ModelFXStore;

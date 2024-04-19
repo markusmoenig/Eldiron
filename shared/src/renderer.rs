@@ -188,7 +188,6 @@ impl Renderer {
 
         let mut i = floor(ro);
         let mut dist = 0.0;
-        let mut dda_dist = 0.0;
 
         let mut normal = Vec3f::zero();
         let srd = signum(rd);
@@ -212,8 +211,8 @@ impl Renderer {
                 if let Some(hit_struct) = model.dda(&Ray::new(lro, ray.d)) {
                     hit = true;
                     color = hit_struct.color;
-                    dda_dist = dist;
                     dist += hit_struct.distance;
+                    normal = hit_struct.normal;
                     break;
                 }
                 /*
@@ -281,7 +280,6 @@ impl Renderer {
                             //if p[3] == 255 {
                             color = p;
                             hit = true;
-                            dda_dist = dist;
                             break;
                             //}
                         }
@@ -340,7 +338,6 @@ impl Renderer {
                                         if c[3] == 255 {
                                             let col = TheColor::from_u8_array(c).to_vec4f();
                                             color = col;
-                                            dda_dist = dist;
                                             dist = t;
                                             //normal = vec3f(0.0, 0.0, 1.0);
                                             hit = true;
@@ -453,14 +450,15 @@ impl Renderer {
                 // Sample the lights
                 let mut total_light = Vec3f::new(0.0, 0.0, 0.0);
                 for (light_grid, light) in &level.lights {
-                    let light_pos = Vec2f::from(*light_grid) + vec2f(0.5, 0.5);
+                    let light_pos =
+                        vec3f(light_grid.x as f32 + 0.5, 0.5, light_grid.y as f32 + 0.5);
                     let mut light_strength = light.strength;
 
                     if light.color_type == 1 {
                         light_strength = daylight.x;
                     }
 
-                    let ro = ray.at(dda_dist);
+                    let mut ro = ray.at(dist);
 
                     if light.limiter == 1 && ro.y > light_pos.y {
                         continue;
@@ -475,67 +473,65 @@ impl Renderer {
                         continue;
                     }
 
-                    let y = 0.5;
-                    let offsets = [
-                        ro,
-                        ro - vec3f(0.0, y, light.sampling_offset),
-                        ro - vec3f(light.sampling_offset, y, 0.0),
-                        ro + vec3f(light.sampling_offset, y, 0.0),
-                        ro + vec3f(0.0, y, light.sampling_offset),
-                        ro - vec3f(light.sampling_offset, y, light.sampling_offset),
-                        ro + vec3f(light.sampling_offset, y, light.sampling_offset),
-                    ];
+                    let light_dir = light_pos - ro;
+                    let light_dist = length(light_dir);
+                    if light_dist < light.max_distance {
+                        ro += light_dir * 0.001;
 
-                    for s in offsets.iter().take(light.samples) {
-                        let ro = s;
+                        let light_ray = Ray::new(ro, light_dir);
 
-                        let mut light_dir = vec3f(light_pos.x, y, light_pos.y) - ro;
-                        let light_dist = length(light_dir);
+                        /*
+                        let intensity = 1.0 - (light_dist / light.max_distance).clamp(0.0, 1.0);
+                        //intensity *= if s == 0 { 2.0 } else { 1.0 };
+                        let mut light_color =
+                            Vec3f::from(intensity * light_strength / light.samples as f32);
+                        if light.color_type == 0 {
+                            light_color *= light.color
+                        }
+                        total_light += light_color;
+                        */
 
-                        if light_dist < light.max_distance {
-                            light_dir = normalize(light_dir);
-
-                            let mut t = 0.0;
-                            let max_t = light_dist;
-
-                            let mut hit = false;
-
-                            while t < max_t {
-                                let pos = ro + light_dir * t;
-                                let tile = vec2i(pos.x as i32, pos.z as i32);
-
-                                if tile == *light_grid {
-                                    hit = true;
-                                    break;
-                                }
-                                if level.is_blocking((tile.x, tile.y)) {
-                                    hit = false;
-                                    break;
-                                }
-
-                                t += 1.0 / 4.0;
+                        if self.shadow_ray(light_ray, Vec3i::from(light_pos), light, region) {
+                            let intensity = 1.0 - (light_dist / light.max_distance).clamp(0.0, 1.0);
+                            //intensity *= if s == 0 { 2.0 } else { 1.0 };
+                            let mut light_color = Vec3f::from(intensity * light_strength);
+                            if light.color_type == 0 {
+                                light_color *= light.color
                             }
 
-                            if hit {
-                                let intensity = 1.0 - (max_t / light.max_distance).clamp(0.0, 1.0);
-                                //intensity *= if s == 0 { 2.0 } else { 1.0 };
-                                let mut light_color =
-                                    Vec3f::from(intensity * light_strength / light.samples as f32);
-                                if light.color_type == 0 {
-                                    light_color *= light.color
-                                }
-                                total_light += light_color;
-                            }
+                            let metal = 0.0;
+                            let roughness = 0.01;
+                            let reflectance = 0.5;
+                            let base_color = vec3f(color.x, color.y, color.z);
+
+                            let f0 = 0.16 * reflectance * reflectance * (1.0 - metal)
+                                + base_color * metal;
+
+                            let c = self.compute_pbr_lighting(
+                                light_pos,
+                                light_color,
+                                ro,
+                                normal,
+                                -rd,
+                                base_color,
+                                roughness,
+                                f0,
+                            );
+
+                            total_light += c;
                         }
                     }
                 }
 
-                color = clamp(
-                    color * daylight
-                        + color * vec4f(total_light.x, total_light.y, total_light.z, 1.0),
-                    color * daylight,
-                    color,
-                );
+                color = color * daylight + vec4f(total_light.x, total_light.y, total_light.z, 0.0);
+
+                //
+                // color = clamp(
+                //     color * daylight
+                //         + color * vec4f(total_light.x, total_light.y, total_light.z, 0.0),
+                //     color * daylight,
+                //     color,
+                // );
             }
         }
 
@@ -564,6 +560,66 @@ impl Renderer {
         }
 
         TheColor::from_vec4f(color).to_u8_array()
+    }
+
+    #[inline(always)]
+    pub fn shadow_ray(&self, ray: Ray, light_pos: Vec3i, light: &Light, region: &Region) -> bool {
+        fn equal(l: f32, r: Vec3f) -> Vec3f {
+            vec3f(
+                if l == r.x { 1.0 } else { 0.0 },
+                if l == r.y { 1.0 } else { 0.0 },
+                if l == r.z { 1.0 } else { 0.0 },
+            )
+        }
+
+        let ro = ray.o;
+        let rd = ray.d;
+
+        let mut i = floor(ro);
+        let mut dist = 0.0;
+
+        let mut normal;
+        let srd = signum(rd);
+
+        let rdi = 1.0 / (2.0 * rd);
+
+        let mut key: Vec3<i32>;
+
+        for _ii in 0..light.max_distance as i32 {
+            key = Vec3i::from(i);
+
+            if key == light_pos {
+                return true;
+            }
+
+            if key.y < -1 {
+                break;
+            }
+
+            if let Some(model) = region.models.get(&(key.x, key.y, key.z)) {
+                let mut lro = ray.at(dist);
+                lro -= Vec3f::from(key);
+
+                if let Some(_hit_struct) = model.dda(&Ray::new(lro, ray.d)) {
+                    return false;
+                }
+            }
+            // Test against world tiles
+            else if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
+                if let Some(data) = self.textures.get(tile) {
+                    if data.blocking {
+                        return false;
+                    }
+                }
+            }
+
+            let plain = (1.0 + srd - 2.0 * (ro - i)) * rdi;
+            dist = min(plain.x, min(plain.y, plain.z));
+            normal = equal(dist, plain) * srd;
+            i += normal;
+        }
+
+        false
     }
 
     #[inline(always)]
@@ -874,6 +930,50 @@ impl Renderer {
             i += normal;
         }
         None*/
+    }
+
+    fn g1v(&self, dot_nv: f32, k: f32) -> f32 {
+        1.0 / (dot_nv * (1.0 - k) + k)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn compute_pbr_lighting(
+        &self,
+        light_pos: Vec3f,
+        light_color: Vec3f,
+        position: Vec3f,
+        n: Vec3f,
+        v: Vec3f,
+        albedo: Vec3f,
+        roughness: f32,
+        f0: Vec3f,
+    ) -> Vec3f {
+        let alpha = roughness * roughness;
+        let l = normalize(light_pos - position);
+        let h = normalize(v + l);
+
+        let dot_nl = clamp(dot(n, l), 0.0, 1.0);
+        let dot_nv = clamp(dot(n, v), 0.0, 1.0);
+        let dot_nh = clamp(dot(n, h), 0.0, 1.0);
+        let dot_lh = clamp(dot(l, h), 0.0, 1.0);
+
+        let alpha_sqr = alpha * alpha;
+        let pi = std::f32::consts::PI;
+        let denom = dot_nh * dot_nh * (alpha_sqr - 1.0) + 1.0;
+        let d = alpha_sqr / (pi * denom * denom);
+
+        let dot_lh_5 = (1.0_f32 - dot_lh).powf(5.0);
+        let f = f0 + (1.0 - f0) * dot_lh_5;
+
+        let k = alpha / 2.0;
+        let vis = self.g1v(dot_nl, k) * self.g1v(dot_nv, k);
+
+        let specular = d * f * vis;
+
+        let inv_pi = std::f32::consts::FRAC_1_PI;
+        let diffuse = albedo * inv_pi;
+
+        (diffuse + specular) * light_color // * dot_nl
     }
 }
 

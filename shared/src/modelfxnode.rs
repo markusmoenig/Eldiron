@@ -570,7 +570,7 @@ impl ModelFXNode {
                 let y = collection.get_f32_default("Y", 0.5);
                 let z = collection.get_f32_default("Z", 0.5);
                 let height = collection.get_f32_default("Height", 0.5);
-                let radius = collection.get_f32_default("Radius", 0.1) / 100.0;
+                let radius = collection.get_f32_default("Radius", 0.1) / 2.0;
 
                 sd_vertical_capsule(p - vec3f(x, y, z), height, radius) - noise
             }

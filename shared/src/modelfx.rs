@@ -695,15 +695,14 @@ impl ModelFX {
                         hit.normal = self.normal(p, &hit);
                         hit.key = *key;
 
-                        let mut ao = self.compute_ao(&hit);
-                        ao = (ao + 0.1).clamp(0.0, 1.0);
+                        // let ao = self.compute_ao(&hit);
 
                         let terminal_index = self.nodes[hit.node].color_index_for_hit(&mut hit).1;
                         self.follow_trail(hit.node, terminal_index as usize, &mut hit, palette);
 
-                        let mut color = TheColor::from_vec4f(hit.color).to_vec3f();
+                        let color = TheColor::from_vec4f(hit.color).to_vec3f();
 
-                        color *= ao;
+                        //color *= 1.0 - ao * 0.15;
 
                         let voxel = Voxel {
                             color: [

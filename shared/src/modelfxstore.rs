@@ -148,7 +148,7 @@ impl ModelFXStore {
                 let c =
                     TheColor::from_u8_array([voxel.color[0], voxel.color[1], voxel.color[2], 255]);
                 hit.color = c.to_vec4f();
-                hit.distance = dist;
+                hit.distance = dist / density_f;
                 hit.normal = normal;
                 return Some(hit);
             }
