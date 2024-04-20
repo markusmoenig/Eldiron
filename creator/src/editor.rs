@@ -1007,6 +1007,15 @@ impl TheTrait for Editor {
                                     //    postcard::from_bytes::<Project>(contents.deref())
                                     if let Ok(project) = serde_json::from_str(&contents) {
                                         self.project = project;
+
+                                        for r in &mut self.project.regions {
+                                            for m in r.models.values_mut() {
+                                                m.floor.addjust_nodes();
+                                                m.wall.addjust_nodes();
+                                                m.ceiling.addjust_nodes();
+                                            }
+                                        }
+
                                         for region in &mut self.project.regions {
                                             VOXELTHREAD.lock().unwrap().voxelize_region_models(
                                                 region.clone(),
@@ -1271,7 +1280,11 @@ impl TheTrait for Editor {
                                     }
                                     let mut model_editor = MODELFXEDITOR.lock().unwrap();
                                     model_editor.modelfx.draw(ui, ctx, &self.project.palette);
-                                    model_editor.set_selected_node_ui(ui, ctx, &self.project);
+                                    model_editor.set_selected_node_ui(
+                                        ui,
+                                        ctx,
+                                        &self.project.palette,
+                                    );
                                     model_editor.render_preview(ui, &self.project.palette);
                                 }
                             }

@@ -228,7 +228,7 @@ impl ModelFXEditor {
                 /*id.name.starts_with("ModelFX Node") &&*/
                 self.modelfx.add(item.name.clone()) {
                     self.modelfx.draw(ui, ctx, &project.palette);
-                    self.set_selected_node_ui(ui, ctx, project);
+                    self.set_selected_node_ui(ui, ctx, &project.palette);
                     self.render_preview(ui, &project.palette);
                     let undo = ModelFXUndoAtom::AddNode(prev, self.modelfx.to_json());
                     UNDOMANAGER.lock().unwrap().add_modelfx_undo(undo, ctx);
@@ -254,7 +254,7 @@ impl ModelFXEditor {
                     if let Some(model) = project.models.get(index as usize) {
                         self.modelfx = model.clone();
                         self.modelfx.draw(ui, ctx, &project.palette);
-                        self.set_selected_node_ui(ui, ctx, project);
+                        self.set_selected_node_ui(ui, ctx, &project.palette);
                         self.render_preview(ui, &project.palette);
                         redraw = true;
                     }
@@ -263,7 +263,7 @@ impl ModelFXEditor {
             TheEvent::TileEditorClicked(id, coord) => {
                 if id.name == "ModelFX RGBA Layout View" && self.modelfx.clicked(*coord, ui, ctx) {
                     self.modelfx.draw(ui, ctx, &project.palette);
-                    self.set_selected_node_ui(ui, ctx, project);
+                    self.set_selected_node_ui(ui, ctx, &project.palette);
                     self.render_preview(ui, &project.palette);
                     redraw = true;
                 }
@@ -478,7 +478,7 @@ impl ModelFXEditor {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &Project,
+        palette: &ThePalette,
     ) {
         self.palette_indices.clear();
 
@@ -518,7 +518,7 @@ impl ModelFXEditor {
                         let name_id = ":MODELFX: ".to_owned() + name;
                         let mut color_picker = TheColorButton::new(TheId::named(name_id.as_str()));
                         color_picker.limiter_mut().set_max_size(vec2i(80, 20));
-                        if let Some(color) = &project.palette[*index as usize] {
+                        if let Some(color) = &palette[*index as usize] {
                             color_picker.set_color(color.to_u8_array());
                         }
 
@@ -570,6 +570,7 @@ impl ModelFXEditor {
         palette: &ThePalette,
     ) {
         self.modelfx = model;
+        self.set_selected_node_ui(ui, ctx, palette);
         self.modelfx.draw(ui, ctx, palette);
         UNDOMANAGER.lock().unwrap().clear_modelfx();
         self.render_preview(ui, palette);

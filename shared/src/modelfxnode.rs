@@ -132,6 +132,9 @@ impl ModelFXNode {
                     coll = collection;
                 } else {
                     coll.set("Color", TheValue::PaletteIndex(0));
+                    coll.set("Roughness", TheValue::FloatRange(0.5, 0.0..=1.0));
+                    coll.set("Metallic", TheValue::FloatRange(0.0, 0.0..=1.0));
+                    coll.set("Reflectance", TheValue::FloatRange(0.5, 0.0..=1.0));
                 }
                 Some(Self::Material(coll))
             }
@@ -264,6 +267,9 @@ impl ModelFXNode {
                         hit.color.y = color.g + noise;
                         hit.color.z = color.b + noise;
                         hit.color.w = 1.0;
+                        hit.roughness = collection.get_f32_default("Roughness", 0.5) + noise;
+                        hit.metallic = collection.get_f32_default("Metallic", 0.0) + noise;
+                        hit.reflectance = collection.get_f32_default("Reflectance", 0.0) + noise;
                     }
                 }
                 None

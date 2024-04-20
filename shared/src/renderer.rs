@@ -174,6 +174,7 @@ impl Renderer {
         _palette: &ThePalette,
     ) -> RGBA {
         let mut color = vec4f(0.0, 0.0, 0.0, 1.0);
+        let mut hit_props = Hit::default();
 
         fn equal(l: f32, r: Vec3f) -> Vec3f {
             vec3f(
@@ -208,11 +209,53 @@ impl Renderer {
                 let mut lro = ray.at(dist);
                 lro -= Vec3f::from(key);
 
-                if let Some(hit_struct) = model.dda(&Ray::new(lro, ray.d)) {
+                let mut wallfx_offset = Vec3i::zero();
+                let mut alpha = 1.0;
+
+                if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
+                    let mut valid = true;
+                    let mut xx = 0;
+                    let mut yy = 0;
+                    let d =
+                        (update.server_tick - wallfx.at_tick) as f32 + settings.delta_in_tick - 1.0;
+                    if d < 1.0 {
+                        let t = (d * region.grid_size as f32) as i32;
+                        if wallfx.prev_fx != WallFX::Normal {
+                            wallfx.prev_fx.apply(
+                                &mut xx,
+                                &mut yy,
+                                &mut alpha,
+                                &(region.grid_size - t),
+                                &(1.0 - d),
+                            );
+                        } else {
+                            wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
+                        }
+                    } else if wallfx.fx != WallFX::Normal {
+                        valid = false;
+                    }
+
+                    if valid {
+                        wallfx_offset.x -= xx;
+                        wallfx_offset.y -= yy;
+                    } else {
+                        //uv = vec2f(-1.0, -1.0);
+                        wallfx_offset = vec3i(region.grid_size, region.grid_size, region.grid_size);
+                    }
+                }
+
+                if let Some(hit_struct) = model.dda(&Ray::new(lro, ray.d), wallfx_offset) {
                     hit = true;
                     color = hit_struct.color;
+                    // color = vec4f(
+                    //     hit_struct.normal.x,
+                    //     hit_struct.normal.y,
+                    //     hit_struct.normal.z,
+                    //     1.0,
+                    // );
                     dist += hit_struct.distance;
                     normal = hit_struct.normal;
+                    hit_props = hit_struct.clone();
                     break;
                 }
                 /*
@@ -451,7 +494,7 @@ impl Renderer {
                 let mut total_light = Vec3f::new(0.0, 0.0, 0.0);
                 for (light_grid, light) in &level.lights {
                     let light_pos =
-                        vec3f(light_grid.x as f32 + 0.5, 0.5, light_grid.y as f32 + 0.5);
+                        vec3f(light_grid.x as f32 + 0.5, 0.8, light_grid.y as f32 + 0.5);
                     let mut light_strength = light.strength;
 
                     if light.color_type == 1 {
@@ -491,27 +534,32 @@ impl Renderer {
                         total_light += light_color;
                         */
 
-                        if self.shadow_ray(light_ray, Vec3i::from(light_pos), light, region) {
-                            let intensity = 1.0 - (light_dist / light.max_distance).clamp(0.0, 1.0);
-                            //intensity *= if s == 0 { 2.0 } else { 1.0 };
-                            let mut light_color = Vec3f::from(intensity * light_strength);
+                        if self.shadow_ray(
+                            light_ray,
+                            Vec3i::from(light_pos),
+                            light,
+                            region,
+                            update,
+                            settings,
+                        ) {
+                            let mut light_color = Vec3f::from(1.5 * light_strength);
                             if light.color_type == 0 {
                                 light_color *= light.color
                             }
 
-                            let metal = 0.0;
-                            let roughness = 0.01;
-                            let reflectance = 0.5;
+                            let roughness = hit_props.roughness;
+                            let metallic = hit_props.metallic;
+                            let reflectance = hit_props.reflectance;
                             let base_color = vec3f(color.x, color.y, color.z);
 
-                            let f0 = 0.16 * reflectance * reflectance * (1.0 - metal)
-                                + base_color * metal;
+                            let f0 = 0.16 * reflectance * reflectance * (1.0 - metallic)
+                                + base_color * metallic;
 
                             let c = self.compute_pbr_lighting(
                                 light_pos,
                                 light_color,
                                 ro,
-                                normal,
+                                abs(normal),
                                 -rd,
                                 base_color,
                                 roughness,
@@ -563,7 +611,15 @@ impl Renderer {
     }
 
     #[inline(always)]
-    pub fn shadow_ray(&self, ray: Ray, light_pos: Vec3i, light: &Light, region: &Region) -> bool {
+    pub fn shadow_ray(
+        &self,
+        ray: Ray,
+        light_pos: Vec3i,
+        light: &Light,
+        region: &Region,
+        update: &RegionUpdate,
+        settings: &RegionDrawSettings,
+    ) -> bool {
         fn equal(l: f32, r: Vec3f) -> Vec3f {
             vec3f(
                 if l == r.x { 1.0 } else { 0.0 },
@@ -600,7 +656,42 @@ impl Renderer {
                 let mut lro = ray.at(dist);
                 lro -= Vec3f::from(key);
 
-                if let Some(_hit_struct) = model.dda(&Ray::new(lro, ray.d)) {
+                let mut wallfx_offset = Vec3i::zero();
+                let mut alpha = 1.0;
+
+                if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
+                    let mut valid = true;
+                    let mut xx = 0;
+                    let mut yy = 0;
+                    let d =
+                        (update.server_tick - wallfx.at_tick) as f32 + settings.delta_in_tick - 1.0;
+                    if d < 1.0 {
+                        let t = (d * region.grid_size as f32) as i32;
+                        if wallfx.prev_fx != WallFX::Normal {
+                            wallfx.prev_fx.apply(
+                                &mut xx,
+                                &mut yy,
+                                &mut alpha,
+                                &(region.grid_size - t),
+                                &(1.0 - d),
+                            );
+                        } else {
+                            wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
+                        }
+                    } else if wallfx.fx != WallFX::Normal {
+                        valid = false;
+                    }
+
+                    if valid {
+                        wallfx_offset.x -= xx;
+                        wallfx_offset.y -= yy;
+                    } else {
+                        //uv = vec2f(-1.0, -1.0);
+                        wallfx_offset = vec3i(region.grid_size, region.grid_size, region.grid_size);
+                    }
+                }
+
+                if let Some(_hit_struct) = model.dda(&Ray::new(lro, ray.d), wallfx_offset) {
                     return false;
                 }
             }
@@ -973,7 +1064,7 @@ impl Renderer {
         let inv_pi = std::f32::consts::FRAC_1_PI;
         let diffuse = albedo * inv_pi;
 
-        (diffuse + specular) * light_color // * dot_nl
+        (diffuse + specular) * light_color * dot_nl
     }
 }
 

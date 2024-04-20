@@ -95,6 +95,17 @@ impl ModelFX {
         }
     }
 
+    /// If necessary adjust the node properties.
+    pub fn addjust_nodes(&mut self) {
+        for n in &mut self.nodes {
+            if let ModelFXNode::Material(coll) = n {
+                coll.set("Roughness", TheValue::FloatRange(0.5, 0.0..=1.0));
+                coll.set("Metallic", TheValue::FloatRange(0.0, 0.0..=1.0));
+                coll.set("Reflectance", TheValue::FloatRange(0.5, 0.0..=1.0));
+            }
+        }
+    }
+
     pub fn add(&mut self, fx: String) -> bool {
         if let Some(mut node) = ModelFXNode::new_node(&fx, None) {
             node.collection_mut()
@@ -710,6 +721,9 @@ impl ModelFX {
                                 (color.y * 255.0) as u8,
                                 (color.z * 255.0) as u8,
                             ],
+                            roughness: (hit.roughness * 255.0) as u8,
+                            metallic: (hit.metallic * 255.0) as u8,
+                            reflectance: (hit.reflectance * 255.0) as u8,
                         };
 
                         layer_voxels.insert((x as u8, y as u8, z as u8), voxel);

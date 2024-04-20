@@ -75,7 +75,7 @@ impl ModelFXStore {
     }
 
     /// Voxel dda
-    pub fn dda(&self, ray: &Ray) -> Option<Hit> {
+    pub fn dda(&self, ray: &Ray, wallfx: Vec3i) -> Option<Hit> {
         fn equal(l: f32, r: Vec3f) -> Vec3f {
             vec3f(
                 if l == r.x { 1.0 } else { 0.0 },
@@ -113,7 +113,7 @@ impl ModelFXStore {
 
         let mut i = floor(ro);
 
-        let mut normal = Vec3f::zero();
+        let mut normal = vec3f(0.0, -1.0, 0.0);
         let srd = signum(rd);
 
         let rdi = 1.0 / (2.0 * rd);
@@ -133,11 +133,14 @@ impl ModelFXStore {
             let y = i.y as u8;
             let z = i.z as u8;
 
-            if let Some(voxel) = self.wall.voxels.get(&(x, y, z)) {
+            if let Some(voxel) = self.wall.voxels.get(&(x, y + wallfx.y as u8, z)) {
                 let mut hit = Hit::default();
                 let c =
                     TheColor::from_u8_array([voxel.color[0], voxel.color[1], voxel.color[2], 255]);
                 hit.color = c.to_vec4f();
+                hit.roughness = (voxel.roughness as f32) / 255.0;
+                hit.metallic = (voxel.metallic as f32) / 255.0;
+                hit.reflectance = (voxel.reflectance as f32) / 255.0;
                 hit.distance = dist / density_f;
                 hit.normal = normal;
                 return Some(hit);
@@ -148,6 +151,9 @@ impl ModelFXStore {
                 let c =
                     TheColor::from_u8_array([voxel.color[0], voxel.color[1], voxel.color[2], 255]);
                 hit.color = c.to_vec4f();
+                hit.roughness = (voxel.roughness as f32) / 255.0;
+                hit.metallic = (voxel.metallic as f32) / 255.0;
+                hit.reflectance = (voxel.reflectance as f32) / 255.0;
                 hit.distance = dist / density_f;
                 hit.normal = normal;
                 return Some(hit);

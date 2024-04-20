@@ -106,6 +106,9 @@ pub struct Hit {
     pub face: HitFace,
 
     pub color: Vec4f,
+    pub roughness: f32,
+    pub metallic: f32,
+    pub reflectance: f32,
 }
 
 impl Default for Hit {
@@ -127,7 +130,11 @@ impl Hit {
             normal: Vec3f::zero(),
             uv: Vec2f::zero(),
             face: HitFace::XFace,
+
             color: Vec4f::zero(),
+            roughness: 0.5,
+            metallic: 0.0,
+            reflectance: 0.5,
         }
     }
 }
@@ -135,6 +142,9 @@ impl Hit {
 #[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]
 pub struct Voxel {
     pub color: [u8; 3],
+    pub roughness: u8,
+    pub metallic: u8,
+    pub reflectance: u8,
 }
 
 impl Default for Voxel {
@@ -145,7 +155,12 @@ impl Default for Voxel {
 
 impl Voxel {
     pub fn new() -> Self {
-        Self { color: [0, 0, 0] }
+        Self {
+            color: [0, 0, 0],
+            roughness: 128,
+            metallic: 0,
+            reflectance: 128,
+        }
     }
 }
 
