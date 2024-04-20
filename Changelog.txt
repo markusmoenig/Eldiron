@@ -1,6 +1,7 @@
-v 0.8.9 (WiP)
+v 0.8.9
 -------
 
+- New procedural node system for 3D tile creation.
 - Menu system and code insertion is now handled via the code menu.
 - Basic 3D editing for changing shapes.
 - 3D rendering (first person, top down, isometric, etc.) with character / item billboarding.

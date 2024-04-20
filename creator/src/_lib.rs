@@ -1,16 +1,21 @@
 // Lib file needed when compiled for Xcode to a static library
 
-//use theframework::prelude::*;
+// use theframework::*;
 
 pub mod editor;
+pub mod externals;
 pub mod misc;
+pub mod modelfxeditor;
 pub mod panels;
+pub mod regionfxeditor;
+pub mod screeneditor;
+pub mod self_update;
 pub mod sidebar;
 pub mod tileeditor;
+pub mod tilefxeditor;
 pub mod tilemapeditor;
 pub mod tilepicker;
-
-pub mod widgets;
+pub mod undo;
 
 use rust_embed::RustEmbed;
 #[derive(RustEmbed)]
@@ -25,12 +30,20 @@ pub mod prelude {
     pub use shared::prelude::*;
     pub use theframework::prelude::*;
 
+    pub use crate::externals::*;
     pub use crate::misc::*;
+    pub use crate::modelfxeditor::*;
     pub use crate::panels::*;
+    pub use crate::regionfxeditor::*;
+    pub use crate::screeneditor::*;
     pub use crate::sidebar::*;
     pub use crate::tileeditor::*;
+    pub use crate::tilefxeditor::*;
     pub use crate::tilemapeditor::*;
     pub use crate::tilepicker::*;
+    pub use crate::undo::modelfx_undo::*;
+    pub use crate::undo::region_undo::*;
+    pub use crate::undo::*;
 
     pub const KEY_ESCAPE: u32 = 0;
     pub const KEY_RETURN: u32 = 1;

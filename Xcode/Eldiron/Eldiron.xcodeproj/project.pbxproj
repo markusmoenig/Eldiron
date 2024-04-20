@@ -57,6 +57,7 @@
 		DD5FD13728FBD15C00853829 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD0FC28FBD15B00853829 /* Assets.xcassets */; };
 		DD86627B2978DE20003878C0 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD8662792978DE20003878C0 /* AudioToolbox.framework */; };
 		DD86627C2978DE20003878C0 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD86627A2978DE20003878C0 /* CoreAudio.framework */; };
+		DD8FB2B52BD396C7008D2A3C /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD8FB2B42BD396C7008D2A3C /* SystemConfiguration.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -96,6 +97,7 @@
 		DD8662772978DC85003878C0 /* librustapi_ios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = librustapi_ios.a; sourceTree = "<group>"; };
 		DD8662792978DE20003878C0 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.2.sdk/System/Library/Frameworks/AudioToolbox.framework; sourceTree = DEVELOPER_DIR; };
 		DD86627A2978DE20003878C0 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.2.sdk/System/Library/Frameworks/CoreAudio.framework; sourceTree = DEVELOPER_DIR; };
+		DD8FB2B42BD396C7008D2A3C /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
 		DD976A99290E62C2007131BA /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapi.a; path = "rust-api/target/release/librustapi.a"; sourceTree = "<group>"; };
 		DD976A9B290E65DA007131BA /* Bridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Bridge.h; sourceTree = "<group>"; };
 		DD976A9C290E6732007131BA /* librustapi.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = librustapi.dylib; path = "rust-api/target/release/librustapi.dylib"; sourceTree = "<group>"; };
@@ -131,6 +133,7 @@
 			files = (
 				DD219B8729752B1100E978F5 /* CoreAudio.framework in Frameworks */,
 				DD219B832975298400E978F5 /* librustapi.a in Frameworks */,
+				DD8FB2B52BD396C7008D2A3C /* SystemConfiguration.framework in Frameworks */,
 				DD219B8529752AE300E978F5 /* AudioToolbox.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -216,6 +219,7 @@
 		DD976A98290E62C2007131BA /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				DD8FB2B42BD396C7008D2A3C /* SystemConfiguration.framework */,
 				DD8662792978DE20003878C0 /* AudioToolbox.framework */,
 				DD86627A2978DE20003878C0 /* CoreAudio.framework */,
 				DD8662772978DC85003878C0 /* librustapi_ios.a */,
@@ -299,7 +303,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1400;
-				LastUpgradeCheck = 1520;
+				LastUpgradeCheck = 1530;
 				TargetAttributes = {
 					DD5FD10028FBD15B00853829 = {
 						CreatedOnToolsVersion = 14.0.1;
@@ -472,6 +476,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -532,6 +537,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -727,6 +733,7 @@
 		DD5FD14128FBD15C00853829 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Eldiron macOS/Eldiron_macOS.entitlements";
@@ -754,7 +761,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
-				MARKETING_VERSION = 0.88;
+				MARKETING_VERSION = 0.89;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.moenig.eldiron;
 				PRODUCT_NAME = Eldiron;
@@ -768,6 +775,7 @@
 		DD5FD14228FBD15C00853829 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Eldiron macOS/Eldiron_macOS.entitlements";
@@ -795,7 +803,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
-				MARKETING_VERSION = 0.88;
+				MARKETING_VERSION = 0.89;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.moenig.eldiron;
 				PRODUCT_NAME = Eldiron;
