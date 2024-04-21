@@ -414,6 +414,24 @@ impl TileEditor {
                     if *index == EditorMode::Draw as usize {
                         self.editor_mode = EditorMode::Draw;
                         server_ctx.tile_selection = None;
+
+                        // Set the 3D editing position to selected character position
+                        // before voiding it. Otherwise the 3D view will just jump to an empty region.
+                        if let Some(character_instance_id) = server_ctx.curr_character_instance {
+                            if let Some((TheValue::Position(p), _)) = server.get_character_property(
+                                server_ctx.curr_region,
+                                character_instance_id,
+                                "position".into(),
+                            ) {
+                                if let Some(region) =
+                                    project.get_region_mut(&server_ctx.curr_region)
+                                {
+                                    region.editing_position_3d = p;
+                                    server.set_editing_position_3d(region.editing_position_3d);
+                                }
+                            }
+                        }
+
                         server_ctx.curr_character_instance = None;
                         server_ctx.curr_item_instance = None;
                         server_ctx.curr_area = None;
