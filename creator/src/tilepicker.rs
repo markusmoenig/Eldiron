@@ -214,7 +214,6 @@ impl TilePicker {
                         ),
                     );
                     if !tile.buffer.is_empty() {
-                        buffer.copy_into(x * grid, y * grid, &tile.buffer[0]);
                         buffer.copy_into(x * grid, y * grid, &tile.buffer[0].scaled(grid, grid));
                     }
                 }

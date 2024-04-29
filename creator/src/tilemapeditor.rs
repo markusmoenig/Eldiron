@@ -27,20 +27,29 @@ impl TilemapEditor {
         let traybar_widget = TheTraybar::new(TheId::empty());
         toolbar_canvas.set_widget(traybar_widget);
 
-        let mut add_button = TheTraybarButton::new(TheId::named("Tilemap Editor Add Selection"));
-        add_button.set_text("Add Tile".to_string());
+        let mut add_anim_button = TheTraybarButton::new(TheId::named("Tilemap Editor Add Anim"));
+        add_anim_button.set_text("As Anim".to_string());
+        add_anim_button.set_status_text(
+            "Adds the current selection as animation, every tile is one animation frame.",
+        );
 
-        let mut clear_button =
-            TheTraybarButton::new(TheId::named("Tilemap Editor Clear Selection"));
+        let mut add_multi_button = TheTraybarButton::new(TheId::named("Tilemap Editor Add Multi"));
+        add_multi_button.set_text("As Multi".to_string());
+        add_multi_button.set_status_text(
+            "Adds the current selection as one big tile, it may consist of several smaller tiles.",
+        );
+
+        let mut clear_button = TheTraybarButton::new(TheId::named("Tilemap Editor Clear"));
         clear_button.set_text("Clear".to_string());
+        clear_button.set_status_text("Clear the current selection.");
 
         //let icon_view = TheIconView::new(TheId::named("Tilemap Editor Icon View"));
 
         let mut tile_name_text = TheText::new(TheId::empty());
-        tile_name_text.set_text("Tile Tags".to_string());
+        tile_name_text.set_text("Tags".to_string());
 
         let mut tile_name_edit = TheTextLineEdit::new(TheId::named("Tilemap Editor Name Edit"));
-        tile_name_edit.limiter_mut().set_max_width(150);
+        tile_name_edit.limiter_mut().set_max_width(130);
 
         let mut block_name_text = TheText::new(TheId::empty());
         block_name_text.set_text("Blocking".to_string());
@@ -77,7 +86,12 @@ impl TilemapEditor {
         hdivider.limiter_mut().set_max_width(15);
         toolbar_hlayout.add_widget(Box::new(hdivider));
 
-        toolbar_hlayout.add_widget(Box::new(add_button));
+        toolbar_hlayout.add_widget(Box::new(add_anim_button));
+        toolbar_hlayout.add_widget(Box::new(add_multi_button));
+
+        let mut hdivider = TheHDivider::new(TheId::empty());
+        hdivider.limiter_mut().set_max_width(15);
+        toolbar_hlayout.add_widget(Box::new(hdivider));
 
         let mut zoom = TheSlider::new(TheId::named("Tilemap Editor Zoom"));
         zoom.set_value(TheValue::Float(1.0));
@@ -179,8 +193,7 @@ impl TilemapEditor {
                 }
             }
             TheEvent::StateChanged(id, state) => {
-                if id.name == "Tilemap Editor Clear Selection" && *state == TheWidgetState::Clicked
-                {
+                if id.name == "Tilemap Editor Clear" && *state == TheWidgetState::Clicked {
                     if let Some(editor) = ui
                         .canvas
                         .get_layout(Some(&"Tilemap Editor".to_string()), None)

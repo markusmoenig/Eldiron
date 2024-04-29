@@ -703,7 +703,9 @@ impl TileEditor {
                             icon_view.set_rgba_tile(t.clone());
                         }
                     }
-                } else if id.name == "Tilemap Editor Add Selection" {
+                } else if id.name == "Tilemap Editor Add Anim"
+                    || id.name == "Tilemap Editor Add Multi"
+                {
                     TILEDRAWER.lock().unwrap().tiles = project.extract_tiles();
                     server.update_tiles(project.extract_tiles());
                 } else if id.name == "Ground Icon" {

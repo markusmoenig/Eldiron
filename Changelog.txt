@@ -1,3 +1,9 @@
+v 0.8.10
+--------
+
+- Add multi selection as anim or as multi tile in the tile editor.
+- Fix for positioning in 3D view when selecting Draw mode.
+
 v 0.8.9
 -------
 

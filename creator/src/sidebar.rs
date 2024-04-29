@@ -1570,7 +1570,9 @@ impl Sidebar {
                         ctx.ui.relayout = true;
                     }
                     redraw = true;
-                } else if id.name == "Tilemap Editor Add Selection" {
+                } else if id.name == "Tilemap Editor Add Anim"
+                    || id.name == "Tilemap Editor Add Multi"
+                {
                     let mut clear_selection = false;
 
                     if let Some(editor) = ui
@@ -1578,13 +1580,40 @@ impl Sidebar {
                         .get_layout(Some(&"Tilemap Editor".to_string()), None)
                     {
                         if let Some(editor) = editor.as_rgba_layout() {
-                            let sequence = editor
-                                .rgba_view_mut()
-                                .as_rgba_view()
-                                .unwrap()
-                                .selection_as_sequence();
                             let mut tile = Tile::new();
-                            tile.sequence = sequence;
+
+                            if id.name == "Tilemap Editor Add Anim" {
+                                let sequence = editor
+                                    .rgba_view_mut()
+                                    .as_rgba_view()
+                                    .unwrap()
+                                    .selection_as_sequence();
+                                tile.sequence = sequence;
+                            } else {
+                                let dim = editor
+                                    .rgba_view_mut()
+                                    .as_rgba_view()
+                                    .unwrap()
+                                    .selection_as_dim();
+
+                                let mut grid_size = 16;
+
+                                if let Some(region) =
+                                    project.get_region_mut(&server_ctx.curr_region)
+                                {
+                                    grid_size = region.grid_size;
+                                }
+
+                                let region = TheRGBARegion::new(
+                                    dim.x as usize * grid_size as usize,
+                                    dim.y as usize * grid_size as usize,
+                                    dim.width as usize * grid_size as usize,
+                                    dim.height as usize * grid_size as usize,
+                                );
+
+                                tile.sequence = TheRGBARegionSequence::new();
+                                tile.sequence.regions.push(region);
+                            }
 
                             if let Some(text_line_edit) =
                                 ui.get_text_line_edit("Tilemap Editor Name Edit")
@@ -1650,20 +1679,27 @@ impl Sidebar {
                                         redraw = true;
                                     }
                                 }
-                            }
 
-                            if let Some(curr_tilemap_uuid) = self.curr_tilemap_uuid {
-                                if let Some(tilemap) = project.get_tilemap(curr_tilemap_uuid) {
-                                    tilemap.tiles.push(tile);
+                                if let Some(curr_tilemap_uuid) = self.curr_tilemap_uuid {
+                                    if let Some(tilemap) = project.get_tilemap(curr_tilemap_uuid) {
+                                        tilemap.tiles.push(tile);
+                                    }
                                 }
+
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Update Tilepicker"),
+                                    TheValue::Empty,
+                                ));
+
+                                self.update_tiles(ui, ctx, project, server);
+                            } else if tile.name.is_empty() {
+                                open_info_dialog(
+                                    "Tilemap Editor",
+                                    "Tile does not have any tags.",
+                                    ui,
+                                    ctx,
+                                );
                             }
-
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Update Tilepicker"),
-                                TheValue::Empty,
-                            ));
-
-                            self.update_tiles(ui, ctx, project, server);
                         }
                     }
 
@@ -1681,7 +1717,7 @@ impl Sidebar {
                                     .set_selection(FxHashSet::default());
                             }
                             ctx.ui.send(TheEvent::StateChanged(
-                                TheId::named("Tilemap Editor Clear Selection"),
+                                TheId::named("Tilemap Editor Clear"),
                                 TheWidgetState::Clicked,
                             ))
                         }
