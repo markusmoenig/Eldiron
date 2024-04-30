@@ -4,6 +4,7 @@ use crate::prelude::*;
 
 pub struct TilemapEditor {
     curr_tilemap_id: Uuid,
+    anim_preview: bool,
 }
 
 #[allow(clippy::new_without_default)]
@@ -11,6 +12,7 @@ impl TilemapEditor {
     pub fn new() -> Self {
         Self {
             curr_tilemap_id: Uuid::new_v4(),
+            anim_preview: true,
         }
     }
 
@@ -110,10 +112,17 @@ impl TilemapEditor {
         vlayout.set_alignment(TheHorizontalAlign::Center);
         vlayout.limiter_mut().set_max_width(120);
 
+        let mut switch_button = TheTraybarButton::new(TheId::named("Tilemap Selection Switch"));
+        switch_button.set_text("Anim".to_string());
+        switch_button
+            .set_status_text("Switches between an anim based preview and multi tiles preview.");
+
         let mut icon_preview = TheIconView::new(TheId::named("Tilemap Selection Preview"));
         icon_preview.set_alpha_mode(false);
         icon_preview.limiter_mut().set_max_size(vec2i(100, 100));
         icon_preview.set_border_color(Some([100, 100, 100, 255]));
+
+        vlayout.add_widget(Box::new(switch_button));
         vlayout.add_widget(Box::new(icon_preview));
 
         details_canvas.set_layout(vlayout);
@@ -152,7 +161,7 @@ impl TilemapEditor {
         _server: &mut Server,
         _server_ctx: &mut ServerContext,
     ) -> bool {
-        let redraw = false;
+        let mut redraw = false;
 
         match event {
             TheEvent::DialogValueOnClose(role, name, uuid, value) => {
@@ -181,19 +190,54 @@ impl TilemapEditor {
                 if id.name == "Tilemap Editor View" {
                     if let Some(rgba_layout) = ui.get_rgba_layout("Tilemap Editor") {
                         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                            let selection = rgba_view.selection_as_sequence();
+                            if self.anim_preview {
+                                let selection = rgba_view.selection_as_sequence();
+                                let mut tile = TheRGBATile::default();
+                                if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
+                                    tile.buffer = tilemap.buffer.extract_sequence(&selection);
+                                }
+                                self.set_tilemap_preview(tile, ui);
+                            } else {
+                                let mut tile = TheRGBATile::default();
+                                let dim = rgba_view.selection_as_dim();
 
-                            let mut tile = TheRGBATile::default();
-                            if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
-                                tile.buffer = tilemap.buffer.extract_sequence(&selection);
+                                if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
+                                    let region = TheRGBARegion::new(
+                                        dim.x as usize * tilemap.grid_size as usize,
+                                        dim.y as usize * tilemap.grid_size as usize,
+                                        dim.width as usize * tilemap.grid_size as usize,
+                                        dim.height as usize * tilemap.grid_size as usize,
+                                    );
+                                    tile.buffer.push(tilemap.buffer.extract_region(&region));
+                                }
+                                self.set_tilemap_preview(tile, ui);
                             }
-                            self.set_tilemap_preview(tile, ui);
                         }
                     }
                 }
             }
             TheEvent::StateChanged(id, state) => {
-                if id.name == "Tilemap Editor Clear" && *state == TheWidgetState::Clicked {
+                if id.name == "Tilemap Selection Switch" && *state == TheWidgetState::Clicked {
+                    if self.anim_preview {
+                        self.anim_preview = false;
+                        ui.set_widget_value(
+                            "Tilemap Selection Switch",
+                            ctx,
+                            TheValue::Text("Multi".to_string()),
+                        );
+                    } else {
+                        self.anim_preview = true;
+                        ui.set_widget_value(
+                            "Tilemap Selection Switch",
+                            ctx,
+                            TheValue::Text("Anim".to_string()),
+                        );
+                    }
+                    ctx.ui.send(TheEvent::TileSelectionChanged(TheId::named(
+                        "Tilemap Editor View",
+                    )));
+                    redraw = true;
+                } else if id.name == "Tilemap Editor Clear" && *state == TheWidgetState::Clicked {
                     if let Some(editor) = ui
                         .canvas
                         .get_layout(Some(&"Tilemap Editor".to_string()), None)
