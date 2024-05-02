@@ -337,8 +337,8 @@ impl TheTrait for Editor {
 
         // -
 
-        ctx.ui.set_disabled("Save");
-        ctx.ui.set_disabled("Save As");
+        // ctx.ui.set_disabled("Save");
+        // ctx.ui.set_disabled("Save As");
         ctx.ui.set_disabled("Undo");
         ctx.ui.set_disabled("Redo");
 
@@ -686,20 +686,19 @@ impl TheTrait for Editor {
                                 if let Some(screen) =
                                     self.project.screens.get_mut(&self.server_ctx.curr_screen)
                                 {
-                                    if screen.widgets.remove(&widget_id).is_some() {
-                                        // Remove from the content list
-                                        if let Some(list) =
-                                            ui.get_list_layout("Screen Content List")
-                                        {
-                                            list.remove(TheId::named_with_id(
-                                                "Screen Content List Item",
-                                                widget_id,
-                                            ));
-                                            ui.select_first_list_item("Screen Content List", ctx);
-                                        }
+                                    screen.remove_widget(&widget_id);
 
-                                        self.client.update_screen(screen);
+                                    // Remove from the content list
+                                    if let Some(list) = ui.get_list_layout("Screen Content List") {
+                                        list.remove(TheId::named_with_id(
+                                            "Screen Content List Item",
+                                            widget_id,
+                                        ));
+                                        ui.select_first_list_item("Screen Content List", ctx);
                                     }
+
+                                    self.client.update_screen(screen);
+                                    self.sidebar.apply_screen(ui, ctx, Some(screen));
                                 }
                             }
                         } else if name == "New Area Name" {

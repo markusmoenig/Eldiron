@@ -549,10 +549,31 @@ impl Sidebar {
         drop_down.add_option("Widgets".to_string());
         toolbar_hlayout.add_widget(Box::new(drop_down));
 
+        let mut widget_add_button = TheTraybarButton::new(TheId::named("Widget Add"));
+        widget_add_button.set_icon_name("icon_role_add".to_string());
+        widget_add_button.set_status_text("Add a new widget to the screen.");
+
+        let mut widget_remove_button = TheTraybarButton::new(TheId::named("Widget Remove"));
+        widget_remove_button.set_icon_name("icon_role_remove".to_string());
+        widget_remove_button.set_status_text("Remove the current widget.");
+        widget_remove_button.set_disabled(true);
+
+        let mut widget_bottom_toolbar_hlayout = TheHLayout::new(TheId::empty());
+        widget_bottom_toolbar_hlayout.set_background_color(None);
+        widget_bottom_toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
+        widget_bottom_toolbar_hlayout.add_widget(Box::new(widget_add_button));
+        widget_bottom_toolbar_hlayout.add_widget(Box::new(widget_remove_button));
+        //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+
+        let mut widget_bottom_toolbar_canvas = TheCanvas::default();
+        widget_bottom_toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        widget_bottom_toolbar_canvas.set_layout(widget_bottom_toolbar_hlayout);
+
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
         toolbar_canvas.set_layout(toolbar_hlayout);
         content_canvas.set_top(toolbar_canvas);
+        content_canvas.set_bottom(widget_bottom_toolbar_canvas);
 
         screen_tab.add_canvas("Content".to_string(), content_canvas);
 
@@ -794,7 +815,7 @@ impl Sidebar {
             }
             TheEvent::Custom(id, _) => {
                 if id.name == "Update Tiles" {
-                    self.update_tiles(ui, ctx, project, server);
+                    self.update_tiles(ui, ctx, project, server, client);
                 }
             }
             TheEvent::PaletteIndexChanged(_, index) => {
@@ -825,6 +846,15 @@ impl Sidebar {
                     if let Some(screen) = project.screens.get_mut(uuid) {
                         screen.name = value.describe();
                         ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
+                    }
+                } else if name == "Rename Widget" && *role == TheDialogButtonRole::Accept {
+                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                        if let Some(widget_id) = server_ctx.curr_widget {
+                            if let Some(widget) = screen.get_widget_mut(&widget_id) {
+                                widget.name = value.describe();
+                                ctx.ui.send(TheEvent::SetValue(*uuid, value.clone()));
+                            }
+                        }
                     }
                 } else if name == "Rename Asset" && *role == TheDialogButtonRole::Accept {
                     if let Some(asset) = project.assets.get_mut(uuid) {
@@ -884,6 +914,21 @@ impl Sidebar {
                             ui,
                             ctx,
                         );
+                    }
+                } else if item_id.name == "Rename Widget" {
+                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                        if let Some(widget_id) = server_ctx.curr_widget {
+                            if let Some(widget) = screen.get_widget_mut(&widget_id) {
+                                open_text_dialog(
+                                    "Rename Widget",
+                                    "Widget Name",
+                                    &widget.name,
+                                    widget_id,
+                                    ui,
+                                    ctx,
+                                );
+                            }
+                        }
                     }
                 } else if item_id.name == "Rename Asset" {
                     if let Some(asset) = project.assets.get(&widget_id.uuid) {
@@ -1181,7 +1226,7 @@ impl Sidebar {
                                 }
                             }
                             project.add_tilemap(tilemap);
-                            self.update_tiles(ui, ctx, project, server);
+                            self.update_tiles(ui, ctx, project, server, client);
 
                             ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),
@@ -1598,10 +1643,10 @@ impl Sidebar {
 
                                 let mut grid_size = 16;
 
-                                if let Some(region) =
-                                    project.get_region_mut(&server_ctx.curr_region)
-                                {
-                                    grid_size = region.grid_size;
+                                if let Some(curr_tilemap_uuid) = self.curr_tilemap_uuid {
+                                    if let Some(t) = project.get_tilemap(curr_tilemap_uuid) {
+                                        grid_size = t.grid_size;
+                                    }
                                 }
 
                                 let region = TheRGBARegion::new(
@@ -1691,7 +1736,7 @@ impl Sidebar {
                                     TheValue::Empty,
                                 ));
 
-                                self.update_tiles(ui, ctx, project, server);
+                                self.update_tiles(ui, ctx, project, server, client);
                             } else if tile.name.is_empty() {
                                 open_info_dialog(
                                     "Tilemap Editor",
@@ -1758,7 +1803,89 @@ impl Sidebar {
                         if let Some(selected) = list_layout.selected() {
                             list_layout.remove(selected.clone());
                             project.remove_screen(&selected.uuid);
-                            self.apply_item(ui, ctx, None);
+                            self.apply_screen(ui, ctx, None);
+                        }
+                    }
+                } else if id.name == "Widget Add" {
+                    let mut widget = Widget {
+                        x: 0.0,
+                        y: 0.0,
+                        width: 10.0,
+                        height: 10.0,
+                        ..Default::default()
+                    };
+
+                    widget.bundle.id = widget.id;
+
+                    let init = TheCodeGrid {
+                        name: "init".into(),
+                        ..Default::default()
+                    };
+
+                    widget.bundle.insert_grid(init);
+
+                    let mut draw = TheCodeGrid {
+                        name: "draw".into(),
+                        ..Default::default()
+                    };
+
+                    draw.insert_atom(
+                        (0, 0),
+                        TheCodeAtom::ExternalCall(
+                            "Fill".to_string(),
+                            "Fills the widget with the given color.".to_string(),
+                            vec![str!("Color")],
+                            vec![TheValue::ColorObject(TheColor::default())],
+                            None,
+                        ),
+                    );
+
+                    draw.insert_atom(
+                        (2, 0),
+                        TheCodeAtom::Value(TheValue::ColorObject(TheColor::default())),
+                    );
+
+                    widget.bundle.insert_grid(draw);
+
+                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                        if let Some(list) = ui.get_list_layout("Screen Content List") {
+                            let mut list_item = TheListItem::new(TheId::named_with_id(
+                                "Screen Content List Item",
+                                widget.id,
+                            ));
+                            list_item.set_text(widget.name.clone());
+                            list_item.set_state(TheWidgetState::Selected);
+                            list_item.add_value_column(100, TheValue::Text("Widget".to_string()));
+
+                            list_item.set_context_menu(Some(TheContextMenu {
+                                items: vec![TheContextMenuItem::new(
+                                    "Rename Widget...".to_string(),
+                                    TheId::named("Rename Widget"),
+                                )],
+                                ..Default::default()
+                            }));
+
+                            list.deselect_all();
+                            list.add_item(list_item, ctx);
+                            list.select_item(widget.id, ctx, true);
+                        }
+                        screen.widget_list.push(widget);
+                        client.update_screen(screen);
+                        self.apply_screen(ui, ctx, Some(screen));
+                        redraw = true;
+                    }
+                } else if id.name == "Widget Remove" {
+                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                        if let Some(widget_id) = server_ctx.curr_widget {
+                            if let Some(widget) = screen.get_widget(&widget_id) {
+                                open_delete_confirmation_dialog(
+                                    "Delete Widget ?",
+                                    format!("Permanently delete '{}' ?", widget.name).as_str(),
+                                    widget.id,
+                                    ui,
+                                    ctx,
+                                );
+                            }
                         }
                     }
                 }
@@ -1781,11 +1908,6 @@ impl Sidebar {
                         }
                     }
 
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Set Region Panel"),
-                        TheValue::Empty,
-                    ));
-
                     *SIDEBARMODE.lock().unwrap() = SidebarMode::Region;
 
                     ctx.ui.send(TheEvent::SetStackIndex(
@@ -1804,11 +1926,6 @@ impl Sidebar {
                     {
                         widget.set_value(TheValue::Text("Character".to_string()));
                     }
-
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Set CodeGrid Panel"),
-                        TheValue::Empty,
-                    ));
 
                     if let Some(list_layout) = ui.get_list_layout("Character List") {
                         if let Some(selected) = list_layout.selected() {
@@ -1836,11 +1953,6 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Items".to_string()));
                     }
 
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Set CodeGrid Panel"),
-                        TheValue::Empty,
-                    ));
-
                     if let Some(list_layout) = ui.get_list_layout("Item List") {
                         if let Some(selected) = list_layout.selected() {
                             ctx.ui
@@ -1862,11 +1974,6 @@ impl Sidebar {
                     {
                         widget.set_value(TheValue::Text("Tilemaps".to_string()));
                     }
-
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Set Tilemap Panel"),
-                        TheValue::Empty,
-                    ));
 
                     if let Some(list_layout) = ui.get_list_layout("Tilemap List") {
                         if let Some(selected) = list_layout.selected() {
@@ -1895,11 +2002,6 @@ impl Sidebar {
                         widget.set_value(TheValue::Text("Modules".to_string()));
                     }
 
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Set CodeGrid Panel"),
-                        TheValue::Empty,
-                    ));
-
                     if let Some(list_layout) = ui.get_list_layout("Module List") {
                         if let Some(selected) = list_layout.selected() {
                             ctx.ui
@@ -1925,11 +2027,6 @@ impl Sidebar {
                     {
                         widget.set_value(TheValue::Text("Screens".to_string()));
                     }
-
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Set CodeGrid Panel"),
-                        TheValue::Empty,
-                    ));
 
                     if let Some(list_layout) = ui.get_list_layout("Screen List") {
                         if let Some(selected) = list_layout.selected() {
@@ -2195,7 +2292,7 @@ impl Sidebar {
                                     if let Some(screen) =
                                         project.screens.get_mut(&server_ctx.curr_screen)
                                     {
-                                        if let Some(widget) = screen.widgets.get_mut(&bundle.id) {
+                                        if let Some(widget) = screen.get_widget_mut(&bundle.id) {
                                             widget.bundle = bundle;
                                             client.update_screen(screen);
                                         }
@@ -2269,57 +2366,6 @@ impl Sidebar {
                                 }
                                 redraw = true;
                             }
-                        }
-                    }
-                }
-            }
-            TheEvent::IndexChanged(id, index) => {
-                if id.name == "Editor Group" {
-                    if *index == EditorMode::Draw as usize {
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Set Region Panel"),
-                            TheValue::Empty,
-                        ));
-                    } else if *index == 1 {
-                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region {
-                            if let Some(character_instance) = server_ctx.curr_character_instance {
-                                if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                                    if let Some(character) =
-                                        region.characters.get(&character_instance)
-                                    {
-                                        for grid in character.instance.grids.values() {
-                                            if grid.name == "init" {
-                                                CODEEDITOR
-                                                    .lock()
-                                                    .unwrap()
-                                                    .set_codegrid(grid.clone(), ui);
-                                                ctx.ui.send(TheEvent::Custom(
-                                                    TheId::named("Set CodeGrid Panel"),
-                                                    TheValue::Empty,
-                                                ));
-                                            }
-                                        }
-                                    }
-                                }
-                            } else if let Some(area_id) = server_ctx.curr_area {
-                                if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                                    if let Some(area) = region.areas.get(&area_id) {
-                                        for grid in area.bundle.grids.values() {
-                                            if grid.name == "main" {
-                                                CODEEDITOR
-                                                    .lock()
-                                                    .unwrap()
-                                                    .set_codegrid(grid.clone(), ui);
-                                                ctx.ui.send(TheEvent::Custom(
-                                                    TheId::named("Set CodeGrid Panel"),
-                                                    TheValue::Empty,
-                                                ));
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        } else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Character {
                         }
                     }
                 }
@@ -2576,6 +2622,9 @@ impl Sidebar {
         ui.set_widget_disabled_state("Screen Settings", ctx, screen.is_none());
 
         if screen.is_none() {
+            ui.set_widget_disabled_state("Widget Add", ctx, true);
+            ui.set_widget_disabled_state("Widget Remove", ctx, true);
+
             if let Some(zoom) = ui.get_widget("Screen Editor Zoom") {
                 zoom.set_value(TheValue::Float(1.0));
             }
@@ -2646,6 +2695,11 @@ impl Sidebar {
         }
 
         if let Some(screen) = screen {
+            ui.set_widget_disabled_state("Widget Add", ctx, false);
+            if !screen.widget_list.is_empty() {
+                ui.set_widget_disabled_state("Widget Remove", ctx, false);
+            }
+
             if let Some(zoom) = ui.get_widget("Screen Editor Zoom") {
                 zoom.set_value(TheValue::Float(screen.zoom));
             }
@@ -2689,13 +2743,20 @@ impl Sidebar {
             if let Some(screen) = screen {
                 if filter_role < 2 {
                     // Show Widgets
-                    for (_id, widget) in screen.widgets.iter() {
+                    for widget in screen.widget_list.iter() {
                         let name: String = widget.name.clone();
                         if filter_text.is_empty() || name.to_lowercase().contains(&filter_text) {
                             let mut item = TheListItem::new(TheId::named_with_id(
                                 "Screen Content List Item",
                                 widget.id,
                             ));
+                            item.set_context_menu(Some(TheContextMenu {
+                                items: vec![TheContextMenuItem::new(
+                                    "Rename Widget...".to_string(),
+                                    TheId::named("Rename Widget"),
+                                )],
+                                ..Default::default()
+                            }));
                             item.set_text(name);
                             item.add_value_column(100, TheValue::Text("Widget".to_string()));
                             list.add_item(item, ctx);
@@ -3149,11 +3210,13 @@ impl Sidebar {
         ctx: &mut TheContext,
         project: &mut Project,
         server: &mut Server,
+        client: &mut Client,
     ) {
         let tiles = project.extract_tiles();
         TILEDRAWER.lock().unwrap().set_tiles(tiles.clone());
         RENDERER.lock().unwrap().set_textures(tiles.clone());
-        server.update_tiles(tiles);
+        server.update_tiles(tiles.clone());
+        client.update_tiles(tiles);
 
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Tilepicker"),

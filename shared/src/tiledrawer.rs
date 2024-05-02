@@ -731,7 +731,10 @@ impl TileDrawer {
         }
     }
 
-    /*
+    pub fn get_tile(&self, tile: &Uuid) -> Option<&TheRGBATile> {
+        self.tiles.get(tile)
+    }
+
     pub fn draw_tile(
         &self,
         at: Vec2i,
@@ -756,6 +759,7 @@ impl TileDrawer {
         }
     }
 
+    /*
     pub fn draw_tile_at_pixel(
         &self,
         at: Vec2i,

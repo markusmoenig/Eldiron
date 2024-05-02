@@ -96,8 +96,12 @@ impl Client {
         self.compile_script_widgets(screen);
     }
 
+    pub fn update_tiles(&mut self, tiles: FxHashMap<Uuid, TheRGBATile>) {
+        TILEDRAWER.write().unwrap().set_tiles(tiles);
+    }
+
     pub fn compile_script_widgets(&mut self, screen: &Screen) {
-        for widget in screen.widgets.values() {
+        for widget in &screen.widget_list {
             let mut package = TheCodePackage::new();
             package.id = widget.id;
 
@@ -165,7 +169,7 @@ impl Client {
         buffer.fill(BLACK);
 
         if let Some(screen) = self.project.screens.get(uuid) {
-            for widget in screen.widgets.values() {
+            for widget in &screen.widget_list {
                 let x = (widget.x * screen.grid_size as f32) as i32;
                 let y = (widget.y * screen.grid_size as f32) as i32;
                 let width = (widget.width * screen.grid_size as f32) as i32;
@@ -181,12 +185,17 @@ impl Client {
                     package.execute("draw".to_string(), &mut self.sandbox);
                 }
 
-                // ctx.draw.rect(
-                //     buffer.pixels_mut(),
-                //     &(x as usize, y as usize, width as usize, height as usize),
-                //     stride,
-                //     &WHITE,
-                // )
+                for (pos, tiles) in &widget.ui_tiles {
+                    for tile in tiles {
+                        if let Some(tile) = TILEDRAWER.read().unwrap().get_tile(tile) {
+                            WIDGETBUFFER.write().unwrap().copy_into(
+                                pos.0 * screen.grid_size,
+                                pos.1 * screen.grid_size,
+                                &tile.buffer[0],
+                            )
+                        }
+                    }
+                }
 
                 buffer.blend_into(x, y, &WIDGETBUFFER.read().unwrap());
             }

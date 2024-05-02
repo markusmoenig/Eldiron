@@ -14,7 +14,8 @@ pub struct Screen {
     pub scroll_offset: Vec2i,
     pub zoom: f32,
 
-    pub widgets: FxHashMap<Uuid, Widget>,
+    #[serde(default)]
+    pub widget_list: Vec<Widget>,
 }
 
 impl Default for Screen {
@@ -37,13 +38,28 @@ impl Screen {
             scroll_offset: Vec2i::zero(),
             zoom: 1.0,
 
-            widgets: FxHashMap::default(),
+            widget_list: vec![],
         }
     }
 
+    /// Get the given widget.
+    pub fn get_widget(&self, id: &Uuid) -> Option<&Widget> {
+        self.widget_list.iter().find(|w| w.id == *id)
+    }
+
+    /// Get the given widget mutable.
+    pub fn get_widget_mut(&mut self, id: &Uuid) -> Option<&mut Widget> {
+        self.widget_list.iter_mut().find(|w| w.id == *id)
+    }
+
+    /// Remove the given widget.
+    pub fn remove_widget(&mut self, id: &Uuid) {
+        self.widget_list.retain(|w| w.id != *id);
+    }
+
     /// Returns the widgets sorted by size (width * height), smallest first.
-    pub fn sorted_widgets_by_size(&self) -> Vec<&Widget> {
-        let mut widgets: Vec<&Widget> = self.widgets.values().collect();
+    pub fn sorted_widgets_by_size(&self) -> Vec<Widget> {
+        let mut widgets = self.widget_list.clone();
         widgets.sort_by(|a, b| {
             let size_a = a.width * a.height;
             let size_b = b.width * b.height;

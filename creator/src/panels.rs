@@ -25,12 +25,8 @@ impl Panels {
     ) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
-        //let mut tab_layout = TheTabLayout::new(TheId::named("Browser"));
-        //tab_layout.limiter_mut().set_max_height(300);
-
         let mut shared_layout = TheSharedHLayout::new(TheId::named("Shared Panel Layout"));
-        //shared_layout.limiter_mut().set_max_height(275);
-        shared_layout.set_shared_ratio(0.30);
+        shared_layout.set_shared_ratio(0.27);
         shared_layout.set_mode(TheSharedHLayoutMode::Right);
 
         // Main Stack
@@ -69,7 +65,7 @@ impl Panels {
         );
         context_group.add_text_status(
             "Object".to_string(),
-            "Shows the object properties of the current character or area.".to_string(),
+            "Shows the object properties.".to_string(),
         );
         context_group.add_text_status("Output".to_string(), "Shows the text output for the current character. Only available when the server is running.".to_string());
 
@@ -150,20 +146,12 @@ impl Panels {
                 {
                     if self.tilefx_visible {
                         self.tilefx_visible = false;
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Set Region Panel"),
-                            TheValue::Empty,
-                        ));
                     }
                 } else if id.name == "Tile FX Icon"
                     && *state == TheWidgetState::Clicked
                     && !self.tilefx_visible
                 {
                     self.tilefx_visible = true;
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Set Region Panel"),
-                        TheValue::Empty,
-                    ));
                 }
             }
             TheEvent::CodeEditorSelectionChanged(_, _) | TheEvent::CodeBundleChanged(_, _) => {
@@ -397,20 +385,24 @@ impl Panels {
                         }
                     }
                 } else if id.name == "Set CodeGrid Panel" {
-                    //println!("Set CodeGrid Panel");
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 1));
-                    // if *SIDEBARMODE.lock().unwrap() != SidebarMode::Region {
-                    //     if let Some(layout) = ui.get_shared_layout("Shared Panel Layout") {
-                    //         layout.set_mode(TheSharedLayoutMode::Left);
-                    //         ctx.ui.relayout = true;
-                    //         redraw = true;
-                    //     }
-                    // }
+                    if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                        layout.set_mode(TheSharedHLayoutMode::Shared);
+                        ctx.ui.relayout = true;
+                        redraw = true;
+                    }
                 } else if id.name == "Set Tilemap Panel" {
-                    //println!("Set Tilemap Panel");
                     ctx.ui
                         .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 2));
+                    if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                        layout.set_mode(TheSharedHLayoutMode::Right);
+                        ctx.ui.relayout = true;
+                        redraw = true;
+                    }
+                } else if id.name == "Set Tilepicker Panel" {
+                    ctx.ui
+                        .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
                     if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
                         layout.set_mode(TheSharedHLayoutMode::Right);
                         ctx.ui.relayout = true;

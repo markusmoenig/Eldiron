@@ -15,9 +15,11 @@ pub enum EditorDrawMode {
 pub enum EditorMode {
     Draw,
     Model,
+    Code,
     Pick,
     Erase,
     Select,
+    Tilemap,
     Render,
 }
 
@@ -196,6 +198,11 @@ impl TileEditor {
             "cube".to_string(),
         );
         gb.add_text_status_icon(
+            "Code".to_string(),
+            "Code character and region behavior.".to_string(),
+            "code".to_string(),
+        );
+        gb.add_text_status_icon(
             "Pick".to_string(),
             "Pick content in the region.".to_string(),
             "pick".to_string(),
@@ -209,6 +216,11 @@ impl TileEditor {
             "Select".to_string(),
             "Select an area in the region.".to_string(),
             "selection".to_string(),
+        );
+        gb.add_text_status_icon(
+            "Tilemap".to_string(),
+            "Add tiles from the current tilemap.".to_string(),
+            "square".to_string(),
         );
         gb.add_text_status_icon(
             "Render".to_string(),
@@ -432,6 +444,20 @@ impl TileEditor {
                             }
                         }
 
+                        if self.curr_layer_role == Layer2DRole::FX {
+                            ctx.ui
+                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
+                        } else {
+                            ctx.ui
+                                .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
+                        }
+
+                        if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
+                            layout.set_mode(TheSharedHLayoutMode::Right);
+                            ctx.ui.relayout = true;
+                            redraw = true;
+                        }
+
                         server_ctx.curr_character_instance = None;
                         server_ctx.curr_item_instance = None;
                         server_ctx.curr_area = None;
@@ -455,11 +481,25 @@ impl TileEditor {
                         self.editor_mode = EditorMode::Select;
                     }
 
-                    if *index == EditorMode::Model as usize {
+                    if *index == EditorMode::Code as usize {
+                        self.editor_mode = EditorMode::Code;
+                        server_ctx.tile_selection = None;
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Set CodeGrid Panel"),
+                            TheValue::Empty,
+                        ));
+                    } else if *index == EditorMode::Model as usize {
                         self.editor_mode = EditorMode::Model;
                         server_ctx.tile_selection = None;
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Set Region Modeler"),
+                            TheValue::Empty,
+                        ));
+                    } else if *index == EditorMode::Tilemap as usize {
+                        self.editor_mode = EditorMode::Tilemap;
+                        server_ctx.tile_selection = None;
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Set Tilemap Panel"),
                             TheValue::Empty,
                         ));
                     } else if *index == EditorMode::Render as usize {
@@ -469,14 +509,7 @@ impl TileEditor {
                             TheId::named("Set Region Render"),
                             TheValue::Empty,
                         ));
-                    } /*else if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
-                          || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
-                      {
-                          ctx.ui.send(TheEvent::Custom(
-                              TheId::named("Set Region Panel"),
-                              TheValue::Empty,
-                          ));
-                          }*/
+                    }
                 }
             }
             TheEvent::TileEditorUp(_id) => {
@@ -553,32 +586,21 @@ impl TileEditor {
                             server.set_editing_position_3d(region.editing_position_3d);
                         }
 
-                        if *SIDEBARMODE.lock().unwrap() == SidebarMode::Region
-                            || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character
-                        {
-                            // In Region mode, we need to set the character bundle of the current character instance.
-                            if let Some(region) = project.get_region(&server_ctx.curr_region) {
-                                if let Some(character) = region.characters.get(&id.uuid) {
-                                    for grid in character.instance.grids.values() {
-                                        if grid.name == "init" {
-                                            CODEEDITOR
-                                                .lock()
-                                                .unwrap()
-                                                .set_codegrid(grid.clone(), ui);
-                                            ctx.ui.send(TheEvent::Custom(
-                                                TheId::named("Set CodeGrid Panel"),
-                                                TheValue::Empty,
-                                            ));
-                                        }
+                        // Set the character bundle of the current character instance.
+                        if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                            if let Some(character) = region.characters.get(&id.uuid) {
+                                for grid in character.instance.grids.values() {
+                                    if grid.name == "init" {
+                                        CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Set CodeGrid Panel"),
+                                            TheValue::Empty,
+                                        ));
+                                        self.set_editor_group_index(EditorMode::Code, ui, ctx)
                                     }
                                 }
                             }
                         }
-
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Set Region Panel"),
-                            TheValue::Empty,
-                        ));
 
                         if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
                             rgba_layout.scroll_to_grid(vec2i(p.x as i32, p.z as i32));
@@ -593,26 +615,28 @@ impl TileEditor {
                     if let Some((TheValue::Position(p), item_id)) =
                         server.get_item_property(server_ctx.curr_region, id.uuid, "position".into())
                     {
-                        // If it's a character instance, center it in the region editor.
+                        // If it's an item instance, center it in the item editor.
                         server_ctx.curr_character_instance = None;
                         server_ctx.curr_character = None;
                         server_ctx.curr_item_instance = Some(id.uuid);
                         server_ctx.curr_item = Some(item_id);
                         server_ctx.curr_area = None;
 
-                        self.editor_mode = EditorMode::Pick;
-                        if let Some(button) = ui.get_group_button("Editor Group") {
-                            button.set_index(EditorMode::Pick as i32);
-                            ctx.ui.send(TheEvent::IndexChanged(
-                                button.id().clone(),
-                                EditorMode::Pick as usize,
-                            ));
+                        // Set the character bundle of the current character instance.
+                        if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                            if let Some(character) = region.items.get(&id.uuid) {
+                                for grid in character.instance.grids.values() {
+                                    if grid.name == "init" {
+                                        CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Set CodeGrid Panel"),
+                                            TheValue::Empty,
+                                        ));
+                                        self.set_editor_group_index(EditorMode::Code, ui, ctx)
+                                    }
+                                }
+                            }
                         }
-
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Set Region Panel"),
-                            TheValue::Empty,
-                        ));
 
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.editing_position_3d = vec3f(p.x, 0.0, p.z);
@@ -633,22 +657,19 @@ impl TileEditor {
                             server_ctx.curr_item = None;
                             server_ctx.curr_area = Some(area.id);
 
-                            self.editor_mode = EditorMode::Pick;
-                            if let Some(button) = ui.get_group_button("Editor Group") {
-                                button.set_index(EditorMode::Pick as i32);
-                                ctx.ui.send(TheEvent::IndexChanged(
-                                    button.id().clone(),
-                                    EditorMode::Pick as usize,
-                                ));
+                            for grid in area.bundle.grids.values() {
+                                if grid.name == "main" {
+                                    CODEEDITOR.lock().unwrap().set_codegrid(grid.clone(), ui);
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Set CodeGrid Panel"),
+                                        TheValue::Empty,
+                                    ));
+                                    self.set_editor_group_index(EditorMode::Code, ui, ctx)
+                                }
                             }
 
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Set Region Panel"),
-                                TheValue::Empty,
-                            ));
-
                             // Add the area to the server
-                            server.insert_area(region.id, area.clone());
+                            // ? server.insert_area(region.id, area.clone());
 
                             if let Some(p) = area.center() {
                                 region.editing_position_3d = vec3f(p.0 as f32, 0.0, p.1 as f32);
@@ -717,6 +738,10 @@ impl TileEditor {
                         TheId::named("Floor Selected"),
                         TheValue::Empty,
                     ));
+                    if self.editor_mode == EditorMode::Draw {
+                        ctx.ui
+                            .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
+                    }
                 } else if id.name == "Wall Icon" {
                     self.curr_layer_role = Layer2DRole::Wall;
                     self.set_icon_colors(ui);
@@ -726,20 +751,32 @@ impl TileEditor {
                         TheId::named("Wall Selected"),
                         TheValue::Empty,
                     ));
+                    if self.editor_mode == EditorMode::Draw {
+                        ctx.ui
+                            .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
+                    }
                 } else if id.name == "Ceiling Icon" {
                     self.curr_layer_role = Layer2DRole::Ceiling;
                     self.set_icon_colors(ui);
                     server_ctx.show_fx_marker = false;
                     redraw = true;
                     ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Cei;ing Selected"),
+                        TheId::named("Ceiling Selected"),
                         TheValue::Empty,
                     ));
+                    if self.editor_mode == EditorMode::Draw {
+                        ctx.ui
+                            .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 0));
+                    }
                 } else if id.name == "Tile FX Icon" {
                     self.curr_layer_role = Layer2DRole::FX;
                     self.set_icon_colors(ui);
                     server_ctx.show_fx_marker = true;
                     redraw = true;
+                    if self.editor_mode == EditorMode::Draw {
+                        ctx.ui
+                            .send(TheEvent::SetStackIndex(TheId::named("Main Stack"), 3));
+                    }
                 }
             }
             _ => {}
@@ -1155,7 +1192,7 @@ impl TileEditor {
                 }
             }
         } else if self.editor_mode == EditorMode::Pick {
-            let mut clicked_model = false;
+            let mut clicked_tile = false;
             // Check for character at the given position.
             if let Some(c) = server.get_character_at(server_ctx.curr_region, coord) {
                 server_ctx.curr_character_instance = Some(c.0);
@@ -1187,6 +1224,7 @@ impl TileEditor {
                                         TheId::named("Set CodeGrid Panel"),
                                         TheValue::Empty,
                                     ));
+                                    self.set_editor_group_index(EditorMode::Code, ui, ctx);
                                 }
                             }
                         }
@@ -1221,6 +1259,7 @@ impl TileEditor {
                                         TheId::named("Set CodeGrid Panel"),
                                         TheValue::Empty,
                                     ));
+                                    self.set_editor_group_index(EditorMode::Code, ui, ctx);
                                 }
                             }
                         }
@@ -1282,7 +1321,7 @@ impl TileEditor {
                             TheId::named("Set Region Modeler"),
                             TheValue::Empty,
                         ));
-                        clicked_model = true;
+                        self.set_editor_group_index(EditorMode::Model, ui, ctx);
                     } else if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
                         if self.curr_layer_role == Layer2DRole::FX {
                             // Set the tile preview.
@@ -1316,13 +1355,7 @@ impl TileEditor {
                                         TheId::named_with_id("Tilemap Tile", *uuid),
                                         TheWidgetState::Selected,
                                     ));
-
-                                    // Switch mode to draw, disabled for now
-                                    // self.editor_mode = EditorMode::Draw;
-                                    // if let Some(button) = ui.get_group_button("Editor Group") {
-                                    //     button.set_index(0);
-                                    //     redraw = true;
-                                    // }
+                                    clicked_tile = true;
                                     break;
                                 }
                             }
@@ -1330,14 +1363,8 @@ impl TileEditor {
                     }
                 }
             }
-            if !clicked_model
-                && (*SIDEBARMODE.lock().unwrap() == SidebarMode::Region
-                    || *SIDEBARMODE.lock().unwrap() == SidebarMode::Character)
-            {
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Set Region Panel"),
-                    TheValue::Empty,
-                ));
+            if clicked_tile {
+                self.set_editor_group_index(EditorMode::Draw, ui, ctx);
             }
         } else if self.editor_mode == EditorMode::Draw {
             if let Some(curr_tile_uuid) = self.curr_tile_uuid {
@@ -1410,5 +1437,14 @@ impl TileEditor {
             }
         }
         redraw
+    }
+
+    /// Sets the index of the editor group.
+    fn set_editor_group_index(&mut self, mode: EditorMode, ui: &mut TheUI, ctx: &mut TheContext) {
+        if let Some(widget) = ui.get_group_button("Editor Group") {
+            widget.set_index(mode as i32);
+            ctx.ui
+                .send(TheEvent::IndexChanged(widget.id().clone(), mode as usize));
+        }
     }
 }
