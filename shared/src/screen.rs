@@ -14,6 +14,10 @@ pub struct Screen {
     pub scroll_offset: Vec2i,
     pub zoom: f32,
 
+    #[serde(with = "vectorize")]
+    #[serde(default)]
+    pub tiles: FxHashMap<(i32, i32), Vec<Uuid>>,
+
     #[serde(default)]
     pub widget_list: Vec<Widget>,
 }
@@ -37,6 +41,8 @@ impl Screen {
             grid_size: 16,
             scroll_offset: Vec2i::zero(),
             zoom: 1.0,
+
+            tiles: FxHashMap::default(),
 
             widget_list: vec![],
         }
@@ -68,6 +74,20 @@ impl Screen {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
         widgets
+    }
+
+    /// Add a tile to the widget.
+    pub fn add_tile(&mut self, pos: (i32, i32), tile: Uuid) {
+        if let Some(tiles) = self.tiles.get_mut(&pos) {
+            tiles.push(tile);
+        } else {
+            self.tiles.insert(pos, vec![tile]);
+        }
+    }
+
+    /// Erase a tile from the widget.
+    pub fn erase_tile(&mut self, pos: (i32, i32)) {
+        self.tiles.remove(&pos);
     }
 
     /// Create a region from json.

@@ -1770,7 +1770,7 @@ impl Sidebar {
                 } else if id.name == "Screen Item" {
                     if let Some(s) = project.screens.get(&id.uuid) {
                         self.apply_screen(ui, ctx, Some(s));
-                        server_ctx.curr_screen = s.id;
+                        server_ctx.curr_screen = id.uuid;
                         redraw = true;
                     }
                 } else if id.name == "Screen Add" {

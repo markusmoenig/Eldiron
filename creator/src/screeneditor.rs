@@ -189,6 +189,7 @@ impl ScreenEditor {
         details_canvas.set_layout(vlayout);
 
         // Details Toolbar
+        /*
         let mut details_toolbar = TheCanvas::new();
         details_toolbar.set_widget(TheTraybar::new(TheId::empty()));
 
@@ -211,7 +212,7 @@ impl ScreenEditor {
 
         details_toolbar.set_layout(toolbar_hlayout);
         details_canvas.set_bottom(details_toolbar);
-
+        */
         center.set_left(details_canvas);
 
         center
@@ -260,51 +261,40 @@ impl ScreenEditor {
             TheEvent::TileEditorClicked(_id, coord) => {
                 if self.editor_mode == ScreenEditorMode::Draw {
                     if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
-                        if let Some(widget_id) = server_ctx.curr_widget {
-                            if let Some(widget) = screen.get_widget_mut(&widget_id) {
-                                if widget.is_inside(coord) {
-                                    if let Some(tile_id) = self.curr_tile_uuid {
-                                        widget.add_tile((coord.x, coord.y), tile_id);
-                                        client.update_screen(screen);
-                                        redraw = true;
-                                    }
-                                }
-                            }
+                        if let Some(tile_id) = self.curr_tile_uuid {
+                            screen.add_tile((coord.x, coord.y), tile_id);
+                            client.update_screen(screen);
+                            redraw = true;
                         }
                     }
                 } else if self.editor_mode == ScreenEditorMode::Pick
                     || self.editor_mode == ScreenEditorMode::Erase
                 {
                     if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                        if self.editor_mode == ScreenEditorMode::Erase
+                            && screen.tiles.contains_key(&(coord.x, coord.y))
+                        {
+                            screen.erase_tile((coord.x, coord.y));
+                            client.update_screen(screen);
+                            redraw = true;
+                        }
+
                         let sorted_widgets = screen.sorted_widgets_by_size();
                         for widget in sorted_widgets.iter() {
-                            if widget.is_inside(coord) {
-                                if widget.ui_tiles.contains_key(&(
-                                    coord.x - widget.x as i32,
-                                    coord.y - widget.y as i32,
-                                )) {
-                                    if let Some(w) = screen.get_widget_mut(&widget.id) {
-                                        w.erase_tile((
-                                            coord.x - widget.x as i32,
-                                            coord.y - widget.y as i32,
-                                        ));
-                                        client.update_screen(screen);
-                                        redraw = true;
-                                    }
-                                } else if self.editor_mode == ScreenEditorMode::Pick {
-                                    if let Some(layout) = ui.get_list_layout("Screen Content List")
-                                    {
-                                        layout.select_item(widget.id, ctx, true);
-                                    }
-                                } /*else if self.editor_mode == ScreenEditorMode::Erase {
-                                  open_delete_confirmation_dialog(
-                                      "Delete Widget ?",
-                                      format!("Permanently delete '{}' ?", widget.name).as_str(),
-                                      widget.id,
-                                      ui,
-                                      ctx,
-                                      );
-                                      }*/
+                            if widget.is_inside(coord) && self.editor_mode == ScreenEditorMode::Pick
+                            {
+                                if let Some(layout) = ui.get_list_layout("Screen Content List") {
+                                    layout.select_item(widget.id, ctx, true);
+                                }
+                                /*else if self.editor_mode == ScreenEditorMode::Erase {
+                                open_delete_confirmation_dialog(
+                                    "Delete Widget ?",
+                                    format!("Permanently delete '{}' ?", widget.name).as_str(),
+                                    widget.id,
+                                    ui,
+                                    ctx,
+                                    );
+                                    }*/
                             }
                         }
                     }
@@ -599,8 +589,23 @@ impl ScreenEditor {
                         if let Some(screen) = project.screens.get(&server_ctx.curr_screen) {
                             let gs = screen.grid_size as usize;
                             for widget in &screen.widget_list {
-                                let x = (widget.x * gs as f32).min(0.0) as usize;
-                                let y = (widget.y * gs as f32).min(0.0) as usize;
+                                let x = (widget.x * gs as f32).max(0.0) as usize;
+                                let y = (widget.y * gs as f32).max(0.0) as usize;
+                                let width = widget.width as usize;
+                                let height = widget.height as usize;
+
+                                if Some(widget.id) != server_ctx.curr_widget {
+                                    ctx.draw.rect_outline(
+                                        rgba_view.buffer_mut().pixels_mut(),
+                                        &(x, y, width * gs, height * gs),
+                                        screen.width as usize,
+                                        &[128, 128, 128, 255],
+                                    );
+                                }
+                            }
+                            for widget in &screen.widget_list {
+                                let x = (widget.x * gs as f32).max(0.0) as usize;
+                                let y = (widget.y * gs as f32).max(0.0) as usize;
                                 let width = widget.width as usize;
                                 let height = widget.height as usize;
 
@@ -610,13 +615,6 @@ impl ScreenEditor {
                                         &(x, y, width * gs, height * gs),
                                         screen.width as usize,
                                         &[255, 255, 255, 255],
-                                    );
-                                } else {
-                                    ctx.draw.rect_outline(
-                                        rgba_view.buffer_mut().pixels_mut(),
-                                        &(x, y, width * gs, height * gs),
-                                        screen.width as usize,
-                                        &[128, 128, 128, 255],
                                     );
                                 }
                             }

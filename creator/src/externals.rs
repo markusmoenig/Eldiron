@@ -170,4 +170,20 @@ pub fn set_client_externals() {
         ],
         None,
     ));
+
+    codeeditor.add_external(TheExternalCode::new(
+        "BlRect".to_string(),
+        "Blends a rectangular part of an image into the screen.".to_string(),
+        vec![
+            "Image".to_string(),
+            "Screen Pos".to_string(),
+            "Rect".to_string(),
+        ],
+        vec![
+            TheValue::Text("name".to_string()),
+            TheValue::Int2(vec2i(0, 0)),
+            TheValue::Int4(vec4i(0, 0, 10, 10)),
+        ],
+        None,
+    ));
 }

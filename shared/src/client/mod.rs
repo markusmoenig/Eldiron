@@ -169,6 +169,18 @@ impl Client {
         buffer.fill(BLACK);
 
         if let Some(screen) = self.project.screens.get(uuid) {
+            for (pos, tiles) in &screen.tiles {
+                for tile in tiles {
+                    if let Some(tile) = TILEDRAWER.read().unwrap().get_tile(tile) {
+                        buffer.copy_into(
+                            pos.0 * screen.grid_size,
+                            pos.1 * screen.grid_size,
+                            &tile.buffer[0],
+                        )
+                    }
+                }
+            }
+
             for widget in &screen.widget_list {
                 let x = (widget.x * screen.grid_size as f32) as i32;
                 let y = (widget.y * screen.grid_size as f32) as i32;
@@ -183,18 +195,6 @@ impl Client {
                     self.sandbox.aliases.insert("self".to_string(), package.id);
 
                     package.execute("draw".to_string(), &mut self.sandbox);
-                }
-
-                for (pos, tiles) in &widget.ui_tiles {
-                    for tile in tiles {
-                        if let Some(tile) = TILEDRAWER.read().unwrap().get_tile(tile) {
-                            WIDGETBUFFER.write().unwrap().copy_into(
-                                pos.0 * screen.grid_size,
-                                pos.1 * screen.grid_size,
-                                &tile.buffer[0],
-                            )
-                        }
-                    }
                 }
 
                 buffer.blend_into(x, y, &WIDGETBUFFER.read().unwrap());
