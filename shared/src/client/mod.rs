@@ -78,12 +78,12 @@ impl Client {
             regions.insert(region.id, region.clone());
         }
 
+        self.set_assets(project.assets.clone());
+
         self.widgets.clear();
         for screen in project.screens.values() {
             self.compile_script_widgets(screen);
         }
-
-        self.set_assets(project.assets.clone());
 
         self.tick_ms = project.tick_ms;
         self.redraw_ms = 1000 / project.target_fps;
@@ -206,6 +206,14 @@ impl Client {
     pub fn set_assets(&mut self, assets: FxHashMap<Uuid, Asset>) {
         IMAGES.write().unwrap().clear();
         FONTS.write().unwrap().clear();
+
+        for tilemap in self.project.tilemaps.iter() {
+            IMAGES
+                .write()
+                .unwrap()
+                .insert(tilemap.name.clone(), tilemap.buffer.clone());
+        }
+
         for a in assets.values() {
             match &a.buffer {
                 AssetBuffer::Image(buffer) => {

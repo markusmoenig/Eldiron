@@ -144,7 +144,7 @@ pub fn set_client_externals() {
     codeeditor.clear_externals();
 
     codeeditor.add_external(TheExternalCode::new(
-        "DrGame".to_string(),
+        "DrawGame".to_string(),
         "Draws the game in the widget.".to_string(),
         vec!["Zoom".to_string()],
         vec![TheValue::Float(1.0)],
@@ -160,7 +160,7 @@ pub fn set_client_externals() {
     ));
 
     codeeditor.add_external(TheExternalCode::new(
-        "DrText".to_string(),
+        "DrawText".to_string(),
         "Draws the given text.".to_string(),
         vec![str!("Font"), str!("Size"), str!("Text")],
         vec![
@@ -172,18 +172,40 @@ pub fn set_client_externals() {
     ));
 
     codeeditor.add_external(TheExternalCode::new(
-        "BlRect".to_string(),
-        "Blends a rectangular part of an image into the screen.".to_string(),
+        "CreateImg".to_string(),
+        "Creates an image from the given asset / tilemap name and position / size of the rectangle.".to_string(),
         vec![
             "Image".to_string(),
-            "Screen Pos".to_string(),
-            "Rect".to_string(),
+            "Position".to_string(),
+            "Size".to_string(),
         ],
         vec![
             TheValue::Text("name".to_string()),
             TheValue::Int2(vec2i(0, 0)),
-            TheValue::Int4(vec4i(0, 0, 10, 10)),
+            TheValue::Int2(vec2i(100, 100)),
+        ],
+        Some(TheValue::Image(TheRGBABuffer::default())),
+    ));
+
+    codeeditor.add_external(TheExternalCode::new(
+        "DrawImg".to_string(),
+        "Draws an image into the widget at the given position.".to_string(),
+        vec!["Image".to_string(), "Position".to_string()],
+        vec![
+            TheValue::Image(TheRGBABuffer::default()),
+            TheValue::Int2(vec2i(0, 0)),
         ],
         None,
+    ));
+
+    codeeditor.add_external(TheExternalCode::new(
+        "ScaleImg".to_string(),
+        "Scales an image and returns it.".to_string(),
+        vec!["Image".to_string(), "Size".to_string()],
+        vec![
+            TheValue::Image(TheRGBABuffer::default()),
+            TheValue::Int2(vec2i(0, 0)),
+        ],
+        Some(TheValue::Image(TheRGBABuffer::default())),
     ));
 }

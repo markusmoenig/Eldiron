@@ -1,11 +1,11 @@
 //use crate::prelude::*;
-use super::{CHARACTER, DRAWSETTINGS, FONTS, REGIONS, TILEDRAWER, UPDATE, WIDGETBUFFER};
+use super::{CHARACTER, DRAWSETTINGS, FONTS, IMAGES, REGIONS, TILEDRAWER, UPDATE, WIDGETBUFFER};
 use theframework::prelude::*;
 
 pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
     //
     compiler.add_external_call(
-        "DrGame".to_string(),
+        "DrawGame".to_string(),
         |stack, _data, _sandbox| {
             let mut buffer = WIDGETBUFFER.write().unwrap();
             let mut update = UPDATE.write().unwrap();
@@ -68,7 +68,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
     );
 
     compiler.add_external_call(
-        "DrText".to_string(),
+        "DrawText".to_string(),
         |stack, _data, _sandbox| {
             let mut buffer = WIDGETBUFFER.write().unwrap();
 
@@ -89,6 +89,77 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
 
             if let Some(font) = FONTS.read().unwrap().get(&font_name) {
                 buffer.draw_text(font, text.as_str(), size, WHITE);
+            }
+
+            TheCodeNodeCallResult::Continue
+        },
+        vec![],
+    );
+
+    compiler.add_external_call(
+        "CreateImg".to_string(),
+        |stack, _data, _sandbox| {
+            let mut source_size = vec2i(0, 0);
+            if let Some(TheValue::Int2(v)) = stack.pop() {
+                source_size = v;
+            }
+
+            let mut source_pos = vec2i(0, 0);
+            if let Some(TheValue::Int2(v)) = stack.pop() {
+                source_pos = v;
+            }
+
+            let mut image_name = str!("image");
+            if let Some(TheValue::Text(v)) = stack.pop() {
+                image_name = v.clone();
+            }
+
+            if let Some(image) = IMAGES.read().unwrap().get(&image_name) {
+                let dim = TheDim::new(source_pos.x, source_pos.y, source_size.x, source_size.y);
+                let img = image.extract(&dim);
+                stack.push(TheValue::Image(img));
+            }
+
+            TheCodeNodeCallResult::Continue
+        },
+        vec![],
+    );
+
+    compiler.add_external_call(
+        "DrawImg".to_string(),
+        |stack, _data, _sandbox| {
+            let mut buffer = WIDGETBUFFER.write().unwrap();
+
+            let mut pos = vec2i(0, 0);
+            if let Some(TheValue::Int2(v)) = stack.pop() {
+                pos = v;
+            }
+
+            let mut image_buffer = TheRGBABuffer::default();
+            if let Some(TheValue::Image(v)) = stack.pop() {
+                image_buffer = v.clone();
+            }
+
+            buffer.copy_into(pos.x, pos.y, &image_buffer);
+
+            TheCodeNodeCallResult::Continue
+        },
+        vec![],
+    );
+
+    compiler.add_external_call(
+        "ScaleImg".to_string(),
+        |stack, _data, _sandbox| {
+            let mut size = vec2i(1, 1);
+            if let Some(TheValue::Int2(v)) = stack.pop() {
+                size = v;
+            }
+
+            if let Some(TheValue::Image(v)) = stack.pop() {
+                if size.x > 0 && size.y > 0 {
+                    let new_img = v.scaled(size.x, size.y);
+                    stack.push(TheValue::Image(new_img));
+                }
             }
 
             TheCodeNodeCallResult::Continue
