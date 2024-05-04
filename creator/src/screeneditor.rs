@@ -1,6 +1,6 @@
 use shared::prelude::*;
 
-use crate::editor::{CODEEDITOR, TILEDRAWER};
+use crate::editor::CODEEDITOR;
 use crate::prelude::*;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -540,7 +540,7 @@ impl ScreenEditor {
         &mut self,
         ui: &mut TheUI,
         client: &mut Client,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
         server_ctx: &ServerContext,
         project: &Project,
     ) {
@@ -551,12 +551,7 @@ impl ScreenEditor {
                         client.set_character_id(curr_character_instance);
                     }
 
-                    client.draw_screen(
-                        &server_ctx.curr_screen,
-                        rgba_view.buffer_mut(),
-                        &TILEDRAWER.lock().unwrap(),
-                        ctx,
-                    );
+                    client.draw_screen(&server_ctx.curr_screen, rgba_view.buffer_mut());
                     rgba_view.set_needs_redraw(true);
 
                     if self.draw_outlines {

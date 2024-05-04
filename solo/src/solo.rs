@@ -1,23 +1,10 @@
 use crate::prelude::*;
 use crate::Embedded;
-//use lazy_static::lazy_static;
 use std::sync::mpsc::Receiver;
 //use std::sync::Mutex;
 
-// lazy_static! {
-//     pub static ref CODEEDITOR: Mutex<TheCodeEditor> = Mutex::new(TheCodeEditor::new());
-//     pub static ref TILEPICKER: Mutex<TilePicker> =
-//         Mutex::new(TilePicker::new("Main Tile Picker".to_string()));
-//     pub static ref TILEMAPEDITOR: Mutex<TilemapEditor> = Mutex::new(TilemapEditor::new());
-//     pub static ref SIDEBARMODE: Mutex<SidebarMode> = Mutex::new(SidebarMode::Region);
-//     pub static ref TILEDRAWER: Mutex<TileDrawer> = Mutex::new(TileDrawer::new());
-//     pub static ref TILEFXEDITOR: Mutex<TileFXEditor> = Mutex::new(TileFXEditor::new());
-// }
-
 pub struct Solo {
     project: Project,
-
-    tiledrawer: TileDrawer,
 
     server: Server,
     client: Client,
@@ -41,7 +28,6 @@ impl TheTrait for Solo {
 
         Self {
             project: Project::new(),
-            tiledrawer: TileDrawer::new(),
 
             server,
             client,
@@ -95,7 +81,6 @@ impl TheTrait for Solo {
                             self.server.set_project(project.clone());
                             self.client.set_project(project.clone());
 
-                            self.tiledrawer.set_tiles(project.extract_tiles());
                             self.project = project;
 
                             // TODO: Get the player instance id from the Game settings
@@ -107,6 +92,7 @@ impl TheTrait for Solo {
                                 self.curr_region = region_id;
                                 self.player_id = instance_id;
                                 self.client.set_character_id(instance_id);
+                                self.client.set_region(&region_id);
                             }
 
                             self.server.start();
@@ -145,7 +131,7 @@ impl TheTrait for Solo {
     }
 
     /// Handle UI events and UI state
-    fn update_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
+    fn update_ui(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) -> bool {
         let mut redraw = false;
 
         let (redraw_update, tick_update) = self.update_tracker.update(
@@ -173,8 +159,7 @@ impl TheTrait for Solo {
                 screen_id = *screen;
             }
 
-            self.client
-                .draw_screen(&screen_id, &mut ui.canvas.buffer, &self.tiledrawer, ctx);
+            self.client.draw_screen(&screen_id, &mut ui.canvas.buffer);
         }
 
         if let Some(receiver) = &mut self.event_receiver {

@@ -146,8 +146,11 @@ pub fn set_client_externals() {
     codeeditor.add_external(TheExternalCode::new(
         "DrawGame".to_string(),
         "Draws the game in the widget.".to_string(),
-        vec!["Zoom".to_string()],
-        vec![TheValue::Float(1.0)],
+        vec![str!("Mode"), "Zoom".to_string()],
+        vec![
+            TheValue::TextList(0, vec!["2D".to_string(), "3D".to_string()]),
+            TheValue::Float(1.0),
+        ],
         None,
     ));
 

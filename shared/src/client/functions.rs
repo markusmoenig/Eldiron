@@ -1,5 +1,8 @@
 //use crate::prelude::*;
-use super::{CHARACTER, DRAWSETTINGS, FONTS, IMAGES, REGIONS, TILEDRAWER, UPDATE, WIDGETBUFFER};
+use super::{
+    CHARACTER, DRAWSETTINGS, FONTS, IMAGES, PALETTE, REGIONS, RENDERER, TILEDRAWER, UPDATE,
+    WIDGETBUFFER,
+};
 use theframework::prelude::*;
 
 pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
@@ -9,11 +12,15 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
         |stack, _data, _sandbox| {
             let mut buffer = WIDGETBUFFER.write().unwrap();
             let mut update = UPDATE.write().unwrap();
-            let tiledrawer = TILEDRAWER.read().unwrap();
 
             let mut zoom = 1.0;
             if let Some(TheValue::Float(v)) = stack.pop() {
                 zoom = v;
+            }
+
+            let mut mode = 0;
+            if let Some(TheValue::TextList(v, _)) = stack.pop() {
+                mode = v;
             }
 
             if let Some(region) = REGIONS.read().unwrap().get(&update.id) {
@@ -27,21 +34,51 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
 
                 settings.daylight = update.daylight;
 
-                if zoom != 1.0 {
-                    let scaled_width = (buffer.dim().width as f32 / zoom) as i32;
-                    let scaled_height = (buffer.dim().height as f32 / zoom) as i32;
-                    let mut zoom_buffer =
-                        TheRGBABuffer::new(TheDim::new(0, 0, scaled_width, scaled_height));
-                    tiledrawer.draw_region(
-                        &mut zoom_buffer,
+                if mode == 0 {
+                    // 2D
+
+                    let tiledrawer = TILEDRAWER.read().unwrap();
+
+                    if zoom != 1.0 {
+                        let scaled_width = (buffer.dim().width as f32 / zoom) as i32;
+                        let scaled_height = (buffer.dim().height as f32 / zoom) as i32;
+                        let mut zoom_buffer =
+                            TheRGBABuffer::new(TheDim::new(0, 0, scaled_width, scaled_height));
+                        tiledrawer.draw_region(
+                            &mut zoom_buffer,
+                            region,
+                            &mut update,
+                            &mut settings,
+                            true,
+                        );
+                        zoom_buffer.scaled_into(&mut buffer);
+                    } else {
+                        tiledrawer.draw_region(
+                            &mut buffer,
+                            region,
+                            &mut update,
+                            &mut settings,
+                            true,
+                        );
+                    }
+                } else if mode == 1 {
+                    // 3D
+
+                    let mut renderer = RENDERER.write().unwrap();
+
+                    let width = buffer.dim().width as usize;
+                    let height = buffer.dim().height as usize;
+
+                    renderer.render(
+                        &mut buffer,
                         region,
                         &mut update,
                         &mut settings,
+                        width,
+                        height,
                         true,
+                        &PALETTE.read().unwrap(),
                     );
-                    zoom_buffer.scaled_into(&mut buffer);
-                } else {
-                    tiledrawer.draw_region(&mut buffer, region, &mut update, &mut settings, true);
                 }
             }
 

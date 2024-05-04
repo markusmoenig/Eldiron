@@ -9,6 +9,8 @@ lazy_static! {
     pub static ref REGIONS: RwLock<FxHashMap<Uuid, Region>> = RwLock::new(FxHashMap::default());
     pub static ref RNG: Mutex<rand::rngs::StdRng> = Mutex::new(rand::rngs::StdRng::from_entropy());
     pub static ref TILEDRAWER: RwLock<TileDrawer> = RwLock::new(TileDrawer::new());
+    pub static ref PALETTE: RwLock<ThePalette> = RwLock::new(ThePalette::default());
+    pub static ref RENDERER: RwLock<Renderer> = RwLock::new(Renderer::new());
     pub static ref KEY_DOWN: RwLock<Option<String>> = RwLock::new(None);
     pub static ref UPDATE: RwLock<RegionUpdate> = RwLock::new(RegionUpdate::default());
     pub static ref CHARACTER: RwLock<Uuid> = RwLock::new(Uuid::nil());
@@ -70,6 +72,13 @@ impl Client {
             .unwrap()
             .set_tiles(project.extract_tiles());
 
+        RENDERER
+            .write()
+            .unwrap()
+            .set_textures(project.extract_tiles());
+
+        *PALETTE.write().unwrap() = project.palette.clone();
+
         let mut regions = REGIONS.write().unwrap();
         regions.clear();
 
@@ -96,7 +105,8 @@ impl Client {
     }
 
     pub fn update_tiles(&mut self, tiles: FxHashMap<Uuid, TheRGBATile>) {
-        TILEDRAWER.write().unwrap().set_tiles(tiles);
+        TILEDRAWER.write().unwrap().set_tiles(tiles.clone());
+        RENDERER.write().unwrap().set_textures(tiles);
     }
 
     pub fn compile_script_widgets(&mut self, screen: &Screen) {
@@ -143,17 +153,26 @@ impl Client {
         }
     }
 
+    pub fn set_region(&mut self, region: &Uuid) {
+        if let Some(region) = REGIONS.write().unwrap().get_mut(region) {
+            // TODO: Only do this once per region.
+            for (key, model) in region.models.iter_mut() {
+                model.create_voxels(
+                    region.grid_size as u8,
+                    &vec3f(key.0 as f32, key.1 as f32, key.2 as f32),
+                    &self.project.palette,
+                );
+            }
+
+            RENDERER.write().unwrap().set_region(region);
+        }
+    }
+
     pub fn tick(&mut self) {
         DRAWSETTINGS.write().unwrap().anim_counter += 1;
     }
 
-    pub fn draw_screen(
-        &mut self,
-        uuid: &Uuid,
-        buffer: &mut TheRGBABuffer,
-        _tiledrawer: &TileDrawer,
-        _ctx: &mut TheContext,
-    ) {
+    pub fn draw_screen(&mut self, uuid: &Uuid, buffer: &mut TheRGBABuffer) {
         let delta = self.redraw_ms as f32 / self.tick_ms as f32;
 
         let server_tick = UPDATE.read().unwrap().server_tick;
