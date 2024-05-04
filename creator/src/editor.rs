@@ -1326,7 +1326,7 @@ impl TheTrait for Editor {
                             };
 
                             self.project.add_asset(asset);
-                            self.client.set_assets(self.project.assets.clone());
+                            self.client.set_assets(&self.project);
                         } else if id.name == "Tilemap Add" {
                             // Add a new tilemap to the project
                             let mut tilemap = Tilemap::new();

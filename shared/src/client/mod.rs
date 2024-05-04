@@ -71,14 +71,13 @@ impl Client {
             .set_tiles(project.extract_tiles());
 
         let mut regions = REGIONS.write().unwrap();
-
         regions.clear();
 
         for region in &project.regions {
             regions.insert(region.id, region.clone());
         }
 
-        self.set_assets(project.assets.clone());
+        self.set_assets(&project);
 
         self.widgets.clear();
         for screen in project.screens.values() {
@@ -203,18 +202,19 @@ impl Client {
     }
 
     /// Extract the assets and make them available via the static accessors.
-    pub fn set_assets(&mut self, assets: FxHashMap<Uuid, Asset>) {
+    pub fn set_assets(&mut self, project: &Project) {
         IMAGES.write().unwrap().clear();
         FONTS.write().unwrap().clear();
 
-        for tilemap in self.project.tilemaps.iter() {
+        for tilemap in project.tilemaps.iter() {
+            println!("adding {}", tilemap.name);
             IMAGES
                 .write()
                 .unwrap()
                 .insert(tilemap.name.clone(), tilemap.buffer.clone());
         }
 
-        for a in assets.values() {
+        for a in project.assets.values() {
             match &a.buffer {
                 AssetBuffer::Image(buffer) => {
                     IMAGES

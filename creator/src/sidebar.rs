@@ -1188,7 +1188,7 @@ impl Sidebar {
                                     }
                                 }
                                 project.add_asset(asset);
-                                client.set_assets(project.assets.clone());
+                                client.set_assets(project);
                             }
                         }
                     }
