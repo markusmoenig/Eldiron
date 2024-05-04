@@ -959,19 +959,58 @@ impl TileEditor {
         server: &mut Server,
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
-        _project: &Project,
+        project: &Project,
         compute_delta: bool,
     ) {
         if let Some(render_view) = ui.get_render_view("RenderView") {
-            let dim = render_view.dim();
+            let dim = *render_view.dim();
 
-            let zoom: f32 = 1.0;
-            // if let Some(region) = project.get_region(&server_ctx.curr_region) {
-            //     zoom = region.zoom;
-            // }
+            let mut upscale: f32 = 1.5;
+            if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                if let Some(v) = region.regionfx.get(
+                    str!("Renderer"),
+                    str!("Upscale"),
+                    &project.time,
+                    TheInterpolation::Linear,
+                ) {
+                    if let Some(value) = v.to_f32() {
+                        upscale = value;
+                    }
+                }
+            }
 
-            let width = (dim.width as f32 / zoom) as i32;
-            let height = (dim.height as f32 / zoom) as i32;
+            if upscale != 1.0 {
+                let width = (dim.width as f32 / upscale) as i32;
+                let height = (dim.height as f32 / upscale) as i32;
+
+                let b = render_view.render_buffer_mut();
+                b.resize(width, height);
+
+                server.render_region(
+                    &server_ctx.curr_region,
+                    b,
+                    &mut RENDERER.lock().unwrap(),
+                    ctx,
+                    server_ctx,
+                    compute_delta,
+                );
+            } else {
+                let b = render_view.render_buffer_mut();
+                b.resize(dim.width, dim.height);
+
+                server.render_region(
+                    &server_ctx.curr_region,
+                    render_view.render_buffer_mut(),
+                    &mut RENDERER.lock().unwrap(),
+                    ctx,
+                    server_ctx,
+                    compute_delta,
+                );
+            }
+
+            /*
+            let width = (dim.width as f32 / upscale) as i32;
+            let height = (dim.height as f32 / upscale) as i32;
 
             let b = render_view.render_buffer_mut();
             b.resize(width, height);
@@ -983,7 +1022,7 @@ impl TileEditor {
                 ctx,
                 server_ctx,
                 compute_delta,
-            );
+                );*/
         }
     }
 

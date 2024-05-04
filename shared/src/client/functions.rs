@@ -66,19 +66,45 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
 
                     let mut renderer = RENDERER.write().unwrap();
 
-                    let width = buffer.dim().width as usize;
-                    let height = buffer.dim().height as usize;
+                    let mut upscale = 2.0;
+                    if let Some(v) = region.regionfx.get(
+                        str!("Renderer"),
+                        str!("Upscale"),
+                        &settings.time,
+                        TheInterpolation::Linear,
+                    ) {
+                        if let Some(value) = v.to_f32() {
+                            upscale = value;
+                        }
+                    }
 
-                    renderer.render(
-                        &mut buffer,
-                        region,
-                        &mut update,
-                        &mut settings,
-                        width,
-                        height,
-                        true,
-                        &PALETTE.read().unwrap(),
-                    );
+                    if upscale != 1.0 {
+                        let scaled_width = (buffer.dim().width as f32 / upscale) as i32;
+                        let scaled_height = (buffer.dim().height as f32 / upscale) as i32;
+                        let mut upscaled_buffer =
+                            TheRGBABuffer::new(TheDim::new(0, 0, scaled_width, scaled_height));
+
+                        renderer.render(
+                            &mut upscaled_buffer,
+                            region,
+                            &mut update,
+                            &mut settings,
+                            true,
+                            &PALETTE.read().unwrap(),
+                        );
+
+                        upscaled_buffer.scaled_into(&mut buffer);
+                        // upscaled_buffer.scaled_into_linear(&mut buffer);
+                    } else {
+                        renderer.render(
+                            &mut buffer,
+                            region,
+                            &mut update,
+                            &mut settings,
+                            true,
+                            &PALETTE.read().unwrap(),
+                        );
+                    }
                 }
             }
 

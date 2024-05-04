@@ -18,6 +18,8 @@ pub struct RegionDrawSettings {
     pub center_3d: Vec3f,
     pub facing_3d: Vec3f,
 
+    pub pbr: bool,
+
     pub time: TheTime,
     pub center_on_character: Option<Uuid>,
 }
@@ -37,6 +39,8 @@ impl RegionDrawSettings {
 
             center_3d: Vec3f::zero(),
             facing_3d: Vec3f::zero(),
+
+            pbr: false,
 
             time: TheTime::default(),
             center_on_character: None,

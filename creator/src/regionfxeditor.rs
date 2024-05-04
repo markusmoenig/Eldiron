@@ -52,6 +52,10 @@ impl RegionFXEditor {
         let mut list_canvas = TheCanvas::default();
         let mut list_layout = TheListLayout::new(TheId::named("RegionFX List"));
 
+        let mut item = TheListItem::new(TheId::named("RegionFX Renderer"));
+        item.set_text(str!("Renderer"));
+        list_layout.add_item(item, ctx);
+
         let mut item = TheListItem::new(TheId::named("RegionFX Camera"));
         item.set_text(str!("Camera"));
         list_layout.add_item(item, ctx);

@@ -13,6 +13,21 @@ impl RegionFX {
     pub fn new_fx(name: &str, collection: Option<TheCollection>) -> RegionFX {
         let mut coll = TheCollection::named(name.into());
         match name {
+            "Renderer" => {
+                if let Some(collection) = collection {
+                    coll = collection;
+                } else {
+                    coll.set(
+                        "Shading",
+                        TheValue::TextList(0, vec![str!("Pixel Art"), str!("PBR")]),
+                    );
+                    coll.set("Upscale", TheValue::FloatRange(1.5, 1.0..=5.0));
+                }
+                let mut meta = RegionFXMetaData::new();
+                meta.set_description("Shading", str!("The shading model. Pixel Art does not shade the pixels (only for shadows). PBR does physical based shading."));
+                meta.set_description("Upscale", str!("Upscale reduces the resolution of the game and then upscales it. This can be used to create a pixel art look."));
+                RegionFX::Saturation(coll, meta)
+            }
             "Camera" => {
                 if let Some(collection) = collection {
                     coll = collection;

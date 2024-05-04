@@ -226,8 +226,6 @@ impl RegionInstance {
                     region,
                     update,
                     &mut self.draw_settings,
-                    buffer.dim().width as usize,
-                    buffer.dim().height as usize,
                     compute_delta,
                     &self.palette,
                 );

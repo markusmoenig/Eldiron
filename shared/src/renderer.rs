@@ -28,12 +28,13 @@ impl Renderer {
         region: &Region,
         update: &mut RegionUpdate,
         settings: &mut RegionDrawSettings,
-        width: usize,
-        height: usize,
         compute_delta: bool,
         palette: &ThePalette,
     ) {
         let _start = self.get_time();
+
+        let width = buffer.dim().width as usize;
+        let height = buffer.dim().height as usize;
 
         //let stride = buffer.stride();
         let pixels = buffer.pixels_mut();
@@ -54,6 +55,20 @@ impl Renderer {
                 region_height,
                 settings,
             );
+        }
+
+        settings.pbr = false;
+        if let Some(v) = region.regionfx.get(
+            str!("Renderer"),
+            str!("Shading"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_i32() {
+                if value == 1 {
+                    settings.pbr = true;
+                }
+            }
         }
 
         let mut max_render_distance = 20;
@@ -156,7 +171,7 @@ impl Renderer {
             });
 
         let _stop = self.get_time();
-        //println!("render time {:?}", _stop - _start);
+        println!("render time {:?}", _stop - _start);
     }
 
     #[inline(always)]
@@ -176,6 +191,7 @@ impl Renderer {
         let mut color = vec4f(0.0, 0.0, 0.0, 1.0);
         let mut hit_props = Hit::default();
 
+        #[inline(always)]
         fn equal(l: f32, r: Vec3f) -> Vec3f {
             vec3f(
                 if l == r.x { 1.0 } else { 0.0 },
@@ -202,6 +218,11 @@ impl Renderer {
             key = Vec3i::from(i);
 
             if key.y < -1 {
+                break;
+            }
+
+            // First person is limited to 1 y
+            if camera_type == CameraType::FirstPerson && key.y > 1 {
                 break;
             }
 
@@ -542,44 +563,60 @@ impl Renderer {
                             update,
                             settings,
                         ) {
-                            let mut light_color = Vec3f::from(1.5 * light_strength);
-                            if light.color_type == 0 {
-                                light_color *= light.color
-                            }
+                            let c = if settings.pbr {
+                                let mut light_color = Vec3f::from(1.5 * light_strength);
+                                if light.color_type == 0 {
+                                    light_color *= light.color
+                                }
+                                let roughness = hit_props.roughness;
+                                let metallic = hit_props.metallic;
+                                let reflectance = hit_props.reflectance;
+                                let base_color = vec3f(color.x, color.y, color.z);
 
-                            let roughness = hit_props.roughness;
-                            let metallic = hit_props.metallic;
-                            let reflectance = hit_props.reflectance;
-                            let base_color = vec3f(color.x, color.y, color.z);
+                                let f0 = 0.16 * reflectance * reflectance * (1.0 - metallic)
+                                    + base_color * metallic;
 
-                            let f0 = 0.16 * reflectance * reflectance * (1.0 - metallic)
-                                + base_color * metallic;
+                                self.compute_pbr_lighting(
+                                    light_pos,
+                                    light_color,
+                                    ro,
+                                    abs(normal),
+                                    -rd,
+                                    base_color,
+                                    roughness,
+                                    f0,
+                                )
+                            } else {
+                                let mut light_color = Vec3f::from(light_strength);
+                                if light.color_type == 0 {
+                                    light_color *= light.color
+                                }
+                                let intensity =
+                                    1.0 - (light_dist / light.max_distance).clamp(0.0, 1.0);
 
-                            let c = self.compute_pbr_lighting(
-                                light_pos,
-                                light_color,
-                                ro,
-                                abs(normal),
-                                -rd,
-                                base_color,
-                                roughness,
-                                f0,
-                            );
+                                light_color * intensity
+                            };
 
                             total_light += c;
                         }
                     }
                 }
 
-                color = color * daylight + vec4f(total_light.x, total_light.y, total_light.z, 0.0);
+                // color = color * daylight + vec4f(total_light.x, total_light.y, total_light.z, 1.0);
 
-                //
-                // color = clamp(
-                //     color * daylight
-                //         + color * vec4f(total_light.x, total_light.y, total_light.z, 0.0),
-                //     color * daylight,
-                //     color,
-                // );
+                let min_color = vec4f(
+                    color.x * daylight.x,
+                    color.y * daylight.y,
+                    color.z * daylight.z,
+                    1.0,
+                );
+
+                color = clamp(
+                    color * daylight
+                        + color * vec4f(total_light.x, total_light.y, total_light.z, 1.0),
+                    min_color,
+                    color,
+                );
             }
         }
 
@@ -620,6 +657,7 @@ impl Renderer {
         update: &RegionUpdate,
         settings: &RegionDrawSettings,
     ) -> bool {
+        #[inline(always)]
         fn equal(l: f32, r: Vec3f) -> Vec3f {
             vec3f(
                 if l == r.x { 1.0 } else { 0.0 },
@@ -641,7 +679,7 @@ impl Renderer {
 
         let mut key: Vec3<i32>;
 
-        for _ii in 0..light.max_distance as i32 {
+        for _ in 0..light.max_distance as i32 {
             key = Vec3i::from(i);
 
             if key == light_pos {
@@ -649,7 +687,11 @@ impl Renderer {
             }
 
             if key.y < -1 {
-                break;
+                return false;
+            }
+
+            if key.y > 1 {
+                return false;
             }
 
             if let Some(model) = region.models.get(&(key.x, key.y, key.z)) {
