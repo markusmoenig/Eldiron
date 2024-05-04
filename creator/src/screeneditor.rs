@@ -187,32 +187,6 @@ impl ScreenEditor {
         vlayout.set_reverse_index(Some(1));
 
         details_canvas.set_layout(vlayout);
-
-        // Details Toolbar
-        /*
-        let mut details_toolbar = TheCanvas::new();
-        details_toolbar.set_widget(TheTraybar::new(TheId::empty()));
-
-        let mut move_up_button: TheTraybarButton =
-            TheTraybarButton::new(TheId::named("Widget Move Up"));
-        move_up_button.set_text("Up".to_string());
-        move_up_button.set_status_text("Move the widget up.");
-
-        let mut move_down_button: TheTraybarButton =
-            TheTraybarButton::new(TheId::named("Widget Move Down"));
-        move_down_button.set_text("Down".to_string());
-        move_down_button.set_status_text("Move the widget down.");
-
-        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
-        toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 4, 5, 4));
-
-        toolbar_hlayout.add_widget(Box::new(move_up_button));
-        toolbar_hlayout.add_widget(Box::new(move_down_button));
-
-        details_toolbar.set_layout(toolbar_hlayout);
-        details_canvas.set_bottom(details_toolbar);
-        */
         center.set_left(details_canvas);
 
         center
@@ -476,8 +450,8 @@ impl ScreenEditor {
                             if index > 0 {
                                 screen.widget_list.swap(index, index - 1);
                                 client.update_screen(screen);
-                                // TODO: update list
                                 ui.select_first_list_item("Screen List", ctx);
+                                // ui.select_list_item_at("Screen List", index as i32 - 1, ctx);
                             }
                         }
                     }
@@ -494,8 +468,8 @@ impl ScreenEditor {
                             if index < screen.widget_list.len() - 1 {
                                 screen.widget_list.swap(index, index + 1);
                                 client.update_screen(screen);
-                                // TODO: update list
                                 ui.select_first_list_item("Screen List", ctx);
+                                //ui.select_list_item("Screen List", &widget_id, ctx);
                             }
                         }
                     }
@@ -587,33 +561,29 @@ impl ScreenEditor {
 
                     if self.draw_outlines {
                         if let Some(screen) = project.screens.get(&server_ctx.curr_screen) {
-                            let gs = screen.grid_size as usize;
+                            let gs = screen.grid_size;
                             for widget in &screen.widget_list {
-                                let x = (widget.x * gs as f32).max(0.0) as usize;
-                                let y = (widget.y * gs as f32).max(0.0) as usize;
-                                let width = widget.width as usize;
-                                let height = widget.height as usize;
+                                let x = (widget.x * gs as f32).max(0.0) as i32;
+                                let y = (widget.y * gs as f32).max(0.0) as i32;
+                                let width = widget.width as i32;
+                                let height = widget.height as i32;
 
                                 if Some(widget.id) != server_ctx.curr_widget {
-                                    ctx.draw.rect_outline(
-                                        rgba_view.buffer_mut().pixels_mut(),
-                                        &(x, y, width * gs, height * gs),
-                                        screen.width as usize,
+                                    rgba_view.buffer_mut().rect_outline(
+                                        &TheDim::new(x, y, width * gs, height * gs),
                                         &[128, 128, 128, 255],
                                     );
                                 }
                             }
                             for widget in &screen.widget_list {
-                                let x = (widget.x * gs as f32).max(0.0) as usize;
-                                let y = (widget.y * gs as f32).max(0.0) as usize;
-                                let width = widget.width as usize;
-                                let height = widget.height as usize;
+                                let x = (widget.x * gs as f32).max(0.0) as i32;
+                                let y = (widget.y * gs as f32).max(0.0) as i32;
+                                let width = widget.width as i32;
+                                let height = widget.height as i32;
 
                                 if Some(widget.id) == server_ctx.curr_widget {
-                                    ctx.draw.rect_outline(
-                                        rgba_view.buffer_mut().pixels_mut(),
-                                        &(x, y, width * gs, height * gs),
-                                        screen.width as usize,
+                                    rgba_view.buffer_mut().rect_outline(
+                                        &TheDim::new(x, y, width * gs, height * gs),
                                         &[255, 255, 255, 255],
                                     );
                                 }

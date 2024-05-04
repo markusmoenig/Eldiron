@@ -558,12 +558,25 @@ impl Sidebar {
         widget_remove_button.set_status_text("Remove the current widget.");
         widget_remove_button.set_disabled(true);
 
+        let mut move_up_button: TheTraybarButton =
+            TheTraybarButton::new(TheId::named("Widget Move Up"));
+        move_up_button.set_icon_name("caret-up".to_string());
+        move_up_button.set_status_text("Move the widget up.");
+
+        let mut move_down_button: TheTraybarButton =
+            TheTraybarButton::new(TheId::named("Widget Move Down"));
+        move_down_button.set_icon_name("caret-down".to_string());
+        move_down_button.set_status_text("Move the widget down.");
+
         let mut widget_bottom_toolbar_hlayout = TheHLayout::new(TheId::empty());
         widget_bottom_toolbar_hlayout.set_background_color(None);
         widget_bottom_toolbar_hlayout.set_margin(vec4i(5, 2, 5, 2));
         widget_bottom_toolbar_hlayout.add_widget(Box::new(widget_add_button));
         widget_bottom_toolbar_hlayout.add_widget(Box::new(widget_remove_button));
+        widget_bottom_toolbar_hlayout.add_widget(Box::new(move_up_button));
+        widget_bottom_toolbar_hlayout.add_widget(Box::new(move_down_button));
         //toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+        widget_bottom_toolbar_hlayout.set_reverse_index(Some(2));
 
         let mut widget_bottom_toolbar_canvas = TheCanvas::default();
         widget_bottom_toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
