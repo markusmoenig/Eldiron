@@ -229,4 +229,25 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
         },
         vec![],
     );
+
+    // Create a button object
+    compiler.add_external_call(
+        "CreateBttn".to_string(),
+        |stack, _data, _sandbox| {
+            let mut button_name = str!("Button");
+            if let Some(v) = stack.pop() {
+                if let Some(name) = v.to_string() {
+                    button_name.clone_from(&name);
+                }
+            }
+
+            let mut object = TheCodeObject::new();
+            object.set(str!("_type"), TheValue::Text(str!("Button")));
+            object.set(str!("name"), TheValue::Text(button_name));
+            stack.push(TheValue::CodeObject(object));
+
+            TheCodeNodeCallResult::Continue
+        },
+        vec![TheValue::CodeObject(TheCodeObject::default())],
+    );
 }

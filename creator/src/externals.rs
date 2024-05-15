@@ -191,6 +191,14 @@ pub fn set_client_externals() {
     ));
 
     codeeditor.add_external(TheExternalCode::new(
+        "CreateBttn".to_string(),
+        "Creates the button of the given name.".to_string(),
+        vec![str!("Name")],
+        vec![TheValue::Text(str!("name"))],
+        Some(TheValue::CodeObject(TheCodeObject::default())),
+    ));
+
+    codeeditor.add_external(TheExternalCode::new(
         "DrawImg".to_string(),
         "Draws an image into the widget at the given position.".to_string(),
         vec!["Image".to_string(), "Position".to_string()],
