@@ -2162,7 +2162,7 @@ impl Sidebar {
                                 // We need to take the module name out of the bundle to make sure
                                 // to handle renames correctly.
                                 if let Some(g) = bundle.get_grid(&grid.id) {
-                                    module.name = g.name.clone();
+                                    module.name.clone_from(&g.name);
                                 }
 
                                 // Successfully compiled, transfer the bundle to the server.

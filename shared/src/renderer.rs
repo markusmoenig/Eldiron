@@ -171,7 +171,7 @@ impl Renderer {
             });
 
         let _stop = self.get_time();
-        println!("render time {:?}", _stop - _start);
+        //println!("render time {:?}", _stop - _start);
     }
 
     #[inline(always)]

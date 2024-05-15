@@ -827,7 +827,7 @@ impl TheTrait for Editor {
 
                             let mut name = "Character".to_string();
                             if let Some(character) = self.project.characters.get(&drop.id.uuid) {
-                                name = character.name.clone();
+                                name.clone_from(&character.name);
                             }
 
                             if let Some(list) = ui.get_list_layout("Region Content List") {
@@ -921,7 +921,7 @@ impl TheTrait for Editor {
 
                             let mut name = "Item".to_string();
                             if let Some(item) = self.project.items.get(&drop.id.uuid) {
-                                name = item.name.clone();
+                                name.clone_from(&item.name);
                             }
 
                             if let Some(list) = ui.get_list_layout("Region Content List") {

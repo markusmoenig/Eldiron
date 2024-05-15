@@ -203,13 +203,13 @@ impl Server {
         let mut packages = FxHashMap::default();
         for bundle in bundles.values_mut() {
             let mut package = TheCodePackage::new();
-            package.name = bundle.name.clone();
+            package.name.clone_from(&bundle.name);
             package.id = bundle.id;
 
             for grid in bundle.grids.values_mut() {
                 let rc = self.compiler.compile(grid);
                 if let Ok(mut module) = rc {
-                    module.name = grid.name.clone();
+                    module.name.clone_from(&grid.name);
                     package.insert_module(module.name.clone(), module);
                 } else if let Err(e) = rc {
                     println!(
@@ -227,13 +227,13 @@ impl Server {
     /// Updates a code bundle and provides it to all instances and the compiler.
     pub fn update_bundle(&mut self, mut bundle: TheCodeBundle) {
         let mut package = TheCodePackage::new();
-        package.name = bundle.name.clone();
+        package.name.clone_from(&bundle.name);
         package.id = bundle.id;
 
         for grid in bundle.grids.values_mut() {
             let rc = self.compiler.compile(grid);
             if let Ok(mut module) = rc {
-                module.name = grid.name.clone();
+                module.name.clone_from(&grid.name);
                 package.insert_module(module.name.clone(), module);
             } else if let Err(e) = rc {
                 println!(
@@ -386,7 +386,7 @@ impl Server {
         for grid in character.grids.values_mut() {
             let rc = self.compiler.compile(grid);
             if let Ok(mut module) = rc {
-                module.name = grid.name.clone();
+                module.name.clone_from(&grid.name);
                 println!(
                     "RegionInstance::add_character: Compiled grid module: {}",
                     grid.name
@@ -433,7 +433,7 @@ impl Server {
         for grid in item.grids.values_mut() {
             let rc = self.compiler.compile(grid);
             if let Ok(mut module) = rc {
-                module.name = grid.name.clone();
+                module.name.clone_from(&grid.name);
                 println!(
                     "RegionInstance::insert_item: Compiled grid module: {}",
                     grid.name

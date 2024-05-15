@@ -137,7 +137,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
 
             let mut text = str!("text");
             if let Some(TheValue::Text(t)) = stack.pop() {
-                text = t.clone();
+                text.clone_from(&t);
             }
 
             let mut size = 12.0;
@@ -147,7 +147,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
 
             let mut font_name = str!("font");
             if let Some(TheValue::Text(t)) = stack.pop() {
-                font_name = t.clone();
+                font_name.clone_from(&t);
             }
 
             if let Some(font) = FONTS.read().unwrap().get(&font_name) {
@@ -174,7 +174,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
 
             let mut image_name = str!("image");
             if let Some(TheValue::Text(v)) = stack.pop() {
-                image_name = v.clone();
+                image_name.clone_from(&v);
             }
 
             if let Some(image) = IMAGES.read().unwrap().get(&image_name) {

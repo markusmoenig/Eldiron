@@ -102,7 +102,7 @@ impl RegionInstance {
 
         // Set the sandbox id to our region id.
         self.sandbox.id = id;
-        self.sandbox.packages = packages.clone();
+        self.sandbox.packages.clone_from(packages);
 
         self.tick_ms = project.tick_ms;
         self.redraw_ms = 1000 / project.target_fps;
@@ -338,7 +338,7 @@ impl RegionInstance {
         for grid in area.bundle.grids.values_mut() {
             let rc = compiler.compile(grid);
             if let Ok(mut module) = rc {
-                module.name = grid.name.clone();
+                module.name.clone_from(&grid.name);
                 println!(
                     "RegionInstance::insert_area: Compiled grid module: {}",
                     grid.name
@@ -424,7 +424,7 @@ impl RegionInstance {
         for grid in character.instance.grids.values_mut() {
             let rc = compiler.compile(grid);
             if let Ok(mut module) = rc {
-                module.name = grid.name.clone();
+                module.name.clone_from(&grid.name);
                 println!(
                     "RegionInstance::add_character_instance: Compiled grid module: {}",
                     grid.name
@@ -480,7 +480,7 @@ impl RegionInstance {
         for grid in item.instance.grids.values_mut() {
             let rc = compiler.compile(grid);
             if let Ok(mut module) = rc {
-                module.name = grid.name.clone();
+                module.name.clone_from(&grid.name);
                 println!(
                     "RegionInstance::add_item_instance: Compiled grid module: {}",
                     grid.name
@@ -532,7 +532,7 @@ impl RegionInstance {
             for grid in bundle.grids.values_mut() {
                 let rc = compiler.compile(grid);
                 if let Ok(mut module) = rc {
-                    module.name = grid.name.clone();
+                    module.name.clone_from(&grid.name);
                     println!(
                         "RegionInstance::add_character_instance: Compiled grid module: {}",
                         grid.name
@@ -576,7 +576,7 @@ impl RegionInstance {
             for grid in bundle.grids.values_mut() {
                 let rc = compiler.compile(grid);
                 if let Ok(mut module) = rc {
-                    module.name = grid.name.clone();
+                    module.name.clone_from(&grid.name);
                     println!(
                         "RegionInstance::update_item_instance: Compiled grid module: {}",
                         grid.name
@@ -745,10 +745,10 @@ impl RegionInstance {
                 character_update.position = vec2f(p.x, p.z);
             }
             if let Some(TheValue::Text(t)) = object.get(&"name".into()) {
-                character_update.name = t.clone();
+                character_update.name.clone_from(t);
             }
             if let Some(TheValue::Tile(name, _id)) = object.get_mut(&"tile".into()) {
-                character_update.tile_name = name.clone();
+                character_update.tile_name.clone_from(name);
             }
 
             character_update.id = character;
@@ -767,10 +767,10 @@ impl RegionInstance {
                 item_update.position = vec2f(p.x, p.z);
             }
             if let Some(TheValue::Text(t)) = item_object.get(&"name".into()) {
-                item_update.name = t.clone();
+                item_update.name.clone_from(t);
             }
             if let Some(TheValue::Tile(name, id)) = item_object.get_mut(&"tile".into()) {
-                item_update.tile_name = name.clone();
+                item_update.tile_name.clone_from(name);
                 item_update.tile_id = *id;
             }
 

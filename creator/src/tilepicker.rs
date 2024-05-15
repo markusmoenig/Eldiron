@@ -307,7 +307,7 @@ impl TilePicker {
                     if let Some(tile_id) = self.curr_tile {
                         if let Some(tile) = project.get_tile_mut(&tile_id) {
                             if let TheValue::Text(tags) = value {
-                                tile.name = tags.clone();
+                                tile.name.clone_from(tags);
                             }
                         }
                     }

@@ -70,14 +70,13 @@ impl SelfUpdater {
                     if bump_is_greater(&acc.version, &release.version).unwrap() {
                         return release;
                     }
-    
+
                     acc
                 })
                 .cloned();
 
-            return Ok(())
+            return Ok(());
         }
-
 
         release_list.and(Ok(()))
     }
@@ -117,11 +116,12 @@ impl SelfUpdater {
 
         self.locked = true;
 
-        let result = self.build_update(&release.name)
+        let result = self
+            .build_update(&release.name)
             .and_then(|release_update| release_update.update());
 
         if result.is_ok() {
-            self.current_version = release.version.clone();
+            self.current_version.clone_from(&release.version);
         }
 
         self.locked = false;

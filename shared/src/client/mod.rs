@@ -119,7 +119,7 @@ impl Client {
             for grid in bundle.grids.values_mut() {
                 let rc = self.compiler.compile(grid);
                 if let Ok(mut module) = rc {
-                    module.name = grid.name.clone();
+                    module.name.clone_from(&grid.name);
                     println!("Client::screen_widget: Compiled grid module: {}", grid.name);
                     package.insert_module(module.name.clone(), module);
                 } else {
