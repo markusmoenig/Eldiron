@@ -244,6 +244,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
             let mut object = TheCodeObject::new();
             object.set(str!("_type"), TheValue::Text(str!("Button")));
             object.set(str!("name"), TheValue::Text(button_name));
+            object.set(str!("state"), TheValue::Text(str!("normal")));
             stack.push(TheValue::CodeObject(object));
 
             TheCodeNodeCallResult::Continue

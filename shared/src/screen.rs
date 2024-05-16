@@ -14,12 +14,21 @@ pub struct Screen {
     pub scroll_offset: Vec2i,
     pub zoom: f32,
 
+    /// The tiles which get drawn in the background, i.e. before widgets are drawn.
     #[serde(with = "vectorize")]
     #[serde(default)]
     pub tiles: FxHashMap<(i32, i32), Vec<Uuid>>,
 
+    /// The tiles which get drawn in the foreground, i.e. after widgets are drawn.
+    #[serde(with = "vectorize")]
+    #[serde(default)]
+    pub foreground_tiles: FxHashMap<(i32, i32), Vec<Uuid>>,
+
     #[serde(default)]
     pub widget_list: Vec<Widget>,
+
+    #[serde(default)]
+    pub bundle: TheCodeBundle,
 }
 
 impl Default for Screen {
@@ -43,8 +52,11 @@ impl Screen {
             zoom: 1.0,
 
             tiles: FxHashMap::default(),
+            foreground_tiles: FxHashMap::default(),
 
             widget_list: vec![],
+
+            bundle: TheCodeBundle::default(),
         }
     }
 
@@ -76,8 +88,8 @@ impl Screen {
         widgets
     }
 
-    /// Add a tile to the widget.
-    pub fn add_tile(&mut self, pos: (i32, i32), tile: Uuid) {
+    /// Add a background tile to the screen.
+    pub fn add_background_tile(&mut self, pos: (i32, i32), tile: Uuid) {
         if let Some(tiles) = self.tiles.get_mut(&pos) {
             tiles.push(tile);
         } else {
@@ -85,9 +97,23 @@ impl Screen {
         }
     }
 
-    /// Erase a tile from the widget.
-    pub fn erase_tile(&mut self, pos: (i32, i32)) {
+    /// Add a foreground tile to the screen.
+    pub fn add_foreground_tile(&mut self, pos: (i32, i32), tile: Uuid) {
+        if let Some(tiles) = self.foreground_tiles.get_mut(&pos) {
+            tiles.push(tile);
+        } else {
+            self.foreground_tiles.insert(pos, vec![tile]);
+        }
+    }
+
+    /// Erase a background tile from the widget.
+    pub fn erase_background_tile(&mut self, pos: (i32, i32)) {
         self.tiles.remove(&pos);
+    }
+
+    /// Erase a foreground tile from the widget.
+    pub fn erase_foreground_tile(&mut self, pos: (i32, i32)) {
+        self.foreground_tiles.remove(&pos);
     }
 
     /// Create a region from json.

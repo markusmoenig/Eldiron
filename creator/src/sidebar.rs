@@ -2713,12 +2713,12 @@ impl Sidebar {
                 ui.set_widget_disabled_state("Widget Remove", ctx, false);
             }
 
-            if let Some(zoom) = ui.get_widget("Screen Editor Zoom") {
-                zoom.set_value(TheValue::Float(screen.zoom));
-            }
+            // if let Some(zoom) = ui.get_widget("Screen Editor Zoom") {
+            //zoom.set_value(TheValue::Float(screen.zoom));
+            // }
             if let Some(rgba_layout) = ui.get_rgba_layout("Screen Editor") {
                 if let Some(rgba) = rgba_layout.rgba_view_mut().as_rgba_view() {
-                    rgba.set_zoom(screen.zoom);
+                    //rgba.set_zoom(screen.zoom);
                     rgba.set_grid(Some(screen.grid_size));
                 }
                 rgba_layout.scroll_to(screen.scroll_offset);
@@ -2779,12 +2779,14 @@ impl Sidebar {
             }
 
             // Activate the current widget
-            if let Some(selected) = list.selected() {
-                ctx.ui
-                    .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
-            } else {
-                list.select_first_item(ctx);
-            }
+            // Disabled for now to show screen bundle by default.
+
+            // if let Some(selected) = list.selected() {
+            //     ctx.ui
+            //         .send(TheEvent::StateChanged(selected, TheWidgetState::Selected));
+            // } else {
+            //     list.select_first_item(ctx);
+            // }
         }
 
         ctx.ui.relayout = true;

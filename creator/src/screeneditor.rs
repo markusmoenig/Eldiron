@@ -11,8 +11,15 @@ enum ScreenEditorMode {
     Erase,
 }
 
+#[derive(PartialEq, Clone, Copy, Debug)]
+enum ScreenEditorDrawingMode {
+    Background,
+    Foreground,
+}
+
 pub struct ScreenEditor {
     editor_mode: ScreenEditorMode,
+    drawing_mode: ScreenEditorDrawingMode,
     draw_outlines: bool,
     curr_tile_uuid: Option<Uuid>,
 }
@@ -22,6 +29,7 @@ impl ScreenEditor {
     pub fn new() -> Self {
         Self {
             editor_mode: ScreenEditorMode::Draw,
+            drawing_mode: ScreenEditorDrawingMode::Background,
             draw_outlines: true,
             curr_tile_uuid: None,
         }
@@ -64,19 +72,19 @@ impl ScreenEditor {
         //max_text.set_text_size(12.0);
         max_text.set_text(format!("Screen Grid: {0} x {1}", 0, 0));
 
-        let mut zoom = TheSlider::new(TheId::named("Screen Editor Zoom"));
-        zoom.set_value(TheValue::Float(1.0));
-        zoom.set_default_value(TheValue::Float(1.0));
-        zoom.set_range(TheValue::RangeF32(0.3..=3.0));
-        zoom.set_continuous(true);
-        zoom.limiter_mut().set_max_width(120);
+        // let mut zoom = TheSlider::new(TheId::named("Screen Editor Zoom"));
+        // zoom.set_value(TheValue::Float(1.0));
+        // zoom.set_default_value(TheValue::Float(1.0));
+        // zoom.set_range(TheValue::RangeF32(0.3..=3.0));
+        // zoom.set_continuous(true);
+        // zoom.limiter_mut().set_max_width(120);
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
         toolbar_hlayout.set_margin(vec4i(10, 4, 5, 4));
         //toolbar_hlayout.add_widget(Box::new(gb));
         toolbar_hlayout.add_widget(Box::new(max_text));
-        toolbar_hlayout.add_widget(Box::new(zoom));
+        //toolbar_hlayout.add_widget(Box::new(zoom));
         toolbar_hlayout.set_reverse_index(Some(1));
 
         top_toolbar.set_layout(toolbar_hlayout);
@@ -89,7 +97,7 @@ impl ScreenEditor {
         let mut gb = TheGroupButton::new(TheId::named("Screen Editor Group"));
         gb.add_text_status_icon(
             "Draw".to_string(),
-            "Draw a tile into the widget.".to_string(),
+            "Draw a tile into the screen, either in the background or foreground.".to_string(),
             "draw".to_string(),
         );
         gb.add_text_status_icon(
@@ -109,6 +117,17 @@ impl ScreenEditor {
         );
         gb.set_item_width(75);
 
+        let mut layer_gb = TheGroupButton::new(TheId::named("Screen Editor Layer Group"));
+        layer_gb.add_text_status(
+            "Background".to_string(),
+            "Drawing works on the background tiles (before widgets are drawn).".to_string(),
+        );
+        layer_gb.add_text_status(
+            "Foreground".to_string(),
+            "Drawing works on the foreground tiles (after widgets are drawn).".to_string(),
+        );
+        layer_gb.set_item_width(100);
+
         let mut drop_down = TheDropdownMenu::new(TheId::named("Widget Outlines"));
         drop_down.add_option("Show Outlines".to_string());
         drop_down.add_option("No Outlines".to_string());
@@ -116,8 +135,14 @@ impl ScreenEditor {
 
         let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
         toolbar_hlayout.set_background_color(None);
-        toolbar_hlayout.set_margin(vec4i(5, 4, 5, 4));
+        toolbar_hlayout.set_margin(vec4i(10, 4, 10, 4));
         toolbar_hlayout.add_widget(Box::new(gb));
+
+        let mut spacer = TheSpacer::new(TheId::empty());
+        spacer.limiter_mut().set_max_size(vec2i(10, 5));
+        toolbar_hlayout.add_widget(Box::new(spacer));
+
+        toolbar_hlayout.add_widget(Box::new(layer_gb));
         toolbar_hlayout.add_widget(Box::new(drop_down));
         toolbar_hlayout.set_reverse_index(Some(1));
 
@@ -207,8 +232,13 @@ impl ScreenEditor {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Widget Outlines" {
                     self.draw_outlines = *index == 0;
-                }
-                if id.name == "Screen Editor Group" {
+                } else if id.name == "Screen Editor LayerGroup" {
+                    if *index == ScreenEditorDrawingMode::Background as usize {
+                        self.drawing_mode = ScreenEditorDrawingMode::Background;
+                    } else if *index == ScreenEditorDrawingMode::Foreground as usize {
+                        self.drawing_mode = ScreenEditorDrawingMode::Foreground;
+                    }
+                } else if id.name == "Screen Editor Group" {
                     if let Some(rgba_layout) = ui.get_rgba_layout("Screen Editor") {
                         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
                             if *index == ScreenEditorMode::Draw as usize {
@@ -236,7 +266,11 @@ impl ScreenEditor {
                 if self.editor_mode == ScreenEditorMode::Draw {
                     if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
                         if let Some(tile_id) = self.curr_tile_uuid {
-                            screen.add_tile((coord.x, coord.y), tile_id);
+                            if self.drawing_mode == ScreenEditorDrawingMode::Background {
+                                screen.add_background_tile((coord.x, coord.y), tile_id);
+                            } else if self.drawing_mode == ScreenEditorDrawingMode::Foreground {
+                                screen.add_foreground_tile((coord.x, coord.y), tile_id);
+                            }
                             client.update_screen(screen);
                             redraw = true;
                         }
@@ -248,7 +282,11 @@ impl ScreenEditor {
                         if self.editor_mode == ScreenEditorMode::Erase
                             && screen.tiles.contains_key(&(coord.x, coord.y))
                         {
-                            screen.erase_tile((coord.x, coord.y));
+                            if self.drawing_mode == ScreenEditorDrawingMode::Background {
+                                screen.erase_background_tile((coord.x, coord.y));
+                            } else if self.drawing_mode == ScreenEditorDrawingMode::Foreground {
+                                screen.erase_foreground_tile((coord.x, coord.y));
+                            }
                             client.update_screen(screen);
                             redraw = true;
                         }
@@ -271,6 +309,16 @@ impl ScreenEditor {
                                     }*/
                             }
                         }
+                    }
+                }
+
+                // Handle actual game interaction
+                if self.editor_mode == ScreenEditorMode::Pick {
+                    if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
+                        client.touch_down(
+                            &server_ctx.curr_screen,
+                            vec2i(coord.x * screen.grid_size, coord.y * screen.grid_size),
+                        );
                     }
                 }
             }
@@ -503,6 +551,35 @@ impl ScreenEditor {
                                 screen.height / screen.grid_size
                             )),
                         );
+
+                        if screen.bundle.grids.is_empty() {
+                            let init = TheCodeGrid {
+                                name: "init".into(),
+                                ..Default::default()
+                            };
+                            screen.bundle.insert_grid(init);
+
+                            let draw = TheCodeGrid {
+                                name: "draw".into(),
+                                ..Default::default()
+                            };
+                            screen.bundle.insert_grid(draw);
+                        }
+
+                        let screen_list_canvas: TheCanvas = CODEEDITOR.lock().unwrap().set_bundle(
+                            screen.bundle.clone(),
+                            ctx,
+                            380,
+                            Some(200),
+                        );
+
+                        if let Some(stack_layout) = ui.get_stack_layout("List Stack Layout") {
+                            if let Some(canvas) =
+                                stack_layout.canvas_at_mut(SidebarMode::Screen as usize)
+                            {
+                                canvas.set_bottom(screen_list_canvas);
+                            }
+                        }
                         //self.redraw_region(ui, server, ctx, server_ctx);
                         redraw = true;
                     }
