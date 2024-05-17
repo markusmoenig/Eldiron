@@ -189,6 +189,54 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
     );
 
     compiler.add_external_call(
+        "CreateTile".to_string(),
+        |stack, _data, _sandbox| {
+            let mut tags = "".to_string();
+            if let Some(TheValue::Text(t)) = stack.pop() {
+                tags = t.to_lowercase();
+            }
+
+            let mut category = 0;
+            if let Some(TheValue::TextList(c, _)) = stack.pop() {
+                category = c;
+            }
+
+            if let Some(value) = TILEDRAWER
+                .read()
+                .unwrap()
+                .get_tile_by_tags(category as u8, &tags)
+            {
+                stack.push(value);
+            }
+
+            TheCodeNodeCallResult::Continue
+        },
+        vec![],
+    );
+
+    compiler.add_external_call(
+        "Command".to_string(),
+        |stack, _data, _sandbox| {
+            let mut _cmd = "".to_string();
+            if let Some(TheValue::Text(t)) = stack.pop() {
+                _cmd = t.to_lowercase();
+            }
+
+            /*
+            if let Some(value) = TILEDRAWER
+                .read()
+                .unwrap()
+                .get_tile_by_tags(category as u8, &tags)
+            {
+                stack.push(value);
+                }*/
+
+            TheCodeNodeCallResult::Continue
+        },
+        vec![],
+    );
+
+    compiler.add_external_call(
         "DrawImg".to_string(),
         |stack, _data, _sandbox| {
             let mut buffer = WIDGETBUFFER.write().unwrap();
@@ -198,12 +246,14 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
                 pos = v;
             }
 
-            let mut image_buffer = TheRGBABuffer::default();
-            if let Some(TheValue::Image(v)) = stack.pop() {
-                image_buffer = v.clone();
+            let value = stack.pop();
+            if let Some(TheValue::Image(image_buffer)) = value {
+                buffer.copy_into(pos.x, pos.y, &image_buffer);
+            } else if let Some(TheValue::Tile(_, id)) = value {
+                if let Some(image_buffer) = TILEDRAWER.read().unwrap().get_tile(&id) {
+                    buffer.copy_into(pos.x, pos.y, &image_buffer.buffer[0]);
+                }
             }
-
-            buffer.copy_into(pos.x, pos.y, &image_buffer);
 
             TheCodeNodeCallResult::Continue
         },
@@ -228,27 +278,5 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
             TheCodeNodeCallResult::Continue
         },
         vec![],
-    );
-
-    // Create a button object
-    compiler.add_external_call(
-        "CreateBttn".to_string(),
-        |stack, _data, _sandbox| {
-            let mut button_name = str!("Button");
-            if let Some(v) = stack.pop() {
-                if let Some(name) = v.to_string() {
-                    button_name.clone_from(&name);
-                }
-            }
-
-            let mut object = TheCodeObject::new();
-            object.set(str!("_type"), TheValue::Text(str!("Button")));
-            object.set(str!("name"), TheValue::Text(button_name));
-            object.set(str!("state"), TheValue::Text(str!("normal")));
-            stack.push(TheValue::CodeObject(object));
-
-            TheCodeNodeCallResult::Continue
-        },
-        vec![TheValue::CodeObject(TheCodeObject::default())],
     );
 }

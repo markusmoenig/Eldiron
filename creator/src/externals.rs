@@ -191,16 +191,42 @@ pub fn set_client_externals() {
     ));
 
     codeeditor.add_external(TheExternalCode::new(
-        "CreateBttn".to_string(),
-        "Creates the button of the given name.".to_string(),
-        vec![str!("Name")],
-        vec![TheValue::Text(str!("name"))],
-        Some(TheValue::CodeObject(TheCodeObject::default())),
+        "CreateTile".to_string(),
+        "Creates a tile from the given tile tags and category.".to_string(),
+        vec!["Category".to_string(), "Tags".to_string()],
+        vec![
+            TheValue::TextList(
+                0,
+                vec![
+                    "All".to_string(),
+                    "Character".to_string(),
+                    "Nature".to_string(),
+                    "Mountain".to_string(),
+                    "Road".to_string(),
+                    "Water".to_string(),
+                    "Man Made".to_string(),
+                    "Dungeon".to_string(),
+                    "Effect".to_string(),
+                    "Icon".to_string(),
+                    "UI".to_string(),
+                ],
+            ),
+            TheValue::Text("tags".to_string()),
+        ],
+        Some(TheValue::Image(TheRGBABuffer::default())),
+    ));
+
+    codeeditor.add_external(TheExternalCode::new(
+        "Command".to_string(),
+        "Sends the given command string to the server.".to_string(),
+        vec!["Execute".to_string()],
+        vec![TheValue::Text("".to_string())],
+        None,
     ));
 
     codeeditor.add_external(TheExternalCode::new(
         "DrawImg".to_string(),
-        "Draws an image into the widget at the given position.".to_string(),
+        "Draws an image (or a tile) into the widget at the given position.".to_string(),
         vec!["Image".to_string(), "Position".to_string()],
         vec![
             TheValue::Image(TheRGBABuffer::default()),

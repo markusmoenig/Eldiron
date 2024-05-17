@@ -204,6 +204,45 @@ impl Client {
         DRAWSETTINGS.write().unwrap().anim_counter += 1;
     }
 
+    /// Extract the assets and make them available via the static accessors.
+    pub fn set_assets(&mut self, project: &Project) {
+        IMAGES.write().unwrap().clear();
+        FONTS.write().unwrap().clear();
+
+        for tilemap in project.tilemaps.iter() {
+            println!("adding {}", tilemap.name);
+            IMAGES
+                .write()
+                .unwrap()
+                .insert(tilemap.name.clone(), tilemap.buffer.clone());
+        }
+
+        for a in project.assets.values() {
+            match &a.buffer {
+                AssetBuffer::Image(buffer) => {
+                    IMAGES
+                        .write()
+                        .unwrap()
+                        .insert(a.name.clone(), buffer.clone());
+                }
+                AssetBuffer::Font(buffer) => {
+                    if let Ok(font) =
+                        fontdue::Font::from_bytes(buffer.clone(), fontdue::FontSettings::default())
+                    {
+                        FONTS.write().unwrap().insert(a.name.clone(), font);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Returns a mutable reference to the compiler.
+    pub fn compiler(&mut self) -> &mut TheCompiler {
+        &mut self.compiler
+    }
+
+    /// Draw the given screen.
     pub fn draw_screen(&mut self, uuid: &Uuid, buffer: &mut TheRGBABuffer) {
         let delta = self.redraw_ms as f32 / self.tick_ms as f32;
 
@@ -269,21 +308,19 @@ impl Client {
 
                 // Draw Buttons
                 if let Some(object) = self.sandbox.objects.get_mut(&widget.id) {
-                    for (_, value) in object.values.iter() {
-                        if let TheValue::CodeObject(obj) = value {
-                            if let Some(TheValue::Text(typ)) = obj.get(&"_type".to_string()) {
-                                if typ == "Button" {
-                                    if let Some(TheValue::Position(p)) =
-                                        obj.get(&"position".to_string())
-                                    {
-                                        if let Some(TheValue::Image(image)) =
-                                            obj.get(&"normal".to_string())
-                                        {
-                                            buffer.copy_into(p.x as i32, p.z as i32, image);
-                                        }
-                                    }
-                                }
+                    let mut image = "imgNormal".to_string();
+                    if let Some(TheValue::Text(state)) = object.get(&"state".to_string()) {
+                        if state == "clicked" {
+                            image = "imgClicked".to_string();
+                        }
+                    }
+                    if let Some(img) = object.get(&image) {
+                        if let TheValue::Tile(_, id) = img {
+                            if let Some(tile) = TILEDRAWER.read().unwrap().get_tile(id) {
+                                buffer.copy_into(x, y, &tile.buffer[0]);
                             }
+                        } else if let TheValue::Image(image) = img {
+                            buffer.copy_into(x, y, image);
                         }
                     }
                 }
@@ -306,80 +343,44 @@ impl Client {
         }
     }
 
-    /// Extract the assets and make them available via the static accessors.
-    pub fn set_assets(&mut self, project: &Project) {
-        IMAGES.write().unwrap().clear();
-        FONTS.write().unwrap().clear();
+    /// Touch down event.
+    pub fn touch_down(&mut self, uuid: &Uuid, pos: Vec2i) {
+        if let Some(screen) = self.project.screens.get(uuid) {
+            for widget in &screen.widget_list {
+                let x = (widget.x * screen.grid_size as f32) as i32;
+                let y = (widget.y * screen.grid_size as f32) as i32;
+                let width = (widget.width * screen.grid_size as f32) as i32;
+                let height = (widget.height * screen.grid_size as f32) as i32;
 
-        for tilemap in project.tilemaps.iter() {
-            println!("adding {}", tilemap.name);
-            IMAGES
-                .write()
-                .unwrap()
-                .insert(tilemap.name.clone(), tilemap.buffer.clone());
-        }
+                if pos.x >= x && pos.x <= x + width && pos.y >= y && pos.y <= y + height {
+                    if let Some(package) = self.widgets.get_mut(&widget.id) {
+                        self.sandbox.clear_runtime_states();
+                        self.sandbox.aliases.insert("self".to_string(), package.id);
 
-        for a in project.assets.values() {
-            match &a.buffer {
-                AssetBuffer::Image(buffer) => {
-                    IMAGES
-                        .write()
-                        .unwrap()
-                        .insert(a.name.clone(), buffer.clone());
-                }
-                AssetBuffer::Font(buffer) => {
-                    if let Ok(font) =
-                        fontdue::Font::from_bytes(buffer.clone(), fontdue::FontSettings::default())
-                    {
-                        FONTS.write().unwrap().insert(a.name.clone(), font);
+                        package.execute("onClick".to_string(), &mut self.sandbox);
+                        if let Some(object) = self.sandbox.objects.get_mut(&widget.id) {
+                            object.set(str!("state"), TheValue::Text(str!("clicked")));
+                        }
                     }
                 }
-                _ => {}
             }
         }
     }
 
-    /// Returns a mutable reference to the compiler.
-    pub fn compiler(&mut self) -> &mut TheCompiler {
-        &mut self.compiler
-    }
-
-    /// Touch down event.
-    pub fn touch_down(&mut self, uuid: &Uuid, pos: Vec2i) {
-        println!("Client: Touch down {}", pos);
-
+    /// Touch up event.
+    pub fn touch_up(&mut self, uuid: &Uuid) {
         if let Some(screen) = self.project.screens.get(uuid) {
             for widget in &screen.widget_list {
-                // let x = (widget.x * screen.grid_size as f32) as i32;
-                // let y = (widget.y * screen.grid_size as f32) as i32;
-                // let width = (widget.width * screen.grid_size as f32) as i32;
-                // let height = (widget.height * screen.grid_size as f32) as i32;
-
                 if let Some(object) = self.sandbox.objects.get_mut(&widget.id) {
-                    for (_name, value) in object.values.iter_mut() {
-                        if let TheValue::CodeObject(obj) = value {
-                            if let Some(TheValue::Text(typ)) = obj.get(&"_type".to_string()) {
-                                if typ == "Button" {
-                                    if let Some(TheValue::Position(position)) =
-                                        obj.get(&"position".to_string())
-                                    {
-                                        if let Some(TheValue::Image(image)) =
-                                            obj.get(&"normal".to_string())
-                                        {
-                                            let x = position.x as i32;
-                                            let y = position.z as i32;
-                                            if pos.x >= x
-                                                && pos.x <= x + image.dim().width
-                                                && pos.y >= y
-                                                && pos.y <= y + image.dim().height
-                                            {
-                                                obj.set(
-                                                    str!("state"),
-                                                    TheValue::Text(str!("clicked")),
-                                                );
-                                            }
-                                        }
-                                    }
+                    if let Some(TheValue::Text(state)) = object.get(&"state".to_string()) {
+                        if state == "clicked" {
+                            if let Some(package) = self.widgets.get_mut(&widget.id) {
+                                self.sandbox.clear_runtime_states();
+                                self.sandbox.aliases.insert("self".to_string(), package.id);
+
+                                package.execute("onRelease".to_string(), &mut self.sandbox);
+                                if let Some(object) = self.sandbox.objects.get_mut(&widget.id) {
+                                    object.set(str!("state"), TheValue::Text(str!("normal")));
                                 }
                             }
                         }

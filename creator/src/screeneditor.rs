@@ -232,7 +232,7 @@ impl ScreenEditor {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Widget Outlines" {
                     self.draw_outlines = *index == 0;
-                } else if id.name == "Screen Editor LayerGroup" {
+                } else if id.name == "Screen Editor Layer Group" {
                     if *index == ScreenEditorDrawingMode::Background as usize {
                         self.drawing_mode = ScreenEditorDrawingMode::Background;
                     } else if *index == ScreenEditorDrawingMode::Foreground as usize {
@@ -279,9 +279,7 @@ impl ScreenEditor {
                     || self.editor_mode == ScreenEditorMode::Erase
                 {
                     if let Some(screen) = project.screens.get_mut(&server_ctx.curr_screen) {
-                        if self.editor_mode == ScreenEditorMode::Erase
-                            && screen.tiles.contains_key(&(coord.x, coord.y))
-                        {
+                        if self.editor_mode == ScreenEditorMode::Erase {
                             if self.drawing_mode == ScreenEditorDrawingMode::Background {
                                 screen.erase_background_tile((coord.x, coord.y));
                             } else if self.drawing_mode == ScreenEditorDrawingMode::Foreground {
@@ -320,6 +318,11 @@ impl ScreenEditor {
                             vec2i(coord.x * screen.grid_size, coord.y * screen.grid_size),
                         );
                     }
+                }
+            }
+            TheEvent::TileEditorUp(_id) => {
+                if self.editor_mode == ScreenEditorMode::Pick {
+                    client.touch_up(&server_ctx.curr_screen);
                 }
             }
             /*

@@ -50,7 +50,6 @@ impl RegionDrawSettings {
 
 pub struct TileDrawer {
     pub tiles: FxHashMap<Uuid, TheRGBATile>,
-    tiles_by_name: FxHashMap<String, TheRGBATile>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -58,17 +57,49 @@ impl TileDrawer {
     pub fn new() -> Self {
         Self {
             tiles: FxHashMap::default(),
-            tiles_by_name: FxHashMap::default(),
         }
     }
 
     /// Set the tiles.
     pub fn set_tiles(&mut self, tiles: FxHashMap<Uuid, TheRGBATile>) {
         self.tiles = tiles;
-        self.tiles_by_name.clear();
-        for tile in self.tiles.values() {
-            self.tiles_by_name.insert(tile.name.clone(), tile.clone());
+    }
+
+    /// Get the tile which best fits the tags.
+    pub fn get_tile_by_tags(&self, role: u8, tags: &str) -> Option<TheValue> {
+        let mut best_fit: Option<Uuid> = None;
+        let tags: Vec<&str> = tags.split(',').map(|tag| tag.trim()).collect();
+        let mut best_fit_count = 0;
+
+        for (id, tile) in self.tiles.iter() {
+            if role > 0 && tile.role != role - 1 {
+                continue;
+            }
+
+            let name = tile.name.to_lowercase();
+            let tile_tags: Vec<&str> = name.split(',').map(|tag| tag.trim()).collect();
+            let mut match_count = 0;
+            for tag in tags.iter() {
+                if tile_tags.contains(tag) {
+                    match_count += 1;
+                }
+            }
+            if match_count == tags.len() {
+                return Some(TheValue::Tile(tile.name.clone(), tile.id));
+            }
+            if match_count > best_fit_count {
+                best_fit = Some(*id);
+                best_fit_count = match_count;
+            }
         }
+
+        if let Some(id) = best_fit {
+            if let Some(tile) = self.tiles.get(&id) {
+                return Some(TheValue::Tile(tile.name.clone(), tile.id));
+            }
+        }
+
+        None
     }
 
     /// Draw the region
