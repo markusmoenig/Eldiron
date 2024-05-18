@@ -391,11 +391,34 @@ impl TheTrait for Editor {
                 }
             }
             if self.server.state == ServerState::Running {
+                // Server tick
                 self.client.tick();
                 let debug = self.server.tick();
                 if !debug.is_empty() {
                     self.sidebar.add_debug_messages(debug, ui, ctx);
                 }
+
+                let server_messages = self.client.get_server_messages();
+                for cmd in server_messages {
+                    self.server.execute_client_cmd(self.client.id, cmd.clone());
+
+                    // If we instantiated a player character, set the client to that character
+                    if cmd.starts_with("instantiate") {
+                        let mut parts = cmd.split_whitespace();
+                        parts.next();
+                        parts.next();
+                        if let Some(new_name) = parts.next() {
+                            if let Some((region_id, instance_id)) = self
+                                .server
+                                .get_character_instance_info_by_name(new_name.to_string())
+                            {
+                                self.client.set_character_id(instance_id);
+                                self.client.set_region(&region_id);
+                            }
+                        }
+                    }
+                }
+
                 let interactions = self.server.get_interactions();
                 self.server_ctx.add_interactions(interactions);
                 self.panels
@@ -595,7 +618,6 @@ impl TheTrait for Editor {
                                 self.active_editor = ActiveEditor::TileEditor;
                             } else if index == 1 {
                                 self.active_editor = ActiveEditor::ScreenEditor;
-                                self.client.set_project(self.project.clone());
                             }
                             redraw = true;
                         }
@@ -863,6 +885,7 @@ impl TheTrait for Editor {
                                 self.server.add_character_instance_to_region(
                                     self.server_ctx.curr_region,
                                     character,
+                                    None,
                                 );
 
                             // Set the character instance debug info, disabled for now
@@ -1217,6 +1240,8 @@ impl TheTrait for Editor {
                         // Server
                         else if id.name == "Play" {
                             self.server.start();
+                            self.client.reset();
+                            self.client.set_project(self.project.clone());
                             self.server_ctx.clear_interactions();
                             ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),

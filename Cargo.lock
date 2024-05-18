@@ -2663,6 +2663,7 @@ dependencies = [
  "noiselib",
  "rand",
  "rayon",
+ "regex",
  "serde",
  "serde_json",
  "theframework",

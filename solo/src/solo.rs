@@ -177,6 +177,11 @@ impl TheTrait for Solo {
             }
         }
 
+        let server_messages = self.client.get_server_messages();
+        for m in server_messages {
+            println!("Got {}", m);
+        }
+
         redraw
     }
 }

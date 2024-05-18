@@ -7,7 +7,7 @@ use theframework::prelude::*;
 pub struct RegionInstance {
     pub id: Uuid,
 
-    sandbox: TheCodeSandbox,
+    pub sandbox: TheCodeSandbox,
 
     #[serde(skip)]
     areas: FxHashMap<Uuid, TheCodePackage>,
@@ -415,6 +415,7 @@ impl RegionInstance {
         &mut self,
         mut character: Character,
         compiler: &mut TheCompiler,
+        rename_to: Option<String>,
     ) -> Option<Uuid> {
         let mut package = TheCodePackage::new();
         package.id = character.id;
@@ -453,6 +454,13 @@ impl RegionInstance {
             o.package_id = template.id;
             self.sandbox.add_object(o);
             template.execute("init".to_string(), &mut self.sandbox);
+
+            if let Some(rename_to) = rename_to {
+                // Rename character, used on player instantiaton
+                if let Some(object) = self.sandbox.get_self_mut() {
+                    object.set(str!("name"), TheValue::Text(str!(rename_to)));
+                }
+            }
         }
 
         package.execute("init".to_string(), &mut self.sandbox);

@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use lazy_static::lazy_static;
+use std::sync::mpsc;
 use std::sync::{Mutex, RwLock};
 use theframework::prelude::*;
 
@@ -21,10 +22,16 @@ lazy_static! {
         RwLock::new(FxHashMap::default());
     pub static ref DRAWSETTINGS: RwLock<RegionDrawSettings> =
         RwLock::new(RegionDrawSettings::new());
+    pub static ref SENDCMD: RwLock<mpsc::Sender<String>> = {
+        let (tx, _rx) = mpsc::channel::<String>();
+        RwLock::new(tx)
+    };
 }
 
 #[derive()]
 pub struct Client {
+    pub id: Uuid,
+
     project: Project,
 
     sandbox: TheCodeSandbox,
@@ -40,6 +47,9 @@ pub struct Client {
     tick_ms: u32,
 
     last_tick: i64,
+
+    // Messages for the server
+    pub server_messages: mpsc::Receiver<String>,
 }
 
 impl Default for Client {
@@ -53,7 +63,13 @@ impl Client {
         let mut compiler: TheCompiler = TheCompiler::default();
         functions::add_compiler_client_functions(&mut compiler);
 
+        let (tx, rx): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel();
+
+        *SENDCMD.write().unwrap() = tx;
+
         Self {
+            id: Uuid::nil(),
+
             project: Project::default(),
             sandbox: TheCodeSandbox::new(),
 
@@ -66,6 +82,8 @@ impl Client {
             tick_ms: 250,
 
             last_tick: 0,
+
+            server_messages: rx,
         }
     }
 
@@ -240,6 +258,20 @@ impl Client {
     /// Returns a mutable reference to the compiler.
     pub fn compiler(&mut self) -> &mut TheCompiler {
         &mut self.compiler
+    }
+
+    /// Retrieves all messages for the server.
+    pub fn get_server_messages(&self) -> Vec<String> {
+        let mut messages = Vec::new();
+        while let Ok(message) = self.server_messages.try_recv() {
+            messages.push(message);
+        }
+        messages
+    }
+
+    /// Clears all messages for the server.
+    pub fn reset(&mut self) {
+        _ = self.get_server_messages();
     }
 
     /// Draw the given screen.

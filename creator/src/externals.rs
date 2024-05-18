@@ -217,14 +217,6 @@ pub fn set_client_externals() {
     ));
 
     codeeditor.add_external(TheExternalCode::new(
-        "Command".to_string(),
-        "Sends the given command string to the server.".to_string(),
-        vec!["Execute".to_string()],
-        vec![TheValue::Text("".to_string())],
-        None,
-    ));
-
-    codeeditor.add_external(TheExternalCode::new(
         "DrawImg".to_string(),
         "Draws an image (or a tile) into the widget at the given position.".to_string(),
         vec!["Image".to_string(), "Position".to_string()],
@@ -236,6 +228,14 @@ pub fn set_client_externals() {
     ));
 
     codeeditor.add_external(TheExternalCode::new(
+        "Player".to_string(),
+        "Instantiates the player of the given name with the new name.".to_string(),
+        vec!["Name".to_string(), "As".to_string()],
+        vec![TheValue::Text(str!("")), TheValue::Text(str!(""))],
+        Some(TheValue::Image(TheRGBABuffer::default())),
+    ));
+
+    codeeditor.add_external(TheExternalCode::new(
         "ScaleImg".to_string(),
         "Scales an image and returns it.".to_string(),
         vec!["Image".to_string(), "Size".to_string()],
@@ -244,5 +244,21 @@ pub fn set_client_externals() {
             TheValue::Int2(vec2i(0, 0)),
         ],
         Some(TheValue::Image(TheRGBABuffer::default())),
+    ));
+
+    codeeditor.add_external(TheExternalCode::new(
+        "SendCmd".to_string(),
+        "Sends the given command string to the server.".to_string(),
+        vec!["Execute".to_string()],
+        vec![TheValue::Text("".to_string())],
+        None,
+    ));
+
+    codeeditor.add_external(TheExternalCode::new(
+        "Start".to_string(),
+        "Starts the server, only valid for solo games.".to_string(),
+        vec![],
+        vec![],
+        None,
     ));
 }

@@ -5,6 +5,7 @@ use theframework::prelude::*;
 
 pub mod context;
 pub mod daylight;
+pub mod execute;
 pub mod functions;
 pub mod region_instance;
 pub mod world;
@@ -12,9 +13,10 @@ pub mod world;
 pub mod prelude {
     pub use super::context::ServerContext;
     pub use super::daylight::Daylight;
+    pub use super::execute::*;
     pub use super::region_instance::RegionInstance;
     pub use super::world::World;
-    pub use super::Server;
+    pub use super::{ActivePlayer, Server};
 }
 
 lazy_static! {
@@ -28,6 +30,8 @@ lazy_static! {
         RwLock::new(FxHashMap::default());
     pub static ref CHARACTERS: RwLock<FxHashMap<Uuid, TheCodePackage>> =
         RwLock::new(FxHashMap::default());
+    pub static ref PLAYERCHARACTERS: RwLock<FxHashMap<Uuid, String>> =
+        RwLock::new(FxHashMap::default());
     pub static ref INTERACTIONS: RwLock<Vec<Interaction>> = RwLock::new(Vec::default());
 }
 
@@ -38,6 +42,12 @@ pub enum ServerState {
     Running,
     Stopped,
     Paused,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ActivePlayer {
+    pub id: Uuid,
+    pub region_id: Uuid,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -55,6 +65,8 @@ pub struct Server {
     pub world: World,
 
     pub anim_counter: usize,
+
+    pub active_players: FxHashMap<Uuid, ActivePlayer>,
 }
 
 impl Default for Server {
@@ -80,6 +92,8 @@ impl Server {
             world: World::default(),
 
             anim_counter: 0,
+
+            active_players: FxHashMap::default(),
         }
     }
 
@@ -187,7 +201,14 @@ impl Server {
         // Second pass we just create the region character and item instances.
         for region in &project.regions {
             for character in region.characters.values() {
-                self.add_character_instance_to_region(region.id, character.clone());
+                // Only add non player characters. Player characters have to be instantiated by the client.
+                if !PLAYERCHARACTERS
+                    .read()
+                    .unwrap()
+                    .contains_key(&character.character_id)
+                {
+                    self.add_character_instance_to_region(region.id, character.clone(), None);
+                }
             }
             for item in region.items.values() {
                 self.add_item_instance_to_region(region.id, item.clone());
@@ -412,6 +433,14 @@ impl Server {
             if let Some(object) = sandbox.get_self_mut() {
                 if let Some(name_value) = object.get(&"name".to_string()) {
                     name = Some(name_value.describe());
+                    if let Some(TheValue::Bool(v)) = object.get(&str!("player")) {
+                        if *v {
+                            PLAYERCHARACTERS
+                                .write()
+                                .unwrap()
+                                .insert(character.id, name_value.describe());
+                        }
+                    }
                 }
             }
         }
@@ -500,9 +529,10 @@ impl Server {
         &mut self,
         region: Uuid,
         character: Character,
+        rename_to: Option<String>,
     ) -> Option<Uuid> {
         if let Some(instance) = self.instances.get_mut(&region) {
-            instance.add_character_instance(character, &mut self.compiler)
+            instance.add_character_instance(character, &mut self.compiler, rename_to)
         } else {
             None
         }
@@ -720,6 +750,68 @@ impl Server {
     pub fn set_voxelized_model(&mut self, region: Uuid, key: Vec3i, model: ModelFXStore) {
         if let Some(region) = REGIONS.write().unwrap().get_mut(&region) {
             region.models.insert((key.x, key.y, key.z), model);
+        }
+    }
+
+    /// Executes the given client command.
+    pub fn execute_client_cmd(&mut self, client_id: Uuid, cmd: String) {
+        //println!("received client ({}) cmd: {}", client_id, cmd);
+
+        let mut parts = cmd.split_whitespace();
+
+        if let Some(cmd_cmd) = parts.next() {
+            if cmd_cmd == "instantiate" {
+                if let Some(name) = parts.next() {
+                    if let Some(new_name) = parts.next() {
+                        // Get the character id of the name
+                        let mut character_id = None;
+                        for (id, character_name) in PLAYERCHARACTERS.read().unwrap().iter() {
+                            if name == character_name {
+                                character_id = Some(*id);
+                                break;
+                            }
+                        }
+
+                        // Get region id and character to create
+                        if let Some(character_id) = character_id {
+                            let mut region_id = None;
+                            let mut character_to_create = Character::default();
+                            for region in &self.project.regions {
+                                for character in region.characters.values() {
+                                    if character.character_id == character_id {
+                                        region_id = Some(region.id);
+                                        character_to_create = character.clone();
+                                        break;
+                                    }
+                                }
+                            }
+
+                            // Add the character to the region
+                            if let Some(region_id) = region_id {
+                                self.active_players.insert(
+                                    client_id,
+                                    ActivePlayer {
+                                        id: character_to_create.id,
+                                        region_id,
+                                    },
+                                );
+                                self.add_character_instance_to_region(
+                                    region_id,
+                                    character_to_create,
+                                    Some(new_name.to_string()),
+                                );
+                            }
+                        }
+                    }
+                }
+            } else if let Some(mut player) = self.active_players.get(&client_id).cloned() {
+                // Executes the command
+                if let Some(instance) = self.instances.get_mut(&player.region_id) {
+                    if execute(&client_id, &cmd, &mut player, &mut instance.sandbox) {
+                        self.active_players.insert(client_id, player);
+                    }
+                }
+            }
         }
     }
 }

@@ -1,7 +1,7 @@
 //use crate::prelude::*;
 use super::{
-    CHARACTER, DRAWSETTINGS, FONTS, IMAGES, PALETTE, REGIONS, RENDERER, TILEDRAWER, UPDATE,
-    WIDGETBUFFER,
+    CHARACTER, DRAWSETTINGS, FONTS, IMAGES, PALETTE, REGIONS, RENDERER, SENDCMD, TILEDRAWER,
+    UPDATE, WIDGETBUFFER,
 };
 use theframework::prelude::*;
 
@@ -215,21 +215,56 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
     );
 
     compiler.add_external_call(
-        "Command".to_string(),
+        "SendCmd".to_string(),
         |stack, _data, _sandbox| {
-            let mut _cmd = "".to_string();
+            let mut cmd = "".to_string();
             if let Some(TheValue::Text(t)) = stack.pop() {
-                _cmd = t.to_lowercase();
+                cmd = t.to_lowercase();
             }
 
-            /*
-            if let Some(value) = TILEDRAWER
-                .read()
-                .unwrap()
-                .get_tile_by_tags(category as u8, &tags)
-            {
-                stack.push(value);
-                }*/
+            if !cmd.is_empty() {
+                SENDCMD.read().unwrap().send(cmd).unwrap();
+            }
+
+            TheCodeNodeCallResult::Continue
+        },
+        vec![],
+    );
+
+    compiler.add_external_call(
+        "Player".to_string(),
+        |stack, _data, _sandbox| {
+            let mut new_name = "".to_string();
+            if let Some(TheValue::Text(t)) = stack.pop() {
+                new_name = t;
+            }
+
+            let mut old_name = "".to_string();
+            if let Some(TheValue::Text(t)) = stack.pop() {
+                old_name = t;
+            }
+
+            if !new_name.is_empty() && !old_name.is_empty() {
+                SENDCMD
+                    .read()
+                    .unwrap()
+                    .send(format!("instantiate {} {}", old_name, new_name))
+                    .unwrap();
+            }
+
+            TheCodeNodeCallResult::Continue
+        },
+        vec![],
+    );
+
+    compiler.add_external_call(
+        "Start".to_string(),
+        |_stack, _data, _sandbox| {
+            let cmd = "start server".to_string();
+
+            if !cmd.is_empty() {
+                SENDCMD.read().unwrap().send(cmd).unwrap();
+            }
 
             TheCodeNodeCallResult::Continue
         },
