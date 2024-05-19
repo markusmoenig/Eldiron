@@ -61,11 +61,20 @@ pub mod prelude {
     pub use crate::update::*;
     pub use crate::voxelthread::*;
     pub use crate::widget::*;
+    pub use crate::ServerMessage;
     pub use crate::{do_intersect, Hit, HitFace, Ray, Voxel};
     pub use rand::prelude::*;
 }
 
 use theframework::prelude::*;
+
+/// Messages to the clients. The first argument is always the client id.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum ServerMessage {
+    /// The given player instance has joined the server in the given region.
+    /// The client will use this to know what player / region to draw / focus on.
+    PlayerJoined(Uuid, Uuid, Uuid),
+}
 
 /// Ray
 #[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]

@@ -33,6 +33,10 @@ lazy_static! {
     pub static ref PLAYERCHARACTERS: RwLock<FxHashMap<Uuid, String>> =
         RwLock::new(FxHashMap::default());
     pub static ref INTERACTIONS: RwLock<Vec<Interaction>> = RwLock::new(Vec::default());
+    pub static ref SENDCMD: RwLock<mpsc::Sender<ServerMessage>> = {
+        let (tx, _rx) = mpsc::channel::<ServerMessage>();
+        RwLock::new(tx)
+    };
 }
 
 use prelude::*;
@@ -50,7 +54,13 @@ pub struct ActivePlayer {
     pub region_id: Uuid,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+// Default function for server_messages
+fn default_receiver() -> mpsc::Receiver<ServerMessage> {
+    let (_tx, rx) = mpsc::channel();
+    rx
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Server {
     pub state: ServerState,
 
@@ -67,6 +77,10 @@ pub struct Server {
     pub anim_counter: usize,
 
     pub active_players: FxHashMap<Uuid, ActivePlayer>,
+
+    #[serde(skip)]
+    #[serde(default = "default_receiver")]
+    pub server_messages: mpsc::Receiver<ServerMessage>,
 }
 
 impl Default for Server {
@@ -79,6 +93,10 @@ impl Server {
     pub fn new() -> Self {
         let mut compiler: TheCompiler = TheCompiler::default();
         functions::add_compiler_functions(&mut compiler);
+
+        let (tx, rx): (mpsc::Sender<ServerMessage>, mpsc::Receiver<ServerMessage>) =
+            mpsc::channel();
+        *SENDCMD.write().unwrap() = tx;
 
         Self {
             state: ServerState::Stopped,
@@ -94,7 +112,18 @@ impl Server {
             anim_counter: 0,
 
             active_players: FxHashMap::default(),
+
+            server_messages: rx,
         }
+    }
+
+    /// Retrieves all messages for the clients.
+    pub fn get_client_messages(&self) -> Vec<ServerMessage> {
+        let mut messages = Vec::new();
+        while let Ok(message) = self.server_messages.try_recv() {
+            messages.push(message);
+        }
+        messages
     }
 
     /// Returns a mutable reference to the compiler.
@@ -795,6 +824,17 @@ impl Server {
                                         region_id,
                                     },
                                 );
+
+                                SENDCMD
+                                    .write()
+                                    .unwrap()
+                                    .send(ServerMessage::PlayerJoined(
+                                        client_id,
+                                        character_to_create.id,
+                                        region_id,
+                                    ))
+                                    .unwrap();
+
                                 self.add_character_instance_to_region(
                                     region_id,
                                     character_to_create,

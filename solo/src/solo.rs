@@ -9,8 +9,7 @@ pub struct Solo {
     server: Server,
     client: Client,
 
-    curr_region: Uuid,
-    player_id: Uuid,
+    curr_screen: Uuid,
 
     update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
@@ -32,8 +31,7 @@ impl TheTrait for Solo {
             server,
             client,
 
-            curr_region: Uuid::nil(),
-            player_id: Uuid::nil(),
+            curr_screen: Uuid::nil(),
 
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
@@ -78,22 +76,12 @@ impl TheTrait for Solo {
                         let json = str_slice.to_string();
                         let project: Option<Project> = serde_json::from_str(&json).ok();
                         if let Some(project) = project {
+                            self.client.reset();
+
                             self.server.set_project(project.clone());
                             self.client.set_project(project.clone());
 
                             self.project = project;
-
-                            // TODO: Get the player instance id from the Game settings
-                            // Get the player's region and instance
-                            if let Some((region_id, instance_id)) = self
-                                .server
-                                .get_character_instance_info_by_name(str!("Player"))
-                            {
-                                self.curr_region = region_id;
-                                self.player_id = instance_id;
-                                self.client.set_character_id(instance_id);
-                                self.client.set_region(&region_id);
-                            }
 
                             self.server.start();
 
@@ -144,7 +132,20 @@ impl TheTrait for Solo {
             let _debug = self.server.tick();
             //let interactions = self.server.get_interactions();
             // self.server_ctx.add_interactions(interactions);
-            if let Some(update) = self.server.get_region_update_json(self.curr_region) {
+
+            // Get the messages for the client from the server.
+            let client_messages = self.server.get_client_messages();
+            for cmd in client_messages {
+                self.client.process_server_message(&cmd);
+            }
+
+            // Get the messages for the server from the client.
+            let server_messages = self.client.get_server_messages();
+            for cmd in server_messages {
+                self.server.execute_client_cmd(self.client.id, cmd);
+            }
+
+            if let Some(update) = self.server.get_region_update_json(self.client.curr_region) {
                 self.client.set_region_update(update);
             }
         }
@@ -157,6 +158,7 @@ impl TheTrait for Solo {
             let mut screen_id = Uuid::new_v4();
             if let Some(screen) = self.project.screens.keys().next() {
                 screen_id = *screen;
+                self.curr_screen = screen_id;
             }
 
             self.client.draw_screen(&screen_id, &mut ui.canvas.buffer);
@@ -164,9 +166,15 @@ impl TheTrait for Solo {
 
         if let Some(receiver) = &mut self.event_receiver {
             while let Ok(event) = receiver.try_recv() {
-                //println!("Event received {:?}", _event);
+                //println!("Event received {:?}", event);
                 match event {
                     TheEvent::Resize => {}
+                    TheEvent::MouseDown(coord) => {
+                        self.client.touch_down(&self.curr_screen, coord);
+                    }
+                    TheEvent::MouseUp(_coord) => {
+                        self.client.touch_up(&self.curr_screen);
+                    }
                     TheEvent::KeyDown(v) => {
                         if let Some(str) = v.to_char() {
                             self.server.set_key_down(Some(str.to_string()));
@@ -175,11 +183,6 @@ impl TheTrait for Solo {
                     _ => {}
                 }
             }
-        }
-
-        let server_messages = self.client.get_server_messages();
-        for m in server_messages {
-            println!("Got {}", m);
         }
 
         redraw

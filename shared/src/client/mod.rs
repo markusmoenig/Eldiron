@@ -48,6 +48,8 @@ pub struct Client {
 
     last_tick: i64,
 
+    pub curr_region: Uuid,
+
     // Messages for the server
     pub server_messages: mpsc::Receiver<String>,
 }
@@ -82,6 +84,8 @@ impl Client {
             tick_ms: 250,
 
             last_tick: 0,
+
+            curr_region: Uuid::nil(),
 
             server_messages: rx,
         }
@@ -272,6 +276,18 @@ impl Client {
     /// Clears all messages for the server.
     pub fn reset(&mut self) {
         _ = self.get_server_messages();
+    }
+
+    /// Process a message from the server.
+    pub fn process_server_message(&mut self, message: &ServerMessage) {
+        println!("Received: {:?}", message);
+        match message {
+            ServerMessage::PlayerJoined(_, instance_id, region_id) => {
+                self.set_character_id(*instance_id);
+                self.set_region(region_id);
+                self.curr_region = *region_id;
+            }
+        }
     }
 
     /// Draw the given screen.

@@ -391,32 +391,23 @@ impl TheTrait for Editor {
                 }
             }
             if self.server.state == ServerState::Running {
-                // Server tick
+                // Ticks
                 self.client.tick();
                 let debug = self.server.tick();
                 if !debug.is_empty() {
                     self.sidebar.add_debug_messages(debug, ui, ctx);
                 }
 
+                // Get the messages for the client from the server.
+                let client_messages = self.server.get_client_messages();
+                for cmd in client_messages {
+                    self.client.process_server_message(&cmd);
+                }
+
+                // Get the messages for the server from the client.
                 let server_messages = self.client.get_server_messages();
                 for cmd in server_messages {
-                    self.server.execute_client_cmd(self.client.id, cmd.clone());
-
-                    // If we instantiated a player character, set the client to that character
-                    if cmd.starts_with("instantiate") {
-                        let mut parts = cmd.split_whitespace();
-                        parts.next();
-                        parts.next();
-                        if let Some(new_name) = parts.next() {
-                            if let Some((region_id, instance_id)) = self
-                                .server
-                                .get_character_instance_info_by_name(new_name.to_string())
-                            {
-                                self.client.set_character_id(instance_id);
-                                self.client.set_region(&region_id);
-                            }
-                        }
-                    }
+                    self.server.execute_client_cmd(self.client.id, cmd);
                 }
 
                 let interactions = self.server.get_interactions();
