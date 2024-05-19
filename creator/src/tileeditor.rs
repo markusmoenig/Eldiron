@@ -382,11 +382,6 @@ impl TileEditor {
                     );
                 }
             }
-            TheEvent::KeyDown(v) => {
-                if let Some(str) = v.to_char() {
-                    server.set_key_down(Some(str.to_string()));
-                }
-            }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "2D3D Group" {
                     if let Some(shared) = ui.get_sharedhlayout("Editor Shared") {

@@ -587,6 +587,13 @@ impl TheTrait for Editor {
                     redraw = true;
                 }
                 match event {
+                    TheEvent::KeyDown(key) => {
+                        if self.server.state == ServerState::Running {
+                            if let Some(c) = key.to_char() {
+                                self.client.key_down(&self.server_ctx.curr_screen, c);
+                            }
+                        }
+                    }
                     TheEvent::Custom(id, _) => {
                         if id.name == "Update Code Menu" {
                             let codemenu = create_code_menu(ctx);

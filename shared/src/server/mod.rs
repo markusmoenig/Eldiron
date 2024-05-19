@@ -340,8 +340,6 @@ impl Server {
             self.instances.insert(key, instance);
         }
 
-        self.set_key_down(None);
-
         let mut debug_messages = vec![];
 
         for instance in self.instances.values_mut() {
@@ -729,11 +727,6 @@ impl Server {
             .unwrap()
             .get(&region_id)
             .map(|update| update.to_json())
-    }
-
-    /// Sets the currently pressed key.
-    pub fn set_key_down(&mut self, str: Option<String>) {
-        *KEY_DOWN.write().unwrap() = str;
     }
 
     /// Gets the server time.

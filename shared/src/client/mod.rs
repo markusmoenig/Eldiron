@@ -391,6 +391,29 @@ impl Client {
         }
     }
 
+    /// Key down event. Check the widgets for hotkeys.
+    pub fn key_down(&mut self, uuid: &Uuid, c: char) {
+        if let Some(screen) = self.project.screens.get(uuid) {
+            for widget in &screen.widget_list {
+                if let Some(object) = self.sandbox.objects.get_mut(&widget.id) {
+                    if let Some(TheValue::Text(hotkey)) = object.get(&"hotkey".to_string()) {
+                        if let Some(package) = self.widgets.get_mut(&widget.id) {
+                            if !hotkey.is_empty() && c == hotkey.chars().next().unwrap() {
+                                self.sandbox.clear_runtime_states();
+                                self.sandbox.aliases.insert("self".to_string(), package.id);
+
+                                package.execute("onClick".to_string(), &mut self.sandbox);
+                                if let Some(object) = self.sandbox.objects.get_mut(&widget.id) {
+                                    object.set(str!("state"), TheValue::Text(str!("clicked")));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Touch down event.
     pub fn touch_down(&mut self, uuid: &Uuid, pos: Vec2i) {
         if let Some(screen) = self.project.screens.get(uuid) {

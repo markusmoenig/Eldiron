@@ -176,8 +176,8 @@ impl TheTrait for Solo {
                         self.client.touch_up(&self.curr_screen);
                     }
                     TheEvent::KeyDown(v) => {
-                        if let Some(str) = v.to_char() {
-                            self.server.set_key_down(Some(str.to_string()));
+                        if let Some(c) = v.to_char() {
+                            self.client.key_down(&self.curr_screen, c);
                         }
                     }
                     _ => {}
