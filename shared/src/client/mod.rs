@@ -48,6 +48,10 @@ pub struct Client {
 
     last_tick: i64,
 
+    clicked: Option<Uuid>,
+    clicked_on: i64,
+    clicked_continues: bool,
+
     pub curr_region: Uuid,
 
     // Messages for the server
@@ -84,6 +88,10 @@ impl Client {
             tick_ms: 250,
 
             last_tick: 0,
+
+            clicked: None,
+            clicked_on: 0,
+            clicked_continues: false,
 
             curr_region: Uuid::nil(),
 
@@ -135,6 +143,7 @@ impl Client {
         RENDERER.write().unwrap().set_textures(tiles);
     }
 
+    /// Compile the given screen.
     pub fn compile_screen(&mut self, screen: &Screen) {
         // Compile the screen scripts
         let mut package = TheCodePackage::new();
@@ -146,10 +155,10 @@ impl Client {
             let rc = self.compiler.compile(grid);
             if let Ok(mut module) = rc {
                 module.name.clone_from(&grid.name);
-                println!("Client::screen: Compiled grid module: {}", grid.name);
+                //println!("Client::screen: Compiled grid module: {}", grid.name);
                 package.insert_module(module.name.clone(), module);
             } else {
-                println!("Client::screen: Failed to compile grid: {}", grid.name);
+                //println!("Client::screen: Failed to compile grid: {}", grid.name);
             }
         }
 
@@ -174,13 +183,13 @@ impl Client {
                 let rc = self.compiler.compile(grid);
                 if let Ok(mut module) = rc {
                     module.name.clone_from(&grid.name);
-                    println!("Client::screen_widget: Compiled grid module: {}", grid.name);
+                    //println!("Client::screen_widget: Compiled grid module: {}", grid.name);
                     package.insert_module(module.name.clone(), module);
                 } else {
-                    println!(
-                        "Client::screen_widget: Failed to compile grid: {}",
-                        grid.name
-                    );
+                    // println!(
+                    //    "Client::screen_widget: Failed to compile grid: {}",
+                    //    grid.name
+                    // );
                 }
             }
 
@@ -232,7 +241,6 @@ impl Client {
         FONTS.write().unwrap().clear();
 
         for tilemap in project.tilemaps.iter() {
-            println!("adding {}", tilemap.name);
             IMAGES
                 .write()
                 .unwrap()
@@ -280,7 +288,7 @@ impl Client {
 
     /// Process a message from the server.
     pub fn process_server_message(&mut self, message: &ServerMessage) {
-        println!("Received: {:?}", message);
+        //println!("Received: {:?}", message);
         match message {
             ServerMessage::PlayerJoined(_, instance_id, region_id) => {
                 self.set_character_id(*instance_id);
@@ -299,6 +307,15 @@ impl Client {
         if server_tick != self.last_tick {
             DRAWSETTINGS.write().unwrap().delta_in_tick = 0.0;
             self.last_tick = server_tick;
+
+            if let Some(clicked) = &self.clicked.clone() {
+                if self.clicked_continues {
+                    self.execute_widget_function(clicked, str!("onClick"));
+                } else if self.clicked_on < server_tick {
+                    self.set_widget_state(clicked, str!("normal"));
+                    self.clicked = None;
+                }
+            }
         } else {
             DRAWSETTINGS.write().unwrap().delta_in_tick += delta;
         }
@@ -310,7 +327,7 @@ impl Client {
             for (pos, tiles) in &screen.tiles {
                 for tile in tiles {
                     if let Some(tile) = TILEDRAWER.read().unwrap().get_tile(tile) {
-                        buffer.copy_into(
+                        buffer.blend_into(
                             pos.0 * screen.grid_size,
                             pos.1 * screen.grid_size,
                             &tile.buffer[0],
@@ -354,7 +371,7 @@ impl Client {
                     package.execute("draw".to_string(), &mut self.sandbox);
                 }
 
-                // Draw Buttons
+                // Draw Images
                 if let Some(object) = self.sandbox.objects.get_mut(&widget.id) {
                     let mut image = "imgNormal".to_string();
                     if let Some(TheValue::Text(state)) = object.get(&"state".to_string()) {
@@ -365,10 +382,10 @@ impl Client {
                     if let Some(img) = object.get(&image) {
                         if let TheValue::Tile(_, id) = img {
                             if let Some(tile) = TILEDRAWER.read().unwrap().get_tile(id) {
-                                buffer.copy_into(x, y, &tile.buffer[0]);
+                                buffer.blend_into(x, y, &tile.buffer[0]);
                             }
                         } else if let TheValue::Image(image) = img {
-                            buffer.copy_into(x, y, image);
+                            buffer.blend_into(x, y, image);
                         }
                     }
                 }
@@ -380,7 +397,7 @@ impl Client {
             for (pos, tiles) in &screen.foreground_tiles {
                 for tile in tiles {
                     if let Some(tile) = TILEDRAWER.read().unwrap().get_tile(tile) {
-                        buffer.copy_into(
+                        buffer.blend_into(
                             pos.0 * screen.grid_size,
                             pos.1 * screen.grid_size,
                             &tile.buffer[0],
@@ -393,6 +410,9 @@ impl Client {
 
     /// Key down event. Check the widgets for hotkeys.
     pub fn key_down(&mut self, uuid: &Uuid, c: char) {
+        if self.clicked.is_some() {
+            return;
+        }
         if let Some(screen) = self.project.screens.get(uuid) {
             for widget in &screen.widget_list {
                 if let Some(object) = self.sandbox.objects.get_mut(&widget.id) {
@@ -401,6 +421,9 @@ impl Client {
                             if !hotkey.is_empty() && c == hotkey.chars().next().unwrap() {
                                 self.sandbox.clear_runtime_states();
                                 self.sandbox.aliases.insert("self".to_string(), package.id);
+
+                                self.clicked = Some(widget.id);
+                                self.clicked_on = self.last_tick + 1;
 
                                 package.execute("onClick".to_string(), &mut self.sandbox);
                                 if let Some(object) = self.sandbox.objects.get_mut(&widget.id) {
@@ -416,6 +439,9 @@ impl Client {
 
     /// Touch down event.
     pub fn touch_down(&mut self, uuid: &Uuid, pos: Vec2i) {
+        if self.clicked.is_some() {
+            return;
+        }
         if let Some(screen) = self.project.screens.get(uuid) {
             for widget in &screen.widget_list {
                 let x = (widget.x * screen.grid_size as f32) as i32;
@@ -429,6 +455,11 @@ impl Client {
                         self.sandbox.aliases.insert("self".to_string(), package.id);
 
                         package.execute("onClick".to_string(), &mut self.sandbox);
+
+                        self.clicked = Some(widget.id);
+                        self.clicked_on = self.last_tick + 1;
+                        self.clicked_continues = true;
+
                         if let Some(object) = self.sandbox.objects.get_mut(&widget.id) {
                             object.set(str!("state"), TheValue::Text(str!("clicked")));
                         }
@@ -449,15 +480,30 @@ impl Client {
                                 self.sandbox.clear_runtime_states();
                                 self.sandbox.aliases.insert("self".to_string(), package.id);
 
+                                self.clicked_continues = false;
                                 package.execute("onRelease".to_string(), &mut self.sandbox);
-                                if let Some(object) = self.sandbox.objects.get_mut(&widget.id) {
-                                    object.set(str!("state"), TheValue::Text(str!("normal")));
-                                }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+
+    /// Executes the given function on the given widget.
+    pub fn execute_widget_function(&mut self, widget_id: &Uuid, function: String) {
+        if let Some(package) = self.widgets.get_mut(widget_id) {
+            self.sandbox.clear_runtime_states();
+            self.sandbox.aliases.insert("self".to_string(), package.id);
+
+            package.execute(function, &mut self.sandbox);
+        }
+    }
+
+    /// Sets the state of the given widget.
+    pub fn set_widget_state(&mut self, widget_id: &Uuid, state: String) {
+        if let Some(object) = self.sandbox.objects.get_mut(widget_id) {
+            object.set(str!("state"), TheValue::Text(state));
         }
     }
 }

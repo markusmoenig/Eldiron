@@ -328,28 +328,30 @@ impl TileEditor {
                     }
                 }
             }
-            TheEvent::RenderViewClicked(_, coord) | TheEvent::RenderViewDragged(_, coord) => {
-                if let Some(render_view) = ui.get_render_view("RenderView") {
-                    let dim = render_view.dim();
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        let pos = RENDERER.lock().unwrap().get_hit_position_at(
-                            *coord,
-                            region,
-                            &mut server.get_instance_draw_settings(server_ctx.curr_region),
-                            dim.width as usize,
-                            dim.height as usize,
-                        );
-
-                        if let Some(pos) = pos {
-                            redraw = self.action_at(
-                                vec2i(pos.x, pos.z),
-                                ui,
-                                ctx,
-                                project,
-                                server,
-                                server_ctx,
-                                true,
+            TheEvent::RenderViewClicked(id, coord) | TheEvent::RenderViewDragged(id, coord) => {
+                if id.name == "RenderView" {
+                    if let Some(render_view) = ui.get_render_view("RenderView") {
+                        let dim = render_view.dim();
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            let pos = RENDERER.lock().unwrap().get_hit_position_at(
+                                *coord,
+                                region,
+                                &mut server.get_instance_draw_settings(server_ctx.curr_region),
+                                dim.width as usize,
+                                dim.height as usize,
                             );
+
+                            if let Some(pos) = pos {
+                                redraw = self.action_at(
+                                    vec2i(pos.x, pos.z),
+                                    ui,
+                                    ctx,
+                                    project,
+                                    server,
+                                    server_ctx,
+                                    true,
+                                );
+                            }
                         }
                     }
                 }

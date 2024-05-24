@@ -10,6 +10,7 @@ pub enum ModelFXMode {
 
 pub struct ModelFXEditor {
     pub mode: ModelFXMode,
+    pub geo_names: FxHashMap<(i32, i32), String>,
 
     pub modelfx: ModelFX,
 
@@ -21,6 +22,7 @@ impl ModelFXEditor {
     pub fn new() -> Self {
         Self {
             mode: ModelFXMode::Floor,
+            geo_names: FxHashMap::default(),
 
             modelfx: ModelFX::default(),
 
@@ -29,7 +31,7 @@ impl ModelFXEditor {
     }
 
     /// Build the UI
-    pub fn build(&self, ctx: &mut TheContext) -> TheCanvas {
+    pub fn build(&self, _ctx: &mut TheContext) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
         // Toolbar
@@ -38,14 +40,19 @@ impl ModelFXEditor {
         toolbar_hlayout.limiter_mut().set_max_height(25);
         toolbar_hlayout.set_margin(vec4i(10, 2, 5, 3));
 
-        let mut clear_button: TheTraybarButton =
-            TheTraybarButton::new(TheId::named("ModelFX Clear"));
-        clear_button.set_icon_name("trash".to_string());
-        clear_button.set_status_text("Clears the model, deleting all nodes.");
+        // let mut clear_button: TheTraybarButton =
+        //     TheTraybarButton::new(TheId::named("ModelFX Clear"));
+        // clear_button.set_icon_name("trash".to_string());
+        // clear_button.set_status_text("Clears the model, deleting all nodes.");
 
-        let mut move_button: TheTraybarButton = TheTraybarButton::new(TheId::named("ModelFX Move"));
-        move_button.set_icon_name("move".to_string());
-        move_button.set_status_text("Moves the model to the library.");
+        // let mut move_button: TheTraybarButton = TheTraybarButton::new(TheId::named("ModelFX Move"));
+        // move_button.set_icon_name("move".to_string());
+        // move_button.set_status_text("Moves the model to the library.");
+
+        let mut gb = TheGroupButton::new(TheId::named("ModelFX Mode Group"));
+        gb.add_text("Geometry".to_string());
+        gb.add_text("Texture".to_string());
+        gb.set_item_width(75);
 
         let mut floors_button = TheTraybarButton::new(TheId::named("ModelFX Nodes Floor"));
         //add_button.set_icon_name("icon_role_add".to_string());
@@ -132,8 +139,9 @@ impl ModelFXEditor {
         zoom.set_continuous(true);
         zoom.limiter_mut().set_max_width(120);
 
-        toolbar_hlayout.add_widget(Box::new(clear_button));
-        toolbar_hlayout.add_widget(Box::new(move_button));
+        // toolbar_hlayout.add_widget(Box::new(clear_button));
+        // toolbar_hlayout.add_widget(Box::new(move_button));
+        toolbar_hlayout.add_widget(Box::new(gb));
 
         let mut spacer = TheSpacer::new(TheId::empty());
         spacer.limiter_mut().set_max_size(vec2i(40, 5));
@@ -183,11 +191,27 @@ impl ModelFXEditor {
 
         // - ModelFX View
 
-        let modelfx_canvas = ModelFX::build_ui(ctx);
+        let mut modelfx_stack = TheStackLayout::new(TheId::named("ModelFX Stack"));
 
-        canvas.set_center(modelfx_canvas);
+        let mut geometry_canvas = TheCanvas::new();
+        let mut rgba_layout = TheRGBALayout::new(TheId::named("ModelFX RGBA Layout"));
+        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
+            rgba_view.set_grid(Some(24));
+            rgba_view.set_mode(TheRGBAViewMode::TilePicker);
+            let mut c = WHITE;
+            c[3] = 128;
+            rgba_view.set_hover_color(Some(c));
+        }
+        geometry_canvas.set_layout(rgba_layout);
 
-        //
+        let mut texture_node_canvas = TheCanvas::new();
+        let node_view = TheNodeCanvasView::new(TheId::named("ModelFX NodeCanvas"));
+        texture_node_canvas.set_widget(node_view);
+
+        modelfx_stack.add_canvas(geometry_canvas);
+        modelfx_stack.add_canvas(texture_node_canvas);
+
+        canvas.set_layout(modelfx_stack);
 
         canvas
     }
@@ -204,6 +228,11 @@ impl ModelFXEditor {
         let mut redraw = false;
 
         match event {
+            TheEvent::SizeChanged(id) => {
+                if id.name == "ModelFX RGBA Layout" {
+                    self.set_geo_tiles(ui, ctx);
+                }
+            }
             TheEvent::StateChanged(id, state) => {
                 if id.name == "ModelFX Clear" && state == &TheWidgetState::Clicked {
                     self.modelfx = ModelFX::default();
@@ -228,6 +257,7 @@ impl ModelFXEditor {
                 /*id.name.starts_with("ModelFX Node") &&*/
                 self.modelfx.add(item.name.clone()) {
                     self.modelfx.draw(ui, ctx, &project.palette);
+                    self.update_node_canvas(&project.palette, ui);
                     self.set_selected_node_ui(ui, ctx, &project.palette);
                     self.render_preview(ui, &project.palette);
                     let undo = ModelFXUndoAtom::AddNode(prev, self.modelfx.to_json());
@@ -368,6 +398,7 @@ impl ModelFXEditor {
                     if let TheValue::Float(value) = value {
                         self.modelfx.zoom = *value;
                         self.modelfx.draw(ui, ctx, &project.palette);
+                        self.update_node_canvas(&project.palette, ui);
                         redraw = true;
                     }
                 } else if id.name == "Palette Color Picker" {
@@ -468,6 +499,42 @@ impl ModelFXEditor {
                     }
                 }
             }
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == "ModelFX Mode Group" {
+                    if let Some(stack) = ui.get_stack_layout("ModelFX Stack") {
+                        stack.set_index(*index);
+                        redraw = true;
+                        ctx.ui.relayout = true;
+                    }
+                }
+            }
+            TheEvent::NodeSelectedIndexChanged(id, index) => {
+                if id.name == "ModelFX NodeCanvas" {
+                    self.modelfx.selected_node = *index;
+                    self.set_selected_node_ui(ui, ctx, &project.palette);
+                }
+            }
+            TheEvent::NodeDragged(id, index, position) => {
+                if id.name == "ModelFX NodeCanvas" {
+                    let collection = self.modelfx.nodes[*index].collection_mut();
+                    collection.set("_pos", TheValue::Int2(*position));
+                }
+            }
+            TheEvent::NodeConnectionAdded(id, connections)
+            | TheEvent::NodeConnectionRemoved(id, connections) => {
+                if id.name == "ModelFX NodeCanvas" {
+                    self.modelfx.connections.clone_from(connections);
+                }
+            }
+            TheEvent::NodeDeleted(id, deleted_node_index, connections) => {
+                if id.name == "ModelFX NodeCanvas" {
+                    self.modelfx.nodes.remove(*deleted_node_index);
+                    self.modelfx.node_previews.remove(*deleted_node_index);
+                    self.modelfx.connections.clone_from(connections);
+                    redraw = true;
+                }
+            }
+
             _ => {}
         }
 
@@ -569,11 +636,17 @@ impl ModelFXEditor {
         ctx: &mut TheContext,
         palette: &ThePalette,
     ) {
-        self.modelfx = model;
         self.set_selected_node_ui(ui, ctx, palette);
+        self.modelfx = model;
+        self.update_node_canvas(palette, ui);
         self.modelfx.draw(ui, ctx, palette);
         UNDOMANAGER.lock().unwrap().clear_modelfx();
         self.render_preview(ui, palette);
+    }
+
+    /// Update the node canvas
+    fn update_node_canvas(&mut self, palette: &ThePalette, ui: &mut TheUI) {
+        ui.set_node_canvas("ModelFX NodeCanvas", self.modelfx.to_canvas(palette));
     }
 
     /// Set the library models.
@@ -608,6 +681,63 @@ impl ModelFXEditor {
                 rgba_view.set_buffer(buffer);
             }
             editor.relayout(ctx);
+        }
+    }
+
+    /// Set the tiles for the picker.
+    pub fn set_geo_tiles(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) {
+        self.geo_names.clear();
+        let tile_size = 48;
+
+        let geo_tiles = GeoFXNode::nodes();
+
+        if let Some(editor) = ui.get_rgba_layout("ModelFX RGBA Layout") {
+            if editor.dim().width == 0 {
+                return;
+            }
+
+            let width = editor.dim().width - 16;
+            let height = editor.dim().height - 16;
+
+            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                let grid = tile_size;
+
+                rgba_view.set_grid(Some(grid));
+
+                let tiles_per_row = width / grid;
+                let lines = geo_tiles.len() as i32 / tiles_per_row + 1;
+
+                let mut buffer =
+                    TheRGBABuffer::new(TheDim::sized(width, max(lines * grid, height)));
+
+                let mut tile_buffer = TheRGBABuffer::new(TheDim::sized(tile_size, tile_size));
+
+                for (i, tile) in geo_tiles.iter().enumerate() {
+                    let x = i as i32 % tiles_per_row;
+                    let y = i as i32 / tiles_per_row;
+
+                    /*
+                    self.tile_ids.insert((x, y), tile.id);
+                    self.tile_text.insert(
+                        (x, y),
+                        format!(
+                            "{} : {}",
+                            tile.name,
+                            TileRole::from_index(tile.role)
+                                .unwrap_or(TileRole::ManMade)
+                                .to_string()
+                        ),
+                    );
+                    if !tile.buffer.is_empty() {
+                        buffer.copy_into(x * grid, y * grid, &tile.buffer[0].scaled(grid, grid));
+                        }*/
+
+                    tile.preview(&mut tile_buffer);
+                    buffer.copy_into(x * grid, y * grid, &tile_buffer);
+                }
+
+                rgba_view.set_buffer(buffer);
+            }
         }
     }
 }

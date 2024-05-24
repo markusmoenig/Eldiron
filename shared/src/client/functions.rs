@@ -151,7 +151,15 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
             }
 
             if let Some(font) = FONTS.read().unwrap().get(&font_name) {
-                buffer.draw_text(font, text.as_str(), size, WHITE);
+                buffer.draw_text(
+                    vec2i(0, 0),
+                    font,
+                    text.as_str(),
+                    size,
+                    WHITE,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
             }
 
             TheCodeNodeCallResult::Continue
@@ -286,7 +294,7 @@ pub fn add_compiler_client_functions(compiler: &mut TheCompiler) {
                 buffer.copy_into(pos.x, pos.y, &image_buffer);
             } else if let Some(TheValue::Tile(_, id)) = value {
                 if let Some(image_buffer) = TILEDRAWER.read().unwrap().get_tile(&id) {
-                    buffer.copy_into(pos.x, pos.y, &image_buffer.buffer[0]);
+                    buffer.blend_into(pos.x, pos.y, &image_buffer.buffer[0]);
                 }
             }
 

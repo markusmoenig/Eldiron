@@ -1028,13 +1028,17 @@ impl TheTrait for Editor {
                                     if let Ok(project) = serde_json::from_str(&contents) {
                                         self.project = project;
 
-                                        for r in &mut self.project.regions {
-                                            for m in r.models.values_mut() {
-                                                m.floor.addjust_nodes();
-                                                m.wall.addjust_nodes();
-                                                m.ceiling.addjust_nodes();
-                                            }
-                                        }
+                                        // for r in &mut self.project.regions {
+                                        // for m in r.models.values_mut() {
+                                        //     m.floor.addjust_nodes();
+                                        //     m.wall.addjust_nodes();
+                                        //     m.ceiling.addjust_nodes();
+                                        // }
+                                        // for m in r.models.values_mut() {
+                                        //     m.clear();
+                                        // }
+                                        // r.models.clear();
+                                        // }
 
                                         for region in &mut self.project.regions {
                                             VOXELTHREAD.lock().unwrap().voxelize_region_models(

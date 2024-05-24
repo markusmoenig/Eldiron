@@ -8,6 +8,16 @@ pub enum ModelFXTerminalRole {
     Noise,
 }
 
+impl ModelFXTerminalRole {
+    pub fn description(&self) -> &str {
+        match self {
+            Self::Face => "Geo",
+            Self::UV => "UV",
+            Self::Noise => "Noise",
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum ModelFXColor {
     Color(TheColor),

@@ -4,6 +4,7 @@ pub mod camera;
 pub mod character;
 pub mod client;
 pub mod fx;
+pub mod geofxnode;
 pub mod interaction;
 pub mod item;
 pub mod level;
@@ -37,6 +38,7 @@ pub mod prelude {
     pub use crate::character::Character;
     pub use crate::client::*;
     pub use crate::fx::*;
+    pub use crate::geofxnode::*;
     pub use crate::interaction::*;
     pub use crate::item::Item;
     pub use crate::level::*;

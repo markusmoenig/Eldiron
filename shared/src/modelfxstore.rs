@@ -32,6 +32,13 @@ impl ModelFXStore {
         }
     }
 
+    /// Clears the store
+    pub fn clear(&mut self) {
+        self.floor.clear();
+        self.wall.clear();
+        self.ceiling.clear();
+    }
+
     /// Render the model by checking the floor, wall, and ceiling.
     pub fn render(
         &self,

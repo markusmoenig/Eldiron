@@ -2902,7 +2902,7 @@ dependencies = [
 [[package]]
 name = "theframework"
 version = "0.1.20"
-source = "git+https://github.com/markusmoenig/TheFramework#eb6d379e9ebd3af6104814ea036abbd597330900"
+source = "git+https://github.com/markusmoenig/TheFramework#e21ce6f4b1bd8200ff2a85984528eaec0ad081d8"
 dependencies = [
  "arboard",
  "console_error_panic_hook",
@@ -2930,6 +2930,7 @@ dependencies = [
  "web-sys",
  "winit",
  "winit_input_helper",
+ "zeno",
 ]
 
 [[package]]
@@ -4039,6 +4040,12 @@ name = "xml-rs"
 version = "0.8.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "791978798f0597cfc70478424c2b4fdc2b7a8024aaff78497ef00f24ef674193"
+
+[[package]]
+name = "zeno"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea3a5f6377b61784d9fe23ecfea15202508978bce00b401fcd8efeb8d21c767b"
 
 [[package]]
 name = "zerocopy"

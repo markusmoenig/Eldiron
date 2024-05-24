@@ -644,7 +644,7 @@ impl ScreenEditor {
                                 let height = widget.height as i32;
 
                                 if Some(widget.id) != server_ctx.curr_widget {
-                                    rgba_view.buffer_mut().rect_outline(
+                                    rgba_view.buffer_mut().draw_rect_outline(
                                         &TheDim::new(x, y, width * gs, height * gs),
                                         &[128, 128, 128, 255],
                                     );
@@ -657,7 +657,7 @@ impl ScreenEditor {
                                 let height = widget.height as i32;
 
                                 if Some(widget.id) == server_ctx.curr_widget {
-                                    rgba_view.buffer_mut().rect_outline(
+                                    rgba_view.buffer_mut().draw_rect_outline(
                                         &TheDim::new(x, y, width * gs, height * gs),
                                         &[255, 255, 255, 255],
                                     );

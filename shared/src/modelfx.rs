@@ -56,6 +56,9 @@ pub struct ModelFX {
 
     pub selected_node: Option<usize>,
 
+    #[serde(default = "Vec2i::zero")]
+    pub scroll_offset: Vec2i,
+
     #[serde(skip)]
     pub drag_start: Vec2i,
     #[serde(skip)]
@@ -88,11 +91,24 @@ impl ModelFX {
             terminal_rects: vec![],
             zoom: 1.0,
 
+            scroll_offset: Vec2i::zero(),
+
             selected_node: None,
 
             drag_start: Vec2i::zero(),
             drag_offset: Vec2i::zero(),
         }
+    }
+
+    /// Clears the model.
+    pub fn clear(&mut self) {
+        self.nodes.clear();
+        self.connections.clear();
+        self.voxels.clear();
+        self.node_previews.clear();
+        self.node_rects.clear();
+        self.terminal_rects.clear();
+        self.selected_node = None;
     }
 
     /// If necessary adjust the node properties.
@@ -166,22 +182,6 @@ impl ModelFX {
                 }
             }
         }
-    }
-
-    pub fn build_ui(_ctx: &mut TheContext) -> TheCanvas {
-        let mut canvas = TheCanvas::new();
-
-        let mut rgba_layout = TheRGBALayout::new(TheId::named("ModelFX RGBA Layout"));
-        //rgba_layout.set_buffer(TheRGBABuffer::new(TheDim::sized(600, 400)));
-        //rgba_layout.limiter_mut().set_max_size(vec2i(600, 400));
-        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-            rgba_view.set_mode(TheRGBAViewMode::TileEditor);
-            rgba_view.set_grid(Some(1));
-            rgba_view.set_background([74, 74, 74, 255]);
-        }
-        canvas.set_layout(rgba_layout);
-
-        canvas
     }
 
     pub fn draw(&mut self, ui: &mut TheUI, ctx: &mut TheContext, palette: &ThePalette) {
@@ -1136,6 +1136,83 @@ impl ModelFX {
             }
         }
         clamp(1.0 - 3.0 * occ, 0.0, 1.0) * (0.5 + 0.5 * nor.y)
+    }
+
+    /// Convert the model to a node canvas.
+    pub fn to_canvas(&mut self, palette: &ThePalette) -> TheNodeCanvas {
+        let mut canvas = TheNodeCanvas {
+            node_width: 95,
+            ..Default::default()
+        };
+
+        let preview_size = (40.0 * self.zoom) as i32;
+
+        for (i, node) in self.nodes.iter().enumerate() {
+            let mut pos = Vec2i::zero();
+            if let Some(TheValue::Int2(v)) = node.collection().get("_pos") {
+                pos = *v;
+            }
+
+            if i >= self.node_previews.len() {
+                self.node_previews.resize(i + 1, None);
+            }
+
+            // Remove preview buffer if size has changed
+            if let Some(preview_buffer) = &self.node_previews[i] {
+                if preview_buffer.dim().width != preview_size
+                    && preview_buffer.dim().height != preview_size
+                {
+                    self.node_previews[i] = None;
+                }
+            }
+
+            // Create preview if it doesn't exist
+            if self.node_previews[i].is_none() {
+                let mut preview_buffer =
+                    TheRGBABuffer::new(TheDim::sized(preview_size, preview_size));
+                self.render_node_preview(&mut preview_buffer, i, palette);
+                self.node_previews[i] = Some(preview_buffer);
+            }
+
+            let inp = node.input_terminals();
+            let out = node.output_terminals();
+
+            let mut inputs = Vec::new();
+            let mut outputs = Vec::new();
+
+            for i in inp {
+                let t = TheNodeTerminal {
+                    name: i.role.description().to_string(),
+                    role: i.role.description().to_string(),
+                    color: i.color.color().clone(),
+                };
+                inputs.push(t);
+            }
+
+            for o in out {
+                let t = TheNodeTerminal {
+                    name: o.role.description().to_string(),
+                    role: o.role.description().to_string(),
+                    color: o.color.color().clone(),
+                };
+                outputs.push(t);
+            }
+
+            let n = TheNode {
+                name: node.name(),
+                position: pos,
+                inputs,
+                outputs,
+                preview: self.node_previews[i].clone().unwrap(),
+            };
+            canvas.nodes.push(n);
+        }
+        canvas.connections.clone_from(&self.connections);
+        canvas.zoom = self.zoom;
+        canvas.offset = self.scroll_offset;
+        canvas.selected_node = self.selected_node;
+
+        canvas
     }
 
     /// Load a model from a JSON string.
