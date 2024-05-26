@@ -38,6 +38,10 @@ pub struct ServerContext {
 
     /// The logged interactions of the characters.
     pub interactions: FxHashMap<Uuid, Vec<Interaction>>,
+
+    /// The conceptual display range [0..1] of the 2D preview.
+    /// Only relevent in Model view. 0 is full conceptual display. 1 is full detail.
+    pub conceptual_display: Option<f32>,
 }
 
 impl Default for ServerContext {
@@ -69,6 +73,8 @@ impl ServerContext {
             show_fx_marker: false,
 
             interactions: FxHashMap::default(),
+
+            conceptual_display: None,
         }
     }
 

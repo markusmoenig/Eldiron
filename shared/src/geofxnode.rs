@@ -6,38 +6,18 @@ use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum GeoFXNode {
-    Disc(TheCollection),
+    Disc(TheTimeline),
 }
 
 impl GeoFXNode {
-    pub fn new_node(name: &str, collection: Option<TheCollection>) -> Option<Self> {
-        let mut coll = TheCollection::named(name.into());
-        match name {
-            "Disc" => {
-                if let Some(collection) = collection {
-                    coll = collection;
-                } else {
-                    coll.set("Radius", TheValue::FloatRange(0.01, 0.0..=5.0));
-                }
-                Some(Self::Disc(coll))
-            }
-            // Box
-            _ => {
-                if let Some(collection) = collection {
-                    coll = collection;
-                } else {
-                    coll.set("Size", TheValue::FloatRange(0.01, 0.0..=5.0));
-                }
-                Some(Self::Disc(coll))
-            }
-        }
+    pub fn new_disc() -> Self {
+        let mut coll = TheCollection::named(str!("Geo"));
+        coll.set("Radius", TheValue::FloatRange(0.01, 0.000..=5.0));
+        Self::Disc(TheTimeline::collection(coll))
     }
 
     pub fn nodes() -> Vec<Self> {
-        vec![
-            Self::new_node("Disc", None).unwrap(),
-            Self::new_node("Box", None).unwrap(),
-        ]
+        vec![Self::new_disc()]
     }
 
     pub fn distance(&self, p: Vec2f, coll: &TheCollection) -> f32 {

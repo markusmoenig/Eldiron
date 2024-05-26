@@ -420,6 +420,7 @@ impl TileEditor {
                         }
                     }
                 } else if id.name == "Editor Group" {
+                    server_ctx.conceptual_display = None;
                     if *index == EditorMode::Draw as usize {
                         self.editor_mode = EditorMode::Draw;
                         server_ctx.tile_selection = None;
@@ -492,6 +493,9 @@ impl TileEditor {
                             TheId::named("Set Region Modeler"),
                             TheValue::Empty,
                         ));
+                        if let Some(TheValue::Float(f)) = ui.get_widget_value("ModelFX Blend") {
+                            server_ctx.conceptual_display = Some(f);
+                        }
                     } else if *index == EditorMode::Tilemap as usize {
                         self.editor_mode = EditorMode::Tilemap;
                         server_ctx.tile_selection = None;
@@ -1044,10 +1048,14 @@ impl TileEditor {
         }
 
         if self.editor_mode == EditorMode::Model {
-            let palette = project.palette.clone();
+            //let palette = project.palette.clone();
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                let mut model = MODELFXEDITOR.lock().unwrap().get_model();
+                //let model = MODELFXEDITOR.lock().unwrap().get_model();
+                if let Some(geo) = MODELFXEDITOR.lock().unwrap().get_geo_node(ui) {
+                    region.add_geo(vec3i(coord.x, 0, coord.y), geo)
+                }
 
+                /*
                 model.create_voxels(
                     region.grid_size as u8,
                     &vec3f(coord.x as f32, 0.0, coord.y as f32),
@@ -1091,6 +1099,7 @@ impl TileEditor {
                     .add_region_undo(&region.id, undo, ctx);
                 server.update_region(region);
                 RENDERER.lock().unwrap().set_region(region);
+                */
             }
         } else if self.editor_mode == EditorMode::Select {
             let p = (coord.x, coord.y);

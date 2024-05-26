@@ -10,7 +10,7 @@ pub enum ModelFXMode {
 
 pub struct ModelFXEditor {
     pub mode: ModelFXMode,
-    pub geo_names: FxHashMap<(i32, i32), String>,
+    pub geos: FxHashMap<(i32, i32), GeoFXNode>,
 
     pub modelfx: ModelFX,
 
@@ -22,7 +22,7 @@ impl ModelFXEditor {
     pub fn new() -> Self {
         Self {
             mode: ModelFXMode::Floor,
-            geo_names: FxHashMap::default(),
+            geos: FxHashMap::default(),
 
             modelfx: ModelFX::default(),
 
@@ -132,12 +132,13 @@ impl ModelFXEditor {
             ..Default::default()
         }));
 
-        let mut zoom = TheSlider::new(TheId::named("ModelFX Zoom"));
-        zoom.set_value(TheValue::Float(1.0));
-        zoom.set_default_value(TheValue::Float(1.0));
-        zoom.set_range(TheValue::RangeF32(1.0..=5.0));
-        zoom.set_continuous(true);
-        zoom.limiter_mut().set_max_width(120);
+        let mut blend = TheSlider::new(TheId::named("ModelFX Blend"));
+        blend.set_value(TheValue::Float(0.5));
+        blend.set_default_value(TheValue::Float(0.5));
+        blend.set_range(TheValue::RangeF32(0.0..=1.0));
+        blend.set_continuous(true);
+        blend.limiter_mut().set_max_width(120);
+        blend.set_status_text("Sets the blend factor for the preview in the 2D Map. 0 only shows the conceptual preview, 1 the fully rendered preview.");
 
         // toolbar_hlayout.add_widget(Box::new(clear_button));
         // toolbar_hlayout.add_widget(Box::new(move_button));
@@ -147,10 +148,10 @@ impl ModelFXEditor {
         spacer.limiter_mut().set_max_size(vec2i(40, 5));
         toolbar_hlayout.add_widget(Box::new(spacer));
 
-        toolbar_hlayout.add_widget(Box::new(floors_button));
-        toolbar_hlayout.add_widget(Box::new(walls_button));
-        toolbar_hlayout.add_widget(Box::new(material_button));
-        toolbar_hlayout.add_widget(Box::new(zoom));
+        // toolbar_hlayout.add_widget(Box::new(floors_button));
+        // toolbar_hlayout.add_widget(Box::new(walls_button));
+        // toolbar_hlayout.add_widget(Box::new(material_button));
+        toolbar_hlayout.add_widget(Box::new(blend));
         toolbar_hlayout.set_reverse_index(Some(1));
 
         /*
@@ -223,7 +224,7 @@ impl ModelFXEditor {
         ctx: &mut TheContext,
         project: &mut Project,
         _server: &mut Server,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
 
@@ -394,12 +395,9 @@ impl ModelFXEditor {
                 }
                 }*/
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "ModelFX Zoom" {
+                if id.name == "ModelFX Blend" {
                     if let TheValue::Float(value) = value {
-                        self.modelfx.zoom = *value;
-                        self.modelfx.draw(ui, ctx, &project.palette);
-                        self.update_node_canvas(&project.palette, ui);
-                        redraw = true;
+                        server_ctx.conceptual_display = Some(*value);
                     }
                 } else if id.name == "Palette Color Picker" {
                     let index = project.palette.current_index;
@@ -686,7 +684,7 @@ impl ModelFXEditor {
 
     /// Set the tiles for the picker.
     pub fn set_geo_tiles(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) {
-        self.geo_names.clear();
+        self.geos.clear();
         let tile_size = 48;
 
         let geo_tiles = GeoFXNode::nodes();
@@ -734,10 +732,27 @@ impl ModelFXEditor {
 
                     tile.preview(&mut tile_buffer);
                     buffer.copy_into(x * grid, y * grid, &tile_buffer);
+                    self.geos.insert((x, y), tile.clone());
                 }
 
                 rgba_view.set_buffer(buffer);
             }
         }
+    }
+
+    /// Get the currently selected geometry node.
+    pub fn get_geo_node(&self, ui: &mut TheUI) -> Option<GeoFXNode> {
+        if let Some(editor) = ui.get_rgba_layout("ModelFX RGBA Layout") {
+            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                let selection = rgba_view.selection();
+                for i in selection {
+                    if let Some(tile) = self.geos.get(&i) {
+                        return Some(tile.clone());
+                    }
+                }
+            }
+        }
+
+        None
     }
 }

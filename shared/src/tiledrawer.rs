@@ -22,6 +22,8 @@ pub struct RegionDrawSettings {
 
     pub time: TheTime,
     pub center_on_character: Option<Uuid>,
+
+    pub conceptual_display: Option<f32>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -44,6 +46,8 @@ impl RegionDrawSettings {
 
             time: TheTime::default(),
             center_on_character: None,
+
+            conceptual_display: None,
         }
     }
 }
@@ -169,6 +173,11 @@ impl TileDrawer {
                     let mut show_fx_marker = false;
 
                     let mut mirror: Option<(i32, i32)> = None;
+
+                    for (pos, geo) in &region.geometry {
+                        let p = Vec2f::new(pos.x as f32, pos.z as f32)
+                            - vec2f(tile_x as f32, tile_y as f32);
+                    }
 
                     if let Some(tile) = region.tiles.get(&(tile_x, tile_y)) {
                         for tile_index in 0..tile.layers.len() {

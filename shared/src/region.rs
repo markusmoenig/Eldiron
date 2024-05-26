@@ -47,6 +47,10 @@ pub struct Region {
     pub models: FxHashMap<(i32, i32, i32), ModelFXStore>,
 
     #[serde(default)]
+    #[serde(with = "vectorize")]
+    pub geometry: FxHashMap<Vec3i, GeoFXObject>,
+
+    #[serde(default)]
     pub areas: FxHashMap<Uuid, Area>,
 
     #[serde(default)]
@@ -101,6 +105,7 @@ impl Region {
 
             tiles: FxHashMap::default(),
             models: FxHashMap::default(),
+            geometry: FxHashMap::default(),
 
             areas: FxHashMap::default(),
             characters: FxHashMap::default(),
@@ -166,6 +171,17 @@ impl Region {
             let mut region_tile = RegionTile::default();
             region_tile.layers[role as usize] = tile;
             self.tiles.insert(pos, region_tile);
+        }
+    }
+
+    /// Add a geometry node to the given position.
+    pub fn add_geo(&mut self, at: Vec3i, geo: GeoFXNode) {
+        if let Some(geo_obj) = self.geometry.get_mut(&at) {
+            geo_obj.geos.push(geo);
+        } else {
+            let mut geo_obj = GeoFXObject::default();
+            geo_obj.geos.push(geo);
+            self.geometry.insert(at, geo_obj);
         }
     }
 
