@@ -307,12 +307,14 @@ impl TileDrawer {
                         if geo_obj.area.contains(&vec2i(tile_x, tile_y)) {
                             let p = vec2f(x as f32, y as f32);
                             let d = geo_obj.distance(&TheTime::default(), p, grid_size);
-                            if d < 0.0 {
-                                if Some(geo_obj.id) == settings.curr_geo_object {
-                                    color = WHITE;
+                            if d < 1.0 {
+                                let c = if Some(geo_obj.id) == settings.curr_geo_object {
+                                    WHITE
                                 } else {
-                                    color = [128, 128, 128, 255];
-                                }
+                                    [128, 128, 128, 255]
+                                };
+                                let t = smoothstep(-1.0, 0.0, d);
+                                color = self.mix_color(&c, &color, t);
                                 break;
                             }
                         }

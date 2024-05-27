@@ -1249,6 +1249,8 @@ impl TileEditor {
             }
         } else if self.editor_mode == EditorMode::Pick {
             let mut clicked_tile = false;
+            let mut found_geo = false;
+
             // Check for character at the given position.
             if let Some(c) = server.get_character_at(server_ctx.curr_region, coord) {
                 server_ctx.curr_character_instance = Some(c.0);
@@ -1359,9 +1361,6 @@ impl TileEditor {
                     // No area, set the tile.
 
                     server_ctx.curr_character_instance = None;
-
-                    let mut found_geo = false;
-
                     // Test against object SDFs
                     if let Some(editor) = ui.get_rgba_layout("Region Editor") {
                         if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
@@ -1446,6 +1445,10 @@ impl TileEditor {
                     }
                 }
             }
+            MODELFXEDITOR
+                .lock()
+                .unwrap()
+                .set_geo_node_ui(server_ctx, project, ui, ctx);
             if clicked_tile {
                 self.set_editor_group_index(EditorMode::Draw, ui, ctx);
             }
