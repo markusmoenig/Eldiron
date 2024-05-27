@@ -262,6 +262,10 @@ impl RegionInstance {
                 self.draw_settings.anim_counter = *anim_counter;
                 self.draw_settings.display_offset = offset;
 
+                self.draw_settings.conceptual_display = server_ctx.conceptual_display;
+                self.draw_settings.curr_geo_object = server_ctx.curr_geo_object;
+                self.draw_settings.curr_geo_node = server_ctx.curr_geo_node;
+
                 tiledrawer.draw_region(
                     buffer,
                     region,

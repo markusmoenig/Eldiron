@@ -66,7 +66,7 @@ pub mod prelude {
     pub use crate::voxelthread::*;
     pub use crate::widget::*;
     pub use crate::ServerMessage;
-    pub use crate::{do_intersect, Hit, HitFace, Ray, Voxel};
+    pub use crate::{do_intersect, Hit, HitFace, Ray, Voxel, AABB2D};
     pub use rand::prelude::*;
 }
 
@@ -174,6 +174,61 @@ impl Voxel {
             metallic: 0,
             reflectance: 128,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct AABB2D {
+    min: Vec2f,
+    max: Vec2f,
+}
+
+impl Default for AABB2D {
+    fn default() -> Self {
+        Self::zero()
+    }
+}
+
+impl AABB2D {
+    pub fn new(min: Vec2f, max: Vec2f) -> Self {
+        AABB2D { min, max }
+    }
+
+    pub fn zero() -> Self {
+        AABB2D {
+            min: Vec2f::new(f32::MAX, f32::MAX),
+            max: Vec2f::new(f32::MIN, f32::MIN),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.min.x > self.max.x || self.min.y > self.max.y
+    }
+
+    pub fn grow(&mut self, other: AABB2D) {
+        self.min.x = self.min.x.min(other.min.x);
+        self.min.y = self.min.y.min(other.min.y);
+        self.max.x = self.max.x.max(other.max.x);
+        self.max.y = self.max.y.max(other.max.y);
+    }
+
+    pub fn to_int(&self) -> (Vec2i, Vec2i) {
+        let min_int = Vec2i::new(self.min.x.floor() as i32, self.min.y.floor() as i32);
+        let max_int = Vec2i::new(self.max.x.ceil() as i32, self.max.y.ceil() as i32);
+        (min_int, max_int)
+    }
+
+    pub fn to_tiles(&self) -> Vec<Vec2i> {
+        let (min_int, max_int) = self.to_int();
+        let mut tiles = Vec::new();
+
+        for x in min_int.x..=max_int.x {
+            for y in min_int.y..=max_int.y {
+                tiles.push(Vec2i::new(x, y));
+            }
+        }
+
+        tiles
     }
 }
 

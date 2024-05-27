@@ -24,6 +24,8 @@ pub struct RegionDrawSettings {
     pub center_on_character: Option<Uuid>,
 
     pub conceptual_display: Option<f32>,
+    pub curr_geo_object: Option<Uuid>,
+    pub curr_geo_node: Option<Uuid>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -48,6 +50,8 @@ impl RegionDrawSettings {
             center_on_character: None,
 
             conceptual_display: None,
+            curr_geo_object: None,
+            curr_geo_node: None,
         }
     }
 }
@@ -174,11 +178,6 @@ impl TileDrawer {
 
                     let mut mirror: Option<(i32, i32)> = None;
 
-                    for (pos, geo) in &region.geometry {
-                        let p = Vec2f::new(pos.x as f32, pos.z as f32)
-                            - vec2f(tile_x as f32, tile_y as f32);
-                    }
-
                     if let Some(tile) = region.tiles.get(&(tile_x, tile_y)) {
                         for tile_index in 0..tile.layers.len() {
                             if let Some(tile_uuid) = tile.layers[tile_index] {
@@ -302,58 +301,73 @@ impl TileDrawer {
                                 }
                             }
                         }
-                        // Items
-                        for item in update.items.values() {
-                            if tile_x == item.position.x as i32 && tile_y == item.position.y as i32
-                            {
-                                if let Some(tile_uuid) =
-                                    self.get_tile_id_by_name(item.tile_name.clone())
-                                {
-                                    if let Some(data) = self.tiles.get(&tile_uuid) {
-                                        let index = settings.anim_counter % data.buffer.len();
+                    }
 
-                                        if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
-                                            color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
-                                        }
+                    for geo_obj in region.geometry.values() {
+                        if geo_obj.area.contains(&vec2i(tile_x, tile_y)) {
+                            let p = vec2f(x as f32, y as f32);
+                            let d = geo_obj.distance(&TheTime::default(), p, grid_size);
+                            if d < 0.0 {
+                                if Some(geo_obj.id) == settings.curr_geo_object {
+                                    color = WHITE;
+                                } else {
+                                    color = [128, 128, 128, 255];
+                                }
+                                break;
+                            }
+                        }
+                    }
+
+                    // Items
+                    for item in update.items.values() {
+                        if tile_x == item.position.x as i32 && tile_y == item.position.y as i32 {
+                            if let Some(tile_uuid) =
+                                self.get_tile_id_by_name(item.tile_name.clone())
+                            {
+                                if let Some(data) = self.tiles.get(&tile_uuid) {
+                                    let index = settings.anim_counter % data.buffer.len();
+
+                                    if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
+                                        color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
                                     }
                                 }
                             }
                         }
+                    }
 
-                        // Characters
-                        for (pos, tile, _, _) in &update.characters_pixel_pos {
-                            if let Some(data) = self.tiles.get(tile) {
-                                let index = settings.anim_counter % data.buffer.len();
+                    // Characters
+                    for (pos, tile, _, _) in &update.characters_pixel_pos {
+                        if let Some(data) = self.tiles.get(tile) {
+                            let index = settings.anim_counter % data.buffer.len();
 
-                                let xx = x - pos.x;
-                                let yy = y - pos.y;
+                            let xx = x - pos.x;
+                            let yy = y - pos.y;
 
-                                if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
-                                    color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
-                                }
+                            if let Some(c) = data.buffer[index].at(vec2i(xx, yy)) {
+                                color = self.mix_color(&color, &c, c[3] as f32 / 255.0);
                             }
                         }
+                    }
 
-                        self.render(
-                            vec2i(x, y),
-                            &mut color,
-                            region,
-                            update,
-                            &level,
-                            daylight,
-                            settings,
-                            mirror,
-                        );
+                    self.render(
+                        vec2i(x, y),
+                        &mut color,
+                        region,
+                        update,
+                        &level,
+                        daylight,
+                        settings,
+                        mirror,
+                    );
 
-                        // Show the fx marker if necessary
-                        if show_fx_marker {
-                            let triangle_size = 4;
-                            if xx < triangle_size && yy < triangle_size && yy < triangle_size - xx {
-                                color[0] = 212;
-                                color[1] = 128;
-                                color[2] = 77;
-                                color[3] = 255;
-                            }
+                    // Show the fx marker if necessary
+                    if show_fx_marker {
+                        let triangle_size = 4;
+                        if xx < triangle_size && yy < triangle_size && yy < triangle_size - xx {
+                            color[0] = 212;
+                            color[1] = 128;
+                            color[2] = 77;
+                            color[3] = 255;
                         }
                     }
 

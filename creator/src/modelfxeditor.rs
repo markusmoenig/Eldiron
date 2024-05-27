@@ -13,6 +13,7 @@ pub struct ModelFXEditor {
     pub geos: FxHashMap<(i32, i32), GeoFXNode>,
 
     pub modelfx: ModelFX,
+    pub material_mode: bool,
 
     pub palette_indices: FxHashMap<String, Vec<u16>>,
 }
@@ -25,6 +26,7 @@ impl ModelFXEditor {
             geos: FxHashMap::default(),
 
             modelfx: ModelFX::default(),
+            material_mode: false,
 
             palette_indices: FxHashMap::default(),
         }
@@ -223,7 +225,7 @@ impl ModelFXEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut Server,
+        server: &mut Server,
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
@@ -266,7 +268,11 @@ impl ModelFXEditor {
                     redraw = true;
                 }
             }
-            TheEvent::TilePicked(id, coord) => {
+            TheEvent::TilePicked(id, _coord) => {
+                if id.name == "ModelFX RGBA Layout View" {
+                    self.set_geo_node_ui(server_ctx, project, ui, ctx);
+                }
+                /*
                 if id.name == "ModelFX Library RGBA Layout View" {
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Set Region Modeler"),
@@ -289,7 +295,7 @@ impl ModelFXEditor {
                         self.render_preview(ui, &project.palette);
                         redraw = true;
                     }
-                }
+                    }*/
             }
             TheEvent::TileEditorClicked(id, coord) => {
                 if id.name == "ModelFX RGBA Layout View" && self.modelfx.clicked(*coord, ui, ctx) {
@@ -419,8 +425,36 @@ impl ModelFXEditor {
                     self.render_preview(ui, &project.palette);
                 } else if id.name.starts_with(":MODELFX:") {
                     if let Some(name) = id.name.strip_prefix(":MODELFX: ") {
-                        let mut value = value.clone();
+                        let value = value.clone();
 
+                        if !self.material_mode {
+                            if let Some(curr_geo_node) = server_ctx.curr_geo_node {
+                                if let Some(region) =
+                                    project.get_region_mut(&server_ctx.curr_region)
+                                {
+                                    if let Some((geo_obj, index)) =
+                                        region.find_geo_node(curr_geo_node)
+                                    {
+                                        geo_obj.geos[index].set(name, value);
+                                        geo_obj.update_area();
+                                        server.update_region(region);
+                                    }
+                                }
+                            }
+
+                            // if let Some(editor) = ui.get_rgba_layout("ModelFX RGBA Layout") {
+                            //     if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                            //         let selection = rgba_view.selection();
+                            //         for i in selection {
+                            //             if let Some(geo) = self.geos.get_mut(&i) {
+                            //                 geo.set(name, value);
+                            //                 break;
+                            //             }
+                            //         }
+                            //     }
+                            // }
+                        }
+                        /*
                         let prev = self.modelfx.to_json();
                         if let Some(selected_index) = self.modelfx.selected_node {
                             let collection = self.modelfx.nodes[selected_index].collection_mut();
@@ -451,6 +485,7 @@ impl ModelFXEditor {
                             UNDOMANAGER.lock().unwrap().add_modelfx_undo(undo, ctx);
                             redraw = true;
                         }
+                        */
                     }
                 }
             }
@@ -503,6 +538,10 @@ impl ModelFXEditor {
                         stack.set_index(*index);
                         redraw = true;
                         ctx.ui.relayout = true;
+                        self.material_mode = *index == 1;
+                        if *index == 0 {
+                            self.set_geo_node_ui(server_ctx, project, ui, ctx);
+                        }
                     }
                 }
             }
@@ -537,6 +576,81 @@ impl ModelFXEditor {
         }
 
         redraw
+    }
+
+    pub fn set_geo_node_ui(
+        &mut self,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        self.palette_indices.clear();
+
+        if let Some(curr_geo_node) = server_ctx.curr_geo_node {
+            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                if let Some((geo_obj, index)) = region.find_geo_node(curr_geo_node) {
+                    let collection = geo_obj.geos[index].collection();
+                    if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
+                        text_layout.clear();
+                        for (name, value) in &collection.keys {
+                            if let TheValue::FloatRange(value, range) = value {
+                                let mut slider = TheTextLineEdit::new(TheId::named(
+                                    (":MODELFX: ".to_owned() + name).as_str(),
+                                ));
+                                slider.set_value(TheValue::Float(*value));
+                                //slider.set_default_value(TheValue::Float(0.0));
+                                slider.set_range(TheValue::RangeF32(range.clone()));
+                                slider.set_continuous(true);
+                                text_layout.add_pair(name.clone(), Box::new(slider));
+                            } else if let TheValue::Float(value) = value {
+                                let mut slider = TheTextLineEdit::new(TheId::named(
+                                    (":MODELFX: ".to_owned() + name).as_str(),
+                                ));
+                                slider.set_value(TheValue::Float(*value));
+                                text_layout.add_pair(name.clone(), Box::new(slider));
+                            } else if let TheValue::IntRange(value, range) = value {
+                                let mut slider = TheTextLineEdit::new(TheId::named(
+                                    (":MODELFX: ".to_owned() + name).as_str(),
+                                ));
+                                slider.set_value(TheValue::Int(*value));
+                                slider.set_range(TheValue::RangeI32(range.clone()));
+                                slider.set_continuous(true);
+                                text_layout.add_pair(name.clone(), Box::new(slider));
+                            } else if let TheValue::TextList(index, list) = value {
+                                let mut dropdown = TheDropdownMenu::new(TheId::named(
+                                    (":MODELFX: ".to_owned() + name).as_str(),
+                                ));
+                                for item in list {
+                                    dropdown.add_option(item.clone());
+                                }
+                                dropdown.set_selected_index(*index);
+                                text_layout.add_pair(name.clone(), Box::new(dropdown));
+                            } else if let TheValue::PaletteIndex(index) = value {
+                                let name_id = ":MODELFX: ".to_owned() + name;
+                                let mut color_picker =
+                                    TheColorButton::new(TheId::named(name_id.as_str()));
+                                color_picker.limiter_mut().set_max_size(vec2i(80, 20));
+                                if let Some(color) = &project.palette[*index as usize] {
+                                    color_picker.set_color(color.to_u8_array());
+                                }
+
+                                if let Some(indices) = self.palette_indices.get_mut(&name_id) {
+                                    indices.push(*index);
+                                } else {
+                                    self.palette_indices
+                                        .insert(name_id.to_string(), vec![*index]);
+                                }
+                                text_layout.add_pair(name.clone(), Box::new(color_picker));
+                            }
+                        }
+                        ctx.ui.relayout = true;
+                    }
+                } else if let Some(text_layout) = ui.get_text_layout("ModelFX Settings") {
+                    text_layout.clear();
+                }
+            }
+        }
     }
 
     pub fn set_selected_node_ui(

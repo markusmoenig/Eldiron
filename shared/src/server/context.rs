@@ -42,6 +42,9 @@ pub struct ServerContext {
     /// The conceptual display range [0..1] of the 2D preview.
     /// Only relevent in Model view. 0 is full conceptual display. 1 is full detail.
     pub conceptual_display: Option<f32>,
+
+    pub curr_geo_object: Option<Uuid>,
+    pub curr_geo_node: Option<Uuid>,
 }
 
 impl Default for ServerContext {
@@ -75,6 +78,9 @@ impl ServerContext {
             interactions: FxHashMap::default(),
 
             conceptual_display: None,
+
+            curr_geo_object: None,
+            curr_geo_node: None,
         }
     }
 

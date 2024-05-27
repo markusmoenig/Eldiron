@@ -1051,8 +1051,19 @@ impl TileEditor {
             //let palette = project.palette.clone();
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 //let model = MODELFXEDITOR.lock().unwrap().get_model();
-                if let Some(geo) = MODELFXEDITOR.lock().unwrap().get_geo_node(ui) {
-                    region.add_geo(vec3i(coord.x, 0, coord.y), geo)
+                let geo = MODELFXEDITOR.lock().unwrap().get_geo_node(ui);
+                if let Some(mut geo) = geo {
+                    let new_id = Uuid::new_v4();
+                    geo.id = new_id;
+                    geo.set_default_position(coord);
+                    let obj_id = region.add_geo(vec3i(coord.x, 0, coord.y), geo);
+                    server_ctx.curr_geo_object = Some(obj_id);
+                    server_ctx.curr_geo_node = Some(new_id);
+                    server.update_region(region);
+                    MODELFXEDITOR
+                        .lock()
+                        .unwrap()
+                        .set_geo_node_ui(server_ctx, project, ui, ctx);
                 }
 
                 /*
@@ -1346,7 +1357,30 @@ impl TileEditor {
 
                 if !found_area {
                     // No area, set the tile.
+
                     server_ctx.curr_character_instance = None;
+
+                    let mut found_geo = false;
+
+                    // Test against object SDFs
+                    if let Some(editor) = ui.get_rgba_layout("Region Editor") {
+                        if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
+                            let p = rgba_view.float_pos();
+                            for geo_obj in region.geometry.values() {
+                                let d = geo_obj.distance(&TheTime::default(), p, 1.0);
+                                if d < 0.0 {
+                                    server_ctx.curr_geo_object = Some(geo_obj.id);
+                                    server_ctx.curr_geo_node = Some(geo_obj.geos[0].id);
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Set Region Modeler"),
+                                        TheValue::Empty,
+                                    ));
+                                    found_geo = true;
+                                }
+                            }
+                        }
+                    }
+                    /*
                     if let Some(store) = region.models.get(&(coord.x, 0, coord.y)) {
                         let mut model = ModelFX::default();
                         if self.curr_layer_role == Layer2DRole::Ground {
@@ -1367,41 +1401,45 @@ impl TileEditor {
                             TheValue::Empty,
                         ));
                         self.set_editor_group_index(EditorMode::Model, ui, ctx);
-                    } else if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
-                        if self.curr_layer_role == Layer2DRole::FX {
-                            // Set the tile preview.
-                            if let Some(widget) = ui.get_widget("TileFX RGBA") {
-                                if let Some(tile_rgba) = widget.as_rgba_view() {
-                                    if let Some(tile) = project.extract_region_tile(
-                                        server_ctx.curr_region,
-                                        (coord.x, coord.y),
-                                    ) {
-                                        let preview_size =
-                                            TILEFXEDITOR.lock().unwrap().preview_size;
-                                        tile_rgba.set_grid(Some(
-                                            preview_size / tile.buffer[0].dim().width,
-                                        ));
-                                        tile_rgba.set_buffer(
-                                            tile.buffer[0].scaled(preview_size, preview_size),
-                                        );
+                        } else*/
+
+                    if !found_geo {
+                        if let Some(tile) = region.tiles.get(&(coord.x, coord.y)) {
+                            if self.curr_layer_role == Layer2DRole::FX {
+                                // Set the tile preview.
+                                if let Some(widget) = ui.get_widget("TileFX RGBA") {
+                                    if let Some(tile_rgba) = widget.as_rgba_view() {
+                                        if let Some(tile) = project.extract_region_tile(
+                                            server_ctx.curr_region,
+                                            (coord.x, coord.y),
+                                        ) {
+                                            let preview_size =
+                                                TILEFXEDITOR.lock().unwrap().preview_size;
+                                            tile_rgba.set_grid(Some(
+                                                preview_size / tile.buffer[0].dim().width,
+                                            ));
+                                            tile_rgba.set_buffer(
+                                                tile.buffer[0].scaled(preview_size, preview_size),
+                                            );
+                                        }
                                     }
                                 }
-                            }
-                            if let Some(timeline) = &tile.tilefx {
-                                TILEFXEDITOR
-                                    .lock()
-                                    .unwrap()
-                                    .set_timeline(timeline.clone(), ui);
-                            }
-                        } else {
-                            for uuid in tile.layers.iter().flatten() {
-                                if TILEDRAWER.lock().unwrap().tiles.contains_key(uuid) {
-                                    ctx.ui.send(TheEvent::StateChanged(
-                                        TheId::named_with_id("Tilemap Tile", *uuid),
-                                        TheWidgetState::Selected,
-                                    ));
-                                    clicked_tile = true;
-                                    break;
+                                if let Some(timeline) = &tile.tilefx {
+                                    TILEFXEDITOR
+                                        .lock()
+                                        .unwrap()
+                                        .set_timeline(timeline.clone(), ui);
+                                }
+                            } else {
+                                for uuid in tile.layers.iter().flatten() {
+                                    if TILEDRAWER.lock().unwrap().tiles.contains_key(uuid) {
+                                        ctx.ui.send(TheEvent::StateChanged(
+                                            TheId::named_with_id("Tilemap Tile", *uuid),
+                                            TheWidgetState::Selected,
+                                        ));
+                                        clicked_tile = true;
+                                        break;
+                                    }
                                 }
                             }
                         }

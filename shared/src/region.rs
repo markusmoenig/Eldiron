@@ -175,14 +175,31 @@ impl Region {
     }
 
     /// Add a geometry node to the given position.
-    pub fn add_geo(&mut self, at: Vec3i, geo: GeoFXNode) {
+    pub fn add_geo(&mut self, at: Vec3i, geo: GeoFXNode) -> Uuid {
         if let Some(geo_obj) = self.geometry.get_mut(&at) {
             geo_obj.geos.push(geo);
+            geo_obj.update_area();
+            return geo_obj.id;
         } else {
             let mut geo_obj = GeoFXObject::default();
             geo_obj.geos.push(geo);
+            geo_obj.update_area();
+            let geo_obj_id = geo_obj.id;
             self.geometry.insert(at, geo_obj);
+            return geo_obj_id;
         }
+    }
+
+    /// Finds the geo node of the given id.
+    pub fn find_geo_node(&mut self, id: Uuid) -> Option<(&mut GeoFXObject, usize)> {
+        for geo_obj in self.geometry.values_mut() {
+            for (index, geo) in geo_obj.geos.iter().enumerate() {
+                if geo.id == id {
+                    return Some((geo_obj, index));
+                }
+            }
+        }
+        None
     }
 
     /// Set the timeline.
