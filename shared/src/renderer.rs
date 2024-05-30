@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use rayon::prelude::*;
+use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
 
 pub struct Renderer {
@@ -21,6 +22,1042 @@ impl Renderer {
             hover_pos: None,
         }
     }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn prerender(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        dest_pixels: Arc<Mutex<&mut RTree<PreRenderedData>>>,
+        region: &Region,
+        settings: &mut RegionDrawSettings,
+        palette: &ThePalette,
+    ) {
+        let _start = self.get_time();
+
+        let width = buffer.dim().width as usize;
+        let height = buffer.dim().height as usize;
+
+        //let stride = buffer.stride();
+        let pixels = buffer.pixels_mut();
+        //let height = dim.height;
+
+        let width_f = width as f32;
+        let height_f = height as f32;
+
+        settings.pbr = false;
+        if let Some(v) = region.regionfx.get(
+            str!("Renderer"),
+            str!("Shading"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_i32() {
+                if value == 1 {
+                    settings.pbr = true;
+                }
+            }
+        }
+
+        let mut max_render_distance = 20;
+        if let Some(v) = region.regionfx.get(
+            str!("Distance / Fog"),
+            str!("Maximum Render Distance"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_i32() {
+                max_render_distance = value;
+            }
+        }
+
+        let mut saturation = None;
+        if let Some(v) = region.regionfx.get(
+            str!("Saturation"),
+            str!("Saturation"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_f32() {
+                saturation = Some(value);
+            }
+        }
+
+        let mut tilted_iso_alignment = 0;
+        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("Tilted Iso Alignment"),
+            &settings.time,
+            TheInterpolation::Switch,
+        ) {
+            tilted_iso_alignment = value;
+        }
+
+        let update = RegionUpdate::default();
+
+        // Fill the code level with the blocking info and collect lights
+        let mut level = Level::new(region.width, region.height, settings.time);
+        region.fill_code_level(&mut level, &self.textures, &update);
+
+        let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
+        let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
+        let camera = Camera::new(ro, rd, fov);
+
+        pixels
+            .par_rchunks_exact_mut(width * 4)
+            .enumerate()
+            .for_each(|(j, line)| {
+                for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
+                    let i = j * width + i;
+
+                    let xx = (i % width) as f32;
+                    let yy = (i / width) as f32;
+
+                    let mut ray = if camera_type == CameraType::TiltedIso {
+                        camera.create_tilted_isometric_ray_prerendered(
+                            vec2f(xx / width_f, yy / height_f),
+                            tilted_iso_alignment,
+                            &prerender_camera,
+                        )
+                    } else if camera_mode == CameraMode::Pinhole {
+                        camera.create_ray(
+                            vec2f(xx / width_f, yy / height_f),
+                            vec2f(width_f, height_f),
+                            vec2f(1.0, 1.0),
+                        )
+                    } else {
+                        // camera.create_ortho_ray_prerendered(
+                        //     vec2f(xx / width_f, yy / height_f),
+                        //     &prerender_camera,
+                        // )
+                        camera.create_ortho_ray2(
+                            vec2f(xx / width_f, yy / height_f),
+                            vec2f(width_f, height_f),
+                            vec2f(region.width as f32, region.height as f32),
+                            vec2f(1.0, 1.0),
+                        )
+                    };
+
+                    // if ray.o.x > 31.9 && ray.o.x < 32.1 && ray.o.z > 32.9 && ray.o.z < 33.1 {
+                    //     println!("{:?} {} {}", ray, xx, height_f - yy);
+                    // }
+
+                    // In top down view, intersect ray with plane at 1.1 y
+                    // to speed up the ray / voxel casting
+                    if camera_type != CameraType::FirstPerson {
+                        let plane_normal = vec3f(0.0, 1.0, 0.0);
+                        let denom = dot(plane_normal, ray.d);
+
+                        if denom.abs() > 0.0001 {
+                            let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
+                            if t >= 0.0 {
+                                ray.o += ray.d * t;
+                            }
+                        }
+                    }
+
+                    // pixel.copy_from_slice(&self.prerender_pixel(
+                    //     ray,
+                    //     region,
+                    //     &update,
+                    //     settings,
+                    //     camera_type,
+                    //     &level,
+                    //     &saturation,
+                    //     max_render_distance,
+                    //     palette,
+                    // ));
+
+                    let ppixel = self.prerender_pixel(
+                        ray,
+                        region,
+                        &update,
+                        settings,
+                        camera_type,
+                        &level,
+                        &saturation,
+                        max_render_distance,
+                        palette,
+                    );
+
+                    pixel.copy_from_slice(&ppixel);
+
+                    let plane_normal = vec3f(0.0, 1.0, 0.0);
+                    let denom = dot(plane_normal, ray.d);
+
+                    if denom.abs() > 0.0001 {
+                        let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
+                        if t >= 0.0 {
+                            let p = ray.o + ray.d * t;
+                            // dest_pixels.lock().unwrap().insert(PreRenderedData {
+                            //     location: (p.x, p.z),
+                            //     pixel_location: (xx as i32, (height_f - yy) as i32),
+                            // });
+                        }
+                    }
+                }
+            });
+
+        let _stop = self.get_time();
+        //println!("render time {:?}", _stop - _start);
+    }
+
+    #[inline(always)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn prerender_pixel(
+        &self,
+        ray: Ray,
+        region: &Region,
+        update: &RegionUpdate,
+        settings: &RegionDrawSettings,
+        camera_type: CameraType,
+        level: &Level,
+        saturation: &Option<f32>,
+        max_render_distance: i32,
+        _palette: &ThePalette,
+    ) -> RGBA {
+        let mut color = vec4f(0.0, 0.0, 0.0, 1.0);
+        let mut hit_props = Hit::default();
+
+        #[inline(always)]
+        fn equal(l: f32, r: Vec3f) -> Vec3f {
+            vec3f(
+                if l == r.x { 1.0 } else { 0.0 },
+                if l == r.y { 1.0 } else { 0.0 },
+                if l == r.z { 1.0 } else { 0.0 },
+            )
+        }
+
+        let ro = ray.o;
+        let rd = ray.d;
+
+        let mut i = floor(ro);
+        let mut dist = 0.0;
+
+        let mut normal = Vec3f::zero();
+        let srd = signum(rd);
+
+        let rdi = 1.0 / (2.0 * rd);
+
+        let mut key: Vec3<i32>;
+        let mut hit = false;
+
+        for _ii in 0..max_render_distance {
+            key = Vec3i::from(i);
+
+            if key.y < -1 {
+                break;
+            }
+
+            // First person is limited to 1 y
+            if camera_type == CameraType::FirstPerson && key.y > 1 {
+                break;
+            }
+
+            if let Some(model) = region.models.get(&(key.x, key.y, key.z)) {
+                let mut lro = ray.at(dist);
+                lro -= Vec3f::from(key);
+
+                let mut wallfx_offset = Vec3i::zero();
+                let mut alpha = 1.0;
+
+                if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
+                    let mut valid = true;
+                    let mut xx = 0;
+                    let mut yy = 0;
+                    let d =
+                        (update.server_tick - wallfx.at_tick) as f32 + settings.delta_in_tick - 1.0;
+                    if d < 1.0 {
+                        let t = (d * region.grid_size as f32) as i32;
+                        if wallfx.prev_fx != WallFX::Normal {
+                            wallfx.prev_fx.apply(
+                                &mut xx,
+                                &mut yy,
+                                &mut alpha,
+                                &(region.grid_size - t),
+                                &(1.0 - d),
+                            );
+                        } else {
+                            wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
+                        }
+                    } else if wallfx.fx != WallFX::Normal {
+                        valid = false;
+                    }
+
+                    if valid {
+                        wallfx_offset.x -= xx;
+                        wallfx_offset.y -= yy;
+                    } else {
+                        //uv = vec2f(-1.0, -1.0);
+                        wallfx_offset = vec3i(region.grid_size, region.grid_size, region.grid_size);
+                    }
+                }
+
+                if let Some(hit_struct) = model.dda(&Ray::new(lro, ray.d), wallfx_offset) {
+                    hit = true;
+                    color = hit_struct.color;
+                    // color = vec4f(
+                    //     hit_struct.normal.x,
+                    //     hit_struct.normal.y,
+                    //     hit_struct.normal.z,
+                    //     1.0,
+                    // );
+                    dist += hit_struct.distance;
+                    normal = hit_struct.normal;
+                    hit_props = hit_struct.clone();
+                    break;
+                }
+                /*
+                let mut lro = ray.at(dist);
+                lro -= Vec3f::from(key);
+                lro -= rd * 0.01;
+
+                let mut r = ray;
+                r.o = lro;
+
+                if let Some(hit_struct) = model.render(&r, 1.01, i, palette) {
+                    color = hit_struct.color;
+                    hit = true;
+                    //normal = hit_struct.normal;
+                    dist += hit_struct.distance;
+                    break;
+                    }*/
+            }
+            // Test against world tiles
+            else if let Some(tile) = self.tiles.get((key.x, key.y, key.z)) {
+                let mut uv = self.get_uv_face(normal, ray.at(dist)).0;
+                //pixel = [(uv.x * 255.0) as u8, (uv.y * 255.0) as u8, 0, 255];
+                if let Some(data) = self.textures.get(tile) {
+                    let index = settings.anim_counter % data.buffer.len();
+
+                    // TODO apply alpha correctly for WallFX blends
+                    let mut alpha: f32 = 1.0;
+
+                    if key.y == 0 {
+                        if let Some(wallfx) = update.wallfx.get(&(key.x, key.z)) {
+                            let mut valid = true;
+                            let mut xx = 0;
+                            let mut yy = 0;
+                            let d = (update.server_tick - wallfx.at_tick) as f32
+                                + settings.delta_in_tick
+                                - 1.0;
+                            if d < 1.0 {
+                                let t = (d * region.grid_size as f32) as i32;
+                                if wallfx.prev_fx != WallFX::Normal {
+                                    wallfx.prev_fx.apply(
+                                        &mut xx,
+                                        &mut yy,
+                                        &mut alpha,
+                                        &(region.grid_size - t),
+                                        &(1.0 - d),
+                                    );
+                                } else {
+                                    wallfx.fx.apply(&mut xx, &mut yy, &mut alpha, &t, &d);
+                                }
+                            } else if wallfx.fx != WallFX::Normal {
+                                valid = false;
+                            }
+
+                            if valid {
+                                uv.x += xx as f32 / region.grid_size as f32;
+                                uv.y += yy as f32 / region.grid_size as f32;
+                            } else {
+                                uv = vec2f(-1.0, -1.0);
+                            }
+                        }
+                    }
+
+                    if !data.billboard {
+                        if let Some(p) = data.buffer[index].at_f_vec4f(uv) {
+                            //if p[3] == 255 {
+                            color = p;
+                            hit = true;
+                            break;
+                            //}
+                        }
+                    } else {
+                        let xx = i.x + 0.5;
+                        let zz = i.z + 0.5;
+
+                        let plane_pos = vec3f(xx, 0.5, zz);
+
+                        let mut plane_normal = normalize(plane_pos - ray.o);
+                        plane_normal.y = 0.0;
+                        let denom = dot(plane_normal, ray.d);
+
+                        if denom > 0.0001 {
+                            let t = dot(plane_pos - ray.o, plane_normal) / denom;
+                            if t >= 0.0 && !hit || (hit && t < dist) {
+                                let hit_pos = ray.at(t);
+                                if (xx - hit_pos.x).abs() <= 0.5
+                                    && (zz - hit_pos.z).abs() <= 0.5
+                                    && hit_pos.y >= 0.0
+                                    && hit_pos.y <= 1.0
+                                {
+                                    #[inline(always)]
+                                    fn compute_primary(normal: Vec3f) -> Vec3f {
+                                        let a = cross(normal, vec3f(1.0, 0.0, 0.0));
+                                        let b = cross(normal, vec3f(0.0, 1.0, 0.0));
+
+                                        let max_ab = if dot(a, a) < dot(b, b) { b } else { a };
+
+                                        let c = cross(normal, vec3f(0.0, 0.0, 1.0));
+
+                                        normalize(if dot(max_ab, max_ab) < dot(c, c) {
+                                            c
+                                        } else {
+                                            max_ab
+                                        })
+                                    }
+                                    let index = settings.anim_counter % data.buffer.len();
+
+                                    let plane_vector_u = compute_primary(plane_normal);
+                                    let plane_vector_v = cross(plane_vector_u, rd);
+
+                                    let relative = hit_pos - plane_pos;
+                                    let u_dot = dot(relative, plane_vector_u);
+                                    let v_dot = dot(relative, plane_vector_v);
+
+                                    let u = 0.5 + u_dot;
+                                    let v = 0.5 + v_dot;
+
+                                    //println!("{}, {}", u, v);
+
+                                    let x = (u * data.buffer[index].dim().width as f32) as i32;
+                                    let y =
+                                        ((1.0 - v) * data.buffer[index].dim().height as f32) as i32;
+                                    if let Some(c) = data.buffer[index].at(vec2i(x, y)) {
+                                        if c[3] == 255 {
+                                            let col = TheColor::from_u8_array(c).to_vec4f();
+                                            color = col;
+                                            dist = t;
+                                            //normal = vec3f(0.0, 0.0, 1.0);
+                                            hit = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            let plain = (1.0 + srd - 2.0 * (ro - i)) * rdi;
+            dist = min(plain.x, min(plain.y, plain.z));
+            normal = equal(dist, plain) * srd;
+            i += normal;
+        }
+
+        // Light Sampling
+        //
+        if hit {
+            let daylight = vec4f(
+                settings.daylight.x,
+                settings.daylight.y,
+                settings.daylight.z,
+                1.0,
+            );
+
+            if level.lights.is_empty() {
+                color *= daylight;
+            } else {
+                // Sample the lights
+                let mut total_light = Vec3f::new(0.0, 0.0, 0.0);
+                for (light_grid, light) in &level.lights {
+                    let light_pos =
+                        vec3f(light_grid.x as f32 + 0.5, 0.8, light_grid.y as f32 + 0.5);
+                    let mut light_strength = light.strength;
+
+                    if light.color_type == 1 {
+                        light_strength = daylight.x;
+                    }
+
+                    let mut ro = ray.at(dist);
+
+                    if light.limiter == 1 && ro.y > light_pos.y {
+                        continue;
+                    }
+                    if light.limiter == 2 && ro.x < light_pos.x {
+                        continue;
+                    }
+                    if light.limiter == 3 && ro.y < light_pos.y {
+                        continue;
+                    }
+                    if light.limiter == 4 && ro.x > light_pos.x {
+                        continue;
+                    }
+
+                    let light_dir = light_pos - ro;
+                    let light_dist = length(light_dir);
+                    if light_dist < light.max_distance {
+                        ro += light_dir * 0.001;
+
+                        let light_ray = Ray::new(ro, light_dir);
+
+                        /*
+                        let intensity = 1.0 - (light_dist / light.max_distance).clamp(0.0, 1.0);
+                        //intensity *= if s == 0 { 2.0 } else { 1.0 };
+                        let mut light_color =
+                            Vec3f::from(intensity * light_strength / light.samples as f32);
+                        if light.color_type == 0 {
+                            light_color *= light.color
+                        }
+                        total_light += light_color;
+                        */
+
+                        if self.shadow_ray(
+                            light_ray,
+                            Vec3i::from(light_pos),
+                            light,
+                            region,
+                            update,
+                            settings,
+                        ) {
+                            let c = if settings.pbr {
+                                let mut light_color = Vec3f::from(1.5 * light_strength);
+                                if light.color_type == 0 {
+                                    light_color *= light.color
+                                }
+                                let roughness = hit_props.roughness;
+                                let metallic = hit_props.metallic;
+                                let reflectance = hit_props.reflectance;
+                                let base_color = vec3f(color.x, color.y, color.z);
+
+                                let f0 = 0.16 * reflectance * reflectance * (1.0 - metallic)
+                                    + base_color * metallic;
+
+                                self.compute_pbr_lighting(
+                                    light_pos,
+                                    light_color,
+                                    ro,
+                                    abs(normal),
+                                    -rd,
+                                    base_color,
+                                    roughness,
+                                    f0,
+                                )
+                            } else {
+                                let mut light_color = Vec3f::from(light_strength);
+                                if light.color_type == 0 {
+                                    light_color *= light.color
+                                }
+                                let intensity =
+                                    1.0 - (light_dist / light.max_distance).clamp(0.0, 1.0);
+
+                                light_color * intensity
+                            };
+
+                            total_light += c;
+                        }
+                    }
+                }
+
+                // color = color * daylight + vec4f(total_light.x, total_light.y, total_light.z, 1.0);
+
+                let min_color = vec4f(
+                    color.x * daylight.x,
+                    color.y * daylight.y,
+                    color.z * daylight.z,
+                    1.0,
+                );
+
+                color = clamp(
+                    color * daylight
+                        + color * vec4f(total_light.x, total_light.y, total_light.z, 1.0),
+                    min_color,
+                    color,
+                );
+            }
+        }
+
+        if let Some(saturation) = saturation {
+            let mut hsl = TheColor::from_vec4f(color).as_hsl();
+            hsl.y *= saturation;
+            color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec4f();
+        }
+
+        TheColor::from_vec4f(color).to_u8_array()
+    }
+
+    /// RENDERED
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn rendered(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        region: &Region,
+        update: &mut RegionUpdate,
+        settings: &mut RegionDrawSettings,
+        compute_delta: bool,
+        palette: &ThePalette,
+    ) {
+        let _start = self.get_time();
+
+        let width = buffer.dim().width as usize;
+        let height = buffer.dim().height as usize;
+
+        //let stride = buffer.stride();
+        let pixels = buffer.pixels_mut();
+        //let height = dim.height;
+
+        let width_f = width as f32;
+        let height_f = height as f32;
+
+        let region_height = region.height * region.grid_size;
+
+        let grid_size = region.grid_size as f32;
+
+        if compute_delta {
+            update.generate_character_pixel_positions(
+                grid_size,
+                &self.textures,
+                vec2i(width as i32, height as i32),
+                region_height,
+                settings,
+            );
+        }
+
+        settings.pbr = false;
+        if let Some(v) = region.regionfx.get(
+            str!("Renderer"),
+            str!("Shading"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_i32() {
+                if value == 1 {
+                    settings.pbr = true;
+                }
+            }
+        }
+
+        let mut max_render_distance = 20;
+        if let Some(v) = region.regionfx.get(
+            str!("Distance / Fog"),
+            str!("Maximum Render Distance"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_i32() {
+                max_render_distance = value;
+            }
+        }
+
+        let mut saturation = None;
+        if let Some(v) = region.regionfx.get(
+            str!("Saturation"),
+            str!("Saturation"),
+            &settings.time,
+            TheInterpolation::Linear,
+        ) {
+            if let Some(value) = v.to_f32() {
+                saturation = Some(value);
+            }
+        }
+
+        let mut tilted_iso_alignment = 0;
+        if let Some(TheValue::TextList(value, _)) = region.regionfx.get(
+            str!("Camera"),
+            str!("Tilted Iso Alignment"),
+            &settings.time,
+            TheInterpolation::Switch,
+        ) {
+            tilted_iso_alignment = value;
+        }
+
+        // Fill the code level with the blocking info and collect lights
+        let mut level = Level::new(region.width, region.height, settings.time);
+        region.fill_code_level(&mut level, &self.textures, update);
+
+        let (ro, rd, fov, camera_mode, camera_type) = self.create_camera_setup(region, settings);
+        let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
+        let camera = Camera::new(ro, rd, fov);
+
+        let ppt = region.grid_size as f32 * region.zoom;
+
+        let mut start_x = 0;
+        let mut start_y = 0;
+
+        // Find the location in the prerendered map
+
+        let ray = if camera_type == CameraType::TiltedIso {
+            camera.create_tilted_isometric_ray_prerendered(
+                vec2f(0.5, 0.5),
+                tilted_iso_alignment,
+                &prerender_camera,
+            )
+        } else {
+            camera.create_ortho_ray2(
+                vec2f(0.0, 1.0),
+                vec2f(width_f, height_f),
+                vec2f(width_f / ppt, height_f / ppt),
+                vec2f(1.0, 1.0),
+            )
+        };
+
+        let plane_normal = vec3f(0.0, 1.0, 0.0);
+        let denom = dot(plane_normal, ray.d);
+
+        if denom.abs() > 0.0001 {
+            let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
+            if t >= 0.0 {
+                let p = ray.o + ray.d * t;
+
+                if let Some(data) = region.prerendered.tree.nearest_neighbor(&[p.x, p.z]) {
+                    //color = TheColor::from_u8_array(d.data).to_vec4f();
+                    start_x = data.pixel_location.0;
+                    start_y = data.pixel_location.1;
+                }
+            }
+        }
+
+        // Render loop
+
+        pixels
+            .par_rchunks_exact_mut(width * 4)
+            .enumerate()
+            .for_each(|(j, line)| {
+                for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
+                    let i = j * width + i;
+
+                    let xx = (i % width) as f32;
+                    let yy = (i / width) as f32;
+
+                    let mut ray = if camera_type == CameraType::TiltedIso {
+                        camera.create_tilted_isometric_ray_prerendered(
+                            vec2f(xx / width_f, yy / height_f),
+                            tilted_iso_alignment,
+                            &prerender_camera,
+                        )
+                    } else if camera_mode == CameraMode::Pinhole {
+                        camera.create_ray(
+                            vec2f(xx / width_f, yy / height_f),
+                            vec2f(width_f, height_f),
+                            vec2f(1.0, 1.0),
+                        )
+                    } else {
+                        camera.create_ortho_ray2(
+                            vec2f(xx / width_f, yy / height_f),
+                            vec2f(width_f, height_f),
+                            vec2f(width_f / ppt, height_f / ppt),
+                            vec2f(1.0, 1.0),
+                        )
+                        // camera.create_ortho_ray_prerendered(
+                        //     vec2f(xx / width_f, yy / height_f),
+                        //     &prerender_camera,
+                        // )
+                    };
+
+                    // In top down view, intersect ray with plane at 1.1 y
+                    // to speed up the ray / voxel casting
+                    if camera_type != CameraType::FirstPerson {
+                        let plane_normal = vec3f(0.0, 1.0, 0.0);
+                        let denom = dot(plane_normal, ray.d);
+
+                        if denom.abs() > 0.0001 {
+                            let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
+                            if t >= 0.0 {
+                                ray.o += ray.d * t;
+                            }
+                        }
+                    }
+
+                    // --
+                    //
+
+                    let pos = vec2i(start_x + xx as i32, start_y + (height_f - yy) as i32);
+
+                    pixel.copy_from_slice(&self.rendered_pixel(
+                        ray,
+                        pos,
+                        region,
+                        update,
+                        settings,
+                        camera_type,
+                        &level,
+                        &saturation,
+                        max_render_distance,
+                        palette,
+                    ));
+                }
+            });
+
+        let _stop = self.get_time();
+        println!("render time {:?}", _stop - _start);
+    }
+
+    #[inline(always)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn rendered_pixel(
+        &self,
+        ray: Ray,
+        pos: Vec2i,
+        region: &Region,
+        update: &RegionUpdate,
+        settings: &RegionDrawSettings,
+        camera_type: CameraType,
+        level: &Level,
+        saturation: &Option<f32>,
+        _max_render_distance: i32,
+        _palette: &ThePalette,
+    ) -> RGBA {
+        let mut color = vec4f(0.0, 0.0, 0.0, 1.0);
+        let hit_props = Hit::default();
+
+        let rd = ray.d;
+
+        let mut dist = 0.0;
+
+        let normal = Vec3f::zero();
+
+        let mut hit = false;
+
+        // let plane_normal = vec3f(0.0, 1.0, 0.0);
+        // let denom = dot(plane_normal, ray.d);
+
+        // if denom.abs() > 0.0001 {
+        //     let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
+        //     if t >= 0.0 {
+        //         let p = ray.o + ray.d * t;
+
+        //         if let Some(d) = region.prerendered.tree.nearest_neighbor(&[p.x, p.z]) {
+        //             color = TheColor::from_u8_array(d.data).to_vec4f();
+        //         }
+        //     }
+        // }
+
+        if let Some(c) = region.prerendered.albedo.at_vec4(pos) {
+            color = c;
+        }
+
+        // Test against characters
+        for (pos, tile_id, character_id, _facing) in &update.characters_pixel_pos {
+            if camera_type == CameraType::FirstPerson
+                && Some(*character_id) == settings.center_on_character
+            {
+                // Skip the character itself in first person mode.
+                continue;
+            }
+
+            let xx = pos.x as f32 / region.grid_size as f32 + 0.5;
+            let zz = pos.y as f32 / region.grid_size as f32 + 0.5;
+
+            let plane_pos = vec3f(xx, 0.5, zz);
+
+            let mut plane_normal = normalize(plane_pos - ray.o);
+            plane_normal.y = 0.0;
+            let denom = dot(plane_normal, ray.d);
+
+            if denom > 0.0001 {
+                let t = dot(plane_pos - ray.o, plane_normal) / denom;
+                if t >= 0.0 && !hit || (hit && t < dist) {
+                    let hit_point = ray.at(t);
+                    if (xx - hit_point.x).abs() <= 0.5
+                        && (zz - hit_point.z).abs() <= 0.5
+                        && hit_point.y >= 0.0
+                        && hit_point.y <= 1.0
+                    {
+                        if let Some(data) = self.textures.get(tile_id) {
+                            #[inline(always)]
+                            fn compute_primary(normal: Vec3f) -> Vec3f {
+                                let a = cross(normal, vec3f(1.0, 0.0, 0.0));
+                                let b = cross(normal, vec3f(0.0, 1.0, 0.0));
+
+                                let max_ab = if dot(a, a) < dot(b, b) { b } else { a };
+
+                                let c = cross(normal, vec3f(0.0, 0.0, 1.0));
+
+                                normalize(if dot(max_ab, max_ab) < dot(c, c) {
+                                    c
+                                } else {
+                                    max_ab
+                                })
+                            }
+                            let index = settings.anim_counter % data.buffer.len();
+
+                            // let plane_vector_u = normalize(cross(rd, vec3f(1.0, 0.0, 0.0)));
+                            // let plane_vector_v = normalize(cross(rd, vec3f(0.0, 1.0, 0.0)));
+
+                            let plane_vector_u = compute_primary(plane_normal);
+                            let plane_vector_v = cross(plane_vector_u, rd);
+
+                            let relative = hit_point - plane_pos;
+                            let u_dot = dot(relative, plane_vector_u);
+                            let v_dot = dot(relative, plane_vector_v);
+
+                            let u = 0.5 + u_dot;
+                            let v = 0.5 + v_dot;
+
+                            //println!("{}, {}", u, v);
+
+                            let x = (u * data.buffer[index].dim().width as f32) as i32;
+                            let y = ((1.0 - v) * data.buffer[index].dim().height as f32) as i32;
+                            if let Some(c) = data.buffer[index].at(vec2i(x, y)) {
+                                if c[3] == 255 {
+                                    let col = TheColor::from_u8_array(c).to_vec4f();
+                                    color = col;
+                                    dist = t;
+                                    //normal = vec3f(0.0, 0.0, 1.0);
+                                    hit = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Light Sampling
+        //
+        if hit {
+            let daylight = vec4f(
+                settings.daylight.x,
+                settings.daylight.y,
+                settings.daylight.z,
+                1.0,
+            );
+
+            if level.lights.is_empty() {
+                color *= daylight;
+            } else {
+                // Sample the lights
+                let mut total_light = Vec3f::new(0.0, 0.0, 0.0);
+                for (light_grid, light) in &level.lights {
+                    let light_pos =
+                        vec3f(light_grid.x as f32 + 0.5, 0.8, light_grid.y as f32 + 0.5);
+                    let mut light_strength = light.strength;
+
+                    if light.color_type == 1 {
+                        light_strength = daylight.x;
+                    }
+
+                    let mut ro = ray.at(dist);
+
+                    if light.limiter == 1 && ro.y > light_pos.y {
+                        continue;
+                    }
+                    if light.limiter == 2 && ro.x < light_pos.x {
+                        continue;
+                    }
+                    if light.limiter == 3 && ro.y < light_pos.y {
+                        continue;
+                    }
+                    if light.limiter == 4 && ro.x > light_pos.x {
+                        continue;
+                    }
+
+                    let light_dir = light_pos - ro;
+                    let light_dist = length(light_dir);
+                    if light_dist < light.max_distance {
+                        ro += light_dir * 0.001;
+
+                        let light_ray = Ray::new(ro, light_dir);
+
+                        /*
+                        let intensity = 1.0 - (light_dist / light.max_distance).clamp(0.0, 1.0);
+                        //intensity *= if s == 0 { 2.0 } else { 1.0 };
+                        let mut light_color =
+                            Vec3f::from(intensity * light_strength / light.samples as f32);
+                        if light.color_type == 0 {
+                            light_color *= light.color
+                        }
+                        total_light += light_color;
+                        */
+
+                        if self.shadow_ray(
+                            light_ray,
+                            Vec3i::from(light_pos),
+                            light,
+                            region,
+                            update,
+                            settings,
+                        ) {
+                            let c = if settings.pbr {
+                                let mut light_color = Vec3f::from(1.5 * light_strength);
+                                if light.color_type == 0 {
+                                    light_color *= light.color
+                                }
+                                let roughness = hit_props.roughness;
+                                let metallic = hit_props.metallic;
+                                let reflectance = hit_props.reflectance;
+                                let base_color = vec3f(color.x, color.y, color.z);
+
+                                let f0 = 0.16 * reflectance * reflectance * (1.0 - metallic)
+                                    + base_color * metallic;
+
+                                self.compute_pbr_lighting(
+                                    light_pos,
+                                    light_color,
+                                    ro,
+                                    abs(normal),
+                                    -rd,
+                                    base_color,
+                                    roughness,
+                                    f0,
+                                )
+                            } else {
+                                let mut light_color = Vec3f::from(light_strength);
+                                if light.color_type == 0 {
+                                    light_color *= light.color
+                                }
+                                let intensity =
+                                    1.0 - (light_dist / light.max_distance).clamp(0.0, 1.0);
+
+                                light_color * intensity
+                            };
+
+                            total_light += c;
+                        }
+                    }
+                }
+
+                // color = color * daylight + vec4f(total_light.x, total_light.y, total_light.z, 1.0);
+
+                let min_color = vec4f(
+                    color.x * daylight.x,
+                    color.y * daylight.y,
+                    color.z * daylight.z,
+                    1.0,
+                );
+
+                color = clamp(
+                    color * daylight
+                        + color * vec4f(total_light.x, total_light.y, total_light.z, 1.0),
+                    min_color,
+                    color,
+                );
+            }
+        }
+
+        if let Some(saturation) = saturation {
+            let mut hsl = TheColor::from_vec4f(color).as_hsl();
+            hsl.y *= saturation;
+            color = TheColor::from_hsl(hsl.x * 360.0, hsl.y.clamp(0.0, 1.0), hsl.z).to_vec4f();
+        }
+
+        // Show hover
+        if let Some(hover) = self.hover_pos {
+            let plane_normal = vec3f(0.0, 1.0, 0.0);
+            let denom = dot(plane_normal, ray.d);
+
+            if denom.abs() > 0.0001 {
+                let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
+                if t >= 0.0 {
+                    let hp = Vec3i::from(ray.at(t));
+                    if hp == hover {
+                        color = TheColor::from_vec4f(color)
+                            .mix(&TheColor::white(), 0.5)
+                            .to_vec4f();
+                    }
+                }
+            }
+        }
+
+        TheColor::from_vec4f(color).to_u8_array()
+    }
+
+    /// RENDER
+
     #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
@@ -149,7 +1186,7 @@ impl Renderer {
                         let denom = dot(plane_normal, ray.d);
 
                         if denom.abs() > 0.0001 {
-                            let t = dot(vec3f(0.0, 1.0, 0.0) - ray.o, plane_normal) / denom;
+                            let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
                             if t >= 0.0 {
                                 ray.o += ray.d * t;
                             }
@@ -171,7 +1208,7 @@ impl Renderer {
             });
 
         let _stop = self.get_time();
-        //println!("render time {:?}", _stop - _start);
+        println!("render time {:?}", _stop - _start);
     }
 
     #[inline(always)]

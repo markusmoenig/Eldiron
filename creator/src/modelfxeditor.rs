@@ -427,7 +427,13 @@ impl ModelFXEditor {
                     self.render_preview(ui, &project.palette);
                 } else if id.name.starts_with(":MODELFX:") {
                     if let Some(name) = id.name.strip_prefix(":MODELFX: ") {
-                        let value = value.clone();
+                        let mut value = value.clone();
+
+                        if let TheValue::Text(_) = &value {
+                            if let Some(v) = value.to_f32() {
+                                value = TheValue::Float(v);
+                            }
+                        }
 
                         if !self.material_mode {
                             if let Some(curr_geo_node) = server_ctx.curr_geo_node {

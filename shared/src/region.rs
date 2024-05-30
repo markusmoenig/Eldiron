@@ -29,7 +29,7 @@ pub enum CameraMode {
     Orthogonal,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Region {
     pub id: Uuid,
     pub region_type: RegionType,
@@ -58,6 +58,9 @@ pub struct Region {
 
     #[serde(default)]
     pub items: FxHashMap<Uuid, Item>,
+
+    #[serde(default)]
+    pub prerendered: PreRendered,
 
     pub width: i32,
     pub height: i32,
@@ -110,6 +113,8 @@ impl Region {
             areas: FxHashMap::default(),
             characters: FxHashMap::default(),
             items: FxHashMap::default(),
+
+            prerendered: PreRendered::default(),
 
             width: 80,
             height: 80,
@@ -179,14 +184,14 @@ impl Region {
         if let Some(geo_obj) = self.geometry.get_mut(&at) {
             geo_obj.geos.push(geo);
             geo_obj.update_area();
-            return geo_obj.id;
+            geo_obj.id
         } else {
             let mut geo_obj = GeoFXObject::default();
             geo_obj.geos.push(geo);
             geo_obj.update_area();
             let geo_obj_id = geo_obj.id;
             self.geometry.insert(at, geo_obj);
-            return geo_obj_id;
+            geo_obj_id
         }
     }
 

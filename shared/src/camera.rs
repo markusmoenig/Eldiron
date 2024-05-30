@@ -178,6 +178,31 @@ impl Camera {
         Ray::new(out_origin, normalize(-w))
     }
 
+    pub fn create_ortho_ray2(&self, uv: Vec2f, screen: Vec2f, tiles: Vec2f, offset: Vec2f) -> Ray {
+        let pixel_size = Vec2f::new(1.0 / (screen.x * tiles.x), 1.0 / (screen.y * tiles.y));
+
+        let cam_origin = self.origin;
+        let cam_look_at = self.center;
+
+        let half_width = tiles.x;
+        let half_height = tiles.y;
+
+        let up_vector = Vec3f::new(0.0, 1.0, 0.0);
+
+        let w = normalize(cam_origin - cam_look_at);
+        let u = cross(up_vector, w);
+        let v = cross(w, u);
+
+        let horizontal = u * half_width * 2.0;
+        let vertical = v * half_height * 2.0;
+
+        let mut out_origin = cam_origin;
+        out_origin += horizontal * (pixel_size.x * offset.x + uv.x - 0.5);
+        out_origin += vertical * (pixel_size.y * offset.y + uv.y - 0.5);
+
+        Ray::new(out_origin, normalize(-w))
+    }
+
     pub fn create_ortho_ray_prerendered(&self, uv: Vec2f, prerender: &PrerenderedCamera) -> Ray {
         let cam_origin = self.origin;
 

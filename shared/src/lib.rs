@@ -14,6 +14,8 @@ pub mod modelfxnode;
 pub mod modelfxstore;
 pub mod modelfxterminal;
 pub mod patterns;
+pub mod prerendered;
+pub mod prerenderthread;
 pub mod project;
 pub mod region;
 pub mod regionfx;
@@ -27,7 +29,7 @@ pub mod tiledrawer;
 pub mod tilefx;
 pub mod tilemap;
 pub mod update;
-pub mod voxelthread;
+// pub mod voxelthread;
 pub mod widget;
 
 pub mod prelude {
@@ -49,6 +51,8 @@ pub mod prelude {
     pub use crate::modelfxstore::ModelFXStore;
     pub use crate::modelfxterminal::*;
     pub use crate::patterns::*;
+    pub use crate::prerendered::*;
+    pub use crate::prerenderthread::*;
     pub use crate::project::{MapMode, Project};
     pub use crate::region::{CameraMode, CameraType, Layer2DRole, Region, RegionTile};
     pub use crate::regionfx::*;
@@ -63,11 +67,12 @@ pub mod prelude {
     pub use crate::tilefx::TileFX;
     pub use crate::tilemap::{Tile, TileRole, Tilemap};
     pub use crate::update::*;
-    pub use crate::voxelthread::*;
+    // pub use crate::voxelthread::*;
     pub use crate::widget::*;
     pub use crate::ServerMessage;
     pub use crate::{do_intersect, Hit, HitFace, Ray, Voxel, AABB2D};
     pub use rand::prelude::*;
+    pub use rstar::*;
 }
 
 use theframework::prelude::*;

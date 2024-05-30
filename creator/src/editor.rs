@@ -24,7 +24,8 @@ lazy_static! {
     pub static ref TILEFXEDITOR: Mutex<TileFXEditor> = Mutex::new(TileFXEditor::new());
     pub static ref MODELFXEDITOR: Mutex<ModelFXEditor> = Mutex::new(ModelFXEditor::new());
     pub static ref REGIONFXEDITOR: Mutex<RegionFXEditor> = Mutex::new(RegionFXEditor::new());
-    pub static ref VOXELTHREAD: Mutex<VoxelThread> = Mutex::new(VoxelThread::default());
+    // pub static ref VOXELTHREAD: Mutex<VoxelThread> = Mutex::new(VoxelThread::default());
+    pub static ref PRERENDERTHREAD: Mutex<PreRenderThread> = Mutex::new(PreRenderThread::default());
     pub static ref UNDOMANAGER: Mutex<UndoManager> = Mutex::new(UndoManager::default());
 }
 
@@ -344,8 +345,9 @@ impl TheTrait for Editor {
 
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
 
-        // Startup the voxel render thread.
-        VOXELTHREAD.lock().unwrap().startup();
+        // Startup the prerender thread.
+        //VOXELTHREAD.lock().unwrap().startup();
+        PRERENDERTHREAD.lock().unwrap().startup();
     }
 
     /// Set the command line arguments
@@ -464,13 +466,14 @@ impl TheTrait for Editor {
             }
         }
 
-        while let Some(VoxelRenderResult::VoxelizedModel(id, key, model)) =
-            VOXELTHREAD.lock().unwrap().receive()
+        // Get prerendered results
+        while let Some(PreRenderResult::RenderedRegion(id, prerendered)) =
+            PRERENDERTHREAD.lock().unwrap().receive()
         {
             if let Some(region) = self.project.get_region_mut(&id) {
-                region.models.insert((key.x, key.y, key.z), model.clone());
+                region.prerendered = prerendered.clone();
             }
-            self.server.set_voxelized_model(id, key, model);
+            self.server.set_prerendered(id, prerendered);
             redraw = true;
         }
 
@@ -1040,8 +1043,13 @@ impl TheTrait for Editor {
                                         // r.models.clear();
                                         // }
 
+                                        PRERENDERTHREAD
+                                            .lock()
+                                            .unwrap()
+                                            .set_textures(self.project.extract_tiles());
+
                                         for region in &mut self.project.regions {
-                                            VOXELTHREAD.lock().unwrap().voxelize_region_models(
+                                            PRERENDERTHREAD.lock().unwrap().render_region(
                                                 region.clone(),
                                                 self.project.palette.clone(),
                                             );

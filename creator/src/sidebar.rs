@@ -1,6 +1,6 @@
 use crate::editor::{
-    CODEEDITOR, MODELFXEDITOR, REGIONFXEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR,
-    VOXELTHREAD,
+    CODEEDITOR, MODELFXEDITOR, PRERENDERTHREAD, REGIONFXEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER,
+    TILEMAPEDITOR,
 };
 use crate::prelude::*;
 
@@ -1088,10 +1088,10 @@ impl Sidebar {
                         let palette = project.palette.clone();
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.grid_size = v;
-                            VOXELTHREAD
+                            PRERENDERTHREAD
                                 .lock()
                                 .unwrap()
-                                .voxelize_region_models(region.clone(), palette);
+                                .render_region(region.clone(), palette);
                             server.update_region(region);
 
                             if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {
