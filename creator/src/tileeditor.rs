@@ -372,6 +372,8 @@ impl TileEditor {
                             region.camera_type = CameraType::TiltedIso;
                         }
                         server.update_region(region);
+                        ctx.ui
+                            .send(TheEvent::Custom(TheId::named("Prerender"), TheValue::Empty));
                     }
                 } else if item_id.name == "Create Area" {
                     open_text_dialog(

@@ -1,6 +1,5 @@
 use crate::prelude::*;
 use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use theframework::prelude::*;
 
@@ -93,27 +92,27 @@ impl PreRenderThread {
                                 as i32;
                             let h = (region.height as f32 * region.grid_size as f32 * region.zoom)
                                 as i32;
-                            let mut buffer = TheRGBABuffer::new(TheDim::sized(w, h));
-                            let mut tree = RTree::new();
-                            let p = Arc::new(Mutex::new(&mut tree));
+
+                            let buffer = TheRGBABuffer::new(TheDim::sized(w, h));
+                            let tree = RTree::new();
 
                             renderer.set_region(&region);
                             renderer.position =
                                 vec3f(region.width as f32 / 2.0, 0.0, region.height as f32 / 2.0);
-                            renderer.prerender(
-                                &mut buffer,
-                                p,
-                                &region,
-                                &mut draw_settings,
-                                &palette,
-                            );
-                            buffer.to_clipboard();
 
-                            let prerendered = PreRendered {
+                            let mut prerendered = PreRendered {
                                 albedo: buffer,
                                 color: FxHashMap::default(),
                                 tree,
                             };
+
+                            renderer.prerender(
+                                &mut prerendered,
+                                &region,
+                                &mut draw_settings,
+                                &palette,
+                            );
+                            //buffer.to_clipboard();
 
                             result_tx
                                 .send(PreRenderResult::RenderedRegion(region.id, prerendered))

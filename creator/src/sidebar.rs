@@ -1,6 +1,5 @@
 use crate::editor::{
-    CODEEDITOR, MODELFXEDITOR, PRERENDERTHREAD, REGIONFXEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER,
-    TILEMAPEDITOR,
+    CODEEDITOR, MODELFXEDITOR, REGIONFXEDITOR, RENDERER, SIDEBARMODE, TILEDRAWER, TILEMAPEDITOR,
 };
 use crate::prelude::*;
 
@@ -1085,13 +1084,11 @@ impl Sidebar {
                     }
                 } else if id.name == "Region Grid Edit" {
                     if let Some(v) = value.to_i32() {
-                        let palette = project.palette.clone();
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             region.grid_size = v;
-                            PRERENDERTHREAD
-                                .lock()
-                                .unwrap()
-                                .render_region(region.clone(), palette);
+
+                            ctx.ui
+                                .send(TheEvent::Custom(TheId::named("Prerender"), TheValue::Empty));
                             server.update_region(region);
 
                             if let Some(rgba_layout) = ui.get_rgba_layout("Region Editor") {

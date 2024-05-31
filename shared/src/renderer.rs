@@ -26,19 +26,19 @@ impl Renderer {
     #[allow(clippy::too_many_arguments)]
     pub fn prerender(
         &mut self,
-        buffer: &mut TheRGBABuffer,
-        dest_pixels: Arc<Mutex<&mut RTree<PreRenderedData>>>,
+        prerendered: &mut PreRendered,
+        //buffer: &mut TheRGBABuffer,
+        //dest_pixels: Arc<Mutex<&mut RTree<PreRenderedData>>>,
         region: &Region,
         settings: &mut RegionDrawSettings,
         palette: &ThePalette,
     ) {
         let _start = self.get_time();
 
-        let width = buffer.dim().width as usize;
-        let height = buffer.dim().height as usize;
+        let width = prerendered.albedo.dim().width as usize;
+        let height = prerendered.albedo.dim().height as usize;
 
         //let stride = buffer.stride();
-        let pixels = buffer.pixels_mut();
         //let height = dim.height;
 
         let width_f = width as f32;
@@ -102,15 +102,27 @@ impl Renderer {
         let prerender_camera = Camera::prerender(ro, rd, vec2f(width_f, height_f), fov);
         let camera = Camera::new(ro, rd, fov);
 
-        pixels
-            .par_rchunks_exact_mut(width * 4)
-            .enumerate()
-            .for_each(|(j, line)| {
-                for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
-                    let i = j * width + i;
+        let mut tiles = RenderTile::create_tiles(width, height, 80, 80);
 
-                    let xx = (i % width) as f32;
-                    let yy = (i / width) as f32;
+        let prerendered_mutex = Arc::new(Mutex::new(prerendered));
+
+        let _start = self.get_time();
+
+        // Temporary array to store the rtree values, we bulk_load the content at the end
+        let dest_tree = vec![];
+        let dest_tree_mutex = Arc::new(Mutex::new(dest_tree));
+
+        tiles.par_iter_mut().for_each(|tile| {
+            let mut tree = vec![];
+            let mut buffer =
+                TheRGBABuffer::new(TheDim::sized(tile.width as i32, tile.height as i32));
+
+            for h in 0..tile.height {
+                for w in 0..tile.width {
+                    let x = tile.x + w;
+                    let y = tile.y + h;
+                    let xx = x as f32;
+                    let yy = y as f32;
 
                     let mut ray = if camera_type == CameraType::TiltedIso {
                         camera.create_tilted_isometric_ray_prerendered(
@@ -130,44 +142,24 @@ impl Renderer {
                         //     &prerender_camera,
                         // )
                         camera.create_ortho_ray2(
-                            vec2f(xx / width_f, yy / height_f),
+                            vec2f(xx / width_f, (height_f - yy) / height_f),
                             vec2f(width_f, height_f),
                             vec2f(region.width as f32, region.height as f32),
                             vec2f(1.0, 1.0),
                         )
                     };
 
-                    // if ray.o.x > 31.9 && ray.o.x < 32.1 && ray.o.z > 32.9 && ray.o.z < 33.1 {
-                    //     println!("{:?} {} {}", ray, xx, height_f - yy);
-                    // }
+                    let plane_normal = vec3f(0.0, 1.0, 0.0);
+                    let denom = dot(plane_normal, ray.d);
 
-                    // In top down view, intersect ray with plane at 1.1 y
-                    // to speed up the ray / voxel casting
-                    if camera_type != CameraType::FirstPerson {
-                        let plane_normal = vec3f(0.0, 1.0, 0.0);
-                        let denom = dot(plane_normal, ray.d);
-
-                        if denom.abs() > 0.0001 {
-                            let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
-                            if t >= 0.0 {
-                                ray.o += ray.d * t;
-                            }
+                    if denom.abs() > 0.0001 {
+                        let t = dot(vec3f(0.0, 1.1, 0.0) - ray.o, plane_normal) / denom;
+                        if t >= 0.0 {
+                            ray.o += ray.d * t;
                         }
                     }
 
-                    // pixel.copy_from_slice(&self.prerender_pixel(
-                    //     ray,
-                    //     region,
-                    //     &update,
-                    //     settings,
-                    //     camera_type,
-                    //     &level,
-                    //     &saturation,
-                    //     max_render_distance,
-                    //     palette,
-                    // ));
-
-                    let ppixel = self.prerender_pixel(
+                    let pixel = self.prerender_pixel(
                         ray,
                         region,
                         &update,
@@ -179,7 +171,7 @@ impl Renderer {
                         palette,
                     );
 
-                    pixel.copy_from_slice(&ppixel);
+                    buffer.set_pixel(w as i32, h as i32, &pixel);
 
                     let plane_normal = vec3f(0.0, 1.0, 0.0);
                     let denom = dot(plane_normal, ray.d);
@@ -188,14 +180,32 @@ impl Renderer {
                         let t = dot(vec3f(0.0, 0.0, 0.0) - ray.o, plane_normal) / denom;
                         if t >= 0.0 {
                             let p = ray.o + ray.d * t;
-                            // dest_pixels.lock().unwrap().insert(PreRenderedData {
-                            //     location: (p.x, p.z),
-                            //     pixel_location: (xx as i32, (height_f - yy) as i32),
-                            // });
+                            tree.push(PreRenderedData {
+                                location: (p.x, p.z),
+                                pixel_location: (xx as i32, (yy) as i32),
+                            });
                         }
                     }
                 }
-            });
+            }
+
+            let mut prerendered = prerendered_mutex.lock().unwrap();
+            prerendered
+                .albedo
+                .copy_into(tile.x as i32, tile.y as i32, &buffer);
+
+            let mut dest_tree_mutex = dest_tree_mutex.lock().unwrap();
+            dest_tree_mutex.append(&mut tree);
+        });
+
+        let mut prerendered = prerendered_mutex.lock().unwrap();
+
+        prerendered.tree = RTree::bulk_load(
+            Arc::try_unwrap(dest_tree_mutex)
+                .unwrap()
+                .into_inner()
+                .unwrap(),
+        );
 
         let _stop = self.get_time();
         //println!("render time {:?}", _stop - _start);
@@ -783,7 +793,7 @@ impl Renderer {
             });
 
         let _stop = self.get_time();
-        println!("render time {:?}", _stop - _start);
+        //println!("render time {:?}", _stop - _start);
     }
 
     #[inline(always)]

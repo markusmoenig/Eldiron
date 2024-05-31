@@ -256,6 +256,46 @@ impl Camera {
         )
     }
 
+    pub fn create_tilted_isometric_ray2(
+        &self,
+        uv: Vec2f,
+        screen: Vec2f,
+        tiles: Vec2f,
+        offset: Vec2f,
+        alignment: i32,
+    ) -> Ray {
+        let pixel_size = Vec2f::new(1.0 / (screen.x * tiles.x), 1.0 / (screen.y * tiles.y));
+
+        let cam_origin = self.origin;
+        let cam_look_at = self.center;
+
+        let half_width = tiles.x;
+        let half_height = tiles.y;
+
+        let up_vector = Vec3f::new(0.0, 1.0, 0.0);
+
+        let w = normalize(cam_origin - cam_look_at);
+        let u = cross(up_vector, w);
+        let v = cross(w, u);
+
+        let horizontal = u * half_width * 2.0;
+        let vertical = v * half_height * 2.0;
+
+        let mut out_origin = cam_origin;
+        out_origin += horizontal * (pixel_size.x * offset.x + uv.x - 0.5);
+        out_origin += vertical * (pixel_size.y * offset.y + uv.y - 0.5);
+        out_origin.y = cam_origin.y;
+
+        Ray::new(
+            out_origin,
+            normalize(vec3f(
+                if alignment == 0 { -0.35 } else { 0.35 },
+                -1.0,
+                -0.35,
+            )),
+        )
+    }
+
     pub fn create_tilted_isometric_ray_prerendered(
         &self,
         uv: Vec2f,

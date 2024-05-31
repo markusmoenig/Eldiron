@@ -603,6 +603,18 @@ impl TheTrait for Editor {
                             if let Some(menu) = ui.get_menu("Menu") {
                                 menu.replace_context_menu(codemenu);
                             }
+                        } else if id.name == "Prerender" {
+                            if let Some(region) =
+                                self.project.get_region_mut(&self.server_ctx.curr_region)
+                            {
+                                region.prerendered = PreRendered::default();
+                                self.server
+                                    .set_prerendered(region.id, PreRendered::default());
+                                PRERENDERTHREAD
+                                    .lock()
+                                    .unwrap()
+                                    .render_region(region.clone(), self.project.palette.clone());
+                            }
                         }
                     }
                     TheEvent::ContextMenuSelected(_, action) => {

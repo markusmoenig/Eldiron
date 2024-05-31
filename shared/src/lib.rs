@@ -70,7 +70,7 @@ pub mod prelude {
     // pub use crate::voxelthread::*;
     pub use crate::widget::*;
     pub use crate::ServerMessage;
-    pub use crate::{do_intersect, Hit, HitFace, Ray, Voxel, AABB2D};
+    pub use crate::{do_intersect, Hit, HitFace, Ray, RenderTile, Voxel, AABB2D};
     pub use rand::prelude::*;
     pub use rstar::*;
 }
@@ -299,4 +299,52 @@ pub fn do_intersect(p1: (i32, i32), q1: (i32, i32), p2: (i32, i32), q2: (i32, i3
 
     // Doesn't fall in any of the above cases
     false
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct RenderTile {
+    pub x: usize,
+    pub y: usize,
+    pub width: usize,
+    pub height: usize,
+}
+
+impl RenderTile {
+    pub fn new(x: usize, y: usize, width: usize, height: usize) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    pub fn create_tiles(
+        image_width: usize,
+        image_height: usize,
+        tile_width: usize,
+        tile_height: usize,
+    ) -> Vec<Self> {
+        // TODO: Generate the tiles in a nice spiral pattern
+
+        let mut tiles = Vec::new();
+        let mut x = 0;
+        let mut y = 0;
+        while x < image_width && y < image_height {
+            let tile = Self {
+                x,
+                y,
+                width: tile_width,
+                height: tile_height,
+            };
+            tiles.push(tile);
+            x += tile_width;
+            if x >= image_width {
+                x = 0;
+                y += tile_height;
+            }
+        }
+
+        tiles
+    }
 }
